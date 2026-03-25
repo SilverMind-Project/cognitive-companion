@@ -1,0 +1,196 @@
+# ConfigMap for YAML configuration files mounted into /app/config
+# Generated from the config/ directory.
+#
+# To regenerate from source files:
+#   kubectl create configmap cc-config-files \
+#     --from-file=settings.yaml=config/settings.yaml \
+#     --from-file=auth.yaml=config/auth.yaml \
+#     --from-file=notifications.yaml=config/notifications.yaml \
+#     --dry-run=client -o yaml > kubernetes/base/configmap-files.yaml
+#
+# Note: The YAML files use ${ENV_VAR} interpolation — actual values
+# come from the cc-secrets Secret and cc-config ConfigMap at runtime.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cc-config-files
+  labels:
+    app: ai-api-gateway
+data:
+  settings.yaml: |
+    database:
+      url: "sqlite:///data/cognitive_companion.db"
+
+    llm:
+      vision:
+        provider: "vllm_vision"
+        url: "${VISION_MODEL_URL}"
+        model: "nvidia/Cosmos-Reason2-8B"
+        timeout: 120
+
+      logic:
+        provider: "ollama"
+        url: "${LOGIC_MODEL_URL}"
+        model: "gemma3:4b"
+        timeout: 60
+
+      translation:
+        provider: "vllm_translation"
+        url: "${TRANSLATE_MODEL_URL}"
+        model: "Infomaniak/TranslateGemma-12b"
+        timeout: 60
+
+      realtime:
+        provider: "gemini_live"
+        api_key: "${GEMINI_API_KEY}"
+        model: "gemini-2.5-flash-native-audio-preview"
+        keepalive_interval: 25
+        idle_timeout: 120
+
+    homeassistant:
+      url: "${HOME_ASSISTANT_URL}"
+      token: "${HOME_ASSISTANT_TOKEN}"
+      poll_interval_seconds: 30
+      bathroom_time_limit_minutes: 20
+
+    minio:
+      endpoint: "${MINIO_ENDPOINT}"
+      access_key: "${MINIO_ACCESS_KEY}"
+      secret_key: "${MINIO_SECRET_KEY}"
+      bucket: "cognitive-companion"
+      secure: false
+      presigned_expiry_hours: 24
+
+    tts:
+      url: "${TTS_API_URL}"
+      default_voice: "en-IN-NeerjaExpressiveNeural"
+      default_speed: 0.85
+
+    person_id:
+      url: "${PERSON_ID_SERVICE_URL}"
+      timeout: 30
+      enabled: true
+      min_confidence: 0.5
+      include_motion: true
+
+    event_aggregator:
+      batch_size: 5
+      window_seconds: 30
+      cooldown_seconds: 60
+      media_retention_minutes: 30
+
+    conversation:
+      history_ttl_minutes: 120
+      max_turns: 50
+
+    websocket:
+      max_connections: 10
+      audio_backend: "gemini_live"
+      lazy_connect: true
+
+    mcp:
+      enabled: true
+      tools:
+        - get_rooms
+        - get_sensors
+        - get_room_occupancy
+        - get_recent_images
+        - get_light_level
+        - get_alerts
+        - get_event_logs
+        - get_rules
+        - get_conversation_history
+        - get_person_locations
+        - get_person_sightings
+        - get_person_activities
+        - get_workflow_executions
+        - get_rule_pipeline
+        - trigger_rule
+        - get_eink_display_status
+
+  auth.yaml: |
+    api_keys:
+      - key: "${CC_ADMIN_API_KEY}"
+        name: "Admin"
+        permissions: ["admin"]
+
+      - key: "${CC_CAREGIVER_API_KEY}"
+        name: "Caregiver"
+        permissions: ["caregiver"]
+
+      - key: "${CC_MCP_API_KEY}"
+        name: "OpenClaw Agent"
+        permissions: ["mcp_readonly"]
+
+    device_keys:
+      - key: "RCAM0001"
+        name: "Kitchen reCamera"
+        device_type: "recamera"
+        sensor_id: "recamera_kitchen"
+        permissions: ["device:recamera"]
+
+      - key: "RTRM0001"
+        name: "Living Room reTerminal"
+        device_type: "reterminal"
+        sensor_id: "reterminal_living"
+        permissions: ["device:reterminal", "image:read"]
+
+    permission_map:
+      admin:
+        - "*"
+      caregiver:
+        - "GET /api/v1/*"
+        - "POST /api/v1/alerts/*/action"
+        - "GET /api/v1/conversations/*"
+        - "GET /api/v1/activities*"
+        - "GET /api/v1/workflows*"
+      mcp_readonly:
+        - "GET /api/v1/rooms*"
+        - "GET /api/v1/sensors*"
+        - "GET /api/v1/alerts*"
+        - "GET /api/v1/events*"
+        - "GET /api/v1/persons*"
+        - "GET /api/v1/workflows*"
+        - "GET /api/v1/activities*"
+        - "GET /api/v1/rules*"
+        - "GET /api/v1/occupancy*"
+        - "GET /api/v1/conversations*"
+        - "GET /api/v1/image*"
+        - "GET /api/v1/mcp*"
+        - "POST /api/v1/mcp*"
+        - "POST /api/v1/rules/*/execute"
+      "device:recamera":
+        - "POST /api/v1/device/recamera"
+      "device:reterminal":
+        - "POST /api/v1/device/reterminal"
+      "image:read":
+        - "GET /api/v1/image/active*"
+
+  notifications.yaml: |
+    telegram:
+      bot_token: "${TELEGRAM_BOT_TOKEN}"
+      targets:
+        - chat_id: "${TELEGRAM_CAREGIVER_CHAT_ID}"
+          name: "Caregiver"
+          alert_levels: [emergency, warning, info]
+        - chat_id: "${TELEGRAM_OPENCLAW_CHAT_ID}"
+          name: "OpenClaw Agent"
+          alert_levels: [emergency, warning]
+
+    eink:
+      default_targets: []
+      default_template: "alert"
+      default_expiry_minutes: 30
+
+    notification_defaults:
+      emergency:
+        channels: [websocket, telegram, eink, tts, homeassistant]
+        escalation_minutes: 5
+        repeat_count: 3
+      warning:
+        channels: [websocket, telegram, eink]
+        escalation_minutes: 10
+      info:
+        channels: [websocket]
+      reminder:
+        channels: [websocket, tts, eink]

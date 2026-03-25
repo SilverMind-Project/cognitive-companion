@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cognitive-companion-ui
+  labels:
+    app: cognitive-companion-ui
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cognitive-companion-ui
+  template:
+    metadata:
+      labels:
+        app: cognitive-companion-ui
+        version: v2
+    spec:
+      containers:
+      - name: cognitive-companion-ui
+        image: IMAGE_PLACEHOLDER
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30

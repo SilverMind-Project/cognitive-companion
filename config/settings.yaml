@@ -1,0 +1,155 @@
+# Cognitive Companion v2 – Main Settings
+# Environment variables can be interpolated with ${ENV_VAR} syntax.
+
+app:
+  name: "Cognitive Companion"
+  version: "2.0.0"
+  timezone: "America/New_York"
+  debug: false
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+cors:
+  origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+    - "https://nanai.khoofia.com"
+
+database:
+  url: "sqlite:///data/cognitive_companion.db"
+
+# LLM provider configuration
+llm:
+  vision:
+    provider: "vllm_vision"
+    url: "${VISION_MODEL_URL}"
+    model: "nvidia/Cosmos-Reason2-8B"
+    timeout: 120
+
+  logic:
+    provider: "ollama"
+    url: "${LOGIC_MODEL_URL}"
+    model: "gemma3:4b"
+    timeout: 60
+
+  translation:
+    provider: "vllm_translation"
+    url: "${TRANSLATE_MODEL_URL}"
+    model: "Infomaniak/TranslateGemma-12b"
+    timeout: 60
+
+  realtime:
+    provider: "gemini_live"
+    api_key: "${GEMINI_API_KEY}"
+    model: "gemini-2.5-flash-native-audio-preview"
+    keepalive_interval: 25
+    idle_timeout: 120
+    system_instruction: >
+      The user is a senior citizen living in Knoxville, Tennessee. They are
+      originally from India. They may have limited mobility and may not be
+      tech-savvy. Process and respond in either simple English (Tamil accent),
+      or in simple Chennai Tamil or Tanglish (a mix of Tamil spoken in Chennai
+      mixed with English words). DO NOT use any other languages or accents.
+      Keep responses concise and easy to understand. DO NOT infer the emotional
+      state of the user. Ignore Minimal Input such as '...' or 'um' unless the
+      user explicitly says to interpret them.
+
+# TTS configuration
+tts:
+  url: "${TTS_API_URL}"
+  default_voice: "en-IN-NeerjaExpressiveNeural"
+  default_speed: 0.85
+
+# Home Assistant integration
+homeassistant:
+  url: "${HOME_ASSISTANT_URL}"
+  token: "${HOME_ASSISTANT_TOKEN}"
+  poll_interval_seconds: 30
+  bathroom_time_limit_minutes: 20
+
+# MinIO / S3-compatible object storage
+minio:
+  endpoint: "${MINIO_ENDPOINT}"
+  access_key: "${MINIO_ACCESS_KEY}"
+  secret_key: "${MINIO_SECRET_KEY}"
+  bucket: "ai-media"
+  secure: false
+  presigned_expiry_hours: 24
+
+# Event aggregation
+event_aggregator:
+  batch_size: 5
+  window_seconds: 30
+  cooldown_seconds: 60
+  media_retention_minutes: 30
+
+# Conversation history
+conversation:
+  history_ttl_minutes: 120
+  max_turns: 50
+
+# WebSocket
+websocket:
+  max_connections: 10
+  audio_backend: "gemini_live"
+  lazy_connect: true
+
+# MCP server
+mcp:
+  enabled: true
+  tools:
+    - "get_rooms"
+    - "get_sensors"
+    - "get_room_occupancy"
+    - "get_recent_images"
+    - "get_light_level"
+    - "get_alerts"
+    - "get_event_logs"
+    - "get_rules"
+    - "get_conversation_history"
+    - "get_person_locations"
+    - "get_person_sightings"
+    - "get_person_activities"
+    - "get_workflow_executions"
+    - "get_rule_pipeline"
+    - "trigger_rule"
+    - "get_eink_display_status"
+
+# Person Identification Service
+person_id:
+  url: "${PERSON_ID_SERVICE_URL}"
+  timeout: 30
+  enabled: true
+  min_confidence: 0.5
+  include_motion: true
+
+# Person Location Tracking
+person_tracking:
+  enabled: true
+  location_stale_minutes: 30
+  ha_propagation: true
+
+# RAG / contextual lookup
+rag:
+  enabled: false
+  index_path: "data/rag_index"
+  threshold: 0.7
+  max_results: 5
+
+# Image rendering for eInk display
+image:
+  template_dir: "backend/assets/images/templates"
+  output_dir: "backend/assets/images"
+  font_dir: "backend/assets/fonts"
+  default_font: "NotoSansTamil-Regular.ttf"
+  default_template: "default"
+  alert_template: "alert"
+  default_expiry_minutes: 15
+  display_width: 800
+  display_height: 480
+
+# Logging
+logging:
+  level: "INFO"

@@ -1,0 +1,92 @@
+"""Rule definitions with composable pipeline steps."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from backend.core.database import Base
+
+
+class Rule(Base):
+    __tablename__ = "rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(256), unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Trigger configuration
+    trigger_type: Mapped[str] = mapped_column(
+        String(32), default="sensor_event"
+    )  # sensor_event, cron, manual
+    schedule_cron: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    primary_sensor_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )  # for periodic rules that need to capture from a specific sensor
+
+    # Rate limiting
+    cool_off_minutes: Mapped[int] = mapped_column(Integer, default=5)
+    max_daily_triggers: Mapped[int] = mapped_column(Integer, default=3)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), nullable=True
+    )
+
+    # Relationships
+    steps: Mapped[list["PipelineStep"]] = relationship(  # noqa: F821
+        back_populates="rule",
+        cascade="all, delete-orphan",
+        order_by="PipelineStep.order",
+    )
+    contexts: Mapped[list[RuleContext]] = relationship(
+        back_populates="rule", cascade="all, delete-orphan"
+    )
+    dependencies: Mapped[list[RuleDependency]] = relationship(
+        back_populates="dependent_rule",
+        foreign_keys="RuleDependency.dependent_rule_id",
+        cascade="all, delete-orphan",
+    )
+
+
+class RuleContext(Base):
+    """Context filter for a rule. Multiple contexts of the same type are ORed;
+    different types are ANDed.
+
+    Supported context_types:
+      - time_range: {"start_time": "HH:MM", "end_time": "HH:MM"}
+      - room: {"room_id": 1} or {"room_name": "Kitchen"}
+      - day_of_week: {"days": [0,1,2,3,4]}  (Mon=0..Sun=6)
+      - person_presence: {"person_id": "grandma", "room_name": "Kitchen"}
+      - person_activity: {"person_id": "grandma", "activity_type": "eating",
+                          "within_minutes": 30}
+    """
+
+    __tablename__ = "rule_contexts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"))
+    context_type: Mapped[str] = mapped_column(String(32))
+    config_json: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    rule: Mapped[Rule] = relationship(back_populates="contexts")
+
+
+class RuleDependency(Base):
+    """Parent rule must have succeeded within lookback_minutes for this rule to fire."""
+
+    __tablename__ = "rule_dependencies"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dependent_rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"))
+    parent_rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"))
+    lookback_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    require_success: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    dependent_rule: Mapped[Rule] = relationship(foreign_keys=[dependent_rule_id])
+    parent_rule: Mapped[Rule] = relationship(foreign_keys=[parent_rule_id])

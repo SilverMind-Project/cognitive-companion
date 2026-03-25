@@ -1,0 +1,26 @@
+{
+  "name": "Cognitive Companion",
+  "short_name": "Companion",
+  "description": "Always here to help and listen.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#0f0e16",
+  "theme_color": "#6366f1",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

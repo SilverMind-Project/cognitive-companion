@@ -1,0 +1,51 @@
+# Cognitive Companion – Docker Compose
+#
+# Usage:
+#   cp .env.example .env   # fill in your values
+#   docker compose up -d
+#
+# External services (assumed running separately):
+#   - Person Identification Service (GPU) — see ../person-identification-service/
+#   - vLLM (Cosmos + TranslateGemma) — GPU inference servers
+#   - Ollama — logic reasoning LLM
+#   - Home Assistant — smart home integration
+#   - MinIO — S3-compatible object storage
+#   - TTS service — text-to-speech
+
+services:
+  # ─── Backend API ───────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: cc-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/app/data
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ─── Frontend (Vue 3 + Vuetify) ───────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cc-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend-data:
+    driver: local

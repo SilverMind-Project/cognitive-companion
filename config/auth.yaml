@@ -1,0 +1,71 @@
+# Cognitive Companion v2 – Authentication & Authorization
+#
+# API keys for human users, services, and AI agents.
+# Device keys are 8-char uppercase alphanumeric (A-Z, 0-9) used by
+# hardware devices that cannot set HTTP headers.
+
+api_keys:
+  - key: "${CC_ADMIN_API_KEY}"
+    name: "Admin"
+    permissions:
+      - "admin"
+
+  - key: "${CC_CAREGIVER_API_KEY}"
+    name: "Caregiver"
+    permissions:
+      - "caregiver"
+
+  - key: "${CC_MCP_API_KEY}"
+    name: "OpenClaw Agent"
+    permissions:
+      - "mcp_readonly"
+
+device_keys:
+  - key: "RCAM0001"
+    name: "Kitchen reCamera"
+    device_type: "recamera"
+    sensor_id: "recamera_kitchen"
+    permissions:
+      - "device:recamera"
+
+  - key: "RTRM0001"
+    name: "Living Room reTerminal"
+    device_type: "reterminal"
+    sensor_id: "reterminal_living"
+    permissions:
+      - "device:reterminal"
+      - "image:read"
+
+# Permission map – abstract names to endpoint patterns (fnmatch syntax).
+permission_map:
+  admin:
+    - "*"
+
+  caregiver:
+    - "GET /api/v1/*"
+    - "POST /api/v1/alerts/*/action"
+    - "GET /api/v1/conversations/*"
+    - "GET /api/v1/activities*"
+    - "GET /api/v1/workflows*"
+
+  mcp_readonly:
+    - "GET /api/v1/rooms*"
+    - "GET /api/v1/sensors*"
+    - "GET /api/v1/alerts*"
+    - "GET /api/v1/events*"
+    - "GET /api/v1/rules*"
+    - "GET /api/v1/occupancy*"
+    - "GET /api/v1/persons*"
+    - "GET /api/v1/activities*"
+    - "GET /api/v1/workflows*"
+    - "GET /api/v1/mcp/*"
+    - "GET /api/v1/image/*"
+
+  "device:recamera":
+    - "POST /api/v1/device/recamera"
+
+  "device:reterminal":
+    - "POST /api/v1/device/reterminal"
+
+  "image:read":
+    - "GET /api/v1/image/*"

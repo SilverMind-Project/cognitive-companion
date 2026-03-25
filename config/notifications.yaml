@@ -1,0 +1,50 @@
+# Cognitive Companion v2 – Notification Configuration
+
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  targets:
+    - chat_id: "${TELEGRAM_CAREGIVER_CHAT_ID}"
+      name: "Caregiver"
+      alert_levels:
+        - "emergency"
+        - "warning"
+        - "info"
+
+    - chat_id: "${TELEGRAM_OPENCLAW_CHAT_ID}"
+      name: "OpenClaw Agent"
+      alert_levels:
+        - "emergency"
+        - "warning"
+
+eink:
+  default_targets: []  # empty = all eink sensors; or list sensor_ids
+  default_template: "alert"
+  default_expiry_minutes: 30
+
+notification_defaults:
+  emergency:
+    channels:
+      - "websocket"
+      - "telegram"
+      - "eink"
+      - "tts"
+      - "homeassistant"
+    escalation_minutes: 5
+    repeat_count: 3
+
+  warning:
+    channels:
+      - "websocket"
+      - "telegram"
+      - "eink"
+    escalation_minutes: 10
+
+  info:
+    channels:
+      - "websocket"
+
+  reminder:
+    channels:
+      - "websocket"
+      - "tts"
+      - "eink"

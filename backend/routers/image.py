@@ -1,0 +1,341 @@
+"""
+eInk display image endpoints — per-device serving, template CRUD, rendering.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from io import BytesIO
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
+from fastapi.responses import FileResponse
+from PIL import Image
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from backend.core.auth import AuthContext, require_permission
+from backend.core.database import get_db
+from backend.core.exceptions import NotFoundError
+from backend.core.logging import get_logger
+from backend.models.image_state import ActiveImageState
+from backend.models.image_template import ImageTemplate
+from backend.schemas.image import (
+    ActiveImageStateOut,
+    ImageTemplateOut,
+    ImageTemplateUpdate,
+    RenderPayload,
+    RenderPreviewPayload,
+)
+
+logger = get_logger(__name__)
+
+router = APIRouter(prefix="/image", tags=["image"])
+
+# Paths
+_ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
+_IMAGES_DIR = _ASSETS_DIR / "images"
+_TEMPLATES_DIR = _IMAGES_DIR / "templates"
+_FONTS_DIR = _ASSETS_DIR / "fonts"
+_DEFAULT_TEMPLATE = _TEMPLATES_DIR / "default.png"
+
+
+# ---------------------------------------------------------------------------
+# Active image serving (per-device)
+# ---------------------------------------------------------------------------
+
+
+def _serve_image_for_sensor(
+    sensor_id: str, db: Session, request: Request
+) -> FileResponse:
+    """Serve the active image for a sensor, falling back to default if expired."""
+    eink_renderer = request.app.state.eink_renderer
+
+    state = db.execute(
+        select(ActiveImageState).where(ActiveImageState.sensor_id == sensor_id)
+    ).scalar_one_or_none()
+
+    now = datetime.now(timezone.utc)
+    if state and state.expires_at and state.expires_at < now:
+        # Expired — serve default
+        if _DEFAULT_TEMPLATE.exists():
+            return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
+
+    active_path = eink_renderer.get_active_image_path(sensor_id)
+    if active_path.exists():
+        return FileResponse(active_path, media_type="image/png")
+
+    # Fallback to default template
+    if _DEFAULT_TEMPLATE.exists():
+        return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
+
+    raise NotFoundError("Image", f"active_{sensor_id}.png")
+
+
+@router.get("/active")
+def serve_active_image(
+    request: Request,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("image:read")),
+):
+    """Serve the active image for the authenticated device."""
+    sensor_id = auth.sensor_id
+    if not sensor_id:
+        # Non-device caller without sensor_id — serve default
+        if _DEFAULT_TEMPLATE.exists():
+            return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
+        raise NotFoundError("Image", "no sensor_id in auth context")
+
+    return _serve_image_for_sensor(sensor_id, db, request)
+
+
+@router.get("/active/{sensor_id}")
+def serve_active_image_by_id(
+    sensor_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("image:read")),
+):
+    """Serve the active image for a specific sensor (admin/preview use)."""
+    return _serve_image_for_sensor(sensor_id, db, request)
+
+
+# ---------------------------------------------------------------------------
+# Render / Reset / Preview
+# ---------------------------------------------------------------------------
+
+
+@router.post("/render")
+async def render_image(
+    payload: RenderPayload,
+    request: Request,
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Render text onto a template and set as active image for target device(s)."""
+    eink_renderer = request.app.state.eink_renderer
+    rendered_ids = await eink_renderer.render(
+        text=payload.text,
+        template=payload.template,
+        template_id=payload.template_id,
+        sensor_ids=payload.sensor_ids,
+        expires_in_minutes=payload.expires_in_minutes,
+    )
+    return {"status": "rendered", "sensor_ids": rendered_ids}
+
+
+@router.post("/reset")
+async def reset_image(
+    request: Request,
+    sensor_ids: list[str] | None = None,
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Reset active images to default template for given sensors (or all)."""
+    eink_renderer = request.app.state.eink_renderer
+    reset_ids = await eink_renderer.reset(sensor_ids=sensor_ids)
+    return {"status": "reset", "sensor_ids": reset_ids}
+
+
+@router.post("/preview")
+def preview_render(
+    payload: RenderPreviewPayload,
+    request: Request,
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Preview a rendered image without saving. Returns PNG."""
+    eink_renderer = request.app.state.eink_renderer
+    png_bytes = eink_renderer.render_preview(
+        text=payload.text,
+        template_id=payload.template_id,
+        template_name=payload.template_name,
+        region_name=payload.region_name,
+    )
+    return Response(content=png_bytes, media_type="image/png")
+
+
+# ---------------------------------------------------------------------------
+# Active image states (admin)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/states", response_model=list[ActiveImageStateOut])
+def list_image_states(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """List all active image states across devices."""
+    return db.execute(select(ActiveImageState)).scalars().all()
+
+
+# ---------------------------------------------------------------------------
+# Template CRUD
+# ---------------------------------------------------------------------------
+
+
+@router.get("/templates", response_model=list[ImageTemplateOut])
+def list_templates(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("image:read")),
+):
+    """List all image templates."""
+    return (
+        db.execute(select(ImageTemplate).order_by(ImageTemplate.name))
+        .scalars()
+        .all()
+    )
+
+
+@router.post("/templates", response_model=ImageTemplateOut, status_code=201)
+async def create_template(
+    name: str = Form(...),
+    description: str | None = Form(None),
+    font_filename: str = Form("NotoSansTamil-Regular.ttf"),
+    regions_json: str = Form("[]"),
+    is_default: bool = Form(False),
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Upload a new image template with bounding box regions.
+
+    Image is resized to 800x480 and converted to PNG.
+    """
+    # Read and process uploaded image
+    content = await image.read()
+    img = Image.open(BytesIO(content))
+    img = img.resize((800, 480), Image.LANCZOS)
+    img = img.convert("RGB")
+
+    # Save to templates directory
+    safe_name = "".join(c for c in name if c.isalnum() or c in "-_").lower()
+    filename = f"{safe_name}.png"
+    _TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+    img.save(_TEMPLATES_DIR / filename, "PNG")
+
+    # Parse regions
+    regions = json.loads(regions_json)
+
+    tmpl = ImageTemplate(
+        name=name,
+        description=description,
+        width=800,
+        height=480,
+        image_filename=filename,
+        font_filename=font_filename,
+        regions_json=regions,
+        is_default=is_default,
+    )
+    db.add(tmpl)
+    db.commit()
+    db.refresh(tmpl)
+    return tmpl
+
+
+@router.put("/templates/{template_id}", response_model=ImageTemplateOut)
+def update_template(
+    template_id: int,
+    payload: ImageTemplateUpdate,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Update template metadata/regions (not the image file)."""
+    tmpl = db.execute(
+        select(ImageTemplate).where(ImageTemplate.id == template_id)
+    ).scalar_one_or_none()
+    if not tmpl:
+        raise NotFoundError("ImageTemplate", str(template_id))
+
+    updates = payload.model_dump(exclude_unset=True)
+    # Convert TextRegion objects to dicts for JSON storage
+    if "regions_json" in updates and updates["regions_json"] is not None:
+        updates["regions_json"] = [
+            r.model_dump() if hasattr(r, "model_dump") else r
+            for r in updates["regions_json"]
+        ]
+    for key, value in updates.items():
+        setattr(tmpl, key, value)
+
+    db.commit()
+    db.refresh(tmpl)
+    return tmpl
+
+
+@router.put("/templates/{template_id}/image")
+async def update_template_image(
+    template_id: int,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Replace the template background image. Resizes to template dimensions."""
+    tmpl = db.execute(
+        select(ImageTemplate).where(ImageTemplate.id == template_id)
+    ).scalar_one_or_none()
+    if not tmpl:
+        raise NotFoundError("ImageTemplate", str(template_id))
+
+    content = await image.read()
+    img = Image.open(BytesIO(content))
+    img = img.resize((tmpl.width, tmpl.height), Image.LANCZOS)
+    img = img.convert("RGB")
+    img.save(_TEMPLATES_DIR / tmpl.image_filename, "PNG")
+
+    return {"status": "updated", "template_id": template_id}
+
+
+@router.delete("/templates/{template_id}", status_code=204)
+def delete_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Delete a template and its image file."""
+    tmpl = db.execute(
+        select(ImageTemplate).where(ImageTemplate.id == template_id)
+    ).scalar_one_or_none()
+    if not tmpl:
+        raise NotFoundError("ImageTemplate", str(template_id))
+
+    # Remove image file
+    img_path = _TEMPLATES_DIR / tmpl.image_filename
+    if img_path.exists():
+        img_path.unlink()
+
+    db.delete(tmpl)
+    db.commit()
+
+
+@router.get("/templates/{template_id}/preview")
+def preview_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("image:read")),
+):
+    """Serve the raw template image (no text rendered)."""
+    tmpl = db.execute(
+        select(ImageTemplate).where(ImageTemplate.id == template_id)
+    ).scalar_one_or_none()
+    if not tmpl:
+        raise NotFoundError("ImageTemplate", str(template_id))
+
+    img_path = _TEMPLATES_DIR / tmpl.image_filename
+    if not img_path.exists():
+        raise NotFoundError("Image", tmpl.image_filename)
+
+    return FileResponse(img_path, media_type="image/png")
+
+
+# ---------------------------------------------------------------------------
+# Fonts
+# ---------------------------------------------------------------------------
+
+
+@router.get("/fonts")
+def list_fonts(
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """List available font files."""
+    if not _FONTS_DIR.exists():
+        return {"fonts": []}
+    fonts = [f.name for f in _FONTS_DIR.iterdir() if f.suffix in (".ttf", ".otf")]
+    return {"fonts": sorted(fonts)}

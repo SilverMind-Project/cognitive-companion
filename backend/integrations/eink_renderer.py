@@ -1,0 +1,380 @@
+"""Internal integration for rendering text onto e-ink display templates.
+
+Unlike external integration clients, this one operates locally via PIL.
+Called by NotificationDispatcher (for alert-triggered rendering) and
+directly by the image router or pipeline executor.
+"""
+
+from __future__ import annotations
+
+import shutil
+import textwrap
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
+from typing import Callable
+
+from PIL import Image, ImageDraw, ImageFont
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from backend.core.config import settings
+from backend.core.logging import get_logger
+from backend.models.image_state import ActiveImageState
+from backend.models.image_template import ImageTemplate
+from backend.models.sensor import Sensor
+
+logger = get_logger(__name__)
+
+
+class EInkRenderer:
+    """PIL-based renderer for e-ink display images."""
+
+    def __init__(self, db_session_factory: Callable[[], Session]) -> None:
+        self._db_factory = db_session_factory
+
+        _backend_dir = Path(__file__).resolve().parents[1]
+
+        # Read paths from settings.yaml, fall back to defaults
+        template_dir = settings.get("image.template_dir")
+        output_dir = settings.get("image.output_dir")
+        font_dir = settings.get("image.font_dir")
+
+        self._templates_dir = (
+            Path(template_dir) if template_dir else _backend_dir / "assets" / "images" / "templates"
+        )
+        self._images_dir = (
+            Path(output_dir) if output_dir else _backend_dir / "assets" / "images"
+        )
+        self._fonts_dir = (
+            Path(font_dir) if font_dir else _backend_dir / "assets" / "fonts"
+        )
+        self._default_font = settings.get("image.default_font", "NotoSansTamil-Regular.ttf")
+        self._default_template = settings.get("image.default_template", "default")
+        self._default_expiry = settings.get("image.default_expiry_minutes", 15)
+        self._display_width = settings.get("image.display_width", 800)
+        self._display_height = settings.get("image.display_height", 480)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    async def render(
+        self,
+        text: str,
+        template: str | None = "alert",
+        template_id: int | None = None,
+        sensor_ids: list[str] | None = None,
+        expires_in_minutes: int = 30,
+        region_name: str | None = None,
+    ) -> list[str]:
+        """Render text onto a template and save as active image for target devices.
+
+        Returns list of sensor_ids that were rendered to.
+        """
+        db = self._db_factory()
+        try:
+            template_path, regions, font_path = self._resolve_template(
+                template, template_id, db
+            )
+            resolved_template_id = template_id
+            targets = self._resolve_sensor_ids(sensor_ids, db)
+
+            if not targets:
+                logger.warning("eink_render_no_targets")
+                return []
+
+            img = self._render_image(text, template_path, regions, font_path, region_name)
+
+            self._images_dir.mkdir(parents=True, exist_ok=True)
+            for sid in targets:
+                out_path = self.get_active_image_path(sid)
+                img.save(out_path, "PNG")
+                self._upsert_image_state(
+                    sid, resolved_template_id, text, expires_in_minutes, db
+                )
+
+            db.commit()
+            logger.info(
+                "eink_rendered",
+                sensor_ids=targets,
+                template=template,
+                template_id=template_id,
+            )
+            return targets
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def render_preview(
+        self,
+        text: str,
+        template_id: int | None = None,
+        template_name: str | None = "alert",
+        region_name: str | None = None,
+    ) -> bytes:
+        """Render and return PNG bytes without saving to disk."""
+        db = self._db_factory()
+        try:
+            template_path, regions, font_path = self._resolve_template(
+                template_name, template_id, db
+            )
+            img = self._render_image(text, template_path, regions, font_path, region_name)
+            buf = BytesIO()
+            img.save(buf, "PNG")
+            return buf.getvalue()
+        finally:
+            db.close()
+
+    async def reset(self, sensor_ids: list[str] | None = None) -> list[str]:
+        """Reset active images to default template for given sensors (or all)."""
+        db = self._db_factory()
+        try:
+            targets = self._resolve_sensor_ids(sensor_ids, db)
+            default_path = self._templates_dir / f"{self._default_template}.png"
+
+            for sid in targets:
+                out_path = self.get_active_image_path(sid)
+                if default_path.exists():
+                    shutil.copy2(default_path, out_path)
+                elif out_path.exists():
+                    out_path.unlink()
+
+                state = db.execute(
+                    select(ActiveImageState).where(ActiveImageState.sensor_id == sid)
+                ).scalar_one_or_none()
+                if state:
+                    state.expires_at = None
+                    state.rendered_text = None
+                    state.template_id = None
+
+            db.commit()
+            logger.info("eink_reset", sensor_ids=targets)
+            return targets
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def get_active_image_path(self, sensor_id: str) -> Path:
+        """Return the path to the active image for a sensor."""
+        return self._images_dir / f"active_{sensor_id}.png"
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _render_image(
+        self,
+        text: str,
+        template_path: Path,
+        regions: list[dict],
+        font_path: Path,
+        region_name: str | None = None,
+    ):
+        """Core PIL rendering logic — renders text into template regions."""
+        if not template_path.exists():
+            default_path = self._templates_dir / f"{self._default_template}.png"
+            template_path = default_path if default_path.exists() else template_path
+
+        img = Image.open(template_path).copy()
+        draw = ImageDraw.Draw(img, "RGBA")
+        img_width, img_height = img.size
+
+        # If no regions defined, use a default centered bounding box
+        if not regions:
+            pad_x = int(img_width * 0.1)
+            pad_y = int(img_height * 0.15)
+            regions = [
+                {
+                    "name": "main_text",
+                    "x": pad_x,
+                    "y": pad_y,
+                    "width": img_width - 2 * pad_x,
+                    "height": img_height - 2 * pad_y,
+                    "font_size_max": 48,
+                    "font_size_min": 12,
+                    "align": "center",
+                    "bg_color": [0, 0, 0, 160],
+                    "text_color": [255, 255, 255, 255],
+                }
+            ]
+
+        # Filter to target region if specified
+        if region_name:
+            regions = [r for r in regions if r.get("name") == region_name]
+            if not regions:
+                regions = [regions[0]] if regions else []
+
+        for region in regions:
+            self._render_region(draw, text, region, font_path)
+
+        # Convert to RGB (eInk doesn't need alpha)
+        return img.convert("RGB")
+
+    def _render_region(
+        self,
+        draw,
+        text: str,
+        region: dict,
+        font_path: Path,
+    ) -> None:
+        """Render text into a single bounding-box region."""
+        bx = region.get("x", 0)
+        by = region.get("y", 0)
+        bw = region.get("width", 640)
+        bh = region.get("height", 336)
+        font_size_max = region.get("font_size_max", 48)
+        font_size_min = region.get("font_size_min", 12)
+        align = region.get("align", "center")
+        bg_color = tuple(region.get("bg_color", [0, 0, 0, 160]))
+        text_color = tuple(region.get("text_color", [255, 255, 255, 255]))
+
+        # Find the best font size to fit the bounding box
+        font_size = font_size_max
+        font = None
+        wrapped = text
+        lines = [text]
+        line_height = font_size * 1.3
+
+        while font_size >= font_size_min:
+            try:
+                font = ImageFont.truetype(str(font_path), font_size)
+            except (OSError, IOError):
+                font = ImageFont.load_default()
+                break
+
+            avg_char_width = font_size * 0.6
+            chars_per_line = max(1, int(bw / avg_char_width))
+            wrapped = textwrap.fill(text, width=chars_per_line)
+            lines = wrapped.split("\n")
+
+            line_height = font_size * 1.3
+            total_height = line_height * len(lines)
+
+            if total_height <= bh:
+                break
+            font_size -= 2
+
+        if font is None:
+            font = ImageFont.load_default()
+
+        # Re-wrap with final font size
+        avg_char_width = font_size * 0.6
+        chars_per_line = max(1, int(bw / avg_char_width))
+        wrapped = textwrap.fill(text, width=chars_per_line)
+        lines = wrapped.split("\n")
+        line_height = font_size * 1.3
+        total_height = line_height * len(lines)
+
+        # Draw semi-transparent background
+        bg_margin = 10
+        draw.rectangle(
+            [bx - bg_margin, by - bg_margin, bx + bw + bg_margin, by + bh + bg_margin],
+            fill=bg_color,
+        )
+
+        # Draw text lines
+        y_start = by + (bh - total_height) / 2
+        for i, line in enumerate(lines):
+            line_bbox = draw.textbbox((0, 0), line, font=font)
+            line_width = line_bbox[2] - line_bbox[0]
+            if align == "center":
+                x = bx + (bw - line_width) / 2
+            elif align == "right":
+                x = bx + bw - line_width
+            else:
+                x = bx
+            y = y_start + i * line_height
+            draw.text((x, y), line, fill=text_color, font=font)
+
+    def _resolve_template(
+        self,
+        template_name: str | None,
+        template_id: int | None,
+        db: Session,
+    ) -> tuple[Path, list[dict], Path]:
+        """Resolve template to (image_path, regions, font_path)."""
+        if template_id is not None:
+            tmpl = db.execute(
+                select(ImageTemplate).where(ImageTemplate.id == template_id)
+            ).scalar_one_or_none()
+            if tmpl:
+                return (
+                    self._templates_dir / tmpl.image_filename,
+                    tmpl.regions_json or [],
+                    self._fonts_dir / tmpl.font_filename,
+                )
+
+        # Filesystem fallback by name
+        name = template_name or self._default_template
+        template_path = self._templates_dir / f"{name}.png"
+
+        # Check if there's a DB template with this name (for region definitions)
+        db_tmpl = db.execute(
+            select(ImageTemplate).where(ImageTemplate.name == name)
+        ).scalar_one_or_none()
+        if db_tmpl:
+            return (
+                self._templates_dir / db_tmpl.image_filename,
+                db_tmpl.regions_json or [],
+                self._fonts_dir / db_tmpl.font_filename,
+            )
+
+        # Pure filesystem fallback — no regions, default font
+        font_path = self._fonts_dir / self._default_font
+        if not font_path.exists():
+            font_path = self._fonts_dir / "NotoSans-Regular.ttf"
+        return template_path, [], font_path
+
+    def _resolve_sensor_ids(
+        self, sensor_ids: list[str] | None, db: Session
+    ) -> list[str]:
+        """Resolve target sensor IDs. None = all enabled eink sensors."""
+        if sensor_ids:
+            return sensor_ids
+
+        # Check notification config for default targets
+        eink_cfg = settings.get("notifications.eink", {})
+        default_targets = eink_cfg.get("default_targets", []) if eink_cfg else []
+        if default_targets:
+            return default_targets
+
+        # Fall back to all eink-type sensors
+        sensors = db.execute(
+            select(Sensor.id).where(
+                Sensor.sensor_type == "eink",
+                Sensor.enabled == True,  # noqa: E712
+            )
+        ).scalars().all()
+        return list(sensors) if sensors else []
+
+    def _upsert_image_state(
+        self,
+        sensor_id: str,
+        template_id: int | None,
+        text: str,
+        expires_minutes: int,
+        db: Session,
+    ) -> None:
+        """Insert or update ActiveImageState for the given sensor_id."""
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+        state = db.execute(
+            select(ActiveImageState).where(ActiveImageState.sensor_id == sensor_id)
+        ).scalar_one_or_none()
+
+        if state:
+            state.template_id = template_id
+            state.rendered_text = text
+            state.expires_at = expires_at
+        else:
+            state = ActiveImageState(
+                sensor_id=sensor_id,
+                template_id=template_id,
+                rendered_text=text,
+                expires_at=expires_at,
+            )
+            db.add(state)

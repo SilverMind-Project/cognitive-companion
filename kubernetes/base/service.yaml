@@ -1,9 +1,12 @@
+# Backend service – ClusterIP only.
+# Exposed externally via nginx ingress at api.nanai.khoofia.com.
 apiVersion: v1
 kind: Service
 metadata:
   name: ai-api-gateway-svc
   labels:
     app: ai-api-gateway
+    version: v2
 spec:
   type: ClusterIP
   selector:

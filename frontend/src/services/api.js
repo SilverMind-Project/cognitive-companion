@@ -21,6 +21,7 @@ async function request(path, options = {}) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(body.detail || `HTTP ${resp.status}`);
   }
+  if (resp.status === 204) return null;
   return resp.json();
 }
 

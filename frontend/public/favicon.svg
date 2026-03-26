@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90D9"/>
+      <stop offset="100%" style="stop-color:#7B61FF"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7B61FF"/>
+      <stop offset="100%" style="stop-color:#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="gs" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90D9;stop-opacity:0.15"/>
+      <stop offset="100%" style="stop-color:#7B61FF;stop-opacity:0.07"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield -->
+  <path d="M32 4 L52 10 C52 10 54 32 54 32 C54 45 44 54 32 60 C20 54 10 45 10 32 C10 32 12 10 12 10 Z"
+        fill="url(#gs)" stroke="url(#g1)" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Left hemisphere -->
+  <path d="M30 17 C22 17 17 22 15 28 C13 34 14 39 16 43 C18 47 22 50 27 51 C29 51.5 30 50.5 30 49 Z"
+        fill="none" stroke="url(#g1)" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Right hemisphere -->
+  <path d="M34 17 C42 17 47 22 49 28 C51 34 50 39 48 43 C46 47 42 50 37 51 C35 51.5 34 50.5 34 49 Z"
+        fill="none" stroke="url(#g2)" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Neural nodes -->
+  <circle cx="20" cy="30" r="2.5" fill="url(#g1)" opacity="0.85"/>
+  <circle cx="25" cy="22" r="2" fill="url(#g1)" opacity="0.65"/>
+  <circle cx="19" cy="40" r="2" fill="url(#g1)" opacity="0.7"/>
+  <circle cx="44" cy="30" r="2.5" fill="url(#g2)" opacity="0.85"/>
+  <circle cx="39" cy="22" r="2" fill="url(#g2)" opacity="0.65"/>
+  <circle cx="45" cy="40" r="2" fill="url(#g2)" opacity="0.7"/>
+  <!-- Cross connections -->
+  <line x1="25" y1="22" x2="39" y2="22" stroke="url(#g1)" stroke-width="1" opacity="0.35"/>
+  <line x1="20" y1="30" x2="44" y2="30" stroke="url(#g1)" stroke-width="1" opacity="0.3"/>
+  <line x1="19" y1="40" x2="45" y2="40" stroke="url(#g2)" stroke-width="1" opacity="0.35"/>
+  <!-- Warm center -->
+  <circle cx="32" cy="30" r="4" fill="#F59E0B" opacity="0.2"/>
+  <circle cx="32" cy="30" r="2" fill="#F59E0B" opacity="0.85"/>
+</svg>

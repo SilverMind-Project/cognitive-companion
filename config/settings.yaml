@@ -56,10 +56,11 @@ llm:
       state of the user. Ignore Minimal Input such as '...' or 'um' unless the
       user explicitly says to interpret them.
 
-# TTS configuration
+# TTS configuration (tts-service on port 8200)
 tts:
-  url: "${TTS_API_URL}"
-  default_voice: "en-IN-NeerjaExpressiveNeural"
+  url: "${TTS_API_URL:http://tts-service:8200}"
+  default_model: "${TTS_MODEL:svara}"
+  default_voice: "${TTS_VOICE:speaker_0}"
   default_speed: 0.85
 
 # Home Assistant integration

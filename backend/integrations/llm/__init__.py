@@ -26,6 +26,7 @@ __all__ = [
     "RealtimeLLMProvider",
     "RealtimeSession",
     "get_llm_provider",
+    "get_provider",
 ]
 
 # Provider type string -> (module path, class name)
@@ -79,3 +80,41 @@ def get_llm_provider(provider_type: str, config: dict) -> LLMProvider:
     module = importlib.import_module(module_path)
     cls = getattr(module, class_name)
     return cls(**config)
+
+
+# Maps settings YAML provider type -> config section dotted key
+_SETTINGS_SECTION: dict[str, str] = {
+    "vllm_vision": "llm.vision",
+    "vllm_translation": "llm.translation",
+    "ollama": "llm.logic",
+}
+
+
+def get_provider(provider_type: str) -> LLMProvider:
+    """Create an :class:`LLMProvider` from a *provider_type* string,
+    automatically pulling constructor kwargs from the application settings.
+
+    This is the high-level factory used by ``backend.main`` at startup.
+    """
+    from backend.core.config import settings
+
+    section_key = _SETTINGS_SECTION.get(provider_type)
+    if section_key is None:
+        available = ", ".join(sorted(_SETTINGS_SECTION))
+        raise ValueError(
+            f"Unknown LLM provider type {provider_type!r}. "
+            f"Available: {available}"
+        )
+
+    section: dict = settings.get(section_key) or {}
+    # Build constructor kwargs: rename 'url' -> 'base_url', drop 'provider'
+    config: dict = {}
+    for key, value in section.items():
+        if key == "provider":
+            continue
+        if key == "url":
+            config["base_url"] = value
+        else:
+            config[key] = value
+
+    return get_llm_provider(provider_type, config)

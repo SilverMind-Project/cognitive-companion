@@ -36,8 +36,15 @@ const props = defineProps({
 
 defineEmits(["edit", "delete", "toggle", "dragstart", "drop"]);
 
+const STEP_LABELS = {
+  activity_detection: "Record Activity",
+  verification: "Verify Activity",
+  person_identification: "Person Identification",
+};
+
 function humanize(type) {
   if (!type) return "";
+  if (STEP_LABELS[type]) return STEP_LABELS[type];
   return type
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))

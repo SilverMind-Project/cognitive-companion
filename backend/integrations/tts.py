@@ -3,6 +3,10 @@ Text-to-Speech integration using an OpenAI-compatible TTS API.
 
 Used for generating voice alerts played on smart speakers via Home Assistant
 and for TTS audio sent through Telegram.
+
+The TTS service (tts-service/) exposes an OpenAI-compatible
+``POST /v1/audio/speech`` endpoint with multiple engine backends
+(svara, parler, melo).
 """
 
 from __future__ import annotations
@@ -27,7 +31,8 @@ class TTSClient:
         if base_url and "/v1" not in base_url:
             base_url = base_url.rstrip("/") + "/v1"
         self.base_url = base_url.rstrip("/")
-        self.default_voice = settings.get("tts.default_voice", "en-IN-NeerjaExpressiveNeural")
+        self.default_model = settings.get("tts.default_model", "svara")
+        self.default_voice = settings.get("tts.default_voice", "speaker_0")
         self.default_speed = settings.get("tts.default_speed", 0.85)
 
     @property
@@ -40,6 +45,7 @@ class TTSClient:
         voice: str | None = None,
         speed: float | None = None,
         response_format: str = "mp3",
+        language: str | None = None,
     ) -> bytes | None:
         """Generate audio from text and return raw bytes.
 
@@ -52,18 +58,21 @@ class TTSClient:
         voice = voice or self.default_voice
         speed = speed if speed is not None else self.default_speed
 
+        payload: dict[str, Any] = {
+            "model": self.default_model,
+            "voice": voice,
+            "input": text,
+            "speed": speed,
+            "response_format": response_format,
+        }
+        if language:
+            payload["language"] = language
+
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
                     f"{self.base_url}/audio/speech",
-                    json={
-                        "model": "tts-1",
-                        "voice": voice,
-                        "input": text,
-                        "speed": speed,
-                        "response_format": response_format,
-                    },
-                    headers={"Authorization": "Bearer EMPTY"},
+                    json=payload,
                 )
                 resp.raise_for_status()
                 return resp.content

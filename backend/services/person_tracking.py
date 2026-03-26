@@ -72,6 +72,7 @@ class PersonTrackingService:
         media_paths: list[str],
         room_name: str,
         include_annotated_image: bool = False,
+        save_guest_images: bool = False,
     ) -> list[PersonDetection]:
         """Process a camera event through the person-id service.
 
@@ -98,6 +99,7 @@ class PersonTrackingService:
             images_b64,
             include_motion=include_motion,
             include_annotated_image=include_annotated_image,
+            save_guest_images=save_guest_images,
         )
         if not batch_result:
             return []

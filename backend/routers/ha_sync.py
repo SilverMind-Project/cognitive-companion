@@ -111,6 +111,7 @@ async def sync_sensors(
                 continue
 
             sensor = Sensor(
+                id=entity_id,
                 name=entity.get("attributes", {}).get(
                     "friendly_name", entity_id
                 ),

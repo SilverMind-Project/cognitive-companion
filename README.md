@@ -10,9 +10,9 @@ Cognitive decline doesn't have to mean loss of independence. Cognitive Companion
  Edge Devices                         AI Pipeline                              Outputs
  ───────────                         ───────────                              ───────
 
- reCamera ──┐                    ┌─► Person ID Service ──┐
+ reCamera ──┐                    ┌─► Person ID Service   ──┐
             │    ┌────────────┐  │   (InsightFace/ArcFace) │
- reTerminal─┼──► │   Event    │──┤                         ├─► Rules Engine
+ WebSocket ─┼──► │   Event    │──┤                         ├─► Rules Engine
             │    │ Aggregator │  │   ┌──────────────────┐  │   (context/deps/rate-limit)
  HA Sensors─┘    └────────────┘  ├─► │ Vision LLM       │  │        │
                    MinIO ◄───────┘   │ (Cosmos Reason2) │──┘        ▼
@@ -62,7 +62,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 
 | Component | Purpose | Notes |
 |-----------|---------|-------|
-| **NVIDIA GPU** (10 GB+ VRAM) | Person-ID service + vLLM serving | RTX 3060 or better |
+| **NVIDIA GPUs** | Person-ID service + vLLM serving | DGX Spark |
 | **Docker** + NVIDIA Container Toolkit | Container runtime | For person-ID service |
 | **Home Assistant** | Sensor integration, audio playback, actions | REST API + long-lived token |
 | **MinIO** (or S3-compatible) | Media object storage | Pre-signed URL support required |

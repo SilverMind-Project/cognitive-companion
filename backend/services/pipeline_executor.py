@@ -401,6 +401,7 @@ class PipelineExecutor:
             media_paths=media_paths,
             room_name=room_name,
             include_annotated_image=config.get("include_annotated_image", False),
+            save_guest_images=config.get("save_guest_images", False),
         )
 
         detection_dicts = [d.dict() for d in detections]
@@ -797,6 +798,12 @@ class PipelineExecutor:
             should_continue=result if next_step_id is None else True,
         )
 
+    @staticmethod
+    def _reanchor_to_today(dt: datetime) -> datetime:
+        """Replace the date portion of *dt* with today, keeping the time and tzinfo."""
+        today = datetime.now(dt.tzinfo or timezone.utc).date()
+        return dt.replace(year=today.year, month=today.month, day=today.day)
+
     async def _step_verification(
         self,
         step: PipelineStep,
@@ -861,13 +868,19 @@ class PipelineExecutor:
             within_minutes = cond.get("within_minutes")
             min_confidence = cond.get("min_confidence", 0.5)
 
-            # Parse absolute window boundaries if provided
+            # Parse absolute window boundaries if provided.
+            # Times are re-anchored to *today* so that rules configured once
+            # continue to work on subsequent days.
             window_start = None
             window_end = None
             if cond.get("window_start"):
-                window_start = datetime.fromisoformat(cond["window_start"])
+                window_start = self._reanchor_to_today(
+                    datetime.fromisoformat(cond["window_start"])
+                )
             if cond.get("window_end"):
-                window_end = datetime.fromisoformat(cond["window_end"])
+                window_end = self._reanchor_to_today(
+                    datetime.fromisoformat(cond["window_end"])
+                )
 
             activities: list[dict] = []
             if self._person_tracking:

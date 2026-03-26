@@ -51,6 +51,12 @@
             density="comfortable"
             hide-details
           />
+          <v-checkbox
+            v-model="cfg.save_guest_images"
+            label="Save guest images (unidentified faces)"
+            density="comfortable"
+            hide-details
+          />
         </template>
 
         <!-- vision_analysis -->
@@ -309,19 +315,23 @@
             />
             <template v-if="cond._time_mode === 'fixed'">
               <v-text-field
-                v-model="cond.window_start"
-                label="Window Start (ISO-8601 UTC)"
+                v-model="cond._window_start_time"
+                label="Start Time (today)"
                 variant="outlined"
                 density="compact"
-                placeholder="2026-03-25T13:00:00+00:00"
+                type="time"
+                hint="Start time for today's window"
+                persistent-hint
                 class="mb-2"
               />
               <v-text-field
-                v-model="cond.window_end"
-                label="Window End (ISO-8601 UTC)"
+                v-model="cond._window_end_time"
+                label="End Time (today)"
                 variant="outlined"
                 density="compact"
-                placeholder="2026-03-25T13:30:00+00:00"
+                type="time"
+                hint="End time for today's window"
+                persistent-hint
                 class="mb-2"
               />
             </template>
@@ -410,6 +420,7 @@ const defaults = {
     min_confidence: 0.6,
     include_annotated_image: true,
     include_motion: false,
+    save_guest_images: false,
   },
   vision_analysis: {
     prompt: "",
@@ -469,11 +480,13 @@ watch(
     Object.keys(cfg).forEach((k) => delete cfg[k]);
     Object.assign(cfg, { ...base, ...incoming });
 
-    // Add _time_mode to verification conditions for UI
+    // Add _time_mode and _window_*_time helpers to verification conditions for UI
     if (step.step_type === "verification" && Array.isArray(cfg.conditions)) {
       cfg.conditions = cfg.conditions.map((c) => ({
         ...c,
         _time_mode: c.window_start || c.window_end ? "fixed" : "relative",
+        _window_start_time: c.window_start ? isoToTimeStr(c.window_start) : "",
+        _window_end_time: c.window_end ? isoToTimeStr(c.window_end) : "",
       }));
     }
 
@@ -490,8 +503,34 @@ watch(
   { immediate: true }
 );
 
+/** Extract "HH:MM" from an ISO-8601 datetime string. */
+function isoToTimeStr(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  } catch {
+    return "";
+  }
+}
+
+/** Build an ISO-8601 UTC string for today at the given "HH:MM" local time. */
+function timeStrToTodayISO(timeStr) {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
+}
+
+const STEP_LABELS = {
+  activity_detection: "Record Activity",
+  verification: "Verify Activity",
+  person_identification: "Person Identification",
+};
+
 function humanize(type) {
   if (!type) return "Step";
+  if (STEP_LABELS[type]) return STEP_LABELS[type];
   return type
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -508,6 +547,8 @@ function addCondition() {
     within_minutes: 30,
     window_start: null,
     window_end: null,
+    _window_start_time: "",
+    _window_end_time: "",
     min_confidence: 0.5,
   });
 }
@@ -523,9 +564,19 @@ function save() {
       .filter(Boolean);
   }
 
-  // Strip UI-only _time_mode from verification conditions
+  // Convert verification conditions: time inputs -> ISO timestamps, strip UI fields
   if (localStep.step_type === "verification" && Array.isArray(config.conditions)) {
-    config.conditions = config.conditions.map(({ _time_mode, ...rest }) => rest);
+    config.conditions = config.conditions.map(({ _time_mode, _window_start_time, _window_end_time, ...rest }) => {
+      if (_time_mode === "fixed") {
+        rest.window_start = timeStrToTodayISO(_window_start_time);
+        rest.window_end = timeStrToTodayISO(_window_end_time);
+        delete rest.within_minutes;
+      } else {
+        delete rest.window_start;
+        delete rest.window_end;
+      }
+      return rest;
+    });
   }
 
   // Parse ha_action data JSON string

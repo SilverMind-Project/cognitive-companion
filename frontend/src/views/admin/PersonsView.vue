@@ -30,10 +30,26 @@
               <v-chip v-if="item.is_guest" color="info" size="small">Guest</v-chip>
               <span v-else class="text-medium-emphasis">Member</span>
             </template>
+            <template #item.enrollment="{ item }">
+              <v-chip
+                v-if="enrollmentMap[item.id]"
+                color="success"
+                size="small"
+                variant="tonal"
+                prepend-icon="mdi-face-recognition"
+              >
+                {{ enrollmentMap[item.id].embedding_count }} photos
+              </v-chip>
+              <v-chip v-else size="small" variant="tonal" color="grey">
+                Not enrolled
+              </v-chip>
+            </template>
             <template #item.created_at="{ item }">
               {{ formatDate(item.created_at) }}
             </template>
             <template #item.actions="{ item }">
+              <v-btn icon="mdi-face-recognition" size="small" variant="text" color="primary"
+                     title="Enroll Face" @click="openEnroll(item)" />
               <v-btn icon="mdi-map-marker" size="small" variant="text" color="primary"
                      title="Location & History" @click="openDetail(item)" />
               <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(item)" />
@@ -107,6 +123,108 @@
           <v-spacer />
           <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
           <v-btn color="primary" @click="saveMember">{{ editing ? 'Update' : 'Create' }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Face Enrollment Dialog -->
+    <v-dialog v-model="enrollDialog" max-width="600" scrollable>
+      <v-card rounded="xl">
+        <v-card-title class="d-flex align-center">
+          <v-icon class="mr-2">mdi-face-recognition</v-icon>
+          Enroll Face: {{ enrollTarget?.name }}
+        </v-card-title>
+        <v-card-text>
+          <!-- Current enrollment status -->
+          <v-alert
+            v-if="enrollmentMap[enrollTarget?.id]"
+            type="success"
+            variant="tonal"
+            class="mb-4"
+            density="compact"
+          >
+            Currently enrolled with {{ enrollmentMap[enrollTarget?.id].embedding_count }} reference photos.
+            Uploading more photos will add to the existing enrollment.
+          </v-alert>
+          <v-alert v-else type="info" variant="tonal" class="mb-4" density="compact">
+            Not yet enrolled. Upload 5-10 reference photos for reliable recognition.
+          </v-alert>
+
+          <!-- Best practices -->
+          <v-expansion-panels variant="accordion" class="mb-4">
+            <v-expansion-panel title="Photo tips for best results">
+              <v-expansion-panel-text>
+                <v-list density="compact">
+                  <v-list-item prepend-icon="mdi-camera-burst">Capture 5-10 images per person</v-list-item>
+                  <v-list-item prepend-icon="mdi-white-balance-sunny">Vary lighting: daylight, evening lamp, nightlight</v-list-item>
+                  <v-list-item prepend-icon="mdi-rotate-3d-variant">Vary angle: front face, slight left/right turns</v-list-item>
+                  <v-list-item prepend-icon="mdi-glasses">Include accessories: with/without glasses</v-list-item>
+                  <v-list-item prepend-icon="mdi-cctv">Use actual deployment cameras for best domain match</v-list-item>
+                </v-list>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
+
+          <!-- File upload -->
+          <v-file-input
+            v-model="enrollFiles"
+            label="Select photos"
+            variant="outlined"
+            accept="image/*"
+            multiple
+            show-size
+            prepend-icon="mdi-camera"
+            :hint="`${enrollFiles.length} photo(s) selected`"
+            persistent-hint
+            class="mb-4"
+          />
+
+          <!-- Preview thumbnails -->
+          <div v-if="enrollPreviews.length" class="d-flex flex-wrap ga-2 mb-4">
+            <v-img
+              v-for="(src, idx) in enrollPreviews"
+              :key="idx"
+              :src="src"
+              width="80"
+              height="80"
+              cover
+              class="rounded-lg border"
+            />
+          </div>
+
+          <!-- Upload result -->
+          <v-alert
+            v-if="enrollResult"
+            :type="enrollResult.failed_images?.length ? 'warning' : 'success'"
+            variant="tonal"
+            class="mb-2"
+            density="compact"
+          >
+            Enrolled {{ enrollResult.embedding_count }} embeddings.
+            <span v-if="enrollResult.failed_images?.length">
+              {{ enrollResult.failed_images.length }} image(s) failed (no face detected).
+            </span>
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            v-if="enrollmentMap[enrollTarget?.id]"
+            color="error"
+            variant="text"
+            @click="unenroll"
+          >
+            Remove Enrollment
+          </v-btn>
+          <v-spacer />
+          <v-btn variant="text" @click="enrollDialog = false">Close</v-btn>
+          <v-btn
+            color="primary"
+            :loading="enrolling"
+            :disabled="enrollFiles.length === 0"
+            @click="submitEnrollment"
+          >
+            Upload & Enroll
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -226,7 +344,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
@@ -255,9 +373,75 @@ const memberHeaders = [
   { title: "Name", key: "name" },
   { title: "Status", key: "is_active" },
   { title: "Type", key: "is_guest" },
+  { title: "Enrollment", key: "enrollment", sortable: false },
   { title: "Added", key: "created_at" },
   { title: "Actions", key: "actions", sortable: false },
 ];
+
+// -- Enrollment state --
+const enrollmentMap = ref({});
+const enrollDialog = ref(false);
+const enrollTarget = ref(null);
+const enrollFiles = ref([]);
+const enrollPreviews = computed(() =>
+  enrollFiles.value.map((f) => URL.createObjectURL(f))
+);
+const enrolling = ref(false);
+const enrollResult = ref(null);
+
+async function loadEnrollment() {
+  try {
+    const data = await api.getEnrolledPersons();
+    const map = {};
+    for (const m of (data.members || data || [])) {
+      map[m.person_id] = m;
+    }
+    enrollmentMap.value = map;
+  } catch {
+    // Person-ID service may not be running
+    enrollmentMap.value = {};
+  }
+}
+
+function openEnroll(member) {
+  enrollTarget.value = member;
+  enrollFiles.value = [];
+  enrollResult.value = null;
+  enrollDialog.value = true;
+}
+
+async function submitEnrollment() {
+  if (!enrollTarget.value || enrollFiles.value.length === 0) return;
+  enrolling.value = true;
+  enrollResult.value = null;
+  try {
+    const formData = new FormData();
+    formData.append("name", enrollTarget.value.name);
+    for (const file of enrollFiles.value) {
+      formData.append("files", file);
+    }
+    enrollResult.value = await api.enrollPerson(enrollTarget.value.id, formData);
+    await loadEnrollment();
+    notify("Face enrollment successful");
+  } catch (e) {
+    notify(e.message, "error");
+  }
+  enrolling.value = false;
+}
+
+async function unenroll() {
+  if (!enrollTarget.value) return;
+  if (!await showConfirm("Remove Enrollment", `Remove face enrollment data for "${enrollTarget.value.name}"? They will no longer be recognized by cameras.`))
+    return;
+  try {
+    await api.deleteEnrollment(enrollTarget.value.id);
+    await loadEnrollment();
+    enrollDialog.value = false;
+    notify("Enrollment removed");
+  } catch (e) {
+    notify(e.message, "error");
+  }
+}
 
 async function loadMembers() {
   loading.value = true;
@@ -401,5 +585,6 @@ function directionLabel(dir) {
 onMounted(() => {
   loadMembers();
   loadLocations();
+  loadEnrollment();
 });
 </script>

@@ -1,11 +1,11 @@
 """
-Rules engine – evaluates which rules match a given sensor event, checking
-contexts, dependencies, and rate limits.
+Rules engine -- evaluates which rules match a given sensor event, checking
+contexts (via FilterRegistry), dependencies, and rate limits.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.filters import FilterRegistry
 from backend.models.event import EventLog
-from backend.models.person import PersonActivity, PersonLocationState
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.models.sensor import Sensor
 
@@ -61,7 +61,7 @@ class RulesEngine:
         )
         return matched
 
-    # -- context checking -----------------------------------------------------
+    # -- context checking (via FilterRegistry) --------------------------------
 
     def _check_contexts(
         self, rule: Rule, sensor: Sensor, now: datetime, db: Session | None = None
@@ -72,7 +72,7 @@ class RulesEngine:
         Across groups, all must pass (AND).
         """
         if not rule.contexts:
-            return True  # no contexts = applies everywhere
+            return True
 
         by_type: dict[str, list[RuleContext]] = {}
         for ctx in rule.contexts:
@@ -86,67 +86,10 @@ class RulesEngine:
     def _matches_context(
         self, ctx: RuleContext, sensor: Sensor, now: datetime, db: Session | None = None
     ) -> bool:
-        cfg = ctx.config_json or {}
-
-        if ctx.context_type == "room":
-            room_name = cfg.get("room_name", "")
-            room_id = cfg.get("room_id")
-            if room_id and sensor.room_id:
-                return sensor.room_id == room_id
-            if room_name and sensor.room:
-                return sensor.room.name.lower() == room_name.lower()
-            return False
-
-        if ctx.context_type == "time_range":
-            start_str = cfg.get("start_time", "00:00")
-            end_str = cfg.get("end_time", "23:59")
-            current = now.strftime("%H:%M")
-            if start_str <= end_str:
-                return start_str <= current <= end_str
-            # Handles overnight ranges (e.g., 22:00 - 06:00)
-            return current >= start_str or current <= end_str
-
-        if ctx.context_type == "day_of_week":
-            days = cfg.get("days", [])
-            return now.weekday() in days
-
-        if ctx.context_type == "person_presence" and db:
-            # Is person X currently in room Y?
-            person_id = cfg.get("person_id")
-            room_name = cfg.get("room_name")
-            if not person_id:
-                return False
-            loc = (
-                db.query(PersonLocationState)
-                .filter(PersonLocationState.person_id == person_id)
-                .first()
-            )
-            if not loc:
-                return False
-            if room_name:
-                return (loc.current_room_name or "").lower() == room_name.lower()
-            # If no room specified, just check that person is tracked
-            return loc.status == "home"
-
-        if ctx.context_type == "person_activity" and db:
-            # Did person X do activity A in the last N minutes?
-            person_id = cfg.get("person_id")
-            activity_type = cfg.get("activity_type")
-            within_minutes = cfg.get("within_minutes", 30)
-            if not person_id or not activity_type:
-                return False
-            cutoff = now - timedelta(minutes=within_minutes)
-            match = (
-                db.query(PersonActivity)
-                .filter(
-                    PersonActivity.person_id == person_id,
-                    PersonActivity.activity_type == activity_type,
-                    PersonActivity.detected_at >= cutoff,
-                )
-                .first()
-            )
-            return match is not None
-
+        """Delegate context evaluation to the FilterRegistry."""
+        filter_instance = FilterRegistry.get(ctx.context_type)
+        if filter_instance:
+            return filter_instance.evaluate(ctx.config_json or {}, sensor, now, db)
         logger.warning("unknown_context_type", context_type=ctx.context_type)
         return True  # unknown type = don't filter
 
@@ -185,7 +128,6 @@ class RulesEngine:
 
     def _check_rate_limits(self, rule: Rule, db: Session, now: datetime) -> bool:
         """Check cool-off period and daily trigger limit."""
-        # Cool-off check
         if rule.cool_off_minutes > 0:
             cutoff = now - timedelta(minutes=rule.cool_off_minutes)
             recent = (
@@ -201,9 +143,7 @@ class RulesEngine:
                 logger.debug("cooloff_active", rule=rule.name)
                 return False
 
-        # Daily limit check
         if rule.max_daily_triggers > 0:
-            # Count completions since midnight in configured timezone
             midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
             count = (
                 db.query(func.count(EventLog.id))

@@ -15,4 +15,5 @@ frontend/dist/
 *.log
 .ruff_cache/
 .pytest_cache/
+.mypy_cache/
 kubernetes/local/

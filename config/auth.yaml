@@ -44,6 +44,8 @@ permission_map:
   caregiver:
     - "GET /api/v1/*"
     - "POST /api/v1/alerts/*/action"
+    - "POST /api/v1/persons/*/enroll"
+    - "DELETE /api/v1/persons/*/enrollment"
     - "GET /api/v1/conversations/*"
     - "GET /api/v1/activities*"
     - "GET /api/v1/workflows*"

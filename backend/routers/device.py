@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import base64
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
@@ -47,7 +47,7 @@ async def recamera_upload(
     """Accept a base64-encoded image from a reCamera device."""
     image_bytes = base64.b64decode(payload.image)
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     unique_id = uuid.uuid4().hex[:8]
     object_name = f"recamera/{ts}_{unique_id}.jpg"
 

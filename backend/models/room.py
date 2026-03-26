@@ -18,4 +18,4 @@ class Room(Base):
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    sensors: Mapped[list["Sensor"]] = relationship(back_populates="room")  # noqa: F821
+    sensors: Mapped[list[Sensor]] = relationship(back_populates="room")  # noqa: F821

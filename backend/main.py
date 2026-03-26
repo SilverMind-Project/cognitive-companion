@@ -9,12 +9,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from backend.core.config import settings
-from backend.core.database import init_db, get_session
+from backend.core.database import get_session, init_db
 from backend.core.exceptions import register_exception_handlers
-from backend.core.logging import setup_logging, get_logger
+from backend.core.logging import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
@@ -30,9 +29,24 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Database initialized")
 
+    # -- Plugin discovery (steps, channels, filters) -----------------------
+    from backend.channels import ChannelRegistry
+    from backend.filters import FilterRegistry
+    from backend.steps import StepRegistry
+
+    StepRegistry.discover()
+    ChannelRegistry.discover()
+    FilterRegistry.discover()
+    logger.info(
+        "plugins_discovered",
+        steps=StepRegistry.type_names(),
+        channels=ChannelRegistry.channel_names(),
+        filters=FilterRegistry.filter_types(),
+    )
+
     # -- Integration clients -----------------------------------------------
-    from backend.integrations.minio_client import get_minio_client
     from backend.integrations.homeassistant import HomeAssistantClient
+    from backend.integrations.minio_client import get_minio_client
     from backend.integrations.telegram import TelegramClient
     from backend.integrations.tts import TTSClient
 
@@ -196,7 +210,7 @@ async def lifespan(app: FastAPI):
     app.state.mcp_registry = mcp_registry
 
     # -- Scheduler ---------------------------------------------------------
-    from backend.services.scheduler import setup_scheduler, SchedulerBridge
+    from backend.services.scheduler import SchedulerBridge, setup_scheduler
 
     scheduler = setup_scheduler(event_aggregator, get_session, pipeline_executor)
     app.state.scheduler = scheduler
@@ -270,23 +284,25 @@ def create_app() -> FastAPI:
 
     # -- API Routers -------------------------------------------------------
     from backend.routers import (
-        rooms,
-        sensors,
-        rules,
-        alerts,
-        events,
-        device,
-        image,
+        activities,
         admin,
+        alerts,
+        conversations,
+        device,
+        events,
+        ha_sync,
+        image,
         mcp,
         occupancy,
-        conversations,
-        ha_sync,
         persons,
+        pipeline,
+        rooms,
+        rules,
+        sensors,
+        webhooks,
         workflows,
-        activities,
+        ws,
     )
-    from backend.routers import ws
 
     api = "/api/v1"
     app.include_router(rooms.router, prefix=api)
@@ -304,6 +320,8 @@ def create_app() -> FastAPI:
     app.include_router(persons.router, prefix=api)
     app.include_router(workflows.router, prefix=api)
     app.include_router(activities.router, prefix=api)
+    app.include_router(webhooks.router, prefix=api)
+    app.include_router(pipeline.router, prefix=api)
 
     # WebSocket router (no /api/v1 prefix)
     app.include_router(ws.router)

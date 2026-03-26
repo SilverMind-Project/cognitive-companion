@@ -8,7 +8,7 @@ Home Assistant's time-series history and smoothed to eliminate noise.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -76,7 +76,7 @@ class SensorPollingService:
             return
 
         room_name = sensor.room.name if sensor.room else "Unknown"
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if state == "on":
             if sensor.id not in self._active_occupancy:

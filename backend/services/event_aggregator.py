@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -107,7 +108,7 @@ class EventAggregator:
         logger.info("flush_triggered", sensor_id=sensor_id, count=len(buf))
 
         # Persist each media path to the MediaCache table
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         expires_at = now_utc + timedelta(minutes=self.media_retention_minutes)
 
         db: Session = self._db_session_factory()
@@ -152,7 +153,7 @@ class EventAggregator:
         """Return presigned URLs for the most recent non-deleted, non-expired
         images belonging to *sensor_id*, regenerating URLs as needed.
         """
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
 
         db: Session = self._db_session_factory()
         try:
@@ -189,7 +190,7 @@ class EventAggregator:
         """Delete expired objects from MinIO and mark them as deleted in the
         MediaCache table.
         """
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
 
         db: Session = self._db_session_factory()
         try:

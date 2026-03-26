@@ -1,15 +1,42 @@
 <template>
   <div>
-    <h2 class="text-h5 mb-4">Dashboard</h2>
+    <div class="d-flex align-center mb-4">
+      <h2 class="text-h5">Dashboard</h2>
+      <v-spacer />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" size="small" @click="loadData" :loading="refreshing">
+        Refresh
+      </v-btn>
+    </div>
 
+    <!-- Stats Row -->
     <v-row>
       <v-col cols="12" sm="6" md="3" v-for="stat in stats" :key="stat.label">
-        <v-card rounded="xl" class="pa-4">
+        <v-card rounded="xl" class="pa-4 stat-card" :to="stat.to" :ripple="!!stat.to">
           <div class="d-flex align-center">
-            <v-icon :color="stat.color" size="36" class="mr-3">{{ stat.icon }}</v-icon>
+            <v-avatar :color="stat.color" size="48" variant="tonal" class="mr-3">
+              <v-icon size="24">{{ stat.icon }}</v-icon>
+            </v-avatar>
             <div>
               <div class="text-h4 font-weight-bold">{{ stat.value }}</div>
               <div class="text-body-2 text-medium-emphasis">{{ stat.label }}</div>
+            </div>
+          </div>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <!-- System Health -->
+    <h3 class="text-h6 mt-6 mb-3">System Health</h3>
+    <v-row>
+      <v-col cols="12" sm="6" md="4" v-for="svc in healthServices" :key="svc.name">
+        <v-card rounded="xl" class="pa-4">
+          <div class="d-flex align-center">
+            <v-icon :color="svc.ok ? 'success' : 'error'" size="24" class="mr-3">
+              {{ svc.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}
+            </v-icon>
+            <div>
+              <div class="font-weight-medium">{{ svc.name }}</div>
+              <div class="text-body-2 text-medium-emphasis">{{ svc.detail }}</div>
             </div>
           </div>
         </v-card>
@@ -22,15 +49,17 @@
       <v-col cols="12" sm="6" md="4" v-for="loc in personLocations" :key="loc.person_id">
         <v-card rounded="xl" class="pa-4">
           <div class="d-flex align-center">
-            <v-icon color="primary" size="28" class="mr-3">mdi-account-circle</v-icon>
-            <div>
+            <v-avatar color="primary" size="40" variant="tonal" class="mr-3">
+              <v-icon>mdi-account</v-icon>
+            </v-avatar>
+            <div class="flex-grow-1">
               <div class="font-weight-bold">{{ loc.person_name }}</div>
-              <div class="text-body-2">
+              <div class="text-body-2 d-flex align-center">
                 <v-icon size="14" class="mr-1">mdi-map-marker</v-icon>
                 {{ loc.current_room_name || 'Unknown' }}
-                <v-chip size="x-small" class="ml-1">{{ loc.status }}</v-chip>
+                <v-chip size="x-small" :color="locStatusColor(loc.status)" class="ml-2">{{ loc.status }}</v-chip>
               </div>
-              <div class="text-body-2 text-medium-emphasis" v-if="loc.last_seen_at">
+              <div class="text-caption text-medium-emphasis" v-if="loc.last_seen_at">
                 {{ formatTime(loc.last_seen_at) }}
               </div>
             </div>
@@ -42,15 +71,15 @@
       </v-col>
     </v-row>
 
-    <!-- Occupancy -->
+    <!-- Room Occupancy -->
     <h3 class="text-h6 mt-6 mb-3">Room Occupancy</h3>
     <v-row>
       <v-col cols="12" sm="6" md="4" v-for="(occ, sensorId) in occupancy" :key="sensorId">
         <v-card rounded="xl" class="pa-4">
           <div class="d-flex align-center">
-            <v-icon :color="occ.occupied ? 'success' : 'grey'" size="28" class="mr-3">
-              {{ occ.occupied ? 'mdi-account' : 'mdi-account-off' }}
-            </v-icon>
+            <v-avatar :color="occ.occupied ? 'success' : 'grey'" size="40" variant="tonal" class="mr-3">
+              <v-icon>{{ occ.occupied ? 'mdi-account' : 'mdi-account-off' }}</v-icon>
+            </v-avatar>
             <div>
               <div class="font-weight-bold">{{ occ.room }}</div>
               <div class="text-body-2 text-medium-emphasis">
@@ -71,10 +100,15 @@
       <v-list v-if="alerts.length">
         <v-list-item v-for="alert in alerts" :key="alert.id" :subtitle="alert.description">
           <template #prepend>
-            <v-icon :color="alert.resolved ? 'grey' : 'error'">mdi-alert-circle</v-icon>
+            <v-icon :color="alert.resolved ? 'grey' : 'error'">
+              {{ alert.resolved ? 'mdi-check-circle' : 'mdi-alert-circle' }}
+            </v-icon>
           </template>
           <template #title>
-            {{ alert.alert_type }} – {{ alert.room_name }}
+            {{ alert.alert_type }} &middot; {{ alert.room_name }}
+          </template>
+          <template #append>
+            <span class="text-caption text-medium-emphasis">{{ formatTime(alert.created_at) }}</span>
           </template>
         </v-list-item>
       </v-list>
@@ -89,22 +123,33 @@
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 
+const refreshing = ref(false);
+
 const stats = ref([
-  { label: "Rooms", value: "–", icon: "mdi-floor-plan", color: "primary" },
-  { label: "Sensors", value: "–", icon: "mdi-access-point", color: "secondary" },
-  { label: "Rules", value: "–", icon: "mdi-shield-check", color: "accent" },
-  { label: "Active Alerts", value: "–", icon: "mdi-alert", color: "error" },
+  { label: "Rooms", value: "-", icon: "mdi-floor-plan", color: "primary", to: "/admin/rooms" },
+  { label: "Sensors", value: "-", icon: "mdi-access-point", color: "secondary", to: "/admin/sensors" },
+  { label: "Rules", value: "-", icon: "mdi-shield-check", color: "accent", to: "/admin/rules" },
+  { label: "Active Alerts", value: "-", icon: "mdi-alert", color: "error", to: "/admin/alerts" },
 ]);
+
+const healthServices = ref([]);
 const occupancy = ref({});
 const alerts = ref([]);
 const personLocations = ref([]);
 
 function formatTime(iso) {
   if (!iso) return "";
-  return new Date(iso).toLocaleTimeString();
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function locStatusColor(status) {
+  const map = { home: "success", away: "warning", unknown: "grey", sleeping: "info" };
+  return map[status] || "grey";
 }
 
 async function loadData() {
+  refreshing.value = true;
   try {
     const [rooms, sensors, rules, alertData, occData, locData] = await Promise.all([
       api.getRooms().catch(() => []),
@@ -127,7 +172,38 @@ async function loadData() {
   } catch (e) {
     console.error("Failed to load dashboard data:", e);
   }
+
+  // Health checks
+  const services = [];
+  try {
+    const h = await api.health();
+    services.push({ name: "Backend", ok: h?.status === "ok", detail: h?.version || "Running" });
+  } catch {
+    services.push({ name: "Backend", ok: false, detail: "Unreachable" });
+  }
+
+  try {
+    const enrolled = await api.getEnrolledPersons();
+    const count = enrolled?.members?.length || enrolled?.length || 0;
+    services.push({ name: "Person-ID Service", ok: true, detail: `${count} enrolled member(s)` });
+  } catch {
+    services.push({ name: "Person-ID Service", ok: false, detail: "Unreachable or disabled" });
+  }
+
+  healthServices.value = services;
+  refreshing.value = false;
 }
 
 onMounted(loadData);
 </script>
+
+<style scoped>
+.stat-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+</style>

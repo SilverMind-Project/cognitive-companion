@@ -5,15 +5,21 @@
         <v-list-item prepend-icon="mdi-home" title="Companion" to="/" />
         <v-divider class="my-2" />
         <v-list-item prepend-icon="mdi-view-dashboard" title="Dashboard" to="/admin/dashboard" />
+
+        <v-list-subheader class="mt-2">Automation</v-list-subheader>
         <v-list-item prepend-icon="mdi-shield-check" title="Rules" to="/admin/rules" />
+        <v-list-item prepend-icon="mdi-sitemap" title="Workflows" to="/admin/workflows" />
+        <v-list-item prepend-icon="mdi-calendar-text" title="Events" to="/admin/events" />
+
+        <v-list-subheader class="mt-2">Infrastructure</v-list-subheader>
         <v-list-item prepend-icon="mdi-access-point" title="Sensors" to="/admin/sensors" />
         <v-list-item prepend-icon="mdi-floor-plan" title="Rooms" to="/admin/rooms" />
-        <v-list-item prepend-icon="mdi-calendar-text" title="Events" to="/admin/events" />
-        <v-list-item prepend-icon="mdi-alert-circle" title="Alerts" to="/admin/alerts" />
-        <v-list-item prepend-icon="mdi-account-group" title="Persons" to="/admin/persons" />
-        <v-list-item prepend-icon="mdi-run" title="Activities" to="/admin/activities" />
-        <v-list-item prepend-icon="mdi-sitemap" title="Workflows" to="/admin/workflows" />
         <v-list-item prepend-icon="mdi-image-edit" title="E-Ink Templates" to="/admin/eink-templates" />
+
+        <v-list-subheader class="mt-2">People</v-list-subheader>
+        <v-list-item prepend-icon="mdi-account-group" title="Members & Enrollment" to="/admin/persons" />
+        <v-list-item prepend-icon="mdi-run" title="Activities" to="/admin/activities" />
+        <v-list-item prepend-icon="mdi-alert-circle" title="Alerts" to="/admin/alerts" />
       </v-list>
     </v-navigation-drawer>
 
@@ -22,7 +28,7 @@
         <span class="text-h6 font-weight-bold">Admin Console</span>
       </v-app-bar-title>
       <v-spacer />
-      <v-btn icon="mdi-refresh" variant="text" @click="reloadConfig" />
+      <v-btn icon="mdi-refresh" variant="text" title="Reload config" @click="reloadConfig" />
       <v-btn size="small" variant="tonal" class="mx-2" @click="showKeyDialog = true">
         <v-icon start>mdi-key</v-icon>
         API Key
@@ -43,13 +49,16 @@
           <v-text-field
             v-model="apiKeyInput"
             label="API Key"
-            type="password"
+            :type="showKey ? 'text' : 'password'"
             variant="outlined"
             hide-details
+            :append-inner-icon="showKey ? 'mdi-eye-off' : 'mdi-eye'"
+            @click:append-inner="showKey = !showKey"
           />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
+          <v-btn variant="text" @click="showKeyDialog = false">Cancel</v-btn>
           <v-btn @click="saveApiKey" color="primary">Save</v-btn>
         </v-card-actions>
       </v-card>
@@ -66,6 +75,7 @@ import { ref, onMounted } from "vue";
 import { api } from "../services/api.js";
 
 const showKeyDialog = ref(false);
+const showKey = ref(false);
 const apiKeyInput = ref(localStorage.getItem("cc_api_key") || "");
 const snack = ref(false);
 const snackText = ref("");

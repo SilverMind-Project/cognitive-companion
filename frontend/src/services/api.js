@@ -108,6 +108,22 @@ export const api = {
   getPersonHistory: (id, hours = 24) => request(`/persons/${id}/history?hours=${hours}`),
   getPersonSightings: (id, limit = 20) => request(`/persons/${id}/sightings?limit=${limit}`),
 
+  // Face Enrollment (person-ID service proxy)
+  getEnrolledPersons: () => request("/persons/enrolled"),
+  getEnrollmentStatus: (id) => request(`/persons/${id}/enrollment`),
+  enrollPerson: (id, formData) => {
+    const key = getApiKey();
+    return fetch(`${BASE}/persons/${id}/enroll`, {
+      method: "POST",
+      headers: key ? { "X-API-Key": key } : {},
+      body: formData,
+    }).then((r) => {
+      if (!r.ok) return r.json().then((b) => { throw new Error(b.detail || `HTTP ${r.status}`); });
+      return r.json();
+    });
+  },
+  deleteEnrollment: (id) => request(`/persons/${id}/enrollment`, { method: "DELETE" }),
+
   // Pipeline Steps
   getRuleSteps: (ruleId) => request(`/rules/${ruleId}/steps`),
   addRuleStep: (ruleId, data) =>
@@ -189,6 +205,27 @@ export const api = {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return URL.createObjectURL(await resp.blob());
   },
+
+  // Pipeline metadata (step types, channels, filters)
+  getStepTypes: () => request("/pipeline/step-types"),
+  getChannelTypes: () => request("/pipeline/channel-types"),
+  getFilterTypes: () => request("/pipeline/filter-types"),
+
+  // Webhooks
+  triggerWebhook: (ruleId, payload, secret) =>
+    fetch(`${BASE}/webhooks/${ruleId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Webhook-Secret": secret,
+      },
+      body: JSON.stringify(payload),
+    }).then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }),
+  generateWebhookSecret: (ruleId) =>
+    request(`/webhooks/${ruleId}/generate-secret`, { method: "POST" }),
 
   // Admin
   reloadConfig: () => request("/admin/reload", { method: "POST" }),

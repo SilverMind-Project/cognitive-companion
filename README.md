@@ -40,9 +40,9 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 ## Key Features
 
 - **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence, person activity) and inter-rule dependencies
-- **Composable pipeline steps** -- 10 step types that can be assembled in any order per rule:
+- **Composable pipeline steps** -- 10 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
   `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
-- **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, just enrollment
+- **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, with in-app enrollment via photo upload
 - **Annotated person identification images** with bounding boxes and name labels returned inline
 - **Activity tracking** -- detect and record person activities (eating, sleeping, taking medication) as pipeline outputs for use as context filters in downstream rules
 - **Motion direction detection** at doorways (left/right, towards/away from camera)
@@ -52,7 +52,10 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Conditional branching** -- evaluate expressions against pipeline data to fork execution paths
 - **Visual pipeline builder** in the admin UI for drag-and-drop step assembly
 - **Real-time voice** conversations via Google Gemini Live with WebSocket audio streaming
-- **Multi-channel notifications**: WebSocket, Telegram, eInk display, TTS, Home Assistant announcements
+- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, Home Assistant announcements -- add new channels by implementing a single class
+- **Webhook triggers** for external systems (Home Assistant automations, IFTTT, n8n) with per-rule HMAC secrets
+- **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
+- **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)
 - **MCP tool server** exposing read-only tools (plus rule triggering) for AI agent integration
 - **Role-based authentication** with API keys, device keys, and fnmatch permission patterns
 - **Event aggregation** with configurable batching, windowing, and per-sensor cooldown
@@ -114,8 +117,16 @@ This starts the backend (port 8000) and frontend (port 80).
 **Backend:**
 
 ```bash
-pip install -e ".[gemini]"
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies (creates .venv automatically)
+cd backend
+uv sync --extra gemini
+
+# Run
+cd ..
+uv run --directory backend uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Frontend:**
@@ -132,8 +143,8 @@ npm run build        # Production build
 1. Open the admin console at `http://localhost:5173/admin`
 2. Set your admin API key
 3. Create rooms and register sensors
-4. Enroll household members in the person-ID service (see its README)
-5. Register members in the admin console under **Persons**
+4. Register members in the admin console under **Members & Enrollment**
+5. Enroll faces for each member by uploading reference photos (5-10 per person) directly from the admin UI
 6. Create rules and assemble their pipeline steps using the visual builder
 
 ## Project Structure
@@ -154,19 +165,43 @@ cognitive-companion/
 │   │   ├── workflow.py         # WorkflowExecution schemas
 │   │   ├── activity.py         # PersonActivity schemas
 │   │   └── ...                 # Alert, Event, Person, Room, Sensor schemas
+│   ├── steps/                     # Step plugin system (E1)
+│   │   ├── base.py                # StepHandler ABC, StepMetadata, ServiceContainer
+│   │   ├── __init__.py            # StepRegistry singleton + auto-discovery
+│   │   └── builtin/               # 10 built-in step handlers
+│   │       ├── person_identification.py
+│   │       ├── vision_analysis.py
+│   │       ├── logic_reasoning.py
+│   │       ├── condition.py
+│   │       ├── activity_detection.py
+│   │       ├── verification.py
+│   │       ├── notification.py
+│   │       ├── ha_action.py
+│   │       ├── translation.py
+│   │       └── wait.py
+│   ├── channels/                  # Notification channel plugin system (E2)
+│   │   ├── base.py                # NotificationChannel ABC
+│   │   ├── __init__.py            # ChannelRegistry singleton
+│   │   └── builtin/               # WebSocket, Telegram, eInk, TTS channels
+│   ├── filters/                   # Context filter plugin system (E4)
+│   │   ├── base.py                # ContextFilter ABC
+│   │   ├── __init__.py            # FilterRegistry singleton
+│   │   └── builtin/               # Room, time_range, day_of_week, person_presence, person_activity
 │   ├── services/
-│   │   ├── pipeline_executor.py    # Composable step executor with wait/resume
+│   │   ├── pipeline_executor.py    # Step orchestrator (dispatches via StepRegistry)
 │   │   ├── condition_evaluator.py  # Safe expression parser for condition steps
-│   │   ├── rules_engine.py         # Context matching, dependency checks, rate limits
+│   │   ├── rules_engine.py         # Context matching via FilterRegistry, dependency checks, rate limits
 │   │   ├── event_aggregator.py     # Frame batching and cooldown
 │   │   ├── person_tracking.py      # Location fusion (camera + HA sensors)
-│   │   ├── notification_dispatcher.py  # Multi-channel alert routing
+│   │   ├── notification_dispatcher.py  # Multi-channel alert routing via ChannelRegistry
 │   │   ├── workflow.py             # Workflow orchestration
 │   │   └── ...                     # Scheduler, sensor polling, media, RAG
 │   ├── integrations/           # External clients (HA, MinIO, Telegram, TTS, LLMs)
-│   │   └── llm/                # LLM provider implementations (vLLM, Ollama, Gemini)
+│   │   └── llm/                # LLM providers (vLLM, Ollama, Gemini) + chain/pool support
 │   ├── routers/
 │   │   ├── rules.py            # Rule CRUD + pipeline step endpoints
+│   │   ├── pipeline.py         # Step type, channel, and filter metadata endpoints
+│   │   ├── webhooks.py         # Webhook trigger endpoint with HMAC validation
 │   │   ├── workflows.py        # Workflow execution list/detail/cancel
 │   │   ├── activities.py       # Person activity log
 │   │   └── ...                 # Alerts, events, persons, sensors, rooms, etc.
@@ -190,11 +225,17 @@ cognitive-companion/
 │       │   │   └── AlertsView.vue
 │       │   └── CompanionView.vue
 │       ├── components/
-│       │   └── pipeline/
-│       │       ├── PipelineBuilder.vue    # Visual drag-and-drop step editor
-│       │       ├── StepCard.vue           # Individual step display
-│       │       ├── StepConfigDialog.vue   # Step-type-specific config form
-│       │       └── StepPalette.vue        # Available step types for adding
+│       │   ├── pipeline/
+│       │   │   ├── PipelineBuilder.vue    # Visual drag-and-drop step editor
+│       │   │   ├── StepCard.vue           # Individual step display
+│       │   │   ├── StepConfigDialog.vue   # Step-type-specific config form (+ generic JSON for plugins)
+│       │   │   └── StepPalette.vue        # Dynamic step types loaded from API
+│       │   └── companion/             # Widget system for CompanionView (E6)
+│       │       ├── WidgetRegistry.js  # Widget registration and lookup
+│       │       ├── VoiceWidget.vue    # Audio recording and visualizer
+│       │       ├── TranscriptWidget.vue # Conversation transcript display
+│       │       ├── AlertWidget.vue    # Emergency alert overlay
+│       │       └── index.js           # Built-in widget registration
 │       ├── services/           # API client, WebSocket client
 │       ├── router/             # Vue Router configuration
 │       └── stores/             # Pinia state management
@@ -204,7 +245,8 @@ cognitive-companion/
 │   └── notifications.yaml      # Alert routing and escalation
 ├── data/                       # Runtime data (SQLite DB, media cache)
 ├── docker-compose.yml          # Compose file (backend + frontend)
-├── pyproject.toml              # Python dependencies and tooling
+├── backend/pyproject.toml      # Python dependencies and tooling
+├── backend/uv.lock             # Locked dependency versions (uv)
 └── .env.example                # Environment variable template
 ```
 
@@ -378,7 +420,7 @@ All endpoints are under `/api/v1/` and require authentication.
 | `DELETE` | `/rules/{id}` | Delete a rule and its pipeline steps |
 | `POST` | `/rules/{id}/execute` | Manually trigger a rule's pipeline (returns execution ID) |
 
-Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cron / manual), `primary_sensor_id`, `schedule_cron`, `cool_off_minutes`, `max_daily_triggers`.
+Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cron / manual / webhook), `primary_sensor_id`, `schedule_cron`, `cool_off_minutes`, `max_daily_triggers`, `webhook_config`.
 
 #### Pipeline Steps
 
@@ -435,10 +477,14 @@ Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cr
 |--------|------|-------------|
 | `GET` | `/persons` | List all household members |
 | `POST` | `/persons` | Register a new member |
+| `GET` | `/persons/enrolled` | List face enrollment status from person-ID service |
 | `GET` | `/persons/locations` | Current location of all tracked members |
 | `GET` | `/persons/{id}` | Get member details |
 | `PATCH` | `/persons/{id}` | Update a member |
 | `DELETE` | `/persons/{id}` | Remove a member and their data |
+| `POST` | `/persons/{id}/enroll` | Upload reference photos to enroll a face (multipart) |
+| `GET` | `/persons/{id}/enrollment` | Get face enrollment details (embedding count) |
+| `DELETE` | `/persons/{id}/enrollment` | Remove face enrollment data |
 | `GET` | `/persons/{id}/location` | Current location of a specific member |
 | `GET` | `/persons/{id}/history` | Location timeline (`?hours=24`) |
 | `GET` | `/persons/{id}/sightings` | Recent camera sightings (`?limit=20`) |
@@ -478,6 +524,21 @@ Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cr
 | `POST` | `/ha/sync/rooms` | Import rooms (areas) from Home Assistant |
 | `POST` | `/ha/sync/sensors` | Import sensors from Home Assistant areas |
 
+### Pipeline Metadata
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/pipeline/step-types` | List all registered step types with metadata, config schema, and defaults |
+| `GET` | `/pipeline/channel-types` | List all registered notification channel types |
+| `GET` | `/pipeline/filter-types` | List all registered context filter types |
+
+### Webhooks
+
+| Method | Path                                  | Description                                                         |
+|--------|---------------------------------------|---------------------------------------------------------------------|
+| `POST` | `/webhooks/{rule_id}`                 | Trigger a webhook-enabled rule (requires `X-Webhook-Secret` header) |
+| `POST` | `/webhooks/{rule_id}/generate-secret` | Generate or regenerate the webhook secret for a rule                |
+
 ### Other
 
 | Method | Path | Description |
@@ -490,7 +551,7 @@ Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cr
 
 Person identification runs as a [companion microservice](../person-identification-service/) using InsightFace (buffalo_l model pack) with ArcFace 512-dimensional embeddings.
 
-**Enrollment**: Provide 5-10 reference photos per person via the person-ID service API. No model fine-tuning is needed -- ArcFace generalizes from pretrained weights.
+**Enrollment**: Upload 5-10 reference photos per person through the admin UI (Members & Enrollment page) or directly via the person-ID service API. No model fine-tuning is needed. ArcFace generalizes from pretrained weights. The backend proxies enrollment requests to the person-ID service, so there is no need to interact with the face recognition service directly.
 
 **Identification**: The backend sends batched frames to `POST /api/v1/identify-batch`. The service returns per-frame face detections with identity, confidence, and bounding boxes.
 
@@ -583,7 +644,7 @@ The admin console is a Vue 3 + Vuetify 3 single-page application with Material D
 | Rooms | Manage rooms and HA area mappings |
 | Events | Browse rule execution logs with pipeline data inspection |
 | Alerts | View and resolve emergency alerts |
-| Persons | Manage household members, view locations, history, and sightings |
+| Members & Enrollment | Manage household members, enroll faces with photo upload, view locations, history, and sightings |
 | Activities | Browse detected person activities with filters by person, type, and room |
 | Workflows | Monitor workflow executions, inspect pipeline state, cancel running/waiting workflows |
 
@@ -621,10 +682,20 @@ The backend polls Home Assistant entities at a configurable interval (default: 3
 ### Backend
 
 ```bash
-pip install -e ".[dev,gemini]"
-ruff check backend/             # Lint
-ruff format backend/            # Format
-pytest                          # Tests (when available)
+cd backend
+uv sync --extra dev --extra gemini
+
+# Lint, type-check, and format (all-in-one)
+./scripts/lint.sh               # Check only
+./scripts/lint.sh --fix         # Auto-fix ruff issues
+
+# Or run individually
+uv run ruff check .             # Lint
+uv run ruff format .            # Format
+cd .. && backend/.venv/bin/mypy backend/ --config-file backend/pyproject.toml  # Type check
+
+# Tests
+uv run pytest                   # Tests (when available)
 ```
 
 ### Frontend Dev Server
@@ -640,32 +711,85 @@ npm run build                   # Production build
 
 SQLite with SQLAlchemy 2.0. Tables are auto-created on startup. For schema changes, delete `data/cognitive_companion.db` and restart -- there are no migrations.
 
-### Extending the Pipeline
+### Extending the Pipeline (Plugin System)
 
-Adding a new pipeline step type touches 4 files. The pipeline executor passes a shared `pipeline_data` dictionary from step to step. Each handler reads upstream results and merges its own output back in.
+Adding a new pipeline step type requires **only one file** -- a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`. The plugin system auto-discovers and registers handlers at startup.
 
-1. **Backend model.** Add the type string to `STEP_TYPES` in `backend/models/pipeline.py`.
-2. **Backend handler.** Add an `async def _step_<name>()` method in `backend/services/pipeline_executor.py` and register it in the `handlers` dict inside `_execute_step()`.
-3. **Frontend palette.** Add `{ type, label, icon }` to the `groups` array in `frontend/src/components/pipeline/StepPalette.vue`.
-4. **Frontend config form.** Add a `<template v-if>` block + defaults entry in `frontend/src/components/pipeline/StepConfigDialog.vue`.
+1. **Create a step handler** in `backend/steps/builtin/my_step.py`:
+
+```python
+from backend.steps import StepRegistry
+from backend.steps.base import StepHandler, StepMetadata, StepResult
+
+@StepRegistry.register
+class MyStepHandler(StepHandler):
+    @classmethod
+    def metadata(cls) -> StepMetadata:
+        return StepMetadata(
+            type_name="my_step",
+            display_name="My Step",
+            category="action",
+            icon="mdi-star",
+            description="Does something useful.",
+            config_schema={"type": "object", "properties": {...}},
+            default_config={...},
+        )
+
+    async def execute(self, step, execution, pipeline_data, trigger, services):
+        # Your logic here
+        return StepResult(data={"my_output": "value"})
+```
+
+1. **That's it.** The step appears automatically in:
+   - `GET /api/v1/pipeline/step-types` (served to frontend)
+   - The StepPalette in the admin UI
+   - The StepConfigDialog (with a generic JSON editor for plugin types)
+
+The same pattern applies for **notification channels** (`backend/channels/builtin/`) and **context filters** (`backend/filters/builtin/`).
 
 See the full guide with code examples in [AGENTS.md](AGENTS.md#adding-a-new-pipeline-step-type).
+
+### Adding a Notification Channel
+
+Create a file in `backend/channels/builtin/`:
+
+```python
+from backend.channels import ChannelRegistry
+from backend.channels.base import NotificationChannel, ChannelMetadata
+
+@ChannelRegistry.register
+class SlackChannel(NotificationChannel):
+    @classmethod
+    def metadata(cls) -> ChannelMetadata:
+        return ChannelMetadata(channel_name="slack", ...)
+
+    async def send(self, message, alert_level, room_name, **kwargs) -> bool:
+        # Send to Slack
+        return True
+```
+
+### Adding a Context Filter
+
+Create a file in `backend/filters/builtin/`:
+
+```python
+from backend.filters import FilterRegistry
+from backend.filters.base import ContextFilter, FilterMetadata
+
+@FilterRegistry.register
+class WeatherFilter(ContextFilter):
+    @classmethod
+    def metadata(cls) -> FilterMetadata:
+        return FilterMetadata(filter_type="weather", ...)
+
+    def evaluate(self, config, sensor, now, db=None) -> bool:
+        # Check weather conditions
+        return True
+```
 
 ## Roadmap
 
 Proposed features and integration pathways for future development.
-
-### Home Assistant Webhook Triggers
-
-**Problem**: HA automations can't trigger CC pipelines because communication is one-way (CC polls HA, never the reverse).
-
-**Design**: Per-rule `webhook_id` + `webhook_secret` fields. A new `POST /api/v1/webhook/{webhook_id}?secret=...` endpoint accepts a JSON body that becomes `pipeline_data["trigger_input"]`. Bypasses API key auth via per-rule webhook secrets. HA automations call the webhook URL to trigger pipelines with custom parameters.
-
-### Enhanced Pipeline Triggers with Input Parameters
-
-**Problem**: The `trigger_rule` MCP tool and manual execute endpoint accept no input parameters.
-
-**Design**: Add `input_params: dict` to `TriggerContext`. Modify `POST /rules/{id}/execute` and the MCP `trigger_rule` tool to accept an `input_params` JSON body. Parameters become available in `pipeline_data["trigger_input"]` for downstream steps. Use case: an external AI agent triggers a reminder pipeline with a custom message.
 
 ### Gemini Live Tool Calling
 

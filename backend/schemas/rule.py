@@ -5,7 +5,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-
 # -- Pipeline Step -----------------------------------------------------------
 
 
@@ -59,6 +58,7 @@ class RuleCreate(BaseModel):
     primary_sensor_id: str | None = None
     cool_off_minutes: int = 5
     max_daily_triggers: int = 3
+    webhook_config: dict[str, Any] | None = None
 
 
 class RuleUpdate(BaseModel):
@@ -70,6 +70,7 @@ class RuleUpdate(BaseModel):
     primary_sensor_id: str | None = None
     cool_off_minutes: int | None = None
     max_daily_triggers: int | None = None
+    webhook_config: dict[str, Any] | None = None
 
 
 class RuleContextOut(BaseModel):
@@ -101,6 +102,7 @@ class RuleOut(BaseModel):
     primary_sensor_id: str | None
     cool_off_minutes: int
     max_daily_triggers: int
+    webhook_config: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime | None
     steps: list[PipelineStepOut] = []

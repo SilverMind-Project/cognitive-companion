@@ -6,7 +6,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-
 # -- Household Members --------------------------------------------------------
 
 class HouseholdMemberCreate(BaseModel):
@@ -31,8 +30,27 @@ class HouseholdMemberOut(BaseModel):
     metadata_json: dict | None = None
     created_at: datetime
     updated_at: datetime | None = None
+    is_enrolled: bool = False
+    embedding_count: int = 0
 
     model_config = {"from_attributes": True}
+
+
+# -- Enrollment --------------------------------------------------------------
+
+
+class PersonEnrollmentOut(BaseModel):
+    person_id: str
+    name: str
+    embedding_count: int
+    created_at: datetime
+
+
+class EnrollResultOut(BaseModel):
+    person_id: str
+    name: str
+    embedding_count: int
+    status: str
 
 
 # -- Person Sightings --------------------------------------------------------

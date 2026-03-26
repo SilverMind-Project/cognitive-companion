@@ -1,15 +1,16 @@
 """
 LLM provider abstraction layer.
 
+Supports single providers, fallback chains, and load-balanced pools.
+
 Usage::
 
-    from backend.integrations.llm import get_llm_provider
+    from backend.integrations.llm import get_provider
 
-    provider = get_llm_provider("vllm_vision", {
-        "base_url": "http://localhost:8000",
-        "model": "nvidia/Cosmos-Reason2-8B",
-        "max_tokens": 4096,
-    })
+    # Single provider (from settings)
+    provider = get_provider("vllm_vision")
+
+    # Chain/pool configured in settings.yaml
     result = await provider.call("Describe this image.", media_paths=["photo.jpg"])
 """
 
@@ -50,19 +51,6 @@ def get_llm_provider(provider_type: str, config: dict) -> LLMProvider:
     """
     Factory that returns an :class:`LLMProvider` instance based on
     *provider_type*.
-
-    Parameters
-    ----------
-    provider_type:
-        One of ``"vllm_vision"``, ``"vllm_translation"``, or ``"ollama"``.
-    config:
-        Keyword arguments forwarded to the provider's constructor
-        (e.g. ``base_url``, ``model``, ``max_tokens``).
-
-    Raises
-    ------
-    ValueError
-        If *provider_type* is not recognised.
     """
     entry = _PROVIDER_MAP.get(provider_type)
     if entry is None:
@@ -74,12 +62,16 @@ def get_llm_provider(provider_type: str, config: dict) -> LLMProvider:
 
     module_path, class_name = entry
 
-    # Lazy import so we only pull in dependencies that are actually needed.
     import importlib
 
     module = importlib.import_module(module_path)
     cls = getattr(module, class_name)
     return cls(**config)
+
+
+def register_provider(provider_type: str, module_path: str, class_name: str) -> None:
+    """Register a new LLM provider type at runtime."""
+    _PROVIDER_MAP[provider_type] = (module_path, class_name)
 
 
 # Maps settings YAML provider type -> config section dotted key
@@ -90,11 +82,57 @@ _SETTINGS_SECTION: dict[str, str] = {
 }
 
 
+def _build_provider_from_config(section: dict) -> LLMProvider:
+    """Build a single provider from a config section dict."""
+    provider_type = section.get("provider", "")
+    config: dict = {}
+    for key, value in section.items():
+        if key in ("provider", "primary", "fallback", "providers", "strategy",
+                    "timeout_seconds", "retry_count"):
+            continue
+        if key == "url":
+            config["base_url"] = value
+        else:
+            config[key] = value
+    return get_llm_provider(provider_type, config)
+
+
 def get_provider(provider_type: str) -> LLMProvider:
     """Create an :class:`LLMProvider` from a *provider_type* string,
     automatically pulling constructor kwargs from the application settings.
 
-    This is the high-level factory used by ``backend.main`` at startup.
+    Supports three configurations:
+
+    1. **Simple** -- single provider::
+
+        llm:
+          vision:
+            provider: vllm_vision
+            url: http://...
+            model: nvidia/Cosmos-Reason2-8B
+
+    2. **Chain** (fallback) -- tries primary, falls back to secondary::
+
+        llm:
+          vision:
+            primary:
+              provider: vllm_vision
+              url: ...
+            fallback:
+              provider: ollama
+              url: ...
+            retry_count: 2
+
+    3. **Pool** (load balancing) -- round-robin across providers::
+
+        llm:
+          logic:
+            strategy: round_robin
+            providers:
+              - provider: ollama
+                url: http://gpu-node-1:11434
+              - provider: ollama
+                url: http://gpu-node-2:11434
     """
     from backend.core.config import settings
 
@@ -107,7 +145,28 @@ def get_provider(provider_type: str) -> LLMProvider:
         )
 
     section: dict = settings.get(section_key) or {}
-    # Build constructor kwargs: rename 'url' -> 'base_url', drop 'provider'
+
+    # Pool mode
+    if "providers" in section and isinstance(section["providers"], list):
+        from backend.integrations.llm.chain import LLMProviderPool
+
+        providers = [_build_provider_from_config(p) for p in section["providers"]]
+        strategy = section.get("strategy", "round_robin")
+        return LLMProviderPool(providers=providers, strategy=strategy)
+
+    # Chain mode (primary + fallback)
+    if "primary" in section and isinstance(section["primary"], dict):
+        from backend.integrations.llm.chain import LLMProviderChain
+
+        primary = _build_provider_from_config(section["primary"])
+        chain_providers = [primary]
+        if "fallback" in section and isinstance(section["fallback"], dict):
+            fallback = _build_provider_from_config(section["fallback"])
+            chain_providers.append(fallback)
+        retry_count = section.get("retry_count", 2)
+        return LLMProviderChain(providers=chain_providers, retry_count=retry_count)
+
+    # Simple mode
     config: dict = {}
     for key, value in section.items():
         if key == "provider":

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from sqlalchemy import desc
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.integrations.homeassistant import HomeAssistantClient
-from backend.integrations.person_id_client import PersonIDClient, FaceResult, MotionResult
+from backend.integrations.person_id_client import PersonIDClient
 from backend.models.person import (
     HouseholdMember,
     PersonActivity,
@@ -197,7 +197,7 @@ class PersonTrackingService:
             return
 
         room_name = sensor.room.name if sensor.room else "Unknown"
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Find the person most recently seen near this room
         # Look at recent sightings (last 10 minutes) sorted by recency
@@ -312,7 +312,7 @@ class PersonTrackingService:
         """Update current location state and history for a person."""
         from backend.models.room import Room
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         room = db.query(Room).filter(Room.name == room_name).first()
         room_id = room.id if room else None
 
@@ -448,7 +448,7 @@ class PersonTrackingService:
         """Return location timeline for a person."""
         db: Session = self._db_factory()
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+            cutoff = datetime.now(UTC) - timedelta(hours=hours)
             entries = (
                 db.query(PersonLocationHistory)
                 .filter(
@@ -552,7 +552,7 @@ class PersonTrackingService:
         """Return recent activities for a person, optionally filtered by type."""
         db: Session = self._db_factory()
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+            cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
             query = db.query(PersonActivity).filter(
                 PersonActivity.person_id == person_id,
                 PersonActivity.detected_at >= cutoff,
@@ -596,7 +596,7 @@ class PersonTrackingService:
         If both *within_minutes* and explicit window boundaries are provided,
         *within_minutes* takes precedence.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if within_minutes is not None:
             effective_start = now - timedelta(minutes=within_minutes)

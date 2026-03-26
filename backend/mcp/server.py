@@ -8,7 +8,7 @@ caller's permissions.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -18,7 +18,6 @@ from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.models.alert import EmergencyAlert
 from backend.models.event import EventLog
-from backend.models.person import PersonActivity
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.models.room import Room
 from backend.models.rule import Rule
@@ -329,7 +328,7 @@ class MCPToolRegistry:
         """Manually trigger a rule's pipeline execution."""
         # This requires the pipeline executor — resolve lazily
         try:
-            from backend.services.pipeline_executor import PipelineExecutor, TriggerContext
+            from backend.services.pipeline_executor import TriggerContext
             from backend.services.scheduler import _pipeline_executor
 
             if not _pipeline_executor:
@@ -364,7 +363,7 @@ class MCPToolRegistry:
             if sensor_id:
                 stmt = stmt.where(ActiveImageState.sensor_id == sensor_id)
             states = db.execute(stmt).scalars().all()
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             return [
                 {
                     "sensor_id": s.sensor_id,

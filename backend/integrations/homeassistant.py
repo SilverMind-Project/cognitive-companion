@@ -10,7 +10,7 @@ Provides:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -180,7 +180,7 @@ class HomeAssistantClient:
         if not self.configured:
             return []
 
-        start = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        start = (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
         params: dict[str, Any] = {
             "filter_entity_id": entity_id,
             "significant_changes_only": int(significant_only),
@@ -263,7 +263,7 @@ class HomeAssistantClient:
         ranges.append({
             "state": current["state"],
             "start": current["time"],
-            "end": datetime.now(timezone.utc).isoformat(),
+            "end": datetime.now(UTC).isoformat(),
         })
 
         return ranges

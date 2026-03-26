@@ -25,6 +25,7 @@ gemini = [
 ]
 dev = [
     "ruff>=0.8",
+    "mypy>=1.13",
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
 ]
@@ -36,13 +37,68 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
 
+# ── Ruff ─────────────────────────────────────────────────────────
 [tool.ruff]
 target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W"]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes (includes unused imports, undefined names)
+    "I",     # isort
+    "W",     # pycodestyle warnings
+    "UP",    # pyupgrade — modernize syntax
+    "B",     # flake8-bugbear — common bug patterns
+    "SIM",   # flake8-simplify
+    "TCH",   # flake8-type-checking — move type-only imports behind TYPE_CHECKING
+    "RUF",   # ruff-specific rules
+    "PIE",   # flake8-pie — misc lint
+    "PT",    # flake8-pytest-style
+    "C4",    # flake8-comprehensions
+    "T20",   # flake8-print — flag print() left in code
+]
+ignore = [
+    "E501",    # line length handled by formatter
+    "B008",    # Depends() in FastAPI param defaults is idiomatic
+    "RUF002",  # en-dash in docstrings is intentional
+    "RUF003",  # en-dash in comments is intentional
+    "RUF012",  # ClassVar for mutable class attrs — too noisy for registries
+    "TCH",     # type-checking imports — adopt incrementally
+    "TC",      # type-checking imports (older alias)
+]
 
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+# ── Mypy ─────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false                # too noisy with untyped third-party libs
+warn_unused_configs = true
+warn_unused_ignores = true
+check_untyped_defs = true
+disallow_untyped_defs = false          # too noisy for gradual adoption
+no_implicit_optional = true
+strict_equality = true
+enable_error_code = ["import"]         # catches broken imports at type-check time
+exclude = ["tests/", "\\.venv/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "boto3.*",
+    "botocore.*",
+    "mypy_boto3_s3.*",
+    "apscheduler.*",
+    "google.*",
+    "structlog.*",
+    "yaml.*",
+    "mcp.*",
+    "uvicorn.*",
+]
+ignore_missing_imports = true
+
+# ── Pytest ───────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

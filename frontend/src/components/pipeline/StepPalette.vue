@@ -7,7 +7,10 @@
       </v-card-title>
 
       <v-card-text>
-        <div v-for="group in groups" :key="group.name" class="mb-4">
+        <div v-if="loading" class="text-center py-4">
+          <v-progress-circular indeterminate color="primary" />
+        </div>
+        <div v-else v-for="group in groups" :key="group.name" class="mb-4">
           <div class="text-overline text-grey mb-2">{{ group.name }}</div>
           <v-row dense>
             <v-col v-for="st in group.types" :key="st.type" cols="6" sm="4">
@@ -35,49 +38,69 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted } from "vue";
+import { api } from "../../services/api.js";
+
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["update:modelValue", "select"]);
 
-const groups = [
-  {
-    name: "Perception",
-    types: [
-      { type: "person_identification", label: "Person ID", icon: "mdi-face-recognition" },
-      { type: "vision_analysis", label: "Vision Analysis", icon: "mdi-eye" },
-    ],
-  },
-  {
-    name: "Reasoning",
-    types: [
-      { type: "logic_reasoning", label: "Logic Reasoning", icon: "mdi-head-cog" },
-      { type: "condition", label: "Condition", icon: "mdi-help-circle" },
-    ],
-  },
-  {
-    name: "State",
-    types: [
-      { type: "activity_detection", label: "Record Activity", icon: "mdi-database-plus" },
-      { type: "verification", label: "Verify Activity", icon: "mdi-check-decagram" },
-    ],
-  },
-  {
-    name: "Action",
-    types: [
-      { type: "notification", label: "Notification", icon: "mdi-bell" },
-      { type: "ha_action", label: "HA Action", icon: "mdi-home-automation" },
-      { type: "translation", label: "Translation", icon: "mdi-translate" },
-    ],
-  },
-  {
-    name: "Flow",
-    types: [
-      { type: "wait", label: "Wait", icon: "mdi-timer-sand" },
-    ],
-  },
-];
+const loading = ref(false);
+const stepTypes = ref([]);
+
+// Category display order
+const CATEGORY_ORDER = ["perception", "reasoning", "state", "action", "flow"];
+const CATEGORY_LABELS = {
+  perception: "Perception",
+  reasoning: "Reasoning",
+  state: "State",
+  action: "Action",
+  flow: "Flow",
+};
+
+const groups = computed(() => {
+  const byCategory = {};
+  for (const st of stepTypes.value) {
+    const cat = st.category || "action";
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push({
+      type: st.type_name,
+      label: st.display_name,
+      icon: st.icon,
+    });
+  }
+  return CATEGORY_ORDER
+    .filter((cat) => byCategory[cat])
+    .map((cat) => ({
+      name: CATEGORY_LABELS[cat] || cat,
+      types: byCategory[cat],
+    }));
+});
+
+onMounted(async () => {
+  loading.value = true;
+  try {
+    stepTypes.value = await api.getStepTypes();
+  } catch {
+    // Fallback to hardcoded types if API unavailable
+    stepTypes.value = [
+      { type_name: "person_identification", display_name: "Person ID", category: "perception", icon: "mdi-face-recognition" },
+      { type_name: "vision_analysis", display_name: "Vision Analysis", category: "perception", icon: "mdi-eye" },
+      { type_name: "logic_reasoning", display_name: "Logic Reasoning", category: "reasoning", icon: "mdi-head-cog" },
+      { type_name: "condition", display_name: "Condition", category: "reasoning", icon: "mdi-help-circle" },
+      { type_name: "activity_detection", display_name: "Record Activity", category: "state", icon: "mdi-database-plus" },
+      { type_name: "verification", display_name: "Verify Activity", category: "state", icon: "mdi-check-decagram" },
+      { type_name: "notification", display_name: "Notification", category: "action", icon: "mdi-bell" },
+      { type_name: "ha_action", display_name: "HA Action", category: "action", icon: "mdi-home-automation" },
+      { type_name: "translation", display_name: "Translation", category: "action", icon: "mdi-translate" },
+      { type_name: "wait", display_name: "Wait", category: "flow", icon: "mdi-timer-sand" },
+    ];
+  } finally {
+    loading.value = false;
+  }
+});
 
 function select(type) {
   emit("select", type);

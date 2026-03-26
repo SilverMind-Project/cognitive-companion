@@ -10,18 +10,36 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.core.database import Base
 
 
-STEP_TYPES = (
-    "person_identification",
-    "vision_analysis",
-    "logic_reasoning",
-    "translation",
-    "notification",
-    "ha_action",
-    "activity_detection",
-    "wait",
-    "condition",
-    "verification",
-)
+def get_step_types() -> tuple[str, ...]:
+    """Return all registered step type names.
+
+    Uses the :class:`StepRegistry` at runtime; returns a default tuple
+    if the registry has not been initialised yet (e.g., during migrations).
+    """
+    try:
+        from backend.steps import StepRegistry
+        names = StepRegistry.type_names()
+        if names:
+            return tuple(names)
+    except Exception:
+        pass
+    # Fallback for DB migrations and early boot
+    return (
+        "person_identification",
+        "vision_analysis",
+        "logic_reasoning",
+        "translation",
+        "notification",
+        "ha_action",
+        "activity_detection",
+        "wait",
+        "condition",
+        "verification",
+    )
+
+
+# Backward-compatible alias
+STEP_TYPES = get_step_types()
 
 
 class PipelineStep(Base):
@@ -49,12 +67,12 @@ class PipelineStep(Base):
         ForeignKey("pipeline_steps.id"), nullable=True
     )
 
-    rule: Mapped["Rule"] = relationship(back_populates="steps")  # noqa: F821
+    rule: Mapped[Rule] = relationship(back_populates="steps")  # noqa: F821
 
-    true_branch: Mapped["PipelineStep | None"] = relationship(
+    true_branch: Mapped[PipelineStep | None] = relationship(
         foreign_keys=[next_step_on_true], remote_side=[id], uselist=False
     )
-    false_branch: Mapped["PipelineStep | None"] = relationship(
+    false_branch: Mapped[PipelineStep | None] = relationship(
         foreign_keys=[next_step_on_false], remote_side=[id], uselist=False
     )
 
@@ -87,7 +105,7 @@ class WorkflowExecution(Base):
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    rule: Mapped["Rule"] = relationship()  # noqa: F821
-    current_step: Mapped["PipelineStep | None"] = relationship(
+    rule: Mapped[Rule] = relationship()  # noqa: F821
+    current_step: Mapped[PipelineStep | None] = relationship(
         foreign_keys=[current_step_id]
     )

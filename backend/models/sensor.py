@@ -21,4 +21,4 @@ class Sensor(Base):
     config_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    room: Mapped["Room | None"] = relationship(back_populates="sensors")  # noqa: F821
+    room: Mapped[Room | None] = relationship(back_populates="sensors")  # noqa: F821

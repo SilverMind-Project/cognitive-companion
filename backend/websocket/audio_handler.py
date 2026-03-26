@@ -16,13 +16,13 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
 
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
-from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
+from backend.integrations.llm.base import RealtimeLLMProvider
 from backend.services.conversation_manager import ConversationManager
 from backend.websocket.connection_manager import ConnectionManager
 
@@ -69,7 +69,7 @@ class AudioSessionHandler:
         self._pending_prompt_text: list[str] = []
 
         # Callback for backend-initiated prompts
-        self._current_callback: Optional[Callable] = None
+        self._current_callback: Callable | None = None
         self._current_callback_text: str = ""
 
         # Conversation session ID
@@ -356,7 +356,7 @@ class AudioSessionHandler:
                 # Put it back so the forward loop can consume it
                 await self._client_to_backend.put(item)
                 return
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
     async def _no_backend_fallback(self) -> None:

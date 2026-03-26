@@ -1,4 +1,4 @@
-from backend.websocket.connection_manager import ConnectionManager
 from backend.websocket.audio_handler import AudioSessionHandler
+from backend.websocket.connection_manager import ConnectionManager
 
-__all__ = ["ConnectionManager", "AudioSessionHandler"]
+__all__ = ["AudioSessionHandler", "ConnectionManager"]

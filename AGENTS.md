@@ -22,12 +22,24 @@ backend/
     database.py            # SQLAlchemy engine, session factory, init_db()
     exceptions.py          # AuthenticationError, PermissionDeniedError, NotFoundError, ConflictError
     logging.py             # structlog setup, get_logger()
+  steps/                   # Step plugin system
+    base.py                # StepHandler ABC, StepMetadata, StepResult, TriggerContext, ServiceContainer
+    __init__.py            # StepRegistry singleton + auto-discovery
+    builtin/               # 10 built-in step handlers (one file each)
+  channels/                # Notification channel plugin system
+    base.py                # NotificationChannel ABC, ChannelMetadata
+    __init__.py            # ChannelRegistry singleton + auto-discovery
+    builtin/               # WebSocket, Telegram, eInk, TTS channel plugins
+  filters/                 # Context filter plugin system
+    base.py                # ContextFilter ABC, FilterMetadata
+    __init__.py            # FilterRegistry singleton + auto-discovery
+    builtin/               # Room, time_range, day_of_week, person_presence, person_activity filters
   models/
     __init__.py            # Re-exports all models -- import here to register with Base
     sensor.py              # Sensor (camera, presence, button, light)
     room.py                # Room grouping
-    rule.py                # Rule, RuleContext, RuleDependency
-    pipeline.py            # PipelineStep, WorkflowExecution, STEP_TYPES
+    rule.py                # Rule, RuleContext, RuleDependency (+ webhook_config)
+    pipeline.py            # PipelineStep, WorkflowExecution
     event.py               # EventLog (pipeline execution audit trail, links to WorkflowExecution)
     alert.py               # EmergencyAlert
     person.py              # HouseholdMember, PersonSighting, PersonLocationState, PersonLocationHistory, PersonActivity
@@ -36,19 +48,19 @@ backend/
     image_state.py         # ActiveImageState (per-device eInk display state)
     image_template.py      # ImageTemplate (template definitions with regions)
   schemas/                 # Pydantic models mirroring ORM models (*Create, *Update, *Out)
-    rule.py                # Rule schemas
+    rule.py                # Rule schemas (includes webhook_config)
     workflow.py            # WorkflowExecution schemas
     activity.py            # PersonActivity schemas
     image.py               # Image template and render schemas
     event.py, person.py, room.py, sensor.py, alert.py
   services/
-    pipeline_executor.py   # Core composable pipeline executor (TriggerContext, StepResult, PipelineExecutor)
+    pipeline_executor.py   # Step orchestrator (dispatches to StepRegistry, uses ServiceContainer)
     condition_evaluator.py # Safe recursive-descent expression evaluator for condition steps
     event_aggregator.py    # Batches per-sensor events, manages media lifecycle
-    rules_engine.py        # Rule matching: context + dependency + rate-limit checks
+    rules_engine.py        # Rule matching: context via FilterRegistry + dependency + rate-limit checks
     person_tracking.py     # Fuses camera detections with HA presence sensors
     sensor_polling.py      # Polls Home Assistant entities on interval
-    notification_dispatcher.py  # Routes alerts to channels by level
+    notification_dispatcher.py  # Routes alerts to channels via ChannelRegistry
     conversation_manager.py     # Conversation history with TTL
     media_processor.py     # Image/video processing
     rag.py                 # Optional RAG service
@@ -62,6 +74,7 @@ backend/
     person_id_client.py    # HTTP client for person identification service
     llm/
       base.py              # LLMProvider abstract base
+      chain.py             # LLMProviderChain (fallback) + LLMProviderPool (load balancing)
       vllm.py              # vLLM provider (vision, translation)
       ollama.py            # Ollama provider (logic)
       gemini_live.py       # Google Gemini Live (realtime audio)
@@ -69,28 +82,41 @@ backend/
     server.py              # MCPToolRegistry: read-only tools for AI agents
   routers/                 # FastAPI route handlers (one file per domain)
     rules.py               # Rule CRUD + pipeline step management
+    pipeline.py            # Step type, channel type, filter type metadata endpoints
+    webhooks.py            # Webhook trigger endpoint with HMAC validation
     workflows.py           # Workflow execution endpoints (list, detail, cancel)
     activities.py          # PersonActivity endpoints
-    events.py, sensors.py, rooms.py, persons.py, alerts.py, etc.
+    persons.py             # HouseholdMember CRUD + enrollment proxy (list/enroll/delete via person-ID service)
+    events.py, sensors.py, rooms.py, alerts.py, etc.
   websocket/
     connection_manager.py  # WebSocket tracking, broadcast, prompt queue
     audio_handler.py       # Audio streaming with Gemini Live
-  main.py                  # App factory, lifespan, service wiring -- START HERE
+  main.py                  # App factory, lifespan, plugin discovery, service wiring -- START HERE
 
 frontend/src/
   views/                   # Vue 3 pages (CompanionView, AdminView + admin/ sub-views)
+    AdminView.vue          # Admin layout with grouped sidebar nav (Automation, Infrastructure, People)
+    CompanionView.vue      # Senior care voice UI with connection status indicator
     admin/
-      RuleDetailView.vue   # Rule editor with pipeline step builder
+      DashboardView.vue    # System stats, health checks, person locations, occupancy, alerts
+      RuleDetailView.vue   # Rule editor: sensor/room/person autocomplete, structured context filter dialogs
+      PersonsView.vue      # Member management + face enrollment UI (photo upload, enrollment status)
       ActivitiesView.vue   # PersonActivity list/filter
       WorkflowsView.vue    # Workflow execution monitor
       EInkTemplatesView.vue  # E-Ink template editor
-      DashboardView.vue, EventsView.vue, RulesView.vue, etc.
+      EventsView.vue, RulesView.vue, SensorsView.vue, RoomsView.vue, AlertsView.vue
   components/
     pipeline/
       PipelineBuilder.vue  # Drag-and-drop step ordering, icon mapping per step type
       StepCard.vue         # Single step display with status
-      StepPalette.vue      # Available step types to add
-      StepConfigDialog.vue # Per-step-type config forms
+      StepPalette.vue      # Dynamic step types loaded from GET /pipeline/step-types
+      StepConfigDialog.vue # Per-step-type config forms with person/sensor multi-select dropdowns
+    companion/             # Widget system for CompanionView
+      WidgetRegistry.js    # Widget registration, lookup, enable/disable
+      VoiceWidget.vue      # Audio recording with pulse/glow animations per state
+      TranscriptWidget.vue # Chat-bubble conversation display with timestamps
+      AlertWidget.vue      # Emergency alert overlay
+      index.js             # Built-in widget registration
     eink/
       BoundingBoxCanvas.vue  # Canvas overlay for region placement
       RegionEditor.vue       # Region property editor
@@ -112,14 +138,17 @@ config/
 
 ### Pipeline Execution
 
-Rules have composable pipeline steps executed in sequence by `PipelineExecutor`. This replaces any fixed linear pipeline -- each rule defines its own ordered steps via the `PipelineStep` model.
+Rules have composable pipeline steps executed in sequence by `PipelineExecutor`. Each rule defines its own ordered steps via the `PipelineStep` model.
 
-**Key types**:
+**Plugin architecture**: Step handlers are self-contained plugins in `backend/steps/builtin/` (one file per type). Each plugin is a class inheriting `StepHandler` from `backend/steps/base.py`, decorated with `@StepRegistry.register`. The registry auto-discovers plugins at startup via `StepRegistry.discover()`.
 
-- `PipelineStep` (model) -- one step in a rule's pipeline. Has `order`, `step_type`, `config_json`, optional branching fields.
-- `WorkflowExecution` (model) -- tracks a single run of a rule's pipeline, including paused/waiting state.
-- `TriggerContext` (dataclass) -- carries trigger metadata (sensor_id, room_name, media_paths, trigger_type).
-- `StepResult` (dataclass) -- carries step output (success, data dict, should_continue, optional next_step_id or wait_until).
+**Key types** (all in `backend/steps/base.py`):
+
+- `StepHandler` (ABC) -- base class for step plugins. Requires `metadata()` classmethod and `execute()` async method.
+- `StepMetadata` (dataclass) -- step name, description, icon, config JSONSchema.
+- `StepResult` (dataclass) -- step output: success, data dict, should_continue, optional next_step_id or wait_until.
+- `TriggerContext` (dataclass) -- trigger metadata: sensor_id, room_name, media_paths, trigger_type, webhook_payload.
+- `ServiceContainer` (dataclass) -- holds all shared services (LLM providers, HA client, DB session factory, etc.) passed to step handlers.
 
 **Data flow**: Pipeline data accumulates across steps. Each step receives the current `pipeline_data` dict and returns a `StepResult`. The executor merges `result.data` into `pipeline_data` before proceeding to the next step.
 
@@ -127,7 +156,7 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 
 **Wait steps** persist execution state to the `WorkflowExecution` table (status="waiting", resume_at set). The scheduler resumes execution via an APScheduler `DateTrigger`. A `SchedulerBridge` abstraction is injected into `PipelineExecutor` to decouple wait/resume scheduling.
 
-**Step types** are defined in `STEP_TYPES` tuple in `backend/models/pipeline.py`: person_identification, vision_analysis, logic_reasoning, translation, notification, ha_action, activity_detection, wait, condition, verification. Each has a corresponding `_step_<type>` handler method in `PipelineExecutor`.
+**Built-in step types**: person_identification, vision_analysis, logic_reasoning, translation, notification, ha_action, activity_detection, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`.
 
 Step type details:
 
@@ -135,7 +164,39 @@ Step type details:
 - `verification`: A database query step. Queries the `PersonActivity` table to verify household member activities within configured time windows. Does not capture images or run LLM calls.
 - `logic_reasoning`: Sends a prompt to the logic LLM provider. Supports a `response_format` config option with values: `"default"`, `"activity_detection"`, `"custom"`.
 
-**Wiring**: `PipelineExecutor` is instantiated in the lifespan in `backend/main.py` and attached to `app.state`.
+**Wiring**: `PipelineExecutor` is instantiated in the lifespan in `backend/main.py` and attached to `app.state`. It receives a `ServiceContainer` with all shared services.
+
+### Notification Channels
+
+Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts.
+
+### Context Filters
+
+Context filters are plugins in `backend/filters/builtin/`. Each filter inherits `ContextFilter` from `backend/filters/base.py` and is registered via `@FilterRegistry.register`. The `RulesEngine._matches_context()` method delegates to `FilterRegistry.get(context_type).evaluate()`.
+
+### Face Enrollment Proxy
+
+The backend proxies face enrollment requests to the person-ID service so the admin UI can manage enrollment without direct access to the face recognition service.
+
+**Endpoints** (in `backend/routers/persons.py`):
+
+- `GET /persons/enrolled` -- list all enrolled members from the person-ID service
+- `POST /persons/{person_id}/enroll` -- upload reference photos (multipart `files` + `name` field), proxied to the person-ID service via `PersonIDClient.enroll()`
+- `GET /persons/{person_id}/enrollment` -- get enrollment details (embedding count, created date)
+- `DELETE /persons/{person_id}/enrollment` -- remove face enrollment data
+
+The `PersonIDClient` at `backend/integrations/person_id_client.py` handles all communication with the person-ID service.
+
+### Webhook Triggers
+
+Rules can be triggered via `POST /webhooks/{rule_id}` with an `X-Webhook-Secret` header. The webhook endpoint validates the secret via HMAC comparison against the rule's `webhook_config.secret`. Secrets are generated via `POST /webhooks/{rule_id}/generate-secret`.
+
+### LLM Provider Chain and Pool
+
+The LLM subsystem (`backend/integrations/llm/`) supports three modes configured in `settings.yaml`:
+- **Simple**: single provider (default, existing behavior)
+- **Chain**: primary provider with fallback providers and configurable retry count
+- **Pool**: round-robin load balancing across multiple providers
 
 ### Service Injection
 
@@ -204,102 +265,81 @@ logger.info("event_processed", sensor_id=sid, rule=rule.name)
 
 | File | Why |
 |------|-----|
-| `backend/main.py` | Lifespan wires all services -- shows how everything connects |
-| `backend/services/pipeline_executor.py` | The composable pipeline executor (TriggerContext, StepResult, step handlers) |
+| `backend/main.py` | Lifespan wires all services, plugin discovery -- shows how everything connects |
+| `backend/steps/base.py` | StepHandler ABC, StepResult, TriggerContext, ServiceContainer -- core plugin types |
+| `backend/steps/__init__.py` | StepRegistry -- how step plugins are discovered and dispatched |
+| `backend/services/pipeline_executor.py` | Orchestrates step execution via StepRegistry |
 | `backend/services/condition_evaluator.py` | Safe expression evaluator for condition steps |
-| `backend/models/pipeline.py` | PipelineStep, WorkflowExecution, STEP_TYPES |
+| `backend/channels/__init__.py` | ChannelRegistry -- notification channel plugin discovery |
+| `backend/filters/__init__.py` | FilterRegistry -- context filter plugin discovery |
+| `backend/models/pipeline.py` | PipelineStep, WorkflowExecution models |
 | `backend/services/event_aggregator.py` | How sensor events are batched and media is managed |
-| `backend/services/rules_engine.py` | How rules are matched (contexts, dependencies, rate limits) |
+| `backend/services/rules_engine.py` | How rules are matched (filters, dependencies, rate limits) |
 | `backend/core/config.py` | How YAML config and env vars work |
-| `backend/core/auth.py` | How API keys and permissions work |
-| `person-identification-service/app/services/image_annotator.py` | Bounding box annotation with OpenCV |
 | `config/settings.yaml` | All available configuration options |
-| `config/auth.yaml` | Permission model definition |
 
 ## Common Tasks
 
 ### Adding a New Pipeline Step Type
 
-A pipeline step flows through **4 files** (2 backend, 2 frontend). The pipeline executor passes a shared `pipeline_data` dict from step to step. Each handler reads upstream results from it and merges its own output back in via `StepResult(data={...})`.
-
-#### 1. Backend Model: `backend/models/pipeline.py`
-
-Add the type string to the `STEP_TYPES` tuple. This is informational only (the `step_type` column is a free-form string), but it documents the valid set:
+Create a single file in `backend/steps/builtin/` (or `backend/steps/contrib/` for third-party plugins). The registry auto-discovers it at startup.
 
 ```python
-STEP_TYPES = (
-    ...,
-    "your_new_type",
-)
+# backend/steps/builtin/your_step.py
+from backend.steps import StepRegistry
+from backend.steps.base import StepHandler, StepMetadata, StepResult
+
+@StepRegistry.register
+class YourStepHandler(StepHandler):
+    @classmethod
+    def metadata(cls) -> StepMetadata:
+        return StepMetadata(
+            type_name="your_step",
+            name="Your Step",
+            description="What this step does",
+            icon="mdi-icon-name",
+            config_schema={
+                "some_field": {"type": "string", "default": "", "description": "Field description"},
+            },
+        )
+
+    async def execute(self, step, execution, pipeline_data, trigger, services) -> StepResult:
+        config = step.config_json or {}
+        # Read from pipeline_data (upstream results) and config (step settings).
+        # Access shared services via `services` (ServiceContainer).
+        return StepResult(data={"your_key": result})
 ```
 
-#### 2. Backend Handler: `backend/services/pipeline_executor.py`
+1. **That's it.** The step appears automatically in the frontend StepPalette (loaded via `GET /pipeline/step-types`) and gets a generic JSON config editor in StepConfigDialog. For a custom config form, add a `<template v-if>` block in `StepConfigDialog.vue`.
 
-Add a handler method and register it in the dispatch dict inside `_execute_step()`:
-
-```python
-# In the handlers dict (~line 338):
-handlers = {
-    ...,
-    "your_new_type": self._step_your_new_type,
-}
-
-# Handler method:
-async def _step_your_new_type(
-    self,
-    step: PipelineStep,
-    execution: WorkflowExecution,
-    pipeline_data: dict,
-    trigger: TriggerContext,
-) -> StepResult:
-    config = step.config_json or {}
-    # Read from pipeline_data (upstream results) and config (step settings).
-    # ...
-    return StepResult(data={"your_key": result})
-    # Keys in data={} are merged into pipeline_data for downstream steps.
-```
-
-Key types: `TriggerContext` carries trigger metadata (sensor_id, room_name, media_paths). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume).
-
-#### 3. Frontend Step Palette: `frontend/src/components/pipeline/StepPalette.vue`
-
-Add an entry to the `groups` array in the appropriate category (Perception, Reasoning, Action, or Flow):
-
-```javascript
-{ type: "your_new_type", label: "Your Label", icon: "mdi-icon-name" },
-```
-
-#### 4. Frontend Config Dialog: `frontend/src/components/pipeline/StepConfigDialog.vue`
-
-Three additions in this file:
-
-**(a)** Add a `<template v-if>` block with Vuetify form fields for the step's config:
-
-```html
-<template v-if="localStep.step_type === 'your_new_type'">
-  <v-text-field v-model="cfg.some_field" label="Some Field" variant="outlined" />
-</template>
-```
-
-**(b)** Add default values to the `defaults` object:
-
-```javascript
-your_new_type: {
-  some_field: "",
-},
-```
-
-**(c)** If your config uses arrays stored as comma-separated strings (see `target_persons` pattern), add normalization in the `watch` callback and the `save()` function.
-
-#### 5. Test
-
-Delete `data/cognitive_companion.db`, restart the backend, create a rule, add your new step, configure it, and trigger the pipeline.
+Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata (sensor_id, room_name, media_paths, webhook_payload). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, and other shared services.
 
 ### Adding a New Context Filter Type
 
-1. Add a handler in `rules_engine.py` `_matches_context()` method
-2. Update the `RuleContext` docstring in `backend/models/rule.py` with the new type and its config schema
-3. Add form support in `frontend/src/views/admin/RuleDetailView.vue`
+Create a single file in `backend/filters/builtin/` (or `backend/filters/contrib/`):
+
+```python
+# backend/filters/builtin/your_filter.py
+from backend.filters import FilterRegistry
+from backend.filters.base import ContextFilter, FilterMetadata
+
+@FilterRegistry.register
+class YourFilter(ContextFilter):
+    @classmethod
+    def metadata(cls) -> FilterMetadata:
+        return FilterMetadata(
+            context_type="your_filter",
+            name="Your Filter",
+            description="What this filter checks",
+            config_schema={"field": {"type": "string"}},
+        )
+
+    def evaluate(self, config: dict, trigger_context) -> bool:
+        return config.get("field") == trigger_context.some_value
+```
+
+1. The filter is auto-discovered and used by `RulesEngine._matches_context()` when a rule has a context with `context_type="your_filter"`.
+1. Add form support in `frontend/src/views/admin/RuleDetailView.vue` for the filter's config fields.
 
 ### Adding a New API Endpoint
 
@@ -328,9 +368,30 @@ Delete `data/cognitive_companion.db`, restart the backend, create a rule, add yo
 
 ### Adding a New Notification Channel
 
-1. Create an integration client in `backend/integrations/`
-2. Register it in `NotificationDispatcher` (`backend/services/notification_dispatcher.py`)
-3. Add channel configuration in `config/notifications.yaml`
+Create a single file in `backend/channels/builtin/` (or `backend/channels/contrib/`):
+
+```python
+# backend/channels/builtin/your_channel.py
+from backend.channels import ChannelRegistry
+from backend.channels.base import NotificationChannel, ChannelMetadata
+
+@ChannelRegistry.register
+class YourChannel(NotificationChannel):
+    @classmethod
+    def metadata(cls) -> ChannelMetadata:
+        return ChannelMetadata(
+            channel_type="your_channel",
+            name="Your Channel",
+            description="Where notifications go",
+        )
+
+    async def send(self, message: str, level: str, services) -> bool:
+        # Use services to access integration clients.
+        return True
+```
+
+1. The channel is auto-discovered and available in `NotificationDispatcher`.
+1. Add channel configuration in `config/notifications.yaml` to route alert levels to the new channel.
 
 ### Working with E-Ink Displays
 
@@ -350,14 +411,15 @@ Delete `data/cognitive_companion.db`, restart the backend, create a rule, add yo
 ### Adding a New LLM Provider
 
 1. Implement the `LLMProvider` interface from `backend/integrations/llm/base.py`
-2. Register it in `backend/integrations/llm/__init__.py` (`get_provider()`)
+2. Register it via `register_provider(name, provider)` in `backend/integrations/llm/__init__.py`
 3. Add config in `config/settings.yaml` under the appropriate `llm.*` section
+4. Optionally configure as part of a chain (fallback) or pool (load balancing) in `settings.yaml`
 
 ## Key Model Reference
 
 ### Rule (backend/models/rule.py)
 
-Fields: `id`, `name`, `description`, `enabled`, `trigger_type` (sensor_event | cron | manual), `schedule_cron`, `primary_sensor_id`, `cool_off_minutes`, `max_daily_triggers`, `created_at`, `updated_at`.
+Fields: `id`, `name`, `description`, `enabled`, `trigger_type` (sensor_event | cron | manual | webhook), `schedule_cron`, `primary_sensor_id`, `cool_off_minutes`, `max_daily_triggers`, `webhook_config` (JSON: `{secret, created_at}`), `created_at`, `updated_at`.
 
 Relationships: `steps` (list of PipelineStep, ordered by `order`), `contexts` (list of RuleContext), `dependencies` (list of RuleDependency).
 
@@ -394,7 +456,7 @@ One row per eink display device. Links a sensor to its current rendered state an
 
 ## Code Style
 
-- **Python**: ruff with `E`, `F`, `I`, `W` rules. 100-char line length. Target Python 3.11.
+- **Python**: ruff with `E`, `F`, `I`, `W`, `UP`, `B`, `SIM`, `RUF`, `PIE`, `PT`, `C4`, `T20` rules. mypy for type checking with `enable_error_code = ["import"]`. 100-char line length. Target Python 3.11. Package management via uv with a lockfile (`uv.lock`).
 - **Frontend**: Vue 3 Composition API (`<script setup>`), Vuetify 3 components.
 - **Documentation**: no em-dashes (—) in any `.md` file. Use colons, periods, semicolons, or commas instead. For `**Bold** — desc` patterns, use `**Bold**: desc` or `**Bold.** Desc`. Em-dashes read as AI-generated; write like a technical writer at Apple or Google.
 - Prefer `async`/`await` for all I/O operations.
@@ -405,7 +467,8 @@ One row per eink display device. Links a sensor to its current rendered state an
 
 - Backend: `pytest` + `pytest-asyncio` (configured in `pyproject.toml`)
 - When writing tests, place them in `tests/` mirroring the `backend/` directory structure
-- Run with: `pytest`
+- Run with: `uv run pytest`
+- Run linters: `./scripts/lint.sh` (ruff + mypy) or `./scripts/lint.sh --fix` (auto-fix)
 
 ## External Services
 
@@ -426,7 +489,7 @@ One row per eink display device. Links a sensor to its current rendered state an
 - **Run migrations** -- delete `data/cognitive_companion.db` and restart instead
 - **Use `print()`** -- use `structlog` via `get_logger()`
 - **Instantiate services in routers** -- access them from `request.app.state`
-- **Add dependencies without updating `pyproject.toml`** (backend) or `package.json` (frontend)
+- **Add dependencies without updating `pyproject.toml` and running `uv lock`** (backend) or `package.json` (frontend)
 - **Skip permission checks** -- all new endpoints need entries in `config/auth.yaml`
 - **Catch `AuthenticationError` or `PermissionDeniedError` in routers** -- let global handlers deal with them
 - **Store secrets in config files** -- use `${ENV_VAR}` interpolation

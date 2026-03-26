@@ -21,11 +21,14 @@ class Rule(Base):
     # Trigger configuration
     trigger_type: Mapped[str] = mapped_column(
         String(32), default="sensor_event"
-    )  # sensor_event, cron, manual
+    )  # sensor_event, cron, manual, webhook
     schedule_cron: Mapped[str | None] = mapped_column(String(128), nullable=True)
     primary_sensor_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True
     )  # for periodic rules that need to capture from a specific sensor
+
+    # Webhook trigger configuration
+    webhook_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Rate limiting
     cool_off_minutes: Mapped[int] = mapped_column(Integer, default=5)
@@ -39,7 +42,7 @@ class Rule(Base):
     )
 
     # Relationships
-    steps: Mapped[list["PipelineStep"]] = relationship(  # noqa: F821
+    steps: Mapped[list[PipelineStep]] = relationship(  # noqa: F821
         back_populates="rule",
         cascade="all, delete-orphan",
         order_by="PipelineStep.order",

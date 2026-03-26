@@ -5,7 +5,7 @@ eInk display image endpoints — per-device serving, template CRUD, rendering.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -56,7 +56,7 @@ def _serve_image_for_sensor(
         select(ActiveImageState).where(ActiveImageState.sensor_id == sensor_id)
     ).scalar_one_or_none()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if state and state.expires_at and state.expires_at < now:
         # Expired — serve default
         if _DEFAULT_TEMPLATE.exists():

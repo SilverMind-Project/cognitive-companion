@@ -14,7 +14,6 @@ import io
 import json
 import math
 import subprocess
-from pathlib import Path
 
 from PIL import Image
 

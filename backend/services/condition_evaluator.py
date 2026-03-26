@@ -202,7 +202,6 @@ class ConditionEvaluator:
 
         if func_name == "exists":
             # exists(path) — check if path resolves to a non-None value
-            path = tokens[pos - len(args) - 1].value if args else ""
             # Re-resolve: the arg was already resolved, so check truthiness
             return args[0] is not None if args else False, pos
 

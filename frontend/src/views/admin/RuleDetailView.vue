@@ -38,7 +38,7 @@
               <v-col cols="12" md="6">
                 <v-select
                   v-model="form.trigger_type"
-                  :items="['sensor_event', 'cron', 'manual']"
+                  :items="triggerTypes"
                   label="Trigger Type"
                   variant="outlined"
                 />
@@ -47,7 +47,28 @@
                 <v-textarea v-model="form.description" label="Description" variant="outlined" rows="2" />
               </v-col>
               <v-col cols="12" md="6">
-                <v-text-field v-model="form.primary_sensor_id" label="Primary Sensor ID" variant="outlined" />
+                <v-autocomplete
+                  v-model="form.primary_sensor_id"
+                  :items="sensorItems"
+                  item-title="_label"
+                  item-value="id"
+                  label="Primary Sensor"
+                  variant="outlined"
+                  clearable
+                  hint="The sensor that triggers this rule"
+                  persistent-hint
+                >
+                  <template #item="{ props: itemProps, item }">
+                    <v-list-item v-bind="itemProps">
+                      <template #prepend>
+                        <v-icon size="20" class="mr-2">{{ sensorIcon(item.raw.sensor_type) }}</v-icon>
+                      </template>
+                      <template #subtitle>
+                        {{ item.raw.sensor_type }} · {{ item.raw.room_name || 'No room' }}
+                      </template>
+                    </v-list-item>
+                  </template>
+                </v-autocomplete>
               </v-col>
               <v-col cols="12" md="6">
                 <v-text-field
@@ -92,42 +113,146 @@
             <div class="d-flex align-center mb-3">
               <h4 class="text-subtitle-1">Context Filters</h4>
               <v-spacer />
-              <v-btn size="small" color="primary" variant="tonal" prepend-icon="mdi-plus" @click="ctxDialog = true">
+              <v-btn size="small" color="primary" variant="tonal" prepend-icon="mdi-plus" @click="openCtxDialog">
                 Add Context
               </v-btn>
             </div>
             <v-list v-if="rule.contexts?.length">
               <v-list-item v-for="ctx in rule.contexts" :key="ctx.id">
                 <template #prepend>
-                  <v-chip size="small" color="info">{{ ctx.context_type }}</v-chip>
+                  <v-icon size="20" :color="ctxIcon(ctx.context_type).color" class="mr-3">
+                    {{ ctxIcon(ctx.context_type).icon }}
+                  </v-icon>
                 </template>
-                <v-list-item-title>{{ JSON.stringify(ctx.config_json) }}</v-list-item-title>
+                <v-list-item-title>
+                  <v-chip size="small" color="info" variant="tonal" class="mr-2">{{ ctx.context_type }}</v-chip>
+                  {{ ctxSummary(ctx) }}
+                </v-list-item-title>
                 <template #append>
                   <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="deleteContext(ctx.id)" />
                 </template>
               </v-list-item>
             </v-list>
-            <div v-else class="text-center text-grey py-4">No context filters — rule applies everywhere</div>
+            <div v-else class="text-center text-grey py-4">No context filters. This rule applies everywhere.</div>
           </v-card-text>
         </v-card>
 
+        <!-- Context Filter Dialog -->
         <v-dialog v-model="ctxDialog" max-width="500">
           <v-card rounded="xl">
             <v-card-title>Add Context Filter</v-card-title>
             <v-card-text>
               <v-select
                 v-model="ctxForm.context_type"
-                :items="['room', 'time_range', 'day_of_week', 'person_presence', 'person_activity']"
+                :items="contextTypeItems"
+                item-title="label"
+                item-value="value"
                 label="Context Type"
                 variant="outlined"
+                class="mb-3"
               />
-              <v-textarea
-                v-model="ctxConfigStr"
-                label="Config (JSON)"
-                variant="outlined"
-                rows="4"
-                placeholder='{"room_name": "Kitchen"}'
-              />
+
+              <!-- Room filter -->
+              <template v-if="ctxForm.context_type === 'room'">
+                <v-autocomplete
+                  v-model="ctxForm.config.room_name"
+                  :items="roomNames"
+                  label="Room"
+                  variant="outlined"
+                  hint="Only trigger when the event is in this room"
+                  persistent-hint
+                />
+              </template>
+
+              <!-- Time range filter -->
+              <template v-else-if="ctxForm.context_type === 'time_range'">
+                <v-text-field
+                  v-model="ctxForm.config.start_time"
+                  label="Start Time"
+                  variant="outlined"
+                  type="time"
+                  class="mb-3"
+                />
+                <v-text-field
+                  v-model="ctxForm.config.end_time"
+                  label="End Time"
+                  variant="outlined"
+                  type="time"
+                />
+              </template>
+
+              <!-- Day of week filter -->
+              <template v-else-if="ctxForm.context_type === 'day_of_week'">
+                <v-select
+                  v-model="ctxForm.config.days"
+                  :items="dayItems"
+                  label="Days"
+                  variant="outlined"
+                  multiple
+                  chips
+                  closable-chips
+                  hint="Only trigger on selected days"
+                  persistent-hint
+                />
+              </template>
+
+              <!-- Person presence filter -->
+              <template v-else-if="ctxForm.context_type === 'person_presence'">
+                <v-autocomplete
+                  v-model="ctxForm.config.person_id"
+                  :items="personIds"
+                  label="Person"
+                  variant="outlined"
+                  clearable
+                  class="mb-3"
+                />
+                <v-select
+                  v-model="ctxForm.config.status"
+                  :items="['home', 'away', 'unknown']"
+                  label="Required Status"
+                  variant="outlined"
+                  hint="Only trigger when the person has this status"
+                  persistent-hint
+                />
+              </template>
+
+              <!-- Person activity filter -->
+              <template v-else-if="ctxForm.context_type === 'person_activity'">
+                <v-autocomplete
+                  v-model="ctxForm.config.person_id"
+                  :items="personIds"
+                  label="Person"
+                  variant="outlined"
+                  clearable
+                  class="mb-3"
+                />
+                <v-combobox
+                  v-model="ctxForm.config.activity_type"
+                  :items="activityTypeItems"
+                  label="Activity Type"
+                  variant="outlined"
+                  class="mb-3"
+                />
+                <v-text-field
+                  v-model.number="ctxForm.config.within_minutes"
+                  label="Within Minutes"
+                  variant="outlined"
+                  type="number"
+                  hint="Check if activity occurred within this time window"
+                  persistent-hint
+                />
+              </template>
+
+              <!-- Fallback: raw JSON -->
+              <template v-else>
+                <v-textarea
+                  v-model="ctxConfigStr"
+                  label="Config (JSON)"
+                  variant="outlined"
+                  rows="4"
+                  placeholder='{"key": "value"}'
+                />
+              </template>
             </v-card-text>
             <v-card-actions>
               <v-spacer />
@@ -152,7 +277,7 @@
             <v-list v-if="rule.dependencies?.length">
               <v-list-item v-for="dep in rule.dependencies" :key="dep.id">
                 <v-list-item-title>
-                  Parent Rule #{{ dep.parent_rule_id }} — lookback {{ dep.lookback_minutes }}min
+                  {{ ruleNameById(dep.parent_rule_id) }} (Rule #{{ dep.parent_rule_id }}) &middot; lookback {{ dep.lookback_minutes }}min
                   <v-chip size="x-small" :color="dep.require_success ? 'success' : 'warning'" class="ml-2">
                     {{ dep.require_success ? "require success" : "require no success" }}
                   </v-chip>
@@ -170,7 +295,15 @@
           <v-card rounded="xl">
             <v-card-title>Add Dependency</v-card-title>
             <v-card-text>
-              <v-text-field v-model.number="depForm.parent_rule_id" label="Parent Rule ID" type="number" variant="outlined" />
+              <v-autocomplete
+                v-model="depForm.parent_rule_id"
+                :items="otherRuleItems"
+                item-title="_label"
+                item-value="id"
+                label="Parent Rule"
+                variant="outlined"
+                class="mb-3"
+              />
               <v-text-field v-model.number="depForm.lookback_minutes" label="Lookback (min)" type="number" variant="outlined" />
               <v-switch v-model="depForm.require_success" label="Require Success" color="primary" />
             </v-card-text>
@@ -231,12 +364,55 @@ const snack = ref(false);
 const snackText = ref("");
 const snackColor = ref("success");
 
+// Reference data from API
+const allSensors = ref([]);
+const allRooms = ref([]);
+const allRules = ref([]);
+const allPersons = ref([]);
+
+const sensorItems = computed(() =>
+  allSensors.value.map((s) => ({
+    ...s,
+    _label: `${s.name || s.id} (${s.sensor_type}${s.room_name ? ', ' + s.room_name : ''})`,
+  }))
+);
+
+const roomNames = computed(() => allRooms.value.map((r) => r.name));
+const personIds = computed(() => allPersons.value.map((p) => p.id));
+
+const otherRuleItems = computed(() =>
+  allRules.value
+    .filter((r) => r.id !== ruleId.value)
+    .map((r) => ({ ...r, _label: `${r.name} (#${r.id})` }))
+);
+
+const triggerTypes = [
+  { title: "Sensor Event", value: "sensor_event" },
+  { title: "Cron Schedule", value: "cron" },
+  { title: "Manual", value: "manual" },
+  { title: "Webhook", value: "webhook" },
+];
+
+const contextTypeItems = [
+  { label: "Room", value: "room" },
+  { label: "Time Range", value: "time_range" },
+  { label: "Day of Week", value: "day_of_week" },
+  { label: "Person Presence", value: "person_presence" },
+  { label: "Person Activity", value: "person_activity" },
+];
+
+const dayItems = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const activityTypeItems = [
+  "eating", "sleeping", "medication", "bathing", "walking",
+  "watching_tv", "reading", "exercising", "cooking", "socializing",
+];
+
 // Settings form
 const form = ref({});
 
 // Contexts
 const ctxDialog = ref(false);
-const ctxForm = ref({ context_type: "room" });
+const ctxForm = ref({ context_type: "room", config: {} });
 const ctxConfigStr = ref("{}");
 
 // Dependencies
@@ -258,6 +434,51 @@ function notify(text, color = "success") {
   snack.value = true;
 }
 
+function sensorIcon(type) {
+  const map = {
+    camera: "mdi-cctv",
+    presence: "mdi-motion-sensor",
+    button: "mdi-gesture-tap-button",
+    light: "mdi-lightbulb",
+    eink: "mdi-image-edit",
+  };
+  return map[type] || "mdi-access-point";
+}
+
+function ctxIcon(type) {
+  const map = {
+    room: { icon: "mdi-floor-plan", color: "primary" },
+    time_range: { icon: "mdi-clock-outline", color: "orange" },
+    day_of_week: { icon: "mdi-calendar-week", color: "purple" },
+    person_presence: { icon: "mdi-account-check", color: "success" },
+    person_activity: { icon: "mdi-run", color: "info" },
+  };
+  return map[type] || { icon: "mdi-filter", color: "grey" };
+}
+
+function ctxSummary(ctx) {
+  const c = ctx.config_json || {};
+  switch (ctx.context_type) {
+    case "room": return c.room_name || "Any room";
+    case "time_range": return `${c.start_time || '?'} - ${c.end_time || '?'}`;
+    case "day_of_week": return Array.isArray(c.days) ? c.days.join(", ") : JSON.stringify(c);
+    case "person_presence": return `${c.person_id || 'any person'} is ${c.status || '?'}`;
+    case "person_activity": return `${c.person_id || 'any person'}: ${c.activity_type || '?'}`;
+    default: return JSON.stringify(c);
+  }
+}
+
+function ruleNameById(id) {
+  const r = allRules.value.find((r) => r.id === id);
+  return r ? r.name : "";
+}
+
+function openCtxDialog() {
+  ctxForm.value = { context_type: "room", config: {} };
+  ctxConfigStr.value = "{}";
+  ctxDialog.value = true;
+}
+
 async function loadRule() {
   try {
     rule.value = await api.getRule(ruleId.value);
@@ -274,6 +495,19 @@ async function loadRule() {
   } catch (e) {
     notify(e.message, "error");
   }
+}
+
+async function loadReferenceData() {
+  const [sensors, rooms, rules, persons] = await Promise.all([
+    api.getSensors().catch(() => []),
+    api.getRooms().catch(() => []),
+    api.getRules().catch(() => []),
+    api.getPersons().catch(() => []),
+  ]);
+  allSensors.value = Array.isArray(sensors) ? sensors : [];
+  allRooms.value = Array.isArray(rooms) ? rooms : [];
+  allRules.value = Array.isArray(rules) ? rules : [];
+  allPersons.value = Array.isArray(persons) ? persons : [];
 }
 
 async function saveSettings() {
@@ -300,9 +534,15 @@ async function executeRule() {
 
 async function addContext() {
   try {
-    const config = JSON.parse(ctxConfigStr.value);
+    let config;
+    const t = ctxForm.value.context_type;
+    if (["room", "time_range", "day_of_week", "person_presence", "person_activity"].includes(t)) {
+      config = { ...ctxForm.value.config };
+    } else {
+      config = JSON.parse(ctxConfigStr.value);
+    }
     await api.addRuleContext(ruleId.value, {
-      context_type: ctxForm.value.context_type,
+      context_type: t,
       config_json: config,
     });
     ctxDialog.value = false;
@@ -367,5 +607,8 @@ watch(tab, (val) => {
   if (val === "executions") loadExecutions();
 });
 
-onMounted(loadRule);
+onMounted(() => {
+  loadRule();
+  loadReferenceData();
+});
 </script>

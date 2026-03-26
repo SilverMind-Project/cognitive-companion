@@ -2,32 +2,55 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+import base64
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
 from backend.core.database import get_db
+from backend.core.logging import get_logger
 from backend.models.person import HouseholdMember
 from backend.schemas.person import (
+    EnrollResultOut,
     HouseholdMemberCreate,
     HouseholdMemberOut,
     HouseholdMemberUpdate,
+    PersonEnrollmentOut,
     PersonLocationHistoryOut,
     PersonLocationOut,
     PersonSightingOut,
 )
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/persons", tags=["persons"])
 
 
 @router.get("", response_model=list[HouseholdMemberOut])
 async def list_members(
+    request: Request,
     db: Session = Depends(get_db),
     _auth=Depends(require_permission("caregiver")),
 ):
-    """List all household members."""
+    """List all household members, enriched with face enrollment status."""
     members = db.query(HouseholdMember).order_by(HouseholdMember.name).all()
-    return members
+
+    # Fetch enrollment data from the person-id service.
+    pid_client = request.app.state.person_id_client
+    enrolled_members = await pid_client.get_members()
+    enrolled_map = {m.person_id: m for m in enrolled_members}
+
+    results: list[HouseholdMemberOut] = []
+    for member in members:
+        out = HouseholdMemberOut.model_validate(member)
+        enrollment = enrolled_map.get(member.id)
+        if enrollment is not None:
+            out.is_enrolled = True
+            out.embedding_count = enrollment.embedding_count
+        results.append(out)
+
+    return results
 
 
 @router.post("", response_model=HouseholdMemberOut, status_code=201)
@@ -66,6 +89,116 @@ async def get_all_locations(
     tracking = request.app.state.person_tracking
     locations = await tracking.get_person_locations()
     return locations
+
+
+@router.get("/enrolled", response_model=list[PersonEnrollmentOut])
+async def list_enrolled(
+    request: Request,
+    _auth=Depends(require_permission("caregiver")),
+):
+    """List all people with face enrollment data in the person-id service."""
+    pid_client = request.app.state.person_id_client
+    enrolled = await pid_client.get_members()
+    return [
+        PersonEnrollmentOut(
+            person_id=m.person_id,
+            name=m.name,
+            embedding_count=m.embedding_count,
+            created_at=m.created_at,
+        )
+        for m in enrolled
+    ]
+
+
+@router.post("/{person_id}/enroll", response_model=EnrollResultOut)
+async def enroll_person(
+    person_id: str,
+    request: Request,
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    _auth=Depends(require_permission("admin")),
+):
+    """Enroll a person's face by uploading one or more images.
+
+    Accepts multipart file uploads, base64-encodes them, and forwards
+    to the person-id service. Also ensures the person exists in the
+    local HouseholdMember table.
+    """
+    pid_client = request.app.state.person_id_client
+
+    # Ensure the person exists locally.
+    member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail=f"Member '{person_id}' not found")
+
+    # Read and base64-encode uploaded images.
+    images: list[str] = []
+    for upload in files:
+        raw = await upload.read()
+        images.append(base64.b64encode(raw).decode("ascii"))
+
+    logger.info(
+        "person_enroll_request",
+        person_id=person_id,
+        image_count=len(images),
+    )
+
+    result = await pid_client.enroll(
+        person_id=person_id,
+        name=member.name,
+        images=images,
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Person identification service is unavailable",
+        )
+
+    return EnrollResultOut(
+        person_id=result.person_id,
+        name=result.name,
+        embedding_count=result.embedding_count,
+        status=result.status,
+    )
+
+
+@router.get("/{person_id}/enrollment", response_model=PersonEnrollmentOut)
+async def get_enrollment(
+    person_id: str,
+    request: Request,
+    _auth=Depends(require_permission("caregiver")),
+):
+    """Get face enrollment details for a specific person."""
+    pid_client = request.app.state.person_id_client
+    info = await pid_client.get_member(person_id)
+    if info is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No enrollment found for '{person_id}'",
+        )
+    return PersonEnrollmentOut(
+        person_id=info.person_id,
+        name=info.name,
+        embedding_count=info.embedding_count,
+        created_at=info.created_at,
+    )
+
+
+@router.delete("/{person_id}/enrollment", status_code=204)
+async def delete_enrollment(
+    person_id: str,
+    request: Request,
+    _auth=Depends(require_permission("admin")),
+):
+    """Remove face enrollment data for a person."""
+    pid_client = request.app.state.person_id_client
+    deleted = await pid_client.delete_member(person_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No enrollment found for '{person_id}'",
+        )
+    logger.info("person_enrollment_deleted", person_id=person_id)
 
 
 @router.get("/{person_id}", response_model=HouseholdMemberOut)

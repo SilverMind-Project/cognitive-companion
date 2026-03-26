@@ -11,7 +11,6 @@ import asyncio
 from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
-from backend.models.event import EventLog
 from backend.models.pipeline import WorkflowExecution
 from backend.models.sensor import Sensor
 from backend.services.pipeline_executor import PipelineExecutor, TriggerContext

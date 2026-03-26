@@ -5,8 +5,9 @@ Abstract base classes for LLM providers.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
 
 @dataclass
@@ -76,7 +77,7 @@ class RealtimeLLMProvider(ABC):
         ...  # pragma: no cover
         # Mypy/pyright need a yield to recognise this as an async generator.
         # The yield is unreachable but keeps type-checkers happy.
-        if False:  # noqa: SIM108
+        if False:
             yield  # type: ignore[misc]
 
     @abstractmethod

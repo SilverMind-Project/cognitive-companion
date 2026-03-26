@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import WebSocket
 
@@ -80,7 +81,7 @@ class ConnectionManager:
     async def send_backend_task(
         self,
         prompt: str,
-        callback: Optional[Callable] = None,
+        callback: Callable | None = None,
         ttl_seconds: int = 300,
     ) -> None:
         """Enqueue a prompt for the realtime AI backend.

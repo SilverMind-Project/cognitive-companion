@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import shutil
 import textwrap
-from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
-from typing import Callable
 
 from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import select
@@ -243,7 +243,7 @@ class EInkRenderer:
         while font_size >= font_size_min:
             try:
                 font = ImageFont.truetype(str(font_path), font_size)
-            except (OSError, IOError):
+            except OSError:
                 font = ImageFont.load_default()
                 break
 
@@ -361,7 +361,7 @@ class EInkRenderer:
         db: Session,
     ) -> None:
         """Insert or update ActiveImageState for the given sensor_id."""
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+        expires_at = datetime.now(UTC) + timedelta(minutes=expires_minutes)
         state = db.execute(
             select(ActiveImageState).where(ActiveImageState.sensor_id == sensor_id)
         ).scalar_one_or_none()

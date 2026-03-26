@@ -20,12 +20,16 @@
 
         <!-- person_identification -->
         <template v-if="localStep.step_type === 'person_identification'">
-          <v-text-field
+          <v-combobox
             v-model="cfg.target_persons"
+            :items="availablePersons"
             label="Target Persons"
             variant="outlined"
             density="comfortable"
-            hint="Comma-separated person names"
+            multiple
+            chips
+            closable-chips
+            hint="Select persons to identify, or leave empty for all"
             persistent-hint
             class="mb-3"
           />
@@ -140,13 +144,14 @@
           />
           <v-combobox
             v-model="cfg.channels"
+            :items="availableChannels"
             label="Notification Channels"
             variant="outlined"
             density="comfortable"
             multiple
             chips
             closable-chips
-            hint="Type channel names and press Enter"
+            hint="Select channels or type custom channel names"
             persistent-hint
             class="mb-3"
           />
@@ -161,13 +166,14 @@
           />
           <v-combobox
             v-model="cfg.eink_targets"
+            :items="einkSensorItems"
             label="E-Ink Target Devices"
             variant="outlined"
             density="comfortable"
             multiple
             chips
             closable-chips
-            hint="Sensor IDs of eink displays (empty = all eink devices)"
+            hint="Select eink displays (empty = all eink devices)"
             persistent-hint
           />
         </template>
@@ -274,15 +280,18 @@
               <v-spacer />
               <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="cfg.conditions.splice(idx, 1)" />
             </div>
-            <v-text-field
+            <v-autocomplete
               v-model="cond.person_id"
+              :items="availablePersons"
               label="Person ID"
               variant="outlined"
               density="compact"
+              clearable
               class="mb-2"
             />
-            <v-text-field
+            <v-combobox
               v-model="cond.activity_type"
+              :items="activityTypes"
               label="Activity Type"
               variant="outlined"
               density="compact"
@@ -375,6 +384,21 @@
             :min="0"
           />
         </template>
+
+        <!-- Generic fallback for unknown/plugin step types -->
+        <template v-if="!knownTypes.includes(localStep.step_type) && localStep.step_type">
+          <v-alert type="info" variant="tonal" class="mb-3">
+            This step type uses a plugin configuration. Edit the JSON config below.
+          </v-alert>
+          <v-textarea
+            v-model="genericConfigJson"
+            label="Config JSON"
+            variant="outlined"
+            rows="8"
+            class="mb-3"
+            :error-messages="genericConfigError"
+          />
+        </template>
       </v-card-text>
 
       <v-card-actions>
@@ -387,7 +411,8 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive } from "vue";
+import { ref, watch, reactive, onMounted } from "vue";
+import { api } from "../../services/api.js";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -395,6 +420,12 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update:modelValue", "save"]);
+
+const knownTypes = [
+  "person_identification", "vision_analysis", "logic_reasoning",
+  "translation", "notification", "ha_action", "activity_detection",
+  "wait", "condition", "verification",
+];
 
 const contextKeys = [
   "vision_result",
@@ -413,10 +444,26 @@ const localStep = reactive({
 });
 
 const cfg = reactive({});
+const genericConfigJson = ref("{}");
+const genericConfigError = ref("");
 
-const defaults = {
+// Dynamic lists from API
+const availableChannels = ref(["websocket", "telegram", "eink", "tts"]);
+const availablePersons = ref([]);
+const availableSensors = ref([]);
+const einkSensorItems = ref([]);
+const activityTypes = [
+  "eating", "sleeping", "medication", "bathing", "walking",
+  "watching_tv", "reading", "exercising", "cooking", "socializing",
+];
+
+// Step type metadata cache (for defaults)
+const stepTypeDefaults = ref({});
+
+// Hardcoded defaults (used if API fails)
+const fallbackDefaults = {
   person_identification: {
-    target_persons: "",
+    target_persons: [],
     min_confidence: 0.6,
     include_annotated_image: true,
     include_motion: false,
@@ -466,6 +513,43 @@ const defaults = {
   },
 };
 
+onMounted(async () => {
+  try {
+    const types = await api.getStepTypes();
+    for (const t of types) {
+      stepTypeDefaults.value[t.type_name] = t.default_config || {};
+    }
+  } catch {
+    // Use fallback defaults
+  }
+  try {
+    const channels = await api.getChannelTypes();
+    availableChannels.value = channels.map((c) => c.channel_name);
+  } catch {
+    // Use fallback channel list
+  }
+  try {
+    const persons = await api.getPersons();
+    availablePersons.value = persons.map((p) => p.id);
+  } catch {
+    // Persons list unavailable
+  }
+  try {
+    const sensors = await api.getSensors();
+    availableSensors.value = sensors;
+    einkSensorItems.value = sensors
+      .filter((s) => s.sensor_type === "eink")
+      .map((s) => s.id);
+  } catch {
+    // Sensors list unavailable
+  }
+});
+
+function getDefaults(stepType) {
+  // Prefer API-provided defaults, fall back to hardcoded
+  return stepTypeDefaults.value[stepType] || fallbackDefaults[stepType] || {};
+}
+
 watch(
   () => props.step,
   (step) => {
@@ -473,7 +557,7 @@ watch(
     localStep.step_type = step.step_type || "";
     localStep.label = step.label || "";
 
-    const base = defaults[step.step_type] || {};
+    const base = getDefaults(step.step_type);
     const incoming = step.config_json && typeof step.config_json === "object" ? step.config_json : {};
 
     // Reset cfg
@@ -490,14 +574,24 @@ watch(
       }));
     }
 
-    // Normalize target_persons to comma string for person_identification
-    if (step.step_type === "person_identification" && Array.isArray(cfg.target_persons)) {
-      cfg.target_persons = cfg.target_persons.join(", ");
+    // Normalize target_persons to array for person_identification combobox
+    if (step.step_type === "person_identification") {
+      if (typeof cfg.target_persons === "string") {
+        cfg.target_persons = cfg.target_persons.split(",").map((s) => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(cfg.target_persons)) {
+        cfg.target_persons = [];
+      }
     }
 
     // Normalize ha_action data to string
     if (step.step_type === "ha_action" && typeof cfg.data === "object") {
       cfg.data = JSON.stringify(cfg.data, null, 2);
+    }
+
+    // For unknown/plugin types, show JSON editor
+    if (!knownTypes.includes(step.step_type) && step.step_type) {
+      genericConfigJson.value = JSON.stringify(incoming, null, 2);
+      genericConfigError.value = "";
     }
   },
   { immediate: true }
@@ -554,37 +648,54 @@ function addCondition() {
 }
 
 function save() {
-  const config = { ...cfg };
+  let config;
 
-  // Normalize target_persons back to array
-  if (localStep.step_type === "person_identification" && typeof config.target_persons === "string") {
-    config.target_persons = config.target_persons
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-
-  // Convert verification conditions: time inputs -> ISO timestamps, strip UI fields
-  if (localStep.step_type === "verification" && Array.isArray(config.conditions)) {
-    config.conditions = config.conditions.map(({ _time_mode, _window_start_time, _window_end_time, ...rest }) => {
-      if (_time_mode === "fixed") {
-        rest.window_start = timeStrToTodayISO(_window_start_time);
-        rest.window_end = timeStrToTodayISO(_window_end_time);
-        delete rest.within_minutes;
-      } else {
-        delete rest.window_start;
-        delete rest.window_end;
-      }
-      return rest;
-    });
-  }
-
-  // Parse ha_action data JSON string
-  if (localStep.step_type === "ha_action" && typeof config.data === "string") {
+  // For unknown/plugin types, parse JSON
+  if (!knownTypes.includes(localStep.step_type) && localStep.step_type) {
     try {
-      config.data = config.data.trim() ? JSON.parse(config.data) : {};
-    } catch {
-      config.data = {};
+      config = JSON.parse(genericConfigJson.value);
+      genericConfigError.value = "";
+    } catch (e) {
+      genericConfigError.value = "Invalid JSON: " + e.message;
+      return;
+    }
+  } else {
+    config = { ...cfg };
+
+    // Normalize target_persons to array
+    if (localStep.step_type === "person_identification") {
+      if (typeof config.target_persons === "string") {
+        config.target_persons = config.target_persons
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      } else if (!Array.isArray(config.target_persons)) {
+        config.target_persons = [];
+      }
+    }
+
+    // Convert verification conditions: time inputs -> ISO timestamps, strip UI fields
+    if (localStep.step_type === "verification" && Array.isArray(config.conditions)) {
+      config.conditions = config.conditions.map(({ _time_mode, _window_start_time, _window_end_time, ...rest }) => {
+        if (_time_mode === "fixed") {
+          rest.window_start = timeStrToTodayISO(_window_start_time);
+          rest.window_end = timeStrToTodayISO(_window_end_time);
+          delete rest.within_minutes;
+        } else {
+          delete rest.window_start;
+          delete rest.window_end;
+        }
+        return rest;
+      });
+    }
+
+    // Parse ha_action data JSON string
+    if (localStep.step_type === "ha_action" && typeof config.data === "string") {
+      try {
+        config.data = config.data.trim() ? JSON.parse(config.data) : {};
+      } catch {
+        config.data = {};
+      }
     }
   }
 

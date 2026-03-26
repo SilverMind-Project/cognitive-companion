@@ -4,7 +4,7 @@ Manages conversation history with TTL, actor types, and DB persistence.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -41,7 +41,7 @@ class ConversationManager:
         try:
             session = db.get(ConversationSession, session_id)
             if session:
-                session.ended_at = datetime.now(timezone.utc)
+                session.ended_at = datetime.now(UTC)
                 db.commit()
         finally:
             db.close()
@@ -80,7 +80,7 @@ class ConversationManager:
         """
         db: Session = self.db_session_factory()
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(minutes=self.ttl_minutes)
+            cutoff = datetime.now(UTC) - timedelta(minutes=self.ttl_minutes)
             turns = (
                 db.query(ConversationTurn)
                 .filter(
@@ -106,7 +106,7 @@ class ConversationManager:
         """Get recent turns as dicts for API responses."""
         db: Session = self.db_session_factory()
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(minutes=self.ttl_minutes)
+            cutoff = datetime.now(UTC) - timedelta(minutes=self.ttl_minutes)
             turns = (
                 db.query(ConversationTurn)
                 .filter(
@@ -134,7 +134,7 @@ class ConversationManager:
         """Delete turns older than TTL. Returns count deleted."""
         db: Session = self.db_session_factory()
         try:
-            cutoff = datetime.now(timezone.utc) - timedelta(minutes=self.ttl_minutes)
+            cutoff = datetime.now(UTC) - timedelta(minutes=self.ttl_minutes)
             count = (
                 db.query(ConversationTurn)
                 .filter(ConversationTurn.timestamp < cutoff)

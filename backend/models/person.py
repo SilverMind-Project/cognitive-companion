@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -25,8 +25,8 @@ class HouseholdMember(Base):
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )
 
-    sightings: Mapped[list["PersonSighting"]] = relationship(back_populates="person")
-    location_state: Mapped["PersonLocationState | None"] = relationship(
+    sightings: Mapped[list[PersonSighting]] = relationship(back_populates="person")
+    location_state: Mapped[PersonLocationState | None] = relationship(
         back_populates="person", uselist=False
     )
 
@@ -51,7 +51,7 @@ class PersonSighting(Base):
     bbox_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     source: Mapped[str] = mapped_column(String(32), default="camera")
 
-    person: Mapped["HouseholdMember"] = relationship(back_populates="sightings")
+    person: Mapped[HouseholdMember] = relationship(back_populates="sightings")
 
 
 class PersonLocationState(Base):
@@ -73,7 +73,7 @@ class PersonLocationState(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    person: Mapped["HouseholdMember"] = relationship(back_populates="location_state")
+    person: Mapped[HouseholdMember] = relationship(back_populates="location_state")
 
 
 class PersonLocationHistory(Base):
@@ -117,4 +117,4 @@ class PersonActivity(Base):
     )
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    person: Mapped["HouseholdMember"] = relationship()
+    person: Mapped[HouseholdMember] = relationship()

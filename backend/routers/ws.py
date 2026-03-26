@@ -4,7 +4,7 @@ WebSocket router – /ws/audio endpoint for real-time voice interaction.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 
 from backend.core.logging import get_logger
 

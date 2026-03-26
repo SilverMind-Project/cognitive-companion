@@ -1,17 +1,31 @@
 """
-Routes notifications to configured channels based on alert level and rule config.
+Routes notifications to configured channels using the ChannelRegistry plugin system.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
+from backend.channels import ChannelRegistry
 from backend.core.config import settings
 from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
+@dataclass
+class DispatchServices:
+    """Bag of services passed to channel plugins during dispatch."""
+
+    ws_manager: Any = None
+    telegram_client: Any = None
+    tts_client: Any = None
+    image_renderer: Any = None
+
+
 class NotificationDispatcher:
-    """Dispatches notifications to Telegram, WebSocket, eInk, TTS."""
+    """Dispatches notifications to registered channels via the ChannelRegistry."""
 
     def __init__(
         self,
@@ -20,10 +34,12 @@ class NotificationDispatcher:
         tts_client=None,
         image_renderer=None,
     ) -> None:
-        self.telegram = telegram_client
-        self.ws_manager = ws_manager
-        self.tts = tts_client
-        self.image_renderer = image_renderer
+        self._dispatch_services = DispatchServices(
+            ws_manager=ws_manager,
+            telegram_client=telegram_client,
+            tts_client=tts_client,
+            image_renderer=image_renderer,
+        )
 
     async def dispatch(
         self,
@@ -43,52 +59,26 @@ class NotificationDispatcher:
 
         results: dict[str, bool] = {}
 
-        if "websocket" in channels and self.ws_manager:
-            try:
-                await self.ws_manager.broadcast({
-                    "type": alert_level,
-                    "message": message,
-                    "room": room_name,
-                })
-                results["websocket"] = True
-            except Exception as e:
-                logger.error("ws_dispatch_failed", error=str(e))
-                results["websocket"] = False
+        for channel_name in channels:
+            channel = ChannelRegistry.get(channel_name)
+            if not channel:
+                logger.warning("unknown_channel", channel=channel_name)
+                continue
 
-        if "telegram" in channels and self.telegram:
-            try:
-                targets = settings.get("notifications.telegram.targets", [])
-                for target in targets:
-                    if alert_level in target.get("alert_levels", []):
-                        if image_url:
-                            await self.telegram.send_photo(
-                                target["chat_id"], image_url, caption=message
-                            )
-                        else:
-                            await self.telegram.send_message(target["chat_id"], message)
-                results["telegram"] = True
-            except Exception as e:
-                logger.error("telegram_dispatch_failed", error=str(e))
-                results["telegram"] = False
+            # Build per-channel config from rule_config
+            channel_config = {}
+            if rule_config:
+                channel_config = rule_config
 
-        if "eink" in channels and self.image_renderer:
-            try:
-                eink_targets = rule_config.get("eink_targets") if rule_config else None
-                await self.image_renderer(
-                    text=message, template="alert", sensor_ids=eink_targets
-                )
-                results["eink"] = True
-            except Exception as e:
-                logger.error("eink_dispatch_failed", error=str(e))
-                results["eink"] = False
-
-        if "tts" in channels and self.tts:
-            try:
-                # TTS is handled by the realtime session, just log intent
-                results["tts"] = True
-            except Exception as e:
-                logger.error("tts_dispatch_failed", error=str(e))
-                results["tts"] = False
+            success = await channel.send(
+                message=message,
+                alert_level=alert_level,
+                room_name=room_name,
+                image_url=image_url,
+                config=channel_config,
+                services=self._dispatch_services,
+            )
+            results[channel_name] = success
 
         logger.info(
             "notification_dispatched",

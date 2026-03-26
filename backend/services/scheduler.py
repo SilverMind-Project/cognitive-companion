@@ -8,8 +8,8 @@ Provides:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -142,7 +142,6 @@ async def execute_periodic_rule(
         # For periodic rules, capture from primary sensor if configured
         media_paths: list[str] = []
         if rule.primary_sensor_id:
-            from backend.services.event_aggregator import EventAggregator
 
             # Try to get recent images from the primary sensor
             # The aggregator is available via the pipeline executor

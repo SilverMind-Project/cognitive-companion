@@ -253,7 +253,7 @@ async def execute_rule(
     _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
     """Manually trigger a rule for testing."""
-    from backend.services.pipeline_executor import TriggerContext
+    from backend.steps.base import TriggerContext
 
     rule = (
         db.query(Rule)

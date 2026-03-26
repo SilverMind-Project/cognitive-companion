@@ -12,7 +12,6 @@ The TTS service (tts-service/) exposes an OpenAI-compatible
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
 from typing import Any
 
 import httpx

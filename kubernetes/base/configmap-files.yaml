@@ -51,7 +51,6 @@ data:
       url: "${HOME_ASSISTANT_URL}"
       token: "${HOME_ASSISTANT_TOKEN}"
       poll_interval_seconds: 30
-      bathroom_time_limit_minutes: 20
 
     minio:
       endpoint: "${MINIO_ENDPOINT}"

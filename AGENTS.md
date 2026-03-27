@@ -29,7 +29,7 @@ backend/
   channels/                # Notification channel plugin system
     base.py                # NotificationChannel ABC, ChannelMetadata
     __init__.py            # ChannelRegistry singleton + auto-discovery
-    builtin/               # WebSocket, Telegram, eInk, TTS channel plugins
+    builtin/               # WebSocket, Telegram, eInk, TTS, realtime_voice channel plugins
   filters/                 # Context filter plugin system
     base.py                # ContextFilter ABC, FilterMetadata
     __init__.py            # FilterRegistry singleton + auto-discovery
@@ -38,7 +38,7 @@ backend/
     __init__.py            # Re-exports all models -- import here to register with Base
     sensor.py              # Sensor (camera, presence, button, light)
     room.py                # Room grouping
-    rule.py                # Rule, RuleContext, RuleDependency (+ webhook_config)
+    rule.py                # Rule, RuleContext, RuleDependency (+ webhook_config, occupancy_config)
     pipeline.py            # PipelineStep, WorkflowExecution
     event.py               # EventLog (pipeline execution audit trail, links to WorkflowExecution)
     alert.py               # EmergencyAlert
@@ -59,7 +59,7 @@ backend/
     event_aggregator.py    # Batches per-sensor events, manages media lifecycle
     rules_engine.py        # Rule matching: context via FilterRegistry + dependency + rate-limit checks
     person_tracking.py     # Fuses camera detections with HA presence sensors
-    sensor_polling.py      # Polls Home Assistant entities on interval
+    sensor_polling.py      # Polls HA presence sensors, tracks occupancy durations, fires occupancy_duration rules
     notification_dispatcher.py  # Routes alerts to channels via ChannelRegistry
     conversation_manager.py     # Conversation history with TTL
     media_processor.py     # Image/video processing
@@ -312,7 +312,7 @@ class YourStepHandler(StepHandler):
 
 1. **That's it.** The step appears automatically in the frontend StepPalette (loaded via `GET /pipeline/step-types`) and gets a generic JSON config editor in StepConfigDialog. For a custom config form, add a `<template v-if>` block in `StepConfigDialog.vue`.
 
-Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata (sensor_id, room_name, media_paths, webhook_payload). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, and other shared services.
+Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata — `trigger_type` (`"sensor_event"`, `"cron"`, `"manual"`, `"webhook"`, `"occupancy_duration"`), `sensor_id`, `room_name`, `media_paths`, `webhook_payload`, and `occupancy_duration_minutes` (set for `occupancy_duration` triggers). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, and other shared services.
 
 ### Adding a New Context Filter Type
 
@@ -419,9 +419,11 @@ class YourChannel(NotificationChannel):
 
 ### Rule (backend/models/rule.py)
 
-Fields: `id`, `name`, `description`, `enabled`, `trigger_type` (sensor_event | cron | manual | webhook), `schedule_cron`, `primary_sensor_id`, `cool_off_minutes`, `max_daily_triggers`, `webhook_config` (JSON: `{secret, created_at}`), `created_at`, `updated_at`.
+Fields: `id`, `name`, `description`, `enabled`, `trigger_type` (sensor_event | cron | manual | webhook | occupancy_duration), `schedule_cron`, `primary_sensor_id`, `cool_off_minutes`, `max_daily_triggers`, `webhook_config` (JSON: `{secret, created_at}`), `occupancy_config` (JSON: `{min_minutes: int}` -- used with `occupancy_duration` trigger type), `created_at`, `updated_at`.
 
 Relationships: `steps` (list of PipelineStep, ordered by `order`), `contexts` (list of RuleContext), `dependencies` (list of RuleDependency).
+
+**occupancy_duration trigger**: `SensorPollingService` queries all enabled rules with `trigger_type = "occupancy_duration"` on each polling cycle. When a sensor identified by `primary_sensor_id` has been continuously occupied for ≥ `occupancy_config.min_minutes`, the service fires the rule via `WorkflowPipeline.process_event()`. The actual elapsed duration is passed as `TriggerContext.occupancy_duration_minutes`. All existing context filters (room, time_range, person_presence, etc.) and rate limits apply normally.
 
 Note: Rules no longer have `prompts_json`, `notification_config_json`, `additional_camera_ids_json`, or `VerificationStep`. All pipeline behavior is defined via composable `PipelineStep` records.
 

@@ -80,3 +80,54 @@ class WorkflowPipeline:
                 logger.error("rule_execution_error", error=str(result))
 
         return executions
+
+    async def process_occupancy_event(
+        self,
+        sensor: Sensor,
+        room_name: str,
+        duration_minutes: float,
+        db: Session,
+    ) -> list[WorkflowExecution]:
+        """Fire occupancy_duration rules whose threshold has been reached.
+
+        Called by :class:`SensorPollingService` on each poll cycle for sensors
+        that are currently occupied. The rules engine filters by
+        ``primary_sensor_id``, ``occupancy_config.min_minutes``, context
+        filters, and rate limits — so this method fires at most once per
+        ``cool_off_minutes`` per rule even though polling runs every 30 s.
+        """
+        matched_rules = self.rules_engine.get_matching_rules(
+            sensor,
+            db,
+            trigger_type="occupancy_duration",
+            occupancy_minutes=duration_minutes,
+        )
+
+        if not matched_rules:
+            return []
+
+        trigger = TriggerContext(
+            trigger_type="occupancy_duration",
+            sensor_id=sensor.id,
+            room_name=room_name,
+            occupancy_duration_minutes=duration_minutes,
+        )
+
+        tasks = [
+            self.pipeline_executor.execute(rule, trigger, db)
+            for rule in matched_rules
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        executions: list[WorkflowExecution] = []
+        for result in results:
+            if isinstance(result, WorkflowExecution):
+                executions.append(result)
+            elif isinstance(result, Exception):
+                logger.error(
+                    "occupancy_rule_execution_error",
+                    sensor_id=sensor.id,
+                    error=str(result),
+                )
+
+        return executions

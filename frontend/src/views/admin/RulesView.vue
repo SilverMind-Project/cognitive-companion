@@ -35,19 +35,13 @@
       </v-data-table>
     </v-card>
 
-    <!-- Create Dialog (minimal — details are edited on the detail page) -->
+    <!-- Create Dialog (minimal — trigger type and all other settings are configured on the detail page) -->
     <v-dialog v-model="createDialog" max-width="500">
       <v-card rounded="xl">
         <v-card-title>Create Rule</v-card-title>
         <v-card-text>
           <v-text-field v-model="createForm.name" label="Name" variant="outlined" class="mb-3" />
-          <v-textarea v-model="createForm.description" label="Description" variant="outlined" rows="2" class="mb-3" />
-          <v-select
-            v-model="createForm.trigger_type"
-            :items="['sensor_event', 'cron', 'manual']"
-            label="Trigger Type"
-            variant="outlined"
-          />
+          <v-textarea v-model="createForm.description" label="Description" variant="outlined" rows="2" />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -86,7 +80,7 @@ const router = useRouter();
 const rules = ref([]);
 const loading = ref(false);
 const createDialog = ref(false);
-const createForm = ref({ name: "", description: "", trigger_type: "sensor_event" });
+const createForm = ref({ name: "", description: "" });
 
 const headers = [
   { title: "Name", key: "name" },

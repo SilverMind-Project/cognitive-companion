@@ -33,13 +33,31 @@ class RulesEngine:
         self,
         sensor: Sensor,
         db: Session,
+        trigger_type: str = "sensor_event",
+        occupancy_minutes: float | None = None,
     ) -> list[Rule]:
-        """
-        Return all enabled rules that match the sensor's room and the current
-        time, pass dependency checks, and are within rate limits.
+        """Return enabled rules matching the sensor that pass all checks.
+
+        Args:
+            trigger_type: Only rules with this trigger_type are considered.
+            occupancy_minutes: When ``trigger_type`` is ``"occupancy_duration"``,
+                only rules whose ``occupancy_config.min_minutes`` threshold has
+                been reached are included.
         """
         now = datetime.now(self.tz)
-        rules = db.query(Rule).filter(Rule.enabled.is_(True)).all()
+        query = db.query(Rule).filter(
+            Rule.enabled.is_(True),
+            Rule.trigger_type == trigger_type,
+        )
+        if trigger_type == "occupancy_duration":
+            query = query.filter(Rule.primary_sensor_id == sensor.id)
+        rules = query.all()
+
+        if trigger_type == "occupancy_duration" and occupancy_minutes is not None:
+            rules = [
+                r for r in rules
+                if (r.occupancy_config or {}).get("min_minutes", 40) <= occupancy_minutes
+            ]
 
         matched: list[Rule] = []
         for rule in rules:
@@ -54,6 +72,7 @@ class RulesEngine:
         logger.info(
             "rule_matching",
             sensor_id=sensor.id,
+            trigger_type=trigger_type,
             room=sensor.room.name if sensor.room else None,
             total_rules=len(rules),
             matched=len(matched),

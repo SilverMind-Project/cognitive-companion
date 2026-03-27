@@ -193,7 +193,7 @@ async def lifespan(app: FastAPI):
     sensor_polling = SensorPollingService(
         db_session_factory=get_session,
         ha_client=ha_client,
-        ws_manager=ws_manager,
+        workflow_pipeline=workflow,
     )
     app.state.sensor_polling = sensor_polling
 

@@ -59,6 +59,7 @@ class RuleCreate(BaseModel):
     cool_off_minutes: int = 5
     max_daily_triggers: int = 3
     webhook_config: dict[str, Any] | None = None
+    occupancy_config: dict[str, Any] | None = None
 
 
 class RuleUpdate(BaseModel):
@@ -71,6 +72,7 @@ class RuleUpdate(BaseModel):
     cool_off_minutes: int | None = None
     max_daily_triggers: int | None = None
     webhook_config: dict[str, Any] | None = None
+    occupancy_config: dict[str, Any] | None = None
 
 
 class RuleContextOut(BaseModel):
@@ -103,6 +105,7 @@ class RuleOut(BaseModel):
     cool_off_minutes: int
     max_daily_triggers: int
     webhook_config: dict[str, Any] | None = None
+    occupancy_config: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime | None
     steps: list[PipelineStepOut] = []

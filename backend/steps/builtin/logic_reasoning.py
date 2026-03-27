@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 
 from backend.core.logging import get_logger
+from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
 from backend.steps.base import (
@@ -81,7 +82,12 @@ class LogicReasoningHandler(StepHandler):
             return StepResult(data={"logic_response": {}})
 
         config = step.config_json or {}
-        prompt = config.get("prompt", "")
+        raw_prompt = config.get("prompt", "")
+        trigger_vars = {
+            "room_name": trigger.room_name or "",
+            "sensor_id": trigger.sensor_id or "",
+        }
+        prompt = render_template(raw_prompt, pipeline_data, trigger_vars)
         include_context = config.get("include_context", [])
 
         # Build context from pipeline_data

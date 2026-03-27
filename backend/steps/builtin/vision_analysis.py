@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
 from backend.steps.base import (
@@ -52,7 +53,12 @@ class VisionAnalysisHandler(StepHandler):
             return StepResult(data={"vision_response": ""})
 
         config = step.config_json or {}
-        prompt = config.get("prompt", "Describe what you see in this image.")
+        raw_prompt = config.get("prompt", "Describe what you see in this image.")
+        trigger_vars = {
+            "room_name": trigger.room_name or "",
+            "sensor_id": trigger.sensor_id or "",
+        }
+        prompt = render_template(raw_prompt, pipeline_data, trigger_vars)
         media_paths = trigger.media_paths
 
         vision_response = await services.vision_provider.call(

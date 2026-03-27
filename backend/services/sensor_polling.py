@@ -34,7 +34,7 @@ class SensorPollingService:
         self._ha = ha_client
         self._ws_manager = ws_manager
         self._bathroom_limit = settings.get(
-            "homeassistant.bathroom_time_limit_minutes", 20
+            "homeassistant.bathroom_time_limit_minutes", 40
         )
         # Track active occupancy per sensor: sensor_id -> start_time
         self._active_occupancy: dict[str, datetime] = {}

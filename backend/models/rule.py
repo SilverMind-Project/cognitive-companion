@@ -79,6 +79,7 @@ class RuleContext(Base):
     rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"))
     context_type: Mapped[str] = mapped_column(String(32))
     config_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    negate: Mapped[bool] = mapped_column(Boolean, default=False)
 
     rule: Mapped[Rule] = relationship(back_populates="contexts")
 

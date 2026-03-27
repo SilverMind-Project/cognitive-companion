@@ -53,9 +53,15 @@ class NotificationDispatcher:
         Route notification to configured channels based on alert_level.
         Returns dict of channel -> success.
         """
-        notif_cfg = settings.get("notifications.notification_defaults", {})
-        level_cfg = notif_cfg.get(alert_level, {})
-        channels = level_cfg.get("channels", ["websocket"])
+        # Per-step channel overrides take precedence over config-file defaults
+        override_channels = (rule_config or {}).get("channels") if rule_config else None
+
+        if override_channels:
+            channels = override_channels
+        else:
+            notif_cfg = settings.get("notifications.notification_defaults", {})
+            level_cfg = notif_cfg.get(alert_level, {})
+            channels = level_cfg.get("channels", ["websocket"])
 
         results: dict[str, bool] = {}
 
@@ -65,10 +71,7 @@ class NotificationDispatcher:
                 logger.warning("unknown_channel", channel=channel_name)
                 continue
 
-            # Build per-channel config from rule_config
-            channel_config = {}
-            if rule_config:
-                channel_config = rule_config
+            channel_config = rule_config or {}
 
             success = await channel.send(
                 message=message,

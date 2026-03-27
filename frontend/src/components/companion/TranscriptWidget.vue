@@ -15,11 +15,11 @@
     </v-card-title>
 
     <v-card-text class="flex-grow-1 overflow-y-auto pa-3" ref="transcriptPanel">
-      <div v-for="(msg, i) in transcript" :key="i" class="mb-3 d-flex" :class="msg.source === 'user' ? 'justify-end' : 'justify-start'">
-        <div :class="['chat-bubble', msg.source === 'user' ? 'bubble-user' : 'bubble-assistant']">
+      <div v-for="(msg, i) in transcript" :key="i" class="mb-3 d-flex" :class="bubbleAlignment(msg.source)">
+        <div :class="['chat-bubble', bubbleClass(msg.source)]">
           <div class="bubble-content text-body-2">{{ msg.text }}</div>
           <div class="bubble-meta text-caption">
-            {{ msg.source === 'user' ? 'You' : 'Assistant' }}
+            {{ sourceLabel(msg.source) }}
             <span v-if="msg.timestamp" class="ml-1">&middot; {{ formatTime(msg.timestamp) }}</span>
           </div>
         </div>
@@ -54,6 +54,22 @@ watch(
     });
   }
 );
+
+function sourceLabel(source) {
+  switch (source) {
+    case "user": return "You";
+    case "assistant": return "Assistant";
+    default: return "Assistant";
+  }
+}
+
+function bubbleAlignment(source) {
+  return source === "user" ? "justify-end" : "justify-start";
+}
+
+function bubbleClass(source) {
+  return source === "user" ? "bubble-user" : "bubble-assistant";
+}
 
 function formatTime(iso) {
   if (!iso) return "";

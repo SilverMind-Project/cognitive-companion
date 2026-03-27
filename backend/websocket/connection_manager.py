@@ -53,6 +53,9 @@ class ConnectionManager:
         Silently removes connections that have gone stale.
         """
         disconnected: list[WebSocket] = []
+        # The payload's own 'type' key (e.g. "warning", "emergency") is the
+        # authoritative message type.  Fall back to "command" for payloads
+        # that don't specify a type.
         message = {"type": "command", **payload}
 
         # Normalize alert payloads

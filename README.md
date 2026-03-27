@@ -39,14 +39,15 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 
 ## Key Features
 
-- **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence, person activity) and inter-rule dependencies
+- **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity) and inter-rule dependencies
 - **Composable pipeline steps** -- 10 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
   `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
 - **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, with in-app enrollment via photo upload
 - **Annotated person identification images** with bounding boxes and name labels returned inline
 - **Activity tracking** -- detect and record person activities (eating, sleeping, taking medication) as pipeline outputs for use as context filters in downstream rules
 - **Motion direction detection** at doorways (left/right, towards/away from camera)
-- **Whole-house location tracking** fusing camera detections with Home Assistant presence sensors
+- **Whole-house location tracking** fusing camera detections with Home Assistant presence sensors, with room-level person presence rules
+- **Prompt templates** -- use `{{variable}}` syntax in LLM step prompts to inline pipeline data (e.g. `{{person_detections.0.name}}`, `{{vision_response}}`)
 - **Home Assistant actions** as first-class pipeline steps (call any HA service from a rule)
 - **Wait/resume for multi-stage workflows** -- pause a pipeline, resume on a timer or external trigger
 - **Conditional branching** -- evaluate expressions against pipeline data to fork execution paths

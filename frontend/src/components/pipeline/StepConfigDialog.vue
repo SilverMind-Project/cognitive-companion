@@ -71,6 +71,8 @@
             variant="outlined"
             rows="4"
             class="mb-3"
+            hint="Use {{variable}} for template values, e.g. {{person_detections.0.name}}, {{room_name}}"
+            persistent-hint
           />
           <v-checkbox
             v-model="cfg.use_annotated_image"
@@ -88,6 +90,8 @@
             variant="outlined"
             rows="4"
             class="mb-3"
+            hint="Use {{variable}} for template values, e.g. {{vision_response}}, {{person_detections.0.name}}, {{room_name}}"
+            persistent-hint
           />
           <v-combobox
             v-model="cfg.include_context"
@@ -129,6 +133,16 @@
             variant="outlined"
             density="comfortable"
             placeholder="e.g. es, fr, de, ja"
+            class="mb-3"
+          />
+          <v-textarea
+            v-model="cfg.source_text"
+            label="Source Text"
+            variant="outlined"
+            rows="3"
+            hint="Text to translate. Supports {{variable}} templates. Leave empty to auto-detect from logic response or vision response."
+            persistent-hint
+            placeholder="e.g. {{logic_response.user_notification}}"
           />
         </template>
 
@@ -428,14 +442,14 @@ const knownTypes = [
 ];
 
 const contextKeys = [
-  "vision_result",
-  "person_ids",
-  "activity",
-  "occupancy",
-  "previous_alert",
-  "sensor_data",
-  "time_of_day",
-  "room_context",
+  "vision_response",
+  "person_detections",
+  "logic_response",
+  "translation",
+  "detected_activities",
+  "annotated_image",
+  "verification",
+  "condition",
 ];
 
 const localStep = reactive({
@@ -481,6 +495,7 @@ const fallbackDefaults = {
   },
   translation: {
     target_language: "",
+    source_text: "",
   },
   notification: {
     alert_level: "warning",

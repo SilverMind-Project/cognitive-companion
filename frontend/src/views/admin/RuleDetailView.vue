@@ -213,6 +213,17 @@
                   variant="outlined"
                   hint="Only trigger when the person has this status"
                   persistent-hint
+                  class="mb-3"
+                />
+                <v-autocomplete
+                  v-if="ctxForm.config.status === 'home'"
+                  v-model="ctxForm.config.room_name"
+                  :items="roomNames"
+                  label="In Room (optional)"
+                  variant="outlined"
+                  clearable
+                  hint="Leave empty to match any room while home"
+                  persistent-hint
                 />
               </template>
 
@@ -462,7 +473,7 @@ function ctxSummary(ctx) {
     case "room": return c.room_name || "Any room";
     case "time_range": return `${c.start_time || '?'} - ${c.end_time || '?'}`;
     case "day_of_week": return Array.isArray(c.days) ? c.days.join(", ") : JSON.stringify(c);
-    case "person_presence": return `${c.person_id || 'any person'} is ${c.status || '?'}`;
+    case "person_presence": return `${c.person_id || 'any person'} is ${c.status || '?'}${c.room_name ? ' in ' + c.room_name : ''}`;
     case "person_activity": return `${c.person_id || 'any person'}: ${c.activity_type || '?'}`;
     default: return JSON.stringify(c);
   }

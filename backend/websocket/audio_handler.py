@@ -68,9 +68,10 @@ class AudioSessionHandler:
         self._pending_assistant_text: list[str] = []
         self._pending_prompt_text: list[str] = []
 
-        # Callback for backend-initiated prompts
+        # Callback for backend-initiated (orchestrator) prompts
         self._current_callback: Callable | None = None
         self._current_callback_text: str = ""
+        self._is_orchestrator_turn: bool = False
 
         # Conversation session ID
         self._session_id: int | None = None
@@ -181,6 +182,7 @@ class AudioSessionHandler:
                                 logger.debug("ws_backend_prompt_expired")
                                 continue
                             self._current_callback = callback
+                            self._is_orchestrator_turn = True
                             self._pending_prompt_text.append(text)
                             await self.provider.send_text(session, text)
 
@@ -282,39 +284,60 @@ class AudioSessionHandler:
 
         # Turn complete
         if getattr(server_content, "turn_complete", False):
-            self._pending_user_text.extend(self._pending_prompt_text)
-
+            is_orchestrator = self._is_orchestrator_turn
+            prompt_text = "".join(self._pending_prompt_text).strip()
             user_text = "".join(self._pending_user_text).strip()
             assistant_text = "".join(self._pending_assistant_text).strip()
 
-            # Commit to conversation log
+            # Commit to conversation log (all actors, for context continuity)
             self._conversation_log.append({
                 "user": user_text,
                 "assistant": assistant_text,
+                **({"orchestrator": prompt_text} if is_orchestrator else {}),
             })
 
             # Persist to DB
             if self.conv_manager and self._session_id:
-                if user_text:
+                if is_orchestrator and prompt_text:
+                    self.conv_manager.add_turn(
+                        self._session_id, "orchestrator", prompt_text
+                    )
+                elif user_text:
                     self.conv_manager.add_turn(self._session_id, "user", user_text)
                 if assistant_text:
                     self.conv_manager.add_turn(
                         self._session_id, "assistant", assistant_text
                     )
 
-            # Send transcripts to client
-            if user_text:
-                await self.ws.send_json({
-                    "type": "transcript",
-                    "source": "user",
-                    "text": user_text,
-                })
-            if assistant_text:
-                await self.ws.send_json({
-                    "type": "transcript",
-                    "source": "system",
-                    "text": assistant_text,
-                })
+            # Send transcripts to client.
+            # Orchestrator prompts are never shown to the senior — they are
+            # internal nudges from the Cognitive Companion system.  The agent's
+            # response to an orchestrator prompt is tagged "assistant" so the
+            # senior can still hear/see the AI speaking, but the *trigger* that
+            # caused the AI to speak remains hidden.
+            if is_orchestrator:
+                # Don't send the orchestrator prompt text to the UI.
+                # The agent's spoken response is still delivered as audio
+                # and shown as an assistant transcript.
+                if assistant_text:
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "source": "assistant",
+                        "text": assistant_text,
+                    })
+            else:
+                if user_text:
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "source": "user",
+                        "text": user_text,
+                    })
+                if assistant_text:
+                    await self.ws.send_json({
+                        "type": "transcript",
+                        "source": "assistant",
+                        "text": assistant_text,
+                    })
 
             # Execute callback if pending
             if self._current_callback is not None:
@@ -331,6 +354,7 @@ class AudioSessionHandler:
             self._pending_user_text.clear()
             self._pending_assistant_text.clear()
             self._pending_prompt_text.clear()
+            self._is_orchestrator_turn = False
 
     # ------------------------------------------------------------------
     # Helpers

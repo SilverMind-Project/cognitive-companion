@@ -135,6 +135,7 @@
                   </v-icon>
                 </template>
                 <v-list-item-title>
+                  <v-chip v-if="ctx.negate" size="small" color="warning" variant="tonal" class="mr-1">NOT</v-chip>
                   <v-chip size="small" color="info" variant="tonal" class="mr-2">{{ ctx.context_type }}</v-chip>
                   {{ ctxSummary(ctx) }}
                 </v-list-item-title>
@@ -159,6 +160,15 @@
                 item-value="value"
                 label="Context Type"
                 variant="outlined"
+                class="mb-3"
+              />
+
+              <v-switch
+                v-model="ctxForm.negate"
+                label="Negate (NOT)"
+                color="warning"
+                hint="Invert the filter — e.g. NOT in this room, NOT during this time"
+                persistent-hint
                 class="mb-3"
               />
 
@@ -434,7 +444,7 @@ const form = ref({});
 
 // Contexts
 const ctxDialog = ref(false);
-const ctxForm = ref({ context_type: "room", config: {} });
+const ctxForm = ref({ context_type: "room", config: {}, negate: false });
 const ctxConfigStr = ref("{}");
 
 // Dependencies
@@ -496,7 +506,7 @@ function ruleNameById(id) {
 }
 
 function openCtxDialog() {
-  ctxForm.value = { context_type: "room", config: {} };
+  ctxForm.value = { context_type: "room", config: {}, negate: false };
   ctxConfigStr.value = "{}";
   ctxDialog.value = true;
 }
@@ -567,6 +577,7 @@ async function addContext() {
     await api.addRuleContext(ruleId.value, {
       context_type: t,
       config_json: config,
+      negate: ctxForm.value.negate || false,
     });
     ctxDialog.value = false;
     await loadRule();

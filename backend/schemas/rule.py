@@ -80,6 +80,7 @@ class RuleContextOut(BaseModel):
     rule_id: int
     context_type: str
     config_json: dict[str, Any]
+    negate: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -137,6 +138,7 @@ class RuleListOut(BaseModel):
 class ContextCreate(BaseModel):
     context_type: str
     config_json: dict[str, Any] = {}
+    negate: bool = False
 
 
 # -- Dependency --------------------------------------------------------------

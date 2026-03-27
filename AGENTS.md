@@ -168,11 +168,15 @@ Step type details:
 
 ### Notification Channels
 
-Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts.
+Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts. Per-step channel overrides (via the `channels` field in notification step config) take precedence over the defaults in `notifications.yaml`.
+
+**Transcript actor delineation (realtime_voice):** When the orchestrator sends a backend prompt to the Gemini Live session, it is tagged as an orchestrator turn. The prompt text is **not** sent to the frontend transcript — only the agent's spoken response appears (as `source: "assistant"`). This ensures the senior sees a clean conversation without internal system nudges. Three actors are tracked in the conversation log: `user` (senior speech), `assistant` (agent response), and `orchestrator` (system-initiated prompts, hidden from UI).
 
 ### Context Filters
 
 Context filters are plugins in `backend/filters/builtin/`. Each filter inherits `ContextFilter` from `backend/filters/base.py` and is registered via `@FilterRegistry.register`. The `RulesEngine._matches_context()` method delegates to `FilterRegistry.get(context_type).evaluate()`.
+
+**Negation:** Each `RuleContext` has a `negate` boolean column. When `True`, the filter result is inverted — e.g., a room filter with `negate=True` means "NOT in this room". Within a context_type group, contexts are ORed; across groups, they are ANDed. Negation applies per-context before the OR grouping.
 
 ### Face Enrollment Proxy
 

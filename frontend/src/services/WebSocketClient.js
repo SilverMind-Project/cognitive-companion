@@ -51,7 +51,11 @@ export class WebSocketClient {
           this._notify("onTranscript", data);
         } else if (data.type === "status") {
           this._notify("onStatus", data);
-        } else if (data.type === "command" || data.type === "emergency_alert" || data.type === "warning") {
+        } else if (data.type === "error") {
+          this._notify("onStatus", data);
+        } else {
+          // All other message types are commands/notifications
+          // (emergency, warning, info, reminder, command)
           this._notify("onCommand", data);
         }
       } catch {

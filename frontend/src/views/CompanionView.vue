@@ -54,6 +54,14 @@
       v-bind="getWidgetProps(w.id)"
       v-on="getWidgetEvents(w.id)"
     />
+
+    <!-- Non-emergency notification snackbar -->
+    <v-snackbar v-model="snackbar" :color="snackbarColor" timeout="5000" location="top">
+      {{ snackbarText }}
+      <template #actions>
+        <v-btn variant="text" @click="snackbar = false">Dismiss</v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>
 
@@ -72,6 +80,9 @@ const transcript = ref([]);
 const alertDialog = ref(false);
 const alertMessage = ref("");
 const connected = ref(false);
+const snackbar = ref(false);
+const snackbarText = ref("");
+const snackbarColor = ref("info");
 
 // Widget lists by position
 const mainWidgets = computed(() => getWidgets("main"));
@@ -154,9 +165,21 @@ onMounted(() => {
   });
 
   wsClient.on("onCommand", (data) => {
-    if (data.type === "emergency_alert") {
-      alertMessage.value = data.message;
+    const alertType = data.type;
+    const message = data.message || "";
+
+    if (alertType === "emergency" || alertType === "emergency_alert") {
+      // Full-screen persistent dialog for emergencies
+      alertMessage.value = message;
       alertDialog.value = true;
+    } else if (alertType === "warning") {
+      snackbarText.value = message;
+      snackbarColor.value = "warning";
+      snackbar.value = true;
+    } else if (alertType === "info" || alertType === "reminder") {
+      snackbarText.value = message;
+      snackbarColor.value = alertType === "reminder" ? "purple" : "info";
+      snackbar.value = true;
     }
   });
 

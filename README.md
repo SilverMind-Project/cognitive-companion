@@ -39,7 +39,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 
 ## Key Features
 
-- **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity) and inter-rule dependencies
+- **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity) — each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home") — plus inter-rule dependencies
 - **Five trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP), `occupancy_duration` (presence sensor occupied ≥ N minutes) -- each with per-rule threshold and cool-off
 - **Composable pipeline steps** -- 10 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
   `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
@@ -54,7 +54,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Conditional branching** -- evaluate expressions against pipeline data to fork execution paths
 - **Visual pipeline builder** in the admin UI for drag-and-drop step assembly
 - **Real-time voice** conversations via Google Gemini Live with WebSocket audio streaming
-- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, `realtime_voice` (interactive Gemini voice prompt), Home Assistant announcements -- add new channels by implementing a single class
+- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, `realtime_voice` (interactive Gemini voice prompt), Home Assistant announcements -- add new channels by implementing a single class. Orchestrator prompts sent to the voice agent are hidden from the senior's transcript to maintain a natural conversation experience
 - **Webhook triggers** for external systems (Home Assistant automations, IFTTT, n8n) with per-rule HMAC secrets
 - **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
 - **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)
@@ -439,7 +439,7 @@ Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cr
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/rules/{id}/contexts` | List context filters |
-| `POST` | `/rules/{id}/contexts` | Add a context filter (room, time_range, day_of_week, person_presence, person_activity) |
+| `POST` | `/rules/{id}/contexts` | Add a context filter (room, time_range, day_of_week, person_presence, person_activity) with optional `negate` flag |
 | `DELETE` | `/rules/{id}/contexts/{ctx_id}` | Remove a context filter |
 | `GET` | `/rules/{id}/dependencies` | List rule dependencies |
 | `POST` | `/rules/{id}/dependencies` | Add a dependency on another rule |
@@ -788,6 +788,8 @@ class WeatherFilter(ContextFilter):
         # Check weather conditions
         return True
 ```
+
+Every context filter supports negation out of the box via the `negate` flag on `RuleContext`. When `negate=True`, the rules engine inverts the filter result — e.g., a room filter with `negate=True` means "NOT in this room". Individual filter implementations don't need to handle negation.
 
 ## Roadmap
 

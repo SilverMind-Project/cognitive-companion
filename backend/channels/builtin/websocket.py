@@ -1,4 +1,9 @@
-"""WebSocket notification channel."""
+"""WebSocket notification channel.
+
+Broadcasts structured notification payloads to all connected WebSocket
+clients.  The frontend renders these as snackbar toasts (info/warning/reminder)
+or a persistent dialog (emergency).
+"""
 
 from __future__ import annotations
 
@@ -33,12 +38,15 @@ class WebSocketChannel(NotificationChannel):
         if not services or not services.ws_manager:
             return False
         try:
-            await services.ws_manager.broadcast({
+            payload: dict = {
                 "type": alert_level,
                 "message": message,
                 "room": room_name,
-            })
+            }
+            if image_url:
+                payload["image_url"] = image_url
+            await services.ws_manager.broadcast(payload)
             return True
         except Exception as e:
-            logger.error("ws_dispatch_failed", error=str(e))
+            logger.error("websocket_dispatch_failed", error=str(e))
             return False

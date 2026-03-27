@@ -105,10 +105,15 @@ class RulesEngine:
     def _matches_context(
         self, ctx: RuleContext, sensor: Sensor, now: datetime, db: Session | None = None
     ) -> bool:
-        """Delegate context evaluation to the FilterRegistry."""
+        """Delegate context evaluation to the FilterRegistry.
+
+        When ``ctx.negate`` is True the filter result is inverted, enabling
+        rules like "NOT in Kitchen" or "NOT during 09:00–17:00".
+        """
         filter_instance = FilterRegistry.get(ctx.context_type)
         if filter_instance:
-            return filter_instance.evaluate(ctx.config_json or {}, sensor, now, db)
+            result = filter_instance.evaluate(ctx.config_json or {}, sensor, now, db)
+            return (not result) if ctx.negate else result
         logger.warning("unknown_context_type", context_type=ctx.context_type)
         return True  # unknown type = don't filter
 

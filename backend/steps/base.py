@@ -23,12 +23,13 @@ from backend.models.pipeline import PipelineStep, WorkflowExecution
 class TriggerContext:
     """Metadata about what triggered a pipeline execution."""
 
-    trigger_type: str  # sensor_event, cron, manual, webhook, resume
+    trigger_type: str  # sensor_event, cron, manual, webhook, resume, occupancy_duration
     sensor_id: str | None = None
     room_name: str | None = None
     media_paths: list[str] = field(default_factory=list)
     media_type: str = "image"
     webhook_payload: dict | None = None
+    occupancy_duration_minutes: float | None = None  # set for occupancy_duration triggers
 
 
 @dataclass

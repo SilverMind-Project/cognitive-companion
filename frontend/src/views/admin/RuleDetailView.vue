@@ -79,6 +79,16 @@
                   :disabled="form.trigger_type !== 'cron'"
                 />
               </v-col>
+              <v-col v-if="form.trigger_type === 'occupancy_duration'" cols="12" md="6">
+                <v-text-field
+                  v-model.number="form.occupancy_config.min_minutes"
+                  label="Occupancy Threshold (min)"
+                  type="number"
+                  variant="outlined"
+                  hint="Fire the rule after the sensor has been occupied this long"
+                  persistent-hint
+                />
+              </v-col>
               <v-col cols="6" md="3">
                 <v-text-field v-model.number="form.cool_off_minutes" label="Cooloff (min)" type="number" variant="outlined" />
               </v-col>
@@ -402,6 +412,7 @@ const triggerTypes = [
   { title: "Cron Schedule", value: "cron" },
   { title: "Manual", value: "manual" },
   { title: "Webhook", value: "webhook" },
+  { title: "Occupancy Duration", value: "occupancy_duration" },
 ];
 
 const contextTypeItems = [
@@ -502,6 +513,7 @@ async function loadRule() {
       primary_sensor_id: rule.value.primary_sensor_id || "",
       cool_off_minutes: rule.value.cool_off_minutes,
       max_daily_triggers: rule.value.max_daily_triggers,
+      occupancy_config: rule.value.occupancy_config || { min_minutes: 40 },
     };
   } catch (e) {
     notify(e.message, "error");

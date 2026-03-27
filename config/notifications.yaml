@@ -37,6 +37,7 @@ notification_defaults:
       - "websocket"
       - "telegram"
       - "eink"
+      - "realtime_voice"
     escalation_minutes: 10
 
   info:

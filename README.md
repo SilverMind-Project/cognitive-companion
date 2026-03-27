@@ -40,6 +40,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 ## Key Features
 
 - **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity) and inter-rule dependencies
+- **Five trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP), `occupancy_duration` (presence sensor occupied ≥ N minutes) -- each with per-rule threshold and cool-off
 - **Composable pipeline steps** -- 10 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
   `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
 - **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, with in-app enrollment via photo upload
@@ -53,14 +54,14 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Conditional branching** -- evaluate expressions against pipeline data to fork execution paths
 - **Visual pipeline builder** in the admin UI for drag-and-drop step assembly
 - **Real-time voice** conversations via Google Gemini Live with WebSocket audio streaming
-- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, Home Assistant announcements -- add new channels by implementing a single class
+- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, `realtime_voice` (interactive Gemini voice prompt), Home Assistant announcements -- add new channels by implementing a single class
 - **Webhook triggers** for external systems (Home Assistant automations, IFTTT, n8n) with per-rule HMAC secrets
 - **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
 - **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)
 - **MCP tool server** exposing read-only tools (plus rule triggering) for AI agent integration
 - **Role-based authentication** with API keys, device keys, and fnmatch permission patterns
 - **Event aggregation** with configurable batching, windowing, and per-sensor cooldown
-- **Tamil language support** for feedback delivery and voice interaction
+- **Multi-language support** for feedback delivery and voice interaction via the `translation` pipeline step
 
 ## Prerequisites
 

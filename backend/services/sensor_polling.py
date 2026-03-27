@@ -1,41 +1,41 @@
 """
 Sensor polling service – periodically queries Home Assistant for presence
-sensors, tracks room occupancy, and raises emergency alerts.
+sensors, tracks room occupancy, and fires occupancy_duration rules through
+the workflow pipeline when configured thresholds are reached.
 
-Unlike the original v1 implementation, occupancy data is fetched from
-Home Assistant's time-series history and smoothed to eliminate noise.
+Occupancy safety logic (e.g. "bathroom occupied for > 40 min") is now
+expressed as ordinary rules with trigger_type="occupancy_duration" rather
+than being hardcoded here. The pipeline handles alert creation, notification
+dispatch, and language translation through the standard step and channel
+plugins.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.integrations.homeassistant import HomeAssistantClient
-from backend.models.alert import EmergencyAlert
 from backend.models.sensor import Sensor
 
 logger = get_logger(__name__)
 
 
 class SensorPollingService:
-    """Polls HA presence sensors and manages occupancy-based alerts."""
+    """Polls HA presence sensors, tracks occupancy durations, and fires
+    occupancy_duration rules through the workflow pipeline."""
 
     def __init__(
         self,
         db_session_factory,
         ha_client: HomeAssistantClient,
-        ws_manager=None,
+        workflow_pipeline=None,
     ) -> None:
         self._db_factory = db_session_factory
         self._ha = ha_client
-        self._ws_manager = ws_manager
-        self._bathroom_limit = settings.get(
-            "homeassistant.bathroom_time_limit_minutes", 40
-        )
+        self._workflow_pipeline = workflow_pipeline
         # Track active occupancy per sensor: sensor_id -> start_time
         self._active_occupancy: dict[str, datetime] = {}
 
@@ -83,85 +83,33 @@ class SensorPollingService:
                 self._active_occupancy[sensor.id] = now
                 logger.info("occupancy_started", sensor=sensor.id, room=room_name)
             else:
-                # Check duration limits
                 start = self._active_occupancy[sensor.id]
                 duration = now - start
-                await self._check_occupancy_alerts(
-                    sensor, room_name, duration, db
+                elapsed_minutes = duration.total_seconds() / 60
+                await self._check_occupancy_rules(
+                    sensor, room_name, elapsed_minutes, db
                 )
         elif state == "off":
             if sensor.id in self._active_occupancy:
                 del self._active_occupancy[sensor.id]
                 logger.info("occupancy_ended", sensor=sensor.id, room=room_name)
 
-    async def _check_occupancy_alerts(
+    async def _check_occupancy_rules(
         self,
         sensor: Sensor,
         room_name: str,
-        duration: timedelta,
+        elapsed_minutes: float,
         db: Session,
     ) -> None:
-        """Check if occupancy duration exceeds configured limits."""
-        # Bathroom safety check
-        if (
-            "bathroom" in room_name.lower()
-            and duration > timedelta(minutes=self._bathroom_limit)
-        ):
-            # Don't re-alert if there's already an unresolved alert
-            existing = (
-                db.query(EmergencyAlert)
-                .filter(
-                    EmergencyAlert.sensor_id == sensor.id,
-                    EmergencyAlert.room_name == room_name,
-                    EmergencyAlert.resolved.is_(False),
-                )
-                .first()
-            )
-            if existing:
-                return
-
-            alert = EmergencyAlert(
-                alert_type="bathroom_time_exceeded",
-                description=(
-                    f"Person has been in the {room_name} for over "
-                    f"{self._bathroom_limit} minutes."
-                ),
-                sensor_id=sensor.id,
-                room_name=room_name,
-            )
-            db.add(alert)
-            db.commit()
-            db.refresh(alert)
-
-            logger.warning("emergency_alert_created", alert_id=alert.id, room=room_name)
-
-            # Broadcast to connected clients
-            if self._ws_manager:
-                await self._ws_manager.broadcast({
-                    "type": "emergency_alert",
-                    "alert_id": alert.id,
-                    "message": alert.description,
-                    "room": room_name,
-                })
-
-                # Queue a voice prompt for the realtime backend
-                prompt = (
-                    f"The following emergency alert was generated: {alert.description}. "
-                    "Ask the user if they need assistance and if so, click on the "
-                    '"need assistance" button in the app to notify caregivers. '
-                    "Ask in simple colloquial Tamil."
-                )
-
-                async def _alert_callback(response_text: str):
-                    logger.info(
-                        "alert_voice_response",
-                        alert_id=alert.id,
-                        response=response_text[:100],
-                    )
-
-                await self._ws_manager.send_backend_task(
-                    prompt=prompt, callback=_alert_callback
-                )
+        """Fire occupancy_duration rules for this sensor via the pipeline."""
+        if not self._workflow_pipeline:
+            return
+        await self._workflow_pipeline.process_occupancy_event(
+            sensor=sensor,
+            room_name=room_name,
+            duration_minutes=elapsed_minutes,
+            db=db,
+        )
 
     async def get_occupancy_summary(self) -> dict[str, dict]:
         """Return current occupancy state for all tracked sensors.

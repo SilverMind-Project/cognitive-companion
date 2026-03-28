@@ -283,6 +283,31 @@ class HomeAssistantClient:
         return None
 
     # ------------------------------------------------------------------
+    # Entity discovery
+    # ------------------------------------------------------------------
+
+    async def get_entities_by_domain(self, domain: str) -> list[dict[str, Any]]:
+        """Return all HA state objects whose entity_id starts with ``domain.``."""
+        if not self.configured:
+            return []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(
+                    f"{self.base_url}/api/states",
+                    headers=self._headers,
+                )
+                resp.raise_for_status()
+                prefix = f"{domain}."
+                return [s for s in resp.json() if s.get("entity_id", "").startswith(prefix)]
+        except Exception:
+            logger.exception("ha_get_entities_by_domain_error", domain=domain)
+            return []
+
+    async def get_media_players(self) -> list[dict[str, Any]]:
+        """Return all ``media_player.*`` entity state objects from HA."""
+        return await self.get_entities_by_domain("media_player")
+
+    # ------------------------------------------------------------------
     # Announcements / media playback
     # ------------------------------------------------------------------
 

@@ -46,6 +46,10 @@ class NotificationHandler(StepHandler):
                         "items": {"type": "string"},
                         "description": "Sensor IDs of eink displays (empty = all)",
                     },
+                    "ha_media_player": {
+                        "type": "string",
+                        "description": "HA media_player entity ID for TTS playback",
+                    },
                 },
             },
             default_config={
@@ -53,6 +57,7 @@ class NotificationHandler(StepHandler):
                 "channels": [],
                 "message_template": "",
                 "eink_targets": [],
+                "ha_media_player": "",
             },
         )
 
@@ -93,11 +98,14 @@ class NotificationHandler(StepHandler):
                 pass
 
         eink_targets = config.get("eink_targets")
+        ha_media_player = config.get("ha_media_player")
         rule_config = {}
         if channels:
             rule_config["channels"] = channels
         if eink_targets:
             rule_config["eink_targets"] = eink_targets
+        if ha_media_player:
+            rule_config["ha_media_player"] = ha_media_player
         results = await services.notification_dispatcher.dispatch(
             alert_level=alert_level,
             message=message,

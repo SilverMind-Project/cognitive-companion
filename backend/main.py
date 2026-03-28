@@ -17,6 +17,58 @@ from backend.core.logging import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
+# Maps device_type values (from auth.yaml) to Sensor.sensor_type values.
+_DEVICE_TYPE_TO_SENSOR_TYPE: dict[str, str] = {
+    "recamera": "camera",
+    "reterminal": "eink",
+}
+
+
+def _upsert_device_key_sensors() -> None:
+    """Upsert sensors for every entry in auth.yaml device_keys.
+
+    Runs once at startup so hardware devices defined in the auth config are
+    immediately queryable via the sensors API without a manual create step.
+    Existing sensors are updated (name refresh); new ones are inserted.
+    """
+    from backend.models.sensor import Sensor  # noqa: PLC0415
+
+    device_keys = settings.get("auth.device_keys", []) or []
+    if not device_keys:
+        return
+
+    db = get_session()
+    try:
+        for entry in device_keys:
+            sensor_id = entry.get("sensor_id")
+            if not sensor_id:
+                continue
+            sensor_type = _DEVICE_TYPE_TO_SENSOR_TYPE.get(
+                entry.get("device_type", ""), "generic"
+            )
+            name = entry.get("name", sensor_id)
+
+            existing = db.get(Sensor, sensor_id)
+            if existing:
+                existing.name = name
+                existing.sensor_type = sensor_type
+            else:
+                db.add(
+                    Sensor(
+                        id=sensor_id,
+                        name=name,
+                        sensor_type=sensor_type,
+                        source="local",
+                        enabled=True,
+                    )
+                )
+        db.commit()
+    except Exception:
+        logger.exception("device_key_sensor_upsert_error")
+        db.rollback()
+    finally:
+        db.close()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +80,10 @@ async def lifespan(app: FastAPI):
     # Database
     init_db()
     logger.info("Database initialized")
+
+    # -- Upsert hardware devices from auth.yaml device_keys ---------------
+    _upsert_device_key_sensors()
+    logger.info("device_key_sensors_upserted")
 
     # -- Plugin discovery (steps, channels, filters) -----------------------
     from backend.channels import ChannelRegistry
@@ -109,6 +165,8 @@ async def lifespan(app: FastAPI):
         ws_manager=ws_manager,
         tts_client=tts_client,
         image_renderer=eink_renderer.render,
+        minio_client=minio_client,
+        ha_client=ha_client,
     )
     app.state.notification_dispatcher = notifier
 

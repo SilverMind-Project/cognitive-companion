@@ -190,6 +190,20 @@
             hint="Select eink displays (empty = all eink devices)"
             persistent-hint
           />
+          <v-autocomplete
+            v-if="cfg.channels && cfg.channels.includes('tts')"
+            v-model="cfg.ha_media_player"
+            :items="haMediaPlayerItems"
+            :item-title="(item) => item.name || item.entity_id || item"
+            :item-value="(item) => item.entity_id || item"
+            label="TTS Media Player"
+            variant="outlined"
+            density="comfortable"
+            clearable
+            hint="Home Assistant media_player entity for TTS audio playback"
+            persistent-hint
+            class="mt-3"
+          />
         </template>
 
         <!-- ha_action -->
@@ -210,12 +224,17 @@
             placeholder="e.g. turn_on, toggle"
             class="mb-3"
           />
-          <v-text-field
+          <v-combobox
             v-model="cfg.entity_id"
+            :items="haEntityItems"
+            :item-title="(item) => item.name ? `${item.name} (${item.entity_id})` : (item.entity_id || item)"
+            :item-value="(item) => item.entity_id || item"
             label="Entity ID"
             variant="outlined"
             density="comfortable"
             placeholder="e.g. light.living_room"
+            hint="Select from discovered entities or type an entity ID"
+            persistent-hint
             class="mb-3"
           />
           <v-textarea
@@ -229,34 +248,44 @@
 
         <!-- activity_detection -->
         <template v-if="localStep.step_type === 'activity_detection'">
-          <v-text-field
-            v-model="cfg.source_key"
-            label="Source Key"
+          <v-combobox
+            v-model="cfg.activity_type"
+            :items="activityTypes"
+            label="Activity Type"
             variant="outlined"
             density="comfortable"
-            hint="Pipeline data key containing LLM output (e.g. logic_response)"
+            hint="Activity to record. Supports {{template}} syntax (e.g. {{logic_response.activity_type}})."
+            persistent-hint
+            class="mb-3"
+          />
+          <v-combobox
+            v-model="cfg.person_id"
+            :items="availablePersons"
+            label="Person ID (optional)"
+            variant="outlined"
+            density="comfortable"
+            clearable
+            hint="Person to attribute this activity to. Supports {{template}} syntax (e.g. {{person_detections.0.person_id}}). Leave empty for unknown person."
+            persistent-hint
+            class="mb-3"
+          />
+          <v-combobox
+            v-model="cfg.room_name"
+            :items="availableRooms"
+            label="Room (optional)"
+            variant="outlined"
+            density="comfortable"
+            clearable
+            hint="Room where the activity occurred. Supports {{template}} syntax (e.g. {{room_name}}). Defaults to trigger room when empty."
             persistent-hint
             class="mb-3"
           />
           <v-text-field
-            v-model="cfg.activities_path"
-            label="Activities Path"
+            v-model="cfg.confidence"
+            label="Confidence"
             variant="outlined"
             density="comfortable"
-            hint="Key within the source object containing the activity list"
-            persistent-hint
-            class="mb-3"
-          />
-          <v-text-field
-            v-model.number="cfg.default_confidence"
-            label="Default Confidence"
-            variant="outlined"
-            density="comfortable"
-            type="number"
-            :min="0"
-            :max="1"
-            :step="0.05"
-            hint="Fallback confidence when not provided per activity"
+            hint="Fixed value (0–1) or {{template}} syntax (e.g. {{logic_response.confidence}}). Defaults to 0.8."
             persistent-hint
           />
         </template>
@@ -294,13 +323,15 @@
               <v-spacer />
               <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="cfg.conditions.splice(idx, 1)" />
             </div>
-            <v-autocomplete
+            <v-combobox
               v-model="cond.person_id"
               :items="availablePersons"
-              label="Person ID"
+              label="Person ID (optional)"
               variant="outlined"
               density="compact"
               clearable
+              hint="Leave empty to match any person. Supports {{template}} syntax."
+              persistent-hint
               class="mb-2"
             />
             <v-combobox
@@ -309,6 +340,17 @@
               label="Activity Type"
               variant="outlined"
               density="compact"
+              class="mb-2"
+            />
+            <v-combobox
+              v-model="cond.room_name"
+              :items="availableRooms"
+              label="Room (optional)"
+              variant="outlined"
+              density="compact"
+              clearable
+              hint="Leave empty to match any room. Supports {{template}} syntax (e.g. {{room_name}})."
+              persistent-hint
               class="mb-2"
             />
             <v-checkbox
@@ -464,8 +506,11 @@ const genericConfigError = ref("");
 // Dynamic lists from API
 const availableChannels = ref(["websocket", "telegram", "eink", "tts"]);
 const availablePersons = ref([]);
+const availableRooms = ref([]);
 const availableSensors = ref([]);
 const einkSensorItems = ref([]);
+const haMediaPlayerItems = ref([]);
+const haEntityItems = ref([]);
 const activityTypes = [
   "eating", "sleeping", "medication", "bathing", "walking",
   "watching_tv", "reading", "exercising", "cooking", "socializing",
@@ -502,6 +547,7 @@ const fallbackDefaults = {
     channels: [],
     message_template: "",
     eink_targets: [],
+    ha_media_player: "",
   },
   ha_action: {
     domain: "",
@@ -510,9 +556,10 @@ const fallbackDefaults = {
     data: "",
   },
   activity_detection: {
-    source_key: "logic_response",
-    activities_path: "activities",
-    default_confidence: 0.8,
+    activity_type: "",
+    person_id: "",
+    confidence: "0.8",
+    room_name: "",
   },
   wait: {
     minutes: 5,
@@ -550,6 +597,12 @@ onMounted(async () => {
     // Persons list unavailable
   }
   try {
+    const rooms = await api.getRooms();
+    availableRooms.value = rooms.map((r) => r.name);
+  } catch {
+    // Rooms list unavailable
+  }
+  try {
     const sensors = await api.getSensors();
     availableSensors.value = sensors;
     einkSensorItems.value = sensors
@@ -557,6 +610,11 @@ onMounted(async () => {
       .map((s) => s.id);
   } catch {
     // Sensors list unavailable
+  }
+  try {
+    haMediaPlayerItems.value = await api.getHAMediaPlayers();
+  } catch {
+    // HA not configured or unavailable
   }
 });
 
@@ -582,6 +640,7 @@ watch(
     // Add _time_mode and _window_*_time helpers to verification conditions for UI
     if (step.step_type === "verification" && Array.isArray(cfg.conditions)) {
       cfg.conditions = cfg.conditions.map((c) => ({
+        room_name: "",
         ...c,
         _time_mode: c.window_start || c.window_end ? "fixed" : "relative",
         _window_start_time: c.window_start ? isoToTimeStr(c.window_start) : "",
@@ -610,6 +669,22 @@ watch(
     }
   },
   { immediate: true }
+);
+
+// Load HA entities when the ha_action domain field changes.
+watch(
+  () => cfg.domain,
+  async (domain) => {
+    if (localStep.step_type !== "ha_action" || !domain) {
+      haEntityItems.value = [];
+      return;
+    }
+    try {
+      haEntityItems.value = await api.getHAEntities(domain);
+    } catch {
+      haEntityItems.value = [];
+    }
+  }
 );
 
 /** Extract "HH:MM" from an ISO-8601 datetime string. */
@@ -651,6 +726,7 @@ function addCondition() {
   cfg.conditions.push({
     person_id: "",
     activity_type: "",
+    room_name: "",
     completed: true,
     _time_mode: "relative",
     within_minutes: 30,

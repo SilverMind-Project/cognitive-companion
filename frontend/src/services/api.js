@@ -95,6 +95,11 @@ export const api = {
     const qs = roomName ? `?room_name=${roomName}` : "";
     return request(`/ha/sync/sensors${qs}`, { method: "POST" });
   },
+  getHAMediaPlayers: () => request("/ha/media-players"),
+  getHAEntities: (domain) => {
+    const qs = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+    return request(`/ha/entities${qs}`);
+  },
 
   // Persons
   getPersons: () => request("/persons"),

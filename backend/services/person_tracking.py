@@ -579,13 +579,14 @@ class PersonTrackingService:
 
     async def query_activities_in_window(
         self,
-        person_id: str,
+        person_id: str | None,
         activity_type: str,
         *,
         window_start: datetime | None = None,
         window_end: datetime | None = None,
         within_minutes: float | None = None,
         min_confidence: float = 0.0,
+        room_name: str | None = None,
     ) -> list[dict]:
         """Query activities within a time window.
 
@@ -595,6 +596,9 @@ class PersonTrackingService:
 
         If both *within_minutes* and explicit window boundaries are provided,
         *within_minutes* takes precedence.
+
+        *person_id*: when ``None`` or empty, matches activities for any person.
+        *room_name*: when provided, restricts matches to that room.
         """
         now = datetime.now(UTC)
 
@@ -608,10 +612,13 @@ class PersonTrackingService:
         db: Session = self._db_factory()
         try:
             query = db.query(PersonActivity).filter(
-                PersonActivity.person_id == person_id,
                 PersonActivity.activity_type == activity_type,
                 PersonActivity.confidence >= min_confidence,
             )
+            if person_id:
+                query = query.filter(PersonActivity.person_id == person_id)
+            if room_name:
+                query = query.filter(PersonActivity.room_name == room_name)
             if effective_start:
                 query = query.filter(PersonActivity.detected_at >= effective_start)
             if effective_end:

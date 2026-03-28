@@ -54,7 +54,10 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Conditional branching** -- evaluate expressions against pipeline data to fork execution paths
 - **Visual pipeline builder** in the admin UI for drag-and-drop step assembly
 - **Real-time voice** conversations via Google Gemini Live with WebSocket audio streaming
-- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, `realtime_voice` (interactive Gemini voice prompt), Home Assistant announcements -- add new channels by implementing a single class. Orchestrator prompts sent to the voice agent are hidden from the senior's transcript to maintain a natural conversation experience
+- **TTS via Home Assistant media players** -- the TTS channel generates MP3 audio from the TTS service, uploads to MinIO, and calls `media_player.play_media` on the configured HA entity. The target media player is selectable per-rule via the `ha_media_player` field in the notification step config
+- **HA media player and entity discovery** -- `GET /api/v1/ha/media-players` and `GET /api/v1/ha/entities?domain=<domain>` expose HA state objects for use in the pipeline step config UI
+- **Automatic hardware device registration** -- sensors defined in `config/auth.yaml` under `device_keys` are upserted into the database at startup, so reCamera and reTerminal devices are immediately visible without a manual create step
+- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS (with HA media player playback), `realtime_voice` (interactive Gemini voice prompt), Home Assistant announcements -- add new channels by implementing a single class. Orchestrator prompts sent to the voice agent are hidden from the senior's transcript to maintain a natural conversation experience
 - **Webhook triggers** for external systems (Home Assistant automations, IFTTT, n8n) with per-rule HMAC secrets
 - **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
 - **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)

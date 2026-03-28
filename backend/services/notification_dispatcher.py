@@ -22,6 +22,8 @@ class DispatchServices:
     telegram_client: Any = None
     tts_client: Any = None
     image_renderer: Any = None
+    minio_client: Any = None
+    ha_client: Any = None
 
 
 class NotificationDispatcher:
@@ -33,12 +35,16 @@ class NotificationDispatcher:
         ws_manager=None,
         tts_client=None,
         image_renderer=None,
+        minio_client=None,
+        ha_client=None,
     ) -> None:
         self._dispatch_services = DispatchServices(
             ws_manager=ws_manager,
             telegram_client=telegram_client,
             tts_client=tts_client,
             image_renderer=image_renderer,
+            minio_client=minio_client,
+            ha_client=ha_client,
         )
 
     async def dispatch(

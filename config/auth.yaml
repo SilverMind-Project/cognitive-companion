@@ -62,6 +62,8 @@ permission_map:
     - "GET /api/v1/workflows*"
     - "GET /api/v1/mcp/*"
     - "GET /api/v1/image/*"
+    - "GET /api/v1/ha/media-players"
+    - "GET /api/v1/ha/entities"
 
   "device:recamera":
     - "POST /api/v1/device/recamera"

@@ -14,7 +14,7 @@ Cognitive Companion v2 is a privacy-first AI system for senior care. It processe
 
 ## Project Layout
 
-```
+```text
 backend/
   core/
     config.py              # YAML config loader with ${ENV_VAR} interpolation
@@ -36,7 +36,7 @@ backend/
     builtin/               # Room, time_range, day_of_week, person_presence, person_activity filters
   models/
     __init__.py            # Re-exports all models -- import here to register with Base
-    sensor.py              # Sensor (camera, presence, button, light)
+    sensor.py              # Sensor (camera, presence, button, light, media_player, eink, generic)
     room.py                # Room grouping
     rule.py                # Rule, RuleContext, RuleDependency (+ webhook_config, occupancy_config)
     pipeline.py            # PipelineStep, WorkflowExecution
@@ -83,6 +83,7 @@ backend/
   routers/                 # FastAPI route handlers (one file per domain)
     rules.py               # Rule CRUD + pipeline step management
     pipeline.py            # Step type, channel type, filter type metadata endpoints
+    ha_sync.py             # HA sync: rooms, sensors (with room_id), media_player entities; GET /ha/media-players, GET /ha/entities
     webhooks.py            # Webhook trigger endpoint with HMAC validation
     workflows.py           # Workflow execution endpoints (list, detail, cancel)
     activities.py          # PersonActivity endpoints
@@ -160,8 +161,8 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 
 Step type details:
 
-- `activity_detection`: A pure setter step. Reads activity data from `pipeline_data` (typically produced by an upstream `logic_reasoning` step) and records it to the `PersonActivity` table. Does not run its own LLM prompts.
-- `verification`: A database query step. Queries the `PersonActivity` table to verify household member activities within configured time windows. Does not capture images or run LLM calls.
+- `activity_detection`: Records a single activity to the `PersonActivity` table. Config fields: `activity_type` (required), `person_id` (optional), `room_name` (optional), `confidence` (accepts a fixed number or `{{template}}` syntax, defaults to `0.8`). All fields support `{{template}}` syntax resolved against `pipeline_data` and trigger context. `person_id` defaults to `"unknown"` when empty. `room_name` defaults to the trigger room when empty. Use multiple steps to record multiple activities.
+- `verification`: A database query step. Queries the `PersonActivity` table to verify activities within configured time windows. Each condition has `activity_type` (required), optional `person_id` (template-enabled, empty = any person), optional `room_name` (template-enabled, empty = any room), time window (`within_minutes` or `window_start`/`window_end`), and `min_confidence`. Does not capture images or run LLM calls.
 - `logic_reasoning`: Sends a prompt to the logic LLM provider. Supports a `response_format` config option with values: `"default"`, `"activity_detection"`, `"custom"`.
 
 **Wiring**: `PipelineExecutor` is instantiated in the lifespan in `backend/main.py` and attached to `app.state`. It receives a `ServiceContainer` with all shared services.
@@ -169,6 +170,8 @@ Step type details:
 ### Notification Channels
 
 Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts. Per-step channel overrides (via the `channels` field in notification step config) take precedence over the defaults in `notifications.yaml`.
+
+**TTS channel flow:** `TTSChannel.send()` calls `TTSClient.generate_and_upload()` to produce an MP3 and upload it to MinIO, obtaining a presigned URL. It then calls `HomeAssistantClient.play_audio(url, entity_id)` to play the audio on the configured `media_player` entity. The entity ID comes from `ha_media_player` in the notification step's `config_json` (defaults to `media_player.living_room_speaker`). `NotificationDispatcher` passes `minio_client` and `ha_client` via `DispatchServices` so no integration clients are imported inside the channel plugin.
 
 **Transcript actor delineation (realtime_voice):** When the orchestrator sends a backend prompt to the Gemini Live session, it is tagged as an orchestrator turn. The prompt text is **not** sent to the frontend transcript — only the agent's spoken response appears (as `source: "assistant"`). This ensures the senior sees a clean conversation without internal system nudges. Three actors are tracked in the conversation log: `user` (senior speech), `assistant` (agent response), and `orchestrator` (system-initiated prompts, hidden from UI).
 
@@ -198,6 +201,7 @@ Rules can be triggered via `POST /webhooks/{rule_id}` with an `X-Webhook-Secret`
 ### LLM Provider Chain and Pool
 
 The LLM subsystem (`backend/integrations/llm/`) supports three modes configured in `settings.yaml`:
+
 - **Simple**: single provider (default, existing behavior)
 - **Chain**: primary provider with fallback providers and configurable retry count
 - **Pool**: round-robin load balancing across multiple providers
@@ -244,6 +248,8 @@ API keys resolve from (in order): `X-API-Key` header, `?api_key` query param, `d
 
 Permission checking uses fnmatch patterns defined in `config/auth.yaml`. The `require_permission()` dependency handles this automatically when applied to a router.
 
+**Device key sensor upsert:** At startup, `_upsert_device_key_sensors()` in `backend/main.py` reads every entry under `auth.device_keys` (from `config/auth.yaml`) and upserts a `Sensor` record using the entry's `sensor_id` as the primary key. `device_type` maps to `sensor_type` via `_DEVICE_TYPE_TO_SENSOR_TYPE` (`recamera` -> `camera`, `reterminal` -> `eink`). This ensures hardware devices are immediately visible in the sensors API without a manual create step. The upsert is idempotent: existing sensors get their name and sensor_type refreshed.
+
 ### Error Handling
 
 Raise custom exceptions from `backend/core/exceptions.py`:
@@ -268,7 +274,7 @@ logger.info("event_processed", sensor_id=sid, rule=rule.name)
 ## Key Files to Read First
 
 | File | Why |
-|------|-----|
+| ---- | --- |
 | `backend/main.py` | Lifespan wires all services, plugin discovery -- shows how everything connects |
 | `backend/steps/base.py` | StepHandler ABC, StepResult, TriggerContext, ServiceContainer -- core plugin types |
 | `backend/steps/__init__.py` | StepRegistry -- how step plugins are discovered and dispatched |
@@ -409,8 +415,17 @@ class YourChannel(NotificationChannel):
 **Adding a new eink device:**
 
 1. Add a device key entry in `config/auth.yaml` with `image:read` permission and a `sensor_id`
-2. Create a sensor with `sensor_type: "eink"` via the admin UI or API
+2. The sensor is auto-upserted at startup via `_upsert_device_key_sensors()` (`sensor_type: "eink"` for `device_type: "reterminal"`)
 3. The device will be automatically included when `sensor_ids=None` (default targeting)
+
+### Home Assistant Sensor Sync
+
+`POST /ha/sync/sensors` imports entities from HA areas into the local `sensors` table. Supported domains: `sensor`, `binary_sensor`, and `media_player`. The `sensor_type` is inferred from the entity name (presence, light, distance) or entity domain (media_player). The sensor's `room_id` is set (or updated) on every sync run so that room reassignments in HA are always reflected locally.
+
+Two read endpoints support the frontend pipeline config UI:
+
+- `GET /ha/media-players`: lists all `media_player.*` entities from HA (for TTS media player dropdown)
+- `GET /ha/entities?domain=<domain>`: lists entities for a specific HA domain (for ha_action entity_id dropdown)
 
 ### Adding a New LLM Provider
 
@@ -445,7 +460,7 @@ Fields: `id`, `person_id`, `activity_type`, `room_id`, `room_name`, `detected_at
 
 Uses a GET/SET pattern across pipeline steps:
 
-- **SET**: The `activity_detection` step reads activity data from `pipeline_data` (produced by `logic_reasoning`) and writes to the `PersonActivity` table.
+- **SET**: The `activity_detection` step writes a single activity to the `PersonActivity` table. All config fields support `{{template}}` syntax so values can be fixed strings or resolved from upstream step output.
 - **GET**: The `verification` step queries the `PersonActivity` table based on its `conditions` config (person, activity type, time window).
 
 ### ImageTemplate (backend/models/image_template.py)
@@ -479,7 +494,7 @@ One row per eink display device. Links a sensor to its current rendered state an
 ## External Services
 
 | Service | Env Var | Used For |
-|---------|---------|----------|
+| ------- | ------- | -------- |
 | Vision (Cosmos Reason2) | `VISION_MODEL_URL` | Vision analysis |
 | Translation (TranslateGemma) | `TRANSLATE_MODEL_URL` | Language translation |
 | Logic (Gemma3) | `LOGIC_MODEL_URL` | Logic reasoning |

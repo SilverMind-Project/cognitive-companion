@@ -1,5 +1,5 @@
 """
-Home Assistant sync router – imports rooms and sensors from HA.
+Home Assistant sync router: import rooms, sensors, and media players from HA.
 """
 
 from __future__ import annotations
@@ -16,6 +16,25 @@ from backend.models.sensor import Sensor
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/ha", tags=["homeassistant"])
+
+# Maps HA entity domain prefixes to Sensor.sensor_type values.
+_SENSOR_TYPE_MAP: dict[str, str] = {
+    "media_player": "media_player",
+}
+
+
+def _infer_sensor_type(entity_id: str) -> str:
+    """Infer the sensor_type from an entity_id string."""
+    if "person_information" in entity_id or "presence" in entity_id:
+        return "presence"
+    if "illuminance" in entity_id or "light" in entity_id:
+        return "light"
+    if "heartbeat" in entity_id or "breathing" in entity_id:
+        return "presence"
+    if "distance" in entity_id:
+        return "distance"
+    domain = entity_id.split(".")[0] if "." in entity_id else ""
+    return _SENSOR_TYPE_MAP.get(domain, "generic")
 
 
 @router.post("/sync/rooms")
@@ -63,8 +82,10 @@ async def sync_sensors(
 ):
     """Import sensors from Home Assistant for a room (or all rooms).
 
-    Discovers entities in HA areas and creates Sensor records for
-    binary_sensor and sensor domain entities.
+    Discovers entities in HA areas and creates or updates Sensor records for
+    binary_sensor, sensor, and media_player domain entities.  The sensor's
+    room_id is set or updated on every sync run so that room reassignments in
+    HA are reflected locally.
     """
     ha_client = getattr(request.app.state, "ha_client", None)
     if ha_client is None or not ha_client.configured:
@@ -76,7 +97,8 @@ async def sync_sensors(
     else:
         rooms = db.query(Room).filter(Room.ha_area_id.isnot(None)).all()
 
-    created, skipped = 0, 0
+    created, updated, skipped = 0, 0, 0
+    allowed_domains = {"sensor", "binary_sensor", "media_player"}
 
     for room in rooms:
         if not room.ha_area_id:
@@ -87,43 +109,88 @@ async def sync_sensors(
             entity_id = entity.get("entity_id", "")
             domain = entity_id.split(".")[0] if "." in entity_id else ""
 
-            # Only import sensor and binary_sensor entities
-            if domain not in ("sensor", "binary_sensor"):
+            if domain not in allowed_domains:
                 continue
 
-            # Determine sensor type
-            sensor_type = "generic"
-            if "person_information" in entity_id or "presence" in entity_id:
-                sensor_type = "presence"
-            elif "illuminance" in entity_id or "light" in entity_id:
-                sensor_type = "light"
-            elif "heartbeat" in entity_id or "breathing" in entity_id:
-                sensor_type = "presence"
-            elif "distance" in entity_id:
-                sensor_type = "distance"
+            sensor_type = _infer_sensor_type(entity_id)
+            friendly_name = entity.get("attributes", {}).get("friendly_name", entity_id)
 
-            # Check if already exists
-            existing = db.query(Sensor).filter(
-                Sensor.ha_entity_id == entity_id
-            ).first()
+            existing = db.query(Sensor).filter(Sensor.ha_entity_id == entity_id).first()
             if existing:
-                skipped += 1
-                continue
-
-            sensor = Sensor(
-                id=entity_id,
-                name=entity.get("attributes", {}).get(
-                    "friendly_name", entity_id
-                ),
-                room_id=room.id,
-                sensor_type=sensor_type,
-                source="homeassistant",
-                ha_entity_id=entity_id,
-                enabled=True,
-            )
-            db.add(sensor)
-            created += 1
+                # Update room association and name so HA renames/moves are reflected.
+                existing.room_id = room.id
+                existing.name = friendly_name
+                updated += 1
+            else:
+                sensor = Sensor(
+                    id=entity_id,
+                    name=friendly_name,
+                    room_id=room.id,
+                    sensor_type=sensor_type,
+                    source="homeassistant",
+                    ha_entity_id=entity_id,
+                    enabled=True,
+                )
+                db.add(sensor)
+                created += 1
 
     db.commit()
-    logger.info("ha_sensors_synced", created=created, skipped=skipped)
-    return {"created": created, "skipped": skipped}
+    logger.info("ha_sensors_synced", created=created, updated=updated, skipped=skipped)
+    return {"created": created, "updated": updated, "skipped": skipped}
+
+
+@router.get("/media-players")
+async def list_media_players(
+    request: Request,
+    auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Return all media_player entity IDs from Home Assistant.
+
+    Used by the pipeline step config UI to populate the TTS media player
+    dropdown without requiring a full sensor sync.
+    """
+    ha_client = getattr(request.app.state, "ha_client", None)
+    if ha_client is None or not ha_client.configured:
+        return []
+
+    players = await ha_client.get_media_players()
+    return [
+        {
+            "entity_id": p["entity_id"],
+            "name": p.get("attributes", {}).get("friendly_name", p["entity_id"]),
+        }
+        for p in players
+    ]
+
+
+@router.get("/entities")
+async def list_entities(
+    request: Request,
+    domain: str | None = None,
+    auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Return HA entity IDs, optionally filtered by domain.
+
+    Used by the ha_action step config UI to populate the entity_id dropdown.
+    Pass ``?domain=light`` to get only light entities, etc.
+    """
+    ha_client = getattr(request.app.state, "ha_client", None)
+    if ha_client is None or not ha_client.configured:
+        return []
+
+    if domain:
+        entities = await ha_client.get_entities_by_domain(domain)
+    else:
+        # Return a lightweight list from the DB (HA-sourced sensors) to avoid
+        # fetching all HA states when no domain filter is given.
+        db_gen = request.app.dependency_overrides.get(get_db)
+        # Fallback: return empty list rather than hitting HA without a filter
+        return []
+
+    return [
+        {
+            "entity_id": e["entity_id"],
+            "name": e.get("attributes", {}).get("friendly_name", e["entity_id"]),
+        }
+        for e in entities
+    ]

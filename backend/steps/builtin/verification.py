@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from backend.core.logging import get_logger
+from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
 from backend.steps.base import (
@@ -30,7 +31,8 @@ class VerificationHandler(StepHandler):
             icon="mdi-check-decagram",
             description=(
                 "Verify whether household members completed specific activities "
-                "by querying the PersonActivity table. No LLM calls -- pure database queries."
+                "by querying the PersonActivity table. No LLM calls -- pure database queries. "
+                "Supports optional person and room filters, each with {{template}} syntax."
             ),
             config_schema={
                 "type": "object",
@@ -40,15 +42,28 @@ class VerificationHandler(StepHandler):
                         "items": {
                             "type": "object",
                             "properties": {
-                                "person_id": {"type": "string"},
+                                "person_id": {
+                                    "type": "string",
+                                    "description": (
+                                        "Person to check. Supports {{template}} syntax. "
+                                        "Leave empty to match any person."
+                                    ),
+                                },
                                 "activity_type": {"type": "string"},
                                 "completed": {"type": "boolean", "default": True},
                                 "within_minutes": {"type": "number"},
                                 "window_start": {"type": "string", "format": "date-time"},
                                 "window_end": {"type": "string", "format": "date-time"},
                                 "min_confidence": {"type": "number", "default": 0.5},
+                                "room_name": {
+                                    "type": "string",
+                                    "description": (
+                                        "Optional room filter. Supports {{template}} syntax. "
+                                        "Leave empty to match any room."
+                                    ),
+                                },
                             },
-                            "required": ["person_id", "activity_type"],
+                            "required": ["activity_type"],
                         },
                     },
                     "match_mode": {
@@ -88,6 +103,11 @@ class VerificationHandler(StepHandler):
         re_notify_if_failed = config.get("re_notify_if_failed", False)
         re_notify_delay = config.get("re_notify_delay_minutes", 5)
 
+        trigger_vars = {
+            "room_name": trigger.room_name or "",
+            "sensor_id": trigger.sensor_id or "",
+        }
+
         if "prompt" in config and not conditions:
             logger.warning(
                 "verification_deprecated_config",
@@ -110,7 +130,22 @@ class VerificationHandler(StepHandler):
         unmatched: list[dict] = []
 
         for cond in conditions:
-            person_id = cond.get("person_id", "")
+            # Resolve person_id: supports template expressions; empty = any person.
+            person_id_raw = cond.get("person_id", "")
+            person_id = (
+                render_template(person_id_raw, pipeline_data, trigger_vars).strip()
+                if person_id_raw
+                else ""
+            )
+
+            # Resolve room_name: supports template expressions; empty = any room.
+            room_name_raw = cond.get("room_name", "")
+            room_name = (
+                render_template(room_name_raw, pipeline_data, trigger_vars).strip()
+                if room_name_raw
+                else None
+            )
+
             activity_type = cond.get("activity_type", "")
             completed = cond.get("completed", True)
             within_minutes = cond.get("within_minutes")
@@ -130,20 +165,22 @@ class VerificationHandler(StepHandler):
             activities: list[dict] = []
             if services.person_tracking:
                 activities = await services.person_tracking.query_activities_in_window(
-                    person_id=person_id,
+                    person_id=person_id or None,
                     activity_type=activity_type,
                     within_minutes=within_minutes,
                     window_start=window_start,
                     window_end=window_end,
                     min_confidence=min_confidence,
+                    room_name=room_name,
                 )
 
             found = len(activities) > 0
             passed = found if completed else not found
 
             entry = {
-                "person_id": person_id,
+                "person_id": person_id or None,
                 "activity_type": activity_type,
+                "room_name": room_name,
                 "completed": completed,
                 "found": found,
                 "passed": passed,

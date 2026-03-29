@@ -79,7 +79,128 @@
             label="Use annotated image"
             density="comfortable"
             hide-details
+            class="mb-3"
           />
+          <v-select
+            v-model="cfg.image_source"
+            :items="['trigger', 'additional', 'both']"
+            label="Image Source"
+            variant="outlined"
+            density="comfortable"
+            hint="trigger = frames that triggered pipeline, additional = extra cameras, both = combine"
+            persistent-hint
+            class="mb-3"
+          />
+          <v-text-field
+            v-model.number="cfg.max_images"
+            label="Max Images"
+            variant="outlined"
+            density="comfortable"
+            type="number"
+            :min="1"
+            hint="Maximum total images sent to the vision model"
+            persistent-hint
+            class="mb-3"
+          />
+          <template v-if="cfg.image_source === 'additional' || cfg.image_source === 'both'">
+            <v-combobox
+              v-model="cfg.additional_sensor_ids"
+              :items="cameraSensorItems"
+              label="Additional Camera Sensors"
+              variant="outlined"
+              density="comfortable"
+              multiple
+              chips
+              closable-chips
+              hint="Extra cameras to pull images from"
+              persistent-hint
+              class="mb-3"
+            />
+            <v-combobox
+              v-model="cfg.additional_room_names"
+              :items="availableRooms"
+              label="Additional Rooms"
+              variant="outlined"
+              density="comfortable"
+              multiple
+              chips
+              closable-chips
+              hint="Pull images from all cameras in these rooms"
+              persistent-hint
+              class="mb-3"
+            />
+            <v-expansion-panels variant="accordion" class="mb-3">
+              <v-expansion-panel>
+                <v-expansion-panel-title class="text-body-2">
+                  <v-icon class="mr-2" size="small">mdi-clock-outline</v-icon>
+                  Time Filter (optional)
+                </v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <v-text-field
+                    v-model.number="imageTimeFilter.since_minutes"
+                    label="Since (minutes ago)"
+                    variant="outlined"
+                    density="comfortable"
+                    type="number"
+                    :min="0"
+                    hint="Only include images from the last N minutes"
+                    persistent-hint
+                    class="mb-3"
+                  />
+                  <v-text-field
+                    v-model="imageTimeFilter.time_start"
+                    label="Time Start (HH:MM)"
+                    variant="outlined"
+                    density="comfortable"
+                    placeholder="e.g. 08:00"
+                    class="mb-3"
+                  />
+                  <v-text-field
+                    v-model="imageTimeFilter.time_end"
+                    label="Time End (HH:MM)"
+                    variant="outlined"
+                    density="comfortable"
+                    placeholder="e.g. 18:00"
+                  />
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+            </v-expansion-panels>
+          </template>
+          <v-select
+            v-model="cfg.response_format"
+            :items="['default', 'custom']"
+            label="Response Format"
+            variant="outlined"
+            density="comfortable"
+            hint="Controls the structured JSON output enforced on the vision model"
+            persistent-hint
+            class="mb-3"
+          />
+          <v-alert v-if="cfg.response_format === 'default'" type="info" variant="tonal" density="compact" class="mb-3">
+            <div class="text-subtitle-2 mb-1">Output keys (available as <code>vision_response</code>):</div>
+            String (default free-text output)
+          </v-alert>
+          <template v-if="cfg.response_format === 'custom'">
+            <v-textarea
+              v-model="cfg.response_schema"
+              label="Response Format Instruction"
+              variant="outlined"
+              rows="3"
+              hint="Text instruction appended to the prompt describing expected JSON keys"
+              persistent-hint
+              class="mb-3"
+            />
+            <v-textarea
+              v-model="cfg.response_json_schema"
+              label="JSON Schema (optional)"
+              variant="outlined"
+              rows="6"
+              hint="Paste a JSON Schema to enforce structured output via guided decoding. Leave empty to rely on prompt instruction only."
+              persistent-hint
+              :error-messages="jsonSchemaError"
+              class="mb-3"
+            />
+          </template>
         </template>
 
         <!-- logic_reasoning -->
@@ -110,19 +231,42 @@
             label="Response Format"
             variant="outlined"
             density="comfortable"
-            hint="JSON schema the LLM should return"
+            hint="Controls the structured JSON output enforced on the LLM"
             persistent-hint
             class="mb-3"
           />
-          <v-textarea
-            v-if="cfg.response_format === 'custom'"
-            v-model="cfg.response_schema"
-            label="Custom Response Schema"
-            variant="outlined"
-            rows="3"
-            hint="Instruction appended to the prompt describing the expected JSON keys"
-            persistent-hint
-          />
+          <v-alert v-if="cfg.response_format === 'default'" type="info" variant="tonal" density="compact" class="mb-3">
+            <div class="text-subtitle-2 mb-1">Output keys (available as <code>logic_response.*</code>):</div>
+            <code>is_notification_needed</code> (bool),
+            <code>user_notification</code> (string),
+            <code>reasoning</code> (string),
+            <code>alert_level</code> (string)
+          </v-alert>
+          <v-alert v-if="cfg.response_format === 'activity_detection'" type="info" variant="tonal" density="compact" class="mb-3">
+            <div class="text-subtitle-2 mb-1">Output keys (available as <code>logic_response.*</code>):</div>
+            <code>activities</code> (array of {person_id, activity_type, confidence})
+          </v-alert>
+          <template v-if="cfg.response_format === 'custom'">
+            <v-textarea
+              v-model="cfg.response_schema"
+              label="Response Format Instruction"
+              variant="outlined"
+              rows="3"
+              hint="Text instruction appended to the prompt describing expected JSON keys"
+              persistent-hint
+              class="mb-3"
+            />
+            <v-textarea
+              v-model="cfg.response_json_schema"
+              label="JSON Schema (optional)"
+              variant="outlined"
+              rows="6"
+              hint="Paste a JSON Schema to enforce structured output via guided decoding. Leave empty to rely on prompt instruction only."
+              persistent-hint
+              :error-messages="jsonSchemaError"
+              class="mb-3"
+            />
+          </template>
         </template>
 
         <!-- translation -->
@@ -143,6 +287,25 @@
             hint="Text to translate. Supports {{variable}} templates. Leave empty to auto-detect from logic response or vision response."
             persistent-hint
             placeholder="e.g. {{logic_response.user_notification}}"
+            class="mb-3"
+          />
+          <v-textarea
+            v-model="cfg.special_instructions"
+            label="Special Instructions"
+            variant="outlined"
+            rows="2"
+            hint="Instructions built into the prompt. Useful for guiding language style (e.g. Tanglish)."
+            persistent-hint
+            class="mb-3"
+          />
+          <v-text-field
+            v-model="cfg.hallucination_marker"
+            label="Hallucination Marker"
+            variant="outlined"
+            density="comfortable"
+            hint="A known garbage string that triggers a retry if found in the response."
+            persistent-hint
+            class="mb-3"
           />
         </template>
 
@@ -171,13 +334,49 @@
           />
           <v-textarea
             v-model="cfg.message_template"
-            label="Message Template"
+            label="Message Template (default)"
             variant="outlined"
             rows="3"
-            hint="Use {{ variable }} for template substitution"
+            hint="Default template for all channels. Use {message}, {room}, {vision_response}, etc."
             persistent-hint
             class="mb-3"
           />
+          <v-expansion-panels variant="accordion" class="mb-3">
+            <v-expansion-panel>
+              <v-expansion-panel-title class="text-body-2">
+                <v-icon class="mr-2" size="small">mdi-message-text-outline</v-icon>
+                Per-Channel Templates (optional)
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-textarea
+                  v-model="cfg.telegram_template"
+                  label="Telegram Template"
+                  variant="outlined"
+                  rows="3"
+                  hint="HTML template for Telegram. Use {message}, {room}, etc. Falls back to Message Template."
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-textarea
+                  v-model="cfg.eink_template"
+                  label="E-Ink Template"
+                  variant="outlined"
+                  rows="2"
+                  hint="Short plain-text for e-ink displays. Falls back to Message Template."
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-textarea
+                  v-model="cfg.tts_template"
+                  label="TTS Template"
+                  variant="outlined"
+                  rows="2"
+                  hint="Natural language for spoken announcements. Falls back to Message Template."
+                  persistent-hint
+                />
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
           <v-combobox
             v-model="cfg.eink_targets"
             :items="einkSensorItems"
@@ -455,6 +654,38 @@
             :error-messages="genericConfigError"
           />
         </template>
+
+        <!-- Pipeline Data Reference (shown for all step types) -->
+        <v-expansion-panels v-if="localStep.step_type" variant="accordion" class="mt-4">
+          <v-expansion-panel>
+            <v-expansion-panel-title class="text-body-2">
+              <v-icon class="mr-2" size="small">mdi-code-braces</v-icon>
+              Pipeline Data Reference
+            </v-expansion-panel-title>
+            <v-expansion-panel-text>
+              <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+                These keys are available from upstream steps. Use them in prompts as
+                <code>{{key}}</code> or in templates as <code>{key}</code>.
+              </v-alert>
+              <v-table density="compact">
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Type</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in pipelineDataReference" :key="item.key">
+                    <td><code>{{ item.key }}</code></td>
+                    <td class="text-caption">{{ item.type }}</td>
+                    <td class="text-caption">{{ item.source }}</td>
+                  </tr>
+                </tbody>
+              </v-table>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
       </v-card-text>
 
       <v-card-actions>
@@ -502,6 +733,28 @@ const localStep = reactive({
 const cfg = reactive({});
 const genericConfigJson = ref("{}");
 const genericConfigError = ref("");
+const jsonSchemaError = ref("");
+const imageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
+const cameraSensorItems = ref([]);
+
+// Pipeline data reference for the info panel
+const pipelineDataReference = [
+  { key: "trigger.sensor_id", type: "string", source: "Trigger context" },
+  { key: "trigger.room_name", type: "string", source: "Trigger context" },
+  { key: "trigger.media_paths", type: "string[]", source: "Trigger context" },
+  { key: "person_detections", type: "array of {name, person_id, confidence, bbox}", source: "person_identification" },
+  { key: "annotated_image", type: "string (base64)", source: "person_identification" },
+  { key: "vision_response", type: "string", source: "vision_analysis" },
+  { key: "logic_response", type: "object (schema depends on response_format)", source: "logic_reasoning" },
+  { key: "logic_response.is_notification_needed", type: "boolean", source: "logic_reasoning (default)" },
+  { key: "logic_response.user_notification", type: "string", source: "logic_reasoning (default)" },
+  { key: "logic_response.alert_level", type: "string", source: "logic_reasoning (default)" },
+  { key: "translation", type: "string", source: "translation" },
+  { key: "detected_activities", type: "array", source: "activity_detection" },
+  { key: "verification", type: "object {verified, matched_conditions}", source: "verification" },
+  { key: "notification_dispatched", type: "boolean", source: "notification" },
+  { key: "notification_channels", type: "object {channel: bool}", source: "notification" },
+];
 
 // Dynamic lists from API
 const availableChannels = ref(["websocket", "telegram", "eink", "tts"]);
@@ -531,21 +784,35 @@ const fallbackDefaults = {
   vision_analysis: {
     prompt: "",
     use_annotated_image: false,
+    image_source: "trigger",
+    max_images: 5,
+    additional_sensor_ids: [],
+    additional_room_names: [],
+    image_time_filter: {},
+    response_format: "default",
+    response_schema: "",
+    response_json_schema: "",
   },
   logic_reasoning: {
     prompt: "",
     include_context: [],
     response_format: "default",
     response_schema: "",
+    response_json_schema: "",
   },
   translation: {
-    target_language: "",
+    target_language: "ta",
     source_text: "",
+    hallucination_marker: "",
+    special_instructions: "Translate using informal Tanglish that is spoken in Chennai (i.e tamil mixed with English):  \n",
   },
   notification: {
     alert_level: "warning",
     channels: [],
     message_template: "",
+    telegram_template: "",
+    eink_template: "",
+    tts_template: "",
     eink_targets: [],
     ha_media_player: "",
   },
@@ -608,6 +875,9 @@ onMounted(async () => {
     einkSensorItems.value = sensors
       .filter((s) => s.sensor_type === "eink")
       .map((s) => s.id);
+    cameraSensorItems.value = sensors
+      .filter((s) => s.sensor_type === "camera")
+      .map((s) => s.id);
   } catch {
     // Sensors list unavailable
   }
@@ -636,6 +906,24 @@ watch(
     // Reset cfg
     Object.keys(cfg).forEach((k) => delete cfg[k]);
     Object.assign(cfg, { ...base, ...incoming });
+
+    // Populate imageTimeFilter for vision_analysis
+    if (step.step_type === "vision_analysis") {
+      const tf = incoming.image_time_filter || {};
+      imageTimeFilter.since_minutes = tf.since_minutes || null;
+      imageTimeFilter.time_start = tf.time_start || "";
+      imageTimeFilter.time_end = tf.time_end || "";
+    }
+
+    // Validate response_json_schema for logic_reasoning and vision_analysis
+    if ((step.step_type === "logic_reasoning" || step.step_type === "vision_analysis") && cfg.response_json_schema) {
+      try {
+        JSON.parse(cfg.response_json_schema);
+        jsonSchemaError.value = "";
+      } catch (e) {
+        jsonSchemaError.value = "Invalid JSON: " + e.message;
+      }
+    }
 
     // Add _time_mode and _window_*_time helpers to verification conditions for UI
     if (step.step_type === "verification" && Array.isArray(cfg.conditions)) {
@@ -778,6 +1066,26 @@ function save() {
         }
         return rest;
       });
+    }
+
+    // Merge imageTimeFilter into vision_analysis config
+    if (localStep.step_type === "vision_analysis") {
+      const tf = {};
+      if (imageTimeFilter.since_minutes) tf.since_minutes = imageTimeFilter.since_minutes;
+      if (imageTimeFilter.time_start) tf.time_start = imageTimeFilter.time_start;
+      if (imageTimeFilter.time_end) tf.time_end = imageTimeFilter.time_end;
+      config.image_time_filter = Object.keys(tf).length > 0 ? tf : {};
+    }
+
+    // Validate JSON schema for logic_reasoning and vision_analysis
+    if ((localStep.step_type === "logic_reasoning" || localStep.step_type === "vision_analysis") && config.response_json_schema) {
+      try {
+        JSON.parse(config.response_json_schema);
+        jsonSchemaError.value = "";
+      } catch (e) {
+        jsonSchemaError.value = "Invalid JSON: " + e.message;
+        return;
+      }
     }
 
     // Parse ha_action data JSON string

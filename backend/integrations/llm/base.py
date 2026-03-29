@@ -27,6 +27,8 @@ class LLMProvider(ABC):
         prompt: str,
         media_paths: list[str] | None = None,
         media_type: str | None = None,
+        response_schema: dict | None = None,
+        **kwargs: Any,
     ) -> str:
         """
         Send a prompt (and optional media) to the LLM and return the text
@@ -40,6 +42,10 @@ class LLMProvider(ABC):
             Optional list of file paths (images or video) to include.
         media_type:
             One of ``"image"``, ``"video"``, or ``None``.
+        response_schema:
+            Optional JSON Schema dict. When provided, the LLM is
+            constrained to produce output conforming to this schema
+            (via guided decoding on Ollama/vLLM).
 
         Returns
         -------

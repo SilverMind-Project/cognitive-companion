@@ -43,6 +43,8 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Five trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP), `occupancy_duration` (presence sensor occupied ≥ N minutes) -- each with per-rule threshold and cool-off
 - **Composable pipeline steps** -- 10 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
   `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
+- **Structured output** via native LLM guided decoding -- enforce custom JSON schema output guarantees from logic and vision models.
+- **Cross-sensor image acquisition** -- configure the vision analysis to optionally request recent images from alternative cameras and rooms to assemble multi-angle context.
 - **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, with in-app enrollment via photo upload
 - **Annotated person identification images** with bounding boxes and name labels returned inline
 - **Activity tracking** -- detect and record person activities (eating, sleeping, taking medication) as pipeline outputs for use as context filters in downstream rules
@@ -57,7 +59,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **TTS via Home Assistant media players** -- the TTS channel generates MP3 audio from the TTS service, uploads to MinIO, and calls `media_player.play_media` on the configured HA entity. The target media player is selectable per-rule via the `ha_media_player` field in the notification step config
 - **HA media player and entity discovery** -- `GET /api/v1/ha/media-players` and `GET /api/v1/ha/entities?domain=<domain>` expose HA state objects for use in the pipeline step config UI
 - **Automatic hardware device registration** -- sensors defined in `config/auth.yaml` under `device_keys` are upserted into the database at startup, so reCamera and reTerminal devices are immediately visible without a manual create step
-- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS (with HA media player playback), `realtime_voice` (interactive Gemini voice prompt), Home Assistant announcements -- add new channels by implementing a single class. Orchestrator prompts sent to the voice agent are hidden from the senior's transcript to maintain a natural conversation experience
+- **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, `realtime_voice`, Home Assistant announcements. Offers per-channel message templates that cleanly degrade to a base message format. Orchestrator prompts sent to the voice agent are hidden from the senior's transcript to maintain a natural conversation experience
 - **Webhook triggers** for external systems (Home Assistant automations, IFTTT, n8n) with per-rule HMAC secrets
 - **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
 - **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)
@@ -339,10 +341,10 @@ Rules no longer use a fixed linear pipeline. Instead, each rule defines a **comp
 | Step Type | Purpose |
 |-----------|---------|
 | `person_identification` | Run face recognition on media frames; record sightings and update location |
-| `vision_analysis` | Send media + prompt to the vision LLM (Cosmos Reason2) |
-| `logic_reasoning` | Evaluate vision output with the logic LLM (Gemma3); decide whether to act. Supports configurable `response_format` for different output schemas (default, activity_detection, custom). |
-| `translation` | Translate text to a target language (TranslateGemma) |
-| `notification` | Dispatch an alert to configured channels based on alert level |
+| `vision_analysis` | Send media + prompt to the vision LLM. Configurable to fetch temporal snapshots from additional cameras throughout the house. Supports schema-enforced output formatting. |
+| `logic_reasoning` | Evaluate vision output with the logic LLM to decide on actions. Uses `response_format` and `response_json_schema` for guaranteed structured JSON outputs. |
+| `translation` | Translate text to a target language (TranslateGemma). Supports pre-pending special instructions and automated retries via Tenacity when hallucination markers are detected. |
+| `notification` | Dispatch an alert across channels with customizable text templates per-channel (`telegram_template`, etc.) |
 | `ha_action` | Call a Home Assistant service (turn on lights, lock doors, etc.) |
 | `activity_detection` | Record activities from pipeline data to the PersonActivity table. Pair with a preceding `logic_reasoning` step (with `response_format: activity_detection`) for LLM analysis. |
 | `wait` | Pause execution for a configured duration; resume automatically via scheduler |

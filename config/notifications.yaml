@@ -2,6 +2,7 @@
 
 telegram:
   bot_token: "${TELEGRAM_BOT_TOKEN}"
+  max_image_side: 1920  # downscale longest side (px); 0 = no scaling
   targets:
     - chat_id: "${TELEGRAM_CAREGIVER_CHAT_ID}"
       name: "Caregiver"

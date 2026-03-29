@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from tenacity import AsyncRetrying, RetryError, retry_if_result, stop_after_attempt
 
 from backend.core.logging import get_logger
 from backend.integrations.llm.base import LLMProvider
@@ -67,6 +68,8 @@ class VLLMVisionProvider(LLMProvider):
         prompt: str,
         media_paths: list[str] | None = None,
         media_type: str | None = None,
+        response_schema: dict | None = None,
+        **kwargs: Any,
     ) -> str:
         content: list[dict[str, Any]] = []
 
@@ -114,6 +117,10 @@ class VLLMVisionProvider(LLMProvider):
             "max_tokens": self.max_tokens,
         }
 
+        # Schema-enforced structured output via vLLM guided decoding
+        if response_schema:
+            payload["guided_json"] = response_schema
+
         logger.info(
             "vllm_vision_request",
             model=self.model,
@@ -153,7 +160,7 @@ class VLLMTranslationProvider(LLMProvider):
     """
 
     # Known bad output that signals a hallucinated / garbage response.
-    _HALLUCINATION_MARKER = "\u0b9a\u0bc6\u0ba9\u0bcd\u0ba9\u0bc8"  # "சென்னை"
+    _HALLUCINATION_MARKER = "சென்னை"  # "chennai" in Tamil script
 
     def __init__(
         self,
@@ -179,6 +186,8 @@ class VLLMTranslationProvider(LLMProvider):
         *,
         source_lang: str = "en",
         target_lang: str = "ta",
+        hallucination_marker: str | None = None,
+        **kwargs: Any,
     ) -> str:
         """
         Translate *prompt* from *source_lang* to *target_lang*.
@@ -200,43 +209,52 @@ class VLLMTranslationProvider(LLMProvider):
             "max_tokens": self.max_tokens,
         }
 
-        last_text = ""
-        for attempt in range(1, self.max_retries + 1):
-            logger.info(
-                "vllm_translation_request",
-                model=self.model,
-                source=source_lang,
-                target=target_lang,
-                attempt=attempt,
+        marker = hallucination_marker or self._HALLUCINATION_MARKER
+
+        try:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(self.max_retries),
+                retry=retry_if_result(lambda res: marker in str(res)),
+            ):
+                with attempt:
+                    logger.info(
+                        "vllm_translation_request",
+                        model=self.model,
+                        source=source_lang,
+                        target=target_lang,
+                        attempt=attempt.retry_state.attempt_number,
+                    )
+
+                    async with httpx.AsyncClient(timeout=self.timeout) as client:
+                        response = await client.post(
+                            f"{self.base_url}/v1/chat/completions",
+                            json=payload,
+                        )
+                        response.raise_for_status()
+
+                    data = response.json()
+                    last_text = data["choices"][0]["message"]["content"]
+
+                    if marker not in last_text:
+                        logger.debug(
+                            "vllm_translation_ok",
+                            length=len(last_text),
+                            attempt=attempt.retry_state.attempt_number,
+                        )
+                    else:
+                        logger.warning(
+                            "vllm_translation_hallucination",
+                            attempt=attempt.retry_state.attempt_number,
+                            marker=marker,
+                        )
+
+                    return last_text
+        except RetryError as e:
+            logger.error(
+                "vllm_translation_retries_exhausted",
+                max_retries=self.max_retries,
             )
+            val = e.last_attempt.result()
+            return val if isinstance(val, str) else str(val)
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/v1/chat/completions",
-                    json=payload,
-                )
-                response.raise_for_status()
-
-            data = response.json()
-            last_text = data["choices"][0]["message"]["content"]
-
-            if self._HALLUCINATION_MARKER not in last_text:
-                logger.debug(
-                    "vllm_translation_ok",
-                    length=len(last_text),
-                    attempt=attempt,
-                )
-                return last_text
-
-            logger.warning(
-                "vllm_translation_hallucination",
-                attempt=attempt,
-                marker=self._HALLUCINATION_MARKER,
-            )
-
-        # Exhausted retries -- return whatever we got last.
-        logger.error(
-            "vllm_translation_retries_exhausted",
-            max_retries=self.max_retries,
-        )
-        return last_text
+        return ""

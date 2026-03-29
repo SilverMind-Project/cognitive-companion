@@ -37,7 +37,7 @@ llm:
   translation:
     provider: "vllm_translation"
     url: "${TRANSLATE_MODEL_URL}"
-    model: "Infomaniak/TranslateGemma-12b"
+    model: "Infomaniak-AI/vllm-translategemma-12b-it"
     timeout: 60
 
   realtime:

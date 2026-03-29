@@ -53,7 +53,7 @@ class TranslationHandler(StepHandler):
             default_config={
                 "target_language": "ta",
                 "source_text": "",
-                "special_instructions": "Translate using informal Tanglish that is spoken in Chennai (i.e tamil mixed with English):  \n",
+                "special_instructions": "Translate using informal Tamil that is spoken in Chennai (i.e Tamil mixed with English):  \n",
                 "hallucination_marker": "",
             },
         )

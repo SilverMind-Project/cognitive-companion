@@ -1,27 +1,31 @@
 <template>
-  <div class="transcript-card">
-    <!-- Header -->
-    <div class="transcript-header">
+  <div class="transcript-card" :class="expanded ? 'transcript-card--open' : 'transcript-card--closed'">
+    <!-- Header (always visible) -->
+    <div class="transcript-header" @click="expanded = !expanded" role="button" :aria-expanded="expanded">
       <v-icon size="18" color="rgba(255,255,255,0.5)" class="mr-2">mdi-message-text</v-icon>
       <span class="header-title">Conversation</span>
+      <span v-if="transcript.length && !expanded" class="message-count">{{ transcript.length }}</span>
       <v-spacer />
       <button
-        v-if="transcript.length"
+        v-if="transcript.length && expanded"
         class="clear-btn"
         title="Clear conversation"
-        @click="$emit('clear')"
+        @click.stop="$emit('clear')"
       >
         <v-icon size="16">mdi-delete-sweep</v-icon>
       </button>
+      <v-icon size="18" class="toggle-chevron" :class="expanded ? 'chevron--up' : ''">
+        mdi-chevron-down
+      </v-icon>
     </div>
 
-    <!-- Messages -->
-    <div class="messages-scroll" ref="scrollRef">
+    <!-- Messages (only when expanded) -->
+    <div v-if="expanded" class="messages-scroll" ref="scrollRef">
       <!-- Empty state -->
       <div v-if="transcript.length === 0" class="empty-state">
         <v-icon size="52" color="rgba(255,255,255,0.12)" class="mb-4">mdi-chat-sleep-outline</v-icon>
         <p class="empty-title">No conversation yet</p>
-        <p class="empty-hint">Tap the microphone to start talking with Nanai</p>
+        <p class="empty-hint">Tap the microphone to start talking with system</p>
       </div>
 
       <!-- Messages -->
@@ -41,7 +45,7 @@
           <div class="bubble" :class="msg.source === 'user' ? 'bubble--user' : 'bubble--ai'">
             <p class="bubble-text">{{ msg.text }}</p>
             <span class="bubble-time">
-              {{ msg.source === "user" ? "You" : "Nanai" }}
+              {{ msg.source === "user" ? "You" : "System" }}
               <span v-if="msg.timestamp" class="ml-1 opacity-60">&middot; {{ formatTime(msg.timestamp) }}</span>
             </span>
           </div>
@@ -64,6 +68,8 @@ import { ref, watch, nextTick } from "vue";
 const props = defineProps({
   transcript: { type: Array, default: () => [] },
 });
+
+const expanded = ref(false);
 
 defineEmits(["clear"]);
 
@@ -98,9 +104,17 @@ function formatTime(iso) {
   border-radius: 24px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  transition: border-color 0.3s ease;
+}
+
+.transcript-card--open {
   height: 100%;
   min-height: 340px;
-  overflow: hidden;
+}
+
+.transcript-card--closed {
+  height: auto;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -108,8 +122,39 @@ function formatTime(iso) {
   display: flex;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s ease;
+}
+
+.transcript-card--open .transcript-header {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.transcript-header:hover .header-title {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.message-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(99, 102, 241, 0.30);
+  color: #a5b4fc;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 8px;
+}
+
+.toggle-chevron {
+  color: rgba(255, 255, 255, 0.30);
+  transition: transform 0.25s ease;
+}
+
+.chevron--up {
+  transform: rotate(180deg);
 }
 
 .header-title {

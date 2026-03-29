@@ -47,7 +47,7 @@ const STATUS_MAP = {
   idle:           "Ready",
   listening:      "Listening...",
   speaking:       "You're speaking",
-  system_speaking:"Nanai is responding",
+  system_speaking:"System is responding",
 };
 
 const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");

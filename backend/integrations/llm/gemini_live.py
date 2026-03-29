@@ -22,8 +22,8 @@ class GeminiLiveProvider(RealtimeLLMProvider):
     """Manages a Gemini Live session for real-time audio interaction."""
 
     def __init__(self) -> None:
-        self.api_key: str = settings.get("llm.realtime.api_key") or ""
-        self.model: str = settings.get("llm.realtime.model") or "gemini-2.5-flash-native-audio-preview"
+        self.api_key: str = settings.get("llm.realtime.api_key")
+        self.model: str = settings.get("llm.realtime.model")
         self.keepalive_interval: int = settings.get("llm.realtime.keepalive_interval", 25)
         self._client = None
 
@@ -37,25 +37,29 @@ class GeminiLiveProvider(RealtimeLLMProvider):
             from google import genai  # Lazy import: google-genai is an optional dependency
             self._client = genai.Client(
                 api_key=self.api_key,
-                http_options={"api_version": "v1alpha"},
             )
         return self._client
 
     async def connect(self, config: dict[str, Any]) -> RealtimeSession:
         """Open a Gemini Live session with the given config."""
         client = self._get_client()
-        session = await client.aio.live.connect(
+        session_manager = client.aio.live.connect(
             model=self.model,
             config=config,
         )
+        session = await session_manager.__aenter__()
         return RealtimeSession(
             session_object=session,
-            metadata={"connected_at": time.time()},
+            metadata={
+                "connected_at": time.time(),
+                "session_manager": session_manager,
+            },
         )
 
     async def send_audio(self, session: RealtimeSession, data: bytes) -> None:
         """Send raw PCM audio bytes to the Gemini session."""
         from google.genai import types  # Lazy import: google-genai is an optional dependency
+        logger.debug("gemini_send_audio", bytes=len(data))
         await session.session_object.send_realtime_input(
             audio=types.Blob(data=data, mime_type="audio/pcm")
         )
@@ -66,13 +70,18 @@ class GeminiLiveProvider(RealtimeLLMProvider):
 
     async def receive(self, session: RealtimeSession) -> AsyncIterator[Any]:
         """Yield server responses from the Gemini session."""
+        logger.debug("gemini_receive")
         async for response in session.session_object.receive():
             yield response
 
     async def disconnect(self, session: RealtimeSession) -> None:
         """Close the Gemini session."""
+        session_manager = session.metadata.get("session_manager")
         try:
-            await session.session_object.close()
+            if session_manager is not None:
+                await session_manager.__aexit__(None, None, None)
+            else:
+                await session.session_object.close()
         except Exception:
             logger.debug("gemini_disconnect_error")
 
@@ -100,8 +109,6 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         return {
             "response_modalities": ["AUDIO"],
             "system_instruction": {"parts": [{"text": base_instruction}]},
-            "proactivity": {"proactive_audio": True},
-            "enable_affective_dialog": True,
             "output_audio_transcription": {},
             "input_audio_transcription": {},
         }

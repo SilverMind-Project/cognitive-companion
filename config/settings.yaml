@@ -43,7 +43,7 @@ llm:
   realtime:
     provider: "gemini_live"
     api_key: "${GEMINI_API_KEY}"
-    model: "gemini-2.5-flash-native-audio-preview"
+    model: "gemini-3.1-flash-live-preview"
     keepalive_interval: 25
     idle_timeout: 120
     system_instruction: >

@@ -9,11 +9,10 @@ import sys
 
 import structlog
 
-from backend.core.config import settings
-
-
 def setup_logging() -> None:
     """Configure structlog + stdlib logging for the application."""
+    from backend.core.config import settings
+
     level_name = settings.get("app.log_level", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
 

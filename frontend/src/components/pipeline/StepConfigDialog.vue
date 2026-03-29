@@ -303,7 +303,7 @@
             label="Hallucination Marker"
             variant="outlined"
             density="comfortable"
-            hint="A known garbage string that triggers a retry if found in the response."
+            hint="A known string that triggers a retry if found in the response."
             persistent-hint
             class="mb-3"
           />
@@ -803,8 +803,8 @@ const fallbackDefaults = {
   translation: {
     target_language: "ta",
     source_text: "",
-    hallucination_marker: "",
-    special_instructions: "Translate using informal Tanglish that is spoken in Chennai (i.e tamil mixed with English):  \n",
+    hallucination_marker: "சென்னை",
+    special_instructions: "Translate using informal Tamil that is spoken in Chennai (i.e Tamil mixed with English):  \n",
   },
   notification: {
     alert_level: "warning",

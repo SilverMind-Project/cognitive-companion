@@ -83,6 +83,9 @@ const connected = ref(false);
 const snackbar = ref(false);
 const snackbarText = ref("");
 const snackbarColor = ref("info");
+let playbackContext = null;
+let nextPlaybackTime = 0;
+let activePlaybackSources = 0;
 
 // Widget lists by position
 const mainWidgets = computed(() => getWidgets("main"));
@@ -129,6 +132,10 @@ function getWidgetEvents(widgetId) {
 function toggleRecording() {
   recording.value = !recording.value;
   if (recording.value) {
+    // Initialize AudioContext during the user gesture so it starts in running
+    // state. Creating it lazily inside a WebSocket callback would leave it
+    // suspended and audio would never play.
+    getPlaybackContext();
     wsClient.connect();
   }
 }
@@ -153,6 +160,54 @@ function dismissAlert() {
 
 function requestAssistance() {
   alertDialog.value = false;
+}
+
+function getPlaybackContext() {
+  if (!playbackContext) {
+    playbackContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return playbackContext;
+}
+
+function pcm16ToFloat32(buffer) {
+  const input = new Int16Array(buffer);
+  const output = new Float32Array(input.length);
+  for (let i = 0; i < input.length; i++) {
+    output[i] = input[i] / 0x8000;
+  }
+  return output;
+}
+
+function playPcmChunk(buffer, sampleRate = 24000) {
+  const audioCtx = getPlaybackContext();
+  const samples = pcm16ToFloat32(buffer);
+  if (!samples.length) return;
+
+  if (audioCtx.state === "suspended") {
+    void audioCtx.resume();
+  }
+
+  const audioBuffer = audioCtx.createBuffer(1, samples.length, sampleRate);
+  audioBuffer.getChannelData(0).set(samples);
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(audioCtx.destination);
+
+  const startAt = Math.max(audioCtx.currentTime, nextPlaybackTime);
+  nextPlaybackTime = startAt + audioBuffer.duration;
+  activePlaybackSources += 1;
+  audioState.value = "system_speaking";
+
+  source.onended = () => {
+    activePlaybackSources = Math.max(0, activePlaybackSources - 1);
+    if (activePlaybackSources === 0) {
+      audioState.value = "listening";
+      nextPlaybackTime = Math.max(nextPlaybackTime, audioCtx.currentTime);
+    }
+  };
+
+  source.start(startAt);
 }
 
 onMounted(() => {
@@ -184,23 +239,19 @@ onMounted(() => {
   });
 
   wsClient.on("onAudioBlob", (buffer) => {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    audioCtx.decodeAudioData(buffer.slice(0), (decoded) => {
-      const source = audioCtx.createBufferSource();
-      source.buffer = decoded;
-      source.connect(audioCtx.destination);
-      source.start(0);
-      audioState.value = "system_speaking";
-      source.onended = () => { audioState.value = "listening"; };
-    }).catch(() => {});
+    playPcmChunk(buffer);
   });
 
-  wsClient.on("onOpen", () => { connected.value = true; });
-  wsClient.on("onClose", () => { connected.value = false; });
+  wsClient.on("onConnect", () => { connected.value = true; });
+  wsClient.on("onDisconnect", () => { connected.value = false; });
 });
 
 onUnmounted(() => {
   wsClient.disconnect();
+  if (playbackContext) {
+    void playbackContext.close();
+    playbackContext = null;
+  }
 });
 </script>
 

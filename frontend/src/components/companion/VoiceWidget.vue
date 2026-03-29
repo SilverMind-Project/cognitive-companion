@@ -1,37 +1,35 @@
 <template>
-  <v-card class="glass-card fill-height d-flex flex-column" rounded="xl">
-    <v-card-title class="text-center pt-6 pb-2">
-      <div :class="['status-indicator', `status-${audioState}`]">
-        <v-icon :color="statusColor" size="32">
-          {{ statusIcon }}
-        </v-icon>
-      </div>
-      <div class="text-body-1 mt-2" :style="{ color: `rgb(var(--v-theme-${statusColor}))` }">
-        {{ statusText }}
-      </div>
-    </v-card-title>
+  <div class="voice-card" :class="`voice-card--${audioState}`">
+    <!-- Status pill -->
+    <div class="status-pill" :class="`pill--${audioState}`">
+      <span class="pill-dot" />
+      {{ statusText }}
+    </div>
 
-    <v-card-text class="flex-grow-1 d-flex align-center justify-center">
+    <!-- Waveform -->
+    <div class="waveform-region">
       <AudioVisualizer
-        ref="visualizer"
         :audio-state="audioState"
         @audio-data="$emit('audio-data', $event)"
         @state-change="$emit('state-change', $event)"
       />
-    </v-card-text>
+    </div>
 
-    <v-card-actions class="justify-center pb-6">
-      <v-btn
-        :class="['mic-btn', recording ? 'mic-btn-active' : '']"
-        :color="recording ? 'error' : 'primary'"
-        size="x-large"
-        rounded="pill"
+    <!-- Mic button -->
+    <div class="mic-region">
+      <button
+        class="mic-btn"
+        :class="recording ? 'mic-btn--active' : 'mic-btn--idle'"
+        :aria-label="recording ? 'Stop listening' : 'Start talking'"
         @click="$emit('toggle-recording')"
-        :icon="recording ? 'mdi-stop' : 'mdi-microphone'"
-        elevation="8"
-      />
-    </v-card-actions>
-  </v-card>
+      >
+        <v-icon size="32" color="white">
+          {{ recording ? 'mdi-stop' : 'mdi-microphone' }}
+        </v-icon>
+      </button>
+      <p class="mic-hint">{{ recording ? 'Tap to stop' : 'Tap to talk' }}</p>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -39,75 +37,149 @@ import { computed } from "vue";
 import AudioVisualizer from "../AudioVisualizer.vue";
 
 const props = defineProps({
-  recording: { type: Boolean, default: false },
-  audioState: { type: String, default: "idle" },
+  recording:  { type: Boolean, default: false },
+  audioState: { type: String,  default: "idle" },
 });
 
 defineEmits(["audio-data", "state-change", "toggle-recording"]);
 
-const statusMap = {
-  idle: { icon: "mdi-sleep", color: "grey", text: "Tap to start" },
-  listening: { icon: "mdi-ear-hearing", color: "primary", text: "Listening..." },
-  speaking: { icon: "mdi-account-voice", color: "accent", text: "You're speaking..." },
-  system_speaking: { icon: "mdi-robot-happy", color: "secondary", text: "Assistant is responding..." },
+const STATUS_MAP = {
+  idle:           "Ready",
+  listening:      "Listening...",
+  speaking:       "You're speaking",
+  system_speaking:"Nanai is responding",
 };
 
-const statusIcon = computed(() => (statusMap[props.audioState] || statusMap.idle).icon);
-const statusColor = computed(() => (statusMap[props.audioState] || statusMap.idle).color);
-const statusText = computed(() => (statusMap[props.audioState] || statusMap.idle).text);
+const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
 </script>
 
 <style scoped>
-.status-indicator {
+/* ── Card shell ─────────────────────────────────────────────────────────── */
+.voice-card {
+  background: rgba(22, 20, 38, 0.72);
+  backdrop-filter: blur(24px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.voice-card--listening {
+  border-color: rgba(99, 102, 241, 0.30);
+  box-shadow: 0 0 48px rgba(99, 102, 241, 0.12);
+}
+
+.voice-card--speaking {
+  border-color: rgba(245, 158, 11, 0.30);
+  box-shadow: 0 0 48px rgba(245, 158, 11, 0.12);
+}
+
+.voice-card--system_speaking {
+  border-color: rgba(139, 92, 246, 0.35);
+  box-shadow: 0 0 56px rgba(139, 92, 246, 0.16);
+}
+
+/* ── Status pill ────────────────────────────────────────────────────────── */
+.status-pill {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  margin: 0 auto;
+  gap: 8px;
+  align-self: flex-start;
+  padding: 5px 14px 5px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.65);
   transition: all 0.3s ease;
 }
 
-.status-idle {
-  background: rgba(158, 158, 158, 0.1);
+.pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
 }
 
-.status-listening {
-  background: rgba(99, 102, 241, 0.15);
-  animation: pulse 2s ease-in-out infinite;
+.pill--idle            { color: rgba(255,255,255,0.45); }
+.pill--listening       { color: #818cf8; border-color: rgba(99,102,241,0.30); background: rgba(99,102,241,0.10); }
+.pill--speaking        { color: #fbbf24; border-color: rgba(245,158,11,0.30); background: rgba(245,158,11,0.10); }
+.pill--system_speaking { color: #c084fc; border-color: rgba(139,92,246,0.30); background: rgba(139,92,246,0.10); }
+
+.pill--listening .pill-dot,
+.pill--speaking .pill-dot,
+.pill--system_speaking .pill-dot {
+  animation: blink 1.4s ease-in-out infinite;
 }
 
-.status-speaking {
-  background: rgba(139, 92, 246, 0.15);
-  animation: pulse 1.5s ease-in-out infinite;
+/* ── Waveform ───────────────────────────────────────────────────────────── */
+.waveform-region {
+  width: 100%;
 }
 
-.status-system_speaking {
-  background: rgba(245, 158, 11, 0.15);
-  animation: glow 1.5s ease-in-out infinite;
+/* ── Mic button ─────────────────────────────────────────────────────────── */
+.mic-region {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
 }
 
 .mic-btn {
-  transition: all 0.3s ease;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  outline: none;
+  position: relative;
 }
 
-.mic-btn-active {
-  animation: pulse-btn 1.5s ease-in-out infinite;
+.mic-btn--idle {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.40);
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.08); opacity: 0.85; }
+.mic-btn--idle:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 28px rgba(99, 102, 241, 0.55);
 }
 
-@keyframes glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(245, 158, 11, 0.2); }
-  50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.4); }
+.mic-btn--active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.45);
+  animation: pulse-ring 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse-btn {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4); }
-  50% { box-shadow: 0 0 0 12px rgba(244, 67, 54, 0); }
+.mic-hint {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0;
+  letter-spacing: 0.03em;
+}
+
+/* ── Keyframes ──────────────────────────────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1; }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0   rgba(239, 68, 68, 0.50); }
+  70%  { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);   }
+  100% { box-shadow: 0 0 0 0   rgba(239, 68, 68, 0);    }
 }
 </style>

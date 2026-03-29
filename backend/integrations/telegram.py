@@ -1,230 +1,226 @@
-"""
-Telegram integration – send text, photos, voice, and documents to chats.
+"""Telegram Bot API client using python-telegram-bot.
 
-Supports rich messages with images/voice stored in local MinIO. Files are
-uploaded to Telegram via the Bot API's multipart endpoints.
+Provides send helpers for messages, photos (with optional downscaling), voice,
+and documents. Images from internal MinIO URLs are always fetched as bytes
+before sending since the MinIO endpoint is not reachable from Telegram's
+servers.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from io import BytesIO
 
 import httpx
+from PIL import Image
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-TELEGRAM_API = "https://api.telegram.org"
+_FETCH_TIMEOUT = 30.0  # seconds for downloading images from MinIO
+
+
+# ---------------------------------------------------------------------------
+# Image helpers (module-level, reusable by the channel plugin)
+# ---------------------------------------------------------------------------
+
+
+def scale_image(data: bytes, max_side: int = 1920) -> bytes:
+    """Downscale *data* so the longest side is at most *max_side* pixels.
+
+    Returns JPEG bytes. If the image already fits, the original bytes are
+    returned unchanged.
+    """
+    img = Image.open(BytesIO(data))
+    w, h = img.size
+    if max(w, h) <= max_side:
+        return data
+    ratio = max_side / max(w, h)
+    new_size = (int(w * ratio), int(h * ratio))
+    img = img.resize(new_size, Image.LANCZOS)
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
+
+
+async def fetch_image_bytes(url: str) -> bytes | None:
+    """Download an image from *url* and return raw bytes.
+
+    Returns ``None`` on any fetch error so callers can fall back to a
+    text-only message.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            return resp.content
+    except Exception:
+        logger.warning("fetch_image_bytes_failed", url=url[:120])
+        return None
+
+
+async def fetch_and_prepare_image(
+    url: str,
+    max_side: int = 1920,
+) -> bytes | None:
+    """Fetch an image URL and optionally downscale it.
+
+    Combines :func:`fetch_image_bytes` and :func:`scale_image`. If
+    *max_side* is ``0`` or negative, no scaling is applied.
+    """
+    data = await fetch_image_bytes(url)
+    if data is None:
+        return None
+    if max_side > 0:
+        data = scale_image(data, max_side)
+    return data
+
+
+# ---------------------------------------------------------------------------
+# TelegramClient
+# ---------------------------------------------------------------------------
 
 
 class TelegramClient:
-    """Async Telegram Bot API client for sending notifications."""
+    """Async wrapper around ``python-telegram-bot``'s ``Bot`` class.
+
+    Instantiates a ``telegram.Bot`` for send-only operations (no polling or
+    webhook setup). All methods are safe to call from any ``asyncio`` context.
+    """
 
     def __init__(self) -> None:
-        token = settings.get("notifications.telegram.bot_token") or ""
-        self.bot_token: str = token
-        self._base = f"{TELEGRAM_API}/bot{token}" if token else ""
+        self._bot = None
+        self._token: str = ""
+        self._configure()
+
+    def _configure(self) -> None:
+        token = settings.get("notifications.telegram.bot_token", "")
+        if not token:
+            logger.warning("telegram_not_configured", reason="missing bot_token")
+            return
+        self._token = token
+        try:
+            import telegram
+
+            self._bot = telegram.Bot(token=token)
+            logger.info("telegram_client_initialized")
+        except Exception:
+            logger.exception("telegram_init_failed")
+
+    # -- properties -----------------------------------------------------------
 
     @property
     def configured(self) -> bool:
-        return bool(self.bot_token and self._base)
+        return self._bot is not None
 
-    # ------------------------------------------------------------------
-    # Text messages
-    # ------------------------------------------------------------------
+    # -- send helpers ---------------------------------------------------------
 
     async def send_message(
         self,
         chat_id: str | int,
         text: str,
-        parse_mode: str = "HTML",
-    ) -> dict[str, Any] | None:
-        """Send a plain text message."""
-        if not self.configured:
-            logger.warning("telegram_not_configured")
-            return None
-
+        parse_mode: str | None = "HTML",
+    ) -> bool:
+        """Send a text message to *chat_id*."""
+        if not self._bot:
+            return False
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(
-                    f"{self._base}/sendMessage",
-                    json={
-                        "chat_id": chat_id,
-                        "text": text,
-                        "parse_mode": parse_mode,
-                    },
-                )
-                resp.raise_for_status()
-                return resp.json()
+            await self._bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                parse_mode=parse_mode,
+            )
+            logger.info("telegram_message_sent", chat_id=chat_id)
+            return True
         except Exception:
-            logger.exception("telegram_send_message_error", chat_id=chat_id)
-            return None
-
-    # ------------------------------------------------------------------
-    # Photos
-    # ------------------------------------------------------------------
+            logger.exception("telegram_send_message_failed", chat_id=chat_id)
+            return False
 
     async def send_photo(
         self,
         chat_id: str | int,
-        photo: str | bytes,
-        caption: str = "",
-    ) -> dict[str, Any] | None:
-        """Send a photo.
-
-        ``photo`` can be:
-        - A URL string (Telegram will download it)
-        - Raw bytes (uploaded as multipart)
-        """
-        if not self.configured:
-            return None
-
+        photo: bytes,
+        caption: str | None = None,
+        parse_mode: str | None = "HTML",
+    ) -> bool:
+        """Send a photo (bytes) to *chat_id*."""
+        if not self._bot:
+            return False
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                if isinstance(photo, bytes):
-                    resp = await client.post(
-                        f"{self._base}/sendPhoto",
-                        data={"chat_id": str(chat_id), "caption": caption},
-                        files={"photo": ("photo.jpg", photo, "image/jpeg")},
-                    )
-                else:
-                    resp = await client.post(
-                        f"{self._base}/sendPhoto",
-                        json={
-                            "chat_id": chat_id,
-                            "photo": photo,
-                            "caption": caption,
-                        },
-                    )
-                resp.raise_for_status()
-                return resp.json()
+            await self._bot.send_photo(
+                chat_id=chat_id,
+                photo=photo,
+                caption=caption,
+                parse_mode=parse_mode,
+            )
+            logger.info("telegram_photo_sent", chat_id=chat_id)
+            return True
         except Exception:
-            logger.exception("telegram_send_photo_error", chat_id=chat_id)
-            return None
-
-    # ------------------------------------------------------------------
-    # Voice messages
-    # ------------------------------------------------------------------
+            logger.exception("telegram_send_photo_failed", chat_id=chat_id)
+            return False
 
     async def send_voice(
         self,
         chat_id: str | int,
-        voice: str | bytes,
-        caption: str = "",
-    ) -> dict[str, Any] | None:
-        """Send a voice message (OGG Opus or URL)."""
-        if not self.configured:
-            return None
-
+        voice: bytes,
+        caption: str | None = None,
+    ) -> bool:
+        """Send a voice note (bytes) to *chat_id*."""
+        if not self._bot:
+            return False
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                if isinstance(voice, bytes):
-                    resp = await client.post(
-                        f"{self._base}/sendVoice",
-                        data={"chat_id": str(chat_id), "caption": caption},
-                        files={"voice": ("voice.ogg", voice, "audio/ogg")},
-                    )
-                else:
-                    resp = await client.post(
-                        f"{self._base}/sendVoice",
-                        json={
-                            "chat_id": chat_id,
-                            "voice": voice,
-                            "caption": caption,
-                        },
-                    )
-                resp.raise_for_status()
-                return resp.json()
+            await self._bot.send_voice(
+                chat_id=chat_id,
+                voice=voice,
+                caption=caption,
+            )
+            logger.info("telegram_voice_sent", chat_id=chat_id)
+            return True
         except Exception:
-            logger.exception("telegram_send_voice_error", chat_id=chat_id)
-            return None
-
-    # ------------------------------------------------------------------
-    # Documents
-    # ------------------------------------------------------------------
+            logger.exception("telegram_send_voice_failed", chat_id=chat_id)
+            return False
 
     async def send_document(
         self,
         chat_id: str | int,
-        document: str | bytes,
-        filename: str = "file",
-        caption: str = "",
-    ) -> dict[str, Any] | None:
-        """Send an arbitrary file as a document."""
-        if not self.configured:
-            return None
-
+        document: bytes,
+        caption: str | None = None,
+        filename: str = "document",
+    ) -> bool:
+        """Send a document (bytes) to *chat_id*."""
+        if not self._bot:
+            return False
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                if isinstance(document, bytes):
-                    resp = await client.post(
-                        f"{self._base}/sendDocument",
-                        data={"chat_id": str(chat_id), "caption": caption},
-                        files={"document": (filename, document)},
-                    )
-                else:
-                    resp = await client.post(
-                        f"{self._base}/sendDocument",
-                        json={
-                            "chat_id": chat_id,
-                            "document": document,
-                            "caption": caption,
-                        },
-                    )
-                resp.raise_for_status()
-                return resp.json()
-        except Exception:
-            logger.exception("telegram_send_document_error", chat_id=chat_id)
-            return None
+            import telegram
 
-    # ------------------------------------------------------------------
-    # Rich message (image + voice from MinIO)
-    # ------------------------------------------------------------------
+            input_file = telegram.InputFile(document, filename=filename)
+            await self._bot.send_document(
+                chat_id=chat_id,
+                document=input_file,
+                caption=caption,
+            )
+            logger.info("telegram_document_sent", chat_id=chat_id)
+            return True
+        except Exception:
+            logger.exception("telegram_send_document_failed", chat_id=chat_id)
+            return False
 
     async def send_rich_notification(
         self,
         chat_id: str | int,
         text: str,
         image_url: str | None = None,
-        voice_url: str | None = None,
-        minio_client=None,
-    ) -> None:
-        """Send a rich notification with optional image and voice.
+        max_image_side: int = 1920,
+    ) -> bool:
+        """Send a notification with optional image.
 
-        If ``minio_client`` is provided, URLs are assumed to be MinIO presigned
-        URLs. The file bytes are fetched and uploaded directly to Telegram.
+        The image is always fetched as bytes and optionally downscaled since
+        the MinIO endpoint is on a private network. If fetching fails the
+        notification falls back to a text-only message.
         """
-        # Send text
-        await self.send_message(chat_id, text)
-
-        # Send image if available
         if image_url:
-            if minio_client:
-                image_bytes = await _fetch_url_bytes(image_url)
-                if image_bytes:
-                    await self.send_photo(chat_id, image_bytes, caption="Alert image")
-            else:
-                await self.send_photo(chat_id, image_url, caption="Alert image")
-
-        # Send voice if available
-        if voice_url:
-            if minio_client:
-                voice_bytes = await _fetch_url_bytes(voice_url)
-                if voice_bytes:
-                    await self.send_voice(chat_id, voice_bytes, caption="Voice alert")
-            else:
-                await self.send_voice(chat_id, voice_url, caption="Voice alert")
-
-
-async def _fetch_url_bytes(url: str) -> bytes | None:
-    """Download file bytes from a URL (e.g. MinIO presigned URL)."""
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            return resp.content
-    except Exception:
-        logger.exception("fetch_url_bytes_error", url=url[:80])
-        return None
+            image_bytes = await fetch_and_prepare_image(image_url, max_image_side)
+            if image_bytes:
+                return await self.send_photo(chat_id, image_bytes, caption=text)
+        return await self.send_message(chat_id, text)

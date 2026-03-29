@@ -17,6 +17,8 @@ dependencies = [
     "structlog>=24.0",
     "pillow>=10.0",
     "python-multipart>=0.0.9",
+    "python-telegram-bot>=21.0",
+    "tenacity>=9.1.4",
 ]
 
 [project.optional-dependencies]

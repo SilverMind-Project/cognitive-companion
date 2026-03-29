@@ -1,4 +1,4 @@
-"""Logic reasoning step -- run logic/reasoning LLM."""
+"""Logic reasoning step -- run logic/reasoning LLM with structured output."""
 
 from __future__ import annotations
 
@@ -19,15 +19,60 @@ from backend.steps.base import (
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Built-in JSON Schemas for structured output
+# ---------------------------------------------------------------------------
+
+DEFAULT_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "is_notification_needed": {"type": "boolean"},
+        "user_notification": {"type": "string"},
+        "reasoning": {"type": "string"},
+        "alert_level": {
+            "type": "string",
+            "enum": ["emergency", "warning", "info", "reminder"],
+        },
+    },
+    "required": ["is_notification_needed", "user_notification", "reasoning"],
+}
+
+ACTIVITY_DETECTION_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "activities": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "person_id": {"type": "string"},
+                    "activity_type": {"type": "string"},
+                    "confidence": {"type": "number"},
+                },
+                "required": ["activity_type"],
+            },
+        },
+    },
+    "required": ["activities"],
+}
+
+# Text instructions appended to the prompt alongside schema enforcement.
+# These help the model understand intent even when guided decoding constrains output.
 RESPONSE_FORMAT_TEMPLATES: dict[str, str] = {
     "default": (
         "Respond in JSON with keys: is_notification_needed (bool), "
-        "user_notification (str), reasoning (str)"
+        "user_notification (str), reasoning (str), alert_level (str: emergency|warning|info|reminder)"
     ),
     "activity_detection": (
         "Respond in JSON with keys: activities (list of objects with "
         "person_id, activity_type, confidence)"
     ),
+}
+
+# Map format names to their schemas for guided decoding
+RESPONSE_FORMAT_SCHEMAS: dict[str, dict] = {
+    "default": DEFAULT_SCHEMA,
+    "activity_detection": ACTIVITY_DETECTION_SCHEMA,
 }
 
 
@@ -60,6 +105,14 @@ class LogicReasoningHandler(StepHandler):
                         "type": "string",
                         "description": "Custom response schema instruction (when response_format=custom)",
                     },
+                    "response_json_schema": {
+                        "type": "string",
+                        "description": (
+                            "JSON Schema string for custom structured output. "
+                            "Parsed and passed to the LLM for guided decoding. "
+                            "Only used when response_format=custom."
+                        ),
+                    },
                 },
             },
             default_config={
@@ -67,6 +120,7 @@ class LogicReasoningHandler(StepHandler):
                 "include_context": [],
                 "response_format": "default",
                 "response_schema": "",
+                "response_json_schema": "",
             },
         )
 
@@ -130,16 +184,30 @@ class LogicReasoningHandler(StepHandler):
                     f"Vision analysis: {pipeline_data['vision_response']}"
                 )
 
-        # Resolve response format instruction
+        # Resolve response format and schema for guided decoding
         response_format = config.get("response_format", "default")
+        guided_schema: dict | None = None
+
         if response_format == "custom":
             format_instruction = config.get(
                 "response_schema", RESPONSE_FORMAT_TEMPLATES["default"]
             )
+            # Parse custom JSON schema if provided
+            raw_json_schema = config.get("response_json_schema", "")
+            if raw_json_schema:
+                try:
+                    guided_schema = json.loads(raw_json_schema)
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(
+                        "custom_json_schema_parse_failed",
+                        rule=execution.rule.name,
+                        raw=raw_json_schema[:200],
+                    )
         else:
             format_instruction = RESPONSE_FORMAT_TEMPLATES.get(
                 response_format, RESPONSE_FORMAT_TEMPLATES["default"]
             )
+            guided_schema = RESPONSE_FORMAT_SCHEMAS.get(response_format)
 
         context_prompt = (
             "\n".join(context_parts)
@@ -147,7 +215,10 @@ class LogicReasoningHandler(StepHandler):
             + format_instruction
         )
 
-        raw_response = await services.logic_provider.call(prompt=context_prompt)
+        raw_response = await services.logic_provider.call(
+            prompt=context_prompt,
+            response_schema=guided_schema,
+        )
 
         # Parse JSON response
         logic_data: dict = {}

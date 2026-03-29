@@ -31,7 +31,7 @@ def _upsert_device_key_sensors() -> None:
     immediately queryable via the sensors API without a manual create step.
     Existing sensors are updated (name refresh); new ones are inserted.
     """
-    from backend.models.sensor import Sensor  # noqa: PLC0415
+    from backend.models.sensor import Sensor
 
     device_keys = settings.get("auth.device_keys", []) or []
     if not device_keys:

@@ -13,6 +13,25 @@ from backend.steps.base import (
 )
 
 
+def _format_channel_message(
+    template: str,
+    base_message: str,
+    trigger: TriggerContext,
+    pipeline_data: dict,
+) -> str:
+    """Render a channel-specific template, falling back to *base_message*."""
+    if not template:
+        return base_message
+    try:
+        return template.format(
+            message=base_message,
+            room=trigger.room_name or "",
+            **pipeline_data,
+        )
+    except (KeyError, IndexError, ValueError):
+        return base_message
+
+
 @StepRegistry.register
 class NotificationHandler(StepHandler):
 
@@ -39,7 +58,19 @@ class NotificationHandler(StepHandler):
                     },
                     "message_template": {
                         "type": "string",
-                        "description": "Python format string with {message}, {room}, etc.",
+                        "description": "Default template with {message}, {room}, etc.",
+                    },
+                    "telegram_template": {
+                        "type": "string",
+                        "description": "HTML template for Telegram. Falls back to message_template.",
+                    },
+                    "eink_template": {
+                        "type": "string",
+                        "description": "Short plain-text template for eInk displays. Falls back to message_template.",
+                    },
+                    "tts_template": {
+                        "type": "string",
+                        "description": "Natural language template for TTS. Falls back to message_template.",
                     },
                     "eink_targets": {
                         "type": "array",
@@ -56,6 +87,9 @@ class NotificationHandler(StepHandler):
                 "alert_level": "warning",
                 "channels": [],
                 "message_template": "",
+                "telegram_template": "",
+                "eink_template": "",
+                "tts_template": "",
                 "eink_targets": [],
                 "ha_media_player": "",
             },
@@ -81,36 +115,53 @@ class NotificationHandler(StepHandler):
         channels = config.get("channels", [])
         message_template = config.get("message_template", "")
 
-        # Determine message
+        # Determine base message
         message = (
             pipeline_data.get("translation")
             or pipeline_data.get("logic_response", {}).get("user_notification", "")
             or pipeline_data.get("vision_response", "")
         )
         if message_template:
-            try:
-                message = message_template.format(
-                    message=message,
-                    room=trigger.room_name or "",
-                    **pipeline_data,
+            message = _format_channel_message(
+                message_template, message, trigger, pipeline_data
+            )
+
+        # Build per-channel messages
+        channel_names = [
+            "telegram", "eink", "tts", "websocket", "realtime_voice", "homeassistant",
+        ]
+        channel_messages: dict[str, str] = {}
+        for ch in channel_names:
+            ch_tmpl = config.get(f"{ch}_template", "")
+            if ch_tmpl:
+                channel_messages[ch] = _format_channel_message(
+                    ch_tmpl, message, trigger, pipeline_data
                 )
-            except (KeyError, IndexError):
-                pass
+            # Channels without a specific template get the base message
+            # (already formatted by message_template if set).
+
+        # Determine image_url from trigger media (original camera frames)
+        image_url: str | None = None
+        if trigger.media_paths:
+            image_url = trigger.media_paths[0]
 
         eink_targets = config.get("eink_targets")
         ha_media_player = config.get("ha_media_player")
-        rule_config = {}
+        rule_config: dict = {}
         if channels:
             rule_config["channels"] = channels
         if eink_targets:
             rule_config["eink_targets"] = eink_targets
         if ha_media_player:
             rule_config["ha_media_player"] = ha_media_player
+
         results = await services.notification_dispatcher.dispatch(
             alert_level=alert_level,
             message=message,
             room_name=trigger.room_name or "Unknown",
+            image_url=image_url,
             rule_config=rule_config if rule_config else None,
+            channel_messages=channel_messages if channel_messages else None,
         )
 
         return StepResult(

@@ -6,6 +6,7 @@ cooldowns, and orchestrates media lifecycle (upload -> cache -> expire -> delete
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,8 @@ from sqlalchemy.orm import Session
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.models.media_cache import MediaCache
+from backend.models.room import Room
+from backend.models.sensor import Sensor
 
 logger = get_logger(__name__)
 
@@ -223,6 +226,116 @@ class EventAggregator:
             raise
         finally:
             db.close()
+
+    async def query_recent_media(
+        self,
+        sensor_ids: list[str] | None = None,
+        room_names: list[str] | None = None,
+        limit: int = 5,
+        since_minutes: float | None = None,
+        time_start: str | None = None,
+        time_end: str | None = None,
+    ) -> list[str]:
+        """Query recent images from MediaCache with filters.
+
+        Does **not** affect flush buffers or cooldown. Returns presigned URLs.
+
+        Parameters
+        ----------
+        sensor_ids:
+            Restrict to these sensor IDs. ``None`` means no sensor filter
+            (but *room_names* may still apply).
+        room_names:
+            Restrict to cameras in these rooms. Resolved via the
+            ``Sensor.room`` relationship. ``None`` means no room filter.
+        limit:
+            Maximum number of images to return.
+        since_minutes:
+            Only include images captured within the last *since_minutes*.
+        time_start / time_end:
+            ``"HH:MM"`` strings defining a time-of-day window (fixed to
+            today). Alternative to *since_minutes*.
+        """
+        now_utc = datetime.now(UTC)
+
+        db: Session = self._db_session_factory()
+        try:
+            stmt = (
+                select(MediaCache)
+                .where(
+                    MediaCache.deleted.is_(False),
+                    MediaCache.expires_at > now_utc,
+                )
+            )
+
+            # Sensor filter
+            resolved_sensor_ids: list[str] | None = None
+
+            if sensor_ids:
+                resolved_sensor_ids = list(sensor_ids)
+
+            # Room-name filter: resolve room names to camera sensor IDs
+            if room_names:
+                room_sensor_rows = (
+                    db.query(Sensor.id)
+                    .join(Room, Sensor.room_id == Room.id)
+                    .filter(
+                        Room.name.in_(room_names),
+                        Sensor.sensor_type == "camera",
+                        Sensor.enabled.is_(True),
+                    )
+                    .all()
+                )
+                room_sensor_ids = [row[0] for row in room_sensor_rows]
+                if resolved_sensor_ids is not None:
+                    # Intersect with explicit sensor_ids
+                    resolved_sensor_ids = [
+                        s for s in resolved_sensor_ids if s in room_sensor_ids
+                    ]
+                else:
+                    resolved_sensor_ids = room_sensor_ids
+
+            if resolved_sensor_ids is not None:
+                stmt = stmt.where(MediaCache.sensor_id.in_(resolved_sensor_ids))
+
+            # Time filter: since_minutes
+            if since_minutes is not None:
+                cutoff = now_utc - timedelta(minutes=since_minutes)
+                stmt = stmt.where(MediaCache.captured_at >= cutoff)
+
+            # Time filter: time_start / time_end (today only)
+            if time_start or time_end:
+                if time_start:
+                    match = re.match(r"(\d{1,2}):(\d{2})", time_start)
+                    if match:
+                        h, m = int(match.group(1)), int(match.group(2))
+                        start_dt = now_utc.replace(hour=h, minute=m, second=0, microsecond=0)
+                        stmt = stmt.where(MediaCache.captured_at >= start_dt)
+                if time_end:
+                    match = re.match(r"(\d{1,2}):(\d{2})", time_end)
+                    if match:
+                        h, m = int(match.group(1)), int(match.group(2))
+                        end_dt = now_utc.replace(hour=h, minute=m, second=59, microsecond=999999)
+                        stmt = stmt.where(MediaCache.captured_at <= end_dt)
+
+            stmt = stmt.order_by(MediaCache.captured_at.desc()).limit(limit)
+            rows: list[MediaCache] = list(db.execute(stmt).scalars().all())
+
+            urls: list[str] = []
+            for row in rows:
+                url = self._minio.generate_presigned_url(row.object_name)
+                row.presigned_url = url
+                urls.append(url)
+
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("query_recent_media_error")
+            raise
+        finally:
+            db.close()
+
+        return urls
 
     # -- internal helpers -----------------------------------------------------
 

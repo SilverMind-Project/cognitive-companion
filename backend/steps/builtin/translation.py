@@ -40,11 +40,21 @@ class TranslationHandler(StepHandler):
                             "or vision_response."
                         ),
                     },
+                    "special_instructions": {
+                        "type": "string",
+                        "description": "Optional instructions to pre-pend to the prompt.",
+                    },
+                    "hallucination_marker": {
+                        "type": "string",
+                        "description": "Marker used to detect garbage responses and trigger retries.",
+                    },
                 },
             },
             default_config={
-                "target_language": "",
+                "target_language": "ta",
                 "source_text": "",
+                "special_instructions": "Translate using informal Tanglish that is spoken in Chennai (i.e tamil mixed with English):  \n",
+                "hallucination_marker": "",
             },
         )
 
@@ -77,10 +87,20 @@ class TranslationHandler(StepHandler):
         if not source_text:
             return StepResult(data={"translation": ""})
 
-        target_lang = config.get("target_language", "")
+        target_lang = config.get("target_language", "ta")
         prompt = source_text
         if target_lang:
             prompt = f"Translate the following to {target_lang}:\n\n{source_text}"
 
-        translated = await services.translation_provider.call(prompt=prompt)
+        special_instructions = config.get("special_instructions", "")
+        if special_instructions:
+            prompt = f"{special_instructions}\n{prompt}"
+
+        h_marker = config.get("hallucination_marker", "")
+
+        translated = await services.translation_provider.call(
+            prompt=prompt,
+            target_lang=target_lang,
+            hallucination_marker=h_marker if h_marker else None,
+        )
         return StepResult(data={"translation": translated})

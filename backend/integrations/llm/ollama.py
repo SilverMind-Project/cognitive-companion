@@ -41,22 +41,31 @@ class OllamaProvider(LLMProvider):
         prompt: str,
         media_paths: list[str] | None = None,
         media_type: str | None = None,
+        response_schema: dict | None = None,
+        **kwargs: Any,
     ) -> str:
         """
         Send *prompt* to Ollama and return the assistant's reply.
 
+        When *response_schema* is a JSON Schema dict, it is passed directly
+        to the ``format`` field so Ollama's guided decoding guarantees the
+        output conforms to the schema. Otherwise generic JSON mode is used.
+
         ``media_paths`` and ``media_type`` are accepted for interface
-        compatibility but are currently unused -- Ollama's chat API does
-        not support multimodal input in the same way as VLLM.
+        compatibility but are currently unused.
         """
         messages: list[dict[str, Any]] = [
             {"role": "user", "content": prompt},
         ]
 
+        # Use schema-enforced output when a schema is provided,
+        # otherwise fall back to generic JSON mode.
+        format_value: str | dict = response_schema if response_schema else "json"
+
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "format": "json",
+            "format": format_value,
             "stream": False,
             "options": {
                 "temperature": 0.9,

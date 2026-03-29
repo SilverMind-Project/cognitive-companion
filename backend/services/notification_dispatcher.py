@@ -54,9 +54,15 @@ class NotificationDispatcher:
         room_name: str,
         image_url: str | None = None,
         rule_config: dict | None = None,
+        channel_messages: dict[str, str] | None = None,
     ) -> dict[str, bool]:
         """
         Route notification to configured channels based on alert_level.
+
+        *channel_messages* is an optional dict mapping channel names to
+        channel-specific formatted messages. Channels not in the dict
+        receive the default *message*.
+
         Returns dict of channel -> success.
         """
         # Per-step channel overrides take precedence over config-file defaults
@@ -79,8 +85,11 @@ class NotificationDispatcher:
 
             channel_config = rule_config or {}
 
+            # Resolve per-channel message, falling back to default
+            ch_message = (channel_messages or {}).get(channel_name, message)
+
             success = await channel.send(
-                message=message,
+                message=ch_message,
                 alert_level=alert_level,
                 room_name=room_name,
                 image_url=image_url,
@@ -96,3 +105,4 @@ class NotificationDispatcher:
             channels=results,
         )
         return results
+

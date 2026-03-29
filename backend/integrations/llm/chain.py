@@ -7,6 +7,9 @@ provider that automatically handles failover or load distribution.
 from __future__ import annotations
 
 import itertools
+from typing import Any
+
+from tenacity import AsyncRetrying, stop_after_attempt
 
 from backend.core.logging import get_logger
 from backend.integrations.llm.base import LLMProvider
@@ -48,26 +51,38 @@ class LLMProviderChain(LLMProvider):
         prompt: str,
         media_paths: list[str] | None = None,
         media_type: str | None = None,
+        response_schema: dict | None = None,
+        **kwargs: Any,
     ) -> str:
         last_error: Exception | None = None
         for provider in self._providers:
-            for attempt in range(self._retry_count):
-                try:
-                    result = await provider.call(
-                        prompt=prompt,
-                        media_paths=media_paths,
-                        media_type=media_type,
-                    )
-                    return result
-                except Exception as e:
-                    last_error = e
-                    provider_name = type(provider).__name__
-                    logger.warning(
-                        "llm_provider_failed",
-                        provider=provider_name,
-                        attempt=attempt + 1,
-                        error=str(e),
-                    )
+            try:
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(self._retry_count),
+                    reraise=True,
+                ):
+                    with attempt:
+                        try:
+                            result = await provider.call(
+                                prompt=prompt,
+                                media_paths=media_paths,
+                                media_type=media_type,
+                                response_schema=response_schema,
+                                **kwargs,
+                            )
+                            return result
+                        except Exception as e:
+                            last_error = e
+                            provider_name = type(provider).__name__
+                            logger.warning(
+                                "llm_provider_failed",
+                                provider=provider_name,
+                                attempt=attempt.retry_state.attempt_number,
+                                error=str(e),
+                            )
+                            raise e
+            except Exception:
+                continue
         raise last_error or RuntimeError("All LLM providers failed")
 
 
@@ -104,6 +119,8 @@ class LLMProviderPool(LLMProvider):
         prompt: str,
         media_paths: list[str] | None = None,
         media_type: str | None = None,
+        response_schema: dict | None = None,
+        **kwargs: Any,
     ) -> str:
         idx = next(self._cycle)
         provider = self._providers[idx]
@@ -112,6 +129,8 @@ class LLMProviderPool(LLMProvider):
                 prompt=prompt,
                 media_paths=media_paths,
                 media_type=media_type,
+                response_schema=response_schema,
+                **kwargs,
             )
         except Exception:
             # On failure, try each remaining provider once
@@ -123,6 +142,8 @@ class LLMProviderPool(LLMProvider):
                         prompt=prompt,
                         media_paths=media_paths,
                         media_type=media_type,
+                        response_schema=response_schema,
+                        **kwargs,
                     )
                 except Exception:
                     continue

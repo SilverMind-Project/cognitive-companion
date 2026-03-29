@@ -39,7 +39,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 
 ## Key Features
 
-- **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity) — each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home") — plus inter-rule dependencies
+- **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity)  -  each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home")  -  plus inter-rule dependencies
 - **Five trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP), `occupancy_duration` (presence sensor occupied ≥ N minutes) -- each with per-rule threshold and cool-off
 - **Composable pipeline steps** -- 10 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
   `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
@@ -261,9 +261,9 @@ cognitive-companion/
 
 | Variable | Description |
 |----------|-------------|
-| `VISION_MODEL_URL` | Vision model endpoint — Cosmos Reason2 (OpenAI-compatible) |
-| `TRANSLATE_MODEL_URL` | Translation model endpoint — TranslateGemma (OpenAI-compatible) |
-| `LOGIC_MODEL_URL` | Logic/reasoning model endpoint — Gemma3 (OpenAI-compatible) |
+| `VISION_MODEL_URL` | Vision model endpoint  -  Cosmos Reason2 (OpenAI-compatible) |
+| `TRANSLATE_MODEL_URL` | Translation model endpoint  -  TranslateGemma (OpenAI-compatible) |
+| `LOGIC_MODEL_URL` | Logic/reasoning model endpoint  -  Gemma3 (OpenAI-compatible) |
 | `GEMINI_API_KEY` | Google Gemini API key (real-time voice) |
 | `TTS_API_URL` | Text-to-speech service endpoint |
 | `HOME_ASSISTANT_URL` | Home Assistant base URL |
@@ -792,7 +792,7 @@ class WeatherFilter(ContextFilter):
         return True
 ```
 
-Every context filter supports negation out of the box via the `negate` flag on `RuleContext`. When `negate=True`, the rules engine inverts the filter result — e.g., a room filter with `negate=True` means "NOT in this room". Individual filter implementations don't need to handle negation.
+Every context filter supports negation out of the box via the `negate` flag on `RuleContext`. When `negate=True`, the rules engine inverts the filter result  -  e.g., a room filter with `negate=True` means "NOT in this room". Individual filter implementations don't need to handle negation.
 
 ## Roadmap
 

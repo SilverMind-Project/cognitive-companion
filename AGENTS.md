@@ -173,13 +173,13 @@ Notification channels are plugins in `backend/channels/builtin/`. Each channel i
 
 **TTS channel flow:** `TTSChannel.send()` calls `TTSClient.generate_and_upload()` to produce an MP3 and upload it to MinIO, obtaining a presigned URL. It then calls `HomeAssistantClient.play_audio(url, entity_id)` to play the audio on the configured `media_player` entity. The entity ID comes from `ha_media_player` in the notification step's `config_json` (defaults to `media_player.living_room_speaker`). `NotificationDispatcher` passes `minio_client` and `ha_client` via `DispatchServices` so no integration clients are imported inside the channel plugin.
 
-**Transcript actor delineation (realtime_voice):** When the orchestrator sends a backend prompt to the Gemini Live session, it is tagged as an orchestrator turn. The prompt text is **not** sent to the frontend transcript — only the agent's spoken response appears (as `source: "assistant"`). This ensures the senior sees a clean conversation without internal system nudges. Three actors are tracked in the conversation log: `user` (senior speech), `assistant` (agent response), and `orchestrator` (system-initiated prompts, hidden from UI).
+**Transcript actor delineation (realtime_voice):** When the orchestrator sends a backend prompt to the Gemini Live session, it is tagged as an orchestrator turn. The prompt text is **not** sent to the frontend transcript  -  only the agent's spoken response appears (as `source: "assistant"`). This ensures the senior sees a clean conversation without internal system nudges. Three actors are tracked in the conversation log: `user` (senior speech), `assistant` (agent response), and `orchestrator` (system-initiated prompts, hidden from UI).
 
 ### Context Filters
 
 Context filters are plugins in `backend/filters/builtin/`. Each filter inherits `ContextFilter` from `backend/filters/base.py` and is registered via `@FilterRegistry.register`. The `RulesEngine._matches_context()` method delegates to `FilterRegistry.get(context_type).evaluate()`.
 
-**Negation:** Each `RuleContext` has a `negate` boolean column. When `True`, the filter result is inverted — e.g., a room filter with `negate=True` means "NOT in this room". Within a context_type group, contexts are ORed; across groups, they are ANDed. Negation applies per-context before the OR grouping.
+**Negation:** Each `RuleContext` has a `negate` boolean column. When `True`, the filter result is inverted  -  e.g., a room filter with `negate=True` means "NOT in this room". Within a context_type group, contexts are ORed; across groups, they are ANDed. Negation applies per-context before the OR grouping.
 
 ### Face Enrollment Proxy
 
@@ -322,7 +322,7 @@ class YourStepHandler(StepHandler):
 
 1. **That's it.** The step appears automatically in the frontend StepPalette (loaded via `GET /pipeline/step-types`) and gets a generic JSON config editor in StepConfigDialog. For a custom config form, add a `<template v-if>` block in `StepConfigDialog.vue`.
 
-Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata — `trigger_type` (`"sensor_event"`, `"cron"`, `"manual"`, `"webhook"`, `"occupancy_duration"`), `sensor_id`, `room_name`, `media_paths`, `webhook_payload`, and `occupancy_duration_minutes` (set for `occupancy_duration` triggers). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, and other shared services.
+Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata  -  `trigger_type` (`"sensor_event"`, `"cron"`, `"manual"`, `"webhook"`, `"occupancy_duration"`), `sensor_id`, `room_name`, `media_paths`, `webhook_payload`, and `occupancy_duration_minutes` (set for `occupancy_duration` triggers). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, and other shared services.
 
 ### Adding a New Context Filter Type
 
@@ -479,7 +479,7 @@ One row per eink display device. Links a sensor to its current rendered state an
 
 - **Python**: ruff with `E`, `F`, `I`, `W`, `UP`, `B`, `SIM`, `RUF`, `PIE`, `PT`, `C4`, `T20` rules. mypy for type checking with `enable_error_code = ["import"]`. 100-char line length. Target Python 3.11. Package management via uv with a lockfile (`uv.lock`).
 - **Frontend**: Vue 3 Composition API (`<script setup>`), Vuetify 3 components.
-- **Documentation**: no em-dashes (—) in any `.md` file. Use colons, periods, semicolons, or commas instead. For `**Bold** — desc` patterns, use `**Bold**: desc` or `**Bold.** Desc`. Em-dashes read as AI-generated; write like a technical writer at Apple or Google.
+- **Documentation**: no em-dashes ( - ) in any `.md` file. Use colons, periods, semicolons, or commas instead. For `**Bold**  -  desc` patterns, use `**Bold**: desc` or `**Bold.** Desc`. Em-dashes read as AI-generated; write like a technical writer at Apple or Google.
 - Prefer `async`/`await` for all I/O operations.
 - Use structlog for logging, never `print()`.
 - Follow existing patterns in the codebase rather than introducing new abstractions.

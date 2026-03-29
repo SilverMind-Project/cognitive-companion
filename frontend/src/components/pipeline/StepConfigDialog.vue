@@ -403,6 +403,34 @@
             persistent-hint
             class="mt-3"
           />
+          <template v-if="cfg.channels && cfg.channels.includes('webhook')">
+            <v-text-field
+              v-model="cfg.webhook_url"
+              label="Webhook URL (optional)"
+              variant="outlined"
+              density="comfortable"
+              clearable
+              hint="Override global webhook endpoint (from settings/env)"
+              persistent-hint
+              class="mt-3"
+            />
+            <v-textarea
+              v-model="cfg.webhook_template"
+              label="Webhook JSON Template (optional)"
+              variant="outlined"
+              rows="4"
+              hint="JSON payload template. Uses {message}, {room}, etc. Fallback to basic JSON."
+              persistent-hint
+              class="mt-3"
+            />
+          </template>
+          <v-checkbox
+            v-model="cfg.trigger_cooloff"
+            label="Trigger rate-limit cool-off upon execution"
+            density="comfortable"
+            hide-details
+            class="mt-3 mb-3"
+          />
         </template>
 
         <!-- ha_action -->
@@ -484,8 +512,16 @@
             label="Confidence"
             variant="outlined"
             density="comfortable"
-            hint="Fixed value (0–1) or {{template}} syntax (e.g. {{logic_response.confidence}}). Defaults to 0.8."
+            hint="Fixed value (0-1) or {{template}} syntax (e.g. {{logic_response.confidence}}). Defaults to 0.8."
             persistent-hint
+            class="mb-3"
+          />
+          <v-checkbox
+            v-model="cfg.trigger_cooloff"
+            label="Trigger rate-limit cool-off upon execution"
+            density="comfortable"
+            hide-details
+            class="mb-3"
           />
         </template>
 
@@ -510,6 +546,14 @@
             density="comfortable"
             hint="Expression evaluated at runtime to decide if pipeline continues"
             persistent-hint
+            class="mb-3"
+          />
+          <v-checkbox
+            v-model="cfg.trigger_cooloff"
+            label="Trigger rate-limit cool-off if condition is met"
+            density="comfortable"
+            hide-details
+            class="mb-3"
           />
         </template>
 
@@ -757,7 +801,7 @@ const pipelineDataReference = [
 ];
 
 // Dynamic lists from API
-const availableChannels = ref(["websocket", "telegram", "eink", "tts"]);
+const availableChannels = ref(["websocket", "telegram", "eink", "tts", "webhook"]);
 const availablePersons = ref([]);
 const availableRooms = ref([]);
 const availableSensors = ref([]);
@@ -813,26 +857,32 @@ const fallbackDefaults = {
     telegram_template: "",
     eink_template: "",
     tts_template: "",
+    webhook_template: "",
+    webhook_url: "",
     eink_targets: [],
     ha_media_player: "",
+    trigger_cooloff: true,
   },
   ha_action: {
     domain: "",
     service: "",
     entity_id: "",
     data: "",
+    trigger_cooloff: true,
   },
   activity_detection: {
     activity_type: "",
     person_id: "",
     confidence: "0.8",
     room_name: "",
+    trigger_cooloff: true,
   },
   wait: {
     minutes: 5,
   },
   condition: {
     expression: "",
+    trigger_cooloff: false,
   },
   verification: {
     conditions: [],
@@ -979,7 +1029,7 @@ watch(
 function isoToTimeStr(iso) {
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
   } catch {
     return "";
   }

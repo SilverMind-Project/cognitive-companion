@@ -1,5 +1,5 @@
 """
-Occupancy API router – exposes room occupancy data and time-series.
+Occupancy API router - exposes room occupancy data and time-series.
 """
 
 from __future__ import annotations

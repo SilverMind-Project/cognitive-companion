@@ -1,5 +1,5 @@
 """
-Google Gemini Live API – realtime audio streaming provider.
+Google Gemini Live API - realtime audio streaming provider.
 
 Implements RealtimeLLMProvider for bidirectional audio conversations
 with automatic keepalive and context preservation across reconnects.

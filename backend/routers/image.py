@@ -57,10 +57,9 @@ def _serve_image_for_sensor(
     ).scalar_one_or_none()
 
     now = datetime.now(UTC)
-    if state and state.expires_at and state.expires_at < now:
+    if state and state.expires_at and state.expires_at < now and _DEFAULT_TEMPLATE.exists():
         # Expired — serve default
-        if _DEFAULT_TEMPLATE.exists():
-            return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
+        return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
 
     active_path = eink_renderer.get_active_image_path(sensor_id)
     if active_path.exists():

@@ -151,7 +151,9 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 - `TriggerContext` (dataclass) -- trigger metadata: sensor_id, room_name, media_paths, trigger_type, webhook_payload.
 - `ServiceContainer` (dataclass) -- holds all shared services (LLM providers, HA client, DB session factory, etc.) passed to step handlers.
 
-**Data flow**: Pipeline data accumulates across steps. Each step receives the current `pipeline_data` dict and returns a `StepResult`. The executor merges `result.data` into `pipeline_data` before proceeding to the next step.
+**Data flow**: Pipeline data accumulates across steps. Each step receives the current `pipeline_data` dict and returns a `StepResult`. The executor merges `result.data` into `pipeline_data` before proceeding to the next step. At initialization, `PipelineExecutor` injects a localized `system` object including `system.local_time`, `system.local_date`, `system.local_day_of_week`, and `system.timezone` ensuring downstream steps (like prompts or notifications) have localized time awareness.
+
+**Rate Limiting & Cool-Off**: The `EventLog.status` relies on the execution outcome to determine rate limiting. If a pipeline concludes but no actions were taken, it registers as `ignored` avoiding cool-off triggers. Built-in terminal steps (`notification`, `activity_detection`, `ha_action`, and conditionally `condition`) accept a `trigger_cooloff` generic boolean explicitly forcing the execution status to `completed` upon success.
 
 **Condition steps** use `ConditionEvaluator` -- a recursive-descent parser that evaluates expressions like `person_detections.count > 0 and exists(translation)` against pipeline data. Condition steps may branch via `next_step_on_true` / `next_step_on_false` on `PipelineStep`.
 
@@ -166,13 +168,15 @@ Step type details:
 - `vision_analysis`: Instructs the vision LLM. Supports strict structured JSON outputs via guided decoding depending on `response_format`, `response_schema`, and `response_json_schema`. Also allows retrieving context images from beyond the trigger event using `image_source` (`"trigger"`, `"additional"`, `"both"`), filtering via `additional_sensor_ids`, `additional_room_names`, and `image_time_filter` (`since_minutes`, etc).
 - `logic_reasoning`: Sends a prompt to the logic LLM provider. Supports strict JSON schema outputs via guided decoding with a `response_format` config option (`"default"`, `"activity_detection"`, `"custom"`), alongside `response_schema` (format description text) and `response_json_schema` (explicit JSON schema dict string).
 - `translation`: Translates text. Accepts `special_instructions` to prepend style guides to prompts, and a `hallucination_marker` to automatically retry gibberish outputs using the Tenacity library.
-- `notification`: Formats and delivers alerts using `notifications.yaml` mappings. Has advanced template overriding support per-channel (`telegram_template`, `tts_template`, `eink_template`) that gracefully degrade to the unified `message_template` format.
+- `notification`: Formats and delivers alerts using `notifications.yaml` mappings. Has advanced template overriding support per-channel (`telegram_template`, `tts_template`, `eink_template`, `webhook_template`) that gracefully degrade to the unified `message_template` format.
 
 **Wiring**: `PipelineExecutor` is instantiated in the lifespan in `backend/main.py` and attached to `app.state`. It receives a `ServiceContainer` with all shared services.
 
 ### Notification Channels
 
-Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts. Per-step channel overrides (via the `channels` field in notification step config) take precedence over the defaults in `notifications.yaml`.
+Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. Built-ins include generic UI WebSockets, Telegram, eInk displays, TTS audio endpoints, realtime voice streams, and HTTP POST Outbound Webhooks.
+
+The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts. Per-step channel overrides (via the `channels` field in notification step config), as well as direct endpoints like `webhook_url`, take precedence over the defaults in `notifications.yaml`.
 
 **TTS channel flow:** `TTSChannel.send()` calls `TTSClient.generate_and_upload()` to produce an MP3 and upload it to MinIO, obtaining a presigned URL. It then calls `HomeAssistantClient.play_audio(url, entity_id)` to play the audio on the configured `media_player` entity. The entity ID comes from `ha_media_player` in the notification step's `config_json` (defaults to `media_player.living_room_speaker`). `NotificationDispatcher` passes `minio_client` and `ha_client` via `DispatchServices` so no integration clients are imported inside the channel plugin.
 

@@ -1,5 +1,5 @@
 """
-WebSocket router – /ws/audio endpoint for real-time voice interaction.
+WebSocket router - /ws/audio endpoint for real-time voice interaction.
 """
 
 from __future__ import annotations

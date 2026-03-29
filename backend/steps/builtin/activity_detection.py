@@ -56,7 +56,7 @@ class ActivityDetectionHandler(StepHandler):
                         "type": ["number", "string"],
                         "default": 0.8,
                         "description": (
-                            "Confidence score (0–1). Accepts a fixed number or "
+                            "Confidence score (0-1). Accepts a fixed number or "
                             "{{template}} syntax (e.g. {{logic_response.confidence}})."
                         ),
                     },
@@ -68,6 +68,11 @@ class ActivityDetectionHandler(StepHandler):
                             "(e.g. {{room_name}}). Defaults to the trigger room when empty."
                         ),
                     },
+                    "trigger_cooloff": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "If true, flags this rule for a rate-limit cool-off period after completion.",
+                    },
                 },
                 "required": ["activity_type"],
             },
@@ -76,6 +81,7 @@ class ActivityDetectionHandler(StepHandler):
                 "person_id": "",
                 "confidence": 0.8,
                 "room_name": "",
+                "trigger_cooloff": True,
             },
         )
 
@@ -139,15 +145,18 @@ class ActivityDetectionHandler(StepHandler):
                     activity_type=activity_type,
                 )
 
-        return StepResult(
-            data={
-                "detected_activities": [
-                    {
-                        "person_id": person_id,
-                        "activity_type": activity_type,
-                        "room_name": room_name,
-                        "confidence": confidence,
-                    }
-                ]
-            }
-        )
+        result_data = {
+            "detected_activities": [
+                {
+                    "person_id": person_id,
+                    "activity_type": activity_type,
+                    "room_name": room_name,
+                    "confidence": confidence,
+                }
+            ]
+        }
+
+        if config.get("trigger_cooloff", True):
+            result_data["_cooloff_triggered"] = True
+
+        return StepResult(data=result_data)

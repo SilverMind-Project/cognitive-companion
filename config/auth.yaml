@@ -1,4 +1,4 @@
-# Cognitive Companion v2 – Authentication & Authorization
+# Cognitive Companion v2 - Authentication & Authorization
 #
 # API keys for human users, services, and AI agents.
 # Device keys are 8-char uppercase alphanumeric (A-Z, 0-9) used by
@@ -36,7 +36,7 @@ device_keys:
       - "device:reterminal"
       - "image:read"
 
-# Permission map – abstract names to endpoint patterns (fnmatch syntax).
+# Permission map - abstract names to endpoint patterns (fnmatch syntax).
 permission_map:
   admin:
     - "*"

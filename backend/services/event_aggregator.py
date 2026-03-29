@@ -1,5 +1,5 @@
 """
-EventAggregator v2 – batches per-sensor motion/capture events, manages
+EventAggregator v2 - batches per-sensor motion/capture events, manages
 cooldowns, and orchestrates media lifecycle (upload -> cache -> expire -> delete).
 """
 

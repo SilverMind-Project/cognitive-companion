@@ -108,7 +108,7 @@ async def get_auth_context(
     query_key: str | None = Query(None, alias="api_key"),
 ) -> AuthContext:
     """
-    FastAPI dependency – resolve the API key from header, query, or body.
+    FastAPI dependency - resolve the API key from header, query, or body.
     """
     raw_key = header_key or query_key
 

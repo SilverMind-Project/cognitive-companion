@@ -37,10 +37,16 @@ class ConditionHandler(StepHandler):
                             "comparisons, boolean operators, exists(), contains()."
                         ),
                     },
+                    "trigger_cooloff": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "If true, flags this rule for a rate-limit cool-off period if the condition evaluates to true.",
+                    },
                 },
             },
             default_config={
                 "expression": "",
+                "trigger_cooloff": False,
             },
         )
 
@@ -61,14 +67,19 @@ class ConditionHandler(StepHandler):
             step.next_step_on_true if result else step.next_step_on_false
         )
 
+        result_data = {
+            "condition": {
+                "expression": expression,
+                "result": result,
+                "branch": "true" if result else "false",
+            }
+        }
+
+        if result and config.get("trigger_cooloff", False):
+            result_data["_cooloff_triggered"] = True
+
         return StepResult(
-            data={
-                "condition": {
-                    "expression": expression,
-                    "result": result,
-                    "branch": "true" if result else "false",
-                }
-            },
+            data=result_data,
             next_step_id=next_step_id,
             should_continue=result if next_step_id is None else True,
         )

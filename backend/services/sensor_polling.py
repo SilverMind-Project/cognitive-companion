@@ -1,5 +1,5 @@
 """
-Sensor polling service – periodically queries Home Assistant for presence
+Sensor polling service - periodically queries Home Assistant for presence
 sensors, tracks room occupancy, and fires occupancy_duration rules through
 the workflow pipeline when configured thresholds are reached.
 
@@ -89,10 +89,9 @@ class SensorPollingService:
                 await self._check_occupancy_rules(
                     sensor, room_name, elapsed_minutes, db
                 )
-        elif state == "off":
-            if sensor.id in self._active_occupancy:
-                del self._active_occupancy[sensor.id]
-                logger.info("occupancy_ended", sensor=sensor.id, room=room_name)
+        elif state == "off" and sensor.id in self._active_occupancy:
+            del self._active_occupancy[sensor.id]
+            logger.info("occupancy_ended", sensor=sensor.id, room=room_name)
 
     async def _check_occupancy_rules(
         self,

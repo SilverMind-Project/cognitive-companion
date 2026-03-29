@@ -43,6 +43,11 @@ class HAActionHandler(StepHandler):
                         "type": "object",
                         "description": "Additional service data as JSON",
                     },
+                    "trigger_cooloff": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "If true, flags this rule for a rate-limit cool-off period after completion.",
+                    },
                 },
                 "required": ["domain", "service"],
             },
@@ -51,6 +56,7 @@ class HAActionHandler(StepHandler):
                 "service": "",
                 "entity_id": "",
                 "data": {},
+                "trigger_cooloff": True,
             },
         )
 
@@ -85,13 +91,16 @@ class HAActionHandler(StepHandler):
 
         await services.ha_client._call_service(domain, service, service_data)
 
-        return StepResult(
-            data={
-                "ha_action": {
-                    "domain": domain,
-                    "service": service,
-                    "entity_id": entity_id,
-                    "success": True,
-                }
+        result_data = {
+            "ha_action": {
+                "domain": domain,
+                "service": service,
+                "entity_id": entity_id,
+                "success": True,
             }
-        )
+        }
+
+        if config.get("trigger_cooloff", True):
+            result_data["_cooloff_triggered"] = True
+
+        return StepResult(data=result_data)

@@ -1,4 +1,4 @@
-# Cognitive Companion v2 – Notification Configuration
+# Cognitive Companion v2 - Notification Configuration
 
 telegram:
   bot_token: "${TELEGRAM_BOT_TOKEN}"
@@ -16,6 +16,12 @@ telegram:
       alert_levels:
         - "emergency"
         - "warning"
+
+webhook:
+  url: "${WEBHOOK_DEFAULT_URL}"
+  timeout_seconds: 10
+  headers:
+    Authorization: "Bearer ${WEBHOOK_AUTH_TOKEN}"
 
 eink:
   default_targets: []  # empty = all eink sensors; or list sensor_ids

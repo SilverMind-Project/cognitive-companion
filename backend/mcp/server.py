@@ -1,5 +1,5 @@
 """
-MCP (Model Context Protocol) server – exposes read-only tools for AI agents
+MCP (Model Context Protocol) server - exposes read-only tools for AI agents
 like OpenClaw to query rooms, sensors, occupancy, images, alerts, and events.
 
 All MCP tool calls are authenticated via API key and checked against the
@@ -18,6 +18,7 @@ from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.models.alert import EmergencyAlert
 from backend.models.event import EventLog
+from backend.models.person import HouseholdMember
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.models.room import Room
 from backend.models.rule import Rule
@@ -235,7 +236,7 @@ class MCPToolRegistry:
     async def _tool_get_conversation_history(
         self, session_id: int | None = None, limit: int = 20, **kwargs
     ) -> list[dict]:
-        """Get recent conversation turns (placeholder – requires ConversationManager)."""
+        """Get recent conversation turns (placeholder - requires ConversationManager)."""
         return [{"message": "Use /api/v1/conversations endpoint for history"}]
 
     async def _tool_get_person_locations(self, **kwargs) -> list[dict]:
@@ -243,6 +244,23 @@ class MCPToolRegistry:
         if self._person_tracking:
             return await self._person_tracking.get_person_locations()
         return [{"message": "Person tracking not available"}]
+
+    async def _tool_get_enrolled_persons(self, **kwargs) -> list[dict]:
+        """Get list of persons who have face identification enrollment data."""
+        db: Session = self._db_factory()
+        try:
+            members = db.execute(select(HouseholdMember)).scalars().all()
+            return [
+                {
+                    "id": m.id,
+                    "name": m.name,
+                    "is_guest": m.is_guest,
+                    "note": "For full face template embedding counts, call /api/v1/persons/enrolled"
+                }
+                for m in members
+            ]
+        finally:
+            db.close()
 
     async def _tool_get_person_sightings(
         self, person_id: str, limit: int = 10, **kwargs
@@ -481,6 +499,11 @@ class MCPToolRegistry:
             {
                 "name": "get_person_locations",
                 "description": "Get current location of all tracked household members",
+                "inputSchema": {"type": "object", "properties": {}},
+            },
+            {
+                "name": "get_enrolled_persons",
+                "description": "Get list of persons who have face identification enrollment data",
                 "inputSchema": {"type": "object", "properties": {}},
             },
             {

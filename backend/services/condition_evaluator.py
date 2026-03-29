@@ -86,7 +86,7 @@ class ConditionEvaluator:
         """
         try:
             tokens = _tokenise(expression)
-            result, pos = self._parse_or(tokens, 0, data)
+            result, _pos = self._parse_or(tokens, 0, data)
             return bool(result)
         except Exception:
             logger.warning("condition_eval_failed", expression=expression)

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
+from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
@@ -84,10 +86,12 @@ class VerificationHandler(StepHandler):
         )
 
     @staticmethod
-    def _reanchor_to_today(dt: datetime) -> datetime:
-        """Replace the date portion of *dt* with today, keeping the time and tzinfo."""
-        today = datetime.now(dt.tzinfo or UTC).date()
-        return dt.replace(year=today.year, month=today.month, day=today.day)
+    def _reanchor_to_local_today(dt: datetime, local_tz: ZoneInfo) -> datetime:
+        """Extract the local wall-clock time from dt, anchor it to today's local date, and return UTC."""
+        dt_local = dt.astimezone(local_tz)
+        today_local = datetime.now(local_tz).date()
+        new_local = datetime.combine(today_local, dt_local.time(), tzinfo=local_tz)
+        return new_local.astimezone(UTC)
 
     async def execute(
         self,
@@ -153,13 +157,14 @@ class VerificationHandler(StepHandler):
 
             window_start = None
             window_end = None
+            local_tz = ZoneInfo(settings.get("app.timezone", "America/New_York"))
             if cond.get("window_start"):
-                window_start = self._reanchor_to_today(
-                    datetime.fromisoformat(cond["window_start"])
+                window_start = self._reanchor_to_local_today(
+                    datetime.fromisoformat(cond["window_start"]), local_tz
                 )
             if cond.get("window_end"):
-                window_end = self._reanchor_to_today(
-                    datetime.fromisoformat(cond["window_end"])
+                window_end = self._reanchor_to_local_today(
+                    datetime.fromisoformat(cond["window_end"]), local_tz
                 )
 
             activities: list[dict] = []
@@ -191,10 +196,7 @@ class VerificationHandler(StepHandler):
             else:
                 unmatched.append(entry)
 
-        if match_mode == "any":
-            verified = len(matched) > 0
-        else:
-            verified = len(unmatched) == 0
+        verified = len(matched) > 0 if match_mode == "any" else len(unmatched) == 0
 
         result_data: dict = {
             "verification": {

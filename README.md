@@ -50,7 +50,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Activity tracking** -- detect and record person activities (eating, sleeping, taking medication) as pipeline outputs for use as context filters in downstream rules
 - **Motion direction detection** at doorways (left/right, towards/away from camera)
 - **Whole-house location tracking** fusing camera detections with Home Assistant presence sensors, with room-level person presence rules
-- **Prompt templates** -- use `{{variable}}` syntax in LLM step prompts to inline pipeline data (e.g. `{{person_detections.0.name}}`, `{{vision_response}}`)
+- **Prompt templates** -- use `{{variable}}` syntax in LLM step prompts to inline pipeline data (e.g. `{{person_detections.0.name}}`, `{{system.local_time}}`, ``{{vision_response}}`)
 - **Home Assistant actions** as first-class pipeline steps (call any HA service from a rule)
 - **Wait/resume for multi-stage workflows** -- pause a pipeline, resume on a timer or external trigger
 - **Conditional branching** -- evaluate expressions against pipeline data to fork execution paths
@@ -61,6 +61,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Automatic hardware device registration** -- sensors defined in `config/auth.yaml` under `device_keys` are upserted into the database at startup, so reCamera and reTerminal devices are immediately visible without a manual create step
 - **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, `realtime_voice`, Home Assistant announcements. Offers per-channel message templates that cleanly degrade to a base message format. Orchestrator prompts sent to the voice agent are hidden from the senior's transcript to maintain a natural conversation experience
 - **Webhook triggers** for external systems (Home Assistant automations, IFTTT, n8n) with per-rule HMAC secrets
+- **Outbound Webhooks** via the `webhook` notification channel plugin for triggering external systems.
 - **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
 - **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)
 - **MCP tool server** exposing read-only tools (plus rule triggering) for AI agent integration
@@ -344,11 +345,11 @@ Rules no longer use a fixed linear pipeline. Instead, each rule defines a **comp
 | `vision_analysis` | Send media + prompt to the vision LLM. Configurable to fetch temporal snapshots from additional cameras throughout the house. Supports schema-enforced output formatting. |
 | `logic_reasoning` | Evaluate vision output with the logic LLM to decide on actions. Uses `response_format` and `response_json_schema` for guaranteed structured JSON outputs. |
 | `translation` | Translate text to a target language (TranslateGemma). Supports pre-pending special instructions and automated retries via Tenacity when hallucination markers are detected. |
-| `notification` | Dispatch an alert across channels with customizable text templates per-channel (`telegram_template`, etc.) |
-| `ha_action` | Call a Home Assistant service (turn on lights, lock doors, etc.) |
-| `activity_detection` | Record activities from pipeline data to the PersonActivity table. Pair with a preceding `logic_reasoning` step (with `response_format: activity_detection`) for LLM analysis. |
+| `notification` | Dispatch an alert across channels with customizable text templates per-channel (`telegram_template`, etc). Can explicitly trigger rate-limit cool-off. |
+| `ha_action` | Call a Home Assistant service (turn on lights, lock doors, etc.). Can explicitly trigger rate-limit cool-off. |
+| `activity_detection` | Record activities from pipeline data to the PersonActivity table. Can explicitly trigger rate-limit cool-off. |
 | `wait` | Pause execution for a configured duration; resume automatically via scheduler |
-| `condition` | Evaluate an expression against pipeline data; branch to different steps |
+| `condition` | Evaluate an expression against pipeline data; branch to different steps. Can conditionally trigger rate-limit cool-off. |
 | `verification` | Query the PersonActivity database to verify whether household members completed (or did not complete) specific activities within a time window. |
 
 ### Condition Expressions
@@ -628,6 +629,7 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server expo
 | `get_rules` | Configured automation rules |
 | `get_conversation_history` | Recent conversation turns |
 | `get_person_locations` | Current location of all tracked members |
+| `get_enrolled_persons` | Get list of persons who have face identification enrollment data |
 | `get_person_sightings` | Camera sighting history for a person |
 | `get_person_activities` | Recent detected activities for a person (eating, sleeping, etc.) |
 | `get_workflow_executions` | Recent pipeline workflow executions (filter by rule, status) |

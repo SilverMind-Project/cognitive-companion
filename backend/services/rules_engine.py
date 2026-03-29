@@ -97,7 +97,7 @@ class RulesEngine:
         for ctx in rule.contexts:
             by_type.setdefault(ctx.context_type, []).append(ctx)
 
-        for ctx_type, contexts in by_type.items():
+        for _ctx_type, contexts in by_type.items():
             if not any(self._matches_context(ctx, sensor, now, db) for ctx in contexts):
                 return False
         return True
@@ -108,7 +108,7 @@ class RulesEngine:
         """Delegate context evaluation to the FilterRegistry.
 
         When ``ctx.negate`` is True the filter result is inverted, enabling
-        rules like "NOT in Kitchen" or "NOT during 09:00–17:00".
+        rules like "NOT in Kitchen" or "NOT during 09:00-17:00".
         """
         filter_instance = FilterRegistry.get(ctx.context_type)
         if filter_instance:

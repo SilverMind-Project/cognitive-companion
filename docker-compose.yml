@@ -1,4 +1,4 @@
-# Cognitive Companion – Docker Compose
+# Cognitive Companion - Docker Compose
 #
 # Usage:
 #   cp .env.example .env   # fill in your values

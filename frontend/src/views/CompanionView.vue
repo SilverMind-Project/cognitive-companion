@@ -55,13 +55,6 @@
       v-on="getWidgetEvents(w.id)"
     />
 
-    <!-- Non-emergency notification snackbar -->
-    <v-snackbar v-model="snackbar" :color="snackbarColor" timeout="5000" location="top">
-      {{ snackbarText }}
-      <template #actions>
-        <v-btn variant="text" @click="snackbar = false">Dismiss</v-btn>
-      </template>
-    </v-snackbar>
   </v-app>
 </template>
 
@@ -79,10 +72,8 @@ const audioState = ref("idle");
 const transcript = ref([]);
 const alertDialog = ref(false);
 const alertMessage = ref("");
+const alertType = ref("info");
 const connected = ref(false);
-const snackbar = ref(false);
-const snackbarText = ref("");
-const snackbarColor = ref("info");
 let playbackContext = null;
 let nextPlaybackTime = 0;
 let activePlaybackSources = 0;
@@ -100,7 +91,7 @@ function getWidgetProps(widgetId) {
     case "transcript":
       return { transcript: transcript.value };
     case "alert":
-      return { visible: alertDialog.value, message: alertMessage.value };
+      return { visible: alertDialog.value, message: alertMessage.value, alertType: alertType.value };
     default:
       return {};
   }
@@ -220,22 +211,12 @@ onMounted(() => {
   });
 
   wsClient.on("onCommand", (data) => {
-    const alertType = data.type;
+    const msgType = data.type;
     const message = data.message || "";
 
-    if (alertType === "emergency" || alertType === "emergency_alert") {
-      // Full-screen persistent dialog for emergencies
-      alertMessage.value = message;
-      alertDialog.value = true;
-    } else if (alertType === "warning") {
-      snackbarText.value = message;
-      snackbarColor.value = "warning";
-      snackbar.value = true;
-    } else if (alertType === "info" || alertType === "reminder") {
-      snackbarText.value = message;
-      snackbarColor.value = alertType === "reminder" ? "purple" : "info";
-      snackbar.value = true;
-    }
+    alertMessage.value = message;
+    alertType.value = (msgType === "emergency_alert") ? "emergency" : msgType;
+    alertDialog.value = true;
   });
 
   wsClient.on("onAudioBlob", (buffer) => {

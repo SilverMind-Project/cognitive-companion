@@ -71,8 +71,12 @@ class GeminiLiveProvider(RealtimeLLMProvider):
     async def receive(self, session: RealtimeSession) -> AsyncIterator[Any]:
         """Yield server responses from the Gemini session."""
         logger.debug("gemini_receive")
-        async for response in session.session_object.receive():
-            yield response
+        # SDK's receive() stops after each turn_complete. Loop so the caller
+        # gets a continuous stream across all turns without the backend having
+        # to disconnect and reconnect between every Gemini response.
+        while True:
+            async for response in session.session_object.receive():
+                yield response
 
     async def disconnect(self, session: RealtimeSession) -> None:
         """Close the Gemini session."""

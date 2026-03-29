@@ -270,7 +270,7 @@ class AudioSessionHandler:
             return
 
         model_turn = getattr(server_content, "model_turn", None)
-        if model_turn:
+        if model_turn and model_turn.parts:
             for part in model_turn.parts:
                 if hasattr(part, "inline_data") and part.inline_data:
                     await self.ws.send_bytes(part.inline_data.data)

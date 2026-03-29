@@ -1,5 +1,5 @@
 """
-WebSocket audio handler – manages the bidirectional audio pipeline between
+WebSocket audio handler - manages the bidirectional audio pipeline between
 a client WebSocket and a realtime LLM backend (e.g. Gemini Live).
 
 Key design points:
@@ -71,6 +71,7 @@ class AudioSessionHandler:
         # Callback for backend-initiated (orchestrator) prompts
         self._current_callback: Callable | None = None
         self._current_callback_text: str = ""
+        self._callback_task: asyncio.Task | None = None
         self._is_orchestrator_turn: bool = False
 
         # Conversation session ID
@@ -80,7 +81,7 @@ class AudioSessionHandler:
         self._backend_active = False
 
     async def run(self) -> None:
-        """Main entry point – run until the client disconnects."""
+        """Main entry point - run until the client disconnects."""
         # Create conversation session
         if self.conv_manager:
             self._session_id = self.conv_manager.create_session()
@@ -165,7 +166,7 @@ class AudioSessionHandler:
 
                 last_activity = [time.time()]
 
-                async def forward_to_backend():
+                async def forward_to_backend(session=session, last_activity=last_activity):
                     while True:
                         kind, payload = await self._client_to_backend.get()
                         last_activity[0] = time.time()
@@ -186,7 +187,10 @@ class AudioSessionHandler:
                             self._pending_prompt_text.append(text)
                             await self.provider.send_text(session, text)
 
-                async def receive_from_backend():
+                async def receive_from_backend(
+                    session=session,
+                    last_activity=last_activity,
+                ):
                     async for response in self.provider.receive(session):
                         last_activity[0] = time.time()
                         await self._handle_backend_response(response)
@@ -199,7 +203,7 @@ class AudioSessionHandler:
                         )
                         self.manager.prompt_queue.task_done()
 
-                async def keepalive():
+                async def keepalive(session=session, last_activity=last_activity):
                     interval = getattr(self.provider, "keepalive_interval", KEEPALIVE_INTERVAL)
                     while True:
                         await asyncio.sleep(interval)
@@ -224,7 +228,7 @@ class AudioSessionHandler:
                     ),
                 ]
 
-                done, pending = await asyncio.wait(
+                _done, pending = await asyncio.wait(
                     tasks, return_when=asyncio.FIRST_COMPLETED
                 )
                 for t in pending:
@@ -342,8 +346,9 @@ class AudioSessionHandler:
             # Execute callback if pending
             if self._current_callback is not None:
                 try:
-                    asyncio.create_task(
-                        self._current_callback(self._current_callback_text)
+                    self._callback_task = asyncio.create_task(
+                        self._current_callback(self._current_callback_text),
+                        name="ws-callback",
                     )
                 except Exception:
                     logger.exception("ws_callback_error")

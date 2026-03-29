@@ -1,4 +1,4 @@
-# Frontend service – ClusterIP only.
+# Frontend service - ClusterIP only.
 # Exposed externally via nginx ingress at nanai.khoofia.com.
 apiVersion: v1
 kind: Service

@@ -122,7 +122,7 @@ async def lifespan(app: FastAPI):
     ws_manager = ConnectionManager()
     app.state.ws_manager = ws_manager
 
-    # -- Realtime LLM provider (lazy – only connects when needed) ----------
+    # -- Realtime LLM provider (lazy - only connects when needed) ----------
     realtime_provider = None
     realtime_api_key = settings.get("llm.realtime.api_key")
     if realtime_api_key:

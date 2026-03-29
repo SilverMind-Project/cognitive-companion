@@ -1,5 +1,5 @@
 """
-WebSocket connection manager – tracks active client connections, broadcasts
+WebSocket connection manager - tracks active client connections, broadcasts
 notifications, and manages a task queue for backend-initiated prompts.
 """
 
@@ -59,9 +59,12 @@ class ConnectionManager:
         message = {"type": "command", **payload}
 
         # Normalize alert payloads
-        if message.get("type") == "emergency_alert" and "alert_id" not in message:
-            if "id" in message:
-                message["alert_id"] = message["id"]
+        if (
+            message.get("type") == "emergency_alert"
+            and "alert_id" not in message
+            and "id" in message
+        ):
+            message["alert_id"] = message["id"]
 
         for ws in self.active_connections:
             try:

@@ -63,8 +63,6 @@ select = [
 ignore = [
     "E501",    # line length handled by formatter
     "B008",    # Depends() in FastAPI param defaults is idiomatic
-    "RUF002",  # en-dash in docstrings is intentional
-    "RUF003",  # en-dash in comments is intentional
     "RUF012",  # ClassVar for mutable class attrs — too noisy for registries
     "TCH",     # type-checking imports — adopt incrementally
     "TC",      # type-checking imports (older alias)

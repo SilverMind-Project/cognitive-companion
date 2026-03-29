@@ -8,8 +8,12 @@ sequencing, branching, wait/resume, and error handling.
 
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from sqlalchemy.orm import Session
 
+from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.models.event import EventLog
 from backend.models.pipeline import PipelineStep, WorkflowExecution
@@ -99,6 +103,15 @@ class PipelineExecutor:
         # Include webhook payload in pipeline data
         if trigger.webhook_payload:
             pipeline_data["trigger_input"] = trigger.webhook_payload
+
+        local_tz = ZoneInfo(settings.get("app.timezone", "America/New_York"))
+        now_local = datetime.now(local_tz)
+        pipeline_data["system"] = {
+            "local_time": now_local.strftime("%I:%M %p"),
+            "local_date": now_local.strftime("%Y-%m-%d"),
+            "local_day_of_week": now_local.strftime("%A"),
+            "timezone": str(local_tz),
+        }
 
         execution = WorkflowExecution(
             rule_id=rule.id,
@@ -260,17 +273,25 @@ class PipelineExecutor:
             # All steps completed
             execution.status = "completed"
             execution.pipeline_data_json = pipeline_data
+
             event_log = (
                 db.query(EventLog)
                 .filter(EventLog.id == execution.event_log_id)
                 .first()
             )
             if event_log:
-                event_log.status = "completed"
+                if pipeline_data.get("_cooloff_triggered", False):
+                    event_log.status = "completed"
+                else:
+                    event_log.status = "ignored"
                 event_log.pipeline_data_json = pipeline_data
             db.commit()
 
-            logger.info("pipeline_completed", rule=execution.rule.name)
+            logger.info(
+                "pipeline_completed",
+                rule=execution.rule.name,
+                cooloff_triggered=pipeline_data.get("_cooloff_triggered", False)
+            )
             return execution
 
         except Exception as e:

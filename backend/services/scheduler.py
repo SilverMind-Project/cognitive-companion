@@ -141,14 +141,12 @@ async def execute_periodic_rule(
 
         # For periodic rules, capture from primary sensor if configured
         media_paths: list[str] = []
-        if rule.primary_sensor_id:
-
+        if rule.primary_sensor_id and _pipeline_executor._aggregator:
             # Try to get recent images from the primary sensor
             # The aggregator is available via the pipeline executor
-            if _pipeline_executor._aggregator:
-                media_paths = await _pipeline_executor._aggregator.get_recent_images(
-                    rule.primary_sensor_id, limit=3
-                )
+            media_paths = await _pipeline_executor._aggregator.get_recent_images(
+                rule.primary_sensor_id, limit=3
+            )
 
         trigger = TriggerContext(
             trigger_type="cron",

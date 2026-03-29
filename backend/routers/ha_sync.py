@@ -183,7 +183,6 @@ async def list_entities(
     else:
         # Return a lightweight list from the DB (HA-sourced sensors) to avoid
         # fetching all HA states when no domain filter is given.
-        db_gen = request.app.dependency_overrides.get(get_db)
         # Fallback: return empty list rather than hitting HA without a filter
         return []
 

@@ -72,6 +72,14 @@ class NotificationHandler(StepHandler):
                         "type": "string",
                         "description": "Natural language template for TTS. Falls back to message_template.",
                     },
+                    "webhook_url": {
+                        "type": "string",
+                        "description": "URL for webhook channel routing",
+                    },
+                    "webhook_template": {
+                        "type": "string",
+                        "description": "JSON payload template for webhook. Use {message}, {room}, etc. Falls back to basic JSON.",
+                    },
                     "eink_targets": {
                         "type": "array",
                         "items": {"type": "string"},
@@ -80,6 +88,11 @@ class NotificationHandler(StepHandler):
                     "ha_media_player": {
                         "type": "string",
                         "description": "HA media_player entity ID for TTS playback",
+                    },
+                    "trigger_cooloff": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "If true, flags this rule for a rate-limit cool-off period after completion.",
                     },
                 },
             },
@@ -90,8 +103,11 @@ class NotificationHandler(StepHandler):
                 "telegram_template": "",
                 "eink_template": "",
                 "tts_template": "",
+                "webhook_template": "",
+                "webhook_url": "",
                 "eink_targets": [],
                 "ha_media_player": "",
+                "trigger_cooloff": True,
             },
         )
 
@@ -128,7 +144,7 @@ class NotificationHandler(StepHandler):
 
         # Build per-channel messages
         channel_names = [
-            "telegram", "eink", "tts", "websocket", "realtime_voice", "homeassistant",
+            "telegram", "eink", "tts", "websocket", "realtime_voice", "homeassistant", "webhook"
         ]
         channel_messages: dict[str, str] = {}
         for ch in channel_names:
@@ -147,6 +163,7 @@ class NotificationHandler(StepHandler):
 
         eink_targets = config.get("eink_targets")
         ha_media_player = config.get("ha_media_player")
+        webhook_url = config.get("webhook_url")
         rule_config: dict = {}
         if channels:
             rule_config["channels"] = channels
@@ -154,6 +171,8 @@ class NotificationHandler(StepHandler):
             rule_config["eink_targets"] = eink_targets
         if ha_media_player:
             rule_config["ha_media_player"] = ha_media_player
+        if webhook_url:
+            rule_config["webhook_url"] = webhook_url
 
         results = await services.notification_dispatcher.dispatch(
             alert_level=alert_level,
@@ -164,9 +183,12 @@ class NotificationHandler(StepHandler):
             channel_messages=channel_messages if channel_messages else None,
         )
 
-        return StepResult(
-            data={
-                "notification_dispatched": True,
-                "notification_channels": results,
-            }
-        )
+        result_data = {
+            "notification_dispatched": True,
+            "notification_channels": results,
+        }
+
+        if config.get("trigger_cooloff", True):
+            result_data["_cooloff_triggered"] = True
+
+        return StepResult(data=result_data)

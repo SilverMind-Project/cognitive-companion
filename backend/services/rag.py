@@ -80,7 +80,7 @@ class RAGService:
         return ""
 
     def add_document(self, content: str, metadata: dict[str, Any] | None = None) -> None:
-        """Add a document to the index (in-memory only – call save() to persist)."""
+        """Add a document to the index (in-memory only - call save() to persist)."""
         self._documents.append({
             "content": content,
             "metadata": metadata or {},

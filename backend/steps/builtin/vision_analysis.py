@@ -7,6 +7,7 @@ recency or time-of-day window.
 from __future__ import annotations
 
 import json
+from contextlib import suppress
 
 from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
@@ -166,10 +167,8 @@ class VisionAnalysisHandler(StepHandler):
                 prompt += f"\n\n{format_instruction}"
             raw_json_schema = config.get("response_json_schema", "")
             if raw_json_schema:
-                try:
+                with suppress(json.JSONDecodeError, TypeError):
                     guided_schema = json.loads(raw_json_schema)
-                except (json.JSONDecodeError, TypeError):
-                    pass
 
         raw_response = await services.vision_provider.call(
             prompt=prompt,
@@ -180,9 +179,7 @@ class VisionAnalysisHandler(StepHandler):
 
         vision_data = raw_response
         if guided_schema:
-             try:
-                 vision_data = json.loads(raw_response) if raw_response else {}
-             except (json.JSONDecodeError, TypeError):
-                 pass
+            with suppress(json.JSONDecodeError, TypeError):
+                vision_data = json.loads(raw_response) if raw_response else {}
 
         return StepResult(data={"vision_response": vision_data})

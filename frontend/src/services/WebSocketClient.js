@@ -112,6 +112,6 @@ export class WebSocketClient {
   }
 }
 
-// Default instance – connects relative to current host
+// Default instance - connects relative to current host
 const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
 export const wsClient = new WebSocketClient(`${wsProto}//${location.host}/ws/audio`);

@@ -1,5 +1,5 @@
 """
-Configuration loader – reads YAML files with ${ENV_VAR} interpolation.
+Configuration loader - reads YAML files with ${ENV_VAR} interpolation.
 """
 
 from __future__ import annotations
@@ -11,8 +11,11 @@ from typing import Any
 
 import yaml
 
+from backend.core.logging import get_logger
+
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")
 _CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+logger = get_logger(__name__)
 
 
 def _interpolate(value: Any) -> Any:
@@ -28,10 +31,10 @@ def _interpolate(value: Any) -> Any:
 
 def _load_yaml(path: Path) -> dict:
     if not path.exists():
-        print(f"Config file {path} not found, using empty config.")
+        logger.warning("config_file_missing", path=str(path))
         return {}
     with open(path) as f:
-        print(f"Loading config from {path}...")
+        logger.info("config_file_loading", path=str(path))
         raw = yaml.safe_load(f) or {}
     return _interpolate(raw)
 

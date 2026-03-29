@@ -79,7 +79,7 @@ def _run_migrations(engine) -> None:
 
 
 def get_db() -> Generator[Session, None, None]:
-    """FastAPI dependency – yields a DB session and closes it after the request."""
+    """FastAPI dependency - yields a DB session and closes it after the request."""
     if _SessionLocal is None:
         init_db()
     db = _SessionLocal()  # type: ignore[misc]

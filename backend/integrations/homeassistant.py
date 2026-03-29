@@ -1,5 +1,5 @@
 """
-Home Assistant integration – rooms, sensors, occupancy time-series, announcements.
+Home Assistant integration - rooms, sensors, occupancy time-series, announcements.
 
 Provides:
 - Room discovery from HA areas

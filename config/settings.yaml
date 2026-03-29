@@ -1,4 +1,4 @@
-# Cognitive Companion v2 – Main Settings
+# Cognitive Companion v2 - Main Settings
 # Environment variables can be interpolated with ${ENV_VAR} syntax.
 
 app:
@@ -116,6 +116,7 @@ mcp:
     - "get_rule_pipeline"
     - "trigger_rule"
     - "get_eink_display_status"
+    - "get_enrolled_persons"
 
 # Person Identification Service
 person_id:

@@ -373,6 +373,24 @@
                   rows="2"
                   hint="Natural language for spoken announcements. Falls back to Message Template."
                   persistent-hint
+                  class="mb-3"
+                />
+                <v-textarea
+                  v-model="cfg.websocket_template"
+                  label="WebSocket Template"
+                  variant="outlined"
+                  rows="2"
+                  hint="Notification text shown in the companion UI overlay. Use {message}, {room}, etc. Falls back to Message Template."
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-textarea
+                  v-model="cfg.realtime_voice_template"
+                  label="Realtime Voice Template"
+                  variant="outlined"
+                  rows="2"
+                  hint="Conversational voice prompt for Gemini Live delivery. Falls back to Message Template."
+                  persistent-hint
                 />
               </v-expansion-panel-text>
             </v-expansion-panel>

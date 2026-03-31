@@ -193,7 +193,9 @@ function playPcmChunk(buffer, sampleRate = 24000) {
   source.onended = () => {
     activePlaybackSources = Math.max(0, activePlaybackSources - 1);
     if (activePlaybackSources === 0) {
-      audioState.value = "listening";
+      // Return to listening only when the user has the mic active;
+      // otherwise fall back to idle so the status pill resets correctly.
+      audioState.value = recording.value ? "listening" : "idle";
       nextPlaybackTime = Math.max(nextPlaybackTime, audioCtx.currentTime);
     }
   };
@@ -202,6 +204,12 @@ function playPcmChunk(buffer, sampleRate = 24000) {
 }
 
 onMounted(() => {
+  // Connect immediately so push notifications (alerts, reminders) are
+  // delivered as soon as the page loads, regardless of whether the user
+  // has tapped the mic button.  The backend holds the connection open
+  // without starting a Gemini session until audio activity arrives.
+  wsClient.connect();
+
   wsClient.on("onTranscript", (data) => {
     transcript.value.push({
       source: data.source,

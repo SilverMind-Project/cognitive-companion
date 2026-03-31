@@ -5,10 +5,16 @@ a client WebSocket and a realtime LLM backend (e.g. Gemini Live).
 Key design points:
 - The FastAPI server always accepts audio/text from connected clients.
 - The connection to the realtime backend is lazy: opened only when there
-  is actual audio activity (to avoid paying for idle connections).
+  is actual audio or prompt activity, and re-established after each session
+  ends. No keepalive messages are sent to the provider.
+- Clients connected for notifications only (no audio activity) hold an
+  open WebSocket without triggering a Gemini session, so push notifications
+  are delivered without incurring any realtime API cost.
 - Supports pluggable backends via RealtimeLLMProvider.
 - Conversation history is preserved across backend reconnects.
-- A keepalive mechanism prevents idle timeouts on the provider side.
+- A continuous prompt-bridge task transfers orchestrator prompts from the
+  connection manager queue into the per-session queue so that incoming
+  prompts can wake an idle session.
 """
 
 from __future__ import annotations
@@ -28,7 +34,6 @@ from backend.websocket.connection_manager import ConnectionManager
 
 logger = get_logger(__name__)
 
-KEEPALIVE_INTERVAL = 25
 RETRY_DELAY = 2
 
 
@@ -37,10 +42,9 @@ class AudioSessionHandler:
 
     Coordinates:
     - Receiving audio/text from the client
-    - Forwarding to the realtime backend
+    - Forwarding to the realtime backend (lazily, on first activity)
     - Relaying backend responses (audio, transcripts) back to the client
     - Backend prompt queue processing
-    - Keepalive pings
     - Conversation persistence
     """
 
@@ -144,120 +148,106 @@ class AudioSessionHandler:
     # ------------------------------------------------------------------
 
     async def _run_backend_loop(self) -> None:
-        """Connects (and reconnects) to the realtime backend until the client leaves."""
-        lazy_connect = settings.get("websocket.lazy_connect", True)
+        """Connects (and reconnects) to the realtime backend until the client leaves.
 
-        if lazy_connect:
-            # Wait for first audio activity before connecting
-            await self._wait_for_activity()
-            if self._client_disconnected.is_set():
-                return
+        A Gemini session is opened only when incoming data is present (audio,
+        text, or an orchestrator prompt). After each session ends the loop
+        waits for new activity before reconnecting. No keepalive messages are
+        sent; idle sessions are allowed to expire naturally.
+        """
+        # Bridge orchestrator prompts from the connection-manager queue into
+        # _client_to_backend continuously, so that prompt arrivals can wake
+        # _wait_for_activity() even before a session is open.
+        async def _bridge_prompts() -> None:
+            while True:
+                prompt, callback, exp = await self.manager.prompt_queue.get()
+                await self._client_to_backend.put(("prompt", (prompt, callback, exp)))
+                self.manager.prompt_queue.task_done()
 
-        while not self._client_disconnected.is_set():
-            try:
-                config = self.provider.build_config(
-                    conversation_history=self._get_history_text()
-                )
-                session = await self.provider.connect(config)
-                self._backend_active = True
-
-                await self.ws.send_json({"type": "status", "message": "backend_connected"})
-                logger.info("ws_backend_connected")
-
-                last_activity = [time.time()]
-
-                async def forward_to_backend(session=session, last_activity=last_activity):
-                    while True:
-                        kind, payload = await self._client_to_backend.get()
-                        last_activity[0] = time.time()
-
-                        if kind == "audio":
-                            await self.provider.send_audio(session, payload)
-                        elif kind == "end_of_turn":
-                            pass  # Provider handles turn detection
-                        elif kind == "text":
-                            await self.provider.send_text(session, payload)
-                        elif kind == "prompt":
-                            text, callback, exp = payload
-                            if time.time() > exp:
-                                logger.debug("ws_backend_prompt_expired")
-                                continue
-                            self._current_callback = callback
-                            self._is_orchestrator_turn = True
-                            self._pending_prompt_text.append(text)
-                            await self.provider.send_text(session, text)
-
-                async def receive_from_backend(
-                    session=session,
-                    last_activity=last_activity,
-                ):
-                    async for response in self.provider.receive(session):
-                        last_activity[0] = time.time()
-                        await self._handle_backend_response(response)
-
-                async def process_prompt_queue():
-                    while True:
-                        prompt, callback, exp = await self.manager.prompt_queue.get()
-                        await self._client_to_backend.put(
-                            ("prompt", (prompt, callback, exp))
-                        )
-                        self.manager.prompt_queue.task_done()
-
-                async def keepalive(session=session, last_activity=last_activity):
-                    interval = getattr(self.provider, "keepalive_interval", KEEPALIVE_INTERVAL)
-                    while True:
-                        await asyncio.sleep(interval)
-                        idle = time.time() - last_activity[0]
-                        if idle >= interval:
-                            try:
-                                await session.session_object.send(
-                                    input=".", end_of_turn=True
-                                )
-                                last_activity[0] = time.time()
-                            except Exception as exc:
-                                logger.warning("ws_keepalive_failed", error=str(exc))
-                                raise
-
-                tasks = [
-                    asyncio.create_task(forward_to_backend(), name="forward"),
-                    asyncio.create_task(receive_from_backend(), name="receive"),
-                    asyncio.create_task(process_prompt_queue(), name="prompts"),
-                    asyncio.create_task(keepalive(), name="keepalive"),
-                    asyncio.create_task(
-                        self._client_disconnected.wait(), name="client-gone"
-                    ),
-                ]
-
-                _done, pending = await asyncio.wait(
-                    tasks, return_when=asyncio.FIRST_COMPLETED
-                )
-                for t in pending:
-                    t.cancel()
-                await asyncio.gather(*pending, return_exceptions=True)
-
-                await self.provider.disconnect(session)
-                self._backend_active = False
-
+        bridge = asyncio.create_task(_bridge_prompts(), name="prompt-bridge")
+        try:
+            while not self._client_disconnected.is_set():
+                # Wait for incoming audio/text/prompt before opening a session.
+                await self._wait_for_activity()
                 if self._client_disconnected.is_set():
                     return
 
-                logger.warning(
-                    "ws_backend_session_ended",
-                    turns=len(self._conversation_log),
-                )
-                await self.ws.send_json(
-                    {"type": "status", "message": "backend_reconnecting"}
-                )
+                try:
+                    config = self.provider.build_config(
+                        conversation_history=self._get_history_text()
+                    )
+                    session = await self.provider.connect(config)
+                    self._backend_active = True
 
-            except Exception as exc:
-                self._backend_active = False
-                if self._client_disconnected.is_set():
-                    return
-                logger.error("ws_backend_error", error=str(exc))
-                await self.ws.send_json(
-                    {"type": "status", "message": "backend_reconnecting"}
-                )
-                await asyncio.sleep(RETRY_DELAY)
+                    await self.ws.send_json(
+                        {"type": "status", "message": "backend_connected"}
+                    )
+                    logger.info("ws_backend_connected")
+
+                    async def forward_to_backend(session=session) -> None:
+                        while True:
+                            kind, payload = await self._client_to_backend.get()
+
+                            if kind == "audio":
+                                await self.provider.send_audio(session, payload)
+                            elif kind == "end_of_turn":
+                                pass  # Provider handles turn detection
+                            elif kind == "text":
+                                await self.provider.send_text(session, payload)
+                            elif kind == "prompt":
+                                text, callback, exp = payload
+                                if time.time() > exp:
+                                    logger.debug("ws_backend_prompt_expired")
+                                    continue
+                                self._current_callback = callback
+                                self._is_orchestrator_turn = True
+                                self._pending_prompt_text.append(text)
+                                await self.provider.send_text(session, text)
+
+                    async def receive_from_backend(session=session) -> None:
+                        async for response in self.provider.receive(session):
+                            await self._handle_backend_response(response)
+
+                    tasks = [
+                        asyncio.create_task(forward_to_backend(), name="forward"),
+                        asyncio.create_task(receive_from_backend(), name="receive"),
+                        asyncio.create_task(
+                            self._client_disconnected.wait(), name="client-gone"
+                        ),
+                    ]
+
+                    _done, pending = await asyncio.wait(
+                        tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    for t in pending:
+                        t.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+
+                    await self.provider.disconnect(session)
+                    self._backend_active = False
+
+                    if self._client_disconnected.is_set():
+                        return
+
+                    logger.info(
+                        "ws_backend_session_ended",
+                        turns=len(self._conversation_log),
+                    )
+                    await self.ws.send_json(
+                        {"type": "status", "message": "backend_reconnecting"}
+                    )
+
+                except Exception as exc:
+                    self._backend_active = False
+                    if self._client_disconnected.is_set():
+                        return
+                    logger.error("ws_backend_error", error=str(exc))
+                    await self.ws.send_json(
+                        {"type": "status", "message": "backend_reconnecting"}
+                    )
+                    await asyncio.sleep(RETRY_DELAY)
+        finally:
+            bridge.cancel()
 
     # ------------------------------------------------------------------
     # Response handling
@@ -376,7 +366,7 @@ class AudioSessionHandler:
         return "\n".join(lines)
 
     async def _wait_for_activity(self) -> None:
-        """Block until the first audio/text arrives or the client disconnects."""
+        """Block until the first audio/text/prompt arrives or the client disconnects."""
         while not self._client_disconnected.is_set():
             try:
                 item = await asyncio.wait_for(

@@ -72,6 +72,14 @@ class NotificationHandler(StepHandler):
                         "type": "string",
                         "description": "Natural language template for TTS. Falls back to message_template.",
                     },
+                    "websocket_template": {
+                        "type": "string",
+                        "description": "Notification text shown in the companion UI overlay. Falls back to message_template.",
+                    },
+                    "realtime_voice_template": {
+                        "type": "string",
+                        "description": "Conversational voice prompt for Gemini Live delivery. Falls back to message_template.",
+                    },
                     "webhook_url": {
                         "type": "string",
                         "description": "URL for webhook channel routing",
@@ -103,6 +111,8 @@ class NotificationHandler(StepHandler):
                 "telegram_template": "",
                 "eink_template": "",
                 "tts_template": "",
+                "websocket_template": "",
+                "realtime_voice_template": "",
                 "webhook_template": "",
                 "webhook_url": "",
                 "eink_targets": [],

@@ -1,0 +1,9 @@
+# Dependencies
+backend/.venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/.mypy_cache/
+
+frontend/node_modules/

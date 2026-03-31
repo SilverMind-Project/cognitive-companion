@@ -5,33 +5,58 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 
 const props = defineProps({
-  audioState: { type: String, default: "idle" },
+  audioState: { type: String,  default: "idle" },
+  // When false, voice-activity state changes are suppressed so the card
+  // stays at "idle" until the user explicitly starts recording.
+  recording:  { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["audio-data", "state-change"]);
 
-const canvasRef = ref(null);
+const canvasRef    = ref(null);
 const containerRef = ref(null);
 
-let audioContext = null;
-let analyser = null;
-let mediaStream = null;
-let processor = null;
-let animFrameId = null;
+let audioContext   = null;
+let analyser       = null;
+let mediaStream    = null;
+let processor      = null;
+let highPassFilter = null;
+let animFrameId    = null;
 let resizeObserver = null;
-let phase = 0;
-let currentRms = 0;
+let phase          = 0;
+let currentRms     = 0;
 
-const VAD_THRESHOLD = ref(0.06);
-const isCalibrating = ref(false);
+// Tracks the last state we emitted so we only call emit() on actual transitions,
+// preventing redundant parent re-renders and ensuring every state is explicit.
+let _lastEmitted = "idle";
+
+const VAD_THRESHOLD      = ref(0.06);
+const isCalibrating      = ref(false);
 const calibrationSamples = [];
 
 const CANVAS_HEIGHT = 150;
 
 const stateClass = computed(() => `state-${props.audioState}`);
+
+// ─── State helper ────────────────────────────────────────────────────────────
+
+function _emitState(state) {
+  if (state !== _lastEmitted) {
+    _lastEmitted = state;
+    emit("state-change", state);
+  }
+}
+
+// ─── Recording prop drives listening/idle transitions ────────────────────────
+// The mic always runs for calibration, but the status pill must only change
+// state when the user has tapped the button.
+
+watch(() => props.recording, (active) => {
+  _emitState(active ? "listening" : "idle");
+}, { immediate: true });
 
 // ─── Canvas sizing ──────────────────────────────────────────────────────────
 
@@ -43,9 +68,9 @@ function resizeCanvas() {
   const w = container.getBoundingClientRect().width || 400;
   const dpr = window.devicePixelRatio || 1;
 
-  canvas.width = Math.floor(w * dpr);
+  canvas.width  = Math.floor(w * dpr);
   canvas.height = Math.floor(CANVAS_HEIGHT * dpr);
-  canvas.style.width = `${w}px`;
+  canvas.style.width  = `${w}px`;
   canvas.style.height = `${CANVAS_HEIGHT}px`;
 
   const ctx = canvas.getContext("2d");
@@ -63,7 +88,7 @@ const COLOR_SETS = {
 
 function draw() {
   const canvas = canvasRef.value;
-  const ctx = canvas?.getContext("2d");
+  const ctx    = canvas?.getContext("2d");
   if (!ctx) {
     animFrameId = requestAnimationFrame(draw);
     return;
@@ -75,7 +100,6 @@ function draw() {
 
   const state = props.audioState;
 
-  // Determine target amplitude and phase speed
   let targetAmplitude = 4;
   let speed = 0.04;
 
@@ -103,21 +127,18 @@ function draw() {
 
   const colors = COLOR_SETS[state] ?? COLOR_SETS.idle;
 
-  // Three overlapping sine waves with bell-curve envelope (Siri effect)
   for (let c = 0; c < colors.length; c++) {
     ctx.beginPath();
     ctx.moveTo(0, height / 2);
-
     for (let x = 0; x < width; x++) {
-      const envelope = Math.sin((x / width) * Math.PI); // tapers at edges
+      const envelope = Math.sin((x / width) * Math.PI);
       const y = height / 2
         + envelope * targetAmplitude
         * Math.sin(x * 0.030 + phase + c * 1.6);
       ctx.lineTo(x, y);
     }
-
     ctx.strokeStyle = colors[c];
-    ctx.lineWidth = 2.5 + (colors.length - c) * 0.6;
+    ctx.lineWidth   = 2.5 + (colors.length - c) * 0.6;
     ctx.stroke();
   }
 
@@ -137,16 +158,28 @@ async function startMic() {
 
     const source = audioContext.createMediaStreamSource(mediaStream);
 
+    // High-pass filter: attenuates frequencies below ~150 Hz.
+    // Fan and AC hum typically sits at 50–120 Hz; filtering before the
+    // analyser and processor removes those frequencies from both the RMS
+    // calculation and the PCM stream sent to the backend.
+    highPassFilter = audioContext.createBiquadFilter();
+    highPassFilter.type = "highpass";
+    highPassFilter.frequency.value = 150;
+    highPassFilter.Q.value = 0.7;
+    source.connect(highPassFilter);
+
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 2048;
-    source.connect(analyser);
+    highPassFilter.connect(analyser);
 
     processor = audioContext.createScriptProcessor(4096, 1, 1);
-    source.connect(processor);
+    highPassFilter.connect(processor);
     processor.connect(audioContext.destination);
 
-    // Calibrate ambient noise floor for 2.5 s before forwarding VAD events
-    isCalibrating.value = true;
+    // Calibrate ambient noise floor for 2.5 s before evaluating VAD.
+    // Sampling runs on the filtered signal so residual low-frequency hum
+    // does not inflate the threshold.
+    isCalibrating.value   = true;
     calibrationSamples.length = 0;
     setTimeout(() => {
       isCalibrating.value = false;
@@ -159,19 +192,22 @@ async function startMic() {
     processor.onaudioprocess = (e) => {
       const input = e.inputBuffer.getChannelData(0);
 
-      // RMS for VAD
+      // RMS on the high-pass filtered signal
       let sum = 0;
       for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
       currentRms = Math.sqrt(sum / input.length);
 
       if (isCalibrating.value) {
         calibrationSamples.push(currentRms);
-      } else if (currentRms > VAD_THRESHOLD.value) {
-        emit("state-change", "speaking");
+      } else if (props.recording) {
+        // While the user has the mic active, toggle between "speaking" and
+        // "listening" based on signal level.  Never emit either state when
+        // recording is false so background noise never moves the status pill.
+        _emitState(currentRms > VAD_THRESHOLD.value ? "speaking" : "listening");
       }
 
-      // PCM16 buffer for backend
-      const buf = new ArrayBuffer(input.length * 2);
+      // Always emit PCM16; the parent guards whether to send it to the backend.
+      const buf  = new ArrayBuffer(input.length * 2);
       const view = new DataView(buf);
       for (let i = 0; i < input.length; i++) {
         const s = Math.max(-1, Math.min(1, input[i]));
@@ -179,8 +215,6 @@ async function startMic() {
       }
       emit("audio-data", buf);
     };
-
-    emit("state-change", "listening");
   } catch (err) {
     console.error("Mic error:", err);
   }
@@ -188,13 +222,14 @@ async function startMic() {
 
 function stopMic() {
   processor?.disconnect();
+  highPassFilter?.disconnect();
   mediaStream?.getTracks().forEach((t) => t.stop());
   audioContext?.close();
-  processor = null;
-  analyser  = null;
-  mediaStream = null;
-  audioContext = null;
-  emit("state-change", "idle");
+  processor      = null;
+  highPassFilter = null;
+  analyser       = null;
+  mediaStream    = null;
+  audioContext   = null;
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────

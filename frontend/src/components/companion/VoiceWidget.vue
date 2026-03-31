@@ -10,6 +10,7 @@
     <div class="waveform-region">
       <AudioVisualizer
         :audio-state="audioState"
+        :recording="recording"
         @audio-data="$emit('audio-data', $event)"
         @state-change="$emit('state-change', $event)"
       />

@@ -1,4 +1,4 @@
-const CACHE_NAME = "cognitive-companion-v2";
+const CACHE_NAME = "cognitive-companion";
 const CORE_ASSETS = [
   "/",
   "/index.html",

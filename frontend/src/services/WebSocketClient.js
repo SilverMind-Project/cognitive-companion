@@ -22,6 +22,12 @@ export class WebSocketClient {
   connect() {
     if (this.socket?.readyState === WebSocket.OPEN) return;
 
+    // Reset reconnect budget so that an explicit connect() call (e.g. on
+    // page load or after a deliberate disconnect) always re-enables the
+    // automatic reconnection logic.
+    this.maxReconnectAttempts = 10;
+    this.attempts = 0;
+
     this.socket = new WebSocket(this.url);
     this.socket.binaryType = "arraybuffer";
 

@@ -117,6 +117,17 @@ mcp:
     - "trigger_rule"
     - "get_eink_display_status"
     - "get_enrolled_persons"
+    - "get_local_datetime"
+    - "get_weather"
+  gemini_tools:
+    - "get_rooms"
+    - "get_room_occupancy"
+    - "get_person_locations"
+    - "get_alerts"
+    - "get_weather"
+    - "get_local_datetime"
+    - "get_person_activities"
+    - "get_enrolled_persons"
 
 # Person Identification Service
 person_id:

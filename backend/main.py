@@ -75,6 +75,9 @@ async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle hook."""
     setup_logging()
     settings.reload()
+    # Invalidate the auth key cache so it is rebuilt from the freshly loaded config.
+    from backend.core.auth import invalidate_lookup_cache
+    invalidate_lookup_cache()
     logger.info("Starting Cognitive Companion v2")
 
     # Database
@@ -195,7 +198,7 @@ async def lifespan(app: FastAPI):
     # -- Event aggregator --------------------------------------------------
     from backend.services.event_aggregator import EventAggregator
 
-    # Placeholder callback — will be replaced once workflow is wired
+    # Placeholder callback  will be replaced once workflow is wired
     async def _noop_callback(sensor_id: str, media_paths: list[str]):
         pass
 
@@ -255,17 +258,24 @@ async def lifespan(app: FastAPI):
     )
     app.state.sensor_polling = sensor_polling
 
-    # -- MCP tool registry -------------------------------------------------
-    from backend.mcp.server import MCPToolRegistry
+    # -- MCP tool server (official MCP SDK) ----------------------------------
+    from backend.mcp.server import get_tool_registry
+    from backend.mcp.server import init_services as init_mcp_services
 
-    mcp_registry = MCPToolRegistry(
+    init_mcp_services(
         db_session_factory=get_session,
         event_aggregator=event_aggregator,
         sensor_polling_service=sensor_polling,
         ha_client=ha_client,
         person_tracking=person_tracking,
     )
-    app.state.mcp_registry = mcp_registry
+
+    # Build the Gemini tool adapter for voice tool calling
+    from backend.mcp.gemini_adapter import GeminiToolAdapter
+
+    tool_handlers, tool_schemas = get_tool_registry()
+    gemini_adapter = GeminiToolAdapter(tool_handlers, tool_schemas)
+    app.state.gemini_adapter = gemini_adapter
 
     # -- Scheduler ---------------------------------------------------------
     from backend.services.scheduler import SchedulerBridge, setup_scheduler
@@ -311,7 +321,11 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Scheduler started")
 
-    yield
+    # Start MCP session manager for streamable HTTP transport
+    from backend.mcp.server import mcp_server
+
+    async with mcp_server.session_manager.run():
+        yield
 
     # -- Shutdown ----------------------------------------------------------
     scheduler.shutdown(wait=False)
@@ -350,7 +364,6 @@ def create_app() -> FastAPI:
         events,
         ha_sync,
         image,
-        mcp,
         occupancy,
         persons,
         pipeline,
@@ -371,7 +384,6 @@ def create_app() -> FastAPI:
     app.include_router(device.router, prefix=api)
     app.include_router(image.router, prefix=api)
     app.include_router(admin.router, prefix=api)
-    app.include_router(mcp.router, prefix=api)
     app.include_router(occupancy.router, prefix=api)
     app.include_router(conversations.router, prefix=api)
     app.include_router(ha_sync.router, prefix=api)
@@ -388,6 +400,14 @@ def create_app() -> FastAPI:
     @app.get("/api/v1/health")
     async def health():
         return {"status": "ok", "version": "2.0.0"}
+
+    # Mount the MCP protocol server (streamable HTTP transport)
+    from backend.mcp.middleware import MCPAuthMiddleware
+    from backend.mcp.server import mcp_server as _mcp_server
+
+    _mcp_server.settings.streamable_http_path = "/"
+    mcp_asgi = _mcp_server.streamable_http_app()
+    app.mount("/mcp", MCPAuthMiddleware(mcp_asgi))
 
     return app
 

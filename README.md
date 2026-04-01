@@ -64,7 +64,8 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Outbound Webhooks** via the `webhook` notification channel plugin for triggering external systems.
 - **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
 - **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)
-- **MCP tool server** exposing read-only tools (plus rule triggering) for AI agent integration
+- **MCP tool server** (via the official MCP Python SDK) exposing 19 read-only tools (plus rule triggering) for AI agent integration over the standard MCP protocol (streamable HTTP)
+- **Voice tool calling** via Gemini Live function calling, sharing a configurable subset of MCP tools so the voice companion can answer queries like "what's the weather?" or "where is everyone?" using real data
 - **Role-based authentication** with API keys, device keys, and fnmatch permission patterns
 - **Event aggregation** with configurable batching, windowing, and per-sensor cooldown
 - **Multi-language support** for feedback delivery and voice interaction via the `translation` pipeline step
@@ -213,7 +214,7 @@ cognitive-companion/
 │   │   ├── workflows.py        # Workflow execution list/detail/cancel
 │   │   ├── activities.py       # Person activity log
 │   │   └── ...                 # Alerts, events, persons, sensors, rooms, etc.
-│   ├── mcp/                    # MCP tool registry and server
+│   ├── mcp/                    # MCP server (official SDK), Gemini tool adapter, auth middleware
 │   ├── websocket/              # WebSocket connection manager and audio handler
 │   ├── assets/                 # Fonts and eInk display templates
 │   └── main.py                 # App factory, lifespan, service wiring
@@ -520,10 +521,9 @@ Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cr
 
 ### MCP
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/mcp/tools` | List available MCP tools |
-| `POST` | `/mcp/tools/{name}` | Execute an MCP tool |
+| Method | Path   | Description                                      |
+|--------|--------|--------------------------------------------------|
+| `POST` | `/mcp` | MCP protocol endpoint (streamable HTTP, JSON-RPC) |
 
 ### Home Assistant Sync
 
@@ -613,30 +613,33 @@ Available at `/admin/eink-templates`. Upload background images, draw text region
 
 ## MCP Integration
 
-The [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server exposes tools that AI agents can discover and call to query system state and trigger actions.
+The [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server, built on the official MCP Python SDK, exposes tools that AI agents can discover and call to query system state and trigger actions. It serves the standard MCP protocol via streamable HTTP at `/mcp`.
 
-**Available tools:**
+**Available tools (19):**
 
-| Tool | Description |
-|------|-------------|
-| `get_rooms` | List all configured rooms |
-| `get_sensors` | List sensors (filter by room, type) |
-| `get_room_occupancy` | Current occupancy from presence sensors |
-| `get_recent_images` | Recent camera images for a sensor |
-| `get_light_level` | Illuminance from a HA sensor |
-| `get_alerts` | Recent emergency alerts |
-| `get_event_logs` | Rule execution event logs |
-| `get_rules` | Configured automation rules |
-| `get_conversation_history` | Recent conversation turns |
-| `get_person_locations` | Current location of all tracked members |
-| `get_enrolled_persons` | Get list of persons who have face identification enrollment data |
-| `get_person_sightings` | Camera sighting history for a person |
-| `get_person_activities` | Recent detected activities for a person (eating, sleeping, etc.) |
-| `get_workflow_executions` | Recent pipeline workflow executions (filter by rule, status) |
-| `get_rule_pipeline` | Pipeline step definitions for a specific rule |
-| `trigger_rule` | Manually trigger a rule's pipeline execution |
+| Tool                     | Description                                                          |
+|--------------------------|----------------------------------------------------------------------|
+| `get_rooms`              | List all configured rooms                                            |
+| `get_sensors`            | List sensors (filter by room, type)                                  |
+| `get_room_occupancy`     | Current occupancy from presence sensors                              |
+| `get_recent_images`      | Recent camera images for a sensor                                    |
+| `get_light_level`        | Illuminance from a HA sensor                                         |
+| `get_alerts`             | Recent emergency alerts                                              |
+| `get_event_logs`         | Rule execution event logs                                            |
+| `get_rules`              | Configured automation rules                                          |
+| `get_conversation_history`  | Recent conversation turns                                         |
+| `get_person_locations`   | Current location of all tracked members                              |
+| `get_enrolled_persons`   | Persons with face identification enrollment data                     |
+| `get_person_sightings`   | Camera sighting history for a person                                 |
+| `get_person_activities`  | Recent detected activities (eating, sleeping, etc.)                  |
+| `get_workflow_executions` | Recent pipeline workflow executions (filter by rule, status)        |
+| `get_rule_pipeline`      | Pipeline step definitions for a specific rule                        |
+| `trigger_rule`           | Manually trigger a rule's pipeline execution                         |
+| `get_eink_display_status` | Active e-ink image state for one or all displays                    |
+| `get_local_datetime`     | Current local date and time for the household's timezone             |
+| `get_weather`            | Current weather from Home Assistant                                  |
 
-Agents authenticate with the MCP API key. Tool discovery is via `GET /api/v1/mcp/tools`, execution via `POST /api/v1/mcp/tools/{name}`.
+Agents authenticate with the MCP API key via the `X-API-Key` header. A configurable subset of these tools is also available to the Gemini Live voice companion via function calling (see `mcp.gemini_tools` in settings).
 
 ## Frontend
 
@@ -802,11 +805,9 @@ Every context filter supports negation out of the box via the `negate` flag on `
 
 Proposed features and integration pathways for future development.
 
-### Gemini Live Tool Calling
+### ~~Gemini Live Tool Calling~~ (Implemented)
 
-**Problem**: The voice agent can only converse. It can't look up information or take actions mid-conversation.
-
-**Design**: Extend `GeminiLiveProvider.build_config()` to include tool definitions built from the MCP registry. Add RAG as a `lookup_knowledge` tool. In the audio session handler, detect `FunctionCall` parts from Gemini responses, route to the appropriate MCP tool or RAG service, and send `FunctionResponse` back. All execution is client-side, so no public endpoint is needed. The voice agent could say "Let me check where grandma is" → call `get_person_locations` → respond with the result.
+The voice companion now supports function calling via Gemini Live. A configurable subset of MCP tools (`mcp.gemini_tools` in settings) is exposed as Gemini function declarations. When the user asks a question like "what's the weather?" or "where is everyone?", Gemini pauses audio generation, calls the tool, and incorporates the result into its spoken response. Tool calls are logged in the conversation history with metadata. See `backend/mcp/gemini_adapter.py` for the bridging layer.
 
 ### Pipeline Templates / Presets
 

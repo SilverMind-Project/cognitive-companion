@@ -172,7 +172,7 @@ class ConditionEvaluator:
         if tok.kind == "IDENT":
             return _resolve_path(data, tok.value), pos + 1
 
-        # Unknown token — skip
+        # Unknown token  skip
         return None, pos + 1
 
     def _parse_function(
@@ -201,7 +201,7 @@ class ConditionEvaluator:
             pos += 1
 
         if func_name == "exists":
-            # exists(path) — check if path resolves to a non-None value
+            # exists(path)  check if path resolves to a non-None value
             # Re-resolve: the arg was already resolved, so check truthiness
             return args[0] is not None if args else False, pos
 

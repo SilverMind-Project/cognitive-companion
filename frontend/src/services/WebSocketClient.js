@@ -2,6 +2,15 @@
  * WebSocket client for real-time audio and push notifications.
  */
 
+const NOTIFICATION_TYPES = new Set([
+  "command",
+  "emergency",
+  "emergency_alert",
+  "info",
+  "reminder",
+  "warning",
+]);
+
 export class WebSocketClient {
   constructor(url) {
     this.url = url;
@@ -59,10 +68,12 @@ export class WebSocketClient {
           this._notify("onStatus", data);
         } else if (data.type === "error") {
           this._notify("onStatus", data);
-        } else {
-          // All other message types are commands/notifications
-          // (emergency, warning, info, reminder, command)
+        } else if (data.type === "tool_calls") {
+          this._notify("onStatus", data);
+        } else if (NOTIFICATION_TYPES.has(data.type)) {
           this._notify("onCommand", data);
+        } else {
+          this._notify("onStatus", data);
         }
       } catch {
         // ignore malformed messages

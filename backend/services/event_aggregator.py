@@ -103,14 +103,18 @@ class EventAggregator:
         """
         self._cancel_timer(sensor_id)
 
-        buf = self.buffers.pop(sensor_id, [])
+        # Peek at the buffer before removing it so we can restore on failure.
+        buf = self.buffers.get(sensor_id, [])
         if not buf:
+            self.buffers.pop(sensor_id, None)
             logger.debug("flush_empty_buffer", sensor_id=sensor_id)
             return
 
         logger.info("flush_triggered", sensor_id=sensor_id, count=len(buf))
 
-        # Persist each media path to the MediaCache table
+        # Persist each media path to the MediaCache table.  Only remove the
+        # buffer from memory once the DB write succeeds  that way a transient
+        # DB error doesn't silently discard media paths.
         now_utc = datetime.now(UTC)
         expires_at = now_utc + timedelta(minutes=self.media_retention_minutes)
 
@@ -129,9 +133,11 @@ class EventAggregator:
                 )
                 db.merge(entry)
             db.commit()
+            # DB write succeeded  now remove the buffer.
+            self.buffers.pop(sensor_id, None)
         except Exception:
             db.rollback()
-            logger.exception("flush_db_error", sensor_id=sensor_id)
+            logger.exception("flush_db_error", sensor_id=sensor_id, paths=buf)
             raise
         finally:
             db.close()

@@ -87,6 +87,13 @@ class RealtimeLLMProvider(ABC):
             yield  # type: ignore[misc]
 
     @abstractmethod
+    async def send_tool_response(
+        self, session: RealtimeSession, function_responses: list[Any]
+    ) -> None:
+        """Send tool execution results back to the provider."""
+        ...
+
+    @abstractmethod
     async def disconnect(self, session: RealtimeSession) -> None:
         """Gracefully tear down the session."""
         ...

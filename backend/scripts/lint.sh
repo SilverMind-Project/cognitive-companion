@@ -20,7 +20,7 @@ uv run ruff format --check .
 
 echo ""
 echo "=== mypy ==="
-cd ..  # repo root — mypy needs to resolve 'backend' as a package
+cd ..  # repo root  mypy needs to resolve 'backend' as a package
 backend/.venv/bin/mypy backend/ --config-file backend/pyproject.toml
 
 echo ""

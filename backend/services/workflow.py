@@ -1,4 +1,4 @@
-"""Workflow pipeline — matches sensor events to rules and delegates
+"""Workflow pipeline  matches sensor events to rules and delegates
 execution to the :class:`PipelineExecutor`.
 
 This module acts as the entry point for all sensor-triggered processing.
@@ -39,7 +39,7 @@ class WorkflowPipeline:
     ) -> list[WorkflowExecution]:
         """Find matching rules for a sensor event and execute their pipelines.
 
-        Returns a list of :class:`WorkflowExecution` objects — one per matched
+        Returns a list of :class:`WorkflowExecution` objects  one per matched
         rule.
         """
         sensor = (
@@ -73,11 +73,17 @@ class WorkflowPipeline:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         executions: list[WorkflowExecution] = []
-        for result in results:
+        for rule, result in zip(matched_rules, results):
             if isinstance(result, WorkflowExecution):
                 executions.append(result)
             elif isinstance(result, Exception):
-                logger.error("rule_execution_error", error=str(result))
+                logger.error(
+                    "rule_execution_error",
+                    rule_id=rule.id,
+                    rule=rule.name,
+                    sensor_id=sensor_id,
+                    error=str(result),
+                )
 
         return executions
 
@@ -93,7 +99,7 @@ class WorkflowPipeline:
         Called by :class:`SensorPollingService` on each poll cycle for sensors
         that are currently occupied. The rules engine filters by
         ``primary_sensor_id``, ``occupancy_config.min_minutes``, context
-        filters, and rate limits — so this method fires at most once per
+        filters, and rate limits  so this method fires at most once per
         ``cool_off_minutes`` per rule even though polling runs every 30 s.
         """
         matched_rules = self.rules_engine.get_matching_rules(
@@ -120,12 +126,14 @@ class WorkflowPipeline:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         executions: list[WorkflowExecution] = []
-        for result in results:
+        for rule, result in zip(matched_rules, results):
             if isinstance(result, WorkflowExecution):
                 executions.append(result)
             elif isinstance(result, Exception):
                 logger.error(
                     "occupancy_rule_execution_error",
+                    rule_id=rule.id,
+                    rule=rule.name,
                     sensor_id=sensor.id,
                     error=str(result),
                 )

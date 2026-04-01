@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, func
+from sqlalchemy import Index, JSON, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -31,4 +31,12 @@ class EventLog(Base):
     )  # processing, completed, ignored, failed
     workflow_execution_id: Mapped[int | None] = mapped_column(
         ForeignKey("workflow_executions.id"), nullable=True
+    )
+
+    # Composite index for rate-limit and cool-off queries:
+    #   WHERE rule_id = ? AND status = ? AND timestamp >= ?
+    # At scale (millions of rows per day) this is orders of magnitude faster
+    # than the three individual single-column indexes above.
+    __table_args__ = (
+        Index("ix_event_logs_rule_status_ts", "rule_id", "status", "timestamp"),
     )

@@ -2,7 +2,7 @@
 
 Queues an interactive voice prompt on the WebSocket backend task queue for
 delivery via the active Gemini Live session. Unlike TTS (a one-way
-announcement), this channel initiates a two-way conversation — the AI speaks
+announcement), this channel initiates a two-way conversation  the AI speaks
 the message and waits for a spoken response from the user.
 
 If no Gemini Live session is currently active the prompt is silently dropped.

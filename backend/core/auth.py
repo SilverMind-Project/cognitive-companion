@@ -22,6 +22,11 @@ from backend.core.exceptions import AuthenticationError, PermissionDeniedError
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+# Cached lookup dicts  rebuilt lazily and on settings.reload().
+_api_keys_cache: dict[str, dict] = {}
+_device_keys_cache: dict[str, dict] = {}
+_lookup_built: bool = False
+
 
 @dataclass
 class AuthContext:
@@ -34,24 +39,47 @@ class AuthContext:
     sensor_id: str | None = None
 
 
-def _build_lookup() -> tuple[dict[str, dict], dict[str, dict]]:
-    """Build lookup dicts from auth config. Called once per config reload."""
+def _build_lookup() -> None:
+    """Populate the module-level cache from the current auth config.
+
+    Called once at first use and whenever settings are reloaded so that
+    the O(n) config scan happens at most once per config lifetime rather
+    than on every authenticated request.
+    """
+    global _api_keys_cache, _device_keys_cache, _lookup_built
     auth_cfg = settings.get("auth", {})
 
-    api_keys: dict[str, dict] = {}
+    _api_keys_cache = {}
     for entry in auth_cfg.get("api_keys", []):
-        api_keys[entry["key"]] = entry
+        _api_keys_cache[entry["key"]] = entry
 
-    device_keys: dict[str, dict] = {}
+    _device_keys_cache = {}
     for entry in auth_cfg.get("device_keys", []):
-        device_keys[entry["key"]] = entry
+        _device_keys_cache[entry["key"]] = entry
 
-    return api_keys, device_keys
+    _lookup_built = True
+
+
+def _ensure_lookup() -> None:
+    """Build lookup cache on first call."""
+    if not _lookup_built:
+        _build_lookup()
+
+
+def invalidate_lookup_cache() -> None:
+    """Force a cache rebuild on the next authentication attempt.
+
+    Call this after ``settings.reload()`` so that newly added or rotated
+    keys take effect immediately without restarting the server.
+    """
+    global _lookup_built
+    _lookup_built = False
 
 
 def _resolve_key(raw_key: str) -> AuthContext:
     """Look up a raw key string in the config and return an AuthContext."""
-    api_keys, device_keys = _build_lookup()
+    _ensure_lookup()
+    api_keys, device_keys = _api_keys_cache, _device_keys_cache
 
     # Check device keys first (8-char uppercase)
     if raw_key in device_keys:

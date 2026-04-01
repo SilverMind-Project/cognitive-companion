@@ -5,12 +5,12 @@
 #   docker compose up -d
 #
 # External services (assumed running separately):
-#   - Person Identification Service (GPU) — see ../person-identification-service/
-#   - vLLM (Cosmos + TranslateGemma) — GPU inference servers
-#   - Ollama — logic reasoning LLM
-#   - Home Assistant — smart home integration
-#   - MinIO — S3-compatible object storage
-#   - TTS service — text-to-speech
+#   - Person Identification Service (GPU)  see ../person-identification-service/
+#   - vLLM (Cosmos + TranslateGemma)  GPU inference servers
+#   - Ollama  logic reasoning LLM
+#   - Home Assistant  smart home integration
+#   - MinIO  S3-compatible object storage
+#   - TTS service  text-to-speech
 
 services:
   # ─── Backend API ───────────────────────────────────────────────

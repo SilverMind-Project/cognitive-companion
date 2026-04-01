@@ -1,4 +1,4 @@
-"""APScheduler setup — periodic rule execution, workflow resume, and maintenance.
+"""APScheduler setup  periodic rule execution, workflow resume, and maintenance.
 
 Provides:
 - Cron-based rule scheduling from the database
@@ -24,7 +24,7 @@ from backend.services.event_aggregator import EventAggregator
 
 logger = get_logger(__name__)
 
-# Module-level reference set during setup — allows the resume callback to
+# Module-level reference set during setup  allows the resume callback to
 # locate the pipeline executor without circular imports.
 _pipeline_executor = None
 _db_session_factory: Callable[[], Session] | None = None
@@ -141,10 +141,10 @@ async def execute_periodic_rule(
 
         # For periodic rules, capture from primary sensor if configured
         media_paths: list[str] = []
-        if rule.primary_sensor_id and _pipeline_executor._aggregator:
+        aggregator = _pipeline_executor._services.event_aggregator
+        if rule.primary_sensor_id and aggregator:
             # Try to get recent images from the primary sensor
-            # The aggregator is available via the pipeline executor
-            media_paths = await _pipeline_executor._aggregator.get_recent_images(
+            media_paths = await aggregator.get_recent_images(
                 rule.primary_sensor_id, limit=3
             )
 

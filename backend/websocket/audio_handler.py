@@ -26,7 +26,6 @@ from collections.abc import Callable
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.integrations.llm.base import RealtimeLLMProvider
 from backend.services.conversation_manager import ConversationManager
@@ -55,12 +54,14 @@ class AudioSessionHandler:
         realtime_provider: RealtimeLLMProvider | None,
         conversation_manager: ConversationManager | None = None,
         rag_lookup: Callable[[str], str] | None = None,
+        tool_adapter=None,
     ) -> None:
         self.ws = websocket
         self.manager = manager
         self.provider = realtime_provider
         self.conv_manager = conversation_manager
         self.rag_lookup = rag_lookup
+        self.tool_adapter = tool_adapter
 
         # Internal queues and events
         self._client_to_backend: asyncio.Queue = asyncio.Queue()
@@ -83,6 +84,9 @@ class AudioSessionHandler:
 
         # Lazy connection flag
         self._backend_active = False
+
+        # Active session reference (for tool response sending)
+        self._current_session = None
 
     async def run(self) -> None:
         """Main entry point - run until the client disconnects."""
@@ -173,10 +177,15 @@ class AudioSessionHandler:
                     return
 
                 try:
+                    gemini_tools = None
+                    if self.tool_adapter:
+                        gemini_tools = self.tool_adapter.get_declarations()
                     config = self.provider.build_config(
-                        conversation_history=self._get_history_text()
+                        conversation_history=self._get_history_text(),
+                        tools=gemini_tools,
                     )
                     session = await self.provider.connect(config)
+                    self._current_session = session
                     self._backend_active = True
 
                     await self.ws.send_json(
@@ -255,6 +264,18 @@ class AudioSessionHandler:
 
     async def _handle_backend_response(self, response) -> None:
         """Process a response from the Gemini Live backend."""
+        # Handle tool calls (Gemini function calling)
+        tool_call = getattr(response, "tool_call", None)
+        if tool_call and tool_call.function_calls and self.tool_adapter:
+            await self._handle_tool_calls(tool_call.function_calls)
+            return
+
+        # Handle tool call cancellations
+        tool_call_cancellation = getattr(response, "tool_call_cancellation", None)
+        if tool_call_cancellation:
+            logger.info("gemini_tool_call_cancelled", ids=tool_call_cancellation.ids)
+            return
+
         server_content = getattr(response, "server_content", None)
         if server_content is None:
             return
@@ -304,7 +325,7 @@ class AudioSessionHandler:
                     )
 
             # Send transcripts to client.
-            # Orchestrator prompts are never shown to the senior — they are
+            # Orchestrator prompts are never shown to the senior  they are
             # internal nudges from the Cognitive Companion system.  The agent's
             # response to an orchestrator prompt is tagged "assistant" so the
             # senior can still hear/see the AI speaking, but the *trigger* that
@@ -350,6 +371,63 @@ class AudioSessionHandler:
             self._pending_assistant_text.clear()
             self._pending_prompt_text.clear()
             self._is_orchestrator_turn = False
+
+    # ------------------------------------------------------------------
+    # Tool call handling
+    # ------------------------------------------------------------------
+
+    async def _handle_tool_calls(self, function_calls) -> None:
+        """Execute tool calls from Gemini and send responses back.
+
+        The gemini-3.1-flash-live-preview model uses synchronous function
+        calling: audio generation pauses until all FunctionResponse objects
+        are sent back. Tool results flow through Gemini's spoken audio
+        response, never raw to the client.
+        """
+        from google.genai import types  # Lazy import: google-genai is optional
+
+        responses = []
+        tool_names = []
+        for fc in function_calls:
+            logger.info(
+                "gemini_tool_call_executing",
+                tool=fc.name,
+                call_id=fc.id,
+            )
+            result = await self.tool_adapter.execute_tool(fc.name, fc.args or {})
+            responses.append(
+                types.FunctionResponse(
+                    name=fc.name,
+                    response=result,
+                    id=fc.id,
+                )
+            )
+            tool_names.append(fc.name)
+
+            # Log tool call in conversation
+            if self.conv_manager and self._session_id:
+                self.conv_manager.add_turn(
+                    self._session_id,
+                    "system",
+                    f"Tool call: {fc.name}",
+                    metadata={
+                        "tool_call": fc.name,
+                        "args": fc.args,
+                        "result": result,
+                    },
+                )
+
+        # Send all responses back to Gemini
+        if responses and self.provider and self._current_session:
+            await self.provider.send_tool_response(
+                self._current_session, responses
+            )
+
+        # Notify client that tools were called (UX signal)
+        await self.ws.send_json({
+            "type": "tool_calls",
+            "tools": tool_names,
+        })
 
     # ------------------------------------------------------------------
     # Helpers

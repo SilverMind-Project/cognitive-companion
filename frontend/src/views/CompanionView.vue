@@ -83,6 +83,14 @@ const mainWidgets = computed(() => getWidgets("main"));
 const sidebarWidgets = computed(() => getWidgets("sidebar"));
 const overlayWidgets = computed(() => getWidgets("overlay"));
 
+function normalizeAlertType(type) {
+  if (type === "emergency_alert") return "emergency";
+  if (type === "warning" || type === "reminder" || type === "emergency") {
+    return type;
+  }
+  return "info";
+}
+
 // Provide props to widgets based on their ID
 function getWidgetProps(widgetId) {
   switch (widgetId) {
@@ -219,11 +227,8 @@ onMounted(() => {
   });
 
   wsClient.on("onCommand", (data) => {
-    const msgType = data.type;
-    const message = data.message || "";
-
-    alertMessage.value = message;
-    alertType.value = (msgType === "emergency_alert") ? "emergency" : msgType;
+    alertMessage.value = data.message || "";
+    alertType.value = normalizeAlertType(data.type);
     alertDialog.value = true;
   });
 

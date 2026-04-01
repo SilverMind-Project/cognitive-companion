@@ -175,7 +175,7 @@ class EInkRenderer:
         font_path: Path,
         region_name: str | None = None,
     ):
-        """Core PIL rendering logic — renders text into template regions."""
+        """Core PIL rendering logic  renders text into template regions."""
         if not template_path.exists():
             default_path = self._templates_dir / f"{self._default_template}.png"
             template_path = default_path if default_path.exists() else template_path
@@ -324,7 +324,7 @@ class EInkRenderer:
                 self._fonts_dir / db_tmpl.font_filename,
             )
 
-        # Pure filesystem fallback — no regions, default font
+        # Pure filesystem fallback  no regions, default font
         font_path = self._fonts_dir / self._default_font
         if not font_path.exists():
             font_path = self._fonts_dir / "NotoSans-Regular.ttf"

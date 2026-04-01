@@ -25,34 +25,41 @@ class ConnectionManager:
         self.active_connections: list[WebSocket] = []
         self.prompt_queue: asyncio.Queue = asyncio.Queue()
         self.max_connections: int = settings.get("websocket.max_connections", 10)
+        # Guards the active_connections list against concurrent connect /
+        # disconnect / broadcast operations.  Without the lock, two simultaneous
+        # upgrade requests could both pass the max-connections check before
+        # either appends to the list because ``await websocket.accept()``
+        # yields control between the check and the append.
+        self._lock: asyncio.Lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket) -> bool:
         """Accept and register a WebSocket connection.
 
         Returns False if the maximum number of connections has been reached.
         """
-        if len(self.active_connections) >= self.max_connections:
-            logger.warning("ws_max_connections_reached")
-            await websocket.close(code=1013, reason="Max connections reached")
-            return False
+        async with self._lock:
+            if len(self.active_connections) >= self.max_connections:
+                logger.warning("ws_max_connections_reached")
+                await websocket.close(code=1013, reason="Max connections reached")
+                return False
 
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        logger.info("ws_client_connected", total=len(self.active_connections))
-        return True
+            await websocket.accept()
+            self.active_connections.append(websocket)
+            logger.info("ws_client_connected", total=len(self.active_connections))
+            return True
 
-    def disconnect(self, websocket: WebSocket) -> None:
+    async def disconnect(self, websocket: WebSocket) -> None:
         """Unregister a WebSocket connection."""
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-            logger.info("ws_client_disconnected", total=len(self.active_connections))
+        async with self._lock:
+            if websocket in self.active_connections:
+                self.active_connections.remove(websocket)
+                logger.info("ws_client_disconnected", total=len(self.active_connections))
 
     async def broadcast(self, payload: dict[str, Any]) -> None:
         """Broadcast a JSON payload to all connected clients.
 
         Silently removes connections that have gone stale.
         """
-        disconnected: list[WebSocket] = []
         # The payload's own 'type' key (e.g. "warning", "emergency") is the
         # authoritative message type.  Fall back to "command" for payloads
         # that don't specify a type.
@@ -66,7 +73,14 @@ class ConnectionManager:
         ):
             message["alert_id"] = message["id"]
 
-        for ws in self.active_connections:
+        # Take a snapshot of current connections so we don't hold the lock
+        # while doing I/O.  Stale connections discovered during send are
+        # removed in a second pass under the lock.
+        async with self._lock:
+            snapshot = list(self.active_connections)
+
+        disconnected: list[WebSocket] = []
+        for ws in snapshot:
             try:
                 await ws.send_json(message)
             except Exception as exc:
@@ -74,7 +88,7 @@ class ConnectionManager:
                 disconnected.append(ws)
 
         for ws in disconnected:
-            self.disconnect(ws)
+            await self.disconnect(ws)
 
     async def send_to(self, websocket: WebSocket, payload: dict[str, Any]) -> None:
         """Send a JSON payload to a specific client."""
@@ -82,7 +96,7 @@ class ConnectionManager:
             await websocket.send_json(payload)
         except Exception:
             logger.warning("ws_send_to_error")
-            self.disconnect(websocket)
+            await self.disconnect(websocket)
 
     async def send_backend_task(
         self,

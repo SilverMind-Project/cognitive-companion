@@ -205,9 +205,23 @@ class PipelineExecutor:
             while step_index < len(step_list) or override_step_id is not None:
                 if override_step_id is not None:
                     step = step_by_id.get(override_step_id)
+                    target_id = override_step_id
                     override_step_id = None
                     if not step:
+                        logger.warning(
+                            "branch_target_not_found",
+                            rule=execution.rule.name,
+                            target_step_id=target_id,
+                        )
                         break
+                    # Advance the linear pointer past the branch target so that
+                    # neither it nor any skipped-over steps are re-executed when
+                    # the loop falls back to sequential processing.
+                    try:
+                        linear_pos = step_list.index(step)
+                        step_index = linear_pos + 1
+                    except ValueError:
+                        pass
                 else:
                     step = step_list[step_index]
                     step_index += 1

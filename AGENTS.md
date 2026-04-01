@@ -6,7 +6,7 @@ Guide for AI coding agents working on this codebase.
 
 Cognitive Companion v2 is a privacy-first AI system for senior care. It processes camera and sensor events through composable rule-based pipelines (vision, logic, translation, conditions, waits) and dispatches notifications across multiple channels. Each rule defines its own ordered pipeline steps. The system runs entirely on-premise.
 
-**Backend**: Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic 2.0, APScheduler, structlog
+**Backend**: Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic 2.0, APScheduler, stdlib logging
 **Frontend**: Vue 3, Vuetify 3, Vite, Pinia
 **Database**: SQLite (WAL mode via SQLAlchemy)
 **LLM Providers**: vLLM (vision/translation), Ollama (logic), Google Gemini (realtime voice)
@@ -79,7 +79,9 @@ backend/
       ollama.py            # Ollama provider (logic)
       gemini_live.py       # Google Gemini Live (realtime audio)
   mcp/
-    server.py              # MCPToolRegistry: read-only tools for AI agents
+    server.py              # FastMCP tool definitions with auto-generated schemas
+    gemini_adapter.py      # Bridges MCP tools to Gemini Live function calling
+    middleware.py           # ASGI auth middleware for /mcp endpoint
   routers/                 # FastAPI route handlers (one file per domain)
     rules.py               # Rule CRUD + pipeline step management
     pipeline.py            # Step type, channel type, filter type metadata endpoints
@@ -276,12 +278,15 @@ Global exception handlers in `register_exception_handlers()` convert these to HT
 
 ### Logging
 
-Use structlog via `get_logger()`. Never use `print()`.
+Use `get_logger()` from `backend.core.logging`. Never use `print()`. The logger
+wraps the Python stdlib `logging` module and accepts keyword context arguments
+that are appended to the log line as `key=value` pairs.
 
 ```python
 from backend.core.logging import get_logger
 logger = get_logger(__name__)
 logger.info("event_processed", sensor_id=sid, rule=rule.name)
+# output: "event_processed sensor_id=cam1 rule=Motion Alert"
 ```
 
 ## Key Files to Read First
@@ -385,9 +390,9 @@ class YourFilter(ContextFilter):
 
 ### Adding a New MCP Tool
 
-1. Add a `_tool_<name>` method to `MCPToolRegistry` in `backend/mcp/server.py`
-2. Add the tool definition to `_build_tool_definitions()` in the same file
-3. Add the tool name to `config/settings.yaml` under `mcp.tools`
+1. Add a `@_register` decorated async function in `backend/mcp/server.py`. Type hints on parameters auto-generate JSON schemas.
+2. Add the tool name to `config/settings.yaml` under `mcp.tools`
+3. If the tool should be available in voice conversations, also add it to `mcp.gemini_tools`
 
 ### Adding a New Notification Channel
 
@@ -500,7 +505,9 @@ One row per eink display device. Links a sensor to its current rendered state an
 ## Testing
 
 - Backend: `pytest` + `pytest-asyncio` (configured in `pyproject.toml`)
-- When writing tests, place them in `tests/` mirroring the `backend/` directory structure
+- Place tests in `backend/tests/` mirroring the `backend/` structure (e.g., `tests/services/test_rules_engine.py`)
+- `backend/tests/conftest.py` provides `db_engine`, `db_session`, and `db_factory` fixtures backed by an in-memory SQLite instance
+- Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone-mismatch when comparing timestamps stored as UTC strings in SQLite
 - Run with: `uv run pytest`
 - Run linters: `./scripts/lint.sh` (ruff + mypy) or `./scripts/lint.sh --fix` (auto-fix)
 

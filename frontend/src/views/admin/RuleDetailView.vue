@@ -167,7 +167,7 @@
                 v-model="ctxForm.negate"
                 label="Negate (NOT)"
                 color="warning"
-                hint="Invert the filter — e.g. NOT in this room, NOT during this time"
+                hint="Invert the filter  e.g. NOT in this room, NOT during this time"
                 persistent-hint
                 class="mb-3"
               />

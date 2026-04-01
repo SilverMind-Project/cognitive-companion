@@ -14,11 +14,11 @@ dependencies = [
     "httpx>=0.27",
     "boto3>=1.35",
     "apscheduler>=3.10",
-    "structlog>=24.0",
     "pillow>=10.0",
     "python-multipart>=0.0.9",
     "python-telegram-bot>=21.0",
     "tenacity>=9.1.4",
+    "mcp[cli]>=1.9",
 ]
 
 [project.optional-dependencies]
@@ -50,21 +50,21 @@ select = [
     "F",     # pyflakes (includes unused imports, undefined names)
     "I",     # isort
     "W",     # pycodestyle warnings
-    "UP",    # pyupgrade — modernize syntax
-    "B",     # flake8-bugbear — common bug patterns
+    "UP",    # pyupgrade  modernize syntax
+    "B",     # flake8-bugbear  common bug patterns
     "SIM",   # flake8-simplify
-    "TCH",   # flake8-type-checking — move type-only imports behind TYPE_CHECKING
+    "TCH",   # flake8-type-checking  move type-only imports behind TYPE_CHECKING
     "RUF",   # ruff-specific rules
-    "PIE",   # flake8-pie — misc lint
+    "PIE",   # flake8-pie  misc lint
     "PT",    # flake8-pytest-style
     "C4",    # flake8-comprehensions
-    "T20",   # flake8-print — flag print() left in code
+    "T20",   # flake8-print  flag print() left in code
 ]
 ignore = [
     "E501",    # line length handled by formatter
     "B008",    # Depends() in FastAPI param defaults is idiomatic
-    "RUF012",  # ClassVar for mutable class attrs — too noisy for registries
-    "TCH",     # type-checking imports — adopt incrementally
+    "RUF012",  # ClassVar for mutable class attrs  too noisy for registries
+    "TCH",     # type-checking imports  adopt incrementally
     "TC",      # type-checking imports (older alias)
 ]
 

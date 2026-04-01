@@ -1,3 +1,3 @@
-from backend.mcp.server import MCPToolRegistry
+from backend.mcp.server import get_tool_registry, init_services, mcp_server
 
-__all__ = ["MCPToolRegistry"]
+__all__ = ["get_tool_registry", "init_services", "mcp_server"]

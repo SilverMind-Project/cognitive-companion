@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, exc as sa_exc, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.core.config import settings
@@ -55,27 +55,6 @@ def init_db(url: str | None = None) -> None:
     import backend.models  # noqa: F401
 
     Base.metadata.create_all(bind=_engine)
-
-    # Lightweight migrations for SQLite (no Alembic)
-    _run_migrations(_engine)
-
-
-def _run_migrations(engine) -> None:
-    """Apply additive schema migrations that create_all cannot handle.
-
-    Each migration is idempotent — safe to run on every startup.
-    """
-    _MIGRATIONS = [
-        # Add negate column to rule_contexts (context filter negation support)
-        "ALTER TABLE rule_contexts ADD COLUMN negate BOOLEAN DEFAULT 0",
-    ]
-    with engine.connect() as conn:
-        for stmt in _MIGRATIONS:
-            try:
-                conn.execute(text(stmt))
-                conn.commit()
-            except Exception:
-                conn.rollback()
 
 
 def get_db() -> Generator[Session, None, None]:

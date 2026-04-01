@@ -1,5 +1,5 @@
 """
-eInk display image endpoints — per-device serving, template CRUD, rendering.
+eInk display image endpoints  per-device serving, template CRUD, rendering.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def _serve_image_for_sensor(
 
     now = datetime.now(UTC)
     if state and state.expires_at and state.expires_at < now and _DEFAULT_TEMPLATE.exists():
-        # Expired — serve default
+        # Expired  serve default
         return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
 
     active_path = eink_renderer.get_active_image_path(sensor_id)
@@ -81,7 +81,7 @@ def serve_active_image(
     """Serve the active image for the authenticated device."""
     sensor_id = auth.sensor_id
     if not sensor_id:
-        # Non-device caller without sensor_id — serve default
+        # Non-device caller without sensor_id  serve default
         if _DEFAULT_TEMPLATE.exists():
             return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
         raise NotFoundError("Image", "no sensor_id in auth context")

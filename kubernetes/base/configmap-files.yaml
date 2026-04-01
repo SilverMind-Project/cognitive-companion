@@ -8,7 +8,7 @@
 #     --from-file=notifications.yaml=config/notifications.yaml \
 #     --dry-run=client -o yaml > kubernetes/base/configmap-files.yaml
 #
-# Note: The YAML files use ${ENV_VAR} interpolation — actual values
+# Note: The YAML files use ${ENV_VAR} interpolation  actual values
 # come from the cc-secrets Secret and cc-config ConfigMap at runtime.
 apiVersion: v1
 kind: ConfigMap

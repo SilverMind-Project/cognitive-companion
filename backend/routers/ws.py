@@ -28,6 +28,7 @@ async def websocket_audio(websocket: WebSocket, request: Request = None):
     realtime_provider = getattr(app.state, "realtime_provider", None)
     conversation_manager = getattr(app.state, "conversation_manager", None)
     rag_lookup = getattr(app.state, "rag_lookup", None)
+    gemini_adapter = getattr(app.state, "gemini_adapter", None)
 
     if manager is None:
         await websocket.close(code=1011, reason="Server not ready")
@@ -44,6 +45,7 @@ async def websocket_audio(websocket: WebSocket, request: Request = None):
             realtime_provider=realtime_provider,
             conversation_manager=conversation_manager,
             rag_lookup=rag_lookup,
+            tool_adapter=gemini_adapter,
         )
         await handler.run()
     except WebSocketDisconnect:
@@ -51,5 +53,5 @@ async def websocket_audio(websocket: WebSocket, request: Request = None):
     except Exception as exc:
         logger.error("ws_audio_handler_error", error=str(exc))
     finally:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
         logger.info("ws_audio_handler_exited")

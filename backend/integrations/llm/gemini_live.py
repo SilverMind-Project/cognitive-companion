@@ -78,6 +78,15 @@ class GeminiLiveProvider(RealtimeLLMProvider):
             async for response in session.session_object.receive():
                 yield response
 
+    async def send_tool_response(
+        self, session: RealtimeSession, function_responses: list
+    ) -> None:
+        """Send function call results back to the Gemini session."""
+        logger.info("gemini_send_tool_response", count=len(function_responses))
+        await session.session_object.send_tool_response(
+            function_responses=function_responses,
+        )
+
     async def disconnect(self, session: RealtimeSession) -> None:
         """Close the Gemini session."""
         session_manager = session.metadata.get("session_manager")
@@ -93,6 +102,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         self,
         system_instruction: str = "",
         conversation_history: str = "",
+        tools: list[dict] | None = None,
     ) -> dict:
         """Build the Gemini session config dict.
 
@@ -106,13 +116,18 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         if conversation_history:
             base_instruction += (
                 "\n\nThis is a RESUMED conversation. Here is the transcript of "
-                "what was discussed so far — use it to maintain full context "
+                "what was discussed so far  use it to maintain full context "
                 "and continuity:\n\n" + conversation_history
             )
 
-        return {
+        config = {
             "response_modalities": ["AUDIO"],
             "system_instruction": {"parts": [{"text": base_instruction}]},
             "output_audio_transcription": {},
             "input_audio_transcription": {},
         }
+
+        if tools:
+            config["tools"] = [{"function_declarations": tools}]
+
+        return config

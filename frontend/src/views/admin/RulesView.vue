@@ -35,7 +35,7 @@
       </v-data-table>
     </v-card>
 
-    <!-- Create Dialog (minimal — trigger type and all other settings are configured on the detail page) -->
+    <!-- Create Dialog (minimal  trigger type and all other settings are configured on the detail page) -->
     <v-dialog v-model="createDialog" max-width="500">
       <v-card rounded="xl">
         <v-card-title>Create Rule</v-card-title>

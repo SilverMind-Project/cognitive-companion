@@ -162,6 +162,25 @@ image:
   display_width: 800
   display_height: 480
 
+# Per-camera configuration (keyed by sensor_id)
+#
+# rotate:        optional – clockwise rotation applied before saving to MinIO.
+#                Accepted values: 90, 180, 270.  Omit or set to 0 to skip.
+#
+# label_filter:  optional – drop images when the on-device YOLO11 detections
+#                do not satisfy the filter.
+#   labels:      list of label strings to match against payload.data.labels.
+#   mode:        "any" (default) – pass if at least one label is detected.
+#                "all"           – pass only when every label is detected.
+#
+# cameras:
+#   recamera_kitchen:
+#     rotate: 90
+#     label_filter:
+#       labels: ["person"]
+#       mode: "any"
+cameras: {}
+
 # Logging
 logging:
   level: "INFO"

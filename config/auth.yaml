@@ -24,7 +24,13 @@ device_keys:
   - key: "RCAM0001"
     name: "Kitchen reCamera"
     device_type: "recamera"
-    sensor_id: "recamera_kitchen"
+    sensor_id: "recamera_kitchen1"
+    permissions:
+      - "device:recamera"
+  - key: "RCAM0002"
+    name: "Kitchen reCamera"
+    device_type: "recamera"
+    sensor_id: "recamera_kitchen2"
     permissions:
       - "device:recamera"
 

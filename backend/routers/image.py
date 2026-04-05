@@ -89,15 +89,15 @@ def serve_active_image(
     return _serve_image_for_sensor(sensor_id, db, request)
 
 
-@router.get("/active/{sensor_id}")
-def serve_active_image_by_id(
-    sensor_id: str,
-    request: Request,
-    db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("image:read")),
-):
-    """Serve the active image for a specific sensor (admin/preview use)."""
-    return _serve_image_for_sensor(sensor_id, db, request)
+# @router.get("/active/{sensor_id}")
+# def serve_active_image_by_id(
+#     sensor_id: str,
+#     request: Request,
+#     db: Session = Depends(get_db),
+#     _auth: AuthContext = Depends(require_permission("image:read")),
+# ):
+#     """Serve the active image for a specific sensor (admin/preview use)."""
+#     return _serve_image_for_sensor(sensor_id, db, request)
 
 
 # ---------------------------------------------------------------------------

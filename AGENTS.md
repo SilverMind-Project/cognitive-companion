@@ -265,6 +265,40 @@ Permission checking uses fnmatch patterns defined in `config/auth.yaml`. The `re
 
 **Device key sensor upsert:** At startup, `_upsert_device_key_sensors()` in `backend/main.py` reads every entry under `auth.device_keys` (from `config/auth.yaml`) and upserts a `Sensor` record using the entry's `sensor_id` as the primary key. `device_type` maps to `sensor_type` via `_DEVICE_TYPE_TO_SENSOR_TYPE` (`recamera` -> `camera`, `reterminal` -> `eink`). This ensures hardware devices are immediately visible in the sensors API without a manual create step. The upsert is idempotent: existing sensors get their name and sensor_type refreshed.
 
+**reCamera payload format:** The reCamera device posts a JSON object with the following structure. The device key is passed as the `?api_key=` query parameter (not in the body).
+
+```json
+{
+  "code": 0,
+  "data": {
+    "image": "<base64-encoded JPEG>",
+    "labels": ["person"],
+    "boxes": [[x1, y1, x2, y2, score, class_id]],
+    "count": 287,
+    "perf": [[model_id, preprocess_ms, inference_ms]],
+    "resolution": [1280, 720]
+  },
+  "name": "invoke",
+  "type": 1
+}
+```
+
+`data.image` is the JPEG image. `data.labels` contains the object class names detected by the on-device YOLO11 model and drives per-camera label filtering.
+
+**Per-camera configuration (`config/settings.yaml`):** The `cameras` section accepts per-sensor options keyed by `sensor_id`:
+
+```yaml
+cameras:
+  recamera_kitchen:
+    rotate: 90           # clockwise rotation before MinIO upload (90, 180, 270)
+    label_filter:
+      labels: ["person"] # required labels from payload.data.labels
+      mode: "any"        # "any" (default) or "all"
+```
+
+- `rotate`: applies a clockwise PIL rotation to the decoded JPEG before uploading. Useful when cameras are mounted at an angle.
+- `label_filter`: drops the image (returns `{"status": "filtered"}`) when the detected labels do not satisfy the filter. `mode: "any"` requires at least one label to match; `mode: "all"` requires every configured label to be present. Omitting `label_filter` passes all images through.
+
 ### Error Handling
 
 Raise custom exceptions from `backend/core/exceptions.py`:

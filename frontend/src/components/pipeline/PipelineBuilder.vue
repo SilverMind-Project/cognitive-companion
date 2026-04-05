@@ -10,13 +10,13 @@
       >
         <StepCard
           :step="step"
-          :draggable="true"
+          :index="index"
+          :total="steps.length"
           @edit="openConfig(step)"
           @delete="removeStep(step.id)"
           @toggle="toggleStep(step)"
-          @dragstart="onDragStart(index, $event)"
-          @dragover.prevent
-          @drop="onDrop(index)"
+          @moveup="moveStep(index, index - 1)"
+          @movedown="moveStep(index, index + 1)"
         />
       </v-timeline-item>
     </v-timeline>
@@ -55,10 +55,10 @@ const steps = ref([]);
 const paletteOpen = ref(false);
 const configOpen = ref(false);
 const editingStep = ref(null);
-const dragIndex = ref(-1);
 
 const STEP_ICONS = {
   person_identification: "mdi-face-recognition",
+  llm_call: "mdi-brain",
   vision_analysis: "mdi-eye",
   logic_reasoning: "mdi-head-cog",
   translation: "mdi-translate",
@@ -120,6 +120,25 @@ async function toggleStep(step) {
   }
 }
 
+async function moveStep(fromIndex, toIndex) {
+  if (toIndex < 0 || toIndex >= steps.value.length) return;
+
+  const reordered = [...steps.value];
+  const [moved] = reordered.splice(fromIndex, 1);
+  reordered.splice(toIndex, 0, moved);
+
+  // Optimistically update UI before the API call
+  steps.value = reordered;
+
+  try {
+    await api.reorderRuleSteps(props.ruleId, reordered.map((s) => s.id));
+    emit("updated");
+  } catch (e) {
+    console.error("Failed to reorder steps:", e);
+    await loadSteps();
+  }
+}
+
 function openConfig(step) {
   editingStep.value = { ...step };
   configOpen.value = true;
@@ -138,31 +157,6 @@ async function saveStepConfig(data) {
     emit("updated");
   } catch (e) {
     console.error("Failed to save step config:", e);
-  }
-}
-
-function onDragStart(index, event) {
-  dragIndex.value = index;
-  event.dataTransfer.effectAllowed = "move";
-}
-
-async function onDrop(targetIndex) {
-  const fromIndex = dragIndex.value;
-  if (fromIndex < 0 || fromIndex === targetIndex) return;
-
-  const moved = steps.value.splice(fromIndex, 1)[0];
-  steps.value.splice(targetIndex, 0, moved);
-
-  const orderedIds = steps.value.map((s) => s.id);
-  try {
-    await api.reorderRuleSteps(props.ruleId, orderedIds);
-    await loadSteps();
-    emit("updated");
-  } catch (e) {
-    console.error("Failed to reorder steps:", e);
-    await loadSteps();
-  } finally {
-    dragIndex.value = -1;
   }
 }
 

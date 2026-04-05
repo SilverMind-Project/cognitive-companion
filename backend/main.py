@@ -134,11 +134,20 @@ async def lifespan(app: FastAPI):
     app.state.realtime_provider = realtime_provider
 
     # -- LLM providers for the pipeline ------------------------------------
-    from backend.integrations.llm import get_provider
+    from backend.integrations.llm import LLMModelRegistry, get_provider
 
     vision_provider = get_provider(settings.get("llm.vision.provider"))
     logic_provider = get_provider(settings.get("llm.logic.provider"))
     translation_provider = get_provider(settings.get("llm.translation.provider"))
+
+    # -- Named model registry (for the unified llm_call step) --------------
+    llm_model_registry = LLMModelRegistry()
+    llm_model_registry.load_from_settings()
+    app.state.llm_model_registry = llm_model_registry
+    logger.info(
+        "llm_model_registry_loaded",
+        models=[c.id for c in llm_model_registry.all_configs()],
+    )
 
     # -- Conversation manager ----------------------------------------------
     from backend.services.conversation_manager import ConversationManager
@@ -224,6 +233,7 @@ async def lifespan(app: FastAPI):
         notification_dispatcher=notifier,
         ha_client=ha_client,
         event_aggregator=event_aggregator,
+        llm_model_registry=llm_model_registry,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor

@@ -63,6 +63,304 @@
           />
         </template>
 
+        <!-- llm_call -->
+        <template v-if="localStep.step_type === 'llm_call'">
+          <!-- Model selector -->
+          <v-select
+            v-model="cfg.model_id"
+            :items="llmModelItems"
+            :item-title="(m) => m.name || m.id"
+            :item-value="(m) => m.id"
+            label="Model"
+            variant="outlined"
+            density="comfortable"
+            hint="Select a model from the registry (settings.yaml → llm.models)"
+            persistent-hint
+            class="mb-3"
+          >
+            <template #item="{ item, props }">
+              <v-list-item v-bind="props">
+                <template #append>
+                  <div class="d-flex ga-1 ml-2">
+                    <v-chip
+                      v-for="cap in (item.raw.capabilities || [])"
+                      :key="cap"
+                      size="x-small"
+                      :color="capabilityColor(cap)"
+                      variant="tonal"
+                    >{{ cap }}</v-chip>
+                  </div>
+                </template>
+              </v-list-item>
+            </template>
+          </v-select>
+
+          <!-- Selected model capabilities summary -->
+          <div v-if="selectedLLMModel" class="d-flex ga-1 mb-3 flex-wrap">
+            <v-chip
+              v-for="cap in selectedLLMModel.capabilities"
+              :key="cap"
+              size="small"
+              :color="capabilityColor(cap)"
+              variant="tonal"
+            >{{ cap }}</v-chip>
+            <v-chip size="small" variant="outlined" class="ml-1">{{ selectedLLMModel.api_type }}</v-chip>
+            <v-chip v-if="selectedLLMModel.guided_decoding" size="small" color="success" variant="tonal">guided decoding</v-chip>
+          </div>
+
+          <!-- Prompt -->
+          <v-textarea
+            v-model="cfg.prompt"
+            label="Prompt"
+            variant="outlined"
+            rows="4"
+            class="mb-3"
+            hint="Use {{variable}} for template values, e.g. {{person_detections.0.name}}, {{vision_response}}"
+            persistent-hint
+          />
+
+          <!-- Special instructions (translation style, etc.) -->
+          <v-textarea
+            v-model="cfg.special_instructions"
+            label="Special Instructions (prepended to prompt)"
+            variant="outlined"
+            rows="2"
+            hint="Prepended before the prompt. Useful for style guides, translation instructions, etc."
+            persistent-hint
+            class="mb-3"
+          />
+
+          <!-- Context keys -->
+          <v-combobox
+            v-model="cfg.include_context"
+            :items="contextKeys"
+            label="Include Context Keys"
+            variant="outlined"
+            density="comfortable"
+            multiple
+            chips
+            closable-chips
+            hint="Pipeline data keys to include as context above the prompt"
+            persistent-hint
+            class="mb-3"
+          />
+
+          <!-- Vision / image options (shown only when model has vision capability) -->
+          <template v-if="selectedLLMModel && selectedLLMModel.capabilities.includes('vision')">
+            <v-divider class="mb-3" />
+            <div class="text-subtitle-2 mb-2">
+              <v-icon size="small" class="mr-1">mdi-camera</v-icon>
+              Image Inputs
+            </div>
+
+            <v-select
+              v-model="cfg.image_source"
+              :items="[
+                { title: 'None (text only)', value: 'none' },
+                { title: 'Trigger frames', value: 'trigger' },
+                { title: 'Additional cameras', value: 'additional' },
+                { title: 'Both (trigger + additional)', value: 'both' },
+              ]"
+              item-title="title"
+              item-value="value"
+              label="Image Source"
+              variant="outlined"
+              density="comfortable"
+              hint="Which images to attach to the prompt"
+              persistent-hint
+              class="mb-3"
+            />
+
+            <v-text-field
+              v-if="cfg.image_source !== 'none'"
+              v-model.number="cfg.max_images"
+              label="Max Images (total)"
+              variant="outlined"
+              density="comfortable"
+              type="number"
+              :min="1"
+              hint="Hard cap on total images sent to the model"
+              persistent-hint
+              class="mb-3"
+            />
+
+            <!-- Additional camera configuration -->
+            <template v-if="cfg.image_source === 'additional' || cfg.image_source === 'both'">
+              <v-combobox
+                v-model="cfg.additional_sensor_ids"
+                :items="cameraSensorItems"
+                label="Camera Sensors (in analysis order)"
+                variant="outlined"
+                density="comfortable"
+                multiple
+                chips
+                closable-chips
+                hint="Sensors are processed in the order listed. Determines grouping when 'Sort by sensor' is on."
+                persistent-hint
+                class="mb-3"
+              />
+              <v-combobox
+                v-model="cfg.additional_room_names"
+                :items="availableRooms"
+                label="Additional Rooms"
+                variant="outlined"
+                density="comfortable"
+                multiple
+                chips
+                closable-chips
+                hint="Pull images from all cameras in these rooms (unordered)"
+                persistent-hint
+                class="mb-3"
+              />
+
+              <!-- Sensor-ordered grouping for inter-frame analysis -->
+              <v-card variant="tonal" class="mb-3 pa-3">
+                <v-checkbox
+                  v-model="cfg.sort_by_sensor_then_time"
+                  label="Group by sensor, then chronological within each sensor"
+                  density="comfortable"
+                  hide-details
+                  class="mb-2"
+                />
+                <div class="text-caption text-medium-emphasis ml-8">
+                  Enables inter-frame temporal analysis. Images are ordered:
+                  all frames from sensor 1 (oldest→newest), then sensor 2, etc.
+                  Sensor order follows the Camera Sensors list above.
+                </div>
+                <v-text-field
+                  v-if="cfg.sort_by_sensor_then_time"
+                  v-model.number="cfg.images_per_sensor"
+                  label="Images per sensor"
+                  variant="outlined"
+                  density="compact"
+                  type="number"
+                  :min="1"
+                  hint="Maximum frames to include from each sensor"
+                  persistent-hint
+                  class="mt-3"
+                />
+              </v-card>
+
+              <!-- Time filter for additional images -->
+              <v-expansion-panels variant="accordion" class="mb-3">
+                <v-expansion-panel>
+                  <v-expansion-panel-title class="text-body-2">
+                    <v-icon class="mr-2" size="small">mdi-clock-outline</v-icon>
+                    Time Filter (optional)
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <v-text-field
+                      v-model.number="llmImageTimeFilter.since_minutes"
+                      label="Since (minutes ago)"
+                      variant="outlined"
+                      density="comfortable"
+                      type="number"
+                      :min="0"
+                      hint="Only include images from the last N minutes"
+                      persistent-hint
+                      class="mb-3"
+                    />
+                    <v-text-field
+                      v-model="llmImageTimeFilter.time_start"
+                      label="Time Start (HH:MM)"
+                      variant="outlined"
+                      density="comfortable"
+                      placeholder="e.g. 08:00"
+                      class="mb-3"
+                    />
+                    <v-text-field
+                      v-model="llmImageTimeFilter.time_end"
+                      label="Time End (HH:MM)"
+                      variant="outlined"
+                      density="comfortable"
+                      placeholder="e.g. 18:00"
+                    />
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
+            </template>
+          </template>
+
+          <!-- Response format -->
+          <v-divider class="mb-3" />
+          <div class="text-subtitle-2 mb-2">
+            <v-icon size="small" class="mr-1">mdi-code-json</v-icon>
+            Output Format
+          </div>
+
+          <v-select
+            v-model="cfg.response_format"
+            :items="[
+              { title: 'Free text', value: 'text' },
+              { title: 'JSON with schema (guided decoding)', value: 'json_schema' },
+              { title: 'Free JSON (no schema)', value: 'json_free' },
+            ]"
+            item-title="title"
+            item-value="value"
+            label="Response Format"
+            variant="outlined"
+            density="comfortable"
+            class="mb-3"
+          />
+
+          <template v-if="cfg.response_format === 'json_schema' || cfg.response_format === 'json_free'">
+            <v-textarea
+              v-model="cfg.response_schema"
+              label="Format Instruction (appended to prompt)"
+              variant="outlined"
+              rows="2"
+              hint="Natural-language description of expected JSON keys, appended to the prompt"
+              persistent-hint
+              class="mb-3"
+            />
+          </template>
+          <template v-if="cfg.response_format === 'json_schema'">
+            <v-textarea
+              v-model="cfg.response_json_schema"
+              label="JSON Schema"
+              variant="outlined"
+              rows="6"
+              :hint="selectedLLMModel && selectedLLMModel.guided_decoding
+                ? 'Schema enforced via guided decoding (vLLM). Leave empty to rely on prompt instruction only.'
+                : 'Schema injected as a prompt instruction (this model does not support guided decoding).'"
+              persistent-hint
+              :error-messages="llmJsonSchemaError"
+              class="mb-3"
+            />
+          </template>
+
+          <!-- Output key -->
+          <v-text-field
+            v-model="cfg.output_key"
+            label="Output Key"
+            variant="outlined"
+            density="comfortable"
+            hint="Pipeline data key for the result. Use 'logic_response', 'vision_response', or 'translation' for downstream step compatibility."
+            persistent-hint
+            class="mb-3"
+          />
+
+          <!-- Hallucination retry -->
+          <v-expansion-panels variant="accordion" class="mb-3">
+            <v-expansion-panel>
+              <v-expansion-panel-title class="text-body-2">
+                <v-icon class="mr-2" size="small">mdi-refresh-auto</v-icon>
+                Hallucination Retry (optional)
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-text-field
+                  v-model="cfg.hallucination_marker"
+                  label="Hallucination Marker"
+                  variant="outlined"
+                  density="comfortable"
+                  hint="If this string appears in the response, the call is automatically retried."
+                  persistent-hint
+                />
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
+        </template>
+
         <!-- vision_analysis -->
         <template v-if="localStep.step_type === 'vision_analysis'">
           <v-textarea
@@ -760,7 +1058,7 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive, onMounted } from "vue";
+import { ref, watch, reactive, computed, onMounted } from "vue";
 import { api } from "../../services/api.js";
 
 const props = defineProps({
@@ -771,6 +1069,7 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue", "save"]);
 
 const knownTypes = [
+  "llm_call",
   "person_identification", "vision_analysis", "logic_reasoning",
   "translation", "notification", "ha_action", "activity_detection",
   "wait", "condition", "verification",
@@ -797,7 +1096,15 @@ const genericConfigJson = ref("{}");
 const genericConfigError = ref("");
 const jsonSchemaError = ref("");
 const imageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
+const llmImageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
+const llmJsonSchemaError = ref("");
 const cameraSensorItems = ref([]);
+
+// LLM model registry (for the llm_call step)
+const llmModelItems = ref([]);
+const selectedLLMModel = computed(() =>
+  llmModelItems.value.find((m) => m.id === cfg.model_id) || null
+);
 
 // Pipeline data reference for the info panel
 const pipelineDataReference = [
@@ -908,6 +1215,24 @@ const fallbackDefaults = {
     re_notify_if_failed: false,
     re_notify_delay_minutes: 5,
   },
+  llm_call: {
+    model_id: "",
+    prompt: "",
+    include_context: [],
+    image_source: "none",
+    max_images: 5,
+    additional_sensor_ids: [],
+    additional_room_names: [],
+    images_per_sensor: 3,
+    sort_by_sensor_then_time: false,
+    image_time_filter: {},
+    response_format: "text",
+    response_schema: "",
+    response_json_schema: "",
+    output_key: "llm_response",
+    special_instructions: "",
+    hallucination_marker: "",
+  },
 };
 
 onMounted(async () => {
@@ -954,6 +1279,11 @@ onMounted(async () => {
   } catch {
     // HA not configured or unavailable
   }
+  try {
+    llmModelItems.value = await api.getLLMModels();
+  } catch {
+    // Registry unavailable
+  }
 });
 
 function getDefaults(stepType) {
@@ -981,6 +1311,22 @@ watch(
       imageTimeFilter.since_minutes = tf.since_minutes || null;
       imageTimeFilter.time_start = tf.time_start || "";
       imageTimeFilter.time_end = tf.time_end || "";
+    }
+
+    // Populate llmImageTimeFilter for llm_call
+    if (step.step_type === "llm_call") {
+      const tf = incoming.image_time_filter || {};
+      llmImageTimeFilter.since_minutes = tf.since_minutes || null;
+      llmImageTimeFilter.time_start = tf.time_start || "";
+      llmImageTimeFilter.time_end = tf.time_end || "";
+      if (cfg.response_json_schema) {
+        try {
+          JSON.parse(cfg.response_json_schema);
+          llmJsonSchemaError.value = "";
+        } catch (e) {
+          llmJsonSchemaError.value = "Invalid JSON: " + e.message;
+        }
+      }
     }
 
     // Validate response_json_schema for logic_reasoning and vision_analysis
@@ -1077,6 +1423,10 @@ function humanize(type) {
     .join(" ");
 }
 
+function capabilityColor(cap) {
+  return { text: "primary", vision: "indigo", translation: "teal" }[cap] || "grey";
+}
+
 function addCondition() {
   if (!cfg.conditions) cfg.conditions = [];
   cfg.conditions.push({
@@ -1143,6 +1493,25 @@ function save() {
       if (imageTimeFilter.time_start) tf.time_start = imageTimeFilter.time_start;
       if (imageTimeFilter.time_end) tf.time_end = imageTimeFilter.time_end;
       config.image_time_filter = Object.keys(tf).length > 0 ? tf : {};
+    }
+
+    // Merge llmImageTimeFilter into llm_call config
+    if (localStep.step_type === "llm_call") {
+      const tf = {};
+      if (llmImageTimeFilter.since_minutes) tf.since_minutes = llmImageTimeFilter.since_minutes;
+      if (llmImageTimeFilter.time_start) tf.time_start = llmImageTimeFilter.time_start;
+      if (llmImageTimeFilter.time_end) tf.time_end = llmImageTimeFilter.time_end;
+      config.image_time_filter = Object.keys(tf).length > 0 ? tf : {};
+
+      if (config.response_json_schema) {
+        try {
+          JSON.parse(config.response_json_schema);
+          llmJsonSchemaError.value = "";
+        } catch (e) {
+          llmJsonSchemaError.value = "Invalid JSON: " + e.message;
+          return;
+        }
+      }
     }
 
     // Validate JSON schema for logic_reasoning and vision_analysis

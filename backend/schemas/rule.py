@@ -41,9 +41,9 @@ class PipelineStepOut(BaseModel):
 
 
 class PipelineStepReorder(BaseModel):
-    """Batch reorder payload  list of {id, order} pairs."""
+    """Ordered list of step IDs; position in the list becomes the new order value."""
 
-    steps: list[dict[str, int]]
+    steps: list[int]
 
 
 # -- Rule --------------------------------------------------------------------

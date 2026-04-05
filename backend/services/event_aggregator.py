@@ -343,6 +343,102 @@ class EventAggregator:
 
         return urls
 
+    async def query_media_by_sensor(
+        self,
+        sensor_ids_ordered: list[str],
+        images_per_sensor: int = 3,
+        max_images: int = 15,
+        since_minutes: float | None = None,
+        time_start: str | None = None,
+        time_end: str | None = None,
+    ) -> list[str]:
+        """Return images grouped by sensor with intra-sensor chronological order.
+
+        Images are assembled as: all images for sensor_ids_ordered[0] (oldest
+        first), then sensor_ids_ordered[1], etc.  This ordering lets vision
+        reasoning models perform inter-frame analysis on a per-sensor basis.
+
+        Parameters
+        ----------
+        sensor_ids_ordered:
+            Sensor IDs in the desired group order.
+        images_per_sensor:
+            Maximum images to include from each sensor.
+        max_images:
+            Hard cap on total images returned across all sensors.
+        since_minutes / time_start / time_end:
+            Same time filter semantics as :meth:`query_recent_media`.
+        """
+        now_utc = datetime.now(UTC)
+
+        db: Session = self._db_session_factory()
+        try:
+            base_stmt = select(MediaCache).where(
+                MediaCache.deleted.is_(False),
+                MediaCache.expires_at > now_utc,
+                MediaCache.sensor_id.in_(sensor_ids_ordered),
+            )
+
+            if since_minutes is not None:
+                cutoff = now_utc - timedelta(minutes=since_minutes)
+                base_stmt = base_stmt.where(MediaCache.captured_at >= cutoff)
+
+            if time_start or time_end:
+                if time_start:
+                    match = re.match(r"(\d{1,2}):(\d{2})", time_start)
+                    if match:
+                        h, m = int(match.group(1)), int(match.group(2))
+                        start_dt = now_utc.replace(
+                            hour=h, minute=m, second=0, microsecond=0
+                        )
+                        base_stmt = base_stmt.where(
+                            MediaCache.captured_at >= start_dt
+                        )
+                if time_end:
+                    match = re.match(r"(\d{1,2}):(\d{2})", time_end)
+                    if match:
+                        h, m = int(match.group(1)), int(match.group(2))
+                        end_dt = now_utc.replace(
+                            hour=h, minute=m, second=59, microsecond=999999
+                        )
+                        base_stmt = base_stmt.where(
+                            MediaCache.captured_at <= end_dt
+                        )
+
+            # Fetch all matching rows; group and sort in Python for predictable ordering.
+            rows: list[MediaCache] = list(db.execute(base_stmt).scalars().all())
+
+            # Group by sensor, preserving intra-sensor chronological (ASC) order.
+            by_sensor: dict[str, list[MediaCache]] = {sid: [] for sid in sensor_ids_ordered}
+            for row in rows:
+                if row.sensor_id in by_sensor:
+                    by_sensor[row.sensor_id].append(row)
+            for sid in sensor_ids_ordered:
+                by_sensor[sid].sort(key=lambda r: r.captured_at)
+                by_sensor[sid] = by_sensor[sid][:images_per_sensor]
+
+            # Flatten in sensor order, apply overall cap.
+            ordered_rows: list[MediaCache] = []
+            for sid in sensor_ids_ordered:
+                ordered_rows.extend(by_sensor[sid])
+            ordered_rows = ordered_rows[:max_images]
+
+            urls: list[str] = []
+            for row in ordered_rows:
+                url = self._minio.generate_presigned_url(row.object_name)
+                row.presigned_url = url
+                urls.append(url)
+
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("query_media_by_sensor_error")
+            raise
+        finally:
+            db.close()
+
+        return urls
+
     # -- internal helpers -----------------------------------------------------
 
     def _start_timer(self, sensor_id: str) -> None:

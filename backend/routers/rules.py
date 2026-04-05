@@ -101,9 +101,44 @@ def delete_rule(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
+    from backend.models.event import EventLog
+    from backend.models.pipeline import WorkflowExecution
+
     rule = db.get(Rule, rule_id)
     if not rule:
         raise NotFoundError("Rule", rule_id)
+
+    # FK dependency order:
+    #   event_logs.workflow_execution_id → workflow_executions.id
+    #   event_logs.rule_id              → rules.id
+    #   workflow_executions.rule_id     → rules.id
+    #   pipeline_steps (self-ref)       next_step_on_true/false → pipeline_steps.id
+
+    exec_ids = [
+        row[0]
+        for row in db.query(WorkflowExecution.id)
+        .filter(WorkflowExecution.rule_id == rule_id)
+        .all()
+    ]
+    if exec_ids:
+        db.query(EventLog).filter(
+            EventLog.workflow_execution_id.in_(exec_ids)
+        ).update({"workflow_execution_id": None}, synchronize_session=False)
+
+    db.query(EventLog).filter(EventLog.rule_id == rule_id).update(
+        {"rule_id": None}, synchronize_session=False
+    )
+
+    db.query(WorkflowExecution).filter(
+        WorkflowExecution.rule_id == rule_id
+    ).delete(synchronize_session=False)
+
+    # Clear self-referential step branch FKs so cascade delete can proceed
+    db.query(PipelineStep).filter(PipelineStep.rule_id == rule_id).update(
+        {"next_step_on_true": None, "next_step_on_false": None},
+        synchronize_session=False,
+    )
+
     db.delete(rule)
     db.commit()
 
@@ -162,6 +197,35 @@ def add_step(
     return step
 
 
+@router.put("/{rule_id}/steps/reorder", response_model=list[PipelineStepOut])
+def reorder_steps(
+    rule_id: int,
+    payload: PipelineStepReorder,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:write")),
+):
+    rule = db.get(Rule, rule_id)
+    if not rule:
+        raise NotFoundError("Rule", rule_id)
+
+    for new_order, step_id in enumerate(payload.steps):
+        step = (
+            db.query(PipelineStep)
+            .filter(PipelineStep.id == step_id, PipelineStep.rule_id == rule_id)
+            .first()
+        )
+        if step:
+            step.order = new_order
+    db.commit()
+
+    return (
+        db.query(PipelineStep)
+        .filter(PipelineStep.rule_id == rule_id)
+        .order_by(PipelineStep.order)
+        .all()
+    )
+
+
 @router.put("/{rule_id}/steps/{step_id}", response_model=PipelineStepOut)
 def update_step(
     rule_id: int,
@@ -191,6 +255,8 @@ def delete_step(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
+    from backend.models.pipeline import WorkflowExecution
+
     step = (
         db.query(PipelineStep)
         .filter(PipelineStep.id == step_id, PipelineStep.rule_id == rule_id)
@@ -198,6 +264,18 @@ def delete_step(
     )
     if not step:
         raise NotFoundError("PipelineStep", step_id)
+
+    # Clear inbound FK references before deleting
+    db.query(WorkflowExecution).filter(
+        WorkflowExecution.current_step_id == step_id
+    ).update({"current_step_id": None}, synchronize_session=False)
+    db.query(PipelineStep).filter(
+        PipelineStep.next_step_on_true == step_id
+    ).update({"next_step_on_true": None}, synchronize_session=False)
+    db.query(PipelineStep).filter(
+        PipelineStep.next_step_on_false == step_id
+    ).update({"next_step_on_false": None}, synchronize_session=False)
+
     db.delete(step)
     db.commit()
 
@@ -211,38 +289,6 @@ def delete_step(
     for i, s in enumerate(remaining):
         s.order = i
     db.commit()
-
-
-@router.put("/{rule_id}/steps/reorder", response_model=list[PipelineStepOut])
-def reorder_steps(
-    rule_id: int,
-    payload: PipelineStepReorder,
-    db: Session = Depends(get_db),
-    _auth: AuthContext = Depends(require_permission("rules:write")),
-):
-    rule = db.get(Rule, rule_id)
-    if not rule:
-        raise NotFoundError("Rule", rule_id)
-
-    for item in payload.steps:
-        step = (
-            db.query(PipelineStep)
-            .filter(
-                PipelineStep.id == item["id"],
-                PipelineStep.rule_id == rule_id,
-            )
-            .first()
-        )
-        if step:
-            step.order = item["order"]
-    db.commit()
-
-    return (
-        db.query(PipelineStep)
-        .filter(PipelineStep.rule_id == rule_id)
-        .order_by(PipelineStep.order)
-        .all()
-    )
 
 
 @router.post("/{rule_id}/execute", status_code=202)

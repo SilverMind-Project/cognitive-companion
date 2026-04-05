@@ -1,0 +1,411 @@
+"""Unified LLM call step -- send a prompt to any configured model.
+
+This step replaces the separate ``vision_analysis``, ``logic_reasoning``,
+and ``translation`` steps with a single, model-agnostic interface.  The
+specific model is selected per step via ``model_id``, which must match an
+entry in ``llm.models`` in settings.yaml.
+
+Key capabilities controlled by step config
+------------------------------------------
+* **Model selection** -- pick any named model from the registry.
+* **Vision input** -- attach trigger frames or images from additional cameras.
+* **Sensor-ordered image assembly** -- images grouped by sensor then
+  sorted chronologically within each group; ideal for inter-frame analysis.
+* **Structured output** -- optionally enforce a JSON Schema via guided
+  decoding (vLLM) or prompt injection (other servers).
+* **Translation helpers** -- ``special_instructions`` prepended to the
+  prompt; ``hallucination_marker`` triggers tenacity retries.
+* **Output key** -- result stored under a configurable pipeline_data key
+  (defaults to ``llm_response``).
+"""
+
+from __future__ import annotations
+
+import json
+from contextlib import suppress
+from datetime import UTC, datetime
+
+from backend.core.logging import get_logger
+from backend.core.template import render_template
+from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.steps import StepRegistry
+from backend.steps.base import (
+    ServiceContainer,
+    StepHandler,
+    StepMetadata,
+    StepResult,
+    TriggerContext,
+)
+
+logger = get_logger(__name__)
+
+
+@StepRegistry.register
+class LLMCallHandler(StepHandler):
+
+    @classmethod
+    def metadata(cls) -> StepMetadata:
+        return StepMetadata(
+            type_name="llm_call",
+            display_name="LLM Call",
+            category="reasoning",
+            icon="mdi-brain",
+            description=(
+                "Send a prompt to any configured LLM model. "
+                "Supports text, vision (camera images), JSON schema enforcement, "
+                "and translation helpers."
+            ),
+            config_schema={
+                "type": "object",
+                "properties": {
+                    "model_id": {
+                        "type": "string",
+                        "description": "ID of the model from llm.models in settings.yaml",
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Prompt text. Supports {{variable}} templates.",
+                    },
+                    "include_context": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Pipeline data keys to prepend as context.",
+                    },
+                    "image_source": {
+                        "type": "string",
+                        "enum": ["none", "trigger", "additional", "both"],
+                        "default": "none",
+                        "description": (
+                            "'trigger' = frames that triggered this pipeline, "
+                            "'additional' = extra cameras only, "
+                            "'both' = trigger frames + additional cameras."
+                        ),
+                    },
+                    "max_images": {
+                        "type": "integer",
+                        "default": 5,
+                        "minimum": 1,
+                        "description": "Hard cap on total images sent to the model.",
+                    },
+                    "additional_sensor_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Extra camera sensor IDs to pull images from. "
+                            "Order determines the grouping order when "
+                            "sort_by_sensor_then_time is enabled."
+                        ),
+                    },
+                    "additional_room_names": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Pull images from all cameras in these rooms.",
+                    },
+                    "images_per_sensor": {
+                        "type": "integer",
+                        "default": 3,
+                        "minimum": 1,
+                        "description": (
+                            "Maximum images per sensor when sort_by_sensor_then_time "
+                            "is enabled. Ignored otherwise."
+                        ),
+                    },
+                    "sort_by_sensor_then_time": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When true, images are grouped by sensor (in "
+                            "additional_sensor_ids order) then sorted oldest-first "
+                            "within each group. Enables inter-frame analysis by "
+                            "vision reasoning models."
+                        ),
+                    },
+                    "image_time_filter": {
+                        "type": "object",
+                        "properties": {
+                            "since_minutes": {"type": "number"},
+                            "time_start": {"type": "string"},
+                            "time_end": {"type": "string"},
+                        },
+                        "description": "Time filter for additional camera images.",
+                    },
+                    "response_format": {
+                        "type": "string",
+                        "enum": ["text", "json_schema", "json_free"],
+                        "default": "text",
+                        "description": (
+                            "'text' = free-form string output. "
+                            "'json_schema' = enforce a JSON Schema (guided decoding "
+                            "or prompt injection). "
+                            "'json_free' = request JSON without a schema."
+                        ),
+                    },
+                    "response_schema": {
+                        "type": "string",
+                        "description": (
+                            "Natural-language description of the expected JSON format, "
+                            "appended to the prompt. Used with any response_format."
+                        ),
+                    },
+                    "response_json_schema": {
+                        "type": "string",
+                        "description": (
+                            "JSON Schema string for structured output enforcement. "
+                            "Parsed and passed to the provider. "
+                            "Only used when response_format=json_schema."
+                        ),
+                    },
+                    "output_key": {
+                        "type": "string",
+                        "default": "llm_response",
+                        "description": (
+                            "Pipeline data key where the result is stored. "
+                            "Use 'logic_response', 'vision_response', or 'translation' "
+                            "for compatibility with downstream steps."
+                        ),
+                    },
+                    "special_instructions": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Text prepended to the prompt (e.g. translation style guide).",
+                    },
+                    "hallucination_marker": {
+                        "type": "string",
+                        "default": "",
+                        "description": "If found in the response, the call is retried automatically.",
+                    },
+                },
+                "required": ["model_id"],
+            },
+            default_config={
+                "model_id": "",
+                "prompt": "",
+                "include_context": [],
+                "image_source": "none",
+                "max_images": 5,
+                "additional_sensor_ids": [],
+                "additional_room_names": [],
+                "images_per_sensor": 3,
+                "sort_by_sensor_then_time": False,
+                "image_time_filter": {},
+                "response_format": "text",
+                "response_schema": "",
+                "response_json_schema": "",
+                "output_key": "llm_response",
+                "special_instructions": "",
+                "hallucination_marker": "",
+            },
+        )
+
+    async def execute(
+        self,
+        step: PipelineStep,
+        execution: WorkflowExecution,
+        pipeline_data: dict,
+        trigger: TriggerContext,
+        services: ServiceContainer,
+    ) -> StepResult:
+        if not services.llm_model_registry:
+            logger.warning("llm_call_no_registry", step=step.step_type)
+            return StepResult(data={})
+
+        config = step.config_json or {}
+        model_id: str = config.get("model_id", "")
+        if not model_id:
+            logger.warning("llm_call_no_model_id", rule=execution.rule.name)
+            return StepResult(data={})
+
+        provider = services.llm_model_registry.get_provider(model_id)
+        if provider is None:
+            logger.error(
+                "llm_call_unknown_model",
+                model_id=model_id,
+                rule=execution.rule.name,
+            )
+            return StepResult(data={})
+
+        model_cfg = services.llm_model_registry.get_config(model_id)
+
+        # -- Resolve prompt template ------------------------------------------
+        trigger_vars = {
+            "room_name": trigger.room_name or "",
+            "sensor_id": trigger.sensor_id or "",
+        }
+        raw_prompt: str = config.get("prompt", "")
+        prompt = render_template(raw_prompt, pipeline_data, trigger_vars)
+
+        # -- Apply special instructions ----------------------------------------
+        special_instructions: str = config.get("special_instructions", "")
+        if special_instructions:
+            prompt = f"{special_instructions}\n{prompt}"
+
+        # -- Build context block -----------------------------------------------
+        include_context: list[str] = config.get("include_context", [])
+        now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+        context_parts = [
+            f"Room: {trigger.room_name or 'Unknown'}",
+            f"Current time: {now_str}",
+        ]
+
+        for key in include_context:
+            value = pipeline_data.get(key)
+            if value is not None:
+                if isinstance(value, list):
+                    if key == "person_detections":
+                        persons = [
+                            f"{d['name']} (confidence: {d['confidence']:.0%})"
+                            for d in value
+                        ]
+                        context_parts.append(
+                            f"Persons detected: {', '.join(persons)}"
+                        )
+                    else:
+                        context_parts.append(f"{key}: {json.dumps(value)}")
+                elif isinstance(value, dict):
+                    context_parts.append(f"{key}: {json.dumps(value)}")
+                else:
+                    context_parts.append(f"{key}: {value}")
+
+        # Auto-include common keys when include_context is empty
+        if not include_context:
+            if pipeline_data.get("person_detections"):
+                persons = [
+                    f"{d['name']} (confidence: {d['confidence']:.0%})"
+                    for d in pipeline_data["person_detections"]
+                ]
+                context_parts.append(f"Persons detected: {', '.join(persons)}")
+            if pipeline_data.get("vision_response"):
+                context_parts.append(
+                    f"Vision analysis: {pipeline_data['vision_response']}"
+                )
+
+        context_block = "\n".join(context_parts)
+
+        # -- Resolve response format / schema ----------------------------------
+        response_format: str = config.get("response_format", "text")
+        guided_schema: dict | None = None
+        format_instruction = ""
+
+        if response_format == "json_schema":
+            raw_schema = config.get("response_json_schema", "")
+            if raw_schema:
+                with suppress(json.JSONDecodeError, TypeError):
+                    guided_schema = json.loads(raw_schema)
+            format_instruction = config.get("response_schema", "")
+            if not format_instruction and guided_schema:
+                format_instruction = (
+                    "Respond with valid JSON matching the provided schema."
+                )
+        elif response_format == "json_free":
+            format_instruction = config.get(
+                "response_schema", "Respond with valid JSON."
+            )
+
+        # Append format instruction to the prompt
+        parts: list[str] = [context_block]
+        if prompt:
+            parts.append(prompt)
+        if format_instruction:
+            parts.append(format_instruction)
+        full_prompt = "\n\n".join(p for p in parts if p)
+
+        # -- Assemble images ---------------------------------------------------
+        image_source: str = config.get("image_source", "none")
+        max_images: int = int(config.get("max_images", 5))
+        media_paths: list[str] = []
+
+        has_vision = model_cfg and "vision" in model_cfg.capabilities
+
+        if has_vision and image_source != "none":
+            if image_source in ("trigger", "both"):
+                media_paths.extend(trigger.media_paths)
+
+            if image_source in ("additional", "both") and services.event_aggregator:
+                additional_sensors: list[str] = config.get("additional_sensor_ids") or []
+                additional_rooms: list[str] = config.get("additional_room_names") or []
+                time_filter: dict = config.get("image_time_filter") or {}
+                sort_by_sensor: bool = bool(config.get("sort_by_sensor_then_time", False))
+                images_per_sensor: int = int(config.get("images_per_sensor", 3))
+
+                # Resolve room names to sensor IDs when needed
+                resolved_sensors = list(additional_sensors)
+                if additional_rooms and not sort_by_sensor:
+                    # Unordered query handles room-to-sensor resolution internally
+                    extra = await services.event_aggregator.query_recent_media(
+                        sensor_ids=resolved_sensors if resolved_sensors else None,
+                        room_names=additional_rooms if additional_rooms else None,
+                        limit=max_images,
+                        since_minutes=time_filter.get("since_minutes"),
+                        time_start=time_filter.get("time_start"),
+                        time_end=time_filter.get("time_end"),
+                    )
+                    media_paths.extend(extra)
+                elif resolved_sensors and sort_by_sensor:
+                    # Sensor-ordered query for inter-frame analysis
+                    extra = await services.event_aggregator.query_media_by_sensor(
+                        sensor_ids_ordered=resolved_sensors,
+                        images_per_sensor=images_per_sensor,
+                        max_images=max_images,
+                        since_minutes=time_filter.get("since_minutes"),
+                        time_start=time_filter.get("time_start"),
+                        time_end=time_filter.get("time_end"),
+                    )
+                    media_paths.extend(extra)
+                elif resolved_sensors or additional_rooms or image_source == "additional":
+                    extra = await services.event_aggregator.query_recent_media(
+                        sensor_ids=resolved_sensors if resolved_sensors else None,
+                        room_names=additional_rooms if additional_rooms else None,
+                        limit=max_images,
+                        since_minutes=time_filter.get("since_minutes"),
+                        time_start=time_filter.get("time_start"),
+                        time_end=time_filter.get("time_end"),
+                    )
+                    media_paths.extend(extra)
+
+            media_paths = media_paths[:max_images]
+
+        # -- Call the model ---------------------------------------------------
+        hallucination_marker: str = config.get("hallucination_marker", "")
+
+        raw_response = await provider.call(
+            prompt=full_prompt,
+            media_paths=media_paths if media_paths else None,
+            media_type=trigger.media_type if media_paths else None,
+            response_schema=guided_schema,
+            hallucination_marker=hallucination_marker if hallucination_marker else None,
+        )
+
+        # -- Parse output -----------------------------------------------------
+        output_key: str = config.get("output_key", "llm_response") or "llm_response"
+        result_value: str | dict = raw_response or ""
+
+        if response_format in ("json_schema", "json_free") and raw_response:
+            with suppress(json.JSONDecodeError, TypeError):
+                result_value = json.loads(raw_response)
+
+        if isinstance(result_value, str) and not result_value:
+            logger.warning(
+                "llm_call_empty_response",
+                model_id=model_id,
+                rule=execution.rule.name,
+            )
+        elif isinstance(result_value, str) and response_format in (
+            "json_schema",
+            "json_free",
+        ):
+            logger.warning(
+                "llm_call_json_parse_failed",
+                model_id=model_id,
+                rule=execution.rule.name,
+                raw=raw_response[:200] if raw_response else "",
+            )
+
+        result_data: dict = {output_key: result_value}
+
+        # Propagate notification suppression when output mimics logic_response
+        if output_key == "logic_response" and isinstance(result_value, dict):
+            if not result_value.get("is_notification_needed", True):
+                result_data["notification_suppressed"] = True
+
+        return StepResult(data=result_data)

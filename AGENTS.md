@@ -9,7 +9,7 @@ Cognitive Companion v2 is a privacy-first AI system for senior care. It processe
 **Backend**: Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic 2.0, APScheduler, stdlib logging
 **Frontend**: Vue 3, Vuetify 3, Vite, Pinia
 **Database**: SQLite (WAL mode via SQLAlchemy)
-**LLM Providers**: vLLM (vision/translation), Ollama (logic), Google Gemini (realtime voice)
+**LLM Providers**: vLLM (vision/translation, OpenAI-compatible), llama.cpp llama-server (OpenAI-compatible, e.g. Gemma 4 26B at 192.168.1.31:8100), Ollama (logic, gemma3:4b), Google Gemini (realtime voice)
 **Object Storage**: MinIO (S3-compatible, via boto3)
 
 ## Project Layout
@@ -73,18 +73,21 @@ backend/
     eink_renderer.py       # Internal PIL-based eink display renderer
     person_id_client.py    # HTTP client for person identification service
     llm/
-      base.py              # LLMProvider abstract base
+      base.py              # LLMProvider abstract base + RealtimeLLMProvider
       chain.py             # LLMProviderChain (fallback) + LLMProviderPool (load balancing)
-      vllm.py              # vLLM provider (vision, translation)
-      ollama.py            # Ollama provider (logic)
+      openai_compat.py     # OpenAICompatibleProvider -- /v1/chat/completions (vLLM, llama.cpp, etc.)
+      vllm.py              # Legacy VLLMVisionProvider + VLLMTranslationProvider (used by old steps)
+      ollama.py            # OllamaProvider -- /api/chat (used by old logic_reasoning step + registry)
       gemini_live.py       # Google Gemini Live (realtime audio)
+      __init__.py          # LLMModelConfig, LLMModelRegistry (named model registry for llm_call step)
+                           # + get_provider() / get_llm_provider() for legacy steps
   mcp/
     server.py              # FastMCP tool definitions with auto-generated schemas
     gemini_adapter.py      # Bridges MCP tools to Gemini Live function calling
     middleware.py           # ASGI auth middleware for /mcp endpoint
   routers/                 # FastAPI route handlers (one file per domain)
     rules.py               # Rule CRUD + pipeline step management
-    pipeline.py            # Step type, channel type, filter type metadata endpoints
+    pipeline.py            # Step type, channel type, filter type, llm-models metadata endpoints
     ha_sync.py             # HA sync: rooms, sensors (with room_id), media_player entities; GET /ha/media-players, GET /ha/entities
     webhooks.py            # Webhook trigger endpoint with HMAC validation
     workflows.py           # Workflow execution endpoints (list, detail, cancel)
@@ -161,15 +164,16 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 
 **Wait steps** persist execution state to the `WorkflowExecution` table (status="waiting", resume_at set). The scheduler resumes execution via an APScheduler `DateTrigger`. A `SchedulerBridge` abstraction is injected into `PipelineExecutor` to decouple wait/resume scheduling.
 
-**Built-in step types**: person_identification, vision_analysis, logic_reasoning, translation, notification, ha_action, activity_detection, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`.
+**Built-in step types**: llm_call, person_identification, vision_analysis, logic_reasoning, translation, notification, ha_action, activity_detection, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`.
 
 Step type details:
 
+- `llm_call`: Unified LLM step. Selects a model by `model_id` from `LLMModelRegistry` (loaded from `llm.models` in settings.yaml). Supports vision (image attachment), JSON schema enforcement (`response_format`: `"text"`, `"json_schema"`, `"json_free"`), `special_instructions` prepended to the prompt, context key inclusion, and hallucination retry. Key config: `model_id`, `prompt`, `include_context`, `image_source` (`"none"`, `"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `sort_by_sensor_then_time` (groups images by sensor order then chronologically within each -- enables inter-frame analysis), `images_per_sensor`, `max_images`, `image_time_filter`, `response_format`, `response_json_schema`, `output_key` (defaults to `"llm_response"`; set to `"logic_response"` / `"vision_response"` / `"translation"` for downstream step compatibility), `hallucination_marker`. Uses `services.llm_model_registry` from `ServiceContainer`.
 - `activity_detection`: Records a single activity to the `PersonActivity` table. Config fields: `activity_type` (required), `person_id` (optional), `room_name` (optional), `confidence` (accepts a fixed number or `{{template}}` syntax, defaults to `0.8`). All fields support `{{template}}` syntax resolved against `pipeline_data` and trigger context. `person_id` defaults to `"unknown"` when empty. `room_name` defaults to the trigger room when empty. Use multiple steps to record multiple activities.
 - `verification`: A database query step. Queries the `PersonActivity` table to verify activities within configured time windows. Each condition has `activity_type` (required), optional `person_id` (template-enabled, empty = any person), optional `room_name` (template-enabled, empty = any room), time window (`within_minutes` or `window_start`/`window_end`), and `min_confidence`. Does not capture images or run LLM calls.
-- `vision_analysis`: Instructs the vision LLM. Supports strict structured JSON outputs via guided decoding depending on `response_format`, `response_schema`, and `response_json_schema`. Also allows retrieving context images from beyond the trigger event using `image_source` (`"trigger"`, `"additional"`, `"both"`), filtering via `additional_sensor_ids`, `additional_room_names`, and `image_time_filter` (`since_minutes`, etc).
-- `logic_reasoning`: Sends a prompt to the logic LLM provider. Supports strict JSON schema outputs via guided decoding with a `response_format` config option (`"default"`, `"activity_detection"`, `"custom"`), alongside `response_schema` (format description text) and `response_json_schema` (explicit JSON schema dict string).
-- `translation`: Translates text. Accepts `special_instructions` to prepend style guides to prompts, and a `hallucination_marker` to automatically retry gibberish outputs using the Tenacity library.
+- `vision_analysis`: Instructs the vision LLM (hardwired to `services.vision_provider`). Prefer `llm_call` for new pipelines. Supports `image_source` (`"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `additional_room_names`, `image_time_filter`, structured JSON output via `response_format`/`response_schema`/`response_json_schema`.
+- `logic_reasoning`: Sends a prompt to the logic LLM provider (hardwired to `services.logic_provider`). Prefer `llm_call` for new pipelines. Supports `response_format` (`"default"`, `"activity_detection"`, `"custom"`), `response_schema`, `response_json_schema`.
+- `translation`: Translates text (hardwired to `services.translation_provider`). Prefer `llm_call` for new pipelines. Accepts `special_instructions` and `hallucination_marker` for Tenacity retry.
 - `notification`: Formats and delivers alerts using `notifications.yaml` mappings. Has advanced template overriding support per-channel (`telegram_template`, `tts_template`, `eink_template`, `webhook_template`) that gracefully degrade to the unified `message_template` format.
 
 **Wiring**: `PipelineExecutor` is instantiated in the lifespan in `backend/main.py` and attached to `app.state`. It receives a `ServiceContainer` with all shared services.
@@ -213,13 +217,21 @@ The `PersonIDClient` at `backend/integrations/person_id_client.py` handles all c
 
 Rules can be triggered via `POST /webhooks/{rule_id}` with an `X-Webhook-Secret` header. The webhook endpoint validates the secret via HMAC comparison against the rule's `webhook_config.secret`. Secrets are generated via `POST /webhooks/{rule_id}/generate-secret`.
 
-### LLM Provider Chain and Pool
+### LLM Subsystem
 
-The LLM subsystem (`backend/integrations/llm/`) supports three modes configured in `settings.yaml`:
+The LLM subsystem (`backend/integrations/llm/`) has two independent layers:
 
-- **Simple**: single provider (default, existing behavior)
+**Named model registry** (`LLMModelRegistry`, loaded from `llm.models` in settings.yaml): used by the `llm_call` step. Each entry declares `id`, `name`, `api_type` (`openai` or `ollama`), `base_url`, `model`, `capabilities` (list of `text`/`vision`/`translation`), `guided_decoding` (bool), `max_tokens`, `timeout`, and `max_retries`. The registry lazily constructs and caches provider instances. `app.state.llm_model_registry` is a `LLMModelRegistry` instance. `GET /api/v1/pipeline/llm-models` exposes model metadata for the frontend step config UI.
+
+**`OpenAICompatibleProvider`** (`openai_compat.py`): handles all `/v1/chat/completions` servers (vLLM, llama.cpp llama-server, etc.). Supports images (base64 inline), two JSON enforcement modes (`guided_json` payload field for vLLM when `guided_decoding=True`; schema injected as prompt text otherwise), and hallucination retry via tenacity.
+
+**Legacy per-role providers** (used by `vision_analysis`, `logic_reasoning`, `translation` steps): configured under `llm.vision`, `llm.logic`, `llm.translation` in settings.yaml. Each supports three deployment modes:
+
+- **Simple**: single provider (default)
 - **Chain**: primary provider with fallback providers and configurable retry count
 - **Pool**: round-robin load balancing across multiple providers
+
+`EventAggregator.query_media_by_sensor(sensor_ids_ordered, images_per_sensor, max_images, ...)` returns images grouped by sensor in the specified order, sorted chronologically within each group. Used by `llm_call` when `sort_by_sensor_then_time=True` to produce a temporally coherent sequence for inter-frame analysis.
 
 ### Service Injection
 

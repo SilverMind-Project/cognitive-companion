@@ -44,6 +44,7 @@ class PipelineExecutor:
         event_aggregator=None,
         scheduler=None,
         rag_service=None,
+        llm_model_registry=None,
     ) -> None:
         self._services = ServiceContainer(
             db_factory=db_session_factory,
@@ -57,6 +58,7 @@ class PipelineExecutor:
             event_aggregator=event_aggregator,
             scheduler=scheduler,
             rag_service=rag_service,
+            llm_model_registry=llm_model_registry,
         )
 
     # Expose scheduler for injection after construction

@@ -14,15 +14,16 @@ Cognitive decline doesn't have to mean loss of independence. Cognitive Companion
             │    ┌────────────┐  │   (InsightFace/ArcFace) │
  WebSocket ─┼──► │   Event    │──┤                         ├─► Rules Engine
             │    │ Aggregator │  │   ┌──────────────────┐  │   (context/deps/rate-limit)
- HA Sensors─┘    └────────────┘  ├─► │ Vision LLM       │  │        │
-                   MinIO ◄───────┘   │ (Cosmos Reason2) │──┘        ▼
-                  (media)            └──────────────────┘    ┌─────────────┐
-                                           │                 │  Logic LLM  │
-                                           ▼                 │  (Gemma3)   │
-                                  ┌────────────────┐         └──────┬──────┘
-                                  │ Translation    │                │
-                                  │(TranslateGemma)|◄───────────────┘
-                                  └────────┬───────┘
+ HA Sensors─┘    └────────────┘  ├─► │ llm_call step    │  │        │
+                   MinIO ◄───────┘   │ (model registry) │──┘        ▼
+                  (media)            └──────────────────┘    ┌────────────────┐
+                                     Models per step:        │  llm_call step │
+                                     Cosmos Reason2 (vision) │ (logic/transl) │
+                                     Gemma 4 26B (general)   └───────┬────────┘
+                                     TranslateGemma (transl)         │
+                                     Gemma3 via Ollama (logic)       │
+                                  ┌──────────────────────────────────┘
+                                  │
                                            │
                 ┌──────────────────────────┼──────────────────────────┐
                 ▼              ▼           ▼           ▼              ▼
@@ -41,10 +42,13 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 
 - **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity)  -  each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home")  -  plus inter-rule dependencies
 - **Five trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP), `occupancy_duration` (presence sensor occupied ≥ N minutes) -- each with per-rule threshold and cool-off
-- **Composable pipeline steps** -- 10 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
-  `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
-- **Structured output** via native LLM guided decoding -- enforce custom JSON schema output guarantees from logic and vision models.
-- **Cross-sensor image acquisition** -- configure the vision analysis to optionally request recent images from alternative cameras and rooms to assemble multi-angle context.
+- **Composable pipeline steps** -- 11 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
+  `llm_call`, `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
+- **Unified LLM step** (`llm_call`) -- single step replaces separate vision/logic/translation steps. Model selected per step from a named registry in `settings.yaml`; supports text, vision, and translation in one interface with configurable output key.
+- **Named model registry** -- configure any number of OpenAI-compatible or Ollama endpoints in `llm.models`. Each entry declares its `api_type`, `capabilities`, and whether it supports `guided_decoding` (vLLM `guided_json`).
+- **Structured output** via native LLM guided decoding -- enforce custom JSON schema output guarantees. For vLLM servers, schemas are sent as `guided_json`; for llama.cpp and others, the schema is injected as a prompt instruction.
+- **Inter-frame temporal analysis** -- sensor-ordered image assembly groups frames by camera (in configured order) then sorts chronologically within each camera, giving vision reasoning models a coherent sequence for motion and activity analysis.
+- **Cross-sensor image acquisition** -- configure the `llm_call` or `vision_analysis` step to request recent images from alternative cameras and rooms to assemble multi-angle context.
 - **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, with in-app enrollment via photo upload
 - **Annotated person identification images** with bounding boxes and name labels returned inline
 - **Activity tracking** -- detect and record person activities (eating, sleeping, taking medication) as pipeline outputs for use as context filters in downstream rules
@@ -73,12 +77,13 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 ## Prerequisites
 
 | Component | Purpose | Notes |
-|-----------|---------|-------|
+| --------- | ------- | ----- |
 | **NVIDIA GPUs** | Person-ID service + vLLM serving | DGX Spark |
 | **Docker** + NVIDIA Container Toolkit | Container runtime | For person-ID service |
 | **Home Assistant** | Sensor integration, audio playback, actions | REST API + long-lived token |
 | **MinIO** (or S3-compatible) | Media object storage | Pre-signed URL support required |
 | **vLLM** | Vision + translation model serving | Cosmos-Reason2-8B, TranslateGemma-12b |
+| **llama.cpp llama-server** | General-purpose model serving | Gemma 4 26B (text, vision, translation) |
 | **Ollama** | Logic reasoning model | gemma3:4b |
 | **Python 3.11+** | Backend runtime | 3.12 recommended |
 | **Node.js 18+** | Frontend build | For admin console |
@@ -86,7 +91,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 Optional:
 
 | Component | Purpose |
-|-----------|---------|
+| --------- | ------- |
 | Telegram Bot | Caregiver alert notifications |
 | Google Gemini API | Real-time voice conversations |
 | TTS service | Text-to-speech announcements |

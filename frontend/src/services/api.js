@@ -211,10 +211,11 @@ export const api = {
     return URL.createObjectURL(await resp.blob());
   },
 
-  // Pipeline metadata (step types, channels, filters)
+  // Pipeline metadata (step types, channels, filters, LLM models)
   getStepTypes: () => request("/pipeline/step-types"),
   getChannelTypes: () => request("/pipeline/channel-types"),
   getFilterTypes: () => request("/pipeline/filter-types"),
+  getLLMModels: () => request("/pipeline/llm-models"),
 
   // Webhooks
   triggerWebhook: (ruleId, payload, secret) =>

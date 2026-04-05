@@ -1,20 +1,25 @@
 """
 LLM provider abstraction layer.
 
-Supports single providers, fallback chains, and load-balanced pools.
+Supports single providers, fallback chains, load-balanced pools, and a
+named model registry driven by ``llm.models`` in settings.yaml.
 
 Usage::
 
-    from backend.integrations.llm import get_provider
+    from backend.integrations.llm import get_provider, LLMModelRegistry
 
-    # Single provider (from settings)
+    # Legacy: single provider from settings section
     provider = get_provider("vllm_vision")
 
-    # Chain/pool configured in settings.yaml
-    result = await provider.call("Describe this image.", media_paths=["photo.jpg"])
+    # Registry: look up a named model configured in llm.models
+    registry = LLMModelRegistry()
+    registry.load_from_settings()
+    provider = registry.get_provider("gemma4_26b")
 """
 
 from __future__ import annotations
+
+from dataclasses import dataclass, field
 
 from backend.integrations.llm.base import (
     LLMProvider,
@@ -24,11 +29,17 @@ from backend.integrations.llm.base import (
 
 __all__ = [
     "LLMProvider",
+    "LLMModelConfig",
+    "LLMModelRegistry",
     "RealtimeLLMProvider",
     "RealtimeSession",
     "get_llm_provider",
     "get_provider",
 ]
+
+# ---------------------------------------------------------------------------
+# Legacy provider map (used by get_provider / get_llm_provider)
+# ---------------------------------------------------------------------------
 
 # Provider type string -> (module path, class name)
 _PROVIDER_MAP: dict[str, tuple[str, str]] = {
@@ -43,6 +54,10 @@ _PROVIDER_MAP: dict[str, tuple[str, str]] = {
     "ollama": (
         "backend.integrations.llm.ollama",
         "OllamaProvider",
+    ),
+    "openai_compat": (
+        "backend.integrations.llm.openai_compat",
+        "OpenAICompatibleProvider",
     ),
 }
 
@@ -177,3 +192,129 @@ def get_provider(provider_type: str) -> LLMProvider:
             config[key] = value
 
     return get_llm_provider(provider_type, config)
+
+
+# ---------------------------------------------------------------------------
+# Named model registry (used by the unified llm_call step)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class LLMModelConfig:
+    """Static configuration for a named LLM model entry in settings.yaml."""
+
+    id: str
+    name: str
+    api_type: str                    # "openai" | "ollama"
+    base_url: str
+    model: str
+    capabilities: list[str] = field(default_factory=lambda: ["text"])
+    max_tokens: int = 4096
+    timeout: float = 60.0
+    guided_decoding: bool = False    # vLLM-style guided_json enforcement
+    max_retries: int = 3
+
+
+class LLMModelRegistry:
+    """
+    Registry of named LLM models loaded from ``llm.models`` in settings.yaml.
+
+    Each model entry exposes a lazy-constructed :class:`LLMProvider` instance.
+    Instances are cached after first use.
+
+    Example ``settings.yaml``::
+
+        llm:
+          models:
+            - id: cosmos_reason2
+              name: "Cosmos Reason2 8B (Vision)"
+              api_type: openai
+              base_url: "${VISION_MODEL_URL}"
+              model: "nvidia/Cosmos-Reason2-8B"
+              capabilities: [text, vision]
+              max_tokens: 4096
+              timeout: 120
+              guided_decoding: true
+
+            - id: gemma4_26b
+              name: "Gemma 4 26B (General)"
+              api_type: openai
+              base_url: "http://192.168.1.31:8100"
+              model: "gemma-4-26B-A4B-it-GGUF"
+              capabilities: [text, vision, translation]
+              max_tokens: 4096
+              timeout: 60
+              guided_decoding: false
+
+            - id: gemma3_4b
+              name: "Gemma 3 4B (Logic)"
+              api_type: ollama
+              base_url: "${LOGIC_MODEL_URL}"
+              model: "gemma3:4b"
+              capabilities: [text]
+    """
+
+    def __init__(self) -> None:
+        self._configs: dict[str, LLMModelConfig] = {}
+        self._instances: dict[str, LLMProvider] = {}
+
+    def load_from_settings(self) -> None:
+        """Parse ``llm.models`` from application settings and populate the registry."""
+        from backend.core.config import settings
+
+        models_raw: list[dict] = settings.get("llm.models") or []
+        for entry in models_raw:
+            model_id = entry.get("id")
+            if not model_id:
+                continue
+            cfg = LLMModelConfig(
+                id=model_id,
+                name=entry.get("name", model_id),
+                api_type=entry.get("api_type", "openai"),
+                base_url=entry.get("base_url", ""),
+                model=entry.get("model", ""),
+                capabilities=list(entry.get("capabilities", ["text"])),
+                max_tokens=int(entry.get("max_tokens", 4096)),
+                timeout=float(entry.get("timeout", 60)),
+                guided_decoding=bool(entry.get("guided_decoding", False)),
+                max_retries=int(entry.get("max_retries", 3)),
+            )
+            self._configs[model_id] = cfg
+
+    def get_provider(self, model_id: str) -> LLMProvider | None:
+        """Return a (cached) :class:`LLMProvider` for *model_id*, or ``None``."""
+        if model_id not in self._configs:
+            return None
+        if model_id not in self._instances:
+            self._instances[model_id] = self._build(self._configs[model_id])
+        return self._instances[model_id]
+
+    def get_config(self, model_id: str) -> LLMModelConfig | None:
+        """Return the config for *model_id*, or ``None``."""
+        return self._configs.get(model_id)
+
+    def all_configs(self) -> list[LLMModelConfig]:
+        """Return all registered model configs."""
+        return list(self._configs.values())
+
+    def _build(self, cfg: LLMModelConfig) -> LLMProvider:
+        if cfg.api_type == "ollama":
+            from backend.integrations.llm.ollama import OllamaProvider
+
+            return OllamaProvider(
+                base_url=cfg.base_url,
+                model=cfg.model,
+                max_tokens=cfg.max_tokens,
+                timeout=cfg.timeout,
+            )
+        # Default: OpenAI-compatible (vLLM, llama.cpp, etc.)
+        from backend.integrations.llm.openai_compat import OpenAICompatibleProvider
+
+        return OpenAICompatibleProvider(
+            base_url=cfg.base_url,
+            model=cfg.model,
+            max_tokens=cfg.max_tokens,
+            timeout=cfg.timeout,
+            guided_decoding=cfg.guided_decoding,
+            max_retries=cfg.max_retries,
+        )

@@ -40,6 +40,54 @@ llm:
     model: "Infomaniak-AI/vllm-translategemma-12b-it"
     timeout: 60
 
+  # Named model registry for the unified llm_call pipeline step.
+  # Each entry is independently selectable per step via its id.
+  #
+  # api_type:         "openai"  = /v1/chat/completions (vLLM, llama.cpp, etc.)
+  #                   "ollama"  = /api/chat
+  # capabilities:     subset of [text, vision, translation]
+  # guided_decoding:  true for vLLM (passes guided_json); false for llama.cpp
+  #                   (appends schema as a prompt instruction instead)
+  models:
+    - id: "cosmos_reason2"
+      name: "Cosmos Reason2 8B (Vision)"
+      api_type: "openai"
+      base_url: "${VISION_MODEL_URL}"
+      model: "nvidia/Cosmos-Reason2-8B"
+      capabilities: ["text", "vision"]
+      max_tokens: 4096
+      timeout: 120
+      guided_decoding: true
+
+    - id: "gemma4_26b"
+      name: "Gemma 4 26B (General)"
+      api_type: "openai"
+      base_url: "http://192.168.1.31:8100"
+      model: "gemma-4-26B-A4B-it-GGUF"
+      capabilities: ["text", "vision", "translation"]
+      max_tokens: 4096
+      timeout: 60
+      guided_decoding: false
+
+    - id: "translate_gemma"
+      name: "TranslateGemma 12B"
+      api_type: "openai"
+      base_url: "${TRANSLATE_MODEL_URL}"
+      model: "Infomaniak-AI/vllm-translategemma-12b-it"
+      capabilities: ["translation"]
+      max_tokens: 4096
+      timeout: 60
+      guided_decoding: true
+
+    - id: "gemma3_4b"
+      name: "Gemma 3 4B (Logic)"
+      api_type: "ollama"
+      base_url: "${LOGIC_MODEL_URL}"
+      model: "gemma3:4b"
+      capabilities: ["text"]
+      max_tokens: 4096
+      timeout: 60
+
   realtime:
     provider: "gemini_live"
     api_key: "${GEMINI_API_KEY}"

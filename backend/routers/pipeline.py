@@ -1,12 +1,12 @@
 """Pipeline metadata endpoints.
 
-Serves step type metadata, channel metadata, and filter metadata to the
-frontend for dynamic form generation.
+Serves step type metadata, channel metadata, filter metadata, and
+LLM model registry metadata to the frontend for dynamic form generation.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from backend.channels import ChannelRegistry
@@ -89,4 +89,33 @@ def list_filter_types(
             config_schema=m.config_schema,
         )
         for m in FilterRegistry.all_metadata()
+    ]
+
+
+class LLMModelOut(BaseModel):
+    id: str
+    name: str
+    api_type: str
+    capabilities: list[str]
+    guided_decoding: bool
+
+
+@router.get("/llm-models", response_model=list[LLMModelOut])
+def list_llm_models(
+    request: Request,
+    _auth: AuthContext = Depends(require_permission("rules:read")),
+):
+    """Return all named LLM models from the registry (for the llm_call step UI)."""
+    registry = getattr(request.app.state, "llm_model_registry", None)
+    if registry is None:
+        return []
+    return [
+        LLMModelOut(
+            id=cfg.id,
+            name=cfg.name,
+            api_type=cfg.api_type,
+            capabilities=cfg.capabilities,
+            guided_decoding=cfg.guided_decoding,
+        )
+        for cfg in registry.all_configs()
     ]

@@ -719,6 +719,30 @@
             persistent-hint
             class="mt-3"
           />
+          <v-text-field
+            v-if="cfg.channels && cfg.channels.includes('tts')"
+            v-model="cfg.tts_language"
+            label="TTS Language"
+            variant="outlined"
+            density="comfortable"
+            clearable
+            placeholder="e.g. ta, en"
+            hint="Language code for TTS synthesis. Leave blank to use the server default."
+            persistent-hint
+            class="mt-3"
+          />
+          <v-select
+            v-if="cfg.channels && cfg.channels.includes('tts')"
+            v-model="cfg.tts_style"
+            :items="['', 'neutral', 'clear', 'formal', 'chat', 'happy', 'surprise', 'sad', 'fear', 'anger', 'disgust', 'narrative', 'enthusiastic', 'laugh', 'yawn', 'angry']"
+            label="TTS Style"
+            variant="outlined"
+            density="comfortable"
+            clearable
+            hint="Svara speaking style. Leave blank to use the server default."
+            persistent-hint
+            class="mt-3"
+          />
           <template v-if="cfg.channels && cfg.channels.includes('webhook')">
             <v-text-field
               v-model="cfg.webhook_url"
@@ -1186,6 +1210,8 @@ const fallbackDefaults = {
     webhook_url: "",
     eink_targets: [],
     ha_media_player: "",
+    tts_language: "",
+    tts_style: "",
     trigger_cooloff: true,
   },
   ha_action: {

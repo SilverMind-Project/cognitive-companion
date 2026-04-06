@@ -106,10 +106,15 @@ llm:
 
 # TTS configuration (tts-service on port 8200)
 tts:
-  url: "${TTS_API_URL:http://tts-service:8200}"
-  default_model: "${TTS_MODEL:svara}"
-  default_voice: "${TTS_VOICE:speaker_0}"
-  default_speed: 0.85
+  url: "${TTS_API_URL}"
+  default_model: "svara"
+  default_voice: "ta_female"
+  default_speed: 1.00
+  default_language: "ta"
+  # Style tag injected when no tag is present in the text.
+  # Valid values: neutral, formal, chat, clear, happy, surprise, sad,
+  #               fear, anger, disgust, narrative, enthusiastic, laugh, yawn, angry
+  default_style: "clear"
 
 # Home Assistant integration
 homeassistant:

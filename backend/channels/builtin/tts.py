@@ -56,9 +56,11 @@ class TTSChannel(NotificationChannel):
             return False
 
         entity_id: str = config.get("ha_media_player") or _DEFAULT_MEDIA_PLAYER
+        language: str | None = config.get("tts_language") or None
+        style: str | None = config.get("tts_style") or None
 
         if minio_client and ha_client and ha_client.configured:
-            url = await tts_client.generate_and_upload(message, minio_client)
+            url = await tts_client.generate_and_upload(message, minio_client, language=language, style=style)
             if not url:
                 return False
             await ha_client.play_audio(url, entity_id)
@@ -66,7 +68,7 @@ class TTSChannel(NotificationChannel):
             return True
 
         # Fallback: generate audio locally (no HA playback)
-        audio = await tts_client.generate_audio(message)
+        audio = await tts_client.generate_audio(message, language=language, style=style)
         if audio:
             logger.info("tts_generated_local_only", bytes=len(audio))
         return audio is not None

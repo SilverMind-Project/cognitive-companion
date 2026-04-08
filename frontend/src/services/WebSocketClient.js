@@ -18,6 +18,11 @@ export class WebSocketClient {
     this.reconnectInterval = 2000;
     this.maxReconnectAttempts = 10;
     this.attempts = 0;
+
+    // Announcement streaming state
+    this._announcementStreaming = false;
+    this._announcementSampleRate = 24000;
+
     this.callbacks = {
       onTranscript: [],
       onCommand: [],
@@ -25,6 +30,7 @@ export class WebSocketClient {
       onDisconnect: [],
       onAudioBlob: [],
       onStatus: [],
+      onAnnouncement: [],
     };
   }
 
@@ -56,13 +62,30 @@ export class WebSocketClient {
 
     this.socket.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
-        this._notify("onAudioBlob", event.data);
+        if (this._announcementStreaming) {
+          // Route binary frames to announcement handler during TTS stream
+          this._notify("onAnnouncement", {
+            subtype: "pcm_chunk",
+            data: event.data,
+            sampleRate: this._announcementSampleRate,
+          });
+        } else {
+          this._notify("onAudioBlob", event.data);
+        }
         return;
       }
 
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "transcript") {
+        if (data.type === "announcement") {
+          if (data.subtype === "stream_start") {
+            this._announcementStreaming = true;
+            this._announcementSampleRate = data.sample_rate || 24000;
+          } else if (data.subtype === "stream_end") {
+            this._announcementStreaming = false;
+          }
+          this._notify("onAnnouncement", data);
+        } else if (data.type === "transcript") {
           this._notify("onTranscript", data);
         } else if (data.type === "status") {
           this._notify("onStatus", data);

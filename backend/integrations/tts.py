@@ -6,13 +6,15 @@ and for TTS audio sent through Telegram.
 
 The TTS service (tts-service/) exposes an OpenAI-compatible
 ``POST /v1/audio/speech`` endpoint with multiple engine backends
-(svara, parler, melo).
+(svara, parler, fish_speech, seamless, edge_tts).
 """
 
 from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 # Mirrors the style tags recognised by the Svara engine so we can detect
@@ -29,6 +31,14 @@ from backend.core.config import settings
 from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class AudioStream:
+    """Wraps an async iterator of raw PCM int16 chunks with metadata."""
+
+    chunks: AsyncIterator[bytes]
+    sample_rate: int = 24000
 
 
 class TTSClient:
@@ -94,6 +104,66 @@ class TTSClient:
                 return resp.content
         except Exception:
             logger.exception("tts_generate_error", text=text[:60])
+            return None
+
+    async def stream_audio(
+        self,
+        text: str,
+        voice: str | None = None,
+        speed: float | None = None,
+        language: str | None = None,
+        style: str | None = None,
+    ) -> AudioStream | None:
+        """Stream raw PCM int16 chunks from the TTS service.
+
+        Returns an ``AudioStream`` wrapping an async iterator of bytes chunks.
+        The caller must fully consume or discard the iterator to release the
+        underlying HTTP connection.  Returns ``None`` on failure.
+        """
+        if not self.configured:
+            logger.warning("tts_not_configured")
+            return None
+
+        voice = voice or self.default_voice
+        speed = speed if speed is not None else self.default_speed
+        language = language or self.default_language
+        style = style or self.default_style
+        if style and not _SVARA_STYLE_TAG_RE.search(text):
+            text = f"{text} <{style}>"
+
+        payload: dict[str, Any] = {
+            "model": self.default_model,
+            "voice": voice,
+            "input": text,
+            "speed": speed,
+            "response_format": "pcm",
+            "stream": True,
+        }
+        if language:
+            payload["language"] = language
+
+        try:
+            client = httpx.AsyncClient(timeout=60.0)
+            response = await client.send(
+                client.build_request("POST", f"{self.base_url}/audio/speech", json=payload),
+                stream=True,
+            )
+            response.raise_for_status()
+
+            sample_rate = int(response.headers.get("X-Sample-Rate", "24000"))
+
+            async def _iter_chunks() -> AsyncIterator[bytes]:
+                try:
+                    async for chunk in response.aiter_bytes(4096):
+                        yield chunk
+                finally:
+                    await response.aclose()
+                    await client.aclose()
+
+            return AudioStream(chunks=_iter_chunks(), sample_rate=sample_rate)
+
+        except Exception:
+            logger.exception("tts_stream_error", text=text[:60])
             return None
 
     async def generate_and_upload(

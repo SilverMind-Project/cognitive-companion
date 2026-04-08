@@ -29,7 +29,7 @@ backend/
   channels/                # Notification channel plugin system
     base.py                # NotificationChannel ABC, ChannelMetadata
     __init__.py            # ChannelRegistry singleton + auto-discovery
-    builtin/               # WebSocket, Telegram, eInk, TTS, realtime_voice channel plugins
+    builtin/               # WebSocket, Telegram, eInk, TTS, realtime_voice, announcement channel plugins
   filters/                 # Context filter plugin system
     base.py                # ContextFilter ABC, FilterMetadata
     __init__.py            # FilterRegistry singleton + auto-discovery
@@ -69,7 +69,7 @@ backend/
     homeassistant.py       # HA REST API client
     minio_client.py        # S3/MinIO wrapper (boto3)
     telegram.py            # Telegram bot client
-    tts.py                 # Text-to-speech client
+    tts.py                 # Text-to-speech client (batch + streaming via AudioStream)
     eink_renderer.py       # Internal PIL-based eink display renderer
     person_id_client.py    # HTTP client for person identification service
     llm/
@@ -185,6 +185,15 @@ Notification channels are plugins in `backend/channels/builtin/`. Each channel i
 The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts. Per-step channel overrides (via the `channels` field in notification step config), as well as direct endpoints like `webhook_url`, take precedence over the defaults in `notifications.yaml`.
 
 **TTS channel flow:** `TTSChannel.send()` calls `TTSClient.generate_and_upload()` to produce an MP3 and upload it to MinIO, obtaining a presigned URL. It then calls `HomeAssistantClient.play_audio(url, entity_id)` to play the audio on the configured `media_player` entity. The entity ID comes from `ha_media_player` in the notification step's `config_json` (defaults to `media_player.living_room_speaker`). `NotificationDispatcher` passes `minio_client` and `ha_client` via `DispatchServices` so no integration clients are imported inside the channel plugin.
+
+**Announcement channel flow (PWA streaming):** `AnnouncementChannel` delivers audio directly to connected PWA clients via WebSocket, bypassing MinIO and HA entirely. Two modes are supported:
+
+- **Stream mode** (default): Calls `TTSClient.stream_audio()` which opens a streaming HTTP connection to the TTS service. The channel broadcasts a `stream_start` JSON message (with `sample_rate`), then forwards each PCM chunk as a binary WebSocket frame via `ConnectionManager.broadcast_bytes()`, then sends a `stream_end` JSON message. The frontend accumulates all PCM chunks until `stream_end`, then plays the complete audio as a single buffer via the Web Audio API. This full-buffering strategy avoids audible gaps when the TTS service cannot sustain real-time inference speeds. On `stream_start`, the playback timeline is reset to prevent stale scheduling from previous announcements.
+- **File mode**: Broadcasts a JSON message containing an `audio_url` for the frontend to play via the HTML5 Audio API.
+
+`TTSClient.stream_audio()` returns an `AudioStream` dataclass wrapping an async iterator of bytes chunks plus a `sample_rate` field. The underlying httpx streaming connection is cleaned up when the iterator is fully consumed.
+
+`ConnectionManager.broadcast_bytes()` sends raw bytes to all connected WebSocket clients, mirroring the pattern of `broadcast()` for JSON payloads including stale connection cleanup.
 
 **Transcript actor delineation (realtime_voice):** When the orchestrator sends a backend prompt to the Gemini Live session, it is tagged as an orchestrator turn. The prompt text is **not** sent to the frontend transcript: only the agent's spoken response appears (as `source: "assistant"`). This ensures the senior sees a clean conversation without internal system nudges. Three actors are tracked in the conversation log: `user` (senior speech), `assistant` (agent response), and `orchestrator` (system-initiated prompts, hidden from UI).
 

@@ -90,6 +90,26 @@ class ConnectionManager:
         for ws in disconnected:
             await self.disconnect(ws)
 
+    async def broadcast_bytes(self, data: bytes) -> None:
+        """Broadcast raw bytes to all connected clients.
+
+        Used for streaming binary audio (e.g. PCM chunks for TTS announcements).
+        Silently removes connections that have gone stale.
+        """
+        async with self._lock:
+            snapshot = list(self.active_connections)
+
+        disconnected: list[WebSocket] = []
+        for ws in snapshot:
+            try:
+                await ws.send_bytes(data)
+            except Exception as exc:
+                logger.warning("ws_broadcast_bytes_error", error=str(exc))
+                disconnected.append(ws)
+
+        for ws in disconnected:
+            await self.disconnect(ws)
+
     async def send_to(self, websocket: WebSocket, payload: dict[str, Any]) -> None:
         """Send a JSON payload to a specific client."""
         try:

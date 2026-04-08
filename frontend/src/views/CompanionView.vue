@@ -78,6 +78,14 @@ let playbackContext = null;
 let nextPlaybackTime = 0;
 let activePlaybackSources = 0;
 
+// Announcement buffer — accumulates all PCM chunks until stream_end,
+// then plays the complete audio at once.  Current hardware cannot sustain
+// real-time TTS inference, so partial playback causes audible gaps.
+// TODO: reduce buffer (play incrementally) once faster inference hardware is available.
+let announcementBuffer = [];
+let announcementBufferBytes = 0;
+let announcementSampleRate = 24000;
+
 // Widget lists by position
 const mainWidgets = computed(() => getWidgets("main"));
 const sidebarWidgets = computed(() => getWidgets("sidebar"));
@@ -177,6 +185,18 @@ function pcm16ToFloat32(buffer) {
   return output;
 }
 
+function playAudioUrl(url) {
+  const audio = new Audio(url);
+  audioState.value = "system_speaking";
+  audio.onended = () => {
+    audioState.value = recording.value ? "listening" : "idle";
+  };
+  audio.onerror = () => {
+    audioState.value = recording.value ? "listening" : "idle";
+  };
+  audio.play().catch((err) => console.error("Audio playback error:", err));
+}
+
 function playPcmChunk(buffer, sampleRate = 24000) {
   const audioCtx = getPlaybackContext();
   const samples = pcm16ToFloat32(buffer);
@@ -211,6 +231,22 @@ function playPcmChunk(buffer, sampleRate = 24000) {
   source.start(startAt);
 }
 
+function flushAnnouncementBuffer() {
+  if (!announcementBuffer.length) return;
+
+  // Merge buffered chunks into a single ArrayBuffer for one decode pass
+  const merged = new Uint8Array(announcementBufferBytes);
+  let offset = 0;
+  for (const chunk of announcementBuffer) {
+    merged.set(new Uint8Array(chunk), offset);
+    offset += chunk.byteLength;
+  }
+  announcementBuffer = [];
+  announcementBufferBytes = 0;
+
+  playPcmChunk(merged.buffer, announcementSampleRate);
+}
+
 onMounted(() => {
   // Connect immediately so push notifications (alerts, reminders) are
   // delivered as soon as the page loads, regardless of whether the user
@@ -234,6 +270,27 @@ onMounted(() => {
 
   wsClient.on("onAudioBlob", (buffer) => {
     playPcmChunk(buffer);
+  });
+
+  wsClient.on("onAnnouncement", (data) => {
+    if (data.subtype === "stream_start") {
+      // Reset playback timeline so this announcement starts cleanly
+      const ctx = getPlaybackContext();
+      nextPlaybackTime = ctx.currentTime;
+      activePlaybackSources = 0;
+      announcementBuffer = [];
+      announcementBufferBytes = 0;
+      announcementSampleRate = data.sampleRate || 24000;
+    } else if (data.subtype === "pcm_chunk" && data.data) {
+      // Accumulate all chunks; playback starts on stream_end
+      announcementBuffer.push(data.data);
+      announcementBufferBytes += data.data.byteLength;
+    } else if (data.subtype === "stream_end") {
+      // Play the complete announcement as one contiguous buffer
+      flushAnnouncementBuffer();
+    } else if (data.subtype === "audio_url" && data.url) {
+      playAudioUrl(data.url);
+    }
   });
 
   wsClient.on("onConnect", () => { connected.value = true; });

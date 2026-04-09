@@ -1,8 +1,11 @@
 <template>
   <div>
-    <h2 class="text-h5 mb-4">Emergency Alerts</h2>
+    <div class="mb-6">
+      <h2 class="text-h4 font-weight-bold tracking-tight">Emergency Alerts</h2>
+      <div class="text-body-2 text-medium-emphasis mt-1">Active and resolved alerts raised by the system.</div>
+    </div>
 
-    <v-card rounded="xl">
+    <v-card>
       <v-card-text>
         <v-row>
           <v-col cols="12" sm="4">
@@ -30,6 +33,12 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
   </div>
 </template>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.018em;
+}
+</style>
 
 <script setup>
 import { ref, onMounted } from "vue";

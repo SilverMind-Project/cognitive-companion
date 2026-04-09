@@ -1,0 +1,237 @@
+/*
+ * Cognitive Companion app theme.
+ *
+ * Apple-inspired tokens shared with the docs site:
+ * generous typography, a single accent colour, frosted-glass surfaces,
+ * and rounded geometry. Token names mirror the values used in
+ * docs/.vitepress/theme/custom.css so the marketing site and the
+ * in-product UI feel like the same product.
+ */
+
+:root {
+  /* Brand */
+  --cc-brand: #0a84ff;
+  --cc-brand-strong: #0071e3;
+  --cc-brand-soft: rgba(10, 132, 255, 0.12);
+  --cc-brand-softer: rgba(10, 132, 255, 0.06);
+  --cc-indigo: #5e5ce6;
+  --cc-purple: #bf5af2;
+  --cc-teal: #64d2ff;
+  --cc-success: #30d158;
+  --cc-warning: #ff9f0a;
+  --cc-error: #ff453a;
+
+  /* Surfaces (dark — primary mode) */
+  --cc-bg: #000000;
+  --cc-bg-elevated: #0b0b0f;
+  --cc-surface: #1c1c1e;
+  --cc-surface-2: #2c2c2e;
+  --cc-surface-glass: rgba(28, 28, 30, 0.72);
+
+  /* Text */
+  --cc-text-1: #f5f5f7;
+  --cc-text-2: #a1a1a6;
+  --cc-text-3: #6e6e73;
+
+  /* Borders & dividers */
+  --cc-divider: rgba(255, 255, 255, 0.10);
+  --cc-divider-strong: rgba(255, 255, 255, 0.18);
+
+  /* Geometry */
+  --cc-radius-sm: 8px;
+  --cc-radius-md: 12px;
+  --cc-radius-lg: 18px;
+  --cc-radius-xl: 24px;
+  --cc-radius-pill: 980px;
+
+  /* Shadows */
+  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.35);
+
+  /* Typography */
+  --cc-font:
+    "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --cc-font-mono:
+    ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+/* ----- Global resets / typographic polish ----- */
+
+html,
+body {
+  font-family: var(--cc-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
+}
+
+body {
+  background-color: var(--cc-bg);
+  color: var(--cc-text-1);
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--cc-font-mono);
+}
+
+/* ----- Vuetify component overrides ----- */
+
+.v-application {
+  font-family: var(--cc-font) !important;
+  background-color: var(--cc-bg) !important;
+}
+
+.v-app-bar.v-toolbar {
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background-color: rgba(11, 11, 15, 0.72) !important;
+  border-bottom: 1px solid var(--cc-divider);
+}
+
+.v-navigation-drawer {
+  background-color: var(--cc-bg-elevated) !important;
+  border-right: 1px solid var(--cc-divider) !important;
+}
+
+.v-card {
+  background-color: var(--cc-surface) !important;
+  background-image: none !important;
+  border: 1px solid var(--cc-divider);
+  box-shadow: var(--cc-shadow-sm);
+}
+
+.v-card.v-card--variant-outlined {
+  background-color: transparent !important;
+  border-color: var(--cc-divider);
+}
+
+.v-card.v-card--variant-tonal {
+  background-color: var(--cc-surface-2) !important;
+  border-color: transparent;
+}
+
+.v-card-title {
+  font-weight: 600;
+  letter-spacing: -0.014em;
+}
+
+.v-btn {
+  text-transform: none !important;
+  letter-spacing: -0.005em;
+  font-weight: 500;
+  border-radius: var(--cc-radius-pill);
+}
+
+.v-btn--icon {
+  border-radius: 50%;
+}
+
+.v-btn--variant-flat,
+.v-btn--variant-elevated {
+  box-shadow: none;
+}
+
+.v-btn--variant-flat:hover,
+.v-btn--variant-elevated:hover {
+  box-shadow: var(--cc-shadow-md);
+}
+
+.v-list-item--active .v-list-item-title {
+  color: var(--cc-brand);
+  font-weight: 600;
+}
+
+.v-list-subheader {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cc-text-3) !important;
+  font-weight: 600;
+}
+
+.v-tab {
+  text-transform: none !important;
+  letter-spacing: -0.005em;
+  font-weight: 500;
+}
+
+.v-data-table {
+  background-color: transparent !important;
+}
+
+.v-data-table th {
+  font-weight: 600 !important;
+  letter-spacing: -0.005em;
+  background-color: var(--cc-bg-elevated) !important;
+}
+
+.v-data-table tr:hover td {
+  background-color: var(--cc-surface-2) !important;
+}
+
+.v-chip {
+  font-weight: 500;
+  letter-spacing: -0.003em;
+}
+
+.v-text-field input,
+.v-textarea textarea,
+.v-select input {
+  font-family: var(--cc-font) !important;
+}
+
+.v-field--variant-outlined .v-field__outline__start,
+.v-field--variant-outlined .v-field__outline__end,
+.v-field--variant-outlined .v-field__outline__notch::before,
+.v-field--variant-outlined .v-field__outline__notch::after {
+  border-color: var(--cc-divider-strong) !important;
+}
+
+.v-field--focused.v-field--variant-outlined .v-field__outline__start,
+.v-field--focused.v-field--variant-outlined .v-field__outline__end,
+.v-field--focused.v-field--variant-outlined .v-field__outline__notch::before,
+.v-field--focused.v-field--variant-outlined .v-field__outline__notch::after {
+  border-color: var(--cc-brand) !important;
+}
+
+.v-snackbar__wrapper {
+  border-radius: var(--cc-radius-md) !important;
+}
+
+.v-dialog > .v-overlay__content > .v-card {
+  border-radius: var(--cc-radius-xl) !important;
+  background-color: var(--cc-bg-elevated) !important;
+  box-shadow: var(--cc-shadow-lg);
+  border: 1px solid var(--cc-divider);
+}
+
+/* Gradient text used in headers and hero spots. */
+.cc-gradient-text {
+  background: linear-gradient(120deg, #0a84ff 0%, #5e5ce6 60%, #bf5af2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Subtle frosted-glass card variant for hero/stat cards. */
+.cc-glass {
+  background-color: var(--cc-surface-glass) !important;
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border: 1px solid var(--cc-divider);
+}
+
+/* Inline code style used in templating hint chips. */
+.cc-code {
+  font-family: var(--cc-font-mono);
+  font-size: 0.85em;
+  background-color: var(--cc-brand-softer);
+  color: var(--cc-brand);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 500;
+}

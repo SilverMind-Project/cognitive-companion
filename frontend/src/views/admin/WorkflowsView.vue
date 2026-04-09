@@ -1,12 +1,15 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4">
-      <h2 class="text-h5">Workflow Executions</h2>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Workflow Executions</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">Every pipeline run, in flight or finished.</div>
+      </div>
       <v-spacer />
-      <v-btn icon="mdi-refresh" variant="text" @click="load" />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="load">Refresh</v-btn>
     </div>
 
-    <v-card rounded="xl" class="mb-4">
+    <v-card class="mb-4">
       <v-card-text class="d-flex ga-3">
         <v-select
           v-model="filter.status"
@@ -21,7 +24,7 @@
       </v-card-text>
     </v-card>
 
-    <v-card rounded="xl">
+    <v-card>
       <v-data-table
         :headers="headers"
         :items="items"
@@ -51,7 +54,7 @@
 
     <!-- Detail dialog -->
     <v-dialog v-model="detailOpen" max-width="700" scrollable>
-      <v-card v-if="detail" rounded="xl">
+      <v-card v-if="detail">
         <v-card-title>Execution #{{ detail.id }}</v-card-title>
         <v-card-text>
           <v-list density="compact">
@@ -139,3 +142,9 @@ function formatDate(iso) {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.018em;
+}
+</style>

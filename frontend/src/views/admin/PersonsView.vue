@@ -1,9 +1,12 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4">
-      <h2 class="text-h5">Household Members</h2>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Household Members</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">People the system recognizes, with their enrollment and live status.</div>
+      </div>
       <v-spacer />
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate">Add Member</v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Add Member</v-btn>
     </div>
 
     <v-tabs v-model="activeTab" color="primary" class="mb-4">
@@ -14,7 +17,7 @@
     <!-- Members Tab -->
     <v-window v-model="activeTab">
       <v-window-item value="members">
-        <v-card rounded="xl">
+        <v-card>
           <v-data-table
             :headers="memberHeaders"
             :items="members"
@@ -64,7 +67,7 @@
       <v-window-item value="locations">
         <v-row>
           <v-col cols="12" sm="6" md="4" v-for="loc in locations" :key="loc.person_id">
-            <v-card rounded="xl" class="pa-4">
+            <v-card class="pa-4">
               <div class="d-flex align-center mb-2">
                 <v-icon color="primary" size="28" class="mr-3">mdi-account-circle</v-icon>
                 <div>
@@ -103,7 +106,7 @@
 
     <!-- Create/Edit Dialog -->
     <v-dialog v-model="dialog" max-width="500" scrollable>
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title>{{ editing ? 'Edit Member' : 'Add Member' }}</v-card-title>
         <v-card-text>
           <v-text-field
@@ -129,7 +132,7 @@
 
     <!-- Face Enrollment Dialog -->
     <v-dialog v-model="enrollDialog" max-width="600" scrollable>
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title class="d-flex align-center">
           <v-icon class="mr-2">mdi-face-recognition</v-icon>
           Enroll Face: {{ enrollTarget?.name }}
@@ -330,7 +333,7 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
@@ -588,3 +591,9 @@ onMounted(() => {
   loadEnrollment();
 });
 </script>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.018em;
+}
+</style>

@@ -312,7 +312,7 @@ onUnmounted(() => {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6, #f59e0b);
+  background: linear-gradient(120deg, #0a84ff 0%, #5e5ce6 60%, #bf5af2 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

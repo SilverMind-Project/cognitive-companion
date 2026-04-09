@@ -1,12 +1,15 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4">
-      <h2 class="text-h5">Rules</h2>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Rules</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">Triggers, contexts, and pipelines that drive the system.</div>
+      </div>
       <v-spacer />
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="createDialog = true">New Rule</v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="createDialog = true">New Rule</v-btn>
     </div>
 
-    <v-card rounded="xl">
+    <v-card>
       <v-data-table
         :headers="headers"
         :items="rules"
@@ -35,9 +38,9 @@
       </v-data-table>
     </v-card>
 
-    <!-- Create Dialog (minimal  trigger type and all other settings are configured on the detail page) -->
+    <!-- Create Dialog: minimal entry point. Trigger type and other settings are configured on the rule detail page. -->
     <v-dialog v-model="createDialog" max-width="500">
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title>Create Rule</v-card-title>
         <v-card-text>
           <v-text-field v-model="createForm.name" label="Name" variant="outlined" class="mb-3" />
@@ -53,7 +56,7 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
@@ -87,7 +90,7 @@ const headers = [
   { title: "Status", key: "enabled" },
   { title: "Trigger", key: "trigger_type" },
   { title: "Cron", key: "schedule_cron" },
-  { title: "Cooloff", key: "cool_off_minutes" },
+  { title: "Cool-off", key: "cool_off_minutes" },
   { title: "Max/Day", key: "max_daily_triggers" },
   { title: "", key: "actions", sortable: false, width: 60 },
 ];
@@ -125,3 +128,9 @@ async function deleteRule(id) {
 
 onMounted(loadRules);
 </script>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.018em;
+}
+</style>

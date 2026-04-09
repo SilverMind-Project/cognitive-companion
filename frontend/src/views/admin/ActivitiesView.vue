@@ -1,12 +1,15 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4">
-      <h2 class="text-h5">Person Activities</h2>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Person Activities</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">A timeline of detected activities, by person and room.</div>
+      </div>
       <v-spacer />
-      <v-btn icon="mdi-refresh" variant="text" @click="load" />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="load">Refresh</v-btn>
     </div>
 
-    <v-card rounded="xl" class="mb-4">
+    <v-card class="mb-4">
       <v-card-text class="d-flex ga-3 flex-wrap">
         <v-text-field
           v-model="filter.person_id"
@@ -38,7 +41,7 @@
       </v-card-text>
     </v-card>
 
-    <v-card rounded="xl">
+    <v-card>
       <v-data-table
         :headers="headers"
         :items="items"
@@ -97,3 +100,9 @@ function formatDate(iso) {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.018em;
+}
+</style>

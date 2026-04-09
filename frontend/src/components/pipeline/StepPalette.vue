@@ -1,6 +1,6 @@
 <template>
   <v-dialog :model-value="modelValue" max-width="600" @update:model-value="$emit('update:modelValue', $event)">
-    <v-card rounded="xl">
+    <v-card>
       <v-card-title class="d-flex align-center">
         <v-icon class="mr-2">mdi-puzzle-plus</v-icon>
         Add Pipeline Step

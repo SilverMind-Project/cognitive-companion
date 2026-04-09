@@ -1,8 +1,11 @@
 <template>
   <div>
-    <h2 class="text-h5 mb-4">Event Logs</h2>
+    <div class="mb-6">
+      <h2 class="text-h4 font-weight-bold tracking-tight">Event Logs</h2>
+      <div class="text-body-2 text-medium-emphasis mt-1">A history of every trigger the system has processed.</div>
+    </div>
 
-    <v-card rounded="xl">
+    <v-card>
       <v-card-text>
         <v-row>
           <v-col cols="12" sm="4">
@@ -28,6 +31,12 @@
     </v-card>
   </div>
 </template>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.018em;
+}
+</style>
 
 <script setup>
 import { ref, onMounted } from "vue";

@@ -1,15 +1,18 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4">
-      <h2 class="text-h5">Rooms</h2>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Rooms</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">Spaces in the home where sensors live and rules apply.</div>
+      </div>
       <v-spacer />
       <v-btn variant="tonal" class="mr-2" prepend-icon="mdi-home-automation" @click="syncFromHA">
         Sync from HA
       </v-btn>
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate">Add Room</v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Add Room</v-btn>
     </div>
 
-    <v-card rounded="xl">
+    <v-card>
       <v-data-table :headers="headers" :items="rooms" :loading="loading" item-value="id">
         <template #item.actions="{ item }">
           <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(item)" />
@@ -19,7 +22,7 @@
     </v-card>
 
     <v-dialog v-model="dialog" max-width="400">
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title>{{ editing ? 'Edit Room' : 'Add Room' }}</v-card-title>
         <v-card-text>
           <v-text-field v-model="form.name" label="Name" variant="outlined" class="mb-2" />
@@ -36,7 +39,7 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
@@ -107,3 +110,9 @@ async function syncFromHA() {
 
 onMounted(loadRooms);
 </script>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.018em;
+}
+</style>

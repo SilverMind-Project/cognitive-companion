@@ -706,24 +706,24 @@
                     class="mb-3"
                   />
                   <v-textarea
-                    v-model="cfg.tts_template"
-                    label="TTS Template"
+                    v-model="cfg.ha_speaker_tts_template"
+                    label="HA Speaker TTS / PWA Announcement Template"
                     rows="2"
-                    hint="Natural language for spoken announcements."
+                    hint="Natural language for spoken announcements (smart speakers and PWA TTS). Falls back to the default template."
                     persistent-hint
                     class="mb-3"
                   />
                   <v-textarea
-                    v-model="cfg.websocket_template"
-                    label="WebSocket Template"
+                    v-model="cfg.pwa_popup_text_template"
+                    label="PWA Popup Text Template"
                     rows="2"
                     hint="Notification text shown in the companion UI overlay."
                     persistent-hint
                     class="mb-3"
                   />
                   <v-textarea
-                    v-model="cfg.realtime_voice_template"
-                    label="Realtime Voice Template"
+                    v-model="cfg.pwa_realtime_ai_template"
+                    label="PWA Realtime AI Template"
                     rows="2"
                     hint="Conversational voice prompt for Gemini Live delivery."
                     persistent-hint
@@ -734,20 +734,43 @@
               <!-- Notification: per-channel options -->
               <v-window-item value="channels">
                 <template v-if="localStep.step_type === 'notification'">
-                  <v-combobox
-                    v-model="cfg.eink_targets"
-                    :items="einkSensorItems"
-                    label="E-Ink Target Devices"
-                    multiple
-                    chips
-                    closable-chips
-                    hint="Select e-ink displays. Leave empty to dispatch to all e-ink devices."
-                    persistent-hint
-                    class="mb-5"
-                  />
+                  <div v-if="cfg.channels && cfg.channels.includes('eink')">
+                    <div class="text-overline text-medium-emphasis mb-2">E-Ink Display</div>
+                    <v-combobox
+                      v-model="cfg.eink_targets"
+                      :items="einkSensorItems"
+                      label="E-Ink Target Devices"
+                      multiple
+                      chips
+                      closable-chips
+                      hint="Select e-ink displays. Leave empty to dispatch to all e-ink devices."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-select
+                      v-model="cfg.eink_template_id"
+                      :items="imageTemplateItems"
+                      :item-title="(item) => item.name || `Template #${item.id}`"
+                      :item-value="(item) => item.id"
+                      label="Image Template"
+                      clearable
+                      hint="Select an image template for the notification. Leave empty to use the default alert template."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-text-field
+                      v-model.number="cfg.eink_expiry_minutes"
+                      label="Expiry Duration (minutes)"
+                      type="number"
+                      :min="1"
+                      hint="Number of minutes before the display reverts to the default template. Default: 30."
+                      persistent-hint
+                      class="mb-5"
+                    />
+                  </div>
 
-                  <div v-if="cfg.channels && cfg.channels.includes('tts')">
-                    <div class="text-overline text-medium-emphasis mb-2">TTS</div>
+                  <div v-if="cfg.channels && cfg.channels.includes('ha_speaker_tts')">
+                    <div class="text-overline text-medium-emphasis mb-2">HA Speaker TTS</div>
                     <v-autocomplete
                       v-model="cfg.ha_media_player"
                       :items="haMediaPlayerItems"
@@ -797,8 +820,8 @@
                     />
                   </div>
 
-                  <v-alert v-if="(!cfg.channels || (!cfg.channels.includes('tts') && !cfg.channels.includes('webhook')))" type="info" variant="tonal" density="compact" class="mt-3">
-                    Add the <code>tts</code> or <code>webhook</code> channel on the General tab to configure their per-channel options here.
+                  <v-alert v-if="(!cfg.channels || (!cfg.channels.includes('ha_speaker_tts') && !cfg.channels.includes('webhook') && !cfg.channels.includes('eink')))" type="info" variant="tonal" density="compact" class="mt-3">
+                    Add <code>ha_speaker_tts</code>, <code>eink</code>, or <code>webhook</code> on the General tab to configure their per-channel options here.
                   </v-alert>
                 </template>
               </v-window-item>
@@ -1132,13 +1155,14 @@ watch(
 );
 
 // Dynamic lists from API
-const availableChannels = ref(["websocket", "telegram", "eink", "tts", "webhook"]);
+const availableChannels = ref(["pwa_popup_text", "telegram", "eink", "ha_speaker_tts", "pwa_tts_announcement", "pwa_realtime_ai", "webhook"]);
 const availablePersons = ref([]);
 const availableRooms = ref([]);
 const availableSensors = ref([]);
 const einkSensorItems = ref([]);
 const haMediaPlayerItems = ref([]);
 const haEntityItems = ref([]);
+const imageTemplateItems = ref([]);
 const activityTypes = [
   // Daily living
   "eating", "drinking", "cooking", "meal_prep",
@@ -1200,12 +1224,14 @@ const fallbackDefaults = {
     message_template: "",
     telegram_template: "",
     eink_template: "",
-    tts_template: "",
-    websocket_template: "",
-    realtime_voice_template: "",
+    ha_speaker_tts_template: "",
+    pwa_popup_text_template: "",
+    pwa_realtime_ai_template: "",
     webhook_template: "",
     webhook_url: "",
     eink_targets: [],
+    eink_template_id: null,
+    eink_expiry_minutes: 30,
     ha_media_player: "",
     tts_language: "",
     tts_style: "",
@@ -1307,6 +1333,11 @@ onMounted(async () => {
   }
   try {
     llmModelItems.value = await api.getLLMModels();
+  } catch {
+    // Registry unavailable
+  }
+  try {
+    imageTemplateItems.value = await api.getImageTemplates();
   } catch {
     // Registry unavailable
   }

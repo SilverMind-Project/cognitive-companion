@@ -1,4 +1,4 @@
-"""PWA announcement notification channel.
+"""PWA TTS announcement notification channel.
 
 Delivers audio announcements directly to connected PWA clients via WebSocket.
 Supports two modes:
@@ -11,13 +11,13 @@ Supports two modes:
 
 WebSocket protocol (stream mode)::
 
-    Server -> Client  JSON  {type: "announcement", subtype: "stream_start", sample_rate: 24000}
+    Server -> Client  JSON  {type: "pwa_tts_announcement", subtype: "stream_start", sample_rate: 24000}
     Server -> Client  bytes (PCM int16 LE chunks)
-    Server -> Client  JSON  {type: "announcement", subtype: "stream_end"}
+    Server -> Client  JSON  {type: "pwa_tts_announcement", subtype: "stream_end"}
 
 WebSocket protocol (file mode)::
 
-    Server -> Client  JSON  {type: "announcement", subtype: "audio_url", url: "..."}
+    Server -> Client  JSON  {type: "pwa_tts_announcement", subtype: "audio_url", url: "..."}
 """
 
 from __future__ import annotations
@@ -30,13 +30,13 @@ logger = get_logger(__name__)
 
 
 @ChannelRegistry.register
-class AnnouncementChannel(NotificationChannel):
+class PWATTSAnnouncementChannel(NotificationChannel):
 
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(
-            channel_name="announcement",
-            display_name="PWA Announcement",
+            channel_name="pwa_tts_announcement",
+            display_name="PWA TTS Announcement",
             description=(
                 "Stream TTS audio or play audio files directly on connected "
                 "PWA clients via WebSocket."
@@ -81,7 +81,7 @@ class AnnouncementChannel(NotificationChannel):
         ws_manager = getattr(services, "ws_manager", None)
 
         if not ws_manager or not ws_manager.has_connections:
-            logger.warning("announcement_no_ws_clients")
+            logger.warning("pwa_tts_announcement_no_ws_clients")
             return False
 
         mode = config.get("mode", "stream")
@@ -95,7 +95,7 @@ class AnnouncementChannel(NotificationChannel):
         """Stream TTS audio to all connected WebSocket clients."""
         tts_client = getattr(services, "tts_client", None)
         if not tts_client or not tts_client.configured:
-            logger.warning("announcement_tts_not_configured")
+            logger.warning("pwa_tts_announcement_tts_not_configured")
             return False
 
         language = config.get("tts_language")
@@ -105,12 +105,12 @@ class AnnouncementChannel(NotificationChannel):
             message, language=language, style=style,
         )
         if not audio_stream:
-            logger.warning("announcement_stream_failed", message=message[:60])
+            logger.warning("pwa_tts_announcement_stream_failed", message=message[:60])
             return False
 
         # Signal stream start
         await ws_manager.broadcast({
-            "type": "announcement",
+            "type": "pwa_tts_announcement",
             "subtype": "stream_start",
             "sample_rate": audio_stream.sample_rate,
             "message": message,
@@ -124,12 +124,12 @@ class AnnouncementChannel(NotificationChannel):
 
         # Signal stream end
         await ws_manager.broadcast({
-            "type": "announcement",
+            "type": "pwa_tts_announcement",
             "subtype": "stream_end",
         })
 
         logger.info(
-            "announcement_streamed",
+            "pwa_tts_announcement_streamed",
             message=message[:60],
             chunks=chunk_count,
         )
@@ -139,15 +139,15 @@ class AnnouncementChannel(NotificationChannel):
         """Send an audio file URL for playback."""
         audio_url = config.get("audio_url")
         if not audio_url:
-            logger.warning("announcement_no_audio_url")
+            logger.warning("pwa_tts_announcement_no_audio_url")
             return False
 
         await ws_manager.broadcast({
-            "type": "announcement",
+            "type": "pwa_tts_announcement",
             "subtype": "audio_url",
             "url": audio_url,
             "message": message,
         })
 
-        logger.info("announcement_file_sent", url=audio_url)
+        logger.info("pwa_tts_announcement_file_sent", url=audio_url)
         return True

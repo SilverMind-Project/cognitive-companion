@@ -32,6 +32,20 @@ def _format_channel_message(
         return base_message
 
 
+# Channels that support per-channel template overrides.
+# pwa_tts_announcement intentionally reuses the ha_speaker_tts_template
+# since both channels feed the same TTS engine.
+_CHANNEL_TEMPLATE_FIELDS: dict[str, str] = {
+    "telegram": "telegram_template",
+    "eink": "eink_template",
+    "ha_speaker_tts": "ha_speaker_tts_template",
+    "pwa_tts_announcement": "ha_speaker_tts_template",  # reuses speaker template
+    "pwa_popup_text": "pwa_popup_text_template",
+    "pwa_realtime_ai": "pwa_realtime_ai_template",
+    "webhook": "webhook_template",
+}
+
+
 @StepRegistry.register
 class NotificationHandler(StepHandler):
 
@@ -42,7 +56,10 @@ class NotificationHandler(StepHandler):
             display_name="Notification",
             category="action",
             icon="mdi-bell",
-            description="Dispatch notifications to configured channels (WebSocket, Telegram, eInk, TTS).",
+            description=(
+                "Dispatch notifications to configured channels "
+                "(PWA Popup Text, Telegram, eInk, HA Speaker TTS, etc.)."
+            ),
             config_schema={
                 "type": "object",
                 "properties": {
@@ -68,15 +85,18 @@ class NotificationHandler(StepHandler):
                         "type": "string",
                         "description": "Short plain-text template for eInk displays. Falls back to message_template.",
                     },
-                    "tts_template": {
+                    "ha_speaker_tts_template": {
                         "type": "string",
-                        "description": "Natural language template for TTS. Falls back to message_template.",
+                        "description": (
+                            "Natural language template for smart speaker TTS and PWA TTS "
+                            "announcements. Falls back to message_template."
+                        ),
                     },
-                    "websocket_template": {
+                    "pwa_popup_text_template": {
                         "type": "string",
                         "description": "Notification text shown in the companion UI overlay. Falls back to message_template.",
                     },
-                    "realtime_voice_template": {
+                    "pwa_realtime_ai_template": {
                         "type": "string",
                         "description": "Conversational voice prompt for Gemini Live delivery. Falls back to message_template.",
                     },
@@ -86,12 +106,30 @@ class NotificationHandler(StepHandler):
                     },
                     "webhook_template": {
                         "type": "string",
-                        "description": "JSON payload template for webhook. Use {message}, {room}, etc. Falls back to basic JSON.",
+                        "description": (
+                            "JSON payload template for webhook. "
+                            "Use {message}, {room}, etc. Falls back to basic JSON."
+                        ),
                     },
                     "eink_targets": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Sensor IDs of eink displays (empty = all)",
+                    },
+                    "eink_template_id": {
+                        "type": "integer",
+                        "description": (
+                            "ID of the image template to render onto. "
+                            "Leave empty to use the default alert template."
+                        ),
+                    },
+                    "eink_expiry_minutes": {
+                        "type": "integer",
+                        "default": 30,
+                        "description": (
+                            "Number of minutes before the rendered image expires "
+                            "and the display reverts to the default template."
+                        ),
                     },
                     "ha_media_player": {
                         "type": "string",
@@ -100,7 +138,10 @@ class NotificationHandler(StepHandler):
                     "trigger_cooloff": {
                         "type": "boolean",
                         "default": True,
-                        "description": "If true, flags this rule for a rate-limit cool-off period after completion.",
+                        "description": (
+                            "If true, flags this rule for a rate-limit "
+                            "cool-off period after completion."
+                        ),
                     },
                 },
             },
@@ -110,12 +151,14 @@ class NotificationHandler(StepHandler):
                 "message_template": "",
                 "telegram_template": "",
                 "eink_template": "",
-                "tts_template": "",
-                "websocket_template": "",
-                "realtime_voice_template": "",
+                "ha_speaker_tts_template": "",
+                "pwa_popup_text_template": "",
+                "pwa_realtime_ai_template": "",
                 "webhook_template": "",
                 "webhook_url": "",
                 "eink_targets": [],
+                "eink_template_id": None,
+                "eink_expiry_minutes": 30,
                 "ha_media_player": "",
                 "trigger_cooloff": True,
             },
@@ -152,15 +195,12 @@ class NotificationHandler(StepHandler):
                 message_template, message, trigger, pipeline_data
             )
 
-        # Build per-channel messages
-        channel_names = [
-            "telegram", "eink", "tts", "websocket", "realtime_voice", "homeassistant", "webhook"
-        ]
+        # Build per-channel messages using the template mapping
         channel_messages: dict[str, str] = {}
-        for ch in channel_names:
-            ch_tmpl = config.get(f"{ch}_template", "")
+        for ch_name, tmpl_field in _CHANNEL_TEMPLATE_FIELDS.items():
+            ch_tmpl = config.get(tmpl_field, "")
             if ch_tmpl:
-                channel_messages[ch] = _format_channel_message(
+                channel_messages[ch_name] = _format_channel_message(
                     ch_tmpl, message, trigger, pipeline_data
                 )
             # Channels without a specific template get the base message
@@ -172,6 +212,8 @@ class NotificationHandler(StepHandler):
             image_url = trigger.media_paths[0]
 
         eink_targets = config.get("eink_targets")
+        eink_template_id = config.get("eink_template_id")
+        eink_expiry_minutes = config.get("eink_expiry_minutes")
         ha_media_player = config.get("ha_media_player")
         webhook_url = config.get("webhook_url")
         rule_config: dict = {}
@@ -179,6 +221,10 @@ class NotificationHandler(StepHandler):
             rule_config["channels"] = channels
         if eink_targets:
             rule_config["eink_targets"] = eink_targets
+        if eink_template_id is not None:
+            rule_config["eink_template_id"] = eink_template_id
+        if eink_expiry_minutes is not None:
+            rule_config["eink_expiry_minutes"] = eink_expiry_minutes
         if ha_media_player:
             rule_config["ha_media_player"] = ha_media_player
         if webhook_url:

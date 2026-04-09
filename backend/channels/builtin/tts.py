@@ -1,4 +1,4 @@
-"""Text-to-speech notification channel.
+"""Home Assistant speaker TTS notification channel.
 
 Generates audio via the TTS service, uploads it to MinIO to obtain a
 presigned URL, and plays it on the configured Home Assistant media player.
@@ -18,14 +18,17 @@ _DEFAULT_MEDIA_PLAYER = "media_player.living_room_speaker"
 
 
 @ChannelRegistry.register
-class TTSChannel(NotificationChannel):
+class HASpeakerTTSChannel(NotificationChannel):
 
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(
-            channel_name="tts",
-            display_name="Text-to-Speech",
-            description="Speak notifications via the TTS service through a Home Assistant media player.",
+            channel_name="ha_speaker_tts",
+            display_name="HA Speaker TTS",
+            description=(
+                "Speak notifications via the TTS service through a "
+                "Home Assistant media player (smart speakers)."
+            ),
             config_schema={
                 "type": "object",
                 "properties": {
@@ -52,7 +55,7 @@ class TTSChannel(NotificationChannel):
         ha_client = getattr(services, "ha_client", None)
 
         if not tts_client or not tts_client.configured:
-            logger.warning("tts_channel_not_configured")
+            logger.warning("ha_speaker_tts_not_configured")
             return False
 
         entity_id: str = config.get("ha_media_player") or _DEFAULT_MEDIA_PLAYER
@@ -64,11 +67,11 @@ class TTSChannel(NotificationChannel):
             if not url:
                 return False
             await ha_client.play_audio(url, entity_id)
-            logger.info("tts_played_via_ha", entity_id=entity_id)
+            logger.info("ha_speaker_tts_played", entity_id=entity_id)
             return True
 
         # Fallback: generate audio locally (no HA playback)
         audio = await tts_client.generate_audio(message, language=language, style=style)
         if audio:
-            logger.info("tts_generated_local_only", bytes=len(audio))
+            logger.info("ha_speaker_tts_generated_local_only", bytes=len(audio))
         return audio is not None

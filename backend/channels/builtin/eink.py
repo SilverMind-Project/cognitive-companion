@@ -8,6 +8,8 @@ from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+_DEFAULT_EXPIRY_MINUTES = 30
+
 
 @ChannelRegistry.register
 class EInkChannel(NotificationChannel):
@@ -26,6 +28,21 @@ class EInkChannel(NotificationChannel):
                         "items": {"type": "string"},
                         "description": "Sensor IDs of eink devices (empty = all)",
                     },
+                    "eink_template_id": {
+                        "type": "integer",
+                        "description": (
+                            "ID of the image template to render onto. "
+                            "Leave empty to use the default alert template."
+                        ),
+                    },
+                    "eink_expiry_minutes": {
+                        "type": "integer",
+                        "default": _DEFAULT_EXPIRY_MINUTES,
+                        "description": (
+                            "Number of minutes before the rendered image expires "
+                            "and the display reverts to the default template."
+                        ),
+                    },
                 },
             },
         )
@@ -42,9 +59,17 @@ class EInkChannel(NotificationChannel):
         if not services or not services.image_renderer:
             return False
         try:
-            eink_targets = (config or {}).get("eink_targets")
+            config = config or {}
+            eink_targets = config.get("eink_targets")
+            template_id = config.get("eink_template_id")
+            expiry_minutes = config.get("eink_expiry_minutes", _DEFAULT_EXPIRY_MINUTES)
+
             await services.image_renderer(
-                text=message, template="alert", sensor_ids=eink_targets
+                text=message,
+                template="alert",
+                template_id=template_id,
+                sensor_ids=eink_targets,
+                expires_in_minutes=expiry_minutes,
             )
             return True
         except Exception as e:

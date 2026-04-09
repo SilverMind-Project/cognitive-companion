@@ -16,6 +16,9 @@
   --cc-brand-softer: rgba(10, 132, 255, 0.06);
   --cc-indigo: #5e5ce6;
   --cc-purple: #bf5af2;
+  --cc-brand-gradient: linear-gradient(120deg, #0a84ff 0%, #5e5ce6 60%, #bf5af2 100%);
+  --cc-brand-gradient-size: 180% 180%;
+  --cc-brand-gradient-duration: 18s;
   --cc-teal: #64d2ff;
   --cc-success: #30d158;
   --cc-warning: #ff9f0a;
@@ -211,10 +214,35 @@ kbd {
 
 /* Gradient text used in headers and hero spots. */
 .cc-gradient-text {
-  background: linear-gradient(120deg, #0a84ff 0%, #5e5ce6 60%, #bf5af2 100%);
+  background: var(--cc-brand-gradient);
+  background-size: var(--cc-brand-gradient-size);
+  background-position: 0% 50%;
+  animation: cc-gradient-drift var(--cc-brand-gradient-duration) ease-in-out infinite;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+@keyframes cc-gradient-drift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 45%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-gradient-text {
+    animation: none;
+    background-position: 50% 50%;
+  }
 }
 
 /* Subtle frosted-glass card variant for hero/stat cards. */

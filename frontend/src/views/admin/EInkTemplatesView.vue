@@ -1,14 +1,17 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4">
-      <h2 class="text-h5">E-Ink Templates</h2>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">E-Ink Templates</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">Layouts and regions used to render text onto e-ink displays.</div>
+      </div>
       <v-spacer />
-      <v-btn icon="mdi-refresh" variant="text" class="mr-2" @click="load" />
-      <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate">New Template</v-btn>
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" class="mr-2" @click="load">Refresh</v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">New Template</v-btn>
     </div>
 
     <!-- Device Status Panel -->
-    <v-card rounded="xl" class="mb-4">
+    <v-card class="mb-4">
       <v-card-title class="text-subtitle-1">Display Status</v-card-title>
       <v-card-text>
         <v-chip
@@ -29,7 +32,7 @@
     </v-card>
 
     <!-- Templates List -->
-    <v-card rounded="xl">
+    <v-card>
       <v-data-table
         :headers="headers"
         :items="templates"
@@ -52,7 +55,7 @@
 
     <!-- Create / Edit Dialog -->
     <v-dialog v-model="dialog" max-width="900" scrollable>
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title>{{ editing ? "Edit Template" : "Create Template" }}</v-card-title>
         <v-card-text>
           <v-row>
@@ -165,7 +168,7 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card rounded="xl">
+      <v-card>
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
@@ -362,3 +365,9 @@ function truncate(str, len = 30) {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.tracking-tight {
+  letter-spacing: -0.018em;
+}
+</style>

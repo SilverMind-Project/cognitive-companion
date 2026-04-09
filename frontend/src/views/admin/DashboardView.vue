@@ -1,9 +1,12 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-4">
-      <h2 class="text-h5">Dashboard</h2>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Dashboard</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">A live snapshot of the household and the system's health.</div>
+      </div>
       <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" size="small" @click="loadData" :loading="refreshing">
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadData" :loading="refreshing">
         Refresh
       </v-btn>
     </div>
@@ -11,13 +14,13 @@
     <!-- Stats Row -->
     <v-row>
       <v-col cols="12" sm="6" md="3" v-for="stat in stats" :key="stat.label">
-        <v-card rounded="xl" class="pa-4 stat-card" :to="stat.to" :ripple="!!stat.to">
+        <v-card class="pa-5 stat-card" :to="stat.to" :ripple="!!stat.to">
           <div class="d-flex align-center">
-            <v-avatar :color="stat.color" size="48" variant="tonal" class="mr-3">
+            <v-avatar :color="stat.color" size="48" variant="tonal" class="mr-4">
               <v-icon size="24">{{ stat.icon }}</v-icon>
             </v-avatar>
             <div>
-              <div class="text-h4 font-weight-bold">{{ stat.value }}</div>
+              <div class="text-h4 font-weight-bold tracking-tight">{{ stat.value }}</div>
               <div class="text-body-2 text-medium-emphasis">{{ stat.label }}</div>
             </div>
           </div>
@@ -29,7 +32,7 @@
     <h3 class="text-h6 mt-6 mb-3">System Health</h3>
     <v-row>
       <v-col cols="12" sm="6" md="4" v-for="svc in healthServices" :key="svc.name">
-        <v-card rounded="xl" class="pa-4">
+        <v-card class="pa-4">
           <div class="d-flex align-center">
             <v-icon :color="svc.ok ? 'success' : 'error'" size="24" class="mr-3">
               {{ svc.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}
@@ -47,7 +50,7 @@
     <h3 class="text-h6 mt-6 mb-3">Person Locations</h3>
     <v-row>
       <v-col cols="12" sm="6" md="4" v-for="loc in personLocations" :key="loc.person_id">
-        <v-card rounded="xl" class="pa-4">
+        <v-card class="pa-4">
           <div class="d-flex align-center">
             <v-avatar color="primary" size="40" variant="tonal" class="mr-3">
               <v-icon>mdi-account</v-icon>
@@ -75,7 +78,7 @@
     <h3 class="text-h6 mt-6 mb-3">Room Occupancy</h3>
     <v-row>
       <v-col cols="12" sm="6" md="4" v-for="(occ, sensorId) in occupancy" :key="sensorId">
-        <v-card rounded="xl" class="pa-4">
+        <v-card class="pa-4">
           <div class="d-flex align-center">
             <v-avatar :color="occ.occupied ? 'success' : 'grey'" size="40" variant="tonal" class="mr-3">
               <v-icon>{{ occ.occupied ? 'mdi-account' : 'mdi-account-off' }}</v-icon>
@@ -96,7 +99,7 @@
 
     <!-- Recent Alerts -->
     <h3 class="text-h6 mt-6 mb-3">Recent Alerts</h3>
-    <v-card rounded="xl">
+    <v-card>
       <v-list v-if="alerts.length">
         <v-list-item v-for="alert in alerts" :key="alert.id" :subtitle="alert.description">
           <template #prepend>
@@ -199,11 +202,15 @@ onMounted(loadData);
 
 <style scoped>
 .stat-card {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
   cursor: pointer;
 }
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: rgba(10, 132, 255, 0.4);
+  box-shadow: 0 18px 40px -20px rgba(10, 132, 255, 0.35);
+}
+.tracking-tight {
+  letter-spacing: -0.018em;
 }
 </style>

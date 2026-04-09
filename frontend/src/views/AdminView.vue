@@ -1,65 +1,74 @@
 <template>
   <v-app>
-    <v-navigation-drawer permanent rail expand-on-hover>
-      <v-list density="compact" nav>
-        <v-list-item prepend-icon="mdi-home" title="Companion" to="/" />
-        <v-divider class="my-2" />
-        <v-list-item prepend-icon="mdi-view-dashboard" title="Dashboard" to="/admin/dashboard" />
+    <v-navigation-drawer permanent rail expand-on-hover :width="260" rail-width="68">
+      <div class="d-flex align-center px-3 py-4 admin-brand">
+        <div class="cc-brand-mark mr-3" aria-hidden="true">
+          <img class="cc-brand-logo" src="/favicon.svg" alt="" />
+        </div>
+        <div class="brand-text">
+          <div class="text-subtitle-1 font-weight-bold cc-gradient-text">Cognitive Companion</div>
+          <!-- <div class="text-caption text-medium-emphasis">Companion</div> -->
+        </div>
+      </div>
+
+      <v-list density="comfortable" nav>
+        <v-list-item prepend-icon="mdi-home-variant-outline" title="Companion" to="/" />
+        <v-divider class="my-2 mx-3" />
+        <v-list-item prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/dashboard" />
 
         <v-list-subheader class="mt-2">Automation</v-list-subheader>
-        <v-list-item prepend-icon="mdi-shield-check" title="Rules" to="/admin/rules" />
-        <v-list-item prepend-icon="mdi-sitemap" title="Workflows" to="/admin/workflows" />
-        <v-list-item prepend-icon="mdi-calendar-text" title="Events" to="/admin/events" />
+        <v-list-item prepend-icon="mdi-shield-check-outline" title="Rules" to="/admin/rules" />
+        <v-list-item prepend-icon="mdi-sitemap-outline" title="Workflows" to="/admin/workflows" />
+        <v-list-item prepend-icon="mdi-calendar-text-outline" title="Events" to="/admin/events" />
 
         <v-list-subheader class="mt-2">Infrastructure</v-list-subheader>
         <v-list-item prepend-icon="mdi-access-point" title="Sensors" to="/admin/sensors" />
         <v-list-item prepend-icon="mdi-floor-plan" title="Rooms" to="/admin/rooms" />
-        <v-list-item prepend-icon="mdi-image-edit" title="E-Ink Templates" to="/admin/eink-templates" />
+        <v-list-item prepend-icon="mdi-image-edit-outline" title="E-Ink Templates" to="/admin/eink-templates" />
 
         <v-list-subheader class="mt-2">People</v-list-subheader>
-        <v-list-item prepend-icon="mdi-account-group" title="Members & Enrollment" to="/admin/persons" />
+        <v-list-item prepend-icon="mdi-account-group-outline" title="Members &amp; Enrollment" to="/admin/persons" />
         <v-list-item prepend-icon="mdi-run" title="Activities" to="/admin/activities" />
-        <v-list-item prepend-icon="mdi-alert-circle" title="Alerts" to="/admin/alerts" />
+        <v-list-item prepend-icon="mdi-alert-circle-outline" title="Alerts" to="/admin/alerts" />
       </v-list>
     </v-navigation-drawer>
 
-    <v-app-bar flat color="surface" elevation="1">
+    <v-app-bar flat>
       <v-app-bar-title>
         <span class="text-h6 font-weight-bold">Admin Console</span>
       </v-app-bar-title>
       <v-spacer />
       <v-btn icon="mdi-refresh" variant="text" title="Reload config" @click="reloadConfig" />
       <v-btn size="small" variant="tonal" class="mx-2" @click="showKeyDialog = true">
-        <v-icon start>mdi-key</v-icon>
+        <v-icon start>mdi-key-variant</v-icon>
         API Key
       </v-btn>
     </v-app-bar>
 
     <v-main>
-      <v-container fluid>
+      <v-container fluid class="px-6 py-6">
         <router-view />
       </v-container>
     </v-main>
 
     <!-- API Key dialog -->
-    <v-dialog v-model="showKeyDialog" max-width="400">
-      <v-card rounded="xl">
+    <v-dialog v-model="showKeyDialog" max-width="440">
+      <v-card>
         <v-card-title>Set API Key</v-card-title>
         <v-card-text>
           <v-text-field
             v-model="apiKeyInput"
             label="API Key"
             :type="showKey ? 'text' : 'password'"
-            variant="outlined"
             hide-details
             :append-inner-icon="showKey ? 'mdi-eye-off' : 'mdi-eye'"
             @click:append-inner="showKey = !showKey"
           />
         </v-card-text>
-        <v-card-actions>
+        <v-card-actions class="px-6 pb-4">
           <v-spacer />
           <v-btn variant="text" @click="showKeyDialog = false">Cancel</v-btn>
-          <v-btn @click="saveApiKey" color="primary">Save</v-btn>
+          <v-btn color="primary" variant="flat" @click="saveApiKey">Save</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -108,3 +117,36 @@ onMounted(() => {
   }
 });
 </script>
+
+<style scoped>
+.admin-brand {
+  min-height: 56px;
+}
+
+.cc-brand-mark {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cc-brand-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.brand-text {
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.18s ease;
+}
+
+.v-navigation-drawer--rail:not(.v-navigation-drawer--is-hovering) .brand-text {
+  opacity: 0;
+}
+</style>

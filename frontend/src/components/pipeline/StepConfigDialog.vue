@@ -181,6 +181,33 @@
                     persistent-hint
                     class="mb-4"
                   />
+                  <v-divider class="mb-4" />
+                  <div class="text-overline text-medium-emphasis mb-2">Scene Description Capture</div>
+                  <v-checkbox
+                    v-model="cfg.capture_scene_description"
+                    label="Capture scene description into activity record"
+                    hint="Saves the upstream vision model output (e.g. vision_response) into metadata_json.scene_description for full auditability."
+                    persistent-hint
+                    hide-details
+                    class="mb-3"
+                  />
+                  <v-combobox
+                    v-if="cfg.capture_scene_description"
+                    v-model="cfg.scene_description_key"
+                    :items="contextKeys"
+                    label="Scene Description Source Key"
+                    hint="pipeline_data key to read as the scene description (default: vision_response)."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-textarea
+                    v-model="cfg.metadata_extra"
+                    label="Extra Metadata (JSON, optional)"
+                    rows="3"
+                    hint='Optional JSON merged into metadata_json. Supports {{template}} syntax, e.g. {"reasoning": "{{logic_response.reasoning}}"}'
+                    persistent-hint
+                    class="mb-4"
+                  />
                   <v-checkbox v-model="cfg.trigger_cooloff" label="Trigger cool-off upon execution" hide-details />
                 </template>
 
@@ -1007,29 +1034,61 @@ const selectedLLMModel = computed(() =>
 
 // Pipeline data reference for the always-visible sidebar.
 const pipelineDataReference = [
+  // -- Trigger context -------------------------------------------------------
   { key: "trigger.sensor_id", source: "Trigger context" },
   { key: "trigger.room_name", source: "Trigger context" },
   { key: "trigger.media_paths", source: "Trigger context" },
   { key: "room_name", source: "Trigger context (top-level alias)" },
   { key: "sensor_id", source: "Trigger context (top-level alias)" },
+  { key: "trigger_input", source: "Webhook / Telegram trigger payload" },
+  { key: "trigger_input.command", source: "Telegram trigger" },
+  { key: "trigger_input.chat_id", source: "Telegram trigger" },
+  { key: "trigger_input.args", source: "Telegram trigger (list)" },
+  { key: "trigger_input.text", source: "Telegram / webhook raw text" },
+  // -- Executor system context -----------------------------------------------
   { key: "system.local_time", source: "Executor system context" },
   { key: "system.local_date", source: "Executor system context" },
   { key: "system.local_day_of_week", source: "Executor system context" },
-  { key: "trigger_input", source: "Webhook payload (when applicable)" },
+  { key: "system.timezone", source: "Executor system context" },
+  // -- person_identification --------------------------------------------------
   { key: "person_detections", source: "person_identification" },
   { key: "person_detections.0.name", source: "person_identification (first match)" },
   { key: "person_detections.0.person_id", source: "person_identification (first match)" },
   { key: "person_detections.0.confidence", source: "person_identification (first match)" },
   { key: "annotated_image", source: "person_identification" },
+  // -- vision_analysis / llm_call (vision) ------------------------------------
   { key: "vision_response", source: "vision_analysis / llm_call" },
+  // -- logic_reasoning / llm_call (reasoning) ---------------------------------
   { key: "logic_response", source: "logic_reasoning / llm_call" },
   { key: "logic_response.is_notification_needed", source: "logic_reasoning (default schema)" },
   { key: "logic_response.user_notification", source: "logic_reasoning (default schema)" },
   { key: "logic_response.alert_level", source: "logic_reasoning (default schema)" },
+  { key: "logic_response.reasoning", source: "logic_reasoning (default schema)" },
+  { key: "logic_response.activities", source: "logic_reasoning (activity_detection format)" },
+  // -- llm_call (custom output_key) ------------------------------------------
+  { key: "llm_response", source: "llm_call (default output key)" },
+  // -- translation / llm_call ------------------------------------------------
   { key: "translation", source: "translation / llm_call" },
+  // -- activity_detection ----------------------------------------------------
   { key: "detected_activities", source: "activity_detection" },
+  { key: "detected_activities.0.person_id", source: "activity_detection (first entry)" },
+  { key: "detected_activities.0.activity_type", source: "activity_detection (first entry)" },
+  { key: "detected_activities.0.confidence", source: "activity_detection (first entry)" },
+  // -- verification ----------------------------------------------------------
   { key: "verification.verified", source: "verification" },
+  { key: "verification.match_mode", source: "verification" },
   { key: "verification.matched_conditions", source: "verification" },
+  { key: "verification.unmatched_conditions", source: "verification" },
+  // -- condition -------------------------------------------------------------
+  { key: "condition.result", source: "condition" },
+  { key: "condition.expression", source: "condition" },
+  { key: "condition.branch", source: "condition (true/false)" },
+  // -- ha_action -------------------------------------------------------------
+  { key: "ha_action.success", source: "ha_action" },
+  { key: "ha_action.domain", source: "ha_action" },
+  { key: "ha_action.service", source: "ha_action" },
+  { key: "ha_action.entity_id", source: "ha_action" },
+  // -- notification ----------------------------------------------------------
   { key: "notification_dispatched", source: "notification" },
   { key: "notification_channels", source: "notification" },
 ];
@@ -1081,8 +1140,21 @@ const einkSensorItems = ref([]);
 const haMediaPlayerItems = ref([]);
 const haEntityItems = ref([]);
 const activityTypes = [
-  "eating", "sleeping", "medication", "bathing", "walking",
-  "watching_tv", "reading", "exercising", "cooking", "socializing",
+  // Daily living
+  "eating", "drinking", "cooking", "meal_prep",
+  // Rest and personal care
+  "sleeping", "resting", "bathing", "grooming", "toileting", "dressing",
+  // Medication and health
+  "medication", "medication_morning", "medication_evening",
+  "blood_pressure_check", "glucose_check",
+  // Movement and exercise
+  "walking", "exercising", "stretching", "physical_therapy",
+  // Leisure
+  "watching_tv", "reading", "socializing", "phone_call", "gardening",
+  // Safety / location events
+  "left_stove_on", "door_opened", "fall_detected", "bathroom_occupancy",
+  // Cognitive companion specific
+  "meal_lunch", "meal_dinner", "meal_breakfast",
 ];
 
 // Step type metadata cache (for defaults)
@@ -1151,6 +1223,9 @@ const fallbackDefaults = {
     person_id: "",
     confidence: "0.8",
     room_name: "",
+    capture_scene_description: false,
+    scene_description_key: "vision_response",
+    metadata_extra: "",
     trigger_cooloff: true,
   },
   wait: {

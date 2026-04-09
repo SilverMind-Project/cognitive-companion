@@ -60,6 +60,7 @@ class RuleCreate(BaseModel):
     max_daily_triggers: int = 3
     webhook_config: dict[str, Any] | None = None
     occupancy_config: dict[str, Any] | None = None
+    telegram_trigger_config: dict[str, Any] | None = None
 
 
 class RuleUpdate(BaseModel):
@@ -73,6 +74,7 @@ class RuleUpdate(BaseModel):
     max_daily_triggers: int | None = None
     webhook_config: dict[str, Any] | None = None
     occupancy_config: dict[str, Any] | None = None
+    telegram_trigger_config: dict[str, Any] | None = None
 
 
 class RuleContextOut(BaseModel):
@@ -107,6 +109,7 @@ class RuleOut(BaseModel):
     max_daily_triggers: int
     webhook_config: dict[str, Any] | None = None
     occupancy_config: dict[str, Any] | None = None
+    telegram_trigger_config: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime | None
     steps: list[PipelineStepOut] = []

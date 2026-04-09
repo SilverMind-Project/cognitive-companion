@@ -206,6 +206,38 @@ class TelegramClient:
             logger.exception("telegram_send_document_failed", chat_id=chat_id)
             return False
 
+    async def get_updates(
+        self,
+        offset: int | None = None,
+        timeout: int = 0,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Long-poll for incoming Telegram updates.
+
+        Uses the Bot API ``getUpdates`` method.  Pass *offset* as
+        ``last_update_id + 1`` to acknowledge already-processed updates
+        (Telegram will not re-deliver them).
+
+        *timeout* is the long-poll timeout in seconds.  Use ``0`` for
+        short-polling (suitable when called from a scheduler job on a
+        tight interval).
+
+        Returns a list of raw update dicts or an empty list on any error.
+        """
+        if not self._bot:
+            return []
+        try:
+            updates = await self._bot.get_updates(
+                offset=offset,
+                timeout=timeout,
+                limit=limit,
+                allowed_updates=["message"],
+            )
+            return [u.to_dict() for u in updates]
+        except Exception:
+            logger.exception("telegram_get_updates_failed")
+            return []
+
     async def send_rich_notification(
         self,
         chat_id: str | int,

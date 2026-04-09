@@ -328,6 +328,29 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
 
+    # -- Telegram trigger service (command-to-rule polling) ----------------
+    if telegram_client.configured:
+        from backend.services.telegram_trigger import TelegramTriggerService
+
+        telegram_trigger = TelegramTriggerService(
+            telegram_client=telegram_client,
+            pipeline_executor=pipeline_executor,
+            db_session_factory=get_session,
+        )
+        app.state.telegram_trigger = telegram_trigger
+
+        tg_poll_interval = settings.get(
+            "notifications.telegram.trigger_poll_interval_seconds", 5
+        )
+        scheduler.add_job(
+            telegram_trigger.poll,
+            trigger=IntervalTrigger(seconds=tg_poll_interval),
+            id="poll_telegram_triggers",
+            name="Poll Telegram for command triggers",
+            replace_existing=True,
+        )
+        logger.info("telegram_trigger_service_started", poll_interval_seconds=tg_poll_interval)
+
     scheduler.start()
     logger.info("Scheduler started")
 

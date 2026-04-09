@@ -21,7 +21,7 @@ class Rule(Base):
     # Trigger configuration
     trigger_type: Mapped[str] = mapped_column(
         String(32), default="sensor_event"
-    )  # sensor_event, cron, manual, webhook, occupancy_duration
+    )  # sensor_event, cron, manual, webhook, occupancy_duration, telegram
     schedule_cron: Mapped[str | None] = mapped_column(String(128), nullable=True)
     primary_sensor_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True
@@ -32,6 +32,10 @@ class Rule(Base):
 
     # Occupancy duration trigger configuration: {"min_minutes": int}
     occupancy_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Telegram command trigger configuration:
+    #   {"command": "/medication", "allowed_chat_ids": ["123456"], "respond_with_ack": true}
+    telegram_trigger_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Rate limiting
     cool_off_minutes: Mapped[int] = mapped_column(Integer, default=5)

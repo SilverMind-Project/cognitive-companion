@@ -41,7 +41,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 ## Key Features
 
 - **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity)  -  each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home")  -  plus inter-rule dependencies
-- **Five trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP), `occupancy_duration` (presence sensor occupied ≥ N minutes) -- each with per-rule threshold and cool-off
+- **Six trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP with HMAC), `occupancy_duration` (presence sensor occupied ≥ N minutes), `telegram` (inbound Telegram command) -- each with per-rule threshold and cool-off
 - **Composable pipeline steps** -- 11 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
   `llm_call`, `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
 - **Unified LLM step** (`llm_call`) -- single step replaces separate vision/logic/translation steps. Model selected per step from a named registry in `settings.yaml`; supports text, vision, and translation in one interface with configurable output key.
@@ -51,7 +51,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Cross-sensor image acquisition** -- configure the `llm_call` or `vision_analysis` step to request recent images from alternative cameras and rooms to assemble multi-angle context.
 - **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, with in-app enrollment via photo upload
 - **Annotated person identification images** with bounding boxes and name labels returned inline
-- **Activity tracking** -- detect and record person activities (eating, sleeping, taking medication) as pipeline outputs for use as context filters in downstream rules
+- **Activity tracking** -- detect and record person activities as pipeline outputs for use as context filters in downstream rules. **Scene description capture** (`capture_scene_description`) saves the upstream VLM analysis alongside each activity record for full auditability. **Extensible activity type list** with 30+ pre-programmed suggestions and free-form entry
 - **Motion direction detection** at doorways (left/right, towards/away from camera)
 - **Whole-house location tracking** fusing camera detections with Home Assistant presence sensors, with room-level person presence rules
 - **Prompt templates** -- use `{{variable}}` syntax in LLM step prompts to inline pipeline data (e.g. `{{person_detections.0.name}}`, `{{system.local_time}}`, ``{{vision_response}}`)
@@ -65,6 +65,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Automatic hardware device registration** -- sensors defined in `config/auth.yaml` under `device_keys` are upserted into the database at startup, so reCamera and reTerminal devices are immediately visible without a manual create step
 - **Multi-channel notifications** via a **channel plugin registry**: WebSocket, Telegram, eInk display, TTS, `realtime_voice`, Home Assistant announcements. Each channel supports a dedicated template field (`websocket_template`, `telegram_template`, `eink_template`, `tts_template`, `realtime_voice_template`, `webhook_template`) that degrades to the base `message_template` when omitted. Orchestrator prompts sent to the voice agent are hidden from the senior's transcript to maintain a natural conversation experience
 - **Webhook triggers** for external systems (Home Assistant automations, IFTTT, n8n) with per-rule HMAC secrets
+- **Telegram command triggers** -- map bot commands (e.g. `/medication`) to rule executions; per-rule chat ID whitelist and optional acknowledgment reply. Uses identical dispatch path as webhooks; payload available as `{{trigger_input.command}}` in prompts
 - **Outbound Webhooks** via the `webhook` notification channel plugin for triggering external systems.
 - **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
 - **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)

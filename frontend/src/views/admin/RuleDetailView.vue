@@ -100,6 +100,39 @@
                   persistent-hint
                 />
               </v-col>
+              <template v-if="form.trigger_type === 'telegram'">
+                <v-col cols="12" md="6">
+                  <v-text-field
+                    v-model="form.telegram_trigger_config.command"
+                    label="Telegram Command"
+                    variant="outlined"
+                    placeholder="/medication"
+                    hint="Incoming command that fires this rule (e.g. /medication). Leave empty to match any command."
+                    persistent-hint
+                  />
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-combobox
+                    v-model="form.telegram_trigger_config.allowed_chat_ids"
+                    label="Allowed Chat IDs"
+                    variant="outlined"
+                    multiple
+                    chips
+                    closable-chips
+                    hint="Telegram chat IDs allowed to trigger this rule. Leave empty to allow any chat."
+                    persistent-hint
+                  />
+                </v-col>
+                <v-col cols="12" md="6">
+                  <v-switch
+                    v-model="form.telegram_trigger_config.respond_with_ack"
+                    label="Send acknowledgment reply"
+                    color="primary"
+                    hint="Reply to the Telegram message confirming the rule was triggered."
+                    persistent-hint
+                  />
+                </v-col>
+              </template>
               <v-col cols="6" md="3">
                 <v-text-field v-model.number="form.cool_off_minutes" label="Cool-off (min)" type="number" variant="outlined" />
               </v-col>
@@ -577,6 +610,7 @@ const triggerTypes = [
   { title: "Manual", value: "manual" },
   { title: "Webhook", value: "webhook" },
   { title: "Occupancy Duration", value: "occupancy_duration" },
+  { title: "Telegram Command", value: "telegram" },
 ];
 
 const contextTypeItems = [
@@ -805,6 +839,11 @@ async function loadRule() {
       cool_off_minutes: rule.value.cool_off_minutes,
       max_daily_triggers: rule.value.max_daily_triggers,
       occupancy_config: rule.value.occupancy_config || { min_minutes: 40 },
+      telegram_trigger_config: rule.value.telegram_trigger_config || {
+        command: "",
+        allowed_chat_ids: [],
+        respond_with_ack: true,
+      },
     };
   } catch (e) {
     notify(e.message, "error");

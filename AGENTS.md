@@ -171,7 +171,7 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 Step type details:
 
 - `llm_call`: Unified LLM step. Selects a model by `model_id` from `LLMModelRegistry` (loaded from `llm.models` in settings.yaml). Supports vision (image attachment), JSON schema enforcement (`response_format`: `"text"`, `"json_schema"`, `"json_free"`), `special_instructions` prepended to the prompt, context key inclusion, and hallucination retry. Key config: `model_id`, `prompt`, `include_context`, `image_source` (`"none"`, `"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `sort_by_sensor_then_time` (groups images by sensor order then chronologically within each -- enables inter-frame analysis), `images_per_sensor`, `max_images`, `image_time_filter`, `response_format`, `response_json_schema`, `output_key` (defaults to `"llm_response"`; set to `"logic_response"` / `"vision_response"` / `"translation"` for downstream step compatibility), `hallucination_marker`. Uses `services.llm_model_registry` from `ServiceContainer`.
-- `activity_detection`: Records a single activity to the `PersonActivity` table. Config fields: `activity_type` (required), `person_id` (optional), `room_name` (optional), `confidence` (accepts a fixed number or `{{template}}` syntax, defaults to `0.8`). All fields support `{{template}}` syntax resolved against `pipeline_data` and trigger context. `person_id` defaults to `"unknown"` when empty. `room_name` defaults to the trigger room when empty. Use multiple steps to record multiple activities.
+- `activity_detection`: Records a single activity to the `PersonActivity` table. Config fields: `activity_type` (required), `person_id` (optional), `room_name` (optional), `confidence` (accepts a fixed number or `{{template}}` syntax, defaults to `0.8`). All fields support `{{template}}` syntax. `person_id` defaults to `"unknown"` when empty. `room_name` defaults to the trigger room when empty. Use multiple steps to record multiple activities. **Scene capture**: set `capture_scene_description: true` to store the upstream vision analysis output (default key: `vision_response`) in `metadata_json.scene_description` -- gives each activity record an auditable explanation of *why* it was detected. Use `scene_description_key` to read from a different pipeline key. `metadata_extra` accepts an optional JSON string (template-supported) merged into `metadata_json` for arbitrary extra fields.
 - `verification`: A database query step. Queries the `PersonActivity` table to verify activities within configured time windows. Each condition has `activity_type` (required), optional `person_id` (template-enabled, empty = any person), optional `room_name` (template-enabled, empty = any room), time window (`within_minutes` or `window_start`/`window_end`), and `min_confidence`. Does not capture images or run LLM calls.
 - `vision_analysis`: Instructs the vision LLM (hardwired to `services.vision_provider`). Prefer `llm_call` for new pipelines. Supports `image_source` (`"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `additional_room_names`, `image_time_filter`, structured JSON output via `response_format`/`response_schema`/`response_json_schema`.
 - `logic_reasoning`: Sends a prompt to the logic LLM provider (hardwired to `services.logic_provider`). Prefer `llm_call` for new pipelines. Supports `response_format` (`"default"`, `"activity_detection"`, `"custom"`), `response_schema`, `response_json_schema`.
@@ -227,6 +227,18 @@ The `PersonIDClient` at `backend/integrations/person_id_client.py` handles all c
 ### Webhook Triggers
 
 Rules can be triggered via `POST /webhooks/{rule_id}` with an `X-Webhook-Secret` header. The webhook endpoint validates the secret via HMAC comparison against the rule's `webhook_config.secret`. Secrets are generated via `POST /webhooks/{rule_id}/generate-secret`.
+
+### Telegram Command Triggers
+
+Rules with `trigger_type="telegram"` are fired when a matching Telegram command arrives. The `TelegramTriggerService` (`backend/services/telegram_trigger.py`) polls the Bot API on a scheduler interval (default every 5 seconds, configurable via `notifications.telegram.trigger_poll_interval_seconds`). Only started when `telegram_client.configured` is true.
+
+`Rule.telegram_trigger_config` fields:
+
+- `command` (str): command to match, e.g. `"/medication"`. Case-insensitive. Omit to match any command.
+- `allowed_chat_ids` (list): whitelist of Telegram chat IDs. Empty = any chat allowed.
+- `respond_with_ack` (bool, default `true`): send a brief reply confirming the rule was triggered.
+
+The Telegram message is available in `pipeline_data["trigger_input"]` with keys `command`, `args`, `text`, `chat_id`, `from_user` -- identical structure to webhook payload so downstream steps referencing `{{trigger_input.*}}` work the same way. `TriggerContext.trigger_type` is `"telegram"`. Dispatch path is identical to webhook triggers; only the delivery channel differs.
 
 ### LLM Subsystem
 

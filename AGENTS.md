@@ -93,6 +93,7 @@ backend/
     workflows.py           # Workflow execution endpoints (list, detail, cancel)
     activities.py          # PersonActivity endpoints
     persons.py             # HouseholdMember CRUD + enrollment proxy (list/enroll/delete via person-ID service)
+    media.py                 # GET /media/buffer -- per-camera aggregator state (flushed images + pending count)
     events.py, sensors.py, rooms.py, alerts.py, etc.
   websocket/
     connection_manager.py  # WebSocket tracking, broadcast, prompt queue
@@ -110,6 +111,7 @@ frontend/src/
       ActivitiesView.vue   # PersonActivity list/filter
       WorkflowsView.vue    # Workflow execution monitor
       EInkTemplatesView.vue  # E-Ink template editor
+      CameraMediaView.vue     # Per-camera media buffer: flushed images (with lightbox), pending count, cooldown, auto-refresh, sort
       EventsView.vue, RulesView.vue, SensorsView.vue, RoomsView.vue, AlertsView.vue
   components/
     pipeline/

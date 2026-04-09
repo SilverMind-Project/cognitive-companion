@@ -72,6 +72,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Voice tool calling** via Gemini Live function calling, sharing a configurable subset of MCP tools so the voice companion can answer queries like "what's the weather?" or "where is everyone?" using real data
 - **Role-based authentication** with API keys, device keys, and fnmatch permission patterns
 - **Event aggregation** with configurable batching, windowing, and per-sensor cooldown
+- **Camera Media admin view** -- live-browsable image grid per camera with lightbox, sort order, per-sensor pending-flush counter, cooldown indicator, and configurable auto-refresh
 - **Multi-language support** for feedback delivery and voice interaction via the `translation` pipeline step
 
 ## Prerequisites
@@ -218,6 +219,7 @@ cognitive-companion/
 │   │   ├── webhooks.py         # Webhook trigger endpoint with HMAC validation
 │   │   ├── workflows.py        # Workflow execution list/detail/cancel
 │   │   ├── activities.py       # Person activity log
+│   │   ├── media.py            # GET /media/buffer -- per-camera aggregator + MediaCache state
 │   │   └── ...                 # Alerts, events, persons, sensors, rooms, etc.
 │   ├── mcp/                    # MCP server (official SDK), Gemini tool adapter, auth middleware
 │   ├── websocket/              # WebSocket connection manager and audio handler
@@ -235,6 +237,7 @@ cognitive-companion/
 │       │   │   ├── PersonsView.vue
 │       │   │   ├── SensorsView.vue
 │       │   │   ├── RoomsView.vue
+│       │   │   ├── CameraMediaView.vue   # Per-camera media buffer: image grid, lightbox, auto-refresh
 │       │   │   ├── EventsView.vue
 │       │   │   └── AlertsView.vue
 │       │   └── CompanionView.vue

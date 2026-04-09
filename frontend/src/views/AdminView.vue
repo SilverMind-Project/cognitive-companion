@@ -24,6 +24,7 @@
         <v-list-subheader class="mt-2">Infrastructure</v-list-subheader>
         <v-list-item prepend-icon="mdi-access-point" title="Sensors" to="/admin/sensors" />
         <v-list-item prepend-icon="mdi-floor-plan" title="Rooms" to="/admin/rooms" />
+        <v-list-item prepend-icon="mdi-camera-burst" title="Camera Media" to="/admin/camera-media" />
         <v-list-item prepend-icon="mdi-image-edit-outline" title="E-Ink Templates" to="/admin/eink-templates" />
 
         <v-list-subheader class="mt-2">People</v-list-subheader>

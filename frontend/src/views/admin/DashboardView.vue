@@ -186,11 +186,33 @@ async function loadData() {
   }
 
   try {
-    const enrolled = await api.getEnrolledPersons();
-    const count = enrolled?.members?.length || enrolled?.length || 0;
-    services.push({ name: "Person-ID Service", ok: true, detail: `${count} enrolled member(s)` });
+    const pid = await api.personIdHealth();
+    if (!pid.configured) {
+      services.push({ name: "Person-ID Service", ok: false, detail: "Not configured" });
+    } else if (pid.status === "unreachable") {
+      services.push({ name: "Person-ID Service", ok: false, detail: "Unreachable" });
+    } else {
+      const gpu = pid.gpu_available ? "GPU" : "CPU";
+      const model = pid.model || "unknown";
+      services.push({ name: "Person-ID Service", ok: true, detail: `${model} · ${pid.enrolled_members} enrolled · ${gpu}` });
+    }
   } catch {
-    services.push({ name: "Person-ID Service", ok: false, detail: "Unreachable or disabled" });
+    services.push({ name: "Person-ID Service", ok: false, detail: "Unreachable" });
+  }
+
+  try {
+    const tts = await api.ttsHealth();
+    if (!tts.configured) {
+      services.push({ name: "TTS Service", ok: false, detail: "Not configured" });
+    } else if (tts.status === "unreachable") {
+      services.push({ name: "TTS Service", ok: false, detail: "Unreachable" });
+    } else {
+      const engine = tts.default_engine || "unknown";
+      const gpu = tts.gpu_available ? (tts.gpu_name || "GPU") : "CPU";
+      services.push({ name: "TTS Service", ok: true, detail: `${engine} · ${gpu}` });
+    }
+  } catch {
+    services.push({ name: "TTS Service", ok: false, detail: "Unreachable" });
   }
 
   healthServices.value = services;

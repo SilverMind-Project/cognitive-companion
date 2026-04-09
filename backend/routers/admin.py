@@ -7,6 +7,7 @@ from __future__ import annotations
 import copy
 import re
 
+import httpx
 from fastapi import APIRouter, Depends
 
 from backend.core.auth import AuthContext, require_permission
@@ -43,6 +44,40 @@ def _sanitize(obj: dict) -> dict:
 async def health():
     """Health check endpoint (no auth required)."""
     return {"status": "ok", "version": "2.0.0"}
+
+
+@router.get("/health/person-id")
+async def person_id_health():
+    """Proxy health check to the Person Identification service."""
+    from backend.integrations.person_id_client import PersonIDClient
+
+    client = PersonIDClient()
+    if not client.enabled:
+        return {"configured": False, "status": "not_configured"}
+    data = await client.health_check()
+    if data is None:
+        return {"configured": True, "status": "unreachable"}
+    return {"configured": True, **data}
+
+
+@router.get("/health/tts")
+async def tts_health():
+    """Proxy health check to the TTS service."""
+    tts_url = settings.get("tts.url") or ""
+    if not tts_url:
+        return {"configured": False, "status": "not_configured"}
+    base = tts_url.rstrip("/")
+    # Strip /v1 suffix if present — health lives at root /health
+    if base.endswith("/v1"):
+        base = base[:-3]
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{base}/health")
+            resp.raise_for_status()
+            data = resp.json()
+            return {"configured": True, **data}
+    except Exception:
+        return {"configured": True, "status": "unreachable"}
 
 
 @router.post("/config/reload")

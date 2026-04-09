@@ -32,6 +32,8 @@ export const api = {
 
   // Health
   health: () => fetch(`${BASE}/health`).then((r) => r.json()),
+  ttsHealth: () => request("/admin/health/tts"),
+  personIdHealth: () => request("/admin/health/person-id"),
 
   // Rooms
   getRooms: () => request("/rooms"),

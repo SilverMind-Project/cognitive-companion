@@ -3,7 +3,7 @@
     <!-- Header -->
     <v-app-bar flat color="transparent" class="px-4">
       <v-app-bar-title>
-        <span class="text-h5 font-weight-bold gradient-text">Cognitive Companion</span>
+        <span class="text-h5 font-weight-bold cc-gradient-text">Cognitive Companion</span>
       </v-app-bar-title>
       <v-spacer />
       <v-chip
@@ -309,12 +309,6 @@ onUnmounted(() => {
 <style scoped>
 .companion-app {
   background: linear-gradient(135deg, #0f0e16 0%, #1a1333 50%, #0f0e16 100%);
-}
-
-.gradient-text {
-  background: linear-gradient(120deg, #0a84ff 0%, #5e5ce6 60%, #bf5af2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .glass-card {

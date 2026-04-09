@@ -31,28 +31,27 @@ eink:
 notification_defaults:
   emergency:
     channels:
-      - "websocket"
+      - "pwa_popup_text"
       - "telegram"
       - "eink"
-      - "tts"
-      - "homeassistant"
+      - "ha_speaker_tts"
     escalation_minutes: 5
     repeat_count: 3
 
   warning:
     channels:
-      - "websocket"
+      - "pwa_popup_text"
       - "telegram"
       - "eink"
-      - "realtime_voice"
+      - "pwa_realtime_ai"
     escalation_minutes: 10
 
   info:
     channels:
-      - "websocket"
+      - "pwa_popup_text"
 
   reminder:
     channels:
-      - "websocket"
-      - "tts"
+      - "pwa_popup_text"
+      - "ha_speaker_tts"
       - "eink"

@@ -29,7 +29,7 @@ backend/
   channels/                # Notification channel plugin system
     base.py                # NotificationChannel ABC, ChannelMetadata
     __init__.py            # ChannelRegistry singleton + auto-discovery
-    builtin/               # WebSocket, Telegram, eInk, TTS, realtime_voice, announcement channel plugins
+    builtin/               # PWA Popup Text, Telegram, eInk, HA Speaker TTS, PWA Realtime AI, PWA TTS Announcement channel plugins
   filters/                 # Context filter plugin system
     base.py                # ContextFilter ABC, FilterMetadata
     __init__.py            # FilterRegistry singleton + auto-discovery
@@ -176,19 +176,19 @@ Step type details:
 - `vision_analysis`: Instructs the vision LLM (hardwired to `services.vision_provider`). Prefer `llm_call` for new pipelines. Supports `image_source` (`"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `additional_room_names`, `image_time_filter`, structured JSON output via `response_format`/`response_schema`/`response_json_schema`.
 - `logic_reasoning`: Sends a prompt to the logic LLM provider (hardwired to `services.logic_provider`). Prefer `llm_call` for new pipelines. Supports `response_format` (`"default"`, `"activity_detection"`, `"custom"`), `response_schema`, `response_json_schema`.
 - `translation`: Translates text (hardwired to `services.translation_provider`). Prefer `llm_call` for new pipelines. Accepts `special_instructions` and `hallucination_marker` for Tenacity retry.
-- `notification`: Formats and delivers alerts using `notifications.yaml` mappings. Has advanced template overriding support per-channel (`telegram_template`, `tts_template`, `eink_template`, `webhook_template`) that gracefully degrade to the unified `message_template` format.
+- `notification`: Formats and delivers alerts using `notifications.yaml` mappings. Has advanced template overriding support per-channel (`telegram_template`, `ha_speaker_tts_template`, `eink_template`, `webhook_template`, `pwa_popup_text_template`, `pwa_realtime_ai_template`) that gracefully degrade to the unified `message_template` format. The `pwa_tts_announcement` channel reuses `ha_speaker_tts_template` since both feed the same TTS engine. Supports `eink_template_id` for selecting an image template and `eink_expiry_minutes` for setting expiry duration.
 
 **Wiring**: `PipelineExecutor` is instantiated in the lifespan in `backend/main.py` and attached to `app.state`. It receives a `ServiceContainer` with all shared services.
 
 ### Notification Channels
 
-Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. Built-ins include generic UI WebSockets, Telegram, eInk displays, TTS audio endpoints, realtime voice streams, and HTTP POST Outbound Webhooks.
+Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. Built-in channels are: `pwa_popup_text` (UI text popups), `telegram`, `eink` (e-ink display images), `ha_speaker_tts` (smart speaker audio via HA), `pwa_tts_announcement` (TTS audio streamed to PWA), `pwa_realtime_ai` (interactive Gemini Live voice), and `webhook` (outbound HTTP POST).
 
 The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts. Per-step channel overrides (via the `channels` field in notification step config), as well as direct endpoints like `webhook_url`, take precedence over the defaults in `notifications.yaml`.
 
-**TTS channel flow:** `TTSChannel.send()` calls `TTSClient.generate_and_upload()` to produce an MP3 and upload it to MinIO, obtaining a presigned URL. It then calls `HomeAssistantClient.play_audio(url, entity_id)` to play the audio on the configured `media_player` entity. The entity ID comes from `ha_media_player` in the notification step's `config_json` (defaults to `media_player.living_room_speaker`). `NotificationDispatcher` passes `minio_client` and `ha_client` via `DispatchServices` so no integration clients are imported inside the channel plugin.
+**HA Speaker TTS channel flow:** `HASpeakerTTSChannel.send()` calls `TTSClient.generate_and_upload()` to produce an MP3 and upload it to MinIO, obtaining a presigned URL. It then calls `HomeAssistantClient.play_audio(url, entity_id)` to play the audio on the configured `media_player` entity. The entity ID comes from `ha_media_player` in the notification step's `config_json` (defaults to `media_player.living_room_speaker`). `NotificationDispatcher` passes `minio_client` and `ha_client` via `DispatchServices` so no integration clients are imported inside the channel plugin.
 
-**Announcement channel flow (PWA streaming):** `AnnouncementChannel` delivers audio directly to connected PWA clients via WebSocket, bypassing MinIO and HA entirely. Two modes are supported:
+**PWA TTS Announcement channel flow:** `PWATTSAnnouncementChannel` delivers audio directly to connected PWA clients via WebSocket, bypassing MinIO and HA entirely. Two modes are supported:
 
 - **Stream mode** (default): Calls `TTSClient.stream_audio()` which opens a streaming HTTP connection to the TTS service. The channel broadcasts a `stream_start` JSON message (with `sample_rate`), then forwards each PCM chunk as a binary WebSocket frame via `ConnectionManager.broadcast_bytes()`, then sends a `stream_end` JSON message. The frontend accumulates all PCM chunks until `stream_end`, then plays the complete audio as a single buffer via the Web Audio API. This full-buffering strategy avoids audible gaps when the TTS service cannot sustain real-time inference speeds. On `stream_start`, the playback timeline is reset to prevent stale scheduling from previous announcements.
 - **File mode**: Broadcasts a JSON message containing an `audio_url` for the frontend to play via the HTML5 Audio API.
@@ -197,7 +197,7 @@ The `NotificationDispatcher` iterates over matched channels from the registry to
 
 `ConnectionManager.broadcast_bytes()` sends raw bytes to all connected WebSocket clients, mirroring the pattern of `broadcast()` for JSON payloads including stale connection cleanup.
 
-**Transcript actor delineation (realtime_voice):** When the orchestrator sends a backend prompt to the Gemini Live session, it is tagged as an orchestrator turn. The prompt text is **not** sent to the frontend transcript: only the agent's spoken response appears (as `source: "assistant"`). This ensures the senior sees a clean conversation without internal system nudges. Three actors are tracked in the conversation log: `user` (senior speech), `assistant` (agent response), and `orchestrator` (system-initiated prompts, hidden from UI).
+**Transcript actor delineation (pwa_realtime_ai):** When the orchestrator sends a backend prompt to the Gemini Live session, it is tagged as an orchestrator turn. The prompt text is **not** sent to the frontend transcript: only the agent's spoken response appears (as `source: "assistant"`). This ensures the senior sees a clean conversation without internal system nudges. Three actors are tracked in the conversation log: `user` (senior speech), `assistant` (agent response), and `orchestrator` (system-initiated prompts, hidden from UI).
 
 **WebSocket connection lifecycle:** The frontend connects to `/ws/audio` on page load and holds the connection open for push notifications (alerts, reminders) even before the user taps the mic. The backend lazily opens a Gemini Live session only when the first audio chunk, text message, or orchestrator prompt arrives in `_client_to_backend`. After each Gemini session ends, the backend waits for fresh activity before reconnecting. No keepalive messages are sent to Gemini; idle sessions are allowed to expire naturally.
 

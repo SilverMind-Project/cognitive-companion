@@ -77,7 +77,7 @@ export class WebSocketClient {
 
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "announcement") {
+        if (data.type === "pwa_tts_announcement") {
           if (data.subtype === "stream_start") {
             this._announcementStreaming = true;
             this._announcementSampleRate = data.sample_rate || 24000;

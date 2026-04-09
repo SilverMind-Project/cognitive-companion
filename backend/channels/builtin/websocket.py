@@ -1,4 +1,4 @@
-"""WebSocket notification channel.
+"""PWA popup text notification channel.
 
 Broadcasts structured notification payloads to all connected WebSocket
 clients.  The frontend renders these as snackbar toasts (info/warning/reminder)
@@ -15,14 +15,14 @@ logger = get_logger(__name__)
 
 
 @ChannelRegistry.register
-class WebSocketChannel(NotificationChannel):
+class PWAPopupTextChannel(NotificationChannel):
 
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(
-            channel_name="websocket",
-            display_name="WebSocket",
-            description="Broadcast notifications to connected WebSocket clients.",
+            channel_name="pwa_popup_text",
+            display_name="PWA Popup Text",
+            description="Broadcast text notifications to connected PWA clients via WebSocket.",
             config_schema={"type": "object", "properties": {}},
         )
 
@@ -48,5 +48,5 @@ class WebSocketChannel(NotificationChannel):
             await services.ws_manager.broadcast(payload)
             return True
         except Exception as e:
-            logger.error("websocket_dispatch_failed", error=str(e))
+            logger.error("pwa_popup_text_dispatch_failed", error=str(e))
             return False

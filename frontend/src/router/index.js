@@ -71,6 +71,11 @@ const routes = [
         name: "admin-eink-templates",
         component: () => import("../views/admin/EInkTemplatesView.vue"),
       },
+      {
+        path: "camera-media",
+        name: "admin-camera-media",
+        component: () => import("../views/admin/CameraMediaView.vue"),
+      },
     ],
   },
 ];

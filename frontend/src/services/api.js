@@ -235,6 +235,12 @@ export const api = {
   generateWebhookSecret: (ruleId) =>
     request(`/webhooks/${ruleId}/generate-secret`, { method: "POST" }),
 
+  // Media buffer (camera feed)
+  getMediaBuffer: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/media/buffer${qs ? "?" + qs : ""}`);
+  },
+
   // Admin
   reloadConfig: () => request("/admin/reload", { method: "POST" }),
 };

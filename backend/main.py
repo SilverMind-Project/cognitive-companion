@@ -374,6 +374,7 @@ def create_app() -> FastAPI:
         events,
         ha_sync,
         image,
+        media,
         occupancy,
         persons,
         pipeline,
@@ -393,6 +394,7 @@ def create_app() -> FastAPI:
     app.include_router(events.router, prefix=api)
     app.include_router(device.router, prefix=api)
     app.include_router(image.router, prefix=api)
+    app.include_router(media.router, prefix=api)
     app.include_router(admin.router, prefix=api)
     app.include_router(occupancy.router, prefix=api)
     app.include_router(conversations.router, prefix=api)

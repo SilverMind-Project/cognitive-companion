@@ -88,13 +88,12 @@ onMounted(async () => {
     stepTypes.value = [
       { type_name: "person_identification", display_name: "Person ID", category: "perception", icon: "mdi-face-recognition" },
       { type_name: "vision_analysis", display_name: "Vision Analysis", category: "perception", icon: "mdi-eye" },
-      { type_name: "logic_reasoning", display_name: "Logic Reasoning", category: "reasoning", icon: "mdi-head-cog" },
+      { type_name: "llm_call", display_name: "LLM Call", category: "reasoning", icon: "mdi-brain" },
       { type_name: "condition", display_name: "Condition", category: "reasoning", icon: "mdi-help-circle" },
       { type_name: "activity_detection", display_name: "Record Activity", category: "state", icon: "mdi-database-plus" },
       { type_name: "verification", display_name: "Verify Activity", category: "state", icon: "mdi-check-decagram" },
       { type_name: "notification", display_name: "Notification", category: "action", icon: "mdi-bell" },
       { type_name: "ha_action", display_name: "HA Action", category: "action", icon: "mdi-home-automation" },
-      { type_name: "translation", display_name: "Translation", category: "action", icon: "mdi-translate" },
       { type_name: "wait", display_name: "Wait", category: "flow", icon: "mdi-timer-sand" },
     ];
   } finally {

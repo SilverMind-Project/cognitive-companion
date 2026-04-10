@@ -53,7 +53,7 @@ def get_media_buffer(
     ----------------
     sensor_id : str, optional
         Return data for a single camera only.
-    limit : int (1–100, default 20)
+    limit : int (1-100, default 20)
         Maximum number of flushed images per sensor.
     """
     aggregator = getattr(request.app.state, "event_aggregator", None)

@@ -33,7 +33,6 @@ Example ``settings.yaml`` snippet::
 
 from __future__ import annotations
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.models.rule import Rule
 from backend.steps.base import TriggerContext

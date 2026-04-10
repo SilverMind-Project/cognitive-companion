@@ -1,11 +1,26 @@
 """
 Custom exceptions and FastAPI exception handlers.
+
+All application errors inherit from :class:`AppError`, which carries an
+HTTP status code. :func:`register_exception_handlers` attaches a single
+FastAPI handler that turns any :class:`AppError` subclass into a JSON
+response with the matching status code.
 """
 
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+
+__all__ = [
+    "AppError",
+    "AuthenticationError",
+    "ConflictError",
+    "NotFoundError",
+    "PermissionDeniedError",
+    "ValidationError",
+    "register_exception_handlers",
+]
 
 
 class AppError(Exception):

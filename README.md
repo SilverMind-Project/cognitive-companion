@@ -7,28 +7,28 @@ Cognitive decline doesn't have to mean loss of independence. Cognitive Companion
 ## Architecture
 
 ```text
- Edge Devices                         AI Pipeline                              Outputs
- ───────────                         ───────────                              ───────
+ Edge Devices                         AI Pipeline                                        Outputs
+ ───────────                         ───────────                                          ───────
 
  reCamera ──┐                    ┌─► Person ID Service   ──┐
             │    ┌────────────┐  │   (InsightFace/ArcFace) │
- WebSocket ─┼──► │   Event    │──┤                         ├─► Rules Engine
-            │    │ Aggregator │  │   ┌──────────────────┐  │   (context/deps/rate-limit)
- HA Sensors─┘    └────────────┘  ├─► │ llm_call step    │  │        │
-                   MinIO ◄───────┘   │ (model registry) │──┘        ▼
-                  (media)            └──────────────────┘    ┌────────────────┐
-                                     Models per step:        │  llm_call step │
-                                     Cosmos Reason2 (vision) │ (logic/transl) │
-                                     Gemma 4 26B (general)   └───────┬────────┘
-                                     TranslateGemma (transl)         │
-                                     Gemma3 via Ollama (logic)       │
-                                  ┌──────────────────────────────────┘
-                                  │
-                                           │
-                ┌──────────────────────────┼──────────────────────────┐
-                ▼              ▼           ▼           ▼              ▼
-           WebSocket      Telegram     eInk Display   TTS      Home Assistant
-           (frontend)     (caregiver)  (reTerminal)  (speaker) (actions + announce)
+ WebSocket ─┼──► │   Event    │──┤                         ├───────────────────────────► Rules Engine
+            │    │ Aggregator │  │   ┌──────────────────┐  │                        (context/deps/rate-limit)
+ HA Sensors─┘    └────────────┘  ├─► │ llm_call step    │  │                               │
+                   MinIO ◄───────┘   │ (model registry) │──┘                               ▼
+                  (media)            └──────────────────┘                          ┌────────────────┐
+                                                           Models per step:        │  llm_call step │
+                                                           Cosmos Reason2 (vision) │ (logic/transl) │
+                                                           Gemma 4 26B (general)   └───────┬────────┘
+                                                                                           │
+                                                                                           │
+                                                                 ┌─────────────────────────┘
+                                                                 │
+                                                                 │
+                                      ┌──────────────────────────┼──────────────────────────┐
+                                      ▼              ▼           ▼           ▼              ▼
+                                 WebSocket      Telegram     eInk Display   TTS      Home Assistant
+                                 (frontend)     (caregiver)  (reTerminal)  (speaker) (actions + announce)
 
  ┌──────────────────────────────────────────────────────────────────────────────┐
  │  Admin Console (Vue 3 + Vuetify)       MCP Tool Server (AI agent access)     │
@@ -84,9 +84,8 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 | **Docker** + NVIDIA Container Toolkit | Container runtime | For person-ID service |
 | **Home Assistant** | Sensor integration, audio playback, actions | REST API + long-lived token |
 | **MinIO** (or S3-compatible) | Media object storage | Pre-signed URL support required |
-| **vLLM** | Vision + translation model serving | Cosmos-Reason2-8B, TranslateGemma-12b |
+| **vLLM** | Vision model serving | Cosmos-Reason2-8B |
 | **llama.cpp llama-server** | General-purpose model serving | Gemma 4 26B (text, vision, translation) |
-| **Ollama** | Logic reasoning model | gemma3:4b |
 | **Python 3.11+** | Backend runtime | 3.12 recommended |
 | **Node.js 18+** | Frontend build | For admin console |
 
@@ -168,7 +167,14 @@ npm run build        # Production build
 ```text
 cognitive-companion/
 ├── backend/
-│   ├── core/                   # Config loader, auth, database, exceptions, logging
+│   ├── core/                   # Foundational layer: Settings, Database, KeyStore, exceptions, logging, template
+│   │   ├── __init__.py         # Public surface re-exports
+│   │   ├── config.py           # Settings class + YAML loader (``${ENV_VAR}`` interpolated)
+│   │   ├── database.py         # Database class (engine + sessionmaker) + ``get_db`` / ``get_session``
+│   │   ├── auth.py             # KeyStore + ``get_auth_context`` / ``require_permission`` FastAPI deps
+│   │   ├── exceptions.py       # AppError hierarchy + ``register_exception_handlers``
+│   │   ├── logging.py          # BoundLogger + ``setup_logging`` / ``get_logger``
+│   │   └── template.py         # ``{{dotted.path}}`` renderer used by pipeline prompts
 │   ├── models/
 │   │   ├── rule.py             # Rule, RuleContext, RuleDependency
 │   │   ├── pipeline.py         # PipelineStep, WorkflowExecution
@@ -716,8 +722,49 @@ uv run ruff format .            # Format
 cd .. && backend/.venv/bin/mypy backend/ --config-file backend/pyproject.toml  # Type check
 
 # Tests
-uv run pytest                   # Tests (when available)
+uv run pytest                   # Full backend test suite (208 tests)
+uv run pytest backend/tests/core -v                                 # backend.core only (113 tests)
+uv run pytest backend/tests/core --cov=backend/core --cov-report=term-missing  # with branch coverage
 ```
+
+Or, from the repo root, the `Makefile` wraps the common developer gates:
+
+```bash
+make test              # full backend suite
+make test-core         # backend.core only (113 tests)
+make test-services     # backend.services only (177 tests)
+make coverage          # backend.core with branch coverage (terminal)
+make coverage-services # backend.services with branch coverage
+make coverage-html     # + HTML report under ./htmlcov
+make lint              # ruff (no fixes)
+make typecheck-core    # strict mypy over backend.core only
+make check             # lint + typecheck-core + test-core  (pre-commit gate)
+make check-all         # lint + typecheck-core + test-core + test-services
+```
+
+**Core layer quality bar.** `backend/core/` is the foundation every other
+backend package depends on, so it is held to a stricter standard than the
+gradual-adoption settings used by the rest of the tree:
+
+- **113 tests, ~98 % branch coverage.** The core test suite doubles as the
+  reference for how `Settings`, `Database`, `KeyStore`, `BoundLogger`, and
+  the template renderer are meant to be consumed.
+- **Strict typing.** A dedicated `[[tool.mypy.overrides]]` block for
+  `backend.core.*` sets `disallow_untyped_defs = true` and
+  `disallow_incomplete_defs = true`.
+- **No upward dependencies.** Modules in `backend.core` must not import from
+  `backend.services`, `backend.routers`, `backend.channels`, etc., and only
+  the FastAPI-facing leaves (`auth`, `exceptions.register_exception_handlers`)
+  may touch FastAPI types.
+- **Testability by construction.** Every stateful module-level singleton is a
+  thin facade over a class (`Settings`, `Database`, `KeyStore`, `BoundLogger`)
+  that can be instantiated directly in a test without touching process globals.
+
+**Services layer quality bar.** `backend/services/` has a dedicated test suite
+of 177 tests covering 7 modules at 89-100% branch coverage. The `scheduler.py`
+module was refactored to lift module-level globals into a `Scheduler` class
+for testability. Run `make test-services` or `make coverage-services` to
+exercise the suite.
 
 ### Frontend Dev Server
 

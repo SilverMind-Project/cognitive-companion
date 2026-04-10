@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -103,7 +103,7 @@ class TestEventAggregatorDataIntegrity:
     async def test_buffer_restored_on_db_failure(self, db_factory):
         """If the DB write fails the buffer must not be permanently discarded."""
         callback = AsyncMock()
-        agg, minio, _ = _make_aggregator(db_factory, callback=callback, batch_size=2)
+        agg, _minio, _ = _make_aggregator(db_factory, callback=callback, batch_size=2)
 
         # Add events to buffer
         agg.buffers["cam1"] = ["minio://bucket/img1.jpg", "minio://bucket/img2.jpg"]

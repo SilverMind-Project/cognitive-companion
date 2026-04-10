@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
-
-import pytest
 
 from backend.models.event import EventLog
 from backend.models.rule import Rule, RuleContext, RuleDependency

@@ -4,7 +4,7 @@ WebSocket router - /ws/audio endpoint for real-time voice interaction.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from backend.core.logging import get_logger
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/ws", tags=["websocket"])
 
 
 @router.websocket("/audio")
-async def websocket_audio(websocket: WebSocket, request: Request | None = None):
+async def websocket_audio(websocket: WebSocket):
     """Bidirectional audio WebSocket endpoint.
 
     Accepts audio bytes and text commands from the client, forwards them

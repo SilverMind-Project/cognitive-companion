@@ -190,7 +190,6 @@
               :src="src"
               width="80"
               height="80"
-              cover
               class="rounded-lg border"
             />
           </div>

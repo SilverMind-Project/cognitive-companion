@@ -38,7 +38,7 @@ def scale_image(data: bytes, max_side: int = 1920) -> bytes:
         return data
     ratio = max_side / max(w, h)
     new_size = (int(w * ratio), int(h * ratio))
-    img = img.resize(new_size, Image.LANCZOS)
+    img = img.resize(new_size, Image.Resampling.LANCZOS)  # type: ignore[assignment]
     buf = BytesIO()
     img.save(buf, format="JPEG", quality=85)
     return buf.getvalue()
@@ -90,7 +90,8 @@ class TelegramClient:
     """
 
     def __init__(self) -> None:
-        self._bot = None
+        from typing import Any
+        self._bot: Any = None
         self._token: str = ""
         self._configure()
 

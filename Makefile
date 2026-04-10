@@ -1,10 +1,10 @@
 # Cognitive Companion — repository-level developer tasks.
 #
-# Run from the project root. All targets assume the backend virtualenv at
-# ./backend/.venv.  Override with ``make PY=python3.12 test`` if you want a
-# different interpreter.
+# Run from the project root. All targets use the uv system in the
+# backend directory. Override with ``make PY="uv run --python 3.12" test``
+# if you want a different interpreter.
 
-PY      ?= backend/.venv/bin/python3
+PY      ?= uv run --project backend python
 PYTEST  := $(PY) -m pytest
 RUFF    := $(PY) -m ruff
 MYPY    := $(PY) -m mypy --config-file backend/pyproject.toml

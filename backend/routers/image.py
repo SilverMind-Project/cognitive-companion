@@ -202,8 +202,8 @@ async def create_template(
     # Read and process uploaded image
     content = await image.read()
     img = Image.open(BytesIO(content))
-    img = img.resize((800, 480), Image.LANCZOS)
-    img = img.convert("RGB")
+    img = img.resize((800, 480), Image.Resampling.LANCZOS)  # type: ignore[assignment]
+    img = img.convert("RGB")  # type: ignore[assignment]
 
     # Save to templates directory
     safe_name = "".join(c for c in name if c.isalnum() or c in "-_").lower()
@@ -275,8 +275,8 @@ async def update_template_image(
 
     content = await image.read()
     img = Image.open(BytesIO(content))
-    img = img.resize((tmpl.width, tmpl.height), Image.LANCZOS)
-    img = img.convert("RGB")
+    img = img.resize((tmpl.width, tmpl.height), Image.Resampling.LANCZOS)  # type: ignore[assignment]
+    img = img.convert("RGB")  # type: ignore[assignment]
     img.save(_TEMPLATES_DIR / tmpl.image_filename, "PNG")
 
     return {"status": "updated", "template_id": template_id}

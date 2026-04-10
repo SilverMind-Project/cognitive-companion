@@ -66,7 +66,7 @@ class PersonPresenceFilter(ContextFilter):
             return loc is None or loc.status == "unknown"
 
         # status == "home" (default)
-        if not is_home:
+        if not is_home or loc is None:
             return False
         if room_name:
             return (loc.current_room_name or "").lower() == room_name.lower()

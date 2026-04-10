@@ -180,6 +180,6 @@ def encode_image_base64(path: str) -> str:
 
     buf = io.BytesIO()
     if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
+        img = img.convert("RGB")  # type: ignore[assignment]
     img.save(buf, format="JPEG", quality=90)
     return base64.b64encode(buf.getvalue()).decode()

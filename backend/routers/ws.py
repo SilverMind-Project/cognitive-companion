@@ -14,7 +14,7 @@ router = APIRouter(prefix="/ws", tags=["websocket"])
 
 
 @router.websocket("/audio")
-async def websocket_audio(websocket: WebSocket, request: Request = None):
+async def websocket_audio(websocket: WebSocket, request: Request | None = None):
     """Bidirectional audio WebSocket endpoint.
 
     Accepts audio bytes and text commands from the client, forwards them

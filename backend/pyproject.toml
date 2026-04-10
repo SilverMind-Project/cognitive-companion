@@ -102,7 +102,6 @@ module = [
     "mypy_boto3_s3.*",
     "apscheduler.*",
     "google.*",
-    "structlog.*",
     "yaml.*",
     "mcp.*",
     "uvicorn.*",

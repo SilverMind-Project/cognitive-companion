@@ -196,7 +196,7 @@ class Scheduler:
             for rule in rules:
                 job_id = f"rule_{rule.id}"
                 try:
-                    trigger = CronTrigger.from_crontab(rule.schedule_cron)  # type: ignore[arg-type]
+                    trigger = CronTrigger.from_crontab(rule.schedule_cron)
                 except ValueError:
                     logger.warning(
                         "invalid_cron_expression",
@@ -240,6 +240,7 @@ class Scheduler:
             )
             for execution in waiting:
                 job_id = f"resume_{execution.id}"
+                resume_at_iso = execution.resume_at.isoformat() if execution.resume_at else ""
                 self._scheduler.add_job(
                     self.resume_workflow,
                     trigger=DateTrigger(run_date=execution.resume_at),
@@ -251,7 +252,7 @@ class Scheduler:
                 logger.info(
                     "pending_resume_rescheduled",
                     execution_id=execution.id,
-                    resume_at=execution.resume_at.isoformat(),
+                    resume_at=resume_at_iso,
                 )
             if waiting:
                 logger.info("pending_resumes_loaded", count=len(waiting))
@@ -362,7 +363,7 @@ def reload_scheduled_rules(
         )
         for rule in db.execute(stmt).scalars().all():
             try:
-                trigger = CronTrigger.from_crontab(rule.schedule_cron)  # type: ignore[arg-type]
+                trigger = CronTrigger.from_crontab(rule.schedule_cron)
             except ValueError:
                 logger.warning(
                     "invalid_cron_expression",

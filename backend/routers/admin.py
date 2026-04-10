@@ -24,7 +24,7 @@ _SENSITIVE_PATTERN = re.compile(r"(api_key|token|secret|password|credential)", r
 
 def _sanitize(obj: dict) -> dict:
     """Recursively mask sensitive values in a config dictionary."""
-    result = {}
+    result: dict = {}
     for key, value in obj.items():
         if _SENSITIVE_PATTERN.search(key):
             result[key] = "********"

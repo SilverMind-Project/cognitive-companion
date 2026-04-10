@@ -90,7 +90,14 @@ class PersonIdentificationHandler(StepHandler):
             save_guest_images=config.get("save_guest_images", False),
         )
 
-        detection_dicts = [d.dict() for d in detections]
+        # Enrich each detection dict with the source_media_path so that downstream
+        # steps can correlate the bbox with the exact frame it was detected in.
+        detection_dicts = []
+        for det in detections:
+            d = det.dict()
+            if det.frame_index is not None and det.frame_index < len(media_paths):
+                d["source_media_path"] = media_paths[det.frame_index]
+            detection_dicts.append(d)
         result_data: dict = {"person_detections": detection_dicts}
 
         # Store annotated image if available

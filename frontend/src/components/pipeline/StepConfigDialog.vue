@@ -79,9 +79,20 @@
                     color="primary"
                     class="mb-4"
                   />
-                  <v-checkbox v-model="cfg.include_annotated_image" label="Include annotated image" hide-details />
-                  <v-checkbox v-model="cfg.include_motion" label="Include motion data" hide-details />
-                  <v-checkbox v-model="cfg.save_guest_images" label="Save guest images (unidentified faces)" hide-details />
+                  <v-checkbox v-model="cfg.include_annotated_image" label="Include annotated image" class="mb-1" hide-details />
+                  <v-checkbox v-model="cfg.include_motion" label="Include motion data" class="mb-1" hide-details />
+                  <v-checkbox v-model="cfg.save_guest_images" label="Save guest images (unidentified faces)" class="mb-4" hide-details />
+                  <v-combobox
+                    v-model="cfg.additional_sensor_ids"
+                    :items="[]"
+                    label="Additional Sensor IDs"
+                    multiple
+                    chips
+                    closable-chips
+                    hint="Pull recent frames from these extra cameras in addition to the trigger sensor"
+                    persistent-hint
+                    class="mb-2"
+                  />
                 </template>
 
                 <!-- translation -->
@@ -941,7 +952,7 @@
               placeholder="Search variables"
               density="compact"
               hide-details
-              class="mb-3"
+              class="mb-3 flex-grow-0 flex-shrink-0"
             />
             <div class="step-config-vars-list flex-grow-1 overflow-auto pr-1">
               <div
@@ -1075,10 +1086,14 @@ const pipelineDataReference = [
   { key: "system.timezone", source: "Executor system context" },
   // -- person_identification --------------------------------------------------
   { key: "person_detections", source: "person_identification" },
-  { key: "person_detections.0.name", source: "person_identification (first match)" },
   { key: "person_detections.0.person_id", source: "person_identification (first match)" },
+  { key: "person_detections.0.name", source: "person_identification (first match)" },
   { key: "person_detections.0.confidence", source: "person_identification (first match)" },
-  { key: "annotated_image", source: "person_identification" },
+  { key: "person_detections.0.bbox", source: "person_identification — [x1,y1,x2,y2] in pixels" },
+  { key: "person_detections.0.direction", source: "person_identification — motion direction" },
+  { key: "person_detections.0.frame_index", source: "person_identification — index into trigger media_paths" },
+  { key: "person_detections.0.source_media_path", source: "person_identification — presigned URL of the frame containing this bbox" },
+  { key: "annotated_image", source: "person_identification — base64 image with bbox overlays" },
   // -- vision_analysis / llm_call (vision) ------------------------------------
   { key: "vision_response", source: "vision_analysis / llm_call" },
   // -- logic_reasoning / llm_call (reasoning) ---------------------------------
@@ -1192,6 +1207,7 @@ const fallbackDefaults = {
     include_annotated_image: true,
     include_motion: false,
     save_guest_images: false,
+    additional_sensor_ids: [],
   },
   vision_analysis: {
     prompt: "",

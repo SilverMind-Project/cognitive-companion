@@ -37,6 +37,7 @@ class PersonDetection:
     confidence: float
     bbox: list[float]
     direction: str | None = None
+    frame_index: int | None = None  # index into the media_paths list passed to process_camera_event
 
     def dict(self) -> dict:
         return {
@@ -45,6 +46,7 @@ class PersonDetection:
             "confidence": self.confidence,
             "bbox": self.bbox,
             "direction": self.direction,
+            "frame_index": self.frame_index,
         }
 
 
@@ -109,9 +111,10 @@ class PersonTrackingService:
         for m in batch_result.motion:
             direction_map[m.person_id] = m.direction
 
-        # Deduplicate detections across frames: keep the highest confidence per person
+        # Deduplicate detections across frames: keep the highest confidence per person.
+        # frame_idx is preserved so callers can map a detection's bbox back to its source image.
         best_detections: dict[str, PersonDetection] = {}
-        for frame_faces in batch_result.frames:
+        for frame_idx, frame_faces in enumerate(batch_result.frames):
             for face in frame_faces:
                 if face.confidence < self._min_confidence:
                     continue
@@ -123,6 +126,7 @@ class PersonTrackingService:
                         confidence=face.confidence,
                         bbox=face.bbox,
                         direction=direction_map.get(face.person_id),
+                        frame_index=frame_idx,
                     )
 
         detections = list(best_detections.values())

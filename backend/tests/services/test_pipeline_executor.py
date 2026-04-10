@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.models.pipeline import PipelineStep
 from backend.models.rule import Rule
 from backend.services.pipeline_executor import PipelineExecutor
-from backend.steps.base import ServiceContainer, StepResult, TriggerContext
+from backend.steps.base import StepResult, TriggerContext
 
 
 def _make_rule(db, name="Test Rule"):
@@ -161,8 +159,7 @@ class TestPipelineExecutorBranching:
         # Structlog doesn't propagate to Python logging so we patch the module logger.
         import backend.services.pipeline_executor as pe_module
 
-        with patch.object(pe_module, "logger") as mock_logger:
-            with patch.object(executor, "_execute_step", side_effect=mock_execute):
+        with patch.object(pe_module, "logger") as mock_logger, patch.object(executor, "_execute_step", side_effect=mock_execute):
                 result = await executor.execute(rule, trigger, db_session)
 
         assert result.status == "completed"
@@ -173,8 +170,8 @@ class TestPipelineExecutorBranching:
     async def test_valid_branch_skips_linear_sequence(self, db_session, db_factory):
         """A condition branching to step C should skip step B."""
         rule = _make_rule(db_session)
-        step_a = _make_step(db_session, rule, order=1, step_type="condition")
-        step_b = _make_step(db_session, rule, order=2, step_type="step_b")
+        _make_step(db_session, rule, order=1, step_type="condition")
+        _make_step(db_session, rule, order=2, step_type="step_b")
         step_c = _make_step(db_session, rule, order=3, step_type="step_c")
         db_session.commit()
 

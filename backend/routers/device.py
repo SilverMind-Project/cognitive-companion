@@ -21,9 +21,8 @@ from __future__ import annotations
 
 import base64
 import uuid
-from io import BytesIO
-from typing import Any
 from datetime import UTC, datetime
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, Request
 from PIL import Image
@@ -110,16 +109,15 @@ async def recamera_upload(
     label_filter_config: dict | None = cam_config.get("label_filter")
     detected_labels = payload.data.labels
 
-    if label_filter_config:
-        if not _passes_label_filter(detected_labels, label_filter_config):
-            logger.info(
-                "recamera_image_filtered",
-                sensor_id=sensor_id,
-                detected_labels=detected_labels,
-                required_labels=label_filter_config.get("labels"),
-                mode=label_filter_config.get("mode", "any"),
-            )
-            return {"status": "filtered", "reason": "label_filter"}
+    if label_filter_config and not _passes_label_filter(detected_labels, label_filter_config):
+        logger.info(
+            "recamera_image_filtered",
+            sensor_id=sensor_id,
+            detected_labels=detected_labels,
+            required_labels=label_filter_config.get("labels"),
+            mode=label_filter_config.get("mode", "any"),
+        )
+        return {"status": "filtered", "reason": "label_filter"}
 
     # -- Decode and optionally rotate ----------------------------------------
     image_bytes = base64.b64decode(payload.data.image)

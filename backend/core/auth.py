@@ -2,30 +2,50 @@
 API key authentication and permission checking.
 
 Keys are resolved from (in order):
-  1. X-API-Key header
-  2. ?api_key= query parameter
-  3. JSON body field "device_key" (for device endpoints)
 
-Device keys are 8-char uppercase alphanumeric strings.
+1. ``X-API-Key`` header
+2. ``?api_key=`` query parameter
+3. JSON body field ``device_key`` (for device endpoints)
+
+Device keys are 8-character uppercase alphanumeric strings.
+
+Architecture
+------------
+The :class:`KeyStore` class is a pure lookup/permission checker: it takes
+raw mappings of API keys, device keys, and a permission map, and exposes
+:meth:`KeyStore.resolve` and :meth:`KeyStore.has_permission`. It has no
+dependency on FastAPI or the module-level :mod:`backend.core.config`
+singleton, so tests can construct it directly with hand-crafted data.
+
+The module-level functions (:func:`get_auth_context`,
+:func:`require_permission`, :func:`invalidate_lookup_cache`, and the
+private ``_resolve_key`` used by the MCP middleware) are a thin facade
+over a lazily-built default :class:`KeyStore` sourced from
+:data:`backend.core.config.settings`.
 """
 
 from __future__ import annotations
 
 import fnmatch
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 from fastapi import Depends, Query, Request
 from fastapi.security import APIKeyHeader
 
-from backend.core.config import settings
+from backend.core.config import Settings, settings
 from backend.core.exceptions import AuthenticationError, PermissionDeniedError
 
-_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+__all__ = [
+    "AuthContext",
+    "KeyStore",
+    "get_auth_context",
+    "invalidate_lookup_cache",
+    "require_permission",
+]
 
-# Cached lookup dicts  rebuilt lazily and on settings.reload().
-_api_keys_cache: dict[str, dict] = {}
-_device_keys_cache: dict[str, dict] = {}
-_lookup_built: bool = False
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 @dataclass
@@ -39,95 +59,128 @@ class AuthContext:
     sensor_id: str | None = None
 
 
-def _build_lookup() -> None:
-    """Populate the module-level cache from the current auth config.
+class KeyStore:
+    """Immutable lookup table for API + device keys plus a permission map.
 
-    Called once at first use and whenever settings are reloaded so that
-    the O(n) config scan happens at most once per config lifetime rather
-    than on every authenticated request.
+    :class:`KeyStore` is intentionally decoupled from
+    :mod:`backend.core.config` — construct it directly in tests, or use
+    :meth:`from_settings` to load from the live YAML config.
     """
-    global _api_keys_cache, _device_keys_cache, _lookup_built
-    auth_cfg = settings.get("auth", {})
 
-    _api_keys_cache = {}
-    for entry in auth_cfg.get("api_keys", []):
-        _api_keys_cache[entry["key"]] = entry
+    def __init__(
+        self,
+        api_keys: list[Mapping[str, Any]] | None = None,
+        device_keys: list[Mapping[str, Any]] | None = None,
+        permission_map: Mapping[str, list[str]] | None = None,
+    ) -> None:
+        self._api_keys: dict[str, Mapping[str, Any]] = {
+            entry["key"]: entry for entry in (api_keys or [])
+        }
+        self._device_keys: dict[str, Mapping[str, Any]] = {
+            entry["key"]: entry for entry in (device_keys or [])
+        }
+        self._permission_map: dict[str, list[str]] = dict(permission_map or {})
 
-    _device_keys_cache = {}
-    for entry in auth_cfg.get("device_keys", []):
-        _device_keys_cache[entry["key"]] = entry
+    # -- construction --------------------------------------------------------
 
-    _lookup_built = True
+    @classmethod
+    def from_settings(cls, s: Settings) -> KeyStore:
+        """Build a KeyStore from an application :class:`Settings` instance."""
+        auth_cfg = s.get("auth", {}) or {}
+        return cls(
+            api_keys=auth_cfg.get("api_keys", []),
+            device_keys=auth_cfg.get("device_keys", []),
+            permission_map=s.get("auth.permission_map", {}) or {},
+        )
+
+    # -- resolution ----------------------------------------------------------
+
+    def resolve(self, raw_key: str) -> AuthContext:
+        """Look up *raw_key* and return an :class:`AuthContext`.
+
+        Raises :class:`AuthenticationError` if the key is unknown.
+        """
+        # Check device keys first (8-char uppercase)
+        entry = self._device_keys.get(raw_key)
+        if entry is not None:
+            return AuthContext(
+                key=raw_key,
+                name=entry.get("name", f"Device {raw_key}"),
+                permissions=list(entry.get("permissions", [])),
+                device_type=entry.get("device_type"),
+                sensor_id=entry.get("sensor_id"),
+            )
+
+        # Then standard API keys
+        entry = self._api_keys.get(raw_key)
+        if entry is not None:
+            return AuthContext(
+                key=raw_key,
+                name=entry.get("name", "API Key"),
+                permissions=list(entry.get("permissions", [])),
+            )
+
+        raise AuthenticationError()
+
+    # -- permissions ---------------------------------------------------------
+
+    def expand_permissions(self, permissions: list[str]) -> list[str]:
+        """Expand abstract permission names to endpoint patterns via the map."""
+        expanded: list[str] = []
+        for perm in permissions:
+            mapped = self._permission_map.get(perm)
+            if mapped is not None:
+                expanded.extend(mapped)
+            else:
+                # Treat as a literal endpoint pattern
+                expanded.append(perm)
+        return expanded
+
+    def has_permission(self, auth: AuthContext, method: str, path: str) -> bool:
+        """Return True if *auth* may access ``METHOD /path``."""
+        target = f"{method.upper()} {path}"
+        for pattern in self.expand_permissions(auth.permissions):
+            if pattern == "*":
+                return True
+            if fnmatch.fnmatch(target, pattern):
+                return True
+        return False
 
 
-def _ensure_lookup() -> None:
-    """Build lookup cache on first call."""
-    if not _lookup_built:
-        _build_lookup()
+# ─── Module-level facade ─────────────────────────────────────────────────────
+#
+# A process-wide KeyStore is built lazily from the application settings on
+# first use and invalidated by :func:`invalidate_lookup_cache` whenever the
+# config is reloaded, so rotated keys take effect without a server restart.
+
+_default_keystore: KeyStore | None = None
+
+
+def _ensure_keystore() -> KeyStore:
+    global _default_keystore
+    if _default_keystore is None:
+        _default_keystore = KeyStore.from_settings(settings)
+    return _default_keystore
 
 
 def invalidate_lookup_cache() -> None:
     """Force a cache rebuild on the next authentication attempt.
 
-    Call this after ``settings.reload()`` so that newly added or rotated
+    Call this after :meth:`Settings.reload` so that newly added or rotated
     keys take effect immediately without restarting the server.
     """
-    global _lookup_built
-    _lookup_built = False
+    global _default_keystore
+    _default_keystore = None
 
 
 def _resolve_key(raw_key: str) -> AuthContext:
-    """Look up a raw key string in the config and return an AuthContext."""
-    _ensure_lookup()
-    api_keys, device_keys = _api_keys_cache, _device_keys_cache
-
-    # Check device keys first (8-char uppercase)
-    if raw_key in device_keys:
-        entry = device_keys[raw_key]
-        return AuthContext(
-            key=raw_key,
-            name=entry.get("name", f"Device {raw_key}"),
-            permissions=entry.get("permissions", []),
-            device_type=entry.get("device_type"),
-            sensor_id=entry.get("sensor_id"),
-        )
-
-    # Then standard API keys
-    if raw_key in api_keys:
-        entry = api_keys[raw_key]
-        return AuthContext(
-            key=raw_key,
-            name=entry.get("name", "API Key"),
-            permissions=entry.get("permissions", []),
-        )
-
-    raise AuthenticationError()
-
-
-def _expand_permissions(permissions: list[str]) -> list[str]:
-    """Expand abstract permission names to endpoint patterns using permission_map."""
-    perm_map = settings.get("auth.permission_map", {})
-    expanded: list[str] = []
-    for perm in permissions:
-        if perm in perm_map:
-            expanded.extend(perm_map[perm])
-        else:
-            # Treat as a literal endpoint pattern
-            expanded.append(perm)
-    return expanded
+    """Module-level resolver kept for ``backend.mcp.middleware`` compatibility."""
+    return _ensure_keystore().resolve(raw_key)
 
 
 def has_permission(auth: AuthContext, method: str, path: str) -> bool:
-    """Check if auth context is allowed to access the given method + path."""
-    expanded = _expand_permissions(auth.permissions)
-    target = f"{method.upper()} {path}"
-
-    for pattern in expanded:
-        if pattern == "*":
-            return True
-        if fnmatch.fnmatch(target, pattern):
-            return True
-    return False
+    """Check if *auth* is allowed to access ``METHOD /path``."""
+    return _ensure_keystore().has_permission(auth, method, path)
 
 
 async def get_auth_context(
@@ -135,9 +188,7 @@ async def get_auth_context(
     header_key: str | None = Depends(_api_key_header),
     query_key: str | None = Query(None, alias="api_key"),
 ) -> AuthContext:
-    """
-    FastAPI dependency - resolve the API key from header, query, or body.
-    """
+    """FastAPI dependency — resolve the API key from header, query, or body."""
     raw_key = header_key or query_key
 
     # For device endpoints, also check JSON body
@@ -151,14 +202,22 @@ async def get_auth_context(
     if not raw_key:
         raise AuthenticationError()
 
-    return _resolve_key(raw_key)
+    return _ensure_keystore().resolve(raw_key)
 
 
-def require_permission(*permissions: str):
+def require_permission(
+    *permissions: str,
+) -> Callable[..., Awaitable[AuthContext]]:
     """
     FastAPI dependency factory that checks AuthContext against endpoint permissions.
 
-    Usage:
+    The ``*permissions`` argument is accepted for call-site documentation but
+    the actual check is performed against the resolved request method/path;
+    this matches the previous behavior where permission strings in config
+    are endpoint patterns, not role names.
+
+    Usage::
+
         @router.get("/rooms", dependencies=[Depends(require_permission("rooms:read"))])
     """
 
@@ -166,13 +225,8 @@ def require_permission(*permissions: str):
         request: Request,
         auth: AuthContext = Depends(get_auth_context),
     ) -> AuthContext:
-        method = request.method
-        path = request.url.path
-
-        # Check explicit endpoint-level permission
-        if not has_permission(auth, method, path):
+        if not _ensure_keystore().has_permission(auth, request.method, request.url.path):
             raise PermissionDeniedError()
-
         return auth
 
     return _checker

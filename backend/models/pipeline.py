@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
+
+if TYPE_CHECKING:
+    from backend.models.rule import Rule
 
 
 def get_step_types() -> tuple[str, ...]:
@@ -67,7 +71,7 @@ class PipelineStep(Base):
         ForeignKey("pipeline_steps.id"), nullable=True
     )
 
-    rule: Mapped[Rule] = relationship(back_populates="steps")  # noqa: F821
+    rule: Mapped[Rule] = relationship(back_populates="steps")
 
     true_branch: Mapped[PipelineStep | None] = relationship(
         foreign_keys=[next_step_on_true], remote_side=[id], uselist=False
@@ -105,7 +109,7 @@ class WorkflowExecution(Base):
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    rule: Mapped[Rule] = relationship()  # noqa: F821
+    rule: Mapped[Rule] = relationship()
     current_step: Mapped[PipelineStep | None] = relationship(
         foreign_keys=[current_step_id]
     )

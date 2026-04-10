@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from backend.core.database import Base
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def db_engine():
     """In-memory SQLite engine with the full ORM schema.
 
@@ -17,9 +17,9 @@ def db_engine():
     dependency that prevents SQLAlchemy from computing a DROP order for
     SQLite.  We disable FK enforcement before teardown to avoid this.
     """
-    import backend.models  # noqa: F401  registers all models with Base
-
     from sqlalchemy import event, text
+
+    import backend.models  # noqa: F401  registers all models with Base
 
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
 
@@ -40,7 +40,7 @@ def db_engine():
     engine.dispose()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def db_session(db_engine):
     """Transactional DB session that is rolled back after each test."""
     factory = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
@@ -50,7 +50,7 @@ def db_session(db_engine):
     session.close()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def db_factory(db_engine):
     """Session factory returning sessions bound to the in-memory engine."""
     factory = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)

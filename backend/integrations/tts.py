@@ -17,6 +17,11 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+
+from backend.core.config import settings
+from backend.core.logging import get_logger
+
 # Mirrors the style tags recognised by the Svara engine so we can detect
 # whether the caller has already embedded one before injecting the default.
 _SVARA_STYLE_TAG_RE = re.compile(
@@ -24,11 +29,6 @@ _SVARA_STYLE_TAG_RE = re.compile(
     r"narrative|enthusiastic|laugh|yawn|angry)>",
     re.IGNORECASE,
 )
-
-import httpx
-
-from backend.core.config import settings
-from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
 

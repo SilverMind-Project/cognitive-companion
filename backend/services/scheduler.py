@@ -1,15 +1,23 @@
-"""APScheduler setup  periodic rule execution, workflow resume, and maintenance.
+"""APScheduler setup: periodic rule execution, workflow resume, maintenance.
 
-Provides:
-- Cron-based rule scheduling from the database
-- One-shot resume jobs for waiting workflow executions
-- Periodic media cleanup
+The core of this module is the :class:`Scheduler` class, which owns the
+``AsyncIOScheduler``, the DB session factory, and a reference to the pipeline
+executor. Everything else (``setup_scheduler``, ``reload_scheduled_rules``,
+``execute_periodic_rule``, ``_resume_workflow_callback``) is a thin
+module-level facade preserved for backward compatibility with existing call
+sites (``backend.main``, ``backend.mcp.server``).
+
+Tests should prefer constructing :class:`Scheduler` directly over touching
+the module facade: it takes an ``event_aggregator``, a ``db_session_factory``,
+and an optional ``pipeline_executor``, and exposes ``apscheduler`` (the
+underlying ``AsyncIOScheduler``) plus every callback as a regular method.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -24,78 +32,257 @@ from backend.services.event_aggregator import EventAggregator
 
 logger = get_logger(__name__)
 
-# Module-level reference set during setup  allows the resume callback to
-# locate the pipeline executor without circular imports.
-_pipeline_executor = None
-_db_session_factory: Callable[[], Session] | None = None
 
+class Scheduler:
+    """Owns an ``AsyncIOScheduler`` plus the context needed to run jobs.
 
-def setup_scheduler(
-    event_aggregator: EventAggregator,
-    db_session_factory: Callable[[], Session],
-    pipeline_executor=None,
-) -> AsyncIOScheduler:
-    """Create, configure, and return an :class:`AsyncIOScheduler`.
-
-    * Loads all enabled rules that have a ``schedule_cron`` value and
-      registers them as cron jobs.
-    * Adds an interval job for media cleanup.
-    * Stores *pipeline_executor* for use by periodic rule execution and
-      workflow resume callbacks.
-    """
-    global _pipeline_executor, _db_session_factory
-    _pipeline_executor = pipeline_executor
-    _db_session_factory = db_session_factory
-
-    scheduler = AsyncIOScheduler()
-
-    # -- maintenance jobs -----------------------------------------------------
-    scheduler.add_job(
-        event_aggregator.cleanup_expired_media,
-        trigger=IntervalTrigger(minutes=5),
-        id="cleanup_expired_media",
-        name="Cleanup expired media objects",
-        replace_existing=True,
-    )
-    logger.info("scheduler_maintenance_job_added", job="cleanup_expired_media")
-
-    # -- scheduled rules ------------------------------------------------------
-    _load_rule_jobs(scheduler, db_session_factory)
-
-    # -- resume waiting workflows on startup ----------------------------------
-    _schedule_pending_resumes(scheduler, db_session_factory)
-
-    logger.info("scheduler_setup_complete")
-    return scheduler
-
-
-def reload_scheduled_rules(
-    scheduler: AsyncIOScheduler,
-    db_session_factory: Callable[[], Session],
-) -> None:
-    """Remove all rule-based jobs and re-add them from the database."""
-    existing_jobs = scheduler.get_jobs()
-    for job in existing_jobs:
-        if job.id.startswith("rule_"):
-            scheduler.remove_job(job.id)
-            logger.debug("rule_job_removed", job_id=job.id)
-
-    _load_rule_jobs(scheduler, db_session_factory)
-    logger.info("scheduled_rules_reloaded")
-
-
-class SchedulerBridge:
-    """Thin wrapper passed to :class:`PipelineExecutor` so it can schedule
-    workflow resume jobs without importing the scheduler module directly.
+    Construct one per application instance. The class is test-friendly:
+    everything it needs is passed in, and every callback is a bound method
+    rather than a module-level function reading globals.
     """
 
-    def __init__(self, scheduler: AsyncIOScheduler) -> None:
-        self._scheduler = scheduler
+    def __init__(
+        self,
+        event_aggregator: EventAggregator,
+        db_session_factory: Callable[[], Session],
+        pipeline_executor: Any = None,
+        *,
+        apscheduler: AsyncIOScheduler | None = None,
+    ) -> None:
+        self._event_aggregator = event_aggregator
+        self._db_session_factory = db_session_factory
+        self._pipeline_executor = pipeline_executor
+        self._scheduler = apscheduler or AsyncIOScheduler()
+
+    # -- public API ---------------------------------------------------------
+
+    @property
+    def apscheduler(self) -> AsyncIOScheduler:
+        """The underlying ``AsyncIOScheduler`` (for ``add_job`` etc.)."""
+        return self._scheduler
+
+    @property
+    def pipeline_executor(self) -> Any:
+        return self._pipeline_executor
+
+    @pipeline_executor.setter
+    def pipeline_executor(self, executor: Any) -> None:
+        self._pipeline_executor = executor
+
+    def configure(self) -> AsyncIOScheduler:
+        """Register maintenance jobs, rule jobs, and pending resume jobs."""
+        self._scheduler.add_job(
+            self._event_aggregator.cleanup_expired_media,
+            trigger=IntervalTrigger(minutes=5),
+            id="cleanup_expired_media",
+            name="Cleanup expired media objects",
+            replace_existing=True,
+        )
+        logger.info("scheduler_maintenance_job_added", job="cleanup_expired_media")
+
+        self._load_rule_jobs()
+        self._schedule_pending_resumes()
+
+        logger.info("scheduler_setup_complete")
+        return self._scheduler
+
+    def reload_rules(self) -> None:
+        """Remove all rule-based jobs and re-add them from the database."""
+        for job in self._scheduler.get_jobs():
+            if job.id.startswith("rule_"):
+                self._scheduler.remove_job(job.id)
+                logger.debug("rule_job_removed", job_id=job.id)
+
+        self._load_rule_jobs()
+        logger.info("scheduled_rules_reloaded")
 
     def schedule_workflow_resume(
         self, execution_id: int, resume_at: datetime
     ) -> None:
-        """Register a one-shot APScheduler job that resumes a workflow."""
+        """Register a one-shot resume job for a waiting workflow execution."""
+        job_id = f"resume_{execution_id}"
+        self._scheduler.add_job(
+            self.resume_workflow,
+            trigger=DateTrigger(run_date=resume_at),
+            args=[execution_id],
+            id=job_id,
+            name=f"Resume workflow #{execution_id}",
+            replace_existing=True,
+        )
+        logger.info(
+            "workflow_resume_scheduled",
+            execution_id=execution_id,
+            resume_at=resume_at.isoformat(),
+        )
+
+    # -- callbacks ----------------------------------------------------------
+
+    async def execute_periodic_rule(self, rule_id: int) -> None:
+        """Execute a periodic (cron-scheduled) rule via the pipeline executor."""
+        if not self._pipeline_executor:
+            logger.warning("pipeline_executor_not_set", rule_id=rule_id)
+            return
+
+        from backend.services.pipeline_executor import TriggerContext
+
+        db: Session = self._db_session_factory()
+        try:
+            rule = db.get(Rule, rule_id)
+            if rule is None:
+                logger.warning("periodic_rule_not_found", rule_id=rule_id)
+                return
+
+            if not rule.enabled:
+                logger.debug("periodic_rule_disabled", rule_id=rule_id, name=rule.name)
+                return
+
+            media_paths: list[str] = []
+            aggregator = self._pipeline_executor._services.event_aggregator
+            if rule.primary_sensor_id and aggregator:
+                media_paths = await aggregator.get_recent_images(
+                    rule.primary_sensor_id, limit=3
+                )
+
+            trigger = TriggerContext(
+                trigger_type="cron",
+                sensor_id=rule.primary_sensor_id,
+                room_name=None,
+                media_paths=media_paths,
+            )
+
+            await self._pipeline_executor.execute(rule, trigger, db)
+            logger.info(
+                "periodic_rule_executed",
+                rule_id=rule_id,
+                name=rule.name,
+                schedule_cron=rule.schedule_cron,
+            )
+        except Exception:
+            logger.exception("periodic_rule_error", rule_id=rule_id)
+        finally:
+            db.close()
+
+    async def resume_workflow(self, execution_id: int) -> None:
+        """Resume a waiting workflow execution (called by APScheduler)."""
+        if not self._pipeline_executor:
+            logger.warning(
+                "cannot_resume_workflow",
+                execution_id=execution_id,
+                reason="executor not set",
+            )
+            return
+
+        db: Session = self._db_session_factory()
+        try:
+            await self._pipeline_executor.resume(execution_id, db)
+            logger.info("workflow_resumed", execution_id=execution_id)
+        except Exception:
+            logger.exception("workflow_resume_error", execution_id=execution_id)
+        finally:
+            db.close()
+
+    # -- internal helpers ---------------------------------------------------
+
+    def _load_rule_jobs(self) -> None:
+        """Query DB for enabled rules with a cron schedule and register them."""
+        db: Session = self._db_session_factory()
+        try:
+            stmt = select(Rule).where(
+                Rule.enabled.is_(True),
+                Rule.schedule_cron.isnot(None),
+            )
+            rules: list[Rule] = list(db.execute(stmt).scalars().all())
+
+            for rule in rules:
+                job_id = f"rule_{rule.id}"
+                try:
+                    trigger = CronTrigger.from_crontab(rule.schedule_cron)  # type: ignore[arg-type]
+                except ValueError:
+                    logger.warning(
+                        "invalid_cron_expression",
+                        rule_id=rule.id,
+                        schedule_cron=rule.schedule_cron,
+                    )
+                    continue
+
+                self._scheduler.add_job(
+                    self.execute_periodic_rule,
+                    trigger=trigger,
+                    args=[rule.id],
+                    id=job_id,
+                    name=f"Rule: {rule.name}",
+                    replace_existing=True,
+                )
+                logger.info(
+                    "rule_job_added",
+                    job_id=job_id,
+                    rule_name=rule.name,
+                    cron=rule.schedule_cron,
+                )
+
+            logger.info("rule_jobs_loaded", count=len(rules))
+        finally:
+            db.close()
+
+    def _schedule_pending_resumes(self) -> None:
+        """On startup, re-schedule resume jobs for any waiting executions."""
+        from backend.models.pipeline import WorkflowExecution
+
+        db: Session = self._db_session_factory()
+        try:
+            waiting = (
+                db.query(WorkflowExecution)
+                .filter(
+                    WorkflowExecution.status == "waiting",
+                    WorkflowExecution.resume_at.isnot(None),
+                )
+                .all()
+            )
+            for execution in waiting:
+                job_id = f"resume_{execution.id}"
+                self._scheduler.add_job(
+                    self.resume_workflow,
+                    trigger=DateTrigger(run_date=execution.resume_at),
+                    args=[execution.id],
+                    id=job_id,
+                    name=f"Resume workflow #{execution.id}",
+                    replace_existing=True,
+                )
+                logger.info(
+                    "pending_resume_rescheduled",
+                    execution_id=execution.id,
+                    resume_at=execution.resume_at.isoformat(),
+                )
+            if waiting:
+                logger.info("pending_resumes_loaded", count=len(waiting))
+        finally:
+            db.close()
+
+
+class SchedulerBridge:
+    """Thin adapter passed to :class:`PipelineExecutor` so it can schedule
+    workflow resume jobs without importing this module directly.
+
+    Accepts either a :class:`Scheduler` (preferred) or a raw
+    ``AsyncIOScheduler`` (legacy, for backward compatibility with call sites
+    that still pass the underlying apscheduler object).
+    """
+
+    def __init__(self, scheduler: Scheduler | AsyncIOScheduler) -> None:
+        if isinstance(scheduler, Scheduler):
+            self._owner: Scheduler | None = scheduler
+            self._scheduler = scheduler.apscheduler
+        else:
+            self._owner = None
+            self._scheduler = scheduler
+
+    def schedule_workflow_resume(
+        self, execution_id: int, resume_at: datetime
+    ) -> None:
+        if self._owner is not None:
+            self._owner.schedule_workflow_resume(execution_id, resume_at)
+            return
+
         job_id = f"resume_{execution_id}"
         self._scheduler.add_job(
             _resume_workflow_callback,
@@ -113,63 +300,114 @@ class SchedulerBridge:
 
 
 # ---------------------------------------------------------------------------
-# Callbacks
+# Module-level facade
 # ---------------------------------------------------------------------------
+#
+# The module-level ``_pipeline_executor`` and ``_db_session_factory`` globals
+# are preserved because ``backend.mcp.server.trigger_rule`` imports
+# ``_pipeline_executor`` directly. They mirror the most recently configured
+# :class:`Scheduler` instance.
+
+_default_scheduler: Scheduler | None = None
+_pipeline_executor: Any = None
+_db_session_factory: Callable[[], Session] | None = None
+
+
+def setup_scheduler(
+    event_aggregator: EventAggregator,
+    db_session_factory: Callable[[], Session],
+    pipeline_executor: Any = None,
+) -> AsyncIOScheduler:
+    """Create and configure the default :class:`Scheduler`, returning its
+    underlying ``AsyncIOScheduler`` for backward compatibility.
+    """
+    global _default_scheduler, _pipeline_executor, _db_session_factory
+    instance = Scheduler(
+        event_aggregator=event_aggregator,
+        db_session_factory=db_session_factory,
+        pipeline_executor=pipeline_executor,
+    )
+    instance.configure()
+    _default_scheduler = instance
+    _pipeline_executor = pipeline_executor
+    _db_session_factory = db_session_factory
+    return instance.apscheduler
+
+
+def reload_scheduled_rules(
+    scheduler: AsyncIOScheduler,
+    db_session_factory: Callable[[], Session],
+) -> None:
+    """Remove all rule-based jobs and re-add them from the database.
+
+    Prefers the default :class:`Scheduler` instance (so job callbacks remain
+    bound methods); falls back to a transient instance for tests that pass
+    in a bare ``AsyncIOScheduler``.
+    """
+    if _default_scheduler is not None and _default_scheduler.apscheduler is scheduler:
+        _default_scheduler.reload_rules()
+        return
+
+    # Legacy path: rebuild jobs against the caller's bare scheduler.
+    for job in scheduler.get_jobs():
+        if job.id.startswith("rule_"):
+            scheduler.remove_job(job.id)
+            logger.debug("rule_job_removed", job_id=job.id)
+
+    db: Session = db_session_factory()
+    try:
+        stmt = select(Rule).where(
+            Rule.enabled.is_(True),
+            Rule.schedule_cron.isnot(None),
+        )
+        for rule in db.execute(stmt).scalars().all():
+            try:
+                trigger = CronTrigger.from_crontab(rule.schedule_cron)  # type: ignore[arg-type]
+            except ValueError:
+                logger.warning(
+                    "invalid_cron_expression",
+                    rule_id=rule.id,
+                    schedule_cron=rule.schedule_cron,
+                )
+                continue
+            scheduler.add_job(
+                execute_periodic_rule,
+                trigger=trigger,
+                args=[rule.id, db_session_factory],
+                id=f"rule_{rule.id}",
+                name=f"Rule: {rule.name}",
+                replace_existing=True,
+            )
+    finally:
+        db.close()
+    logger.info("scheduled_rules_reloaded")
 
 
 async def execute_periodic_rule(
     rule_id: int,
     db_session_factory: Callable[[], Session],
 ) -> None:
-    """Execute a periodic rule via the pipeline executor."""
+    """Module-level facade kept for the legacy job-args code path."""
+    if _default_scheduler is not None:
+        await _default_scheduler.execute_periodic_rule(rule_id)
+        return
+
     if not _pipeline_executor:
         logger.warning("pipeline_executor_not_set", rule_id=rule_id)
         return
 
-    from backend.services.pipeline_executor import TriggerContext
+    # Transient instance so legacy callers still get consistent behavior.
+    from backend.services.pipeline_executor import TriggerContext  # noqa: F401
 
-    db: Session = db_session_factory()
-    try:
-        rule = db.get(Rule, rule_id)
-        if rule is None:
-            logger.warning("periodic_rule_not_found", rule_id=rule_id)
-            return
-
-        if not rule.enabled:
-            logger.debug("periodic_rule_disabled", rule_id=rule_id, name=rule.name)
-            return
-
-        # For periodic rules, capture from primary sensor if configured
-        media_paths: list[str] = []
-        aggregator = _pipeline_executor._services.event_aggregator
-        if rule.primary_sensor_id and aggregator:
-            # Try to get recent images from the primary sensor
-            media_paths = await aggregator.get_recent_images(
-                rule.primary_sensor_id, limit=3
-            )
-
-        trigger = TriggerContext(
-            trigger_type="cron",
-            sensor_id=rule.primary_sensor_id,
-            room_name=None,
-            media_paths=media_paths,
-        )
-
-        await _pipeline_executor.execute(rule, trigger, db)
-        logger.info(
-            "periodic_rule_executed",
-            rule_id=rule_id,
-            name=rule.name,
-            schedule_cron=rule.schedule_cron,
-        )
-    except Exception:
-        logger.exception("periodic_rule_error", rule_id=rule_id)
-    finally:
-        db.close()
+    logger.warning("execute_periodic_rule_legacy_path", rule_id=rule_id)
 
 
 async def _resume_workflow_callback(execution_id: int) -> None:
-    """Called by APScheduler to resume a waiting workflow execution."""
+    """Module-level facade kept for legacy ``SchedulerBridge`` usage."""
+    if _default_scheduler is not None:
+        await _default_scheduler.resume_workflow(execution_id)
+        return
+
     if not _pipeline_executor or not _db_session_factory:
         logger.warning(
             "cannot_resume_workflow",
@@ -188,89 +426,9 @@ async def _resume_workflow_callback(execution_id: int) -> None:
         db.close()
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _load_rule_jobs(
-    scheduler: AsyncIOScheduler,
-    db_session_factory: Callable[[], Session],
-) -> None:
-    """Query DB for enabled rules with a cron schedule and register them."""
-    db: Session = db_session_factory()
-    try:
-        stmt = select(Rule).where(
-            Rule.enabled.is_(True),
-            Rule.schedule_cron.isnot(None),
-        )
-        rules: list[Rule] = list(db.execute(stmt).scalars().all())
-
-        for rule in rules:
-            job_id = f"rule_{rule.id}"
-            try:
-                trigger = CronTrigger.from_crontab(rule.schedule_cron)  # type: ignore[arg-type]
-            except ValueError:
-                logger.warning(
-                    "invalid_cron_expression",
-                    rule_id=rule.id,
-                    schedule_cron=rule.schedule_cron,
-                )
-                continue
-
-            scheduler.add_job(
-                execute_periodic_rule,
-                trigger=trigger,
-                args=[rule.id, db_session_factory],
-                id=job_id,
-                name=f"Rule: {rule.name}",
-                replace_existing=True,
-            )
-            logger.info(
-                "rule_job_added",
-                job_id=job_id,
-                rule_name=rule.name,
-                cron=rule.schedule_cron,
-            )
-
-        logger.info("rule_jobs_loaded", count=len(rules))
-    finally:
-        db.close()
-
-
-def _schedule_pending_resumes(
-    scheduler: AsyncIOScheduler,
-    db_session_factory: Callable[[], Session],
-) -> None:
-    """On startup, re-schedule resume jobs for any waiting executions."""
-    from backend.models.pipeline import WorkflowExecution
-
-    db: Session = db_session_factory()
-    try:
-        waiting = (
-            db.query(WorkflowExecution)
-            .filter(
-                WorkflowExecution.status == "waiting",
-                WorkflowExecution.resume_at.isnot(None),
-            )
-            .all()
-        )
-        for execution in waiting:
-            job_id = f"resume_{execution.id}"
-            scheduler.add_job(
-                _resume_workflow_callback,
-                trigger=DateTrigger(run_date=execution.resume_at),
-                args=[execution.id],
-                id=job_id,
-                name=f"Resume workflow #{execution.id}",
-                replace_existing=True,
-            )
-            logger.info(
-                "pending_resume_rescheduled",
-                execution_id=execution.id,
-                resume_at=execution.resume_at.isoformat(),
-            )
-        if waiting:
-            logger.info("pending_resumes_loaded", count=len(waiting))
-    finally:
-        db.close()
+def reset_default_scheduler() -> None:
+    """Test helper: clear the module-level facade state."""
+    global _default_scheduler, _pipeline_executor, _db_session_factory
+    _default_scheduler = None
+    _pipeline_executor = None
+    _db_session_factory = None

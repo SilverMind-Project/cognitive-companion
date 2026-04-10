@@ -73,7 +73,7 @@ class WorkflowPipeline:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         executions: list[WorkflowExecution] = []
-        for rule, result in zip(matched_rules, results):
+        for rule, result in zip(matched_rules, results, strict=False):
             if isinstance(result, WorkflowExecution):
                 executions.append(result)
             elif isinstance(result, Exception):
@@ -126,7 +126,7 @@ class WorkflowPipeline:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         executions: list[WorkflowExecution] = []
-        for rule, result in zip(matched_rules, results):
+        for rule, result in zip(matched_rules, results, strict=False):
             if isinstance(result, WorkflowExecution):
                 executions.append(result)
             elif isinstance(result, Exception):

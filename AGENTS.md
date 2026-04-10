@@ -16,12 +16,14 @@ Cognitive Companion v2 is a privacy-first AI system for senior care. It processe
 
 ```text
 backend/
-  core/
-    config.py              # YAML config loader with ${ENV_VAR} interpolation
-    auth.py                # API key resolution, permission checking (fnmatch)
-    database.py            # SQLAlchemy engine, session factory, init_db()
-    exceptions.py          # AuthenticationError, PermissionDeniedError, NotFoundError, ConflictError
-    logging.py             # structlog setup, get_logger()
+  core/                    # Foundational layer — see "Core layer" section below.
+    __init__.py            # Re-exports the public surface: Settings, Database, KeyStore, AuthContext, get_logger, …
+    config.py              # Settings class + ${ENV_VAR} interpolated YAML loader; module-level ``settings`` singleton
+    database.py            # Database class wrapping engine + session factory; ``init_db`` / ``get_db`` / ``get_session`` facade
+    auth.py                # KeyStore (pure lookup) + FastAPI deps: ``get_auth_context`` / ``require_permission``
+    exceptions.py          # AppError hierarchy + ``register_exception_handlers``
+    logging.py             # BoundLogger + ``setup_logging`` / ``get_logger``
+    template.py            # ``{{dotted.path}}`` renderer for pipeline prompts
   steps/                   # Step plugin system
     base.py                # StepHandler ABC, StepMetadata, StepResult, TriggerContext, ServiceContainer
     __init__.py            # StepRegistry singleton + auto-discovery
@@ -267,7 +269,8 @@ pipeline_executor = request.app.state.pipeline_executor
 
 ### Configuration
 
-YAML files in `config/` with `${ENV_VAR}` interpolation. Access any value with dot-notation:
+YAML files in `config/` with `${ENV_VAR}` interpolation, exposed through the
+`Settings` class. Access any value with dot-notation via the module singleton:
 
 ```python
 from backend.core.config import settings
@@ -275,11 +278,23 @@ url = settings.get("person_id.url")
 interval = settings.get("homeassistant.poll_interval_seconds", 30)
 ```
 
-The config is loaded once at import time and reloaded in the lifespan. If you add a new config section, add it to `config/settings.yaml` -- the loader handles it automatically.
+The config is loaded lazily on first access and reloaded in the lifespan. If
+you add a new config section, add it to `config/settings.yaml` — the loader
+handles it automatically.
+
+In tests, construct a `Settings` object directly to avoid touching the disk:
+
+```python
+from backend.core.config import Settings
+s = Settings.from_dict({"llm": {"model": "fake"}})
+assert s.get("llm.model") == "fake"
+```
 
 ### Database
 
-SQLAlchemy 2.0 ORM with a session factory. All models inherit from `Base` defined in `backend/core/database.py`.
+SQLAlchemy 2.0 ORM wrapped by the `Database` class, which owns the engine and
+session factory. All models inherit from `Base` defined in
+`backend/core/database.py`. Application code uses the module-level facade:
 
 ```python
 from backend.core.database import get_session
@@ -290,13 +305,37 @@ finally:
     db.close()
 ```
 
-For schema changes: **delete `data/cognitive_companion.db` and restart**. Tables are auto-created from the ORM models. There are no migrations.
+For schema changes: **delete `data/cognitive_companion.db` and restart**. Tables
+are auto-created from the ORM models. There are no migrations.
+
+In tests, construct an isolated `Database` directly — no global reset needed:
+
+```python
+from backend.core.database import Database
+db = Database("sqlite:///:memory:")
+sess = db.session()
+```
 
 ### Authentication
 
-API keys resolve from (in order): `X-API-Key` header, `?api_key` query param, `device_key` in JSON body.
+API keys resolve from (in order): `X-API-Key` header, `?api_key` query param,
+`device_key` in JSON body. Resolution and permission checking live in the
+pure `KeyStore` class; the module-level `get_auth_context` / `require_permission`
+dependencies wrap a lazily-built default `KeyStore` sourced from the current
+`Settings`. Call `invalidate_lookup_cache()` after reloading settings to pick
+up rotated keys without a restart.
 
-Permission checking uses fnmatch patterns defined in `config/auth.yaml`. The `require_permission()` dependency handles this automatically when applied to a router.
+Permission checking uses fnmatch patterns defined in `config/auth.yaml`. The
+`require_permission()` dependency handles this automatically when applied to a
+router.
+
+In tests, hand-construct a `KeyStore` with in-memory data:
+
+```python
+from backend.core.auth import KeyStore
+ks = KeyStore(api_keys=[{"key": "K1", "name": "admin", "permissions": ["*"]}])
+assert ks.resolve("K1").name == "admin"
+```
 
 **Device key sensor upsert:** At startup, `_upsert_device_key_sensors()` in `backend/main.py` reads every entry under `auth.device_keys` (from `config/auth.yaml`) and upserts a `Sensor` record using the entry's `sensor_id` as the primary key. `device_type` maps to `sensor_type` via `_DEVICE_TYPE_TO_SENSOR_TYPE` (`recamera` -> `camera`, `reterminal` -> `eink`). This ensures hardware devices are immediately visible in the sensors API without a manual create step. The upsert is idempotent: existing sensors get their name and sensor_type refreshed.
 
@@ -573,12 +612,67 @@ One row per eink display device. Links a sensor to its current rendered state an
 
 ## Testing
 
-- Backend: `pytest` + `pytest-asyncio` (configured in `pyproject.toml`)
+- Backend: `pytest` + `pytest-asyncio` + `pytest-cov` (configured in `pyproject.toml`)
 - Place tests in `backend/tests/` mirroring the `backend/` structure (e.g., `tests/services/test_rules_engine.py`)
 - `backend/tests/conftest.py` provides `db_engine`, `db_session`, and `db_factory` fixtures backed by an in-memory SQLite instance
+- `backend/tests/core/` holds the `backend.core` test suite (113 tests, ~98% branch coverage) — the primary reference for how the core layer expects to be consumed
 - Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone-mismatch when comparing timestamps stored as UTC strings in SQLite
-- Run with: `uv run pytest`
-- Run linters: `./scripts/lint.sh` (ruff + mypy) or `./scripts/lint.sh --fix` (auto-fix)
+- Run with: `uv run pytest` or, from the repo root, any of the Makefile targets:
+  - `make test` -- full backend suite
+  - `make test-core` -- only `backend.core`
+  - `make test-services` -- only `backend.services`
+  - `make coverage` -- `backend.core` with branch coverage
+  - `make coverage-services` -- `backend.services` with branch coverage
+  - `make coverage-html` -- writes `./htmlcov/index.html`
+  - `make typecheck-core` -- strict mypy against `backend.core` (`disallow_untyped_defs=true`)
+  - `make check` -- lint + typecheck-core + test-core (fast pre-commit gate)
+  - `make check-all` -- lint + typecheck-core + test-core + test-services
+- Run linters: `./scripts/lint.sh` (ruff + mypy), `./scripts/lint.sh --fix`, or `make lint` / `make lint-fix`
+
+### Core layer invariants
+
+`backend/core/` is the foundational layer; every other backend package depends
+on it. Three invariants must hold:
+
+1. **No dependencies on higher-level packages.** Modules in `backend.core` must
+   not import from `backend.services`, `backend.routers`, `backend.channels`,
+   `backend.steps`, etc. `backend.models` may only be imported lazily inside
+   `Database.create_all` so that `Base.metadata` is populated before DDL.
+2. **No framework imports except FastAPI leaves.** Only `auth.py` and
+   `exceptions.register_exception_handlers` may touch FastAPI types. `config`,
+   `logging`, `template`, `database`, and the rest of `exceptions` must be
+   usable in contexts where FastAPI is not imported.
+3. **Testability first.** Every stateful module-level singleton is a thin
+   facade over a class (`Settings`, `Database`, `KeyStore`, `BoundLogger`) that
+   can be constructed directly in a test with no global reset.
+
+These are enforced by convention and by the `backend.core.*` mypy override in
+`pyproject.toml`, which applies `disallow_untyped_defs=true` to this package
+only.
+
+### Services layer test suite
+
+`backend/tests/services/` holds 177 tests covering the services layer.
+Seven modules have dedicated test files with high branch coverage:
+
+| Module | Test file | Coverage |
+| ------ | --------- | -------- |
+| `condition_evaluator.py` | `test_condition_evaluator.py` | 97% |
+| `conversation_manager.py` | `test_conversation_manager.py` | 100% |
+| `media_processor.py` | `test_media_processor.py` | 100% |
+| `notification_dispatcher.py` | `test_notification_dispatcher.py` | 100% |
+| `rag.py` | `test_rag.py` | 100% |
+| `scheduler.py` | `test_scheduler.py` | 89% |
+| `workflow.py` | `test_workflow.py` | 97% |
+
+The `scheduler.py` module was refactored to lift module-level globals into a
+`Scheduler` class. The module-level facade (`setup_scheduler`,
+`_pipeline_executor`) is preserved for backward compatibility with
+`backend/main.py` and `backend/mcp/server.py`.
+
+Tests use the shared `db_engine`, `db_session`, and `db_factory` fixtures from
+`backend/tests/conftest.py`. Media processor and notification dispatcher tests
+mock external dependencies (ffmpeg, channel registry) via `monkeypatch`.
 
 ## External Services
 

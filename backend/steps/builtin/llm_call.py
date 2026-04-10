@@ -404,8 +404,7 @@ class LLMCallHandler(StepHandler):
         result_data: dict = {output_key: result_value}
 
         # Propagate notification suppression when output mimics logic_response
-        if output_key == "logic_response" and isinstance(result_value, dict):
-            if not result_value.get("is_notification_needed", True):
-                result_data["notification_suppressed"] = True
+        if output_key == "logic_response" and isinstance(result_value, dict) and not result_value.get("is_notification_needed", True):
+            result_data["notification_suppressed"] = True
 
         return StepResult(data=result_data)

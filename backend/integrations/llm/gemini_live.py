@@ -25,7 +25,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         self.api_key: str = settings.get("llm.realtime.api_key")
         self.model: str = settings.get("llm.realtime.model")
         self.keepalive_interval: int = settings.get("llm.realtime.keepalive_interval", 25)
-        self._client = None
+        self._client: Any = None
 
     @property
     def configured(self) -> bool:
@@ -103,7 +103,8 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         system_instruction: str = "",
         conversation_history: str = "",
         tools: list[dict] | None = None,
-    ) -> dict:
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         """Build the Gemini session config dict.
 
         If ``conversation_history`` is provided, it's appended to the system
@@ -120,7 +121,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
                 "and continuity:\n\n" + conversation_history
             )
 
-        config = {
+        config: dict[str, Any] = {
             "response_modalities": ["AUDIO"],
             "system_instruction": {"parts": [{"text": base_instruction}]},
             "output_audio_transcription": {},

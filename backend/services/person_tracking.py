@@ -607,8 +607,8 @@ class PersonTrackingService:
         now = datetime.now(UTC)
 
         if within_minutes is not None:
-            effective_start = now - timedelta(minutes=within_minutes)
-            effective_end = now
+            effective_start: datetime | None = now - timedelta(minutes=within_minutes)
+            effective_end: datetime | None = now
         else:
             effective_start = window_start
             effective_end = window_end or now

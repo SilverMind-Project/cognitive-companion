@@ -230,7 +230,7 @@ class ActivityDetectionHandler(StepHandler):
                     activity_type=activity_type,
                 )
 
-        result_data = {
+        result_data: dict = {
             "detected_activities": [
                 {
                     "person_id": person_id,

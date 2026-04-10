@@ -29,7 +29,7 @@ class RAGService:
         self.index_path = Path(settings.get("rag.index_path", "data/rag_index"))
         self.threshold = settings.get("rag.threshold", 0.7)
         self.max_results = settings.get("rag.max_results", 5)
-        self._documents: list[dict[str, str]] = []
+        self._documents: list[dict[str, Any]] = []
         self._loaded = False
 
     def load(self) -> None:

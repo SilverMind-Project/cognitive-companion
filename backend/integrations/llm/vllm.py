@@ -183,6 +183,7 @@ class VLLMTranslationProvider(LLMProvider):
         prompt: str,
         media_paths: list[str] | None = None,
         media_type: str | None = None,
+        response_schema: dict | None = None,
         *,
         source_lang: str = "en",
         target_lang: str = "ta",

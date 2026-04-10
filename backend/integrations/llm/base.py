@@ -64,6 +64,11 @@ class RealtimeLLMProvider(ABC):
         ...
 
     @abstractmethod
+    def build_config(self, **kwargs: Any) -> dict[str, Any]:
+        """Build provider configuration."""
+        ...
+
+    @abstractmethod
     async def send_audio(self, session: RealtimeSession, data: bytes) -> None:
         """Stream raw audio bytes into an open session."""
         ...
@@ -84,7 +89,7 @@ class RealtimeLLMProvider(ABC):
         # Mypy/pyright need a yield to recognise this as an async generator.
         # The yield is unreachable but keeps type-checkers happy.
         if False:
-            yield  # type: ignore[misc]
+            yield
 
     @abstractmethod
     async def send_tool_response(

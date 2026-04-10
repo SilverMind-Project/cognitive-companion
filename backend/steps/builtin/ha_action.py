@@ -91,7 +91,7 @@ class HAActionHandler(StepHandler):
 
         await services.ha_client._call_service(domain, service, service_data)
 
-        result_data = {
+        result_data: dict = {
             "ha_action": {
                 "domain": domain,
                 "service": service,

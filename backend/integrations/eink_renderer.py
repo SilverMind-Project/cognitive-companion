@@ -244,7 +244,7 @@ class EInkRenderer:
             try:
                 font = ImageFont.truetype(str(font_path), font_size)
             except OSError:
-                font = ImageFont.load_default()
+                font = ImageFont.load_default()  # type: ignore[assignment]
                 break
 
             avg_char_width = font_size * 0.6
@@ -260,7 +260,7 @@ class EInkRenderer:
             font_size -= 2
 
         if font is None:
-            font = ImageFont.load_default()
+            font = ImageFont.load_default()  # type: ignore[assignment]
 
         # Re-wrap with final font size
         avg_char_width = font_size * 0.6

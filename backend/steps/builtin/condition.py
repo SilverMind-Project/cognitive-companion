@@ -67,7 +67,7 @@ class ConditionHandler(StepHandler):
             step.next_step_on_true if result else step.next_step_on_false
         )
 
-        result_data = {
+        result_data: dict = {
             "condition": {
                 "expression": expression,
                 "result": result,

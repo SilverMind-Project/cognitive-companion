@@ -27,7 +27,7 @@ from collections.abc import Callable
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.core.logging import get_logger
-from backend.integrations.llm.base import RealtimeLLMProvider
+from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
 from backend.services.conversation_manager import ConversationManager
 from backend.websocket.connection_manager import ConnectionManager
 
@@ -86,7 +86,7 @@ class AudioSessionHandler:
         self._backend_active = False
 
         # Active session reference (for tool response sending)
-        self._current_session = None
+        self._current_session: RealtimeSession | None = None
 
     async def run(self) -> None:
         """Main entry point - run until the client disconnects."""
@@ -159,6 +159,9 @@ class AudioSessionHandler:
         waits for new activity before reconnecting. No keepalive messages are
         sent; idle sessions are allowed to expire naturally.
         """
+        if self.provider is None:
+            return
+
         # Bridge orchestrator prompts from the connection-manager queue into
         # _client_to_backend continuously, so that prompt arrivals can wake
         # _wait_for_activity() even before a session is open.
@@ -193,16 +196,18 @@ class AudioSessionHandler:
                     )
                     logger.info("ws_backend_connected")
 
-                    async def forward_to_backend(session=session) -> None:
+                    provider = self.provider
+
+                    async def forward_to_backend(session=session, provider=provider) -> None:
                         while True:
                             kind, payload = await self._client_to_backend.get()
 
                             if kind == "audio":
-                                await self.provider.send_audio(session, payload)
+                                await provider.send_audio(session, payload)
                             elif kind == "end_of_turn":
                                 pass  # Provider handles turn detection
                             elif kind == "text":
-                                await self.provider.send_text(session, payload)
+                                await provider.send_text(session, payload)
                             elif kind == "prompt":
                                 text, callback, exp = payload
                                 if time.time() > exp:
@@ -211,10 +216,10 @@ class AudioSessionHandler:
                                 self._current_callback = callback
                                 self._is_orchestrator_turn = True
                                 self._pending_prompt_text.append(text)
-                                await self.provider.send_text(session, text)
+                                await provider.send_text(session, text)
 
-                    async def receive_from_backend(session=session) -> None:
-                        async for response in self.provider.receive(session):
+                    async def receive_from_backend(session=session, provider=provider) -> None:
+                        async for response in provider.receive(session):
                             await self._handle_backend_response(response)
 
                     tasks = [

@@ -143,6 +143,54 @@ class NotificationHandler(StepHandler):
                             "cool-off period after completion."
                         ),
                     },
+                    "telegram_image_source": {
+                        "type": "string",
+                        "enum": ["trigger", "none", "additional", "both"],
+                        "default": "trigger",
+                        "description": (
+                            "Image to attach to the Telegram notification. "
+                            "'trigger' = frame that triggered the pipeline, "
+                            "'additional' = extra cameras only, "
+                            "'both' = trigger frame + additional cameras, "
+                            "'none' = text only."
+                        ),
+                    },
+                    "telegram_additional_sensor_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Extra camera sensor IDs to pull images from for Telegram.",
+                    },
+                    "telegram_additional_room_names": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Pull images from all cameras in these rooms for Telegram.",
+                    },
+                    "telegram_images_per_sensor": {
+                        "type": "integer",
+                        "default": 1,
+                        "minimum": 1,
+                        "description": (
+                            "Maximum images per sensor when "
+                            "telegram_sort_by_sensor_then_time is enabled."
+                        ),
+                    },
+                    "telegram_sort_by_sensor_then_time": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When true, images are grouped by sensor then sorted "
+                            "oldest-first within each group."
+                        ),
+                    },
+                    "telegram_image_time_filter": {
+                        "type": "object",
+                        "properties": {
+                            "since_minutes": {"type": "number"},
+                            "time_start": {"type": "string"},
+                            "time_end": {"type": "string"},
+                        },
+                        "description": "Time filter for additional camera images sent via Telegram.",
+                    },
                 },
             },
             default_config={
@@ -161,6 +209,12 @@ class NotificationHandler(StepHandler):
                 "eink_expiry_minutes": 30,
                 "ha_media_player": "",
                 "trigger_cooloff": True,
+                "telegram_image_source": "trigger",
+                "telegram_additional_sensor_ids": [],
+                "telegram_additional_room_names": [],
+                "telegram_images_per_sensor": 1,
+                "telegram_sort_by_sensor_then_time": False,
+                "telegram_image_time_filter": {},
             },
         )
 
@@ -206,10 +260,42 @@ class NotificationHandler(StepHandler):
             # Channels without a specific template get the base message
             # (already formatted by message_template if set).
 
-        # Determine image_url from trigger media (original camera frames)
-        image_url: str | None = None
-        if trigger.media_paths:
-            image_url = trigger.media_paths[0]
+        # Assemble image for Telegram using the configured image source
+        telegram_image_source: str = config.get("telegram_image_source", "trigger")
+        media_paths: list[str] = []
+
+        if telegram_image_source != "none":
+            if telegram_image_source in ("trigger", "both"):
+                media_paths.extend(trigger.media_paths)
+
+            if telegram_image_source in ("additional", "both") and services.event_aggregator:
+                additional_sensors: list[str] = config.get("telegram_additional_sensor_ids") or []
+                additional_rooms: list[str] = config.get("telegram_additional_room_names") or []
+                time_filter: dict = config.get("telegram_image_time_filter") or {}
+                sort_by_sensor: bool = bool(config.get("telegram_sort_by_sensor_then_time", False))
+                images_per_sensor: int = int(config.get("telegram_images_per_sensor", 1))
+
+                if sort_by_sensor and additional_sensors:
+                    extra = await services.event_aggregator.query_media_by_sensor(
+                        sensor_ids_ordered=additional_sensors,
+                        images_per_sensor=images_per_sensor,
+                        max_images=images_per_sensor * len(additional_sensors),
+                        since_minutes=time_filter.get("since_minutes"),
+                        time_start=time_filter.get("time_start"),
+                        time_end=time_filter.get("time_end"),
+                    )
+                else:
+                    extra = await services.event_aggregator.query_recent_media(
+                        sensor_ids=additional_sensors if additional_sensors else None,
+                        room_names=additional_rooms if additional_rooms else None,
+                        limit=5,
+                        since_minutes=time_filter.get("since_minutes"),
+                        time_start=time_filter.get("time_start"),
+                        time_end=time_filter.get("time_end"),
+                    )
+                media_paths.extend(extra)
+
+        image_url: str | None = media_paths[0] if media_paths else None
 
         eink_targets = config.get("eink_targets")
         eink_template_id = config.get("eink_template_id")

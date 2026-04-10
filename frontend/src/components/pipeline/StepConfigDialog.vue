@@ -95,39 +95,6 @@
                   />
                 </template>
 
-                <!-- translation -->
-                <template v-if="localStep.step_type === 'translation'">
-                  <v-text-field
-                    v-model="cfg.target_language"
-                    label="Target Language"
-                    placeholder="e.g. es, fr, de, ja, ta"
-                    class="mb-4"
-                  />
-                  <v-textarea
-                    v-model="cfg.source_text"
-                    label="Source Text"
-                    rows="3"
-                    hint="Text to translate. Supports {{variable}} templates. Leave empty to auto-detect from logic_response or vision_response."
-                    persistent-hint
-                    placeholder="e.g. {{logic_response.user_notification}}"
-                    class="mb-4"
-                  />
-                  <v-textarea
-                    v-model="cfg.special_instructions"
-                    label="Special Instructions"
-                    rows="2"
-                    hint="Instructions built into the prompt. Useful for guiding language style (e.g. Tanglish)."
-                    persistent-hint
-                    class="mb-4"
-                  />
-                  <v-text-field
-                    v-model="cfg.hallucination_marker"
-                    label="Hallucination Marker"
-                    hint="A known string that triggers a retry if found in the response."
-                    persistent-hint
-                  />
-                </template>
-
                 <!-- ha_action -->
                 <template v-if="localStep.step_type === 'ha_action'">
                   <v-row>
@@ -326,26 +293,6 @@
                     persistent-hint
                   />
                   <v-checkbox v-model="cfg.use_annotated_image" label="Use annotated image" hide-details class="mb-2" />
-                </template>
-
-                <!-- logic_reasoning: prompt -->
-                <template v-if="localStep.step_type === 'logic_reasoning'">
-                  <v-textarea
-                    v-model="cfg.prompt"
-                    label="Reasoning Prompt"
-                    rows="6"
-                    class="mb-4"
-                    hint="Use {{variable}} for template values, e.g. {{vision_response}}, {{person_detections.0.name}}, {{room_name}}"
-                    persistent-hint
-                  />
-                  <v-combobox
-                    v-model="cfg.include_context"
-                    :items="contextKeys"
-                    label="Include Context Keys"
-                    multiple
-                    chips
-                    closable-chips
-                  />
                 </template>
 
                 <!-- notification general -->
@@ -651,41 +598,6 @@
                   </template>
                 </template>
 
-                <template v-if="localStep.step_type === 'logic_reasoning'">
-                  <v-select
-                    v-model="cfg.response_format"
-                    :items="['default', 'activity_detection', 'custom']"
-                    label="Response Format"
-                    hint="Controls the structured JSON output enforced on the LLM"
-                    persistent-hint
-                    class="mb-4"
-                  />
-                  <v-alert v-if="cfg.response_format === 'default'" type="info" variant="tonal" density="compact" class="mb-4">
-                    <div class="text-subtitle-2 mb-1">Output keys (available as <code>logic_response.*</code>):</div>
-                    <code>is_notification_needed</code> (bool),
-                    <code>user_notification</code> (string),
-                    <code>reasoning</code> (string),
-                    <code>alert_level</code> (string)
-                  </v-alert>
-                  <v-alert v-if="cfg.response_format === 'activity_detection'" type="info" variant="tonal" density="compact" class="mb-4">
-                    <div class="text-subtitle-2 mb-1">Output keys (available as <code>logic_response.*</code>):</div>
-                    <code>activities</code> (array of {person_id, activity_type, confidence})
-                  </v-alert>
-                  <template v-if="cfg.response_format === 'custom'">
-                    <v-textarea
-                      v-model="cfg.response_schema"
-                      label="Response Format Instruction"
-                      rows="3"
-                      class="mb-4"
-                    />
-                    <v-textarea
-                      v-model="cfg.response_json_schema"
-                      label="JSON Schema (optional)"
-                      rows="10"
-                      :error-messages="jsonSchemaError"
-                    />
-                  </template>
-                </template>
               </v-window-item>
 
               <!-- Notification: templates tab -->
@@ -745,6 +657,90 @@
               <!-- Notification: per-channel options -->
               <v-window-item value="channels">
                 <template v-if="localStep.step_type === 'notification'">
+                  <div v-if="cfg.channels && cfg.channels.includes('telegram')">
+                    <div class="text-overline text-medium-emphasis mb-2">Telegram</div>
+                    <v-select
+                      v-model="cfg.telegram_image_source"
+                      :items="[
+                        { title: 'Trigger frame (default)', value: 'trigger' },
+                        { title: 'None (text only)', value: 'none' },
+                        { title: 'Additional cameras', value: 'additional' },
+                        { title: 'Both (trigger + additional)', value: 'both' },
+                      ]"
+                      item-title="title"
+                      item-value="value"
+                      label="Image Source"
+                      hint="Which image to attach to the Telegram message."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <template v-if="cfg.telegram_image_source === 'additional' || cfg.telegram_image_source === 'both'">
+                      <v-combobox
+                        v-model="cfg.telegram_additional_sensor_ids"
+                        :items="cameraSensorItems"
+                        label="Camera Sensors (in order)"
+                        multiple
+                        chips
+                        closable-chips
+                        hint="Pull images from these camera sensors."
+                        persistent-hint
+                        class="mb-4"
+                      />
+                      <v-combobox
+                        v-model="cfg.telegram_additional_room_names"
+                        :items="availableRooms"
+                        label="Additional Rooms"
+                        multiple
+                        chips
+                        closable-chips
+                        hint="Pull images from all cameras in these rooms."
+                        persistent-hint
+                        class="mb-4"
+                      />
+                      <v-card variant="tonal" class="mb-4 pa-4">
+                        <v-checkbox
+                          v-model="cfg.telegram_sort_by_sensor_then_time"
+                          label="Group by sensor, then chronological within each sensor"
+                          hide-details
+                        />
+                        <div class="text-caption text-medium-emphasis ml-8 mt-2">
+                          Enables inter-frame temporal analysis per camera.
+                        </div>
+                        <v-text-field
+                          v-if="cfg.telegram_sort_by_sensor_then_time"
+                          v-model.number="cfg.telegram_images_per_sensor"
+                          label="Images per sensor"
+                          density="compact"
+                          type="number"
+                          :min="1"
+                          class="mt-3"
+                        />
+                      </v-card>
+                      <v-card variant="outlined" class="pa-4 mb-4">
+                        <div class="text-subtitle-2 mb-3">
+                          <v-icon size="small" class="mr-1">mdi-clock-outline</v-icon>
+                          Time Filter (optional)
+                        </div>
+                        <v-text-field
+                          v-model.number="notificationImageTimeFilter.since_minutes"
+                          label="Since (minutes ago)"
+                          type="number"
+                          :min="0"
+                          class="mb-3"
+                        />
+                        <v-row>
+                          <v-col cols="6">
+                            <v-text-field v-model="notificationImageTimeFilter.time_start" label="Time Start" placeholder="08:00" />
+                          </v-col>
+                          <v-col cols="6">
+                            <v-text-field v-model="notificationImageTimeFilter.time_end" label="Time End" placeholder="18:00" />
+                          </v-col>
+                        </v-row>
+                      </v-card>
+                    </template>
+                    <v-divider class="mb-4" />
+                  </div>
+
                   <div v-if="cfg.channels && cfg.channels.includes('eink')">
                     <div class="text-overline text-medium-emphasis mb-2">E-Ink Display</div>
                     <v-combobox
@@ -831,8 +827,8 @@
                     />
                   </div>
 
-                  <v-alert v-if="(!cfg.channels || (!cfg.channels.includes('ha_speaker_tts') && !cfg.channels.includes('webhook') && !cfg.channels.includes('eink')))" type="info" variant="tonal" density="compact" class="mt-3">
-                    Add <code>ha_speaker_tts</code>, <code>eink</code>, or <code>webhook</code> on the General tab to configure their per-channel options here.
+                  <v-alert v-if="(!cfg.channels || (!cfg.channels.includes('telegram') && !cfg.channels.includes('ha_speaker_tts') && !cfg.channels.includes('webhook') && !cfg.channels.includes('eink')))" type="info" variant="tonal" density="compact" class="mt-3">
+                    Add <code>telegram</code>, <code>ha_speaker_tts</code>, <code>eink</code>, or <code>webhook</code> on the General tab to configure their per-channel options here.
                   </v-alert>
                 </template>
               </v-window-item>
@@ -1010,8 +1006,8 @@ const emit = defineEmits(["update:modelValue", "save"]);
 
 const knownTypes = [
   "llm_call",
-  "person_identification", "vision_analysis", "logic_reasoning",
-  "translation", "notification", "ha_action", "activity_detection",
+  "person_identification", "vision_analysis",
+  "notification", "ha_action", "activity_detection",
   "wait", "condition", "verification",
 ];
 
@@ -1019,8 +1015,6 @@ const STEP_ICONS = {
   person_identification: "mdi-face-recognition",
   llm_call: "mdi-brain",
   vision_analysis: "mdi-eye-outline",
-  logic_reasoning: "mdi-head-cog-outline",
-  translation: "mdi-translate",
   notification: "mdi-bell-outline",
   ha_action: "mdi-home-automation",
   activity_detection: "mdi-run",
@@ -1053,6 +1047,7 @@ const genericConfigError = ref("");
 const jsonSchemaError = ref("");
 const imageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
 const llmImageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
+const notificationImageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
 const llmJsonSchemaError = ref("");
 const cameraSensorItems = ref([]);
 
@@ -1096,17 +1091,17 @@ const pipelineDataReference = [
   { key: "annotated_image", source: "person_identification — base64 image with bbox overlays" },
   // -- vision_analysis / llm_call (vision) ------------------------------------
   { key: "vision_response", source: "vision_analysis / llm_call" },
-  // -- logic_reasoning / llm_call (reasoning) ---------------------------------
-  { key: "logic_response", source: "logic_reasoning / llm_call" },
-  { key: "logic_response.is_notification_needed", source: "logic_reasoning (default schema)" },
-  { key: "logic_response.user_notification", source: "logic_reasoning (default schema)" },
-  { key: "logic_response.alert_level", source: "logic_reasoning (default schema)" },
-  { key: "logic_response.reasoning", source: "logic_reasoning (default schema)" },
-  { key: "logic_response.activities", source: "logic_reasoning (activity_detection format)" },
+  // -- llm_call (reasoning) --------------------------------------------------
+  { key: "logic_response", source: "llm_call (output_key=logic_response)" },
+  { key: "logic_response.is_notification_needed", source: "llm_call (default notification schema)" },
+  { key: "logic_response.user_notification", source: "llm_call (default notification schema)" },
+  { key: "logic_response.alert_level", source: "llm_call (default notification schema)" },
+  { key: "logic_response.reasoning", source: "llm_call (default notification schema)" },
+  { key: "logic_response.activities", source: "llm_call (activity detection schema)" },
   // -- llm_call (custom output_key) ------------------------------------------
   { key: "llm_response", source: "llm_call (default output key)" },
-  // -- translation / llm_call ------------------------------------------------
-  { key: "translation", source: "translation / llm_call" },
+  // -- llm_call (translation output) -----------------------------------------
+  { key: "translation", source: "llm_call (output_key=translation)" },
   // -- activity_detection ----------------------------------------------------
   { key: "detected_activities", source: "activity_detection" },
   { key: "detected_activities.0.person_id", source: "activity_detection (first entry)" },
@@ -1149,8 +1144,6 @@ const tabs = computed(() => {
     all.push({ key: "advanced", label: "Advanced", icon: "mdi-tune" });
   } else if (t === "vision_analysis") {
     all.push({ key: "images", label: "Images", icon: "mdi-camera-outline" });
-    all.push({ key: "output", label: "Output", icon: "mdi-code-json" });
-  } else if (t === "logic_reasoning") {
     all.push({ key: "output", label: "Output", icon: "mdi-code-json" });
   } else if (t === "notification") {
     all.push({ key: "templates", label: "Templates", icon: "mdi-message-text-outline" });
@@ -1221,19 +1214,6 @@ const fallbackDefaults = {
     response_schema: "",
     response_json_schema: "",
   },
-  logic_reasoning: {
-    prompt: "",
-    include_context: [],
-    response_format: "default",
-    response_schema: "",
-    response_json_schema: "",
-  },
-  translation: {
-    target_language: "ta",
-    source_text: "",
-    hallucination_marker: "சென்னை",
-    special_instructions: "Translate using informal Tamil that is spoken in Chennai (i.e Tamil mixed with English):  \n",
-  },
   notification: {
     alert_level: "warning",
     channels: [],
@@ -1252,6 +1232,12 @@ const fallbackDefaults = {
     tts_language: "",
     tts_style: "",
     trigger_cooloff: true,
+    telegram_image_source: "trigger",
+    telegram_additional_sensor_ids: [],
+    telegram_additional_room_names: [],
+    telegram_images_per_sensor: 1,
+    telegram_sort_by_sensor_then_time: false,
+    telegram_image_time_filter: {},
   },
   ha_action: {
     domain: "",
@@ -1402,8 +1388,16 @@ watch(
       }
     }
 
-    // Validate response_json_schema for logic_reasoning and vision_analysis
-    if ((step.step_type === "logic_reasoning" || step.step_type === "vision_analysis") && cfg.response_json_schema) {
+    // Populate notificationImageTimeFilter for notification
+    if (step.step_type === "notification") {
+      const tf = incoming.telegram_image_time_filter || {};
+      notificationImageTimeFilter.since_minutes = tf.since_minutes || null;
+      notificationImageTimeFilter.time_start = tf.time_start || "";
+      notificationImageTimeFilter.time_end = tf.time_end || "";
+    }
+
+    // Validate response_json_schema for vision_analysis
+    if (step.step_type === "vision_analysis" && cfg.response_json_schema) {
       try {
         JSON.parse(cfg.response_json_schema);
         jsonSchemaError.value = "";
@@ -1603,8 +1597,17 @@ function save() {
       }
     }
 
-    // Validate JSON schema for logic_reasoning and vision_analysis
-    if ((localStep.step_type === "logic_reasoning" || localStep.step_type === "vision_analysis") && config.response_json_schema) {
+    // Merge notificationImageTimeFilter into notification config
+    if (localStep.step_type === "notification") {
+      const tf = {};
+      if (notificationImageTimeFilter.since_minutes) tf.since_minutes = notificationImageTimeFilter.since_minutes;
+      if (notificationImageTimeFilter.time_start) tf.time_start = notificationImageTimeFilter.time_start;
+      if (notificationImageTimeFilter.time_end) tf.time_end = notificationImageTimeFilter.time_end;
+      config.telegram_image_time_filter = Object.keys(tf).length > 0 ? tf : {};
+    }
+
+    // Validate JSON schema for vision_analysis
+    if (localStep.step_type === "vision_analysis" && config.response_json_schema) {
       try {
         JSON.parse(config.response_json_schema);
         jsonSchemaError.value = "";

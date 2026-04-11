@@ -110,3 +110,20 @@ def current_config(
     """Return the current configuration with sensitive values masked."""
     raw = copy.deepcopy(settings.raw())
     return _sanitize(raw)
+
+
+@router.get("/telegram/trigger-defaults")
+def telegram_trigger_defaults(
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Return the system-configured default whitelist for Telegram trigger rules.
+
+    The frontend uses this to pre-populate the ``allowed_chat_ids`` field when
+    creating or editing a telegram-type rule that has no explicit whitelist.
+    Empty strings (produced by unset env vars) are excluded so the caller
+    always receives a clean list of real chat IDs.
+    """
+    raw_ids: list = settings.get("notifications.telegram.trigger_allowed_chat_ids") or []
+    return {
+        "allowed_chat_ids": [str(c) for c in raw_ids if c],
+    }

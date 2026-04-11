@@ -237,10 +237,17 @@ Rules with `trigger_type="telegram"` are fired when a matching Telegram command 
 `Rule.telegram_trigger_config` fields:
 
 - `command` (str): command to match, e.g. `"/medication"`. Case-insensitive. Omit to match any command.
-- `allowed_chat_ids` (list): whitelist of Telegram chat IDs. Empty = any chat allowed.
+- `allowed_chat_ids` (list): per-rule whitelist of Telegram chat IDs. Falls back to `notifications.telegram.trigger_allowed_chat_ids` in settings. **Empty or absent = BLOCKED (fail-closed).**
 - `respond_with_ack` (bool, default `true`): send a brief reply confirming the rule was triggered.
 
 The Telegram message is available in `pipeline_data["trigger_input"]` with keys `command`, `args`, `text`, `chat_id`, `from_user` -- identical structure to webhook payload so downstream steps referencing `{{trigger_input.*}}` work the same way. `TriggerContext.trigger_type` is `"telegram"`. Dispatch path is identical to webhook triggers; only the delivery channel differs.
+
+**Implementation notes** (`backend/services/telegram_trigger.py`):
+
+- `_ParsedCommand` dataclass encapsulates one parsed message: `command`, `args`, `raw_text`, `chat_id`, `from_user`. `from_message(msg)` classmethod returns `None` for non-command messages.
+- `_command_matches(command, cfg)` is a module-level pure function for easy unit testing.
+- `_TelegramClient` / `_PipelineExecutor` are `Protocol` types used for constructor annotations; no concrete imports required.
+- `_load_telegram_rules()` uses `selectinload(Rule.steps)` so rule objects remain usable after the session closes (prevents `DetachedInstanceError` when the executor accesses `rule.steps`).
 
 ### LLM Subsystem
 

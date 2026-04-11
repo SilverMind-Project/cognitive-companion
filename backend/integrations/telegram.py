@@ -208,6 +208,36 @@ class TelegramClient:
             logger.exception("telegram_send_document_failed", chat_id=chat_id)
             return False
 
+    async def setup_polling(self, drop_pending_updates: bool = False) -> bool:
+        """Prepare the bot for getUpdates polling.
+
+        In python-telegram-bot v21 the Bot object must be initialised (which
+        sets up the underlying httpx connection pool) before API calls are
+        made reliably.  This method also removes any registered webhook, since
+        Telegram silently withholds updates from ``getUpdates`` while a
+        webhook is active.
+
+        Call once at startup before the polling scheduler job is added.
+        Set *drop_pending_updates* to ``True`` to discard messages that
+        accumulated while a webhook was registered.
+        """
+        if not self._bot:
+            return False
+        try:
+            await self._bot.initialize()
+            me = await self._bot.get_me()
+            logger.info("telegram_bot_initialized", username=me.username)
+        except Exception:
+            logger.exception("telegram_bot_initialize_failed")
+            return False
+        try:
+            await self._bot.delete_webhook(drop_pending_updates=drop_pending_updates)
+            logger.info("telegram_polling_ready")
+            return True
+        except Exception:
+            logger.exception("telegram_delete_webhook_failed")
+            return False
+
     async def get_updates(
         self,
         offset: int | None = None,
@@ -216,26 +246,36 @@ class TelegramClient:
     ) -> list[dict]:
         """Long-poll for incoming Telegram updates.
 
-        Uses the Bot API ``getUpdates`` method.  Pass *offset* as
-        ``last_update_id + 1`` to acknowledge already-processed updates
-        (Telegram will not re-deliver them).
+        Calls the Bot API ``getUpdates`` endpoint directly via httpx,
+        bypassing the python-telegram-bot wrapper to avoid any library-level
+        filtering or serialisation quirks.
 
-        *timeout* is the long-poll timeout in seconds.  Use ``0`` for
-        short-polling (suitable when called from a scheduler job on a
-        tight interval).
+        Pass *offset* as ``last_update_id + 1`` to acknowledge processed
+        updates.  Use ``timeout=0`` for short-polling.
 
         Returns a list of raw update dicts or an empty list on any error.
         """
-        if not self._bot:
+        if not self._token:
+            logger.warning("get_updates_skipped", reason="no token")
             return []
+        params: dict = {"limit": limit, "timeout": timeout}
+        if offset is not None:
+            params["offset"] = offset
         try:
-            updates = await self._bot.get_updates(
-                offset=offset,
-                timeout=timeout,
-                limit=limit,
-                allowed_updates=["message"],
-            )
-            return [u.to_dict() for u in updates]
+            async with httpx.AsyncClient(timeout=timeout + 10.0) as client:
+                resp = await client.get(
+                    f"https://api.telegram.org/bot{self._token}/getUpdates",
+                    params=params,
+                )
+            data = resp.json()
+            if not data.get("ok"):
+                logger.error(
+                    "telegram_get_updates_api_error",
+                    description=data.get("description"),
+                    error_code=data.get("error_code"),
+                )
+                return []
+            return data.get("result", [])
         except Exception:
             logger.exception("telegram_get_updates_failed")
             return []

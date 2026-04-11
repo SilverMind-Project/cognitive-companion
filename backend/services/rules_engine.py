@@ -138,8 +138,7 @@ class RulesEngine:
         return True
 
     def _check_single_dependency(self, dep: RuleDependency, db: Session, now: datetime) -> bool:
-        # Convert to naive UTC — the DB stores naive UTC timestamps via SQLite.
-        now_utc = now.astimezone(UTC).replace(tzinfo=None)
+        now_utc = now.astimezone(UTC)
         cutoff = now_utc - timedelta(minutes=dep.lookback_minutes)
         recent_success = (
             db.query(EventLog)
@@ -167,8 +166,7 @@ class RulesEngine:
         seen by the operator, not the UTC day boundary.
         """
         if rule.cool_off_minutes > 0:
-            # Convert to naive UTC for SQLite comparison (DB stores naive UTC).
-            now_utc = now.astimezone(UTC).replace(tzinfo=None)
+            now_utc = now.astimezone(UTC)
             cutoff = now_utc - timedelta(minutes=rule.cool_off_minutes)
             recent = (
                 db.query(EventLog)
@@ -190,9 +188,9 @@ class RulesEngine:
 
         if rule.max_daily_triggers > 0:
             # "Today" = the calendar day in the operator's configured timezone.
-            # Midnight in local time is converted to naive UTC for the query.
+            # Midnight in local time is converted to UTC for the query.
             local_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            midnight_utc = local_midnight.astimezone(UTC).replace(tzinfo=None)
+            midnight_utc = local_midnight.astimezone(UTC)
             count = (
                 db.query(func.count(EventLog.id))
                 .filter(

@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import JSON, Boolean, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
+from backend.core.time import UTCDateTime
 
 if TYPE_CHECKING:
     from backend.models.room import Room
@@ -23,6 +24,6 @@ class Sensor(Base):
     ha_entity_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     config_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
 
     room: Mapped[Room | None] = relationship(back_populates="sensors")

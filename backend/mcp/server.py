@@ -439,16 +439,18 @@ async def get_eink_display_status(sensor_id: str | None = None) -> list[dict]:
             stmt = stmt.where(ActiveImageState.sensor_id == sensor_id)
         states = db.execute(stmt).scalars().all()
         now = datetime.now(UTC)
-        return [
-            {
-                "sensor_id": s.sensor_id,
-                "has_active_image": True,
-                "expired": bool(s.expires_at and s.expires_at < now),
-                "expires_at": s.expires_at.isoformat() if s.expires_at else None,
-                "rendered_text": s.rendered_text,
-            }
-            for s in states
-        ]
+        results: list[dict] = []
+        for state in states:
+            results.append(
+                {
+                    "sensor_id": state.sensor_id,
+                    "has_active_image": True,
+                    "expired": bool(state.expires_at and state.expires_at < now),
+                    "expires_at": state.expires_at.isoformat() if state.expires_at else None,
+                    "rendered_text": state.rendered_text,
+                }
+            )
+        return results
     finally:
         db.close()
 

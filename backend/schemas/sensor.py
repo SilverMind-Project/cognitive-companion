@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
+
+from backend.schemas.common import UTCDatetime
 
 
 class SensorCreate(BaseModel):
@@ -36,6 +37,6 @@ class SensorOut(BaseModel):
     ha_entity_id: str | None
     enabled: bool
     config_json: dict[str, Any] | None
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = {"from_attributes": True}

@@ -5,10 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
+from backend.core.time import UTCDateTime
 
 if TYPE_CHECKING:
     from backend.models.pipeline import PipelineStep
@@ -51,10 +52,8 @@ class Rule(Base):
     # 0 = no timeout; default 5 minutes
     execution_timeout_minutes: Mapped[int] = mapped_column(Integer, default=5)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now(), nullable=True
-    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), onupdate=func.now(), nullable=True)
 
     # Relationships
     steps: Mapped[list[PipelineStep]] = relationship(

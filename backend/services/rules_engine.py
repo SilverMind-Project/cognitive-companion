@@ -5,7 +5,7 @@ contexts (via FilterRegistry), dependencies, and rate limits.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
@@ -137,7 +137,8 @@ class RulesEngine:
         return True
 
     def _check_single_dependency(self, dep: RuleDependency, db: Session, now: datetime) -> bool:
-        cutoff = now - timedelta(minutes=dep.lookback_minutes)
+        now_utc = now.astimezone(timezone.utc).replace(tzinfo=None)
+        cutoff = now_utc - timedelta(minutes=dep.lookback_minutes)
         recent_success = (
             db.query(EventLog)
             .filter(
@@ -157,7 +158,8 @@ class RulesEngine:
     def _check_rate_limits(self, rule: Rule, db: Session, now: datetime) -> bool:
         """Check cool-off period and daily trigger limit."""
         if rule.cool_off_minutes > 0:
-            cutoff = now - timedelta(minutes=rule.cool_off_minutes)
+            now_utc = now.astimezone(timezone.utc).replace(tzinfo=None)
+            cutoff = now_utc - timedelta(minutes=rule.cool_off_minutes)
             recent = (
                 db.query(EventLog)
                 .filter(
@@ -172,7 +174,8 @@ class RulesEngine:
                 return False
 
         if rule.max_daily_triggers > 0:
-            midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            now_utc = now.astimezone(timezone.utc).replace(tzinfo=None)
+            midnight = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
             count = (
                 db.query(func.count(EventLog.id))
                 .filter(

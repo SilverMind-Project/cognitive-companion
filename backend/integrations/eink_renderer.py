@@ -120,6 +120,51 @@ class EInkRenderer:
         finally:
             db.close()
 
+    def render_preview_inline(
+        self,
+        text: str,
+        image_bytes: bytes,
+        regions: list[dict],
+        font_filename: str,
+    ) -> bytes:
+        """Render text onto provided raw image bytes (no DB lookup needed)."""
+        img = Image.open(BytesIO(image_bytes))
+        img = img.resize(
+            (self._display_width, self._display_height), Image.Resampling.LANCZOS
+        )
+        img = img.convert("RGBA")
+        font_path = self._fonts_dir / font_filename
+        if not font_path.exists():
+            font_path = self._fonts_dir / self._default_font
+        result = self._render_image(text, img, regions or [], font_path)
+        buf = BytesIO()
+        result.save(buf, "PNG")
+        return buf.getvalue()
+
+    def render_preview_with_overrides(
+        self,
+        text: str,
+        template_id: int,
+        regions_override: list[dict] | None = None,
+        font_filename_override: str | None = None,
+    ) -> bytes:
+        """Render preview using an existing template's image with optional region/font overrides."""
+        db = self._db_factory()
+        try:
+            template_path, regions, font_path = self._resolve_template(None, template_id, db)
+            if regions_override is not None:
+                regions = regions_override
+            if font_filename_override:
+                candidate = self._fonts_dir / font_filename_override
+                if candidate.exists():
+                    font_path = candidate
+            result = self._render_image(text, template_path, regions, font_path)
+            buf = BytesIO()
+            result.save(buf, "PNG")
+            return buf.getvalue()
+        finally:
+            db.close()
+
     async def reset(self, sensor_ids: list[str] | None = None) -> list[str]:
         """Reset active images to default template for given sensors (or all)."""
         db = self._db_factory()
@@ -162,17 +207,23 @@ class EInkRenderer:
     def _render_image(
         self,
         text: str,
-        template_path: Path,
+        template: Path | Image.Image,
         regions: list[dict],
         font_path: Path,
         region_name: str | None = None,
     ):
-        """Core PIL rendering logic  renders text into template regions."""
-        if not template_path.exists():
-            default_path = self._templates_dir / f"{self._default_template}.png"
-            template_path = default_path if default_path.exists() else template_path
+        """Core PIL rendering logic  renders text into template regions.
 
-        img = Image.open(template_path).copy()
+        template can be a filesystem Path or an already-loaded PIL Image.
+        """
+        if isinstance(template, Path):
+            if not template.exists():
+                default_path = self._templates_dir / f"{self._default_template}.png"
+                template = default_path if default_path.exists() else template
+            img = Image.open(template).copy()
+        else:
+            img = template.copy()
+
         draw = ImageDraw.Draw(img, "RGBA")
         img_width, img_height = img.size
 
@@ -207,6 +258,20 @@ class EInkRenderer:
         # Convert to RGB (eInk doesn't need alpha)
         return img.convert("RGB")
 
+    def _wrap_text(self, text: str, chars_per_line: int, multiline: bool) -> list[str]:
+        """Wrap text into lines, optionally respecting explicit newlines."""
+        if multiline:
+            # Split on explicit newlines first, then word-wrap each paragraph
+            result: list[str] = []
+            for para in text.split("\n"):
+                if para.strip():
+                    result.extend(textwrap.wrap(para, width=chars_per_line))
+                else:
+                    result.append("")
+            return result or [""]
+        else:
+            return textwrap.wrap(text.replace("\n", " "), width=chars_per_line) or [text]
+
     def _render_region(
         self,
         draw,
@@ -224,12 +289,12 @@ class EInkRenderer:
         align = region.get("align", "center")
         bg_color = tuple(region.get("bg_color", [0, 0, 0, 160]))
         text_color = tuple(region.get("text_color", [255, 255, 255, 255]))
+        multiline = region.get("multiline", True)
 
         # Find the best font size to fit the bounding box
         font_size = font_size_max
         font = None
-        wrapped = text
-        lines = [text]
+        lines: list[str] = [text]
         line_height = font_size * 1.3
 
         while font_size >= font_size_min:
@@ -241,8 +306,7 @@ class EInkRenderer:
 
             avg_char_width = font_size * 0.6
             chars_per_line = max(1, int(bw / avg_char_width))
-            wrapped = textwrap.fill(text, width=chars_per_line)
-            lines = wrapped.split("\n")
+            lines = self._wrap_text(text, chars_per_line, multiline)
 
             line_height = font_size * 1.3
             total_height = line_height * len(lines)
@@ -257,17 +321,17 @@ class EInkRenderer:
         # Re-wrap with final font size
         avg_char_width = font_size * 0.6
         chars_per_line = max(1, int(bw / avg_char_width))
-        wrapped = textwrap.fill(text, width=chars_per_line)
-        lines = wrapped.split("\n")
+        lines = self._wrap_text(text, chars_per_line, multiline)
         line_height = font_size * 1.3
         total_height = line_height * len(lines)
 
-        # Draw semi-transparent background
-        bg_margin = 10
-        draw.rectangle(
-            [bx - bg_margin, by - bg_margin, bx + bw + bg_margin, by + bh + bg_margin],
-            fill=bg_color,
-        )
+        # Draw background only if not fully transparent
+        if len(bg_color) < 4 or bg_color[3] > 0:
+            bg_margin = 10
+            draw.rectangle(
+                [bx - bg_margin, by - bg_margin, bx + bw + bg_margin, by + bh + bg_margin],
+                fill=bg_color,
+            )
 
         # Draw text lines
         y_start = by + (bh - total_height) / 2

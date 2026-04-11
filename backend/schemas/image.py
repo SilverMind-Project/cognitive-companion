@@ -18,6 +18,7 @@ class TextRegion(BaseModel):
     align: str = "center"
     bg_color: list[int] = [0, 0, 0, 160]
     text_color: list[int] = [255, 255, 255, 255]
+    multiline: bool = True
 
 
 class ImageTemplateCreate(BaseModel):

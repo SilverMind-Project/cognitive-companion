@@ -150,6 +150,49 @@ def preview_render(
     return Response(content=png_bytes, media_type="image/png")
 
 
+@router.post("/preview-form")
+async def preview_render_form(
+    request: Request,
+    text: str = Form(...),
+    regions_json: str = Form("[]"),
+    font_filename: str = Form("NotoSansTamil-Regular.ttf"),
+    template_id: int | None = Form(None),
+    image: UploadFile | None = File(None),
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Preview rendered image using an uploaded image or an existing template.
+
+    - If ``image`` is provided, it is used as the background (useful for new-template preview).
+    - If only ``template_id`` is provided, the stored template image is used but
+      regions/font from the form override the saved values (live edit preview).
+    - Falls back to the default template when neither is supplied.
+
+    Always returns PNG.
+    """
+    eink_renderer = request.app.state.eink_renderer
+    regions: list[dict] = json.loads(regions_json)
+
+    if image is not None:
+        content = await image.read()
+        png_bytes = eink_renderer.render_preview_inline(
+            text=text,
+            image_bytes=content,
+            regions=regions,
+            font_filename=font_filename,
+        )
+    elif template_id is not None:
+        png_bytes = eink_renderer.render_preview_with_overrides(
+            text=text,
+            template_id=template_id,
+            regions_override=regions if regions else None,
+            font_filename_override=font_filename,
+        )
+    else:
+        png_bytes = eink_renderer.render_preview(text=text)
+
+    return Response(content=png_bytes, media_type="image/png")
+
+
 # ---------------------------------------------------------------------------
 # Active image states (admin)
 # ---------------------------------------------------------------------------

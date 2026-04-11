@@ -68,16 +68,26 @@ function draw() {
     const h = toCanvas(r.height);
 
     const isSelected = i === props.selectedIndex;
+
+    // Draw region background fill (mirrors actual rendered appearance)
+    const bg = r.bg_color || [0, 0, 0, 160];
+    if (bg[3] > 0) {
+      ctx.fillStyle = `rgba(${bg[0]},${bg[1]},${bg[2]},${bg[3] / 255})`;
+      ctx.fillRect(x, y, w, h);
+    }
+
+    // Draw border
     ctx.strokeStyle = isSelected ? "#2196F3" : "#4CAF50";
     ctx.lineWidth = isSelected ? 3 : 2;
     ctx.setLineDash(isSelected ? [] : [6, 3]);
     ctx.strokeRect(x, y, w, h);
     ctx.setLineDash([]);
 
-    // Label
+    // Label badge
     const label = r.name || `Region ${i}`;
     ctx.font = "12px sans-serif";
-    ctx.fillStyle = isSelected ? "#2196F3" : "#4CAF50";
+    const badgeColor = isSelected ? "#2196F3" : "#4CAF50";
+    ctx.fillStyle = badgeColor;
     const textWidth = ctx.measureText(label).width;
     ctx.fillRect(x, y - 18, textWidth + 8, 18);
     ctx.fillStyle = "#fff";
@@ -189,6 +199,7 @@ function onMouseUp() {
         align: "center",
         bg_color: [0, 0, 0, 160],
         text_color: [255, 255, 255, 255],
+        multiline: true,
       };
       emit("update:regions", [...props.regions, region]);
       emit("select-region", props.regions.length);
@@ -213,14 +224,41 @@ watch(() => props.imageUrl, loadImage);
 watch(() => props.regions, draw, { deep: true });
 watch(() => props.selectedIndex, draw);
 
+// Called by the parent (EInkTemplatesView) when the Regions tab is activated.
+// The wrapper has zero width while the tab is hidden, so we must re-measure
+// and redraw once it becomes visible.
+function activate() {
+  nextTick(() => {
+    updateCanvasSize();
+    loadImage();
+  });
+}
+
+defineExpose({ activate });
+
+let resizeObserver = null;
+
 onMounted(() => {
+  // ResizeObserver fires whenever the wrapper's size changes, including the
+  // first time it becomes visible after being hidden inside a v-window-item.
+  if (wrapper.value && typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(() => {
+      if (wrapper.value && wrapper.value.clientWidth > 0) {
+        updateCanvasSize();
+      }
+    });
+    resizeObserver.observe(wrapper.value);
+  }
+
   updateCanvasSize();
   loadImage();
-  window.addEventListener("resize", updateCanvasSize);
 });
 
 onUnmounted(() => {
-  window.removeEventListener("resize", updateCanvasSize);
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
 });
 </script>
 

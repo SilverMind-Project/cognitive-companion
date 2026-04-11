@@ -117,9 +117,7 @@ async def get_rooms() -> list[dict]:
 
 
 @_register
-async def get_sensors(
-    room_name: str | None = None, sensor_type: str | None = None
-) -> list[dict]:
+async def get_sensors(room_name: str | None = None, sensor_type: str | None = None) -> list[dict]:
     """Get sensors, optionally filtered by room name or sensor type."""
     from backend.models.sensor import Sensor
 
@@ -135,14 +133,16 @@ async def get_sensors(
             room = s.room.name if s.room else None
             if room_name and room and room.lower() != room_name.lower():
                 continue
-            result.append({
-                "id": s.id,
-                "name": s.name,
-                "room": room,
-                "sensor_type": s.sensor_type,
-                "source": s.source,
-                "enabled": s.enabled,
-            })
+            result.append(
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "room": room,
+                    "sensor_type": s.sensor_type,
+                    "source": s.source,
+                    "enabled": s.enabled,
+                }
+            )
         return result
     finally:
         db.close()
@@ -155,9 +155,7 @@ async def get_room_occupancy(room_name: str | None = None) -> dict:
         summary = await _svc.sensor_polling.get_occupancy_summary()
         if room_name:
             return {
-                k: v
-                for k, v in summary.items()
-                if v.get("room", "").lower() == room_name.lower()
+                k: v for k, v in summary.items() if v.get("room", "").lower() == room_name.lower()
             }
         return summary
     return {"message": "Sensor polling not available"}
@@ -277,9 +275,7 @@ async def get_rules(enabled_only: bool = True) -> list[dict]:
 
 
 @_register
-async def get_conversation_history(
-    session_id: int | None = None, limit: int = 20
-) -> list[dict]:
+async def get_conversation_history(session_id: int | None = None, limit: int = 20) -> list[dict]:
     """Get recent conversation turns (placeholder)."""
     return [{"message": "Use /api/v1/conversations endpoint for history"}]
 
@@ -357,15 +353,17 @@ async def get_workflow_executions(
             rule = db.get(Rule, ex.rule_id)
             if rule_name and rule and rule.name != rule_name:
                 continue
-            results.append({
-                "id": ex.id,
-                "rule_id": ex.rule_id,
-                "rule_name": rule.name if rule else None,
-                "status": ex.status,
-                "started_at": ex.started_at.isoformat() if ex.started_at else None,
-                "updated_at": ex.updated_at.isoformat() if ex.updated_at else None,
-                "error": ex.error,
-            })
+            results.append(
+                {
+                    "id": ex.id,
+                    "rule_id": ex.rule_id,
+                    "rule_name": rule.name if rule else None,
+                    "status": ex.status,
+                    "started_at": ex.started_at.isoformat() if ex.started_at else None,
+                    "updated_at": ex.updated_at.isoformat() if ex.updated_at else None,
+                    "error": ex.error,
+                }
+            )
         return results
     finally:
         db.close()

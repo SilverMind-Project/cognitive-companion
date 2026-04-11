@@ -51,9 +51,7 @@ class Rule(Base):
     # 0 = no timeout; default 5 minutes
     execution_timeout_minutes: Mapped[int] = mapped_column(Integer, default=5)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )

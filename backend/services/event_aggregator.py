@@ -156,9 +156,7 @@ class EventAggregator:
             cooldown_seconds=self.cooldown_seconds,
         )
 
-    async def get_recent_images(
-        self, sensor_id: str, limit: int = 10
-    ) -> list[str]:
+    async def get_recent_images(self, sensor_id: str, limit: int = 10) -> list[str]:
         """Return presigned URLs for the most recent non-deleted, non-expired
         images belonging to *sensor_id*, regenerating URLs as needed.
         """
@@ -207,9 +205,7 @@ class EventAggregator:
                 MediaCache.deleted.is_(False),
                 MediaCache.expires_at <= now_utc,
             )
-            expired_rows: list[MediaCache] = list(
-                db.execute(stmt).scalars().all()
-            )
+            expired_rows: list[MediaCache] = list(db.execute(stmt).scalars().all())
 
             if not expired_rows:
                 return
@@ -219,9 +215,7 @@ class EventAggregator:
                 try:
                     self._minio.delete_object(row.object_name)
                 except Exception:
-                    logger.exception(
-                        "cleanup_delete_error", object_name=row.object_name
-                    )
+                    logger.exception("cleanup_delete_error", object_name=row.object_name)
                 row.deleted = True
 
             db.commit()
@@ -266,12 +260,9 @@ class EventAggregator:
 
         db: Session = self._db_session_factory()
         try:
-            stmt = (
-                select(MediaCache)
-                .where(
-                    MediaCache.deleted.is_(False),
-                    MediaCache.expires_at > now_utc,
-                )
+            stmt = select(MediaCache).where(
+                MediaCache.deleted.is_(False),
+                MediaCache.expires_at > now_utc,
             )
 
             # Sensor filter
@@ -295,9 +286,7 @@ class EventAggregator:
                 room_sensor_ids = [row[0] for row in room_sensor_rows]
                 if resolved_sensor_ids is not None:
                     # Intersect with explicit sensor_ids
-                    resolved_sensor_ids = [
-                        s for s in resolved_sensor_ids if s in room_sensor_ids
-                    ]
+                    resolved_sensor_ids = [s for s in resolved_sensor_ids if s in room_sensor_ids]
                 else:
                     resolved_sensor_ids = room_sensor_ids
 
@@ -388,22 +377,14 @@ class EventAggregator:
                     match = re.match(r"(\d{1,2}):(\d{2})", time_start)
                     if match:
                         h, m = int(match.group(1)), int(match.group(2))
-                        start_dt = now_utc.replace(
-                            hour=h, minute=m, second=0, microsecond=0
-                        )
-                        base_stmt = base_stmt.where(
-                            MediaCache.captured_at >= start_dt
-                        )
+                        start_dt = now_utc.replace(hour=h, minute=m, second=0, microsecond=0)
+                        base_stmt = base_stmt.where(MediaCache.captured_at >= start_dt)
                 if time_end:
                     match = re.match(r"(\d{1,2}):(\d{2})", time_end)
                     if match:
                         h, m = int(match.group(1)), int(match.group(2))
-                        end_dt = now_utc.replace(
-                            hour=h, minute=m, second=59, microsecond=999999
-                        )
-                        base_stmt = base_stmt.where(
-                            MediaCache.captured_at <= end_dt
-                        )
+                        end_dt = now_utc.replace(hour=h, minute=m, second=59, microsecond=999999)
+                        base_stmt = base_stmt.where(MediaCache.captured_at <= end_dt)
 
             # Fetch all matching rows; group and sort in Python for predictable ordering.
             rows: list[MediaCache] = list(db.execute(base_stmt).scalars().all())

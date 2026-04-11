@@ -48,13 +48,13 @@ class StepMetadata:
     """Declarative metadata for a step type, used by the registry and
     served to the frontend for auto-form generation."""
 
-    type_name: str          # "person_identification"
-    display_name: str       # "Person Identification"
-    category: str           # perception | reasoning | action | state | flow
-    icon: str               # "mdi-face-recognition"
+    type_name: str  # "person_identification"
+    display_name: str  # "Person Identification"
+    category: str  # perception | reasoning | action | state | flow
+    icon: str  # "mdi-face-recognition"
     description: str
-    config_schema: dict     # JSONSchema for config_json validation
-    default_config: dict    # Default config_json for new steps
+    config_schema: dict  # JSONSchema for config_json validation
+    default_config: dict  # Default config_json for new steps
 
 
 @dataclass

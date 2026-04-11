@@ -112,9 +112,7 @@ class PersonActivity(Base):
         DateTime(timezone=True), server_default=func.now(), index=True
     )
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
-    source_event_id: Mapped[int | None] = mapped_column(
-        ForeignKey("event_logs.id"), nullable=True
-    )
+    source_event_id: Mapped[int | None] = mapped_column(ForeignKey("event_logs.id"), nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     person: Mapped[HouseholdMember] = relationship()

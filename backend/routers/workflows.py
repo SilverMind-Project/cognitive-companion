@@ -29,9 +29,7 @@ def list_executions(
     if status:
         query = query.filter(WorkflowExecution.status == status)
 
-    executions = (
-        query.order_by(WorkflowExecution.started_at.desc()).limit(limit).all()
-    )
+    executions = query.order_by(WorkflowExecution.started_at.desc()).limit(limit).all()
 
     # Attach rule_name for the response
     results = []

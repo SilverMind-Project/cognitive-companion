@@ -48,7 +48,6 @@ _CHANNEL_TEMPLATE_FIELDS: dict[str, str] = {
 
 @StepRegistry.register
 class NotificationHandler(StepHandler):
-
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(
@@ -245,9 +244,7 @@ class NotificationHandler(StepHandler):
             or pipeline_data.get("vision_response", "")
         )
         if message_template:
-            message = _format_channel_message(
-                message_template, message, trigger, pipeline_data
-            )
+            message = _format_channel_message(message_template, message, trigger, pipeline_data)
 
         # Build per-channel messages using the template mapping
         channel_messages: dict[str, str] = {}

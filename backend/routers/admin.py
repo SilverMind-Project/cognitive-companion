@@ -31,10 +31,7 @@ def _sanitize(obj: dict) -> dict:
         elif isinstance(value, dict):
             result[key] = _sanitize(value)
         elif isinstance(value, list):
-            result[key] = [
-                _sanitize(item) if isinstance(item, dict) else item
-                for item in value
-            ]
+            result[key] = [_sanitize(item) if isinstance(item, dict) else item for item in value]
         else:
             result[key] = value
     return result
@@ -44,6 +41,22 @@ def _sanitize(obj: dict) -> dict:
 async def health():
     """Health check endpoint (no auth required)."""
     return {"status": "ok", "version": "2.0.0"}
+
+
+@router.get("/app-info")
+async def app_info():
+    """Return public application metadata consumed by the frontend.
+
+    No authentication required — this endpoint exposes only non-sensitive
+    configuration values (name, version, timezone).  The frontend uses the
+    timezone field to format all displayed timestamps in the operator-configured
+    local timezone rather than the browser's timezone.
+    """
+    return {
+        "name": settings.get("app.name", "Cognitive Companion"),
+        "version": settings.get("app.version", "2.0.0"),
+        "timezone": settings.get("app.timezone", "UTC"),
+    }
 
 
 @router.get("/health/person-id")

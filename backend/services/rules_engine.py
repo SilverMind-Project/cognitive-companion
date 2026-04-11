@@ -5,7 +5,7 @@ contexts (via FilterRegistry), dependencies, and rate limits.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
@@ -55,7 +55,8 @@ class RulesEngine:
 
         if trigger_type == "occupancy_duration" and occupancy_minutes is not None:
             rules = [
-                r for r in rules
+                r
+                for r in rules
                 if (r.occupancy_config or {}).get("min_minutes", 40) <= occupancy_minutes
             ]
 
@@ -137,7 +138,8 @@ class RulesEngine:
         return True
 
     def _check_single_dependency(self, dep: RuleDependency, db: Session, now: datetime) -> bool:
-        now_utc = now.astimezone(timezone.utc).replace(tzinfo=None)
+        # Convert to naive UTC — the DB stores naive UTC timestamps via SQLite.
+        now_utc = now.astimezone(UTC).replace(tzinfo=None)
         cutoff = now_utc - timedelta(minutes=dep.lookback_minutes)
         recent_success = (
             db.query(EventLog)
@@ -156,9 +158,17 @@ class RulesEngine:
     # -- rate limit checking --------------------------------------------------
 
     def _check_rate_limits(self, rule: Rule, db: Session, now: datetime) -> bool:
-        """Check cool-off period and daily trigger limit."""
+        """Check cool-off period and daily trigger limit.
+
+        Both checks compare against UTC timestamps stored in the database.
+        The cool-off window is relative (minutes elapsed) so UTC conversion is
+        straightforward.  The daily limit window starts at **local midnight**
+        in the configured timezone — "today" means the current calendar day as
+        seen by the operator, not the UTC day boundary.
+        """
         if rule.cool_off_minutes > 0:
-            now_utc = now.astimezone(timezone.utc).replace(tzinfo=None)
+            # Convert to naive UTC for SQLite comparison (DB stores naive UTC).
+            now_utc = now.astimezone(UTC).replace(tzinfo=None)
             cutoff = now_utc - timedelta(minutes=rule.cool_off_minutes)
             recent = (
                 db.query(EventLog)
@@ -170,23 +180,32 @@ class RulesEngine:
                 .first()
             )
             if recent:
-                logger.info("cooloff_active", rule=rule.name, cool_off_minutes=rule.cool_off_minutes, cutoff=cutoff)
+                logger.info(
+                    "cooloff_active",
+                    rule=rule.name,
+                    cool_off_minutes=rule.cool_off_minutes,
+                    cutoff=cutoff,
+                )
                 return False
 
         if rule.max_daily_triggers > 0:
-            now_utc = now.astimezone(timezone.utc).replace(tzinfo=None)
-            midnight = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            # "Today" = the calendar day in the operator's configured timezone.
+            # Midnight in local time is converted to naive UTC for the query.
+            local_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            midnight_utc = local_midnight.astimezone(UTC).replace(tzinfo=None)
             count = (
                 db.query(func.count(EventLog.id))
                 .filter(
                     EventLog.rule_id == rule.id,
                     EventLog.status == "completed",
-                    EventLog.timestamp >= midnight,
+                    EventLog.timestamp >= midnight_utc,
                 )
                 .scalar()
             )
             if count >= rule.max_daily_triggers:
-                logger.info("daily_limit_reached", rule=rule.name, count=count, max=rule.max_daily_triggers)
+                logger.info(
+                    "daily_limit_reached", rule=rule.name, count=count, max=rule.max_daily_triggers
+                )
                 return False
 
         return True

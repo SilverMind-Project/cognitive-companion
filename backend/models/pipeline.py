@@ -22,6 +22,7 @@ def get_step_types() -> tuple[str, ...]:
     """
     try:
         from backend.steps import StepRegistry
+
         names = StepRegistry.type_names()
         if names:
             return tuple(names)
@@ -88,9 +89,7 @@ class WorkflowExecution(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"), index=True)
-    event_log_id: Mapped[int | None] = mapped_column(
-        ForeignKey("event_logs.id"), nullable=True
-    )
+    event_log_id: Mapped[int | None] = mapped_column(ForeignKey("event_logs.id"), nullable=True)
     status: Mapped[str] = mapped_column(
         String(32), default="running", index=True
     )  # running, waiting, completed, failed, cancelled
@@ -98,21 +97,13 @@ class WorkflowExecution(Base):
         ForeignKey("pipeline_steps.id"), nullable=True
     )
     pipeline_data_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    resume_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    resume_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     rule: Mapped[Rule] = relationship()
-    current_step: Mapped[PipelineStep | None] = relationship(
-        foreign_keys=[current_step_id]
-    )
+    current_step: Mapped[PipelineStep | None] = relationship(foreign_keys=[current_step_id])

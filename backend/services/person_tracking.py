@@ -298,7 +298,9 @@ class PersonTrackingService:
             room_name=room_name,
             confidence=confidence,
             direction=direction,
-            bbox_json={"x1": bbox[0], "y1": bbox[1], "x2": bbox[2], "y2": bbox[3]} if bbox else None,
+            bbox_json={"x1": bbox[0], "y1": bbox[1], "x2": bbox[2], "y2": bbox[3]}
+            if bbox
+            else None,
             source=source,
         )
         db.add(sighting)
@@ -321,9 +323,7 @@ class PersonTrackingService:
         room_id = room.id if room else None
 
         loc = (
-            db.query(PersonLocationState)
-            .filter(PersonLocationState.person_id == person_id)
-            .first()
+            db.query(PersonLocationState).filter(PersonLocationState.person_id == person_id).first()
         )
 
         if loc:
@@ -387,9 +387,7 @@ class PersonTrackingService:
         if self._ha_propagation:
             await self._propagate_to_ha(person_id, room_name, confidence)
 
-    async def _propagate_to_ha(
-        self, person_id: str, room_name: str, confidence: float
-    ) -> None:
+    async def _propagate_to_ha(self, person_id: str, room_name: str, confidence: float) -> None:
         """Push person location to Home Assistant as an input_text helper."""
         try:
             await self._ha.set_person_location(person_id, room_name, confidence)
@@ -408,15 +406,19 @@ class PersonTrackingService:
             )
             results = []
             for state, member in states:
-                results.append({
-                    "person_id": state.person_id,
-                    "person_name": member.name,
-                    "current_room_name": state.current_room_name,
-                    "last_seen_at": state.last_seen_at.isoformat() if state.last_seen_at else None,
-                    "last_sensor_id": state.last_sensor_id,
-                    "status": state.status,
-                    "confidence": state.confidence,
-                })
+                results.append(
+                    {
+                        "person_id": state.person_id,
+                        "person_name": member.name,
+                        "current_room_name": state.current_room_name,
+                        "last_seen_at": state.last_seen_at.isoformat()
+                        if state.last_seen_at
+                        else None,
+                        "last_sensor_id": state.last_sensor_id,
+                        "status": state.status,
+                        "confidence": state.confidence,
+                    }
+                )
             return results
         finally:
             db.close()
@@ -446,9 +448,7 @@ class PersonTrackingService:
         finally:
             db.close()
 
-    async def get_location_history(
-        self, person_id: str, hours: float = 24.0
-    ) -> list[dict]:
+    async def get_location_history(self, person_id: str, hours: float = 24.0) -> list[dict]:
         """Return location timeline for a person."""
         db: Session = self._db_factory()
         try:
@@ -476,9 +476,7 @@ class PersonTrackingService:
         finally:
             db.close()
 
-    async def get_recent_sightings(
-        self, person_id: str, limit: int = 20
-    ) -> list[dict]:
+    async def get_recent_sightings(self, person_id: str, limit: int = 20) -> list[dict]:
         """Return recent sightings for a person."""
         db: Session = self._db_factory()
         try:
@@ -564,9 +562,7 @@ class PersonTrackingService:
             if activity_type:
                 query = query.filter(PersonActivity.activity_type == activity_type)
 
-            activities = (
-                query.order_by(desc(PersonActivity.detected_at)).limit(50).all()
-            )
+            activities = query.order_by(desc(PersonActivity.detected_at)).limit(50).all()
             return [
                 {
                     "id": a.id,
@@ -628,9 +624,7 @@ class PersonTrackingService:
             if effective_end:
                 query = query.filter(PersonActivity.detected_at <= effective_end)
 
-            activities = (
-                query.order_by(desc(PersonActivity.detected_at)).limit(50).all()
-            )
+            activities = query.order_by(desc(PersonActivity.detected_at)).limit(50).all()
             return [
                 {
                     "id": a.id,

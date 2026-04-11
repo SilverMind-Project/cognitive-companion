@@ -41,6 +41,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
+import { formatDateTime } from "../../services/timezone.js";
 
 const events = ref([]);
 const loading = ref(false);
@@ -58,10 +59,7 @@ function statusColor(s) {
   return { completed: "success", failed: "error", ignored: "grey", processing: "info" }[s] || "grey";
 }
 
-function formatDate(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString();
-}
+const formatDate = formatDateTime;
 
 async function loadEvents() {
   loading.value = true;

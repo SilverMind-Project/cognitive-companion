@@ -43,12 +43,18 @@ async def process_video(
     )
 
     cmd = [
-        "ffmpeg", "-y",
-        "-i", input_path,
-        "-vf", f"fps={fps},scale=-2:{target_height}",
-        "-vcodec", "libx264",
-        "-crf", "23",
-        "-preset", "fast",
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-vf",
+        f"fps={fps},scale=-2:{target_height}",
+        "-vcodec",
+        "libx264",
+        "-crf",
+        "23",
+        "-preset",
+        "fast",
         output_path,
     ]
 
@@ -72,8 +78,10 @@ def get_video_info(input_path: str) -> dict:
     """Return basic metadata for a video file using ffprobe."""
     cmd = [
         "ffprobe",
-        "-v", "quiet",
-        "-print_format", "json",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
         "-show_streams",
         "-show_format",
         input_path,
@@ -93,9 +101,7 @@ def get_video_info(input_path: str) -> dict:
     raw_frames = video_stream.get("nb_frames")
     nb_frames = int(raw_frames) if raw_frames else 0
 
-    duration_str = video_stream.get("duration") or probe.get("format", {}).get(
-        "duration", "0"
-    )
+    duration_str = video_stream.get("duration") or probe.get("format", {}).get("duration", "0")
 
     return {
         "width": int(video_stream["width"]),
@@ -129,11 +135,16 @@ async def extract_frames(
 
     cmd = [
         "ffmpeg",
-        "-i", input_path,
-        "-vf", f"select='{select_expr}'",
-        "-vsync", "vfr",
-        "-f", "rawvideo",
-        "-pix_fmt", "rgb24",
+        "-i",
+        input_path,
+        "-vf",
+        f"select='{select_expr}'",
+        "-vsync",
+        "vfr",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
         "pipe:1",
     ]
 

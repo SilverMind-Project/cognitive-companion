@@ -88,6 +88,8 @@
                   variant="outlined"
                   placeholder="*/5 * * * *"
                   :disabled="form.trigger_type !== 'cron'"
+                  :hint="form.trigger_type === 'cron' ? `Times are interpreted in ${getAppTimezone()}` : ''"
+                  persistent-hint
                 />
               </v-col>
               <v-col v-if="form.trigger_type === 'occupancy_duration'" cols="12" md="6">
@@ -255,13 +257,17 @@
                   label="Start Time"
                   variant="outlined"
                   type="time"
-                  class="mb-3"
+                  :hint="`Local time in ${getAppTimezone()}`"
+                  persistent-hint
+                  class="mb-4"
                 />
                 <v-text-field
                   v-model="ctxForm.config.end_time"
                   label="End Time"
                   variant="outlined"
                   type="time"
+                  :hint="`Local time in ${getAppTimezone()}`"
+                  persistent-hint
                 />
               </template>
 
@@ -599,6 +605,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../../services/api.js";
+import { formatDateTime, getAppTimezone } from "../../services/timezone.js";
 import PipelineBuilder from "../../components/pipeline/PipelineBuilder.vue";
 
 const route = useRoute();
@@ -988,10 +995,7 @@ function statusColor(status) {
   return map[status] || "grey";
 }
 
-function formatDate(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString();
-}
+const formatDate = formatDateTime;
 
 function formatDuration(startIso, endIso) {
   if (!startIso || !endIso) return "-";

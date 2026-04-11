@@ -16,7 +16,6 @@ logger = get_logger(__name__)
 
 @ChannelRegistry.register
 class PWAPopupTextChannel(NotificationChannel):
-
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(

@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
+from backend.filters import FilterRegistry
 from backend.models.event import EventLog
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.models.sensor import Sensor
 from backend.services.rules_engine import RulesEngine
+
+# Ensure built-in context filters are registered for the test suite.
+# In production this is triggered by main.py's lifespan; tests must do it explicitly.
+FilterRegistry.discover()
 
 
 def _make_sensor(db, sensor_id="cam1", sensor_type="camera"):
@@ -221,3 +227,175 @@ class TestRulesEngineContextFilters:
         matched = _engine_utc().get_matching_rules(sensor, db_session)
         # Unknown filter always passes (negate is ignored for unresolved types)
         assert len(matched) == 1
+
+
+# ---------------------------------------------------------------------------
+# Timezone-aware rate limits
+# ---------------------------------------------------------------------------
+
+
+class TestTimezoneAwareLimits:
+    """Verify that rate-limit windows respect the configured local timezone.
+
+    The key invariant: ``max_daily_triggers`` resets at *local midnight*
+    (the calendar-day boundary in the configured timezone), not at UTC
+    midnight.  Tests use America/New_York (UTC-5 / UTC-4 DST) because the
+    5-hour offset creates a noticeable gap between local and UTC midnights.
+    """
+
+    _TZ_NY = "America/New_York"
+
+    def _engine_ny(self) -> RulesEngine:
+        return RulesEngine(tz_name=self._TZ_NY)
+
+    def _log_utc(self, db, rule, utc_dt: datetime):
+        """Insert a completed EventLog at an explicit UTC datetime."""
+        log = EventLog(
+            rule_id=rule.id,
+            rule_name=rule.name,
+            sensor_id="cam1",
+            trigger_type="sensor_event",
+            status="completed",
+            timestamp=utc_dt.replace(tzinfo=None),  # stored as naive UTC
+        )
+        db.add(log)
+        db.flush()
+        return log
+
+    def test_daily_limit_uses_local_midnight_not_utc(self, db_session):
+        """An event at 23:30 UTC (which is 18:30 ET) must NOT count toward
+        tomorrow's local-day limit when 'now' is 01:00 ET the next calendar day.
+
+        Without the fix (using UTC midnight), both timestamps fall on the same
+        UTC day, so the count would incorrectly include yesterday's 23:30 UTC
+        event.  With the fix, local midnight separates them correctly.
+        """
+        _make_sensor(db_session)
+        rule = _make_rule(db_session, max_daily_triggers=1)
+
+        # An event at 2024-01-15 23:30 UTC = 2024-01-15 18:30 ET (yesterday ET)
+        past_utc = datetime(2024, 1, 15, 23, 30, 0, tzinfo=UTC)
+        self._log_utc(db_session, rule, past_utc)
+        db_session.commit()
+
+        # "Now" is 2024-01-16 01:00 ET = 2024-01-16 06:00 UTC (next local day)
+        now_et = datetime(2024, 1, 16, 1, 0, 0, tzinfo=ZoneInfo(self._TZ_NY))
+
+        engine = self._engine_ny()
+        # Directly test _check_rate_limits since get_matching_rules builds 'now' internally.
+        result = engine._check_rate_limits(rule, db_session, now_et)
+        # The past event is on the previous ET calendar day, so today's count = 0.
+        assert result is True, (
+            "Daily limit should not be triggered — event was on a previous local calendar day"
+        )
+
+    def test_daily_limit_counts_events_after_local_midnight(self, db_session):
+        """Events after local midnight must count toward today's local limit."""
+        _make_sensor(db_session)
+        rule = _make_rule(db_session, max_daily_triggers=2)
+
+        # Two events today in ET: 01:00 ET and 03:00 ET
+        tz = ZoneInfo(self._TZ_NY)
+        now_et = datetime(2024, 1, 16, 10, 0, 0, tzinfo=tz)
+        for hour in (1, 3):
+            self._log_utc(db_session, rule, datetime(2024, 1, 16, hour + 5, 0, tzinfo=UTC))
+        db_session.commit()
+
+        engine = self._engine_ny()
+        result = engine._check_rate_limits(rule, db_session, now_et)
+        # count == max → should block
+        assert result is False, "Daily limit (2/2) should block the rule"
+
+    def test_cool_off_is_timezone_agnostic(self, db_session):
+        """Cool-off is a relative window (N minutes back from now) — it should
+        work the same regardless of timezone because it uses elapsed UTC time."""
+        _make_sensor(db_session)
+        rule = _make_rule(db_session, cool_off_minutes=30)
+
+        # Event 10 minutes ago UTC
+        recent_utc = datetime.now(UTC) - timedelta(minutes=10)
+        log = EventLog(
+            rule_id=rule.id,
+            rule_name=rule.name,
+            sensor_id="cam1",
+            trigger_type="sensor_event",
+            status="completed",
+            timestamp=recent_utc.replace(tzinfo=None),
+        )
+        db_session.add(log)
+        db_session.commit()
+
+        # Test with America/New_York engine — cool-off should still trigger
+        engine = self._engine_ny()
+        now_et = datetime.now(ZoneInfo(self._TZ_NY))
+        result = engine._check_rate_limits(rule, db_session, now_et)
+        assert result is False, "Cool-off within window should block the rule"
+
+
+# ---------------------------------------------------------------------------
+# Time-range context filter with non-UTC timezone
+# ---------------------------------------------------------------------------
+
+
+class TestTimeRangeContextFilter:
+    """Verify that the time_range filter works correctly with a local timezone."""
+
+    _TZ_NY = "America/New_York"
+
+    def _engine_ny(self) -> RulesEngine:
+        return RulesEngine(tz_name=self._TZ_NY)
+
+    def test_time_range_matches_local_time(self, db_session):
+        """A time_range filter should fire when local time is inside the window,
+        even when that local window straddles midnight UTC."""
+        sensor = _make_sensor(db_session)
+        rule = _make_rule(db_session)
+        ctx = RuleContext(
+            rule_id=rule.id,
+            context_type="time_range",
+            config_json={"start_time": "22:00", "end_time": "23:59"},
+        )
+        db_session.add(ctx)
+        db_session.commit()
+
+        # 23:00 ET = 04:00 UTC next day → inside window in ET, outside in UTC
+        now_et = datetime(2024, 1, 16, 23, 0, 0, tzinfo=ZoneInfo(self._TZ_NY))
+        engine = self._engine_ny()
+        # Call _check_contexts directly so we can supply our fixed 'now'.
+        result = engine._check_contexts(rule, sensor, now_et, db_session)
+        assert result is True, "23:00 ET should match 22:00-23:59 ET window"
+
+    def test_time_range_blocks_outside_local_window(self, db_session):
+        """A time_range filter should NOT fire when local time is outside window."""
+        sensor = _make_sensor(db_session)
+        rule = _make_rule(db_session)
+        ctx = RuleContext(
+            rule_id=rule.id,
+            context_type="time_range",
+            config_json={"start_time": "09:00", "end_time": "17:00"},
+        )
+        db_session.add(ctx)
+        db_session.commit()
+
+        # 20:00 ET (outside 09:00-17:00)
+        now_et = datetime(2024, 1, 16, 20, 0, 0, tzinfo=ZoneInfo(self._TZ_NY))
+        engine = self._engine_ny()
+        result = engine._check_contexts(rule, sensor, now_et, db_session)
+        assert result is False, "20:00 ET should not match 09:00-17:00 ET window"
+
+    def test_time_range_overnight_wraps_correctly(self, db_session):
+        """An overnight window like 22:00-06:00 should match at 23:30 ET."""
+        sensor = _make_sensor(db_session)
+        rule = _make_rule(db_session)
+        ctx = RuleContext(
+            rule_id=rule.id,
+            context_type="time_range",
+            config_json={"start_time": "22:00", "end_time": "06:00"},
+        )
+        db_session.add(ctx)
+        db_session.commit()
+
+        now_et = datetime(2024, 1, 16, 23, 30, 0, tzinfo=ZoneInfo(self._TZ_NY))
+        engine = self._engine_ny()
+        result = engine._check_contexts(rule, sensor, now_et, db_session)
+        assert result is True, "23:30 ET should match overnight 22:00-06:00 window"

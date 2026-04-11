@@ -71,9 +71,9 @@ class TestLiterals:
 
 class TestPathResolution:
     def test_nested_dict_access(self, evaluator: ConditionEvaluator, sample_data: dict) -> None:
-        assert evaluator.evaluate(
-            "logic_response.is_notification_needed == true", sample_data
-        ) is True
+        assert (
+            evaluator.evaluate("logic_response.is_notification_needed == true", sample_data) is True
+        )
 
     def test_list_count_accessor(self, evaluator: ConditionEvaluator, sample_data: dict) -> None:
         assert evaluator.evaluate("items.count == 3", sample_data) is True
@@ -124,7 +124,7 @@ class TestComparisons:
 
     def test_type_mismatch_returns_false(self, evaluator: ConditionEvaluator) -> None:
         # Comparing str > int raises TypeError inside _compare; must return False.
-        assert evaluator.evaluate('name > 5', {"name": "alice"}) is False
+        assert evaluator.evaluate("name > 5", {"name": "alice"}) is False
 
     def test_compare_helper_unknown_operator(self) -> None:
         assert _compare(1, 2, "??") is False
@@ -162,17 +162,13 @@ class TestBooleanOperators:
 
     def test_and_has_higher_precedence_than_or(self, evaluator: ConditionEvaluator) -> None:
         # a or (b and c) — if a is true, whole thing is true.
-        assert evaluator.evaluate(
-            "a == 1 or b == 1 and c == 1", {"a": 1, "b": 0, "c": 0}
-        ) is True
+        assert evaluator.evaluate("a == 1 or b == 1 and c == 1", {"a": 1, "b": 0, "c": 0}) is True
 
-    def test_parentheses_override_precedence(
-        self, evaluator: ConditionEvaluator
-    ) -> None:
+    def test_parentheses_override_precedence(self, evaluator: ConditionEvaluator) -> None:
         # (a or b) and c — needs both sides.
-        assert evaluator.evaluate(
-            "(a == 1 or b == 1) and c == 1", {"a": 1, "b": 0, "c": 0}
-        ) is False
+        assert (
+            evaluator.evaluate("(a == 1 or b == 1) and c == 1", {"a": 1, "b": 0, "c": 0}) is False
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -193,36 +189,29 @@ class TestFunctions:
     def test_exists_with_no_args(self, evaluator: ConditionEvaluator) -> None:
         assert evaluator.evaluate("exists()", {}) is False
 
-    def test_contains_string(
-        self, evaluator: ConditionEvaluator, sample_data: dict
-    ) -> None:
-        assert evaluator.evaluate(
-            'contains(vision_response, "empty")', sample_data
-        ) is True
+    def test_contains_string(self, evaluator: ConditionEvaluator, sample_data: dict) -> None:
+        assert evaluator.evaluate('contains(vision_response, "empty")', sample_data) is True
 
-    def test_contains_string_false(
-        self, evaluator: ConditionEvaluator, sample_data: dict
-    ) -> None:
-        assert evaluator.evaluate(
-            'contains(vision_response, "spaceship")', sample_data
-        ) is False
+    def test_contains_string_false(self, evaluator: ConditionEvaluator, sample_data: dict) -> None:
+        assert evaluator.evaluate('contains(vision_response, "spaceship")', sample_data) is False
 
     def test_contains_list(self, evaluator: ConditionEvaluator) -> None:
-        assert evaluator.evaluate(
-            'contains(names, "alice")',
-            {"names": ["alice", "bob"]},
-        ) is True
+        assert (
+            evaluator.evaluate(
+                'contains(names, "alice")',
+                {"names": ["alice", "bob"]},
+            )
+            is True
+        )
 
     def test_contains_dict_key(self, evaluator: ConditionEvaluator) -> None:
-        assert evaluator.evaluate(
-            'contains(obj, "k")', {"obj": {"k": 1}}
-        ) is True
+        assert evaluator.evaluate('contains(obj, "k")', {"obj": {"k": 1}}) is True
 
     def test_contains_insufficient_args(self, evaluator: ConditionEvaluator) -> None:
-        assert evaluator.evaluate('contains(vision_response)', {"vision_response": "x"}) is False
+        assert evaluator.evaluate("contains(vision_response)", {"vision_response": "x"}) is False
 
     def test_contains_on_non_container(self, evaluator: ConditionEvaluator) -> None:
-        assert evaluator.evaluate('contains(n, 1)', {"n": 42}) is False
+        assert evaluator.evaluate("contains(n, 1)", {"n": 42}) is False
 
     def test_unknown_function_returns_false(self, evaluator: ConditionEvaluator) -> None:
         # The tokeniser only recognises ``exists``/``contains``; anything else
@@ -241,9 +230,7 @@ class TestFunctions:
         result, _ = evaluator._parse_function(tokens, 0, {})
         assert result is False
 
-    def test_function_without_lparen_returns_false(
-        self, evaluator: ConditionEvaluator
-    ) -> None:
+    def test_function_without_lparen_returns_false(self, evaluator: ConditionEvaluator) -> None:
         from backend.services.condition_evaluator import _Token
 
         tokens = [_Token(kind="FUNC", value="exists", pos=0)]
@@ -263,9 +250,7 @@ class TestParserEdgeCases:
     def test_whitespace_only_is_false(self, evaluator: ConditionEvaluator) -> None:
         assert evaluator.evaluate("   ", {}) is False
 
-    def test_malformed_expression_returns_false(
-        self, evaluator: ConditionEvaluator
-    ) -> None:
+    def test_malformed_expression_returns_false(self, evaluator: ConditionEvaluator) -> None:
         # Unterminated string crashes the tokeniser -> caught, returns False.
         assert evaluator.evaluate('name == "unterminated', {"name": "x"}) is False
 

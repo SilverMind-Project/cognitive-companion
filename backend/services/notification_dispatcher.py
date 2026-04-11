@@ -105,4 +105,3 @@ class NotificationDispatcher:
             channels=results,
         )
         return results
-

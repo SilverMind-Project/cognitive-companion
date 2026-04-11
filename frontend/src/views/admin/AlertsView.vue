@@ -44,6 +44,7 @@
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
+import { formatDateTime } from "../../services/timezone.js";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 
@@ -60,10 +61,7 @@ const headers = [
   { title: "Actions", key: "actions", sortable: false },
 ];
 
-function formatDate(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString();
-}
+const formatDate = formatDateTime;
 
 async function loadAlerts() {
   loading.value = true;

@@ -91,6 +91,7 @@ class TelegramClient:
 
     def __init__(self) -> None:
         from typing import Any
+
         self._bot: Any = None
         self._token: str = ""
         self._configure()

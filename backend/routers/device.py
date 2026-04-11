@@ -42,6 +42,7 @@ router = APIRouter(prefix="/device", tags=["device"])
 # Image processing helpers
 # ---------------------------------------------------------------------------
 
+
 def _rotate_image_bytes(image_bytes: bytes, degrees: int) -> bytes:
     """Rotate a JPEG image clockwise by *degrees* (90, 180, or 270)."""
     if degrees not in (90, 180, 270):
@@ -52,6 +53,7 @@ def _rotate_image_bytes(image_bytes: bytes, degrees: int) -> bytes:
     buf = BytesIO()
     rotated.save(buf, format="JPEG", quality=95)
     return buf.getvalue()
+
 
 def _passes_label_filter(detected_labels: list[str], filter_config: dict) -> bool:
     """Return True when *detected_labels* satisfies the label filter.
@@ -75,6 +77,7 @@ def _passes_label_filter(detected_labels: list[str], filter_config: dict) -> boo
 # Pydantic models
 # ---------------------------------------------------------------------------
 
+
 class ReCameraData(BaseModel):
     image: str  # base64-encoded JPEG
     labels: list[str] = []
@@ -82,6 +85,7 @@ class ReCameraData(BaseModel):
     count: int = 0
     perf: list[list[int | float]] = []
     resolution: list[int] = []
+
 
 class ReCameraPayload(BaseModel):
     code: int = 0
@@ -93,6 +97,7 @@ class ReCameraPayload(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.post("/recamera")
 async def recamera_upload(

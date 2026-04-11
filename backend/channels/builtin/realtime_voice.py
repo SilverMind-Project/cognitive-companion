@@ -21,7 +21,6 @@ logger = get_logger(__name__)
 
 @ChannelRegistry.register
 class PWARealtimeAIChannel(NotificationChannel):
-
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(

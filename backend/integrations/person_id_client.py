@@ -398,6 +398,4 @@ class PersonIDClient:
         ]
 
         annotated_images = data.get("annotated_images")
-        return BatchIdentifyResult(
-            frames=frames, motion=motion, annotated_images=annotated_images
-        )
+        return BatchIdentifyResult(frames=frames, motion=motion, annotated_images=annotated_images)

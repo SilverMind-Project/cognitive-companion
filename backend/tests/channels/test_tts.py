@@ -17,7 +17,9 @@ class FakeServices:
     ha_client: MagicMock = None
 
 
-def _make_tts_client(configured: bool = True, upload_url: str | None = "https://minio/tts.mp3") -> MagicMock:
+def _make_tts_client(
+    configured: bool = True, upload_url: str | None = "https://minio/tts.mp3"
+) -> MagicMock:
     client = MagicMock()
     client.configured = configured
     client.generate_and_upload = AsyncMock(return_value=upload_url)
@@ -62,7 +64,8 @@ class TestHASpeakerTTSSend:
         assert result is True
         tts.generate_and_upload.assert_awaited_once()
         ha.play_audio.assert_awaited_once_with(
-            "https://minio/tts.mp3", "media_player.kitchen_speaker",
+            "https://minio/tts.mp3",
+            "media_player.kitchen_speaker",
         )
 
     @pytest.mark.asyncio
@@ -81,7 +84,8 @@ class TestHASpeakerTTSSend:
         )
 
         ha.play_audio.assert_awaited_once_with(
-            "https://minio/tts.mp3", "media_player.living_room_speaker",
+            "https://minio/tts.mp3",
+            "media_player.living_room_speaker",
         )
 
     @pytest.mark.asyncio
@@ -101,7 +105,10 @@ class TestHASpeakerTTSSend:
         )
 
         tts.generate_and_upload.assert_awaited_once_with(
-            "Hello", minio, language="ta", style="formal",
+            "Hello",
+            minio,
+            language="ta",
+            style="formal",
         )
 
     @pytest.mark.asyncio
@@ -111,7 +118,10 @@ class TestHASpeakerTTSSend:
 
         channel = HASpeakerTTSChannel()
         result = await channel.send(
-            message="Hello", alert_level="info", room_name="room", services=services,
+            message="Hello",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False
 
@@ -124,7 +134,10 @@ class TestHASpeakerTTSSend:
 
         channel = HASpeakerTTSChannel()
         result = await channel.send(
-            message="Hello", alert_level="info", room_name="room", services=services,
+            message="Hello",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False
 
@@ -136,7 +149,10 @@ class TestHASpeakerTTSSend:
 
         channel = HASpeakerTTSChannel()
         result = await channel.send(
-            message="Hello", alert_level="info", room_name="room", services=services,
+            message="Hello",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is True
         tts.generate_audio.assert_awaited_once()

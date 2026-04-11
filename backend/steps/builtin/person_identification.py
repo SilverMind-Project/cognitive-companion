@@ -15,7 +15,6 @@ from backend.steps.base import (
 
 @StepRegistry.register
 class PersonIdentificationHandler(StepHandler):
-
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(
@@ -74,9 +73,7 @@ class PersonIdentificationHandler(StepHandler):
         additional_sensors = config.get("additional_sensor_ids", [])
         if additional_sensors and services.event_aggregator:
             for sensor_id in additional_sensors:
-                extra = await services.event_aggregator.get_recent_images(
-                    sensor_id, limit=3
-                )
+                extra = await services.event_aggregator.get_recent_images(sensor_id, limit=3)
                 media_paths.extend(extra)
 
         room_name = trigger.room_name or "Unknown"
@@ -111,11 +108,7 @@ class PersonIdentificationHandler(StepHandler):
         min_confidence = config.get("min_confidence", 0.0)
 
         if target_persons:
-            detected_ids = {
-                d.person_id
-                for d in detections
-                if d.confidence >= min_confidence
-            }
+            detected_ids = {d.person_id for d in detections if d.confidence >= min_confidence}
             if not detected_ids.intersection(set(target_persons)):
                 result_data["skip_reason"] = "target_person_not_detected"
                 return StepResult(data=result_data, should_continue=False)

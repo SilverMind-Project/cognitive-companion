@@ -135,11 +135,7 @@ class ConversationManager:
         db: Session = self.db_session_factory()
         try:
             cutoff = datetime.now(UTC) - timedelta(minutes=self.ttl_minutes)
-            count = (
-                db.query(ConversationTurn)
-                .filter(ConversationTurn.timestamp < cutoff)
-                .delete()
-            )
+            count = db.query(ConversationTurn).filter(ConversationTurn.timestamp < cutoff).delete()
             db.commit()
             logger.info("conversation_pruned", deleted=count)
             return count

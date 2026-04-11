@@ -47,7 +47,6 @@ logger = get_logger(__name__)
 
 @StepRegistry.register
 class ActivityDetectionHandler(StepHandler):
-
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(
@@ -122,7 +121,7 @@ class ActivityDetectionHandler(StepHandler):
                         "description": (
                             "Optional JSON string of extra fields to merge into metadata_json. "
                             "Supports {{template}} syntax for dynamic values "
-                            "(e.g. '{\"reasoning\": \"{{logic_response.reasoning}}\"}')."
+                            '(e.g. \'{"reasoning": "{{logic_response.reasoning}}"}\').'
                         ),
                     },
                     "trigger_cooloff": {
@@ -168,14 +167,14 @@ class ActivityDetectionHandler(StepHandler):
             logger.warning("activity_detection_missing_type", step_id=step.id)
             return StepResult(data={"detected_activities": []})
 
-        person_id = render_template(
-            config.get("person_id", ""), pipeline_data, trigger_vars
-        ).strip() or "unknown"
+        person_id = (
+            render_template(config.get("person_id", ""), pipeline_data, trigger_vars).strip()
+            or "unknown"
+        )
 
         room_name_tpl = config.get("room_name", "")
         room_name = (
-            render_template(room_name_tpl, pipeline_data, trigger_vars).strip()
-            or trigger.room_name
+            render_template(room_name_tpl, pipeline_data, trigger_vars).strip() or trigger.room_name
         )
 
         confidence_raw = config.get("confidence", 0.8)
@@ -207,9 +206,13 @@ class ActivityDetectionHandler(StepHandler):
                 if isinstance(extra, dict):
                     metadata.update(extra)
                 else:
-                    logger.warning("activity_detection_metadata_extra_not_dict", rendered=rendered[:120])
+                    logger.warning(
+                        "activity_detection_metadata_extra_not_dict", rendered=rendered[:120]
+                    )
             except (json.JSONDecodeError, ValueError):
-                logger.warning("activity_detection_metadata_extra_invalid_json", rendered=rendered[:120])
+                logger.warning(
+                    "activity_detection_metadata_extra_invalid_json", rendered=rendered[:120]
+                )
 
         # -----------------------------------------------------------------------
 

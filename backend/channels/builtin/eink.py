@@ -13,7 +13,6 @@ _DEFAULT_EXPIRY_MINUTES = 30
 
 @ChannelRegistry.register
 class EInkChannel(NotificationChannel):
-
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(

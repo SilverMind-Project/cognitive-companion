@@ -8,7 +8,7 @@ callback methods directly with awaited coroutines.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -80,9 +80,7 @@ def test_configure_adds_maintenance_job(db_factory, aggregator, pipeline_executo
     assert "cleanup_expired_media" in job_ids
 
 
-def test_configure_loads_rule_jobs(
-    db_session, db_factory, aggregator, pipeline_executor
-) -> None:
+def test_configure_loads_rule_jobs(db_session, db_factory, aggregator, pipeline_executor) -> None:
     rule = _make_rule(db_session, name="rule-a", schedule_cron="*/10 * * * *")
     db_session.commit()
 
@@ -153,9 +151,7 @@ def test_reload_rules_removes_and_readds(
 # ---------------------------------------------------------------------------
 
 
-def test_schedule_workflow_resume_adds_job(
-    db_factory, aggregator, pipeline_executor
-) -> None:
+def test_schedule_workflow_resume_adds_job(db_factory, aggregator, pipeline_executor) -> None:
     s = Scheduler(aggregator, db_factory, pipeline_executor)
     s.schedule_workflow_resume(42, datetime.now(UTC) + timedelta(hours=1))
     assert "resume_42" in {j.id for j in s.apscheduler.get_jobs()}
@@ -167,9 +163,7 @@ def test_schedule_workflow_resume_adds_job(
 
 
 @pytest.mark.asyncio
-async def test_execute_periodic_rule_noop_without_executor(
-    db_factory, aggregator
-) -> None:
+async def test_execute_periodic_rule_noop_without_executor(db_factory, aggregator) -> None:
     s = Scheduler(aggregator, db_factory, pipeline_executor=None)
     await s.execute_periodic_rule(1)  # no-op, no crash
 
@@ -249,9 +243,7 @@ async def test_resume_workflow_noop_without_executor(db_factory, aggregator) -> 
 
 
 @pytest.mark.asyncio
-async def test_resume_workflow_calls_executor(
-    db_factory, aggregator, pipeline_executor
-) -> None:
+async def test_resume_workflow_calls_executor(db_factory, aggregator, pipeline_executor) -> None:
     s = Scheduler(aggregator, db_factory, pipeline_executor)
     await s.resume_workflow(7)
     pipeline_executor.resume.assert_awaited_once()
@@ -272,25 +264,17 @@ async def test_resume_workflow_swallows_exception(
 # ---------------------------------------------------------------------------
 
 
-def test_bridge_wraps_scheduler_instance(
-    db_factory, aggregator, pipeline_executor
-) -> None:
+def test_bridge_wraps_scheduler_instance(db_factory, aggregator, pipeline_executor) -> None:
     s = Scheduler(aggregator, db_factory, pipeline_executor)
     bridge = SchedulerBridge(s)
-    bridge.schedule_workflow_resume(
-        11, datetime.now(UTC) + timedelta(minutes=5)
-    )
+    bridge.schedule_workflow_resume(11, datetime.now(UTC) + timedelta(minutes=5))
     assert "resume_11" in {j.id for j in s.apscheduler.get_jobs()}
 
 
-def test_bridge_wraps_raw_apscheduler(
-    db_factory, aggregator, pipeline_executor
-) -> None:
+def test_bridge_wraps_raw_apscheduler(db_factory, aggregator, pipeline_executor) -> None:
     s = Scheduler(aggregator, db_factory, pipeline_executor)
     bridge = SchedulerBridge(s.apscheduler)  # legacy path
-    bridge.schedule_workflow_resume(
-        12, datetime.now(UTC) + timedelta(minutes=5)
-    )
+    bridge.schedule_workflow_resume(12, datetime.now(UTC) + timedelta(minutes=5))
     assert "resume_12" in {j.id for j in s.apscheduler.get_jobs()}
 
 
@@ -356,9 +340,7 @@ async def test_module_execute_periodic_rule_delegates(
 
 
 @pytest.mark.asyncio
-async def test_module_resume_callback_delegates(
-    db_factory, aggregator, pipeline_executor
-) -> None:
+async def test_module_resume_callback_delegates(db_factory, aggregator, pipeline_executor) -> None:
     setup_scheduler(aggregator, db_factory, pipeline_executor)
     await scheduler_module._resume_workflow_callback(5)
     pipeline_executor.resume.assert_awaited_once()
@@ -371,9 +353,7 @@ async def test_module_resume_callback_without_setup_is_noop(db_factory) -> None:
     await scheduler_module._resume_workflow_callback(1)
 
 
-def test_reset_default_scheduler_clears_state(
-    db_factory, aggregator, pipeline_executor
-) -> None:
+def test_reset_default_scheduler_clears_state(db_factory, aggregator, pipeline_executor) -> None:
     setup_scheduler(aggregator, db_factory, pipeline_executor)
     assert scheduler_module._default_scheduler is not None
     reset_default_scheduler()
@@ -388,3 +368,85 @@ def test_pipeline_executor_property(db_factory, aggregator) -> None:
     fake = object()
     s.pipeline_executor = fake
     assert s.pipeline_executor is fake
+
+
+# ---------------------------------------------------------------------------
+# Timezone-aware cron scheduling
+# ---------------------------------------------------------------------------
+
+
+def test_cron_trigger_uses_app_timezone(
+    db_session, db_factory, aggregator, pipeline_executor
+) -> None:
+    """CronTrigger must be created with the configured app timezone.
+
+    Cron expressions entered by operators should fire at the local wall-clock
+    time, not at the server's system timezone or UTC.  We verify this by
+    checking the timezone attached to the APScheduler job's trigger.
+    """
+    _make_rule(db_session, name="tz-rule", schedule_cron="0 8 * * *")
+    db_session.commit()
+
+    with patch(
+        "backend.services.scheduler.settings.get",
+        side_effect=lambda key, default=None: (
+            "America/New_York" if key == "app.timezone" else default
+        ),
+    ):
+        s = Scheduler(aggregator, db_factory, pipeline_executor)
+        s.configure()
+
+    jobs = {j.id: j for j in s.apscheduler.get_jobs()}
+    job = next((j for jid, j in jobs.items() if jid.startswith("rule_")), None)
+    assert job is not None, "rule job was not registered"
+    trigger = job.trigger
+    # APScheduler stores the timezone on CronTrigger as ``timezone`` attribute.
+    assert str(trigger.timezone) == "America/New_York", (
+        f"Expected trigger timezone 'America/New_York', got '{trigger.timezone}'"
+    )
+
+
+def test_cron_trigger_uses_utc_when_configured(
+    db_session, db_factory, aggregator, pipeline_executor
+) -> None:
+    """When app.timezone is UTC the trigger should also use UTC."""
+    _make_rule(db_session, name="utc-rule", schedule_cron="30 12 * * *")
+    db_session.commit()
+
+    with patch(
+        "backend.services.scheduler.settings.get",
+        side_effect=lambda key, default=None: "UTC" if key == "app.timezone" else default,
+    ):
+        s = Scheduler(aggregator, db_factory, pipeline_executor)
+        s.configure()
+
+    jobs = {j.id: j for j in s.apscheduler.get_jobs()}
+    job = next((j for jid, j in jobs.items() if jid.startswith("rule_")), None)
+    assert job is not None
+    assert str(job.trigger.timezone) == "UTC"
+
+
+def test_reload_rules_preserves_app_timezone(
+    db_session, db_factory, aggregator, pipeline_executor
+) -> None:
+    """reload_rules() must also apply the app timezone to new CronTriggers."""
+    _make_rule(db_session, name="r-initial", schedule_cron="*/5 * * * *")
+    db_session.commit()
+
+    with patch(
+        "backend.services.scheduler.settings.get",
+        side_effect=lambda key, default=None: (
+            "America/Chicago" if key == "app.timezone" else default
+        ),
+    ):
+        s = Scheduler(aggregator, db_factory, pipeline_executor)
+        s.configure()
+        # Add a second rule and reload.
+        r2 = _make_rule(db_session, name="r-reload", schedule_cron="0 9 * * 1")
+        db_session.commit()
+        s.reload_rules()
+
+    jobs = {j.id: j for j in s.apscheduler.get_jobs()}
+    job = jobs.get(f"rule_{r2.id}")
+    assert job is not None
+    assert str(job.trigger.timezone) == "America/Chicago"

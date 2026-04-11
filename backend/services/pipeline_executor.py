@@ -166,9 +166,7 @@ class PipelineExecutor:
             return execution
 
         timeout_seconds: float | None = (
-            rule.execution_timeout_minutes * 60
-            if rule.execution_timeout_minutes > 0
-            else None
+            rule.execution_timeout_minutes * 60 if rule.execution_timeout_minutes > 0 else None
         )
 
         try:
@@ -223,9 +221,7 @@ class PipelineExecutor:
         )
 
         timeout_seconds: float | None = (
-            rule.execution_timeout_minutes * 60
-            if rule.execution_timeout_minutes > 0
-            else None
+            rule.execution_timeout_minutes * 60 if rule.execution_timeout_minutes > 0 else None
         )
 
         try:
@@ -295,13 +291,13 @@ class PipelineExecutor:
                 _active_step = step
                 _active_step_started_at = datetime.now(UTC)
 
-                result = await self._execute_step(
-                    step, execution, pipeline_data, trigger
-                )
+                result = await self._execute_step(step, execution, pipeline_data, trigger)
 
                 step_completed_at = datetime.now(UTC)
                 step_timings.append(
-                    _make_step_timing(step, _active_step_started_at, step_completed_at, result.success)
+                    _make_step_timing(
+                        step, _active_step_started_at, step_completed_at, result.success
+                    )
                 )
                 # Signal to the except-block that this step's timing is already saved
                 _active_step_started_at = None
@@ -337,9 +333,7 @@ class PipelineExecutor:
                     execution.pipeline_data_json = pipeline_data
 
                     event_log = (
-                        db.query(EventLog)
-                        .filter(EventLog.id == execution.event_log_id)
-                        .first()
+                        db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
                     )
                     if event_log:
                         event_log.status = "ignored"
@@ -365,11 +359,7 @@ class PipelineExecutor:
                 pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
             execution.pipeline_data_json = pipeline_data
 
-            event_log = (
-                db.query(EventLog)
-                .filter(EventLog.id == execution.event_log_id)
-                .first()
-            )
+            event_log = db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
             if event_log:
                 if pipeline_data.get("_cooloff_triggered", False):
                     event_log.status = "completed"
@@ -415,11 +405,7 @@ class PipelineExecutor:
             execution.error = str(e)
             execution.pipeline_data_json = {**pipeline_data, "error": str(e)}
 
-            event_log = (
-                db.query(EventLog)
-                .filter(EventLog.id == execution.event_log_id)
-                .first()
-            )
+            event_log = db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
             if event_log:
                 event_log.status = "failed"
                 event_log.pipeline_data_json = {**pipeline_data, "error": str(e)}
@@ -439,9 +425,7 @@ class PipelineExecutor:
             logger.warning("unknown_step_type", step_type=step.step_type)
             return StepResult(success=False, should_continue=False)
 
-        return await handler.execute(
-            step, execution, pipeline_data, trigger, self._services
-        )
+        return await handler.execute(step, execution, pipeline_data, trigger, self._services)
 
     # -- helpers --------------------------------------------------------------
 
@@ -470,11 +454,7 @@ class PipelineExecutor:
         execution.error = error_msg
         execution.pipeline_data_json = pd
 
-        event_log = (
-            db.query(EventLog)
-            .filter(EventLog.id == execution.event_log_id)
-            .first()
-        )
+        event_log = db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
         if event_log:
             event_log.status = "failed"
         db.commit()

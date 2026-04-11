@@ -15,7 +15,9 @@ class ConversationSession(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    turns: Mapped[list[ConversationTurn]] = relationship(back_populates="session", cascade="all, delete-orphan")
+    turns: Mapped[list[ConversationTurn]] = relationship(
+        back_populates="session", cascade="all, delete-orphan"
+    )
 
 
 class ConversationTurn(Base):

@@ -13,7 +13,9 @@ class EmergencyAlert(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    alert_type: Mapped[str] = mapped_column(String(64))  # bathroom_time_exceeded, loud_noise, fall_detected
+    alert_type: Mapped[str] = mapped_column(
+        String(64)
+    )  # bathroom_time_exceeded, loud_noise, fall_detected
     description: Mapped[str] = mapped_column(Text)
     sensor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)

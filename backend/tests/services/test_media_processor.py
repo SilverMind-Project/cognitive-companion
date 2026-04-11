@@ -23,9 +23,7 @@ from backend.services import media_processor as mp
 
 
 class _FakeProcess:
-    def __init__(
-        self, returncode: int = 0, stdout: bytes = b"", stderr: bytes = b""
-    ) -> None:
+    def __init__(self, returncode: int = 0, stdout: bytes = b"", stderr: bytes = b"") -> None:
         self.returncode = returncode
         self._stdout = stdout
         self._stderr = stderr
@@ -48,9 +46,7 @@ def _write_rgba_png(path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_process_video_success(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+async def test_process_video_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     captured: dict[str, Any] = {}
 
     async def _fake_exec(*cmd: str, **kwargs: Any) -> _FakeProcess:
@@ -156,9 +152,7 @@ def test_get_video_info_no_video_stream(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(
         mp.subprocess,
         "run",
-        lambda *a, **kw: _CompletedProcess(
-            0, stdout=_probe_json(include_video=False)
-        ),
+        lambda *a, **kw: _CompletedProcess(0, stdout=_probe_json(include_video=False)),
     )
     with pytest.raises(ValueError, match="No video stream"):
         mp.get_video_info("x.mp4")

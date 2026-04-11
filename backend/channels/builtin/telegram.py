@@ -19,7 +19,6 @@ logger = get_logger(__name__)
 
 @ChannelRegistry.register
 class TelegramChannel(NotificationChannel):
-
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(

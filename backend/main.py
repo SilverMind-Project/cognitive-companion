@@ -43,9 +43,7 @@ def _upsert_device_key_sensors() -> None:
             sensor_id = entry.get("sensor_id")
             if not sensor_id:
                 continue
-            sensor_type = _DEVICE_TYPE_TO_SENSOR_TYPE.get(
-                entry.get("device_type", ""), "generic"
-            )
+            sensor_type = _DEVICE_TYPE_TO_SENSOR_TYPE.get(entry.get("device_type", ""), "generic")
             name = entry.get("name", sensor_id)
 
             existing = db.get(Sensor, sensor_id)
@@ -77,6 +75,7 @@ async def lifespan(app: FastAPI):
     settings.reload()
     # Invalidate the auth key cache so it is rebuilt from the freshly loaded config.
     from backend.core.auth import invalidate_lookup_cache
+
     invalidate_lookup_cache()
     logger.info("Starting Cognitive Companion v2")
 
@@ -130,6 +129,7 @@ async def lifespan(app: FastAPI):
     realtime_api_key = settings.get("llm.realtime.api_key")
     if realtime_api_key:
         from backend.integrations.llm.gemini_live import GeminiLiveProvider
+
         realtime_provider = GeminiLiveProvider()
     app.state.realtime_provider = realtime_provider
 
@@ -250,6 +250,7 @@ async def lifespan(app: FastAPI):
     # Replace the aggregator's process callback
     async def process_event_callback(sensor_id: str, media_paths: list[str]):
         from backend.core.database import get_session as _get_session
+
         db = _get_session()
         try:
             await workflow.process_event(sensor_id, media_paths, "image", db)
@@ -339,9 +340,7 @@ async def lifespan(app: FastAPI):
         )
         app.state.telegram_trigger = telegram_trigger
 
-        tg_poll_interval = settings.get(
-            "notifications.telegram.trigger_poll_interval_seconds", 5
-        )
+        tg_poll_interval = settings.get("notifications.telegram.trigger_poll_interval_seconds", 5)
         scheduler.add_job(
             telegram_trigger.poll,
             trigger=IntervalTrigger(seconds=tg_poll_interval),

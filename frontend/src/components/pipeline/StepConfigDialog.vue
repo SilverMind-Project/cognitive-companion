@@ -1117,6 +1117,7 @@
 <script setup>
 import { ref, watch, reactive, computed, onMounted } from "vue";
 import { api } from "../../services/api.js";
+import { isoToLocalHHMM, localHHMMToUTCISO } from "../../services/timezone.js";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -1586,24 +1587,18 @@ watch(
   }
 );
 
-/** Extract "HH:MM" from an ISO-8601 datetime string. */
-function isoToTimeStr(iso) {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-  } catch {
-    return "";
-  }
-}
+/**
+ * Extract "HH:MM" from a UTC ISO-8601 string, displayed in the app timezone.
+ * Delegates to the centralised timezone utility so the result is consistent
+ * with the configured ``app.timezone``.
+ */
+const isoToTimeStr = isoToLocalHHMM;
 
-/** Build an ISO-8601 UTC string for today at the given "HH:MM" local time. */
-function timeStrToTodayISO(timeStr) {
-  if (!timeStr) return null;
-  const [h, m] = timeStr.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
-}
+/**
+ * Build a UTC ISO-8601 string for today at the given "HH:MM" time in the app
+ * timezone.  Delegates to the centralised timezone utility which handles DST.
+ */
+const timeStrToTodayISO = localHHMMToUTCISO;
 
 const STEP_LABELS = {
   activity_detection: "Record Activity",

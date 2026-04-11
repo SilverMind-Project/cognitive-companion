@@ -19,7 +19,6 @@ _DEFAULT_MEDIA_PLAYER = "media_player.living_room_speaker"
 
 @ChannelRegistry.register
 class HASpeakerTTSChannel(NotificationChannel):
-
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(
@@ -63,7 +62,9 @@ class HASpeakerTTSChannel(NotificationChannel):
         style: str | None = config.get("tts_style") or None
 
         if minio_client and ha_client and ha_client.configured:
-            url = await tts_client.generate_and_upload(message, minio_client, language=language, style=style)
+            url = await tts_client.generate_and_upload(
+                message, minio_client, language=language, style=style
+            )
             if not url:
                 return False
             await ha_client.play_audio(url, entity_id)

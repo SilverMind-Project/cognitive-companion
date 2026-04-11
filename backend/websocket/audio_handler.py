@@ -94,18 +94,12 @@ class AudioSessionHandler:
         if self.conv_manager:
             self._session_id = self.conv_manager.create_session()
 
-        client_task = asyncio.create_task(
-            self._receive_from_client(), name="ws-client-reader"
-        )
+        client_task = asyncio.create_task(self._receive_from_client(), name="ws-client-reader")
 
         if self.provider and getattr(self.provider, "configured", True):
-            backend_task = asyncio.create_task(
-                self._run_backend_loop(), name="ws-backend-loop"
-            )
+            backend_task = asyncio.create_task(self._run_backend_loop(), name="ws-backend-loop")
         else:
-            backend_task = asyncio.create_task(
-                self._no_backend_fallback(), name="ws-no-backend"
-            )
+            backend_task = asyncio.create_task(self._no_backend_fallback(), name="ws-no-backend")
 
         await asyncio.gather(client_task, backend_task, return_exceptions=True)
 
@@ -191,9 +185,7 @@ class AudioSessionHandler:
                     self._current_session = session
                     self._backend_active = True
 
-                    await self.ws.send_json(
-                        {"type": "status", "message": "backend_connected"}
-                    )
+                    await self.ws.send_json({"type": "status", "message": "backend_connected"})
                     logger.info("ws_backend_connected")
 
                     provider = self.provider
@@ -225,14 +217,10 @@ class AudioSessionHandler:
                     tasks = [
                         asyncio.create_task(forward_to_backend(), name="forward"),
                         asyncio.create_task(receive_from_backend(), name="receive"),
-                        asyncio.create_task(
-                            self._client_disconnected.wait(), name="client-gone"
-                        ),
+                        asyncio.create_task(self._client_disconnected.wait(), name="client-gone"),
                     ]
 
-                    _done, pending = await asyncio.wait(
-                        tasks, return_when=asyncio.FIRST_COMPLETED
-                    )
+                    _done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                     for t in pending:
                         t.cancel()
                     await asyncio.gather(*pending, return_exceptions=True)
@@ -247,18 +235,14 @@ class AudioSessionHandler:
                         "ws_backend_session_ended",
                         turns=len(self._conversation_log),
                     )
-                    await self.ws.send_json(
-                        {"type": "status", "message": "backend_reconnecting"}
-                    )
+                    await self.ws.send_json({"type": "status", "message": "backend_reconnecting"})
 
                 except Exception as exc:
                     self._backend_active = False
                     if self._client_disconnected.is_set():
                         return
                     logger.error("ws_backend_error", error=str(exc))
-                    await self.ws.send_json(
-                        {"type": "status", "message": "backend_reconnecting"}
-                    )
+                    await self.ws.send_json({"type": "status", "message": "backend_reconnecting"})
                     await asyncio.sleep(RETRY_DELAY)
         finally:
             bridge.cancel()
@@ -310,24 +294,22 @@ class AudioSessionHandler:
             assistant_text = "".join(self._pending_assistant_text).strip()
 
             # Commit to conversation log (all actors, for context continuity)
-            self._conversation_log.append({
-                "user": user_text,
-                "assistant": assistant_text,
-                **({"orchestrator": prompt_text} if is_orchestrator else {}),
-            })
+            self._conversation_log.append(
+                {
+                    "user": user_text,
+                    "assistant": assistant_text,
+                    **({"orchestrator": prompt_text} if is_orchestrator else {}),
+                }
+            )
 
             # Persist to DB
             if self.conv_manager and self._session_id:
                 if is_orchestrator and prompt_text:
-                    self.conv_manager.add_turn(
-                        self._session_id, "orchestrator", prompt_text
-                    )
+                    self.conv_manager.add_turn(self._session_id, "orchestrator", prompt_text)
                 elif user_text:
                     self.conv_manager.add_turn(self._session_id, "user", user_text)
                 if assistant_text:
-                    self.conv_manager.add_turn(
-                        self._session_id, "assistant", assistant_text
-                    )
+                    self.conv_manager.add_turn(self._session_id, "assistant", assistant_text)
 
             # Send transcripts to client.
             # Orchestrator prompts are never shown to the senior  they are
@@ -340,24 +322,30 @@ class AudioSessionHandler:
                 # The agent's spoken response is still delivered as audio
                 # and shown as an assistant transcript.
                 if assistant_text:
-                    await self.ws.send_json({
-                        "type": "transcript",
-                        "source": "assistant",
-                        "text": assistant_text,
-                    })
+                    await self.ws.send_json(
+                        {
+                            "type": "transcript",
+                            "source": "assistant",
+                            "text": assistant_text,
+                        }
+                    )
             else:
                 if user_text:
-                    await self.ws.send_json({
-                        "type": "transcript",
-                        "source": "user",
-                        "text": user_text,
-                    })
+                    await self.ws.send_json(
+                        {
+                            "type": "transcript",
+                            "source": "user",
+                            "text": user_text,
+                        }
+                    )
                 if assistant_text:
-                    await self.ws.send_json({
-                        "type": "transcript",
-                        "source": "assistant",
-                        "text": assistant_text,
-                    })
+                    await self.ws.send_json(
+                        {
+                            "type": "transcript",
+                            "source": "assistant",
+                            "text": assistant_text,
+                        }
+                    )
 
             # Execute callback if pending
             if self._current_callback is not None:
@@ -424,15 +412,15 @@ class AudioSessionHandler:
 
         # Send all responses back to Gemini
         if responses and self.provider and self._current_session:
-            await self.provider.send_tool_response(
-                self._current_session, responses
-            )
+            await self.provider.send_tool_response(self._current_session, responses)
 
         # Notify client that tools were called (UX signal)
-        await self.ws.send_json({
-            "type": "tool_calls",
-            "tools": tool_names,
-        })
+        await self.ws.send_json(
+            {
+                "type": "tool_calls",
+                "tools": tool_names,
+            }
+        )
 
     # ------------------------------------------------------------------
     # Helpers
@@ -452,9 +440,7 @@ class AudioSessionHandler:
         """Block until the first audio/text/prompt arrives or the client disconnects."""
         while not self._client_disconnected.is_set():
             try:
-                item = await asyncio.wait_for(
-                    self._client_to_backend.get(), timeout=1.0
-                )
+                item = await asyncio.wait_for(self._client_to_backend.get(), timeout=1.0)
                 # Put it back so the forward loop can consume it
                 await self._client_to_backend.put(item)
                 return
@@ -463,7 +449,5 @@ class AudioSessionHandler:
 
     async def _no_backend_fallback(self) -> None:
         """Keep the WebSocket alive for push notifications when no AI backend."""
-        await self.ws.send_json(
-            {"type": "error", "message": "Backend AI not configured."}
-        )
+        await self.ws.send_json({"type": "error", "message": "Backend AI not configured."})
         await self._client_disconnected.wait()

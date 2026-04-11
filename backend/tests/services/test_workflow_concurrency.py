@@ -113,9 +113,7 @@ class TestConcurrentLimitAllows:
     def test_waiting_executions_count_toward_limit(self, db_session):
         """Waiting executions (e.g. mid-wait-step) also count."""
         rule = _make_rule(db_session, max_concurrent_executions=1)
-        waiting = WorkflowExecution(
-            rule_id=rule.id, status="waiting", pipeline_data_json={}
-        )
+        waiting = WorkflowExecution(rule_id=rule.id, status="waiting", pipeline_data_json={})
         db_session.add(waiting)
         db_session.commit()
 
@@ -126,9 +124,7 @@ class TestConcurrentLimitAllows:
         """Only running/waiting statuses consume a concurrency slot."""
         rule = _make_rule(db_session, max_concurrent_executions=1)
         for status in ("completed", "failed", "cancelled"):
-            ex = WorkflowExecution(
-                rule_id=rule.id, status=status, pipeline_data_json={}
-            )
+            ex = WorkflowExecution(rule_id=rule.id, status=status, pipeline_data_json={})
             db_session.add(ex)
         db_session.commit()
 

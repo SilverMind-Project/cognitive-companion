@@ -154,7 +154,7 @@ class VLLMVisionProvider(LLMProvider):
             "vllm_vision_request",
             model=self.model,
             num_images=sum(1 for c in content if c["type"] == "image_url"),
-            max_tokens=payload["max_tokens"]
+            max_tokens=payload["max_tokens"],
         )
         logger.info(f"payload keys: {payload.keys}")
 
@@ -229,11 +229,7 @@ class VLLMTranslationProvider(LLMProvider):
         ``media_paths`` and ``media_type`` are accepted for interface
         compatibility but ignored (translation is text-only).
         """
-        formatted = (
-            f"<<<source>>>{source_lang}"
-            f"<<<target>>>{target_lang}"
-            f"<<<text>>>{prompt}"
-        )
+        formatted = f"<<<source>>>{source_lang}<<<target>>>{target_lang}<<<text>>>{prompt}"
 
         messages = [{"role": "user", "content": formatted}]
 

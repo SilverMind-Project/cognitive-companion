@@ -18,7 +18,6 @@ _condition_eval = ConditionEvaluator()
 
 @StepRegistry.register
 class ConditionHandler(StepHandler):
-
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(
@@ -63,9 +62,7 @@ class ConditionHandler(StepHandler):
 
         result = _condition_eval.evaluate(expression, pipeline_data)
 
-        next_step_id = (
-            step.next_step_on_true if result else step.next_step_on_false
-        )
+        next_step_id = step.next_step_on_true if result else step.next_step_on_false
 
         result_data: dict = {
             "condition": {

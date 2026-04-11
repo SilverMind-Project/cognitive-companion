@@ -70,10 +70,7 @@ def get_llm_provider(provider_type: str, config: dict) -> LLMProvider:
     entry = _PROVIDER_MAP.get(provider_type)
     if entry is None:
         available = ", ".join(sorted(_PROVIDER_MAP))
-        raise ValueError(
-            f"Unknown LLM provider type {provider_type!r}. "
-            f"Available: {available}"
-        )
+        raise ValueError(f"Unknown LLM provider type {provider_type!r}. Available: {available}")
 
     module_path, class_name = entry
 
@@ -102,8 +99,15 @@ def _build_provider_from_config(section: dict) -> LLMProvider:
     provider_type = section.get("provider", "")
     config: dict = {}
     for key, value in section.items():
-        if key in ("provider", "primary", "fallback", "providers", "strategy",
-                    "timeout_seconds", "retry_count"):
+        if key in (
+            "provider",
+            "primary",
+            "fallback",
+            "providers",
+            "strategy",
+            "timeout_seconds",
+            "retry_count",
+        ):
             continue
         if key == "url":
             config["base_url"] = value
@@ -154,10 +158,7 @@ def get_provider(provider_type: str) -> LLMProvider:
     section_key = _SETTINGS_SECTION.get(provider_type)
     if section_key is None:
         available = ", ".join(sorted(_SETTINGS_SECTION))
-        raise ValueError(
-            f"Unknown LLM provider type {provider_type!r}. "
-            f"Available: {available}"
-        )
+        raise ValueError(f"Unknown LLM provider type {provider_type!r}. Available: {available}")
 
     section: dict = settings.get(section_key) or {}
 
@@ -205,17 +206,17 @@ class LLMModelConfig:
 
     id: str
     name: str
-    api_type: str                    # "openai" | "ollama"
+    api_type: str  # "openai" | "ollama"
     base_url: str
     model: str
     capabilities: list[str] = field(default_factory=lambda: ["text"])
     max_tokens: int = 4096
     timeout: float = 60.0
-    guided_decoding: bool = False    # vLLM-style guided_json enforcement
+    guided_decoding: bool = False  # vLLM-style guided_json enforcement
     max_retries: int = 3
     supports_thinking: bool = False  # model honours <think>…</think> format
-    temperature: float | None = None # None = use server default
-    top_p: float | None = None       # None = use server default
+    temperature: float | None = None  # None = use server default
+    top_p: float | None = None  # None = use server default
 
 
 class LLMModelRegistry:

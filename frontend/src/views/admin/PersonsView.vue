@@ -350,6 +350,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
+import { formatDateOnly, formatDateTimeShort } from "../../services/timezone.js";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
@@ -556,16 +557,8 @@ async function loadHistory() {
 watch(historyHours, loadHistory);
 
 // -- Helpers --
-function formatDate(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleDateString();
-}
-
-function formatTime(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
+const formatDate = formatDateOnly;
+const formatTime = formatDateTimeShort;
 
 function statusColor(status) {
   const map = { home: "success", away: "warning", unknown: "grey", sleeping: "info" };

@@ -68,7 +68,9 @@ class WebhookChannel(NotificationChannel):
             }
 
         headers = settings.get("notifications.webhook.headers", {})
-        timeout = float(settings.get("notifications.webhook.timeout_seconds", self._default_timeout))
+        timeout = float(
+            settings.get("notifications.webhook.timeout_seconds", self._default_timeout)
+        )
 
         try:
             response = await self._client.post(

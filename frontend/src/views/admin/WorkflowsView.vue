@@ -89,6 +89,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
+import { formatDateTime } from "../../services/timezone.js";
 
 const items = ref([]);
 const loading = ref(false);
@@ -136,9 +137,7 @@ function statusColor(status) {
   return map[status] || "grey";
 }
 
-function formatDate(iso) {
-  return iso ? new Date(iso).toLocaleString() : "";
-}
+const formatDate = formatDateTime;
 
 onMounted(load);
 </script>

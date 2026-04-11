@@ -42,7 +42,6 @@ logger = get_logger(__name__)
 
 @StepRegistry.register
 class LLMCallHandler(StepHandler):
-
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(
@@ -284,12 +283,9 @@ class LLMCallHandler(StepHandler):
                 if isinstance(value, list):
                     if key == "person_detections":
                         persons = [
-                            f"{d['name']} (confidence: {d['confidence']:.0%})"
-                            for d in value
+                            f"{d['name']} (confidence: {d['confidence']:.0%})" for d in value
                         ]
-                        context_parts.append(
-                            f"Persons detected: {', '.join(persons)}"
-                        )
+                        context_parts.append(f"Persons detected: {', '.join(persons)}")
                     else:
                         context_parts.append(f"{key}: {json.dumps(value)}")
                 elif isinstance(value, dict):
@@ -306,9 +302,7 @@ class LLMCallHandler(StepHandler):
                 ]
                 context_parts.append(f"Persons detected: {', '.join(persons)}")
             if pipeline_data.get("vision_response"):
-                context_parts.append(
-                    f"Vision analysis: {pipeline_data['vision_response']}"
-                )
+                context_parts.append(f"Vision analysis: {pipeline_data['vision_response']}")
 
         context_block = "\n".join(context_parts)
 
@@ -324,13 +318,9 @@ class LLMCallHandler(StepHandler):
                     guided_schema = json.loads(raw_schema)
             format_instruction = config.get("response_schema", "")
             if not format_instruction and guided_schema:
-                format_instruction = (
-                    "Respond with valid JSON matching the provided schema."
-                )
+                format_instruction = "Respond with valid JSON matching the provided schema."
         elif response_format == "json_free":
-            format_instruction = config.get(
-                "response_schema", "Respond with valid JSON."
-            )
+            format_instruction = config.get("response_schema", "Respond with valid JSON.")
 
         # Append format instruction to the prompt
         parts: list[str] = [context_block]
@@ -447,7 +437,11 @@ class LLMCallHandler(StepHandler):
         result_data: dict = {output_key: result_value}
 
         # Propagate notification suppression when output mimics logic_response
-        if output_key == "logic_response" and isinstance(result_value, dict) and not result_value.get("is_notification_needed", True):
+        if (
+            output_key == "logic_response"
+            and isinstance(result_value, dict)
+            and not result_value.get("is_notification_needed", True)
+        ):
             result_data["notification_suppressed"] = True
 
         return StepResult(data=result_data)

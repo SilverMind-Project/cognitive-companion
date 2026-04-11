@@ -43,11 +43,7 @@ class WorkflowPipeline:
         Returns a list of :class:`WorkflowExecution` objects  one per matched
         rule whose concurrent execution limit was not exceeded.
         """
-        sensor = (
-            db.query(Sensor)
-            .filter(Sensor.id == sensor_id, Sensor.enabled.is_(True))
-            .first()
-        )
+        sensor = db.query(Sensor).filter(Sensor.id == sensor_id, Sensor.enabled.is_(True)).first()
         if not sensor:
             logger.warning("sensor_not_found_or_disabled", sensor_id=sensor_id)
             return []

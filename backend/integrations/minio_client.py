@@ -114,7 +114,7 @@ class MinioClient:
         path = parsed.path
         prefix = f"/{self.bucket}/"
         if path.startswith(prefix):
-            return path[len(prefix):]
+            return path[len(prefix) :]
         # Fallback: strip leading slash and bucket segment
         parts = path.lstrip("/").split("/", 1)
         if len(parts) == 2:

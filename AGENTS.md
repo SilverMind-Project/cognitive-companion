@@ -702,3 +702,37 @@ mock external dependencies (ffmpeg, channel registry) via `monkeypatch`.
 - **Use lazy imports for required dependencies** -- all imports at top of file (PEP 8). Exception: optional deps (e.g. `google-genai`) may use guarded lazy imports with a comment explaining why
 - **Use `alert()` or `confirm()` in Vue views** -- use the `useNotify` and `useConfirm` composables from `frontend/src/composables/`
 - **Swallow errors silently** -- bare `catch {}` blocks must log via `console.error` (frontend) or `logger.error` (backend)
+
+## Timezone Conventions
+
+The operator timezone is set once in `config/settings.yaml` under `app.timezone` (IANA format, e.g. `"America/New_York"`). Every layer of the stack must respect this convention.
+
+### Backend rules
+
+| Concern | Rule |
+| ------- | ---- |
+| Database storage | All timestamps stored as naive UTC (SQLite has no real tz support). Use `datetime.now(UTC)` for current time. |
+| Timezone source | Always read from `settings.get("app.timezone", "UTC")`. Never hardcode a timezone. |
+| ZoneInfo | Use `from zoneinfo import ZoneInfo` (stdlib, Python 3.9+). Never use `pytz`. |
+| Local time for display | `datetime.now(ZoneInfo(tz_name))` when local wall-clock time is needed (pipeline context, MCP `get_local_datetime`). |
+| UTC comparison from local | `local_dt.astimezone(UTC).replace(tzinfo=None)` to produce a naive UTC value for SQLite queries. |
+| Daily rate-limit window | Use local midnight: `now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC).replace(tzinfo=None)`. |
+| Cron scheduling (APScheduler) | Pass `timezone=ZoneInfo(settings.get("app.timezone", "UTC"))` to every `CronTrigger.from_crontab()` call. APScheduler handles DST transitions automatically. |
+| Context filters (`time_range`, `day_of_week`) | The `now` datetime passed into `evaluate()` must be in the app timezone; `RulesEngine` ensures this. |
+
+### Frontend rules
+
+| Concern | Rule |
+| ------- | ---- |
+| Timezone source | Fetched at app startup from `GET /api/v1/admin/app-info` and stored in `frontend/src/services/timezone.js`. |
+| Displaying timestamps | Import `formatDateTime`, `formatDateTimeShort`, etc. from `services/timezone.js`. Never call `toLocaleString()` / `toLocaleDateString()` / `toLocaleTimeString()` directly. |
+| DST | `Intl.DateTimeFormat` with an IANA `timeZone` option handles DST automatically. |
+| User time inputs | Time and cron inputs are in the operator timezone. Show `getAppTimezone()` as a hint next to every time input. |
+| Converting HH:MM to UTC for the backend | Use `localHHMMToUTCISO(timeStr)` from `services/timezone.js`. |
+| Converting UTC ISO to HH:MM for display | Use `isoToLocalHHMM(iso)` from `services/timezone.js`. |
+
+### Timezone testing
+
+- Use `RulesEngine(tz_name="UTC")` in unit tests so timestamp comparisons are consistent with the naive-UTC values in the in-memory SQLite test DB.
+- Write dedicated tests for non-UTC timezones (e.g. `"America/New_York"`) to cover DST edge cases. See `TestTimezoneAwareLimits` and `TestTimeRangeContextFilter` in `backend/tests/services/test_rules_engine.py`.
+- Scheduler timezone tests should patch `backend.services.scheduler.settings.get` and assert that the resulting `CronTrigger.timezone` matches the configured value.

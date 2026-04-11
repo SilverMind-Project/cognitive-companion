@@ -15,7 +15,6 @@ from backend.steps.base import (
 
 @StepRegistry.register
 class HAActionHandler(StepHandler):
-
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(

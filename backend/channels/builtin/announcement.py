@@ -31,7 +31,6 @@ logger = get_logger(__name__)
 
 @ChannelRegistry.register
 class PWATTSAnnouncementChannel(NotificationChannel):
-
     @classmethod
     def metadata(cls) -> ChannelMetadata:
         return ChannelMetadata(
@@ -48,8 +47,7 @@ class PWATTSAnnouncementChannel(NotificationChannel):
                         "type": "string",
                         "enum": ["stream", "file"],
                         "description": (
-                            "stream = real-time TTS streaming, "
-                            "file = play a pre-rendered audio URL"
+                            "stream = real-time TTS streaming, file = play a pre-rendered audio URL"
                         ),
                     },
                     "audio_url": {
@@ -102,19 +100,23 @@ class PWATTSAnnouncementChannel(NotificationChannel):
         style = config.get("tts_style")
 
         audio_stream = await tts_client.stream_audio(
-            message, language=language, style=style,
+            message,
+            language=language,
+            style=style,
         )
         if not audio_stream:
             logger.warning("pwa_tts_announcement_stream_failed", message=message[:60])
             return False
 
         # Signal stream start
-        await ws_manager.broadcast({
-            "type": "pwa_tts_announcement",
-            "subtype": "stream_start",
-            "sample_rate": audio_stream.sample_rate,
-            "message": message,
-        })
+        await ws_manager.broadcast(
+            {
+                "type": "pwa_tts_announcement",
+                "subtype": "stream_start",
+                "sample_rate": audio_stream.sample_rate,
+                "message": message,
+            }
+        )
 
         # Stream PCM chunks as binary frames
         chunk_count = 0
@@ -123,10 +125,12 @@ class PWATTSAnnouncementChannel(NotificationChannel):
             chunk_count += 1
 
         # Signal stream end
-        await ws_manager.broadcast({
-            "type": "pwa_tts_announcement",
-            "subtype": "stream_end",
-        })
+        await ws_manager.broadcast(
+            {
+                "type": "pwa_tts_announcement",
+                "subtype": "stream_end",
+            }
+        )
 
         logger.info(
             "pwa_tts_announcement_streamed",
@@ -142,12 +146,14 @@ class PWATTSAnnouncementChannel(NotificationChannel):
             logger.warning("pwa_tts_announcement_no_audio_url")
             return False
 
-        await ws_manager.broadcast({
-            "type": "pwa_tts_announcement",
-            "subtype": "audio_url",
-            "url": audio_url,
-            "message": message,
-        })
+        await ws_manager.broadcast(
+            {
+                "type": "pwa_tts_announcement",
+                "subtype": "audio_url",
+                "url": audio_url,
+                "message": message,
+            }
+        )
 
         logger.info("pwa_tts_announcement_file_sent", url=audio_url)
         return True

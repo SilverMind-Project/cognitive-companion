@@ -144,9 +144,7 @@ class TestLookup:
     def test_max_results_cap(self, rag_settings) -> None:
         service = rag_settings(**{"rag.threshold": 0.1, "rag.max_results": 2})
         service._loaded = True
-        service._documents = [
-            {"content": f"apple doc{i}", "metadata": {}} for i in range(5)
-        ]
+        service._documents = [{"content": f"apple doc{i}", "metadata": {}} for i in range(5)]
         result = service.lookup("apple")
         # Separator count = max_results - 1 = 1
         assert result.count("---") == 1

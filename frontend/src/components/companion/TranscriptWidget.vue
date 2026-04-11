@@ -64,6 +64,7 @@
 
 <script setup>
 import { ref, watch, nextTick } from "vue";
+import { formatTimeOnly } from "../../services/timezone.js";
 
 const props = defineProps({
   transcript: { type: Array, default: () => [] },
@@ -86,13 +87,7 @@ watch(
   },
 );
 
-function formatTime(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const formatTime = formatTimeOnly;
 </script>
 
 <style scoped>

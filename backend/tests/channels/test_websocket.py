@@ -77,7 +77,10 @@ class TestPWAPopupTextSend:
 
         channel = PWAPopupTextChannel()
         result = await channel.send(
-            message="Test", alert_level="info", room_name="room", services=services,
+            message="Test",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False
 
@@ -89,6 +92,9 @@ class TestPWAPopupTextSend:
 
         channel = PWAPopupTextChannel()
         result = await channel.send(
-            message="Test", alert_level="info", room_name="room", services=services,
+            message="Test",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False

@@ -160,8 +160,11 @@ class TestPipelineExecutorBranching:
         # Structlog doesn't propagate to Python logging so we patch the module logger.
         import backend.services.pipeline_executor as pe_module
 
-        with patch.object(pe_module, "logger") as mock_logger, patch.object(executor, "_execute_step", side_effect=mock_execute):
-                result = await executor.execute(rule, trigger, db_session)
+        with (
+            patch.object(pe_module, "logger") as mock_logger,
+            patch.object(executor, "_execute_step", side_effect=mock_execute),
+        ):
+            result = await executor.execute(rule, trigger, db_session)
 
         assert result.status == "completed"
         mock_logger.warning.assert_called_once()
@@ -263,13 +266,19 @@ class TestPipelineExecutorStepTiming:
         trigger = _make_trigger()
 
         with patch.object(
-            executor, "_execute_step", new_callable=AsyncMock,
-            return_value=StepResult(success=True)
+            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
         ):
             result = await executor.execute(rule, trigger, db_session)
 
         entry = result.pipeline_data_json["_step_timings"][0]
-        for field in ("step_id", "step_type", "started_at", "completed_at", "elapsed_seconds", "success"):
+        for field in (
+            "step_id",
+            "step_type",
+            "started_at",
+            "completed_at",
+            "elapsed_seconds",
+            "success",
+        ):
             assert field in entry, f"Missing field: {field}"
         assert entry["success"] is True
         assert entry["elapsed_seconds"] >= 0
@@ -303,8 +312,7 @@ class TestPipelineExecutorStepTiming:
         trigger = _make_trigger()
 
         with patch.object(
-            executor, "_execute_step", new_callable=AsyncMock,
-            return_value=StepResult(success=True)
+            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
         ):
             result = await executor.execute(rule, trigger, db_session)
 
@@ -338,8 +346,7 @@ class TestPipelineExecutorCompletedAt:
         trigger = _make_trigger()
 
         with patch.object(
-            executor, "_execute_step", new_callable=AsyncMock,
-            return_value=StepResult(success=True)
+            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
         ):
             result = await executor.execute(rule, trigger, db_session)
 
@@ -371,8 +378,10 @@ class TestPipelineExecutorCompletedAt:
         trigger = _make_trigger()
 
         with patch.object(
-            executor, "_execute_step", new_callable=AsyncMock,
-            return_value=StepResult(success=True, should_continue=False)
+            executor,
+            "_execute_step",
+            new_callable=AsyncMock,
+            return_value=StepResult(success=True, should_continue=False),
         ):
             result = await executor.execute(rule, trigger, db_session)
 
@@ -445,9 +454,15 @@ class TestPipelineExecutorTimeout:
             captured_timeout.append(timeout)
             return await coro
 
-        with patch("backend.services.pipeline_executor.asyncio.wait_for", new=capturing_wait_for), \
-             patch.object(executor, "_execute_step", new_callable=AsyncMock,
-                          return_value=StepResult(success=True)):
+        with (
+            patch("backend.services.pipeline_executor.asyncio.wait_for", new=capturing_wait_for),
+            patch.object(
+                executor,
+                "_execute_step",
+                new_callable=AsyncMock,
+                return_value=StepResult(success=True),
+            ),
+        ):
             result = await executor.execute(rule, trigger, db_session)
 
         assert captured_timeout == [None]

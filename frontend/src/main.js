@@ -2,6 +2,8 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import { router } from "./router/index.js";
+import { initTimezone, getAppTimezone } from "./services/timezone.js";
+import { api } from "./services/api.js";
 
 // Vuetify
 import "vuetify/styles";
@@ -50,9 +52,26 @@ const vuetify = createVuetify({
   },
 });
 
-const pinia = createPinia();
-const app = createApp(App);
-app.use(vuetify);
-app.use(pinia);
-app.use(router);
-app.mount("#app");
+async function bootstrap() {
+  // Fetch app config from the backend before mounting so that all
+  // timezone-aware formatters use the operator-configured timezone
+  // (app.timezone in settings.yaml) rather than the browser's timezone.
+  try {
+    const info = await api.getAppInfo();
+    initTimezone(info.timezone);
+  } catch (e) {
+    // Backend unreachable at load time; fall back to UTC (or the last value
+    // cached in localStorage).  Timezone will be correct once the backend
+    // comes back and the page is refreshed.
+    console.warn("Failed to fetch app-info; timezone defaults to", getAppTimezone(), e);
+  }
+
+  const pinia = createPinia();
+  const app = createApp(App);
+  app.use(vuetify);
+  app.use(pinia);
+  app.use(router);
+  app.mount("#app");
+}
+
+bootstrap();

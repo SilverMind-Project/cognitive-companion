@@ -18,10 +18,10 @@ from sqlalchemy.orm import Session
 class FilterMetadata:
     """Declarative metadata for a context filter type."""
 
-    filter_type: str        # "room"
-    display_name: str       # "Room"
+    filter_type: str  # "room"
+    display_name: str  # "Room"
     description: str
-    config_schema: dict     # JSONSchema for config_json validation
+    config_schema: dict  # JSONSchema for config_json validation
 
 
 class ContextFilter(ABC):

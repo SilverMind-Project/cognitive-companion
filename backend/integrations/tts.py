@@ -176,7 +176,9 @@ class TTSClient:
         style: str | None = None,
     ) -> str | None:
         """Generate TTS audio, upload to MinIO, and return the presigned URL."""
-        audio_bytes = await self.generate_audio(text, voice=voice, speed=speed, language=language, style=style)
+        audio_bytes = await self.generate_audio(
+            text, voice=voice, speed=speed, language=language, style=style
+        )
         if not audio_bytes:
             return None
 

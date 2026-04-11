@@ -19,14 +19,10 @@ class ImageTemplate(Base):
     width: Mapped[int] = mapped_column(Integer, default=800)
     height: Mapped[int] = mapped_column(Integer, default=480)
     image_filename: Mapped[str] = mapped_column(String(256))
-    font_filename: Mapped[str] = mapped_column(
-        String(256), default="NotoSansTamil-Regular.ttf"
-    )
+    font_filename: Mapped[str] = mapped_column(String(256), default="NotoSansTamil-Regular.ttf")
     regions_json: Mapped[list] = mapped_column(JSON, default=list)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )

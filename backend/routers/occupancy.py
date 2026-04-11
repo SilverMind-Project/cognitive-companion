@@ -28,8 +28,7 @@ async def get_occupancy(
     summary = await polling_service.get_occupancy_summary()
     if room_name:
         summary = {
-            k: v for k, v in summary.items()
-            if v.get("room", "").lower() == room_name.lower()
+            k: v for k, v in summary.items() if v.get("room", "").lower() == room_name.lower()
         }
     return {"occupancy": summary}
 

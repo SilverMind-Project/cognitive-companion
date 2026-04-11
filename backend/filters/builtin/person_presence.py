@@ -12,7 +12,6 @@ from backend.filters.base import ContextFilter, FilterMetadata
 
 @FilterRegistry.register
 class PersonPresenceFilter(ContextFilter):
-
     @classmethod
     def metadata(cls) -> FilterMetadata:
         return FilterMetadata(
@@ -53,9 +52,7 @@ class PersonPresenceFilter(ContextFilter):
         room_name = config.get("room_name")
 
         loc = (
-            db.query(PersonLocationState)
-            .filter(PersonLocationState.person_id == person_id)
-            .first()
+            db.query(PersonLocationState).filter(PersonLocationState.person_id == person_id).first()
         )
 
         is_home = self._is_home(loc, now)

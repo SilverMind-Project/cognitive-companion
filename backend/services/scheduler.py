@@ -18,6 +18,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -26,11 +27,23 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.models.rule import Rule
 from backend.services.event_aggregator import EventAggregator
 
 logger = get_logger(__name__)
+
+
+def _app_timezone() -> ZoneInfo:
+    """Return the application timezone from settings.
+
+    Cron expressions entered by operators are always interpreted in this
+    timezone so that a rule scheduled for "08:00" fires at 08:00 local time
+    regardless of the server's system timezone.  APScheduler handles DST
+    transitions automatically when a ``ZoneInfo`` object is supplied.
+    """
+    return ZoneInfo(settings.get("app.timezone", "UTC"))
 
 
 class Scheduler:
@@ -96,9 +109,7 @@ class Scheduler:
         self._load_rule_jobs()
         logger.info("scheduled_rules_reloaded")
 
-    def schedule_workflow_resume(
-        self, execution_id: int, resume_at: datetime
-    ) -> None:
+    def schedule_workflow_resume(self, execution_id: int, resume_at: datetime) -> None:
         """Register a one-shot resume job for a waiting workflow execution."""
         job_id = f"resume_{execution_id}"
         self._scheduler.add_job(
@@ -139,9 +150,7 @@ class Scheduler:
             media_paths: list[str] = []
             aggregator = self._pipeline_executor._services.event_aggregator
             if rule.primary_sensor_id and aggregator:
-                media_paths = await aggregator.get_recent_images(
-                    rule.primary_sensor_id, limit=3
-                )
+                media_paths = await aggregator.get_recent_images(rule.primary_sensor_id, limit=3)
 
             trigger = TriggerContext(
                 trigger_type="cron",
@@ -184,8 +193,15 @@ class Scheduler:
     # -- internal helpers ---------------------------------------------------
 
     def _load_rule_jobs(self) -> None:
-        """Query DB for enabled rules with a cron schedule and register them."""
+        """Query DB for enabled rules with a cron schedule and register them.
+
+        Cron expressions are always interpreted in the application timezone
+        (``app.timezone`` in settings.yaml) so that "0 8 * * *" fires at
+        08:00 local time, not 08:00 UTC.  APScheduler's ``CronTrigger``
+        handles DST transitions automatically when a ``ZoneInfo`` is given.
+        """
         db: Session = self._db_session_factory()
+        tz = _app_timezone()
         try:
             stmt = select(Rule).where(
                 Rule.enabled.is_(True),
@@ -196,7 +212,7 @@ class Scheduler:
             for rule in rules:
                 job_id = f"rule_{rule.id}"
                 try:
-                    trigger = CronTrigger.from_crontab(rule.schedule_cron)
+                    trigger = CronTrigger.from_crontab(rule.schedule_cron, timezone=tz)
                 except ValueError:
                     logger.warning(
                         "invalid_cron_expression",
@@ -218,6 +234,7 @@ class Scheduler:
                     job_id=job_id,
                     rule_name=rule.name,
                     cron=rule.schedule_cron,
+                    timezone=str(tz),
                 )
 
             logger.info("rule_jobs_loaded", count=len(rules))
@@ -277,9 +294,7 @@ class SchedulerBridge:
             self._owner = None
             self._scheduler = scheduler
 
-    def schedule_workflow_resume(
-        self, execution_id: int, resume_at: datetime
-    ) -> None:
+    def schedule_workflow_resume(self, execution_id: int, resume_at: datetime) -> None:
         if self._owner is not None:
             self._owner.schedule_workflow_resume(execution_id, resume_at)
             return
@@ -355,6 +370,7 @@ def reload_scheduled_rules(
             scheduler.remove_job(job.id)
             logger.debug("rule_job_removed", job_id=job.id)
 
+    tz = _app_timezone()
     db: Session = db_session_factory()
     try:
         stmt = select(Rule).where(
@@ -363,7 +379,7 @@ def reload_scheduled_rules(
         )
         for rule in db.execute(stmt).scalars().all():
             try:
-                trigger = CronTrigger.from_crontab(rule.schedule_cron)
+                trigger = CronTrigger.from_crontab(rule.schedule_cron, timezone=tz)
             except ValueError:
                 logger.warning(
                     "invalid_cron_expression",

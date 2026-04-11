@@ -321,6 +321,28 @@ All variables are interpolated into YAML config files using `${ENV_VAR}` syntax.
 | `image` | eInk template and font paths |
 | `logging` | Log level |
 
+### Timezone
+
+The `app.timezone` field in `settings.yaml` is the single source of truth for time throughout the entire stack. Set it to any valid IANA timezone string:
+
+```yaml
+app:
+  timezone: "America/New_York"   # default; change to match your deployment location
+```
+
+**What it controls:**
+
+- **Admin UI timestamps.** Every timestamp in the admin interface (events, workflows, activities, alerts, executions, camera media) is displayed in this timezone. DST transitions are handled automatically by the browser's `Intl.DateTimeFormat` API.
+- **Cron rule schedules.** A cron expression like `0 8 * * *` fires at 08:00 local time in the configured timezone. APScheduler applies the timezone when scheduling, so "8 AM" always means 8 AM local time even across DST boundaries.
+- **Time range context filters.** When a rule has a `time_range` context filter (e.g. 09:00 to 17:00), those times are evaluated in the configured timezone.
+- **Day-of-week context filters.** "Monday" means Monday in the configured timezone, not UTC.
+- **Daily trigger limits.** The `max_daily_triggers` counter resets at local midnight in the configured timezone, not UTC midnight.
+- **Pipeline system context.** `system.local_time`, `system.local_date`, and `system.timezone` in pipeline data are derived from this setting and available to LLM prompts via `{{system.local_time}}`.
+
+**Storage.** All timestamps are stored in the database as UTC. The timezone setting affects only display and scheduling interpretation, never the underlying data.
+
+**Changing the timezone.** Edit `app.timezone` in `settings.yaml` and restart the server. The frontend fetches the timezone at startup via `GET /api/v1/admin/app-info` and applies it to all subsequent date formatting without a page reload.
+
 ### auth.yaml
 
 Authentication uses a role-based model:

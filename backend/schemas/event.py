@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
 
+from backend.schemas.common import UTCDatetime
+
 
 class EventLogOut(BaseModel):
     id: int
-    timestamp: datetime
+    timestamp: UTCDatetime
     rule_id: int | None
     rule_name: str | None
     sensor_id: str | None

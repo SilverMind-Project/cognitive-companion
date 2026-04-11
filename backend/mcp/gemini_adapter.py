@@ -67,9 +67,7 @@ class GeminiToolAdapter:
         logger.info("gemini_tool_declarations_built", count=len(declarations))
         return declarations
 
-    async def execute_tool(
-        self, name: str, args: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    async def execute_tool(self, name: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
         """Execute a tool by name and return the result as a dict.
 
         Returns ``{"result": ...}`` on success or ``{"error": ...}`` on failure.

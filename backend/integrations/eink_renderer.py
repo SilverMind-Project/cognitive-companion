@@ -43,12 +43,8 @@ class EInkRenderer:
         self._templates_dir = (
             Path(template_dir) if template_dir else _backend_dir / "assets" / "images" / "templates"
         )
-        self._images_dir = (
-            Path(output_dir) if output_dir else _backend_dir / "assets" / "images"
-        )
-        self._fonts_dir = (
-            Path(font_dir) if font_dir else _backend_dir / "assets" / "fonts"
-        )
+        self._images_dir = Path(output_dir) if output_dir else _backend_dir / "assets" / "images"
+        self._fonts_dir = Path(font_dir) if font_dir else _backend_dir / "assets" / "fonts"
         self._default_font = settings.get("image.default_font", "NotoSansTamil-Regular.ttf")
         self._default_template = settings.get("image.default_template", "default")
         self._default_expiry = settings.get("image.default_expiry_minutes", 15)
@@ -74,9 +70,7 @@ class EInkRenderer:
         """
         db = self._db_factory()
         try:
-            template_path, regions, font_path = self._resolve_template(
-                template, template_id, db
-            )
+            template_path, regions, font_path = self._resolve_template(template, template_id, db)
             resolved_template_id = template_id
             targets = self._resolve_sensor_ids(sensor_ids, db)
 
@@ -90,9 +84,7 @@ class EInkRenderer:
             for sid in targets:
                 out_path = self.get_active_image_path(sid)
                 img.save(out_path, "PNG")
-                self._upsert_image_state(
-                    sid, resolved_template_id, text, expires_in_minutes, db
-                )
+                self._upsert_image_state(sid, resolved_template_id, text, expires_in_minutes, db)
 
             db.commit()
             logger.info(
@@ -330,9 +322,7 @@ class EInkRenderer:
             font_path = self._fonts_dir / "NotoSans-Regular.ttf"
         return template_path, [], font_path
 
-    def _resolve_sensor_ids(
-        self, sensor_ids: list[str] | None, db: Session
-    ) -> list[str]:
+    def _resolve_sensor_ids(self, sensor_ids: list[str] | None, db: Session) -> list[str]:
         """Resolve target sensor IDs. None = all enabled eink sensors."""
         if sensor_ids:
             return sensor_ids
@@ -344,12 +334,16 @@ class EInkRenderer:
             return default_targets
 
         # Fall back to all eink-type sensors
-        sensors = db.execute(
-            select(Sensor.id).where(
-                Sensor.sensor_type == "eink",
-                Sensor.enabled == True,  # noqa: E712
+        sensors = (
+            db.execute(
+                select(Sensor.id).where(
+                    Sensor.sensor_type == "eink",
+                    Sensor.enabled == True,  # noqa: E712
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return list(sensors) if sensors else []
 
     def _upsert_image_state(

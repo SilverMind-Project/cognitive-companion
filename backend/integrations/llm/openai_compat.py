@@ -223,9 +223,7 @@ class OpenAICompatibleProvider(LLMProvider):
                         )
                     return text
         except RetryError as exc:
-            logger.error(
-                "openai_compat_retries_exhausted", max_retries=self.max_retries
-            )
+            logger.error("openai_compat_retries_exhausted", max_retries=self.max_retries)
             val = exc.last_attempt.result()
             return val if isinstance(val, str) else str(val)
 

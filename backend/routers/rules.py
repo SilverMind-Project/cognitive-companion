@@ -116,22 +116,20 @@ def delete_rule(
 
     exec_ids = [
         row[0]
-        for row in db.query(WorkflowExecution.id)
-        .filter(WorkflowExecution.rule_id == rule_id)
-        .all()
+        for row in db.query(WorkflowExecution.id).filter(WorkflowExecution.rule_id == rule_id).all()
     ]
     if exec_ids:
-        db.query(EventLog).filter(
-            EventLog.workflow_execution_id.in_(exec_ids)
-        ).update({"workflow_execution_id": None}, synchronize_session=False)
+        db.query(EventLog).filter(EventLog.workflow_execution_id.in_(exec_ids)).update(
+            {"workflow_execution_id": None}, synchronize_session=False
+        )
 
     db.query(EventLog).filter(EventLog.rule_id == rule_id).update(
         {"rule_id": None}, synchronize_session=False
     )
 
-    db.query(WorkflowExecution).filter(
-        WorkflowExecution.rule_id == rule_id
-    ).delete(synchronize_session=False)
+    db.query(WorkflowExecution).filter(WorkflowExecution.rule_id == rule_id).delete(
+        synchronize_session=False
+    )
 
     # Clear self-referential step branch FKs so cascade delete can proceed
     db.query(PipelineStep).filter(PipelineStep.rule_id == rule_id).update(
@@ -266,15 +264,15 @@ def delete_step(
         raise NotFoundError("PipelineStep", step_id)
 
     # Clear inbound FK references before deleting
-    db.query(WorkflowExecution).filter(
-        WorkflowExecution.current_step_id == step_id
-    ).update({"current_step_id": None}, synchronize_session=False)
-    db.query(PipelineStep).filter(
-        PipelineStep.next_step_on_true == step_id
-    ).update({"next_step_on_true": None}, synchronize_session=False)
-    db.query(PipelineStep).filter(
-        PipelineStep.next_step_on_false == step_id
-    ).update({"next_step_on_false": None}, synchronize_session=False)
+    db.query(WorkflowExecution).filter(WorkflowExecution.current_step_id == step_id).update(
+        {"current_step_id": None}, synchronize_session=False
+    )
+    db.query(PipelineStep).filter(PipelineStep.next_step_on_true == step_id).update(
+        {"next_step_on_true": None}, synchronize_session=False
+    )
+    db.query(PipelineStep).filter(PipelineStep.next_step_on_false == step_id).update(
+        {"next_step_on_false": None}, synchronize_session=False
+    )
 
     db.delete(step)
     db.commit()
@@ -301,12 +299,7 @@ async def execute_rule(
     """Manually trigger a rule for testing."""
     from backend.steps.base import TriggerContext
 
-    rule = (
-        db.query(Rule)
-        .options(joinedload(Rule.steps))
-        .filter(Rule.id == rule_id)
-        .first()
-    )
+    rule = db.query(Rule).options(joinedload(Rule.steps)).filter(Rule.id == rule_id).first()
     if not rule:
         raise NotFoundError("Rule", rule_id)
 
@@ -373,7 +366,11 @@ def delete_context(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
-    ctx = db.query(RuleContext).filter(RuleContext.id == context_id, RuleContext.rule_id == rule_id).first()
+    ctx = (
+        db.query(RuleContext)
+        .filter(RuleContext.id == context_id, RuleContext.rule_id == rule_id)
+        .first()
+    )
     if not ctx:
         raise NotFoundError("RuleContext", context_id)
     db.delete(ctx)

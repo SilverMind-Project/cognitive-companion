@@ -112,9 +112,7 @@ class TestModuleFacade:
         reset_default_database()
         assert db_module._default_database is None
 
-    def test_get_session_creates_default_on_demand(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_session_creates_default_on_demand(self, monkeypatch: pytest.MonkeyPatch) -> None:
         reset_default_database()
         monkeypatch.setattr(
             db_module,
@@ -126,9 +124,7 @@ class TestModuleFacade:
         sess.close()
         reset_default_database()
 
-    def test_get_db_yields_then_closes(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_db_yields_then_closes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         reset_default_database()
         monkeypatch.setattr(
             db_module,

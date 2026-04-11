@@ -32,7 +32,5 @@ def list_activities(
     if room_name:
         query = query.filter(PersonActivity.room_name == room_name)
 
-    activities = (
-        query.order_by(desc(PersonActivity.detected_at)).limit(limit).all()
-    )
+    activities = query.order_by(desc(PersonActivity.detected_at)).limit(limit).all()
     return activities

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from pydantic import BaseModel, Field
 
+from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
+
 # -- Household Members --------------------------------------------------------
+
 
 class HouseholdMemberCreate(BaseModel):
     id: str = Field(..., min_length=1, max_length=64)
@@ -28,8 +29,8 @@ class HouseholdMemberOut(BaseModel):
     is_active: bool
     is_guest: bool
     metadata_json: dict | None = None
-    created_at: datetime
-    updated_at: datetime | None = None
+    created_at: UTCDatetime
+    updated_at: OptionalUTCDatetime = None
     is_enrolled: bool = False
     embedding_count: int = 0
 
@@ -43,7 +44,7 @@ class PersonEnrollmentOut(BaseModel):
     person_id: str
     name: str
     embedding_count: int
-    created_at: datetime
+    created_at: UTCDatetime
 
 
 class EnrollResultOut(BaseModel):
@@ -55,12 +56,13 @@ class EnrollResultOut(BaseModel):
 
 # -- Person Sightings --------------------------------------------------------
 
+
 class PersonSightingOut(BaseModel):
     id: int
     person_id: str
     sensor_id: str
     room_name: str | None = None
-    timestamp: datetime
+    timestamp: UTCDatetime
     confidence: float
     direction: str | None = None
     bbox_json: dict | None = None
@@ -71,11 +73,12 @@ class PersonSightingOut(BaseModel):
 
 # -- Person Location ---------------------------------------------------------
 
+
 class PersonLocationOut(BaseModel):
     person_id: str
     person_name: str
     current_room_name: str | None = None
-    last_seen_at: datetime | None = None
+    last_seen_at: OptionalUTCDatetime = None
     last_sensor_id: str | None = None
     status: str
     confidence: float
@@ -87,8 +90,8 @@ class PersonLocationHistoryOut(BaseModel):
     id: int
     person_id: str
     room_name: str | None = None
-    entered_at: datetime
-    exited_at: datetime | None = None
+    entered_at: UTCDatetime
+    exited_at: OptionalUTCDatetime = None
     source: str
 
     model_config = {"from_attributes": True}

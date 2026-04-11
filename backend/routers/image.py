@@ -46,9 +46,7 @@ _DEFAULT_TEMPLATE = _TEMPLATES_DIR / "default.png"
 # ---------------------------------------------------------------------------
 
 
-def _serve_image_for_sensor(
-    sensor_id: str, db: Session, request: Request
-) -> FileResponse:
+def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> FileResponse:
     """Serve the active image for a sensor, falling back to default if expired."""
     eink_renderer = request.app.state.eink_renderer
 
@@ -177,11 +175,7 @@ def list_templates(
     _auth: AuthContext = Depends(require_permission("image:read")),
 ):
     """List all image templates."""
-    return (
-        db.execute(select(ImageTemplate).order_by(ImageTemplate.name))
-        .scalars()
-        .all()
-    )
+    return db.execute(select(ImageTemplate).order_by(ImageTemplate.name)).scalars().all()
 
 
 @router.post("/templates", response_model=ImageTemplateOut, status_code=201)
@@ -248,8 +242,7 @@ def update_template(
     # Convert TextRegion objects to dicts for JSON storage
     if "regions_json" in updates and updates["regions_json"] is not None:
         updates["regions_json"] = [
-            r.model_dump() if hasattr(r, "model_dump") else r
-            for r in updates["regions_json"]
+            r.model_dump() if hasattr(r, "model_dump") else r for r in updates["regions_json"]
         ]
     for key, value in updates.items():
         setattr(tmpl, key, value)

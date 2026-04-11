@@ -79,8 +79,7 @@ class HomeAssistantClient:
                 headers=self._headers,
                 json={
                     "template": (
-                        "{{ area_name('" + area_id + "') }}"
-                        "|{{ area_id('" + area_id + "') }}"
+                        "{{ area_name('" + area_id + "') }}|{{ area_id('" + area_id + "') }}"
                     )
                 },
             )
@@ -112,9 +111,7 @@ class HomeAssistantClient:
                 resp = await client.post(
                     f"{self.base_url}/api/template",
                     headers=self._headers,
-                    json={
-                        "template": "{{ area_entities('" + area_id + "') | list }}"
-                    },
+                    json={"template": "{{ area_entities('" + area_id + "') | list }}"},
                 )
                 resp.raise_for_status()
                 entity_ids = _parse_template_list(resp.text)
@@ -253,18 +250,22 @@ class HomeAssistantClient:
         for entry in smoothed[1:]:
             if entry["state"] == current["state"]:
                 continue
-            ranges.append({
-                "state": current["state"],
-                "start": current["time"],
-                "end": entry["time"],
-            })
+            ranges.append(
+                {
+                    "state": current["state"],
+                    "start": current["time"],
+                    "end": entry["time"],
+                }
+            )
             current = entry
         # Final range
-        ranges.append({
-            "state": current["state"],
-            "start": current["time"],
-            "end": datetime.now(UTC).isoformat(),
-        })
+        ranges.append(
+            {
+                "state": current["state"],
+                "start": current["time"],
+                "end": datetime.now(UTC).isoformat(),
+            }
+        )
 
         return ranges
 
@@ -349,9 +350,7 @@ class HomeAssistantClient:
     # Person location propagation
     # ------------------------------------------------------------------
 
-    async def set_person_location(
-        self, person_id: str, room_name: str, confidence: float
-    ) -> None:
+    async def set_person_location(self, person_id: str, room_name: str, confidence: float) -> None:
         """Push person location to HA as an input_text helper entity.
 
         Requires ``input_text.cc_{person_id}_location`` to be configured in HA.
@@ -363,9 +362,7 @@ class HomeAssistantClient:
             {"entity_id": entity_id, "value": f"{room_name} ({confidence:.0%})"},
         )
 
-    async def _call_service(
-        self, domain: str, service: str, data: dict
-    ) -> None:
+    async def _call_service(self, domain: str, service: str, data: dict) -> None:
         """Call a Home Assistant service."""
         if not self.configured:
             return

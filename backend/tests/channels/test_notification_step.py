@@ -107,7 +107,9 @@ class TestNotificationHandlerExecute:
         pipeline_data = {"logic_response": {"user_notification": "Test alert"}}
 
         handler = NotificationHandler()
-        result = await handler.execute(step, FakeWorkflowExecution(), pipeline_data, trigger, services)
+        result = await handler.execute(
+            step, FakeWorkflowExecution(), pipeline_data, trigger, services
+        )
 
         assert result.data["notification_dispatched"] is True
         dispatcher.dispatch.assert_awaited_once()
@@ -120,7 +122,9 @@ class TestNotificationHandlerExecute:
         pipeline_data = {"notification_suppressed": True}
 
         handler = NotificationHandler()
-        result = await handler.execute(step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services)
+        result = await handler.execute(
+            step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services
+        )
 
         assert result.data["notification_dispatched"] is False
         dispatcher.dispatch.assert_not_awaited()
@@ -129,17 +133,21 @@ class TestNotificationHandlerExecute:
     async def test_passes_eink_template_id_and_expiry(self):
         dispatcher = AsyncMock(return_value={"eink": True})
         services = FakeServiceContainer(notification_dispatcher=dispatcher)
-        step = FakePipelineStep(config_json={
-            "alert_level": "warning",
-            "channels": ["eink"],
-            "eink_template_id": 3,
-            "eink_expiry_minutes": 45,
-            "eink_targets": ["hallway_display"],
-        })
+        step = FakePipelineStep(
+            config_json={
+                "alert_level": "warning",
+                "channels": ["eink"],
+                "eink_template_id": 3,
+                "eink_expiry_minutes": 45,
+                "eink_targets": ["hallway_display"],
+            }
+        )
         pipeline_data = {"logic_response": {"user_notification": "Alert"}}
 
         handler = NotificationHandler()
-        await handler.execute(step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services)
+        await handler.execute(
+            step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services
+        )
 
         call_kwargs = dispatcher.dispatch.call_args[1]
         assert call_kwargs["rule_config"]["eink_template_id"] == 3
@@ -150,20 +158,26 @@ class TestNotificationHandlerExecute:
     async def test_builds_channel_messages_from_templates(self):
         dispatcher = AsyncMock(return_value={})
         services = FakeServiceContainer(notification_dispatcher=dispatcher)
-        step = FakePipelineStep(config_json={
-            "alert_level": "info",
-            "ha_speaker_tts_template": "Spoken: {message}",
-            "pwa_popup_text_template": "UI: {message}",
-        })
+        step = FakePipelineStep(
+            config_json={
+                "alert_level": "info",
+                "ha_speaker_tts_template": "Spoken: {message}",
+                "pwa_popup_text_template": "UI: {message}",
+            }
+        )
         pipeline_data = {"logic_response": {"user_notification": "hello"}}
 
         handler = NotificationHandler()
-        await handler.execute(step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services)
+        await handler.execute(
+            step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services
+        )
 
         call_kwargs = dispatcher.dispatch.call_args[1]
         channel_messages = call_kwargs["channel_messages"]
         assert channel_messages["ha_speaker_tts"] == "Spoken: hello"
-        assert channel_messages["pwa_tts_announcement"] == "Spoken: hello"  # reuses speaker template
+        assert (
+            channel_messages["pwa_tts_announcement"] == "Spoken: hello"
+        )  # reuses speaker template
         assert channel_messages["pwa_popup_text"] == "UI: hello"
 
     @pytest.mark.asyncio
@@ -174,7 +188,9 @@ class TestNotificationHandlerExecute:
         pipeline_data = {"logic_response": {"user_notification": "test"}}
 
         handler = NotificationHandler()
-        result = await handler.execute(step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services)
+        result = await handler.execute(
+            step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services
+        )
 
         assert result.data.get("_cooloff_triggered") is True
 
@@ -186,7 +202,9 @@ class TestNotificationHandlerExecute:
         pipeline_data = {"logic_response": {"user_notification": "test"}}
 
         handler = NotificationHandler()
-        result = await handler.execute(step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services)
+        result = await handler.execute(
+            step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services
+        )
 
         assert "_cooloff_triggered" not in result.data
 
@@ -196,7 +214,9 @@ class TestNotificationHandlerExecute:
         step = FakePipelineStep()
 
         handler = NotificationHandler()
-        result = await handler.execute(step, FakeWorkflowExecution(), {}, FakeTriggerContext(), services)
+        result = await handler.execute(
+            step, FakeWorkflowExecution(), {}, FakeTriggerContext(), services
+        )
 
         assert result.data["notification_dispatched"] is False
 

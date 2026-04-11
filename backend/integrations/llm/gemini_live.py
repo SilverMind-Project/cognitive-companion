@@ -35,6 +35,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         """Lazy-init the genai client."""
         if self._client is None:
             from google import genai  # Lazy import: google-genai is an optional dependency
+
             self._client = genai.Client(
                 api_key=self.api_key,
             )
@@ -59,6 +60,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
     async def send_audio(self, session: RealtimeSession, data: bytes) -> None:
         """Send raw PCM audio bytes to the Gemini session."""
         from google.genai import types  # Lazy import: google-genai is an optional dependency
+
         logger.debug("gemini_send_audio", bytes=len(data))
         await session.session_object.send_realtime_input(
             audio=types.Blob(data=data, mime_type="audio/pcm")
@@ -78,9 +80,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
             async for response in session.session_object.receive():
                 yield response
 
-    async def send_tool_response(
-        self, session: RealtimeSession, function_responses: list
-    ) -> None:
+    async def send_tool_response(self, session: RealtimeSession, function_responses: list) -> None:
         """Send function call results back to the Gemini session."""
         logger.info("gemini_send_tool_response", count=len(function_responses))
         await session.session_object.send_tool_response(
@@ -110,9 +110,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         If ``conversation_history`` is provided, it's appended to the system
         instruction so context survives reconnects.
         """
-        base_instruction = system_instruction or settings.get(
-            "llm.realtime.system_instruction", ""
-        )
+        base_instruction = system_instruction or settings.get("llm.realtime.system_instruction", "")
 
         if conversation_history:
             base_instruction += (

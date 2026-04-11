@@ -29,6 +29,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 class WebhookPayload(BaseModel):
     """Arbitrary JSON payload from the webhook caller."""
+
     class Config:
         extra = "allow"
 

@@ -21,9 +21,7 @@ class EventLog(Base):
     rule_name: Mapped[str | None] = mapped_column(String(256), index=True)
     sensor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    trigger_type: Mapped[str] = mapped_column(
-        String(32)
-    )  # sensor_event, cron, sensor_poll, manual
+    trigger_type: Mapped[str] = mapped_column(String(32))  # sensor_event, cron, sensor_poll, manual
     media_paths_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
     pipeline_data_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(
@@ -37,6 +35,4 @@ class EventLog(Base):
     #   WHERE rule_id = ? AND status = ? AND timestamp >= ?
     # At scale (millions of rows per day) this is orders of magnitude faster
     # than the three individual single-column indexes above.
-    __table_args__ = (
-        Index("ix_event_logs_rule_status_ts", "rule_id", "status", "timestamp"),
-    )
+    __table_args__ = (Index("ix_event_logs_rule_status_ts", "rule_id", "status", "timestamp"),)

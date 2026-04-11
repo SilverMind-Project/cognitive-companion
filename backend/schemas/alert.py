@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
 
+from backend.schemas.common import UTCDatetime
+
 
 class AlertOut(BaseModel):
     id: int
-    timestamp: datetime
+    timestamp: UTCDatetime
     alert_type: str
     description: str
     sensor_id: str | None

@@ -144,6 +144,7 @@ class TestEventAggregatorDataIntegrity:
         agg, _, _ = _make_aggregator(db_factory, batch_size=1, cooldown_seconds=100)
 
         import time
+
         before = time.monotonic()
         await agg.add_event("cam1", "minio://bucket/img1.jpg")
 

@@ -16,10 +16,10 @@ from typing import Any
 class ChannelMetadata:
     """Declarative metadata for a notification channel."""
 
-    channel_name: str       # "telegram"
-    display_name: str       # "Telegram"
+    channel_name: str  # "telegram"
+    display_name: str  # "Telegram"
     description: str
-    config_schema: dict     # JSONSchema for per-channel config
+    config_schema: dict  # JSONSchema for per-channel config
 
 
 class NotificationChannel(ABC):

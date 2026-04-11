@@ -94,9 +94,7 @@ class ConditionEvaluator:
 
     # -- grammar rules (precedence: or < and < not < comparison < atom) ----
 
-    def _parse_or(
-        self, tokens: list[_Token], pos: int, data: dict
-    ) -> tuple[Any, int]:
+    def _parse_or(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         left, pos = self._parse_and(tokens, pos, data)
         while pos < len(tokens) and tokens[pos].kind == "OR":
             pos += 1  # consume 'or'
@@ -104,9 +102,7 @@ class ConditionEvaluator:
             left = left or right
         return left, pos
 
-    def _parse_and(
-        self, tokens: list[_Token], pos: int, data: dict
-    ) -> tuple[Any, int]:
+    def _parse_and(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         left, pos = self._parse_not(tokens, pos, data)
         while pos < len(tokens) and tokens[pos].kind == "AND":
             pos += 1  # consume 'and'
@@ -114,18 +110,14 @@ class ConditionEvaluator:
             left = left and right
         return left, pos
 
-    def _parse_not(
-        self, tokens: list[_Token], pos: int, data: dict
-    ) -> tuple[Any, int]:
+    def _parse_not(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         if pos < len(tokens) and tokens[pos].kind == "NOT":
             pos += 1
             value, pos = self._parse_not(tokens, pos, data)
             return not value, pos
         return self._parse_comparison(tokens, pos, data)
 
-    def _parse_comparison(
-        self, tokens: list[_Token], pos: int, data: dict
-    ) -> tuple[Any, int]:
+    def _parse_comparison(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         left, pos = self._parse_atom(tokens, pos, data)
         if pos < len(tokens) and tokens[pos].kind == "CMP":
             op = tokens[pos].value
@@ -134,9 +126,7 @@ class ConditionEvaluator:
             return _compare(left, right, op), pos
         return left, pos
 
-    def _parse_atom(
-        self, tokens: list[_Token], pos: int, data: dict
-    ) -> tuple[Any, int]:
+    def _parse_atom(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         if pos >= len(tokens):
             return None, pos
 
@@ -175,9 +165,7 @@ class ConditionEvaluator:
         # Unknown token  skip
         return None, pos + 1
 
-    def _parse_function(
-        self, tokens: list[_Token], pos: int, data: dict
-    ) -> tuple[Any, int]:
+    def _parse_function(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         func_name = tokens[pos].value
         pos += 1  # consume function name
 

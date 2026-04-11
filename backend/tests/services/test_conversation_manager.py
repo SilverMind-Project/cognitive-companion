@@ -110,9 +110,7 @@ def test_add_turn_empty_content_skipped(db_factory) -> None:
 def test_add_turn_stores_metadata(db_factory) -> None:
     manager = ConversationManager(db_factory)
     session_id = manager.create_session()
-    manager.add_turn(
-        session_id, "assistant", "response", metadata={"model": "gemini"}
-    )
+    manager.add_turn(session_id, "assistant", "response", metadata={"model": "gemini"})
     db = db_factory()
     try:
         turn = db.query(ConversationTurn).one()

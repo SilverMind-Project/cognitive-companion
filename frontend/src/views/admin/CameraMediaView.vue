@@ -255,6 +255,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { api } from "../../services/api.js";
+import { formatDateTimeShort, formatDateTimeFull } from "../../services/timezone.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -379,29 +380,8 @@ function moveLightbox(delta) {
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
-function formatTimestamp(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function formatTimestampFull(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    timeZoneName: "short",
-  });
-}
+const formatTimestamp = formatDateTimeShort;
+const formatTimestampFull = formatDateTimeFull;
 
 function formatRelative(iso) {
   if (!iso) return "";

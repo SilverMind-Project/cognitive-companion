@@ -17,7 +17,6 @@ from backend.steps.base import (
 
 @StepRegistry.register
 class WaitHandler(StepHandler):
-
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(

@@ -4,6 +4,7 @@ Supports configurable image sources: the trigger media (default), additional
 cameras (by sensor ID or room name), or both. Images can be filtered by
 recency or time-of-day window.
 """
+
 from __future__ import annotations
 
 import json
@@ -23,7 +24,6 @@ from backend.steps.base import (
 
 @StepRegistry.register
 class VisionAnalysisHandler(StepHandler):
-
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(

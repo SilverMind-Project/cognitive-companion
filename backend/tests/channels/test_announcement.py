@@ -109,7 +109,10 @@ class TestStreamMode:
 
         channel = PWATTSAnnouncementChannel()
         result = await channel.send(
-            message="Hello", alert_level="info", room_name="room", services=services,
+            message="Hello",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False
 
@@ -121,7 +124,10 @@ class TestStreamMode:
 
         channel = PWATTSAnnouncementChannel()
         result = await channel.send(
-            message="Hello", alert_level="info", room_name="room", services=services,
+            message="Hello",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False
 
@@ -133,7 +139,10 @@ class TestStreamMode:
 
         channel = PWATTSAnnouncementChannel()
         result = await channel.send(
-            message="Hello", alert_level="info", room_name="room", services=services,
+            message="Hello",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False
 
@@ -184,7 +193,10 @@ class TestNoConnections:
 
         channel = PWATTSAnnouncementChannel()
         result = await channel.send(
-            message="Hello", alert_level="info", room_name="room", services=services,
+            message="Hello",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False
 
@@ -193,6 +205,9 @@ class TestNoConnections:
         services = FakeServices(ws_manager=None)
         channel = PWATTSAnnouncementChannel()
         result = await channel.send(
-            message="Hello", alert_level="info", room_name="room", services=services,
+            message="Hello",
+            alert_level="info",
+            room_name="room",
+            services=services,
         )
         assert result is False

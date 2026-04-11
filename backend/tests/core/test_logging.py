@@ -22,12 +22,16 @@ def fresh_logger(request: pytest.FixtureRequest) -> BoundLogger:
 
 
 class TestBoundLoggerFormatting:
-    def test_event_without_kwargs(self, caplog: pytest.LogCaptureFixture, fresh_logger: BoundLogger) -> None:
+    def test_event_without_kwargs(
+        self, caplog: pytest.LogCaptureFixture, fresh_logger: BoundLogger
+    ) -> None:
         with caplog.at_level(logging.INFO, logger=fresh_logger._inner.name):
             fresh_logger.info("plain_event")
         assert "plain_event" in caplog.text
 
-    def test_event_with_kwargs(self, caplog: pytest.LogCaptureFixture, fresh_logger: BoundLogger) -> None:
+    def test_event_with_kwargs(
+        self, caplog: pytest.LogCaptureFixture, fresh_logger: BoundLogger
+    ) -> None:
         with caplog.at_level(logging.INFO, logger=fresh_logger._inner.name):
             fresh_logger.info("sensor", sensor_id="cam1", room="Kitchen")
         rec = caplog.records[-1]
@@ -48,7 +52,9 @@ class TestLogLevels:
             fresh_logger.debug("never_emitted")
         assert "never_emitted" not in caplog.text
 
-    def test_warning_level(self, caplog: pytest.LogCaptureFixture, fresh_logger: BoundLogger) -> None:
+    def test_warning_level(
+        self, caplog: pytest.LogCaptureFixture, fresh_logger: BoundLogger
+    ) -> None:
         with caplog.at_level(logging.WARNING, logger=fresh_logger._inner.name):
             fresh_logger.warning("careful", code=7)
         assert "careful code=7" in caplog.text
@@ -61,7 +67,9 @@ class TestLogLevels:
             fresh_logger.error("bad_thing")
         assert "bad_thing" in caplog.text
 
-    def test_critical_level(self, caplog: pytest.LogCaptureFixture, fresh_logger: BoundLogger) -> None:
+    def test_critical_level(
+        self, caplog: pytest.LogCaptureFixture, fresh_logger: BoundLogger
+    ) -> None:
         with caplog.at_level(logging.CRITICAL, logger=fresh_logger._inner.name):
             fresh_logger.critical("meltdown")
         assert "meltdown" in caplog.text

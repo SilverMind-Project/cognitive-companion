@@ -12,7 +12,6 @@ from backend.filters.base import ContextFilter, FilterMetadata
 
 @FilterRegistry.register
 class DayOfWeekFilter(ContextFilter):
-
     @classmethod
     def metadata(cls) -> FilterMetadata:
         return FilterMetadata(

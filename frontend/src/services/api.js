@@ -242,5 +242,13 @@ export const api = {
   },
 
   // Admin
-  reloadConfig: () => request("/admin/reload", { method: "POST" }),
+  reloadConfig: () => request("/admin/config/reload", { method: "POST" }),
+
+  /**
+   * Return public application metadata (name, version, timezone).
+   * No API key required — used during app bootstrap to initialise timezone.
+   *
+   * @returns {Promise<{name: string, version: string, timezone: string}>}
+   */
+  getAppInfo: () => fetch(`${BASE}/admin/app-info`).then((r) => r.json()),
 };

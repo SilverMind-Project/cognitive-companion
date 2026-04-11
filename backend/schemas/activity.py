@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from pydantic import BaseModel
+
+from backend.schemas.common import UTCDatetime
 
 
 class PersonActivityOut(BaseModel):
@@ -12,7 +12,7 @@ class PersonActivityOut(BaseModel):
     person_id: str
     activity_type: str
     room_name: str | None
-    detected_at: datetime
+    detected_at: UTCDatetime
     confidence: float
 
     model_config = {"from_attributes": True}

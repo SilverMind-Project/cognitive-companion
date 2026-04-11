@@ -112,14 +112,14 @@ async def test_process_event_executes_matched_rules(db_session) -> None:
 
 @pytest.mark.asyncio
 async def test_process_event_sensor_without_room(db_session) -> None:
-    sensor = Sensor(
-        id="orphan", name="orphan", sensor_type="camera", enabled=True
-    )
+    sensor = Sensor(id="orphan", name="orphan", sensor_type="camera", enabled=True)
     db_session.add(sensor)
     db_session.flush()
 
     rules_engine = MagicMock()
-    rules_engine.get_matching_rules.return_value = [MagicMock(id=1, name="rule", max_concurrent_executions=0)]
+    rules_engine.get_matching_rules.return_value = [
+        MagicMock(id=1, name="rule", max_concurrent_executions=0)
+    ]
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock(return_value=_execution(1))
 
@@ -139,9 +139,7 @@ async def test_process_event_exception_is_logged_not_raised(db_session) -> None:
     rules_engine = MagicMock()
     rules_engine.get_matching_rules.return_value = [rule_ok, rule_bad]
     pipeline_executor = MagicMock()
-    pipeline_executor.execute = AsyncMock(
-        side_effect=[_execution(1), RuntimeError("boom")]
-    )
+    pipeline_executor.execute = AsyncMock(side_effect=[_execution(1), RuntimeError("boom")])
 
     pipeline = WorkflowPipeline(rules_engine, pipeline_executor)
     result = await pipeline.process_event(

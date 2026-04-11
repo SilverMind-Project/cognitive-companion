@@ -86,9 +86,7 @@ class SensorPollingService:
                 start = self._active_occupancy[sensor.id]
                 duration = now - start
                 elapsed_minutes = duration.total_seconds() / 60
-                await self._check_occupancy_rules(
-                    sensor, room_name, elapsed_minutes, db
-                )
+                await self._check_occupancy_rules(sensor, room_name, elapsed_minutes, db)
         elif state == "off" and sensor.id in self._active_occupancy:
             del self._active_occupancy[sensor.id]
             logger.info("occupancy_ended", sensor=sensor.id, room=room_name)
@@ -158,8 +156,7 @@ class SensorPollingService:
             )
             # Find sensors in the target room
             target_sensors = [
-                s for s in sensors
-                if s.room and s.room.name.lower() == room_name.lower()
+                s for s in sensors if s.room and s.room.name.lower() == room_name.lower()
             ]
         finally:
             db.close()

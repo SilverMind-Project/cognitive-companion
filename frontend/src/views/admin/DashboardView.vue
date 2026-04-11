@@ -125,6 +125,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
+import { formatDateTimeShort } from "../../services/timezone.js";
 
 const refreshing = ref(false);
 
@@ -140,11 +141,7 @@ const occupancy = ref({});
 const alerts = ref([]);
 const personLocations = ref([]);
 
-function formatTime(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
+const formatTime = formatDateTimeShort;
 
 function locStatusColor(status) {
   const map = { home: "success", away: "warning", unknown: "grey", sleeping: "info" };

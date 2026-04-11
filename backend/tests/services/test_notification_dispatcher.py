@@ -114,9 +114,7 @@ def test_dispatch_services_bag() -> None:
 
 
 def test_dispatcher_wires_services() -> None:
-    dispatcher = NotificationDispatcher(
-        telegram_client="tg", ws_manager="ws", tts_client="tts"
-    )
+    dispatcher = NotificationDispatcher(telegram_client="tg", ws_manager="ws", tts_client="tts")
     services = dispatcher._dispatch_services
     assert services.telegram_client == "tg"
     assert services.ws_manager == "ws"
@@ -129,16 +127,12 @@ def test_dispatcher_wires_services() -> None:
 
 
 @pytest.mark.asyncio
-async def test_dispatch_uses_config_defaults(
-    fake_registry, default_settings
-) -> None:
+async def test_dispatch_uses_config_defaults(fake_registry, default_settings) -> None:
     primary = fake_registry("primary", _RecordingChannel())
     secondary = fake_registry("secondary", _RecordingChannel())
 
     dispatcher = NotificationDispatcher()
-    result = await dispatcher.dispatch(
-        alert_level="high", message="hi", room_name="Kitchen"
-    )
+    result = await dispatcher.dispatch(alert_level="high", message="hi", room_name="Kitchen")
 
     assert result == {"primary": True, "secondary": True}
     assert len(primary.calls) == 1
@@ -167,9 +161,7 @@ async def test_dispatch_rule_override_wins(fake_registry, default_settings) -> N
 async def test_dispatch_falls_back_to_websocket(
     fake_registry, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        nd_module, "settings", _FakeSettings({})
-    )
+    monkeypatch.setattr(nd_module, "settings", _FakeSettings({}))
     ws = fake_registry("websocket", _RecordingChannel())
 
     dispatcher = NotificationDispatcher()
@@ -178,9 +170,7 @@ async def test_dispatch_falls_back_to_websocket(
 
 
 @pytest.mark.asyncio
-async def test_dispatch_per_channel_message_override(
-    fake_registry, default_settings
-) -> None:
+async def test_dispatch_per_channel_message_override(fake_registry, default_settings) -> None:
     primary = fake_registry("primary", _RecordingChannel())
     secondary = fake_registry("secondary", _RecordingChannel())
 
@@ -196,15 +186,11 @@ async def test_dispatch_per_channel_message_override(
 
 
 @pytest.mark.asyncio
-async def test_dispatch_unknown_channel_skipped(
-    fake_registry, default_settings
-) -> None:
+async def test_dispatch_unknown_channel_skipped(fake_registry, default_settings) -> None:
     primary = fake_registry("primary", _RecordingChannel())
     # Note: "secondary" is referenced in config but not registered.
     dispatcher = NotificationDispatcher()
-    result = await dispatcher.dispatch(
-        alert_level="high", message="hi", room_name="Kitchen"
-    )
+    result = await dispatcher.dispatch(alert_level="high", message="hi", room_name="Kitchen")
     assert result == {"primary": True}
     assert len(primary.calls) == 1
 
@@ -215,17 +201,13 @@ async def test_dispatch_propagates_failure(fake_registry, default_settings) -> N
     fake_registry("secondary", _RecordingChannel(success=True))
 
     dispatcher = NotificationDispatcher()
-    result = await dispatcher.dispatch(
-        alert_level="high", message="hi", room_name="Kitchen"
-    )
+    result = await dispatcher.dispatch(alert_level="high", message="hi", room_name="Kitchen")
     assert result == {"primary": False, "secondary": True}
     assert len(primary.calls) == 1
 
 
 @pytest.mark.asyncio
-async def test_dispatch_passes_services_and_image(
-    fake_registry, default_settings
-) -> None:
+async def test_dispatch_passes_services_and_image(fake_registry, default_settings) -> None:
     primary = fake_registry("primary", _RecordingChannel())
     fake_registry("secondary", _RecordingChannel())
 

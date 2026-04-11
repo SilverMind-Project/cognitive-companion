@@ -21,7 +21,7 @@ import httpx
 from tenacity import AsyncRetrying, RetryError, retry_if_result, stop_after_attempt
 
 from backend.core.logging import get_logger
-from backend.integrations.llm.base import LLMProvider
+from backend.integrations.llm.base import THINKING_INSTRUCTION, LLMProvider, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -70,6 +70,8 @@ class OpenAICompatibleProvider(LLMProvider):
         timeout: float = _DEFAULT_TIMEOUT,
         guided_decoding: bool = False,
         max_retries: int = 3,
+        temperature: float | None = None,
+        top_p: float | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -77,6 +79,8 @@ class OpenAICompatibleProvider(LLMProvider):
         self.timeout = timeout
         self.guided_decoding = guided_decoding
         self.max_retries = max_retries
+        self.temperature = temperature
+        self.top_p = top_p
 
     # -- LLMProvider interface ------------------------------------------------
 
@@ -86,6 +90,10 @@ class OpenAICompatibleProvider(LLMProvider):
         media_paths: list[str] | None = None,
         media_type: str | None = None,
         response_schema: dict | None = None,
+        thinking: bool = False,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
         *,
         hallucination_marker: str | None = None,
         **kwargs: Any,
@@ -147,13 +155,25 @@ class OpenAICompatibleProvider(LLMProvider):
             )
         content.append({"type": "text", "text": effective_prompt})
 
+        # Chain-of-thought instruction appended after the prompt.
+        if thinking:
+            content.append({"type": "text", "text": THINKING_INSTRUCTION})
+
         messages: list[dict[str, Any]] = [{"role": "user", "content": content}]
 
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": self.max_tokens,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
         }
+
+        # Sampling overrides (call-time wins; instance default wins over nothing)
+        effective_temperature = temperature if temperature is not None else self.temperature
+        effective_top_p = top_p if top_p is not None else self.top_p
+        if effective_temperature is not None:
+            payload["temperature"] = effective_temperature
+        if effective_top_p is not None:
+            payload["top_p"] = effective_top_p
 
         # vLLM guided decoding
         if response_schema and self.guided_decoding:
@@ -174,7 +194,9 @@ class OpenAICompatibleProvider(LLMProvider):
                 )
                 resp.raise_for_status()
             data = resp.json()
-            text: str = data["choices"][0]["message"]["content"]
+            text: str = data["choices"][0]["message"]["content"] or ""
+            if thinking:
+                text = strip_thinking(text)
             logger.debug("openai_compat_response", length=len(text))
             return text
 

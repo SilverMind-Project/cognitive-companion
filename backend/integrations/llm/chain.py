@@ -52,6 +52,10 @@ class LLMProviderChain(LLMProvider):
         media_paths: list[str] | None = None,
         media_type: str | None = None,
         response_schema: dict | None = None,
+        thinking: bool = False,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any,
     ) -> str:
         last_error: Exception | None = None
@@ -68,6 +72,10 @@ class LLMProviderChain(LLMProvider):
                                 media_paths=media_paths,
                                 media_type=media_type,
                                 response_schema=response_schema,
+                                thinking=thinking,
+                                temperature=temperature,
+                                top_p=top_p,
+                                max_tokens=max_tokens,
                                 **kwargs,
                             )
                             return result
@@ -120,6 +128,10 @@ class LLMProviderPool(LLMProvider):
         media_paths: list[str] | None = None,
         media_type: str | None = None,
         response_schema: dict | None = None,
+        thinking: bool = False,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any,
     ) -> str:
         idx = next(self._cycle)
@@ -130,6 +142,10 @@ class LLMProviderPool(LLMProvider):
                 media_paths=media_paths,
                 media_type=media_type,
                 response_schema=response_schema,
+                thinking=thinking,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
                 **kwargs,
             )
         except Exception:
@@ -143,6 +159,10 @@ class LLMProviderPool(LLMProvider):
                         media_paths=media_paths,
                         media_type=media_type,
                         response_schema=response_schema,
+                        thinking=thinking,
+                        temperature=temperature,
+                        top_p=top_p,
+                        max_tokens=max_tokens,
                         **kwargs,
                     )
                 except Exception:

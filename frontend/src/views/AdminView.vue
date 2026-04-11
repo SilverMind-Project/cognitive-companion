@@ -36,7 +36,7 @@
 
     <v-app-bar flat>
       <v-app-bar-title>
-        <span class="text-h6 font-weight-bold">Admin Console</span>
+        <span class="text-h6 font-weight-bold">Caregiver Console</span>
       </v-app-bar-title>
       <v-spacer />
       <v-btn icon="mdi-refresh" variant="text" title="Reload config" @click="reloadConfig" />

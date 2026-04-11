@@ -3,12 +3,14 @@
 Orchestrates step-by-step execution of rule pipelines using the
 :class:`StepRegistry` plugin system.  Each step type is a self-contained
 handler registered at startup.  The executor is responsible only for
-sequencing, branching, wait/resume, and error handling.
+sequencing, branching, wait/resume, error handling, per-step timing, and
+enforcing per-rule execution timeouts.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+import asyncio
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -29,6 +31,16 @@ class PipelineExecutor:
 
     Each step handler is looked up from the :class:`StepRegistry` and
     receives a :class:`ServiceContainer` with all available services.
+
+    Timing data is written into ``pipeline_data_json`` under two keys:
+
+    * ``_pipeline`` - ``{"started_at": ISO, "completed_at": ISO | null}``
+    * ``_step_timings`` - list of per-step dicts with ``started_at``,
+      ``completed_at``, ``elapsed_seconds``, and ``success``.
+
+    When a rule sets ``execution_timeout_minutes > 0`` the entire pipeline
+    (excluding wait periods) is cancelled if it exceeds that duration and the
+    execution is marked ``"failed"`` with a descriptive error.
     """
 
     def __init__(
@@ -78,7 +90,12 @@ class PipelineExecutor:
         trigger: TriggerContext,
         db: Session,
     ) -> WorkflowExecution:
-        """Run a rule's pipeline from the first step."""
+        """Run a rule's pipeline from the first step.
+
+        Applies ``rule.execution_timeout_minutes`` as a hard wall-clock limit
+        over the active execution (waits do not count against the limit because
+        the coroutine is not running during a wait).
+        """
         # Create event log
         event_log = EventLog(
             rule_id=rule.id,
@@ -92,8 +109,11 @@ class PipelineExecutor:
         db.add(event_log)
         db.flush()
 
-        # Create workflow execution
-        pipeline_data = {
+        local_tz = ZoneInfo(settings.get("app.timezone", "America/New_York"))
+        now_local = datetime.now(local_tz)
+        now_utc = datetime.now(UTC)
+
+        pipeline_data: dict = {
             "trigger": {
                 "type": trigger.trigger_type,
                 "sensor_id": trigger.sensor_id,
@@ -101,19 +121,21 @@ class PipelineExecutor:
                 "media_paths": trigger.media_paths,
                 "media_type": trigger.media_type,
             },
+            "system": {
+                "local_time": now_local.strftime("%I:%M %p"),
+                "local_date": now_local.strftime("%Y-%m-%d"),
+                "local_day_of_week": now_local.strftime("%A"),
+                "timezone": str(local_tz),
+            },
+            "_pipeline": {
+                "started_at": now_utc.isoformat(),
+                "completed_at": None,
+            },
+            "_step_timings": [],
         }
-        # Include webhook payload in pipeline data
+
         if trigger.webhook_payload:
             pipeline_data["trigger_input"] = trigger.webhook_payload
-
-        local_tz = ZoneInfo(settings.get("app.timezone", "America/New_York"))
-        now_local = datetime.now(local_tz)
-        pipeline_data["system"] = {
-            "local_time": now_local.strftime("%I:%M %p"),
-            "local_date": now_local.strftime("%Y-%m-%d"),
-            "local_day_of_week": now_local.strftime("%A"),
-            "timezone": str(local_tz),
-        }
 
         execution = WorkflowExecution(
             rule_id=rule.id,
@@ -128,19 +150,34 @@ class PipelineExecutor:
         db.commit()
         db.refresh(execution)
 
-        # Get ordered steps
         steps = sorted(
             [s for s in rule.steps if s.enabled],
             key=lambda s: s.order,
         )
         if not steps:
+            completed_at = datetime.now(UTC)
             execution.status = "completed"
+            execution.completed_at = completed_at
+            pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
+            execution.pipeline_data_json = pipeline_data
             event_log.status = "completed"
             db.commit()
             logger.info("pipeline_no_steps", rule=rule.name)
             return execution
 
-        return await self._run_steps(execution, steps, trigger, db)
+        timeout_seconds: float | None = (
+            rule.execution_timeout_minutes * 60
+            if rule.execution_timeout_minutes > 0
+            else None
+        )
+
+        try:
+            return await asyncio.wait_for(
+                self._run_steps(execution, steps, trigger, db),
+                timeout=timeout_seconds,
+            )
+        except TimeoutError:
+            return self._handle_timeout(rule, execution, db)
 
     async def resume(self, execution_id: int, db: Session) -> WorkflowExecution:
         """Resume a waiting workflow execution from its current step."""
@@ -185,7 +222,19 @@ class PipelineExecutor:
             media_type=trigger_data.get("media_type", "image"),
         )
 
-        return await self._run_steps(execution, steps, trigger, db)
+        timeout_seconds: float | None = (
+            rule.execution_timeout_minutes * 60
+            if rule.execution_timeout_minutes > 0
+            else None
+        )
+
+        try:
+            return await asyncio.wait_for(
+                self._run_steps(execution, steps, trigger, db),
+                timeout=timeout_seconds,
+            )
+        except TimeoutError:
+            return self._handle_timeout(rule, execution, db)
 
     # -- step execution -------------------------------------------------------
 
@@ -196,12 +245,19 @@ class PipelineExecutor:
         trigger: TriggerContext,
         db: Session,
     ) -> WorkflowExecution:
-        """Iterate through steps, handling branching and early exit."""
+        """Iterate through steps, handling branching, timing, and early exit."""
         pipeline_data: dict = dict(execution.pipeline_data_json or {})
+        # Preserve timings across resume cycles
+        step_timings: list = list(pipeline_data.get("_step_timings", []))
+
         step_by_id = {s.id: s for s in steps}
         step_index = 0
         step_list = list(steps)
         override_step_id: int | None = None
+
+        # Tracked so the except-block can record a timing entry for a failed step
+        _active_step: PipelineStep | None = None
+        _active_step_started_at: datetime | None = None
 
         try:
             while step_index < len(step_list) or override_step_id is not None:
@@ -216,9 +272,6 @@ class PipelineExecutor:
                             target_step_id=target_id,
                         )
                         break
-                    # Advance the linear pointer past the branch target so that
-                    # neither it nor any skipped-over steps are re-executed when
-                    # the loop falls back to sequential processing.
                     try:
                         linear_pos = step_list.index(step)
                         step_index = linear_pos + 1
@@ -239,11 +292,22 @@ class PipelineExecutor:
                     order=step.order,
                 )
 
+                _active_step = step
+                _active_step_started_at = datetime.now(UTC)
+
                 result = await self._execute_step(
                     step, execution, pipeline_data, trigger
                 )
 
+                step_completed_at = datetime.now(UTC)
+                step_timings.append(
+                    _make_step_timing(step, _active_step_started_at, step_completed_at, result.success)
+                )
+                # Signal to the except-block that this step's timing is already saved
+                _active_step_started_at = None
+
                 pipeline_data.update(result.data)
+                pipeline_data["_step_timings"] = step_timings
                 execution.pipeline_data_json = pipeline_data
                 db.commit()
 
@@ -265,7 +329,13 @@ class PipelineExecutor:
 
                 # Handle early exit
                 if not result.should_continue:
+                    completed_at = datetime.now(UTC)
                     execution.status = "completed"
+                    execution.completed_at = completed_at
+                    if "_pipeline" in pipeline_data:
+                        pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
+                    execution.pipeline_data_json = pipeline_data
+
                     event_log = (
                         db.query(EventLog)
                         .filter(EventLog.id == execution.event_log_id)
@@ -287,7 +357,12 @@ class PipelineExecutor:
                     override_step_id = result.next_step_id
 
             # All steps completed
+            completed_at = datetime.now(UTC)
             execution.status = "completed"
+            execution.completed_at = completed_at
+            pipeline_data["_step_timings"] = step_timings
+            if "_pipeline" in pipeline_data:
+                pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
             execution.pipeline_data_json = pipeline_data
 
             event_log = (
@@ -306,20 +381,40 @@ class PipelineExecutor:
             logger.info(
                 "pipeline_completed",
                 rule=execution.rule.name,
-                cooloff_triggered=pipeline_data.get("_cooloff_triggered", False)
+                cooloff_triggered=pipeline_data.get("_cooloff_triggered", False),
             )
             return execution
 
         except Exception as e:
+            completed_at = datetime.now(UTC)
+
+            # Record timing for the step that raised, if not already saved
+            if _active_step is not None and _active_step_started_at is not None:
+                step_timings.append(
+                    _make_step_timing(
+                        _active_step,
+                        _active_step_started_at,
+                        completed_at,
+                        success=False,
+                        error=str(e),
+                    )
+                )
+
             logger.error(
                 "pipeline_error",
                 rule=execution.rule.name,
                 error=str(e),
                 exc_info=True,
             )
+            pipeline_data["_step_timings"] = step_timings
+            if "_pipeline" in pipeline_data:
+                pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
+
             execution.status = "failed"
+            execution.completed_at = completed_at
             execution.error = str(e)
             execution.pipeline_data_json = {**pipeline_data, "error": str(e)}
+
             event_log = (
                 db.query(EventLog)
                 .filter(EventLog.id == execution.event_log_id)
@@ -347,3 +442,69 @@ class PipelineExecutor:
         return await handler.execute(
             step, execution, pipeline_data, trigger, self._services
         )
+
+    # -- helpers --------------------------------------------------------------
+
+    def _handle_timeout(
+        self,
+        rule: Rule,
+        execution: WorkflowExecution,
+        db: Session,
+    ) -> WorkflowExecution:
+        """Mark the execution as failed due to timeout and persist the state."""
+        completed_at = datetime.now(UTC)
+        error_msg = (
+            f"Pipeline timed out after {rule.execution_timeout_minutes} minute"
+            f"{'s' if rule.execution_timeout_minutes != 1 else ''}"
+        )
+
+        # Reload execution from DB to get the last committed state
+        db.expire(execution)
+        pd = dict(execution.pipeline_data_json or {})
+        if "_pipeline" in pd:
+            pd["_pipeline"]["completed_at"] = completed_at.isoformat()
+        pd["error"] = error_msg
+
+        execution.status = "failed"
+        execution.completed_at = completed_at
+        execution.error = error_msg
+        execution.pipeline_data_json = pd
+
+        event_log = (
+            db.query(EventLog)
+            .filter(EventLog.id == execution.event_log_id)
+            .first()
+        )
+        if event_log:
+            event_log.status = "failed"
+        db.commit()
+
+        logger.error(
+            "pipeline_timeout",
+            rule=rule.name,
+            execution_id=execution.id,
+            timeout_minutes=rule.execution_timeout_minutes,
+        )
+        return execution
+
+
+def _make_step_timing(
+    step: PipelineStep,
+    started_at: datetime,
+    completed_at: datetime,
+    success: bool,
+    error: str | None = None,
+) -> dict:
+    """Build a timing entry dict for a single pipeline step."""
+    entry: dict = {
+        "step_id": step.id,
+        "step_type": step.step_type,
+        "label": step.label,
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "elapsed_seconds": round((completed_at - started_at).total_seconds(), 3),
+        "success": success,
+    }
+    if error is not None:
+        entry["error"] = error
+    return entry

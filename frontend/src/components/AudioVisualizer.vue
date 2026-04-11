@@ -159,7 +159,7 @@ async function startMic() {
     const source = audioContext.createMediaStreamSource(mediaStream);
 
     // High-pass filter: attenuates frequencies below ~150 Hz.
-    // Fan and AC hum typically sits at 50–120 Hz; filtering before the
+    // Fan and AC hum typically sits at 50-120 Hz; filtering before the
     // analyser and processor removes those frequencies from both the RMS
     // calculation and the PCM stream sent to the backend.
     highPassFilter = audioContext.createBiquadFilter();

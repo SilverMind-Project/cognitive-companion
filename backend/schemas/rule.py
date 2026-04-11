@@ -58,6 +58,8 @@ class RuleCreate(BaseModel):
     primary_sensor_id: str | None = None
     cool_off_minutes: int = 5
     max_daily_triggers: int = 3
+    max_concurrent_executions: int = 1
+    execution_timeout_minutes: int = 5
     webhook_config: dict[str, Any] | None = None
     occupancy_config: dict[str, Any] | None = None
     telegram_trigger_config: dict[str, Any] | None = None
@@ -72,6 +74,8 @@ class RuleUpdate(BaseModel):
     primary_sensor_id: str | None = None
     cool_off_minutes: int | None = None
     max_daily_triggers: int | None = None
+    max_concurrent_executions: int | None = None
+    execution_timeout_minutes: int | None = None
     webhook_config: dict[str, Any] | None = None
     occupancy_config: dict[str, Any] | None = None
     telegram_trigger_config: dict[str, Any] | None = None
@@ -107,6 +111,8 @@ class RuleOut(BaseModel):
     primary_sensor_id: str | None
     cool_off_minutes: int
     max_daily_triggers: int
+    max_concurrent_executions: int
+    execution_timeout_minutes: int
     webhook_config: dict[str, Any] | None = None
     occupancy_config: dict[str, Any] | None = None
     telegram_trigger_config: dict[str, Any] | None = None
@@ -130,6 +136,8 @@ class RuleListOut(BaseModel):
     schedule_cron: str | None
     cool_off_minutes: int
     max_daily_triggers: int
+    max_concurrent_executions: int
+    execution_timeout_minutes: int
     created_at: datetime
 
     model_config = {"from_attributes": True}

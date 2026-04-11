@@ -213,6 +213,9 @@ class LLMModelConfig:
     timeout: float = 60.0
     guided_decoding: bool = False    # vLLM-style guided_json enforcement
     max_retries: int = 3
+    supports_thinking: bool = False  # model honours <think>…</think> format
+    temperature: float | None = None # None = use server default
+    top_p: float | None = None       # None = use server default
 
 
 class LLMModelRegistry:
@@ -267,6 +270,8 @@ class LLMModelRegistry:
             model_id = entry.get("id")
             if not model_id:
                 continue
+            raw_temperature = entry.get("temperature")
+            raw_top_p = entry.get("top_p")
             cfg = LLMModelConfig(
                 id=model_id,
                 name=entry.get("name", model_id),
@@ -278,6 +283,9 @@ class LLMModelRegistry:
                 timeout=float(entry.get("timeout", 60)),
                 guided_decoding=bool(entry.get("guided_decoding", False)),
                 max_retries=int(entry.get("max_retries", 3)),
+                supports_thinking=bool(entry.get("supports_thinking", False)),
+                temperature=float(raw_temperature) if raw_temperature is not None else None,
+                top_p=float(raw_top_p) if raw_top_p is not None else None,
             )
             self._configs[model_id] = cfg
 
@@ -306,6 +314,8 @@ class LLMModelRegistry:
                 model=cfg.model,
                 max_tokens=cfg.max_tokens,
                 timeout=cfg.timeout,
+                temperature=cfg.temperature,
+                top_p=cfg.top_p,
             )
         # Default: OpenAI-compatible (vLLM, llama.cpp, etc.)
         from backend.integrations.llm.openai_compat import OpenAICompatibleProvider
@@ -317,4 +327,6 @@ class LLMModelRegistry:
             timeout=cfg.timeout,
             guided_decoding=cfg.guided_decoding,
             max_retries=cfg.max_retries,
+            temperature=cfg.temperature,
+            top_p=cfg.top_p,
         )

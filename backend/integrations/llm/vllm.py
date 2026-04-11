@@ -16,7 +16,7 @@ import httpx
 from tenacity import AsyncRetrying, RetryError, retry_if_result, stop_after_attempt
 
 from backend.core.logging import get_logger
-from backend.integrations.llm.base import LLMProvider
+from backend.integrations.llm.base import THINKING_INSTRUCTION, LLMProvider, strip_thinking
 
 logger = get_logger(__name__)
 
@@ -27,13 +27,22 @@ logger = get_logger(__name__)
 _DEFAULT_TIMEOUT = 120.0  # seconds
 
 
-def _encode_image_data_uri(path: str) -> str:
-    """Read an image file and return a ``data:<mime>;base64,...`` URI."""
-    mime, _ = mimetypes.guess_type(path)
-    if mime is None:
-        mime = "image/jpeg"
-    raw = Path(path).read_bytes()
+async def _encode_image_data_uri(path: str) -> str:
+    """Read an image file (or fetch a URL) and return a ``data:<mime>;base64,...`` URI."""
+    if path.startswith(("http://", "https://")):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(path)
+            response.raise_for_status()
+        raw = response.content
+        content_type = response.headers.get("content-type", "")
+        mime = content_type.split(";")[0].strip() or "image/jpeg"
+    else:
+        mime, _ = mimetypes.guess_type(path)
+        if mime is None:
+            mime = "image/jpeg"
+        raw = Path(path).read_bytes()
     b64 = base64.b64encode(raw).decode()
+    logger.info(f"mime type: {mime}, content length: {len(b64)}")
     return f"data:{mime};base64,{b64}"
 
 
@@ -53,13 +62,17 @@ class VLLMVisionProvider(LLMProvider):
         self,
         base_url: str,
         model: str = "nvidia/Cosmos-Reason2-8B",
-        max_tokens: int = 4096,
+        max_tokens: int = 16000,
         timeout: float = _DEFAULT_TIMEOUT,
+        temperature: float | None = None,
+        top_p: float | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.max_tokens = max_tokens
         self.timeout = timeout
+        self.temperature = temperature
+        self.top_p = top_p
 
     # -- LLMProvider interface ------------------------------------------------
 
@@ -69,6 +82,10 @@ class VLLMVisionProvider(LLMProvider):
         media_paths: list[str] | None = None,
         media_type: str | None = None,
         response_schema: dict | None = None,
+        thinking: bool = False,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any,
     ) -> str:
         content: list[dict[str, Any]] = []
@@ -97,7 +114,7 @@ class VLLMVisionProvider(LLMProvider):
                 image_paths = media_paths
 
             for img in image_paths:
-                data_uri = _encode_image_data_uri(img)
+                data_uri = await _encode_image_data_uri(img)
                 content.append(
                     {
                         "type": "image_url",
@@ -105,17 +122,29 @@ class VLLMVisionProvider(LLMProvider):
                     }
                 )
 
-        # Always include the text prompt last so the model sees context
-        # before the question.
+        # Text prompt last so the model sees images before the question.
         content.append({"type": "text", "text": prompt})
+
+        # Chain-of-thought instruction appended after the prompt so the
+        # model reads the question first, then sees the output format.
+        if thinking:
+            content.append({"type": "text", "text": THINKING_INSTRUCTION})
 
         messages = [{"role": "user", "content": content}]
 
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": self.max_tokens,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
         }
+
+        # Sampling overrides (call-time wins; instance default wins over nothing)
+        effective_temperature = temperature if temperature is not None else self.temperature
+        effective_top_p = top_p if top_p is not None else self.top_p
+        if effective_temperature is not None:
+            payload["temperature"] = effective_temperature
+        if effective_top_p is not None:
+            payload["top_p"] = effective_top_p
 
         # Schema-enforced structured output via vLLM guided decoding
         if response_schema:
@@ -125,7 +154,9 @@ class VLLMVisionProvider(LLMProvider):
             "vllm_vision_request",
             model=self.model,
             num_images=sum(1 for c in content if c["type"] == "image_url"),
+            max_tokens=payload["max_tokens"]
         )
+        logger.info(f"payload keys: {payload.keys}")
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
@@ -133,9 +164,11 @@ class VLLMVisionProvider(LLMProvider):
                 json=payload,
             )
             response.raise_for_status()
-
         data = response.json()
-        text: str = data["choices"][0]["message"]["content"]
+        logger.info(f"vllm vision response data: {data}")
+        text: str = data["choices"][0]["message"]["content"] or ""
+        if thinking:
+            text = strip_thinking(text)
         logger.debug("vllm_vision_response", length=len(text))
         return text
 

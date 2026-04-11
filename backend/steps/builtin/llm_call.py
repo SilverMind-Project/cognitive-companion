@@ -175,6 +175,32 @@ class LLMCallHandler(StepHandler):
                         "default": "",
                         "description": "If found in the response, the call is retried automatically.",
                     },
+                    "thinking": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "Enable chain-of-thought reasoning. The model reasons inside "
+                            "<think>…</think> tags; only the final answer is stored. "
+                            "Only effective when the selected model supports thinking."
+                        ),
+                    },
+                    "temperature": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 2.0,
+                        "description": "Sampling temperature override. Leave blank to use the model default.",
+                    },
+                    "top_p": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0,
+                        "description": "Top-p (nucleus) sampling override. Leave blank to use the model default.",
+                    },
+                    "max_tokens": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Max tokens to generate override. Leave blank to use the model default.",
+                    },
                 },
                 "required": ["model_id"],
             },
@@ -195,6 +221,10 @@ class LLMCallHandler(StepHandler):
                 "output_key": "llm_response",
                 "special_instructions": "",
                 "hallucination_marker": "",
+                "thinking": False,
+                "temperature": None,
+                "top_p": None,
+                "max_tokens": None,
             },
         )
 
@@ -367,12 +397,25 @@ class LLMCallHandler(StepHandler):
 
         # -- Call the model ---------------------------------------------------
         hallucination_marker: str = config.get("hallucination_marker", "")
+        thinking: bool = bool(config.get("thinking", False))
+
+        # Sampling overrides — only pass if explicitly set in step config
+        raw_temperature = config.get("temperature")
+        raw_top_p = config.get("top_p")
+        raw_max_tokens = config.get("max_tokens")
+        temperature_override = float(raw_temperature) if raw_temperature is not None else None
+        top_p_override = float(raw_top_p) if raw_top_p is not None else None
+        max_tokens_override = int(raw_max_tokens) if raw_max_tokens is not None else None
 
         raw_response = await provider.call(
             prompt=full_prompt,
             media_paths=media_paths if media_paths else None,
             media_type=trigger.media_type if media_paths else None,
             response_schema=guided_schema,
+            thinking=thinking,
+            temperature=temperature_override,
+            top_p=top_p_override,
+            max_tokens=max_tokens_override,
             hallucination_marker=hallucination_marker if hallucination_marker else None,
         )
 

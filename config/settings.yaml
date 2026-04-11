@@ -55,9 +55,12 @@ llm:
       base_url: "${VISION_MODEL_URL}"
       model: "nvidia/Cosmos-Reason2-8B"
       capabilities: ["text", "vision"]
-      max_tokens: 4096
+      max_tokens: 16000
       timeout: 120
       guided_decoding: true
+      supports_thinking: true
+      temperature: 0.7
+      top_p: 0.9
 
     - id: "gemma4_26b"
       name: "Gemma 4 26B (General)"
@@ -65,28 +68,13 @@ llm:
       base_url: "${GEMMA_MODEL_URL}"
       model: "gemma-4-26B-A4B-it-GGUF"
       capabilities: ["text", "vision", "translation"]
-      max_tokens: 4096
+      max_tokens: 16000
       timeout: 60
       guided_decoding: false
+      supports_thinking: true
+      temperature: 0.7
+      top_p: 0.9
 
-    - id: "translate_gemma"
-      name: "TranslateGemma 12B"
-      api_type: "openai"
-      base_url: "${TRANSLATE_MODEL_URL}"
-      model: "Infomaniak-AI/vllm-translategemma-12b-it"
-      capabilities: ["translation"]
-      max_tokens: 4096
-      timeout: 60
-      guided_decoding: true
-
-    - id: "gemma3_4b"
-      name: "Gemma 3 4B (Logic)"
-      api_type: "ollama"
-      base_url: "${LOGIC_MODEL_URL}"
-      model: "gemma3:4b"
-      capabilities: ["text"]
-      max_tokens: 4096
-      timeout: 60
 
   realtime:
     provider: "gemini_live"
@@ -217,14 +205,14 @@ image:
 
 # Per-camera configuration (keyed by sensor_id)
 #
-# rotate:        optional – clockwise rotation applied before saving to MinIO.
+# rotate:        optional - clockwise rotation applied before saving to MinIO.
 #                Accepted values: 90, 180, 270.  Omit or set to 0 to skip.
 #
-# label_filter:  optional – drop images when the on-device YOLO11 detections
+# label_filter:  optional - drop images when the on-device YOLO11 detections
 #                do not satisfy the filter.
 #   labels:      list of label strings to match against payload.data.labels.
-#   mode:        "any" (default) – pass if at least one label is detected.
-#                "all"           – pass only when every label is detected.
+#   mode:        "any" (default) - pass if at least one label is detected.
+#                "all"           - pass only when every label is detected.
 #
 # cameras:
 #   recamera_kitchen:

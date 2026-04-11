@@ -8,13 +8,18 @@ function getApiKey() {
   return localStorage.getItem("cc_api_key") || "";
 }
 
-async function request(path, options = {}) {
+/** Build auth headers, optionally merging extra headers. */
+function authHeaders(extra = {}) {
   const key = getApiKey();
-  const headers = {
+  return { ...(key ? { "X-API-Key": key } : {}), ...extra };
+}
+
+/** JSON request helper — always injects the API key. */
+async function request(path, options = {}) {
+  const headers = authHeaders({
     "Content-Type": "application/json",
-    ...(key ? { "X-API-Key": key } : {}),
     ...options.headers,
-  };
+  });
 
   const resp = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!resp.ok) {
@@ -23,6 +28,37 @@ async function request(path, options = {}) {
   }
   if (resp.status === 204) return null;
   return resp.json();
+}
+
+/**
+ * Multipart/binary POST or PUT — sends FormData with auth header.
+ * Returns parsed JSON on success.
+ */
+async function requestForm(path, method, formData) {
+  const resp = await fetch(`${BASE}${path}`, {
+    method,
+    headers: authHeaders(),
+    body: formData,
+  });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || `HTTP ${resp.status}`);
+  }
+  if (resp.status === 204) return null;
+  return resp.json();
+}
+
+/**
+ * Fetch a binary resource with auth and return a Blob object URL.
+ * The caller is responsible for revoking the URL when done.
+ */
+async function requestBlob(path) {
+  const resp = await fetch(`${BASE}${path}`, { headers: authHeaders() });
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || `HTTP ${resp.status}`);
+  }
+  return URL.createObjectURL(await resp.blob());
 }
 
 export const api = {
@@ -118,17 +154,7 @@ export const api = {
   // Face Enrollment (person-ID service proxy)
   getEnrolledPersons: () => request("/persons/enrolled"),
   getEnrollmentStatus: (id) => request(`/persons/${id}/enrollment`),
-  enrollPerson: (id, formData) => {
-    const key = getApiKey();
-    return fetch(`${BASE}/persons/${id}/enroll`, {
-      method: "POST",
-      headers: key ? { "X-API-Key": key } : {},
-      body: formData,
-    }).then((r) => {
-      if (!r.ok) return r.json().then((b) => { throw new Error(b.detail || `HTTP ${r.status}`); });
-      return r.json();
-    });
-  },
+  enrollPerson: (id, formData) => requestForm(`/persons/${id}/enroll`, "POST", formData),
   deleteEnrollment: (id) => request(`/persons/${id}/enrollment`, { method: "DELETE" }),
 
   // Pipeline Steps
@@ -163,32 +189,19 @@ export const api = {
 
   // Image Templates
   getImageTemplates: () => request("/image/templates"),
-  createImageTemplate: (formData) => {
-    const key = getApiKey();
-    return fetch(`${BASE}/image/templates`, {
-      method: "POST",
-      headers: key ? { "X-API-Key": key } : {},
-      body: formData,
-    }).then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    });
-  },
+  createImageTemplate: (formData) => requestForm("/image/templates", "POST", formData),
   updateImageTemplate: (id, data) =>
     request(`/image/templates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  updateImageTemplateImage: (id, formData) => {
-    const key = getApiKey();
-    return fetch(`${BASE}/image/templates/${id}/image`, {
-      method: "PUT",
-      headers: key ? { "X-API-Key": key } : {},
-      body: formData,
-    }).then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    });
-  },
+  updateImageTemplateImage: (id, formData) =>
+    requestForm(`/image/templates/${id}/image`, "PUT", formData),
   deleteImageTemplate: (id) => request(`/image/templates/${id}`, { method: "DELETE" }),
   getImageFonts: () => request("/image/fonts"),
+
+  /**
+   * Fetch the background image for a saved template as an authenticated
+   * object URL. Revoke the returned URL when the component unmounts.
+   */
+  getImageTemplatePreview: (id) => requestBlob(`/image/templates/${id}/preview`),
 
   // E-Ink Display State
   getImageStates: () => request("/image/states"),
@@ -200,16 +213,36 @@ export const api = {
       body: JSON.stringify({ sensor_ids: sensorIds }),
     }),
   previewImage: async (data) => {
-    const key = getApiKey();
     const resp = await fetch(`${BASE}/image/preview`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(key ? { "X-API-Key": key } : {}),
-      },
+      headers: authHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(data),
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.detail || `HTTP ${resp.status}`);
+    }
+    return URL.createObjectURL(await resp.blob());
+  },
+
+  /**
+   * Preview rendered image using FormData (supports new-template image upload
+   * and live region/font overrides for existing templates).
+   *
+   * @param {FormData} formData  Fields: text, regions_json, font_filename,
+   *                             template_id? (int), image? (File)
+   * @returns {Promise<string>} Object URL of the preview PNG
+   */
+  previewImageForm: async (formData) => {
+    const resp = await fetch(`${BASE}/image/preview-form`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: formData,
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.detail || `HTTP ${resp.status}`);
+    }
     return URL.createObjectURL(await resp.blob());
   },
 
@@ -228,8 +261,11 @@ export const api = {
         "X-Webhook-Secret": secret,
       },
       body: JSON.stringify(payload),
-    }).then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    }).then(async (r) => {
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.detail || `HTTP ${r.status}`);
+      }
       return r.json();
     }),
   generateWebhookSecret: (ruleId) =>

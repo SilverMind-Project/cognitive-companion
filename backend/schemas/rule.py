@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
+
+from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
 
 # -- Pipeline Step -----------------------------------------------------------
 
@@ -116,8 +117,8 @@ class RuleOut(BaseModel):
     webhook_config: dict[str, Any] | None = None
     occupancy_config: dict[str, Any] | None = None
     telegram_trigger_config: dict[str, Any] | None = None
-    created_at: datetime
-    updated_at: datetime | None
+    created_at: UTCDatetime
+    updated_at: OptionalUTCDatetime
     steps: list[PipelineStepOut] = []
     contexts: list[RuleContextOut] = []
     dependencies: list[RuleDependencyOut] = []
@@ -138,7 +139,7 @@ class RuleListOut(BaseModel):
     max_daily_triggers: int
     max_concurrent_executions: int
     execution_timeout_minutes: int
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = {"from_attributes": True}
 

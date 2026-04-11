@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from pydantic import BaseModel
+
+from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
 
 
 class TextRegion(BaseModel):
@@ -50,8 +50,8 @@ class ImageTemplateOut(BaseModel):
     font_filename: str
     regions_json: list[dict]
     is_default: bool
-    created_at: datetime
-    updated_at: datetime | None
+    created_at: UTCDatetime
+    updated_at: OptionalUTCDatetime
 
     model_config = {"from_attributes": True}
 
@@ -76,7 +76,7 @@ class ActiveImageStateOut(BaseModel):
     sensor_id: str
     template_id: int | None
     rendered_text: str | None
-    expires_at: datetime | None
-    updated_at: datetime | None
+    expires_at: OptionalUTCDatetime
+    updated_at: OptionalUTCDatetime
 
     model_config = {"from_attributes": True}

@@ -40,8 +40,7 @@ def _make_rule(db, name="Test Rule", trigger_type="sensor_event", **kwargs):
 def _log_completed(db, rule, minutes_ago=0):
     """Insert a completed EventLog entry for *rule*, *minutes_ago* minutes in the past.
 
-    Timestamps are stored as UTC so SQLite string comparison works correctly
-    with a UTC-based RulesEngine.
+    Timestamps are always written as aware UTC datetimes.
     """
     ts = datetime.now(UTC) - timedelta(minutes=minutes_ago)
     log = EventLog(
@@ -256,7 +255,7 @@ class TestTimezoneAwareLimits:
             sensor_id="cam1",
             trigger_type="sensor_event",
             status="completed",
-            timestamp=utc_dt.replace(tzinfo=None),  # stored as naive UTC
+            timestamp=utc_dt,
         )
         db.add(log)
         db.flush()
@@ -320,7 +319,7 @@ class TestTimezoneAwareLimits:
             sensor_id="cam1",
             trigger_type="sensor_event",
             status="completed",
-            timestamp=recent_utc.replace(tzinfo=None),
+            timestamp=recent_utc,
         )
         db_session.add(log)
         db_session.commit()

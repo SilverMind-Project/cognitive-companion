@@ -4,19 +4,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, func
+from sqlalchemy import JSON, ForeignKey, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
+from backend.core.time import UTCDateTime
 
 
 class EventLog(Base):
     __tablename__ = "event_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), index=True
-    )
+    timestamp: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now(), index=True)
     rule_id: Mapped[int | None] = mapped_column(ForeignKey("rules.id"), nullable=True)
     rule_name: Mapped[str | None] = mapped_column(String(256), index=True)
     sensor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -75,10 +75,6 @@ class PersonPresenceFilter(ContextFilter):
             return False
         if loc.last_seen_at:
             stale_cutoff = now - timedelta(minutes=PersonPresenceFilter._STALE_MINUTES)
-            # Compare as offset-aware if possible
-            last_seen = loc.last_seen_at
-            if last_seen.tzinfo is None and now.tzinfo is not None:
-                last_seen = last_seen.replace(tzinfo=UTC)
-            if last_seen < stale_cutoff:
+            if loc.last_seen_at < stale_cutoff:
                 return False
         return True

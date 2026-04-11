@@ -39,7 +39,6 @@ device_keys:
     sensor_id: "recamera_livingroom"
     permissions:
       - "device:recamera"
-
   - key: "RTRM0001"
     name: "Living Room reTerminal"
     device_type: "reterminal"
@@ -47,7 +46,13 @@ device_keys:
     permissions:
       - "device:reterminal"
       - "image:read"
-
+  - key: "RTRM0002"
+    name: "Guest Bedroom reTerminal"
+    device_type: "reterminal"
+    sensor_id: "reterminal_guestbedroom"
+    permissions:
+      - "device:reterminal"
+      - "image:read"
 # Permission map - abstract names to endpoint patterns (fnmatch syntax).
 permission_map:
   admin:

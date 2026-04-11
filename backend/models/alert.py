@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, String, Text, func
+from sqlalchemy import JSON, Boolean, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
+from backend.core.time import UTCDateTime
 
 
 class EmergencyAlert(Base):
     __tablename__ = "emergency_alerts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
     alert_type: Mapped[str] = mapped_column(
         String(64)
     )  # bathroom_time_exceeded, loud_noise, fall_detected

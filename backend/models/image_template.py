@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
+from backend.core.time import UTCDateTime
 
 
 class ImageTemplate(Base):
@@ -22,7 +23,5 @@ class ImageTemplate(Base):
     font_filename: Mapped[str] = mapped_column(String(256), default="NotoSansTamil-Regular.ttf")
     regions_json: Mapped[list] = mapped_column(JSON, default=list)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now(), nullable=True
-    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), onupdate=func.now(), nullable=True)

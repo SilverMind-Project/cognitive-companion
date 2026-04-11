@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.models.pipeline import WorkflowExecution
+from backend.models.rule import Rule
 from backend.models.sensor import Sensor
 from backend.services.pipeline_executor import PipelineExecutor, TriggerContext
 from backend.services.rules_engine import RulesEngine
@@ -40,7 +41,7 @@ class WorkflowPipeline:
         """Find matching rules for a sensor event and execute their pipelines.
 
         Returns a list of :class:`WorkflowExecution` objects  one per matched
-        rule.
+        rule whose concurrent execution limit was not exceeded.
         """
         sensor = (
             db.query(Sensor)
@@ -69,6 +70,7 @@ class WorkflowPipeline:
         tasks = [
             self.pipeline_executor.execute(rule, trigger, db)
             for rule in matched_rules
+            if self._concurrent_limit_allows(rule, db)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -122,6 +124,7 @@ class WorkflowPipeline:
         tasks = [
             self.pipeline_executor.execute(rule, trigger, db)
             for rule in matched_rules
+            if self._concurrent_limit_allows(rule, db)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -139,3 +142,38 @@ class WorkflowPipeline:
                 )
 
         return executions
+
+    # -- helpers --------------------------------------------------------------
+
+    def _concurrent_limit_allows(self, rule: Rule, db: Session) -> bool:
+        """Return True if a new execution is permitted under the concurrency limit.
+
+        ``max_concurrent_executions == 0`` means unlimited.  Otherwise, the
+        number of currently running or waiting executions for this rule must be
+        strictly less than the configured limit.
+
+        Note: this check is optimistic (not transactional).  Two simultaneous
+        incoming events for the same rule could both pass.  The check is
+        sufficient for the typical case where sensor events are spaced apart.
+        """
+        if rule.max_concurrent_executions <= 0:
+            return True
+
+        running = (
+            db.query(WorkflowExecution)
+            .filter(
+                WorkflowExecution.rule_id == rule.id,
+                WorkflowExecution.status.in_(["running", "waiting"]),
+            )
+            .count()
+        )
+        if running >= rule.max_concurrent_executions:
+            logger.warning(
+                "concurrent_limit_reached",
+                rule_id=rule.id,
+                rule=rule.name,
+                running=running,
+                limit=rule.max_concurrent_executions,
+            )
+            return False
+        return True

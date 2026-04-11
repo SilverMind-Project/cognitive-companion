@@ -17,6 +17,7 @@ class WorkflowExecutionOut(BaseModel):
     current_step_id: int | None
     pipeline_data_json: dict[str, Any]
     started_at: datetime
+    completed_at: datetime | None = None
     updated_at: datetime
     resume_at: datetime | None
     error: str | None
@@ -32,6 +33,7 @@ class WorkflowExecutionListOut(BaseModel):
     rule_name: str | None = None
     status: str
     started_at: datetime
+    completed_at: datetime | None = None
     updated_at: datetime
 
     model_config = {"from_attributes": True}

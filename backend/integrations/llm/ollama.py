@@ -28,11 +28,15 @@ class OllamaProvider(LLMProvider):
         model: str = "llama3",
         max_tokens: int = 4096,
         timeout: float = _DEFAULT_TIMEOUT,
+        temperature: float | None = 0.9,
+        top_p: float | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.max_tokens = max_tokens
         self.timeout = timeout
+        self.temperature = temperature
+        self.top_p = top_p
 
     # -- LLMProvider interface ------------------------------------------------
 
@@ -42,6 +46,10 @@ class OllamaProvider(LLMProvider):
         media_paths: list[str] | None = None,
         media_type: str | None = None,
         response_schema: dict | None = None,
+        thinking: bool = False,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
         **kwargs: Any,
     ) -> str:
         """
@@ -62,15 +70,22 @@ class OllamaProvider(LLMProvider):
         # otherwise fall back to generic JSON mode.
         format_value: str | dict = response_schema if response_schema else "json"
 
+        effective_temperature = temperature if temperature is not None else self.temperature
+        effective_top_p = top_p if top_p is not None else self.top_p
+        effective_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+
+        options: dict[str, Any] = {"num_predict": effective_max_tokens}
+        if effective_temperature is not None:
+            options["temperature"] = effective_temperature
+        if effective_top_p is not None:
+            options["top_p"] = effective_top_p
+
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "format": format_value,
             "stream": False,
-            "options": {
-                "temperature": 0.9,
-                "num_predict": self.max_tokens,
-            },
+            "options": options,
         }
 
         logger.info("ollama_request", model=self.model)

@@ -62,10 +62,13 @@ class RulesEngine:
         matched: list[Rule] = []
         for rule in rules:
             if not self._check_contexts(rule, sensor, now, db):
+                logger.info("rule_skipped_context", rule=rule.name, sensor_id=sensor.id)
                 continue
             if not self._check_dependencies(rule, db, now):
+                logger.info("rule_skipped_dependency", rule=rule.name, sensor_id=sensor.id)
                 continue
             if not self._check_rate_limits(rule, db, now):
+                logger.info("rule_skipped_rate_limit", rule=rule.name, sensor_id=sensor.id)
                 continue
             matched.append(rule)
 
@@ -123,11 +126,12 @@ class RulesEngine:
         """All dependencies must pass (AND logic)."""
         for dep in rule.dependencies:
             if not self._check_single_dependency(dep, db, now):
-                logger.debug(
+                logger.info(
                     "dependency_failed",
                     rule=rule.name,
                     parent_rule_id=dep.parent_rule_id,
                     require_success=dep.require_success,
+                    lookback_minutes=dep.lookback_minutes,
                 )
                 return False
         return True
@@ -164,7 +168,7 @@ class RulesEngine:
                 .first()
             )
             if recent:
-                logger.debug("cooloff_active", rule=rule.name)
+                logger.info("cooloff_active", rule=rule.name, cool_off_minutes=rule.cool_off_minutes, cutoff=cutoff)
                 return False
 
         if rule.max_daily_triggers > 0:
@@ -179,7 +183,7 @@ class RulesEngine:
                 .scalar()
             )
             if count >= rule.max_daily_triggers:
-                logger.debug("daily_limit_reached", rule=rule.name, count=count)
+                logger.info("daily_limit_reached", rule=rule.name, count=count, max=rule.max_daily_triggers)
                 return False
 
         return True

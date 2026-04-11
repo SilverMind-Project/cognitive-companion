@@ -93,6 +93,14 @@ class VisionAnalysisHandler(StepHandler):
                             "Only used when response_format=custom."
                         ),
                     },
+                    "thinking": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "Enable chain-of-thought reasoning. The model reasons inside "
+                            "<think>…</think> tags; only the final answer is stored."
+                        ),
+                    },
                 },
             },
             default_config={
@@ -106,6 +114,7 @@ class VisionAnalysisHandler(StepHandler):
                 "response_format": "default",
                 "response_schema": "",
                 "response_json_schema": "",
+                "thinking": False,
             },
         )
 
@@ -170,11 +179,24 @@ class VisionAnalysisHandler(StepHandler):
                 with suppress(json.JSONDecodeError, TypeError):
                     guided_schema = json.loads(raw_json_schema)
 
+        thinking: bool = bool(config.get("thinking", False))
+
+        raw_temperature = config.get("temperature")
+        raw_top_p = config.get("top_p")
+        raw_max_tokens = config.get("max_tokens")
+        temperature_override = float(raw_temperature) if raw_temperature is not None else None
+        top_p_override = float(raw_top_p) if raw_top_p is not None else None
+        max_tokens_override = int(raw_max_tokens) if raw_max_tokens is not None else None
+
         raw_response = await services.vision_provider.call(
             prompt=prompt,
             media_paths=media_paths,
             media_type=trigger.media_type,
             response_schema=guided_schema,
+            thinking=thinking,
+            temperature=temperature_override,
+            top_p=top_p_override,
+            max_tokens=max_tokens_override,
         )
 
         vision_data = raw_response

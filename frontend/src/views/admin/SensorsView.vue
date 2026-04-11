@@ -94,10 +94,13 @@ const headers = [
 async function loadData() {
   loading.value = true;
   try {
-    [sensors.value, roomOptions.value] = await Promise.all([
+    const [rawSensors, rooms] = await Promise.all([
       api.getSensors(),
       api.getRooms(),
     ]);
+    roomOptions.value = rooms;
+    const roomMap = Object.fromEntries(rooms.map(r => [r.id, r.name]));
+    sensors.value = rawSensors.map(s => ({ ...s, room_name: roomMap[s.room_id] ?? '' }));
   } catch (e) { console.error("Failed to load sensors:", e); sensors.value = []; roomOptions.value = []; }
   loading.value = false;
 }

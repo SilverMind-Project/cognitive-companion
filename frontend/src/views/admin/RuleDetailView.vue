@@ -134,10 +134,30 @@
                 </v-col>
               </template>
               <v-col cols="6" md="3">
-                <v-text-field v-model.number="form.cool_off_minutes" label="Cool-off (min)" type="number" variant="outlined" />
+                <v-text-field v-model.number="form.cool_off_minutes" label="Cool-off (min)" type="number" variant="outlined" hint="Minimum minutes between executions (0 = no limit)" persistent-hint />
               </v-col>
               <v-col cols="6" md="3">
-                <v-text-field v-model.number="form.max_daily_triggers" label="Max Daily" type="number" variant="outlined" />
+                <v-text-field v-model.number="form.max_daily_triggers" label="Max Daily" type="number" variant="outlined" hint="Maximum executions per day (0 = no limit)" persistent-hint />
+              </v-col>
+              <v-col cols="6" md="3">
+                <v-text-field
+                  v-model.number="form.max_concurrent_executions"
+                  label="Max Concurrent"
+                  type="number"
+                  variant="outlined"
+                  hint="Max simultaneous executions (0 = unlimited)"
+                  persistent-hint
+                />
+              </v-col>
+              <v-col cols="6" md="3">
+                <v-text-field
+                  v-model.number="form.execution_timeout_minutes"
+                  label="Timeout (min)"
+                  type="number"
+                  variant="outlined"
+                  hint="Hard time limit per execution (0 = no timeout)"
+                  persistent-hint
+                />
               </v-col>
               <v-col cols="12" md="6">
                 <v-switch v-model="form.enabled" label="Enabled" color="primary" />
@@ -413,6 +433,12 @@
             <template #item.started_at="{ item }">
               {{ formatDate(item.started_at) }}
             </template>
+            <template #item.completed_at="{ item }">
+              {{ item.completed_at ? formatDate(item.completed_at) : '-' }}
+            </template>
+            <template #item._duration="{ item }">
+              {{ formatDuration(item.started_at, item.completed_at) }}
+            </template>
           </v-data-table>
         </v-card>
       </v-window-item>
@@ -448,6 +474,9 @@
                     </div>
                     <div class="text-caption text-medium-emphasis">
                       Started {{ formatDate(liveExecution.started_at) }}
+                      <span v-if="liveExecution.completed_at">
+                        &middot; {{ formatDuration(liveExecution.started_at, liveExecution.completed_at) }}
+                      </span>
                     </div>
                   </div>
                   <v-btn
@@ -646,6 +675,8 @@ const execHeaders = [
   { title: "ID", key: "id" },
   { title: "Status", key: "status" },
   { title: "Started", key: "started_at" },
+  { title: "Completed", key: "completed_at" },
+  { title: "Duration", key: "_duration" },
 ];
 
 // Live execution view (polled while running)
@@ -838,6 +869,8 @@ async function loadRule() {
       primary_sensor_id: rule.value.primary_sensor_id || "",
       cool_off_minutes: rule.value.cool_off_minutes,
       max_daily_triggers: rule.value.max_daily_triggers,
+      max_concurrent_executions: rule.value.max_concurrent_executions ?? 1,
+      execution_timeout_minutes: rule.value.execution_timeout_minutes ?? 5,
       occupancy_config: rule.value.occupancy_config || { min_minutes: 40 },
       telegram_trigger_config: rule.value.telegram_trigger_config || {
         command: "",
@@ -958,6 +991,17 @@ function statusColor(status) {
 function formatDate(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleString();
+}
+
+function formatDuration(startIso, endIso) {
+  if (!startIso || !endIso) return "-";
+  const ms = new Date(endIso) - new Date(startIso);
+  if (ms < 0) return "-";
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const rem = secs % 60;
+  return rem > 0 ? `${mins}m ${rem}s` : `${mins}m`;
 }
 
 watch(tab, (val) => {

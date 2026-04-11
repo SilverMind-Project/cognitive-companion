@@ -250,6 +250,7 @@
                     >{{ cap }}</v-chip>
                     <v-chip size="small" variant="outlined">{{ selectedLLMModel.api_type }}</v-chip>
                     <v-chip v-if="selectedLLMModel.guided_decoding" size="small" color="success" variant="tonal">guided decoding</v-chip>
+                    <v-chip v-if="selectedLLMModel.supports_thinking" size="small" color="purple" variant="tonal">thinking</v-chip>
                   </div>
 
                   <v-textarea
@@ -293,6 +294,13 @@
                     persistent-hint
                   />
                   <v-checkbox v-model="cfg.use_annotated_image" label="Use annotated image" hide-details class="mb-2" />
+                  <v-checkbox
+                    v-model="cfg.thinking"
+                    label="Enable thinking (chain-of-thought)"
+                    hint="The model reasons inside &lt;think&gt;…&lt;/think&gt; tags. Only the final answer is stored."
+                    persistent-hint
+                    class="mb-2"
+                  />
                 </template>
 
                 <!-- notification general -->
@@ -918,9 +926,122 @@
                 </template>
               </v-window-item>
 
-              <!-- Advanced tab (llm_call retry) -->
+              <!-- Advanced tab (llm_call + vision_analysis sampling) -->
               <v-window-item value="advanced">
+
+                <!-- vision_analysis sampling overrides -->
+                <template v-if="localStep.step_type === 'vision_analysis'">
+                  <div class="text-subtitle-2 mb-3">Sampling Overrides</div>
+                  <div class="text-caption text-medium-emphasis mb-4">
+                    Leave blank to use the model default.
+                  </div>
+                  <v-row dense>
+                    <v-col cols="12" sm="4">
+                      <v-text-field
+                        v-model.number="cfg.temperature"
+                        label="Temperature"
+                        type="number"
+                        :min="0"
+                        :max="2"
+                        :step="0.05"
+                        clearable
+                        hint="0 - 2"
+                        persistent-hint
+                      />
+                    </v-col>
+                    <v-col cols="12" sm="4">
+                      <v-text-field
+                        v-model.number="cfg.top_p"
+                        label="Top-p"
+                        type="number"
+                        :min="0"
+                        :max="1"
+                        :step="0.05"
+                        clearable
+                        hint="0 - 1"
+                        persistent-hint
+                      />
+                    </v-col>
+                    <v-col cols="12" sm="4">
+                      <v-text-field
+                        v-model.number="cfg.max_tokens"
+                        label="Max Tokens"
+                        type="number"
+                        :min="1"
+                        clearable
+                        hint="tokens"
+                        persistent-hint
+                      />
+                    </v-col>
+                  </v-row>
+                </template>
+
                 <template v-if="localStep.step_type === 'llm_call'">
+                  <!-- Thinking -->
+                  <v-checkbox
+                    v-if="selectedLLMModel && selectedLLMModel.supports_thinking"
+                    v-model="cfg.thinking"
+                    label="Enable thinking (chain-of-thought)"
+                    hint="The model reasons inside &lt;think&gt;…&lt;/think&gt; tags. Only the final answer is stored."
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <v-divider v-if="selectedLLMModel" class="mb-4" />
+
+                  <!-- Sampling overrides -->
+                  <div class="text-subtitle-2 mb-3">Sampling Overrides</div>
+                  <div class="text-caption text-medium-emphasis mb-4">
+                    Leave blank to use the model default
+                    <span v-if="selectedLLMModel">
+                      (temperature: {{ selectedLLMModel.default_temperature ?? '—' }},
+                      top_p: {{ selectedLLMModel.default_top_p ?? '—' }},
+                      max_tokens: {{ selectedLLMModel.default_max_tokens ?? '—' }})
+                    </span>.
+                  </div>
+
+                  <v-row dense>
+                    <v-col cols="12" sm="4">
+                      <v-text-field
+                        v-model.number="cfg.temperature"
+                        label="Temperature"
+                        type="number"
+                        :min="0"
+                        :max="2"
+                        :step="0.05"
+                        clearable
+                        hint="0 - 2"
+                        persistent-hint
+                      />
+                    </v-col>
+                    <v-col cols="12" sm="4">
+                      <v-text-field
+                        v-model.number="cfg.top_p"
+                        label="Top-p"
+                        type="number"
+                        :min="0"
+                        :max="1"
+                        :step="0.05"
+                        clearable
+                        hint="0 - 1"
+                        persistent-hint
+                      />
+                    </v-col>
+                    <v-col cols="12" sm="4">
+                      <v-text-field
+                        v-model.number="cfg.max_tokens"
+                        label="Max Tokens"
+                        type="number"
+                        :min="1"
+                        clearable
+                        hint="tokens"
+                        persistent-hint
+                      />
+                    </v-col>
+                  </v-row>
+
+                  <v-divider class="my-4" />
+
                   <v-text-field
                     v-model="cfg.hallucination_marker"
                     label="Hallucination Marker"
@@ -1145,6 +1266,7 @@ const tabs = computed(() => {
   } else if (t === "vision_analysis") {
     all.push({ key: "images", label: "Images", icon: "mdi-camera-outline" });
     all.push({ key: "output", label: "Output", icon: "mdi-code-json" });
+    all.push({ key: "advanced", label: "Advanced", icon: "mdi-tune" });
   } else if (t === "notification") {
     all.push({ key: "templates", label: "Templates", icon: "mdi-message-text-outline" });
     all.push({ key: "channels", label: "Channel Options", icon: "mdi-tune" });
@@ -1213,6 +1335,10 @@ const fallbackDefaults = {
     response_format: "default",
     response_schema: "",
     response_json_schema: "",
+    thinking: false,
+    temperature: null,
+    top_p: null,
+    max_tokens: null,
   },
   notification: {
     alert_level: "warning",
@@ -1286,6 +1412,10 @@ const fallbackDefaults = {
     output_key: "llm_response",
     special_instructions: "",
     hallucination_marker: "",
+    thinking: false,
+    temperature: null,
+    top_p: null,
+    max_tokens: null,
   },
 };
 
@@ -1673,6 +1803,14 @@ function save() {
 .step-config-content {
   overflow-y: auto;
   min-width: 0;
+}
+
+/* Vuetify's v-window clips overflow for slide transitions, which cuts off
+   the top of floating labels and hints on the first form field. Allow
+   overflow so labels render fully; the scroll container above handles clipping. */
+.step-config-content :deep(.v-window),
+.step-config-content :deep(.v-window__container) {
+  overflow: visible !important;
 }
 
 .step-config-vars {

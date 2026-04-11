@@ -98,6 +98,10 @@ class LLMModelOut(BaseModel):
     api_type: str
     capabilities: list[str]
     guided_decoding: bool
+    supports_thinking: bool
+    default_temperature: float | None
+    default_top_p: float | None
+    default_max_tokens: int
 
 
 @router.get("/llm-models", response_model=list[LLMModelOut])
@@ -116,6 +120,10 @@ def list_llm_models(
             api_type=cfg.api_type,
             capabilities=cfg.capabilities,
             guided_decoding=cfg.guided_decoding,
+            supports_thinking=cfg.supports_thinking,
+            default_temperature=cfg.temperature,
+            default_top_p=cfg.top_p,
+            default_max_tokens=cfg.max_tokens,
         )
         for cfg in registry.all_configs()
     ]

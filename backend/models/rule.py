@@ -45,6 +45,12 @@ class Rule(Base):
     cool_off_minutes: Mapped[int] = mapped_column(Integer, default=5)
     max_daily_triggers: Mapped[int] = mapped_column(Integer, default=3)
 
+    # Concurrency & execution limits
+    # 0 = unlimited concurrent executions; default 1 (at most one running at a time)
+    max_concurrent_executions: Mapped[int] = mapped_column(Integer, default=1)
+    # 0 = no timeout; default 5 minutes
+    execution_timeout_minutes: Mapped[int] = mapped_column(Integer, default=5)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

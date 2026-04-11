@@ -3,6 +3,19 @@
 telegram:
   bot_token: "${TELEGRAM_BOT_TOKEN}"
   max_image_side: 1920  # downscale longest side (px); 0 = no scaling
+  trigger_poll_interval_seconds: 30
+
+  # Whitelist of Telegram chat IDs that may trigger any telegram-type rule.
+  # Individual rules may specify their own allowed_chat_ids to further restrict
+  # access; when a rule's list is empty the service falls back to this list.
+  # Both the caregiver channel and the OpenClaw agent channel are included so
+  # that either can send commands. Remove entries to tighten the perimeter.
+  # An EMPTY list is treated as "no whitelist configured" and will BLOCK all
+  # commands — never as "allow all".
+  trigger_allowed_chat_ids:
+    - "${TELEGRAM_CAREGIVER_CHAT_ID}"
+    - "${TELEGRAM_OPENCLAW_CHAT_ID}"
+
   targets:
     - chat_id: "${TELEGRAM_CAREGIVER_CHAT_ID}"
       name: "Caregiver"

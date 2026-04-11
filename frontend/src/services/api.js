@@ -243,6 +243,7 @@ export const api = {
 
   // Admin
   reloadConfig: () => request("/admin/config/reload", { method: "POST" }),
+  getTelegramTriggerDefaults: () => request("/admin/telegram/trigger-defaults"),
 
   /**
    * Return public application metadata (name, version, timezone).

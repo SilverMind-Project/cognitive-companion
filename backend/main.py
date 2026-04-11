@@ -340,6 +340,8 @@ async def lifespan(app: FastAPI):
         )
         app.state.telegram_trigger = telegram_trigger
 
+        await telegram_client.setup_polling()
+
         tg_poll_interval = settings.get("notifications.telegram.trigger_poll_interval_seconds", 5)
         scheduler.add_job(
             telegram_trigger.poll,

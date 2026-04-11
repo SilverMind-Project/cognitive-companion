@@ -121,8 +121,14 @@
                     multiple
                     chips
                     closable-chips
-                    hint="Telegram chat IDs allowed to trigger this rule. Leave empty to allow any chat."
+                    :hint="
+                      form.telegram_trigger_config.allowed_chat_ids?.length
+                        ? 'Telegram chat IDs authorised to trigger this rule.'
+                        : 'Required — at least one chat ID must be specified.'
+                    "
                     persistent-hint
+                    :error="!form.telegram_trigger_config.allowed_chat_ids?.length"
+                    :rules="[v => (Array.isArray(v) && v.length > 0) || 'At least one chat ID is required']"
                   />
                 </v-col>
                 <v-col cols="12" md="6">
@@ -623,6 +629,7 @@ const allSensors = ref([]);
 const allRooms = ref([]);
 const allRules = ref([]);
 const allPersons = ref([]);
+const telegramDefaultChatIds = ref([]);
 
 const sensorItems = computed(() =>
   allSensors.value.map((s) => ({
@@ -879,14 +886,29 @@ async function loadRule() {
       max_concurrent_executions: rule.value.max_concurrent_executions ?? 1,
       execution_timeout_minutes: rule.value.execution_timeout_minutes ?? 5,
       occupancy_config: rule.value.occupancy_config || { min_minutes: 40 },
-      telegram_trigger_config: rule.value.telegram_trigger_config || {
-        command: "",
-        allowed_chat_ids: [],
-        respond_with_ack: true,
-      },
+      telegram_trigger_config: (() => {
+        const cfg = rule.value.telegram_trigger_config || {};
+        const ids = cfg.allowed_chat_ids?.length
+          ? cfg.allowed_chat_ids
+          : telegramDefaultChatIds.value;
+        return {
+          command: cfg.command ?? "",
+          allowed_chat_ids: [...ids],
+          respond_with_ack: cfg.respond_with_ack ?? true,
+        };
+      })(),
     };
   } catch (e) {
     notify(e.message, "error");
+  }
+}
+
+async function loadTelegramDefaults() {
+  try {
+    const data = await api.getTelegramTriggerDefaults();
+    telegramDefaultChatIds.value = data?.allowed_chat_ids ?? [];
+  } catch {
+    telegramDefaultChatIds.value = [];
   }
 }
 
@@ -904,6 +926,13 @@ async function loadReferenceData() {
 }
 
 async function saveSettings() {
+  if (form.value.trigger_type === "telegram") {
+    const ids = form.value.telegram_trigger_config?.allowed_chat_ids ?? [];
+    if (!ids.length) {
+      notify("Allowed Chat IDs are required for Telegram trigger rules.", "error");
+      return;
+    }
+  }
   try {
     await api.updateRule(ruleId.value, form.value);
     await loadRule();
@@ -1012,7 +1041,23 @@ watch(tab, (val) => {
   if (val === "executions") loadExecutions();
 });
 
-onMounted(() => {
+// Back-fill system defaults into the form as soon as they arrive from the API.
+// Runs whether the defaults load before or after the rule data.
+watch(telegramDefaultChatIds, (defaults) => {
+  if (
+    form.value.trigger_type === "telegram" &&
+    !form.value.telegram_trigger_config?.allowed_chat_ids?.length &&
+    defaults.length
+  ) {
+    form.value.telegram_trigger_config = {
+      ...form.value.telegram_trigger_config,
+      allowed_chat_ids: [...defaults],
+    };
+  }
+});
+
+onMounted(async () => {
+  await loadTelegramDefaults();   // must resolve before loadRule so the IIFE sees the defaults
   loadRule();
   loadReferenceData();
 });

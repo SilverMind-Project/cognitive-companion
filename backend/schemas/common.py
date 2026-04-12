@@ -28,7 +28,10 @@ def _to_utc_iso(v: datetime | None) -> str | None:
     """Serialise *v* as a UTC ISO-8601 string with a trailing ``Z``."""
     if v is None:
         return None
-    return normalize_utc_datetime(v).isoformat().replace("+00:00", "Z")
+    normalized = normalize_utc_datetime(v)
+    if normalized is None:
+        return None
+    return normalized.isoformat().replace("+00:00", "Z")
 
 
 #: Drop-in replacement for ``datetime`` in Pydantic output schemas.

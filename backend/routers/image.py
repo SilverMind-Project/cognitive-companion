@@ -4,6 +4,7 @@ eInk display image endpoints  per-device serving, template CRUD, rendering.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from io import BytesIO
@@ -16,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
+from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
@@ -46,28 +48,61 @@ _DEFAULT_TEMPLATE = _TEMPLATES_DIR / "default.png"
 # ---------------------------------------------------------------------------
 
 
-def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> FileResponse:
-    """Serve the active image for a sensor, falling back to default if expired."""
+def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> Response:
+    """Serve the active image for a sensor, suppressing refresh when unchanged.
+
+    Returns 204 No Content when the image hash matches what was last delivered
+    to this device and the forced-refresh window has not yet elapsed, so the
+    e-ink display can skip its pixel-refresh cycle.
+    """
     eink_renderer = request.app.state.eink_renderer
+    refresh_window_minutes: int = settings.get("image.refresh_window_minutes", 60)
 
     state = db.execute(
         select(ActiveImageState).where(ActiveImageState.sensor_id == sensor_id)
     ).scalar_one_or_none()
 
     now = datetime.now(UTC)
-    if state and state.expires_at and state.expires_at < now and _DEFAULT_TEMPLATE.exists():
-        # Expired  serve default
-        return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
 
-    active_path = eink_renderer.get_active_image_path(sensor_id)
-    if active_path.exists():
-        return FileResponse(active_path, media_type="image/png")
+    # --- Determine which image file to serve ---
+    if state and state.expires_at and state.expires_at < now:
+        # Content has expired — fall back to the default template
+        serve_path: Path | None = _DEFAULT_TEMPLATE if _DEFAULT_TEMPLATE.exists() else None
+    else:
+        active_path = eink_renderer.get_active_image_path(sensor_id)
+        if active_path.exists():
+            serve_path = active_path
+        elif _DEFAULT_TEMPLATE.exists():
+            serve_path = _DEFAULT_TEMPLATE
+        else:
+            serve_path = None
 
-    # Fallback to default template
-    if _DEFAULT_TEMPLATE.exists():
-        return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
+    if serve_path is None:
+        raise NotFoundError("Image", f"active_{sensor_id}.png")
 
-    raise NotFoundError("Image", f"active_{sensor_id}.png")
+    # --- Decide whether the display actually needs a pixel refresh ---
+    image_bytes = serve_path.read_bytes()
+    content_hash = hashlib.sha256(image_bytes).hexdigest()
+
+    if (
+        state is not None
+        and state.last_served_hash == content_hash
+        and state.last_served_at is not None
+        and (now - state.last_served_at).total_seconds() < refresh_window_minutes * 60
+    ):
+        logger.debug("eink_no_refresh", sensor_id=sensor_id)
+        return Response(status_code=204)
+
+    # --- Content changed or window elapsed — deliver image and record it ---
+    if state is None:
+        state = ActiveImageState(sensor_id=sensor_id)
+        db.add(state)
+    state.last_served_hash = content_hash
+    state.last_served_at = now
+    db.commit()
+
+    logger.debug("eink_refresh", sensor_id=sensor_id, hash=content_hash[:8])
+    return Response(content=image_bytes, media_type="image/png")
 
 
 @router.get("/active")

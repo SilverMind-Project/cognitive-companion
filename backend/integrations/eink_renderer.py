@@ -45,11 +45,11 @@ class EInkRenderer:
         )
         self._images_dir = Path(output_dir) if output_dir else _backend_dir / "assets" / "images"
         self._fonts_dir = Path(font_dir) if font_dir else _backend_dir / "assets" / "fonts"
-        self._default_font = settings.get("image.default_font", "NotoSansTamil-Regular.ttf")
-        self._default_template = settings.get("image.default_template", "default")
-        self._default_expiry = settings.get("image.default_expiry_minutes", 15)
-        self._display_width = settings.get("image.display_width", 800)
-        self._display_height = settings.get("image.display_height", 480)
+        self._default_font = settings.get("image.default_font")
+        self._default_template = settings.get("image.default_template")
+        self._default_expiry = settings.get("image.default_expiry_minutes")
+        self._display_width = settings.get("image.display_width")
+        self._display_height = settings.get("image.display_height")
 
     # ------------------------------------------------------------------
     # Public API
@@ -128,7 +128,7 @@ class EInkRenderer:
         font_filename: str,
     ) -> bytes:
         """Render text onto provided raw image bytes (no DB lookup needed)."""
-        img = Image.open(BytesIO(image_bytes))
+        img: Image.Image = Image.open(BytesIO(image_bytes))
         img = img.resize(
             (self._display_width, self._display_height), Image.Resampling.LANCZOS
         )

@@ -137,8 +137,6 @@ async def lifespan(app: FastAPI):
     from backend.integrations.llm import LLMModelRegistry, get_provider
 
     vision_provider = get_provider(settings.get("llm.vision.provider"))
-    logic_provider = get_provider(settings.get("llm.logic.provider"))
-    translation_provider = get_provider(settings.get("llm.translation.provider"))
 
     # -- Named model registry (for the unified llm_call step) --------------
     llm_model_registry = LLMModelRegistry()
@@ -228,8 +226,6 @@ async def lifespan(app: FastAPI):
         person_tracking=person_tracking,
         person_id_client=person_id_client,
         vision_provider=vision_provider,
-        logic_provider=logic_provider,
-        translation_provider=translation_provider,
         notification_dispatcher=notifier,
         ha_client=ha_client,
         event_aggregator=event_aggregator,

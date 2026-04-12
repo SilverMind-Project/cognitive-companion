@@ -69,8 +69,6 @@ class ServiceContainer:
     person_tracking: Any = None
     person_id_client: Any = None
     vision_provider: Any = None
-    logic_provider: Any = None
-    translation_provider: Any = None
     notification_dispatcher: Any = None
     ha_client: Any = None
     event_aggregator: Any = None

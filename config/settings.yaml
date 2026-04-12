@@ -28,18 +28,6 @@ llm:
     model: "nvidia/Cosmos-Reason2-8B"
     timeout: 120
 
-  logic:
-    provider: "ollama"
-    url: "${LOGIC_MODEL_URL}"
-    model: "gemma3:4b"
-    timeout: 60
-
-  translation:
-    provider: "vllm_translation"
-    url: "${TRANSLATE_MODEL_URL}"
-    model: "Infomaniak-AI/vllm-translategemma-12b-it"
-    timeout: 60
-
   # Named model registry for the unified llm_call pipeline step.
   # Each entry is independently selectable per step via its id.
   #

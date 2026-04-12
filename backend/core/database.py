@@ -19,7 +19,8 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.core.config import settings
@@ -29,6 +30,32 @@ __all__ = ["Base", "Database", "get_db", "get_session", "init_db", "reset_defaul
 
 class Base(DeclarativeBase):
     """Shared declarative base for all ORM models."""
+
+
+_COLUMN_MIGRATIONS: tuple[str, ...] = (
+    # Each statement adds a nullable column that may not yet exist in an
+    # already-running database.  The statements are idempotent: if the column
+    # is already present the OperationalError is swallowed and the transaction
+    # is rolled back cleanly.
+    "ALTER TABLE active_image_state ADD COLUMN last_served_hash VARCHAR(64)",
+    "ALTER TABLE active_image_state ADD COLUMN last_served_at DATETIME",
+)
+
+
+def _apply_column_migrations(engine: Engine) -> None:
+    """Add new nullable columns to existing tables without Alembic.
+
+    Each statement is executed in its own savepoint so a ``column already
+    exists`` error on one column does not abort the rest.
+    """
+    with engine.connect() as conn:
+        for stmt in _COLUMN_MIGRATIONS:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except OperationalError:
+                # Column already present — safe to ignore.
+                conn.rollback()
 
 
 def _install_sqlite_pragmas(engine: Engine) -> None:
@@ -97,10 +124,13 @@ class Database:
 
         Imports :mod:`backend.models` so all ORM classes have had a chance to
         register themselves with ``Base.metadata`` before we issue DDL.
+        Then applies lightweight column-level migrations for databases that
+        pre-date newly added nullable columns.
         """
         import backend.models  # noqa: F401  — populates Base.metadata
 
         Base.metadata.create_all(bind=self._engine)
+        _apply_column_migrations(self._engine)
 
     # -- sessions -------------------------------------------------------------
 

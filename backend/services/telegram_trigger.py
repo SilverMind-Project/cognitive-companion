@@ -53,11 +53,14 @@ _ACK_TEMPLATE = "Running rule: <b>{name}</b>"
 
 
 class _TelegramClient(Protocol):
-    configured: bool
+    @property
+    def configured(self) -> bool: ...
 
     async def get_updates(self, *, offset: int | None, timeout: int) -> list[dict[str, Any]]: ...
 
-    async def send_message(self, chat_id: str, text: str) -> None: ...
+    async def send_message(
+        self, chat_id: str | int, text: str, parse_mode: str | None = ...
+    ) -> bool: ...
 
 
 class _PipelineExecutor(Protocol):

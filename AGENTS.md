@@ -545,6 +545,15 @@ class YourChannel(NotificationChannel):
 3. `EInkRenderer` resolves the template (DB or filesystem), renders text into regions via PIL, saves per-device PNGs
 4. ESPHome devices poll `GET /api/v1/image/active` with their device key, receiving their specific image
 
+**Refresh suppression:**
+
+E-ink displays perform a full pixel refresh on every image they receive, which is visually disruptive. The endpoint suppresses unnecessary refreshes:
+
+- On each poll, `_serve_image_for_sensor` computes a SHA-256 hash of the image file it would serve.
+- If the hash matches `ActiveImageState.last_served_hash` AND `last_served_at` is within `image.refresh_window_minutes` (default 60), the endpoint returns `204 No Content`. The device driver should treat a 204 as a no-op.
+- When content changes or the window elapses, the image is delivered and `last_served_hash` / `last_served_at` are updated.
+- Set `refresh_window_minutes: 0` in `config/settings.yaml` to disable suppression entirely.
+
 **Adding a new eink device:**
 
 1. Add a device key entry in `config/auth.yaml` with `image:read` permission and a `sensor_id`
@@ -604,9 +613,9 @@ Fields: `id`, `name`, `description`, `width`, `height`, `image_filename`, `font_
 
 ### ActiveImageState (backend/models/image_state.py)
 
-Fields: `id`, `sensor_id` (unique), `template_id`, `rendered_text`, `expires_at`, `created_at`, `updated_at`.
+Fields: `id`, `sensor_id` (unique), `template_id`, `rendered_text`, `expires_at`, `created_at`, `updated_at`, `last_served_hash`, `last_served_at`.
 
-One row per eink display device. Links a sensor to its current rendered state and template.
+One row per eink display device. Links a sensor to its current rendered state and template. `last_served_hash` (SHA-256 hex) and `last_served_at` (UTC) track the last image actually delivered to the device and are used by the refresh-suppression logic in `GET /image/active`.
 
 ## Code Style
 
@@ -622,7 +631,7 @@ One row per eink display device. Links a sensor to its current rendered state an
 - Backend: `pytest` + `pytest-asyncio` + `pytest-cov` (configured in `pyproject.toml`)
 - Place tests in `backend/tests/` mirroring the `backend/` structure (e.g., `tests/services/test_rules_engine.py`)
 - `backend/tests/conftest.py` provides `db_engine`, `db_session`, and `db_factory` fixtures backed by an in-memory SQLite instance
-- `backend/tests/core/` holds the `backend.core` test suite (113 tests, ~98% branch coverage) — the primary reference for how the core layer expects to be consumed
+- `backend/tests/core/` holds the `backend.core` test suite (113+ tests, ~98% branch coverage) — the primary reference for how the core layer expects to be consumed
 - Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone-mismatch when comparing timestamps stored as UTC strings in SQLite
 - Run with: `uv run pytest` or, from the repo root, any of the Makefile targets:
   - `make test` -- full backend suite
@@ -697,7 +706,7 @@ mock external dependencies (ffmpeg, channel registry) via `monkeypatch`.
 
 ## Do NOT
 
-- **Run migrations** -- delete `data/cognitive_companion.db` and restart instead
+- **Run structural migrations** -- for new tables or dropped columns, delete `data/cognitive_companion.db` and restart. For adding new nullable columns to existing tables, append an `ALTER TABLE ... ADD COLUMN` statement to `_COLUMN_MIGRATIONS` in `backend/core/database.py` instead; `Database.create_all()` runs these automatically at startup.
 - **Use `print()`** -- use `structlog` via `get_logger()`
 - **Instantiate services in routers** -- access them from `request.app.state`
 - **Add dependencies without updating `pyproject.toml` and running `uv lock`** (backend) or `package.json` (frontend)

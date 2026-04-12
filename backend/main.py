@@ -33,7 +33,7 @@ def _upsert_device_key_sensors() -> None:
     """
     from backend.models.sensor import Sensor
 
-    device_keys = settings.get("auth.device_keys", []) or []
+    device_keys = settings.get("auth.device_keys")
     if not device_keys:
         return
 

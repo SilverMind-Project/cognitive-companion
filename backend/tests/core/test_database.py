@@ -12,6 +12,7 @@ from backend.core import database as db_module
 from backend.core.database import (
     Base,
     Database,
+    _apply_column_migrations,
     get_db,
     get_session,
     init_db,
@@ -102,6 +103,65 @@ class TestSqlitePragmas:
         d = Database(f"sqlite:///{nested}")
         try:
             assert nested.parent.exists()
+        finally:
+            d.dispose()
+
+
+class TestApplyColumnMigrations:
+    """``_apply_column_migrations`` adds nullable columns to existing tables."""
+
+    def test_idempotent_when_columns_already_exist(self) -> None:
+        """Running migrations on a schema that already has all columns must not raise."""
+        import backend.models  # noqa: F401 -- registers ActiveImageState with Base
+
+        d = Database("sqlite:///:memory:")
+        try:
+            Base.metadata.create_all(bind=d.engine)
+            # Columns were created by create_all; second call must succeed silently.
+            _apply_column_migrations(d.engine)
+        finally:
+            d.dispose()
+
+    def test_adds_missing_columns(self, tmp_path: Path) -> None:
+        """Columns absent from an older schema are added by the migration."""
+        db_path = tmp_path / "old_schema.db"
+        d = Database(f"sqlite:///{db_path}")
+        try:
+            # Create a minimal active_image_state table without the new columns,
+            # simulating a database that pre-dates the refresh-suppression feature.
+            with d.engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "CREATE TABLE active_image_state ("
+                        "  id INTEGER PRIMARY KEY,"
+                        "  sensor_id VARCHAR(128) UNIQUE"
+                        ")"
+                    )
+                )
+                conn.commit()
+
+            _apply_column_migrations(d.engine)
+
+            with d.engine.connect() as conn:
+                col_names = {
+                    row[1]
+                    for row in conn.execute(
+                        text("PRAGMA table_info(active_image_state)")
+                    )
+                }
+
+            assert "last_served_hash" in col_names
+            assert "last_served_at" in col_names
+        finally:
+            d.dispose()
+
+    def test_skips_gracefully_when_table_absent(self) -> None:
+        """OperationalError from a missing table is caught; no exception propagates."""
+        d = Database("sqlite:///:memory:")
+        try:
+            # No tables created -- the migration statements will hit
+            # "no such table: active_image_state", which is an OperationalError.
+            _apply_column_migrations(d.engine)
         finally:
             d.dispose()
 

@@ -1,14 +1,43 @@
 """
-Abstract base classes for LLM providers.
+Abstract base classes and shared utilities for LLM providers.
 """
 
 from __future__ import annotations
 
+import base64
+import mimetypes
 import re
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+import httpx
+
+# ---------------------------------------------------------------------------
+# Shared image helper
+# ---------------------------------------------------------------------------
+
+
+async def encode_image_data_uri(path: str) -> str:
+    """Convert a local file path or HTTP(S) URL to a ``data:<mime>;base64,...`` URI.
+
+    Fetches remote images via HTTP; reads local images directly from disk.
+    Used by vision-capable providers to inline images in API payloads.
+    """
+    if path.startswith(("http://", "https://")):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(path)
+            response.raise_for_status()
+        raw = response.content
+        mime = response.headers.get("content-type", "").split(";")[0].strip() or "image/jpeg"
+    else:
+        mime, _ = mimetypes.guess_type(path)
+        mime = mime or "image/jpeg"
+        raw = Path(path).read_bytes()
+    return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
+
 
 # ---------------------------------------------------------------------------
 # Shared chain-of-thought helpers

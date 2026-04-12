@@ -11,31 +11,23 @@ Guided decoding:
 
 from __future__ import annotations
 
-import base64
 import json
-import mimetypes
-from pathlib import Path
 from typing import Any
 
 import httpx
 from tenacity import AsyncRetrying, RetryError, retry_if_result, stop_after_attempt
 
 from backend.core.logging import get_logger
-from backend.integrations.llm.base import THINKING_INSTRUCTION, LLMProvider, strip_thinking
+from backend.integrations.llm.base import (
+    THINKING_INSTRUCTION,
+    LLMProvider,
+    encode_image_data_uri,
+    strip_thinking,
+)
 
 logger = get_logger(__name__)
 
 _DEFAULT_TIMEOUT = 120.0
-
-
-def _encode_image_data_uri(path: str) -> str:
-    """Read an image file and return a ``data:<mime>;base64,...`` URI."""
-    mime, _ = mimetypes.guess_type(path)
-    if mime is None:
-        mime = "image/jpeg"
-    raw = Path(path).read_bytes()
-    b64 = base64.b64encode(raw).decode()
-    return f"data:{mime};base64,{b64}"
 
 
 class OpenAICompatibleProvider(LLMProvider):
@@ -138,7 +130,7 @@ class OpenAICompatibleProvider(LLMProvider):
                         )
             else:
                 for img in media_paths:
-                    data_uri = _encode_image_data_uri(img)
+                    data_uri = await encode_image_data_uri(img)
                     content.append(
                         {
                             "type": "image_url",

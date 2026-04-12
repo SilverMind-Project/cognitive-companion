@@ -17,3 +17,4 @@ frontend/dist/
 .pytest_cache/
 .mypy_cache/
 kubernetes/local/
+.vscode/

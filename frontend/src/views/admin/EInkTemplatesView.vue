@@ -10,9 +10,7 @@
       </div>
       <v-spacer />
       <v-btn variant="tonal" prepend-icon="mdi-refresh" class="mr-2" @click="load">Refresh</v-btn>
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">
-        New Template
-      </v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">New Template</v-btn>
     </div>
 
     <!-- ── Device Status Panel ─────────────────────────────────────────── -->

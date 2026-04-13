@@ -6,6 +6,7 @@
         <div class="text-body-2 text-medium-emphasis mt-1">People the system recognizes, with their enrollment and live status.</div>
       </div>
       <v-spacer />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" class="mr-2" @click="loadLocations" :loading="locLoading">Refresh</v-btn>
       <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Add Member</v-btn>
     </div>
 
@@ -96,11 +97,6 @@
             </v-alert>
           </v-col>
         </v-row>
-        <div class="d-flex justify-end mt-3">
-          <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadLocations" :loading="locLoading">
-            Refresh
-          </v-btn>
-        </div>
       </v-window-item>
     </v-window>
 

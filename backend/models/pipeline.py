@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -97,7 +98,14 @@ class WorkflowExecution(Base):
     current_step_id: Mapped[int | None] = mapped_column(
         ForeignKey("pipeline_steps.id"), nullable=True
     )
-    pipeline_data_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    # MutableDict.as_mutable(JSON) is required: PipelineExecutor mutates this
+    # dict in place across multiple commits, and plain JSON columns do not
+    # track in-place mutations. Without it, writes from the second step
+    # onwards silently drop on the floor while the row is marked "completed",
+    # because the session factory runs with expire_on_commit=False.
+    pipeline_data_json: Mapped[dict] = mapped_column(
+        MutableDict.as_mutable(JSON), default=dict
+    )
     started_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(

@@ -135,7 +135,6 @@ class VLLMVisionProvider(LLMProvider):
             num_images=sum(1 for c in content if c["type"] == "image_url"),
             max_tokens=payload["max_tokens"],
         )
-        logger.info(f"payload keys: {payload.keys}")
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
@@ -150,7 +149,6 @@ class VLLMVisionProvider(LLMProvider):
             text = strip_thinking(text)
         logger.debug("vllm_vision_response", length=len(text))
         return text
-
 
 # ---------------------------------------------------------------------------
 # VLLMTranslationProvider

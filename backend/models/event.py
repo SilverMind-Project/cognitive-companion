@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import JSON, ForeignKey, Index, String, func
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -22,7 +23,11 @@ class EventLog(Base):
     room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     trigger_type: Mapped[str] = mapped_column(String(32))  # sensor_event, cron, sensor_poll, manual
     media_paths_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    pipeline_data_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # See the matching comment on WorkflowExecution.pipeline_data_json for
+    # why this column uses MutableDict.as_mutable(JSON) rather than plain JSON.
+    pipeline_data_json: Mapped[dict | None] = mapped_column(
+        MutableDict.as_mutable(JSON), nullable=True
+    )
     status: Mapped[str] = mapped_column(
         String(32), index=True
     )  # processing, completed, ignored, failed

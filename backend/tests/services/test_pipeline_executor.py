@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
+from backend.models.event import EventLog
 from backend.models.pipeline import PipelineStep
 from backend.models.rule import Rule
 from backend.services.pipeline_executor import PipelineExecutor
@@ -217,9 +218,13 @@ class TestPipelineExecutorErrors:
         assert result.status == "failed"
         assert "step exploded" in (result.error or "")
 
-    async def test_unknown_step_type_returns_false_and_stops(self, db_session, db_factory):
-        """An unregistered step type should not cause an unhandled exception;
-        execution should stop gracefully."""
+    async def test_unknown_step_type_routes_to_failed(self, db_session, db_factory):
+        """An unregistered step type must surface as a failure, not a silent
+        ``completed``. ``StepRegistry.get`` returns ``None`` so the executor
+        synthesises ``StepResult(success=False, should_continue=False)`` and
+        the early-exit branch routes that to ``status=failed`` on both the
+        execution and the event log.
+        """
         rule = _make_rule(db_session)
         _make_step(db_session, rule, order=1, step_type="definitely_not_registered")
         db_session.commit()
@@ -227,11 +232,14 @@ class TestPipelineExecutorErrors:
         executor = _make_executor(db_factory)
         trigger = _make_trigger()
 
-        # _execute_step dispatches to StepRegistry; unknown type returns StepResult(success=False)
         result = await executor.execute(rule, trigger, db_session)
 
-        # Pipeline completes but with early exit (should_continue=False from unknown handler)
-        assert result.status == "completed"
+        assert result.status == "failed"
+        event_log = (
+            db_session.query(EventLog).filter(EventLog.id == result.event_log_id).first()
+        )
+        assert event_log is not None
+        assert event_log.status == "failed"
 
 
 class TestPipelineExecutorStepTiming:
@@ -484,3 +492,278 @@ class TestPipelineExecutorTimeout:
 
         assert "1 minute" in result.error
         assert "minutes" not in result.error
+
+
+class TestPipelineExecutorPersistence:
+    """Regression suite for SQLAlchemy JSON change detection.
+
+    The session factory runs with ``expire_on_commit=False``, so after a
+    commit the ORM keeps its existing Python references rather than reloading
+    from the database. Before the MutableDict fix, ``_run_steps`` passed a
+    shallow copy of ``pipeline_data_json`` around and reassigned the same
+    reference on every iteration. SQLAlchemy's equality-based dirty check saw
+    no change on iterations 2+ and silently dropped every mutation from the
+    second step onwards, while the scalar ``status`` and ``completed_at``
+    columns still flushed. The row ended up marked ``completed`` with a
+    ``pipeline_data_json`` frozen at the end of the first step.
+
+    These tests drive the executor across two or more steps and then read the
+    row back to verify every write was persisted. ``db_session.refresh``
+    bypasses any in-memory attribute state so a missing flush surfaces as a
+    failed assertion instead of a false pass.
+    """
+
+    async def test_multi_step_pipeline_data_persists_across_commits(
+        self, db_session, db_factory
+    ):
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="step_a")
+        _make_step(db_session, rule, order=2, step_type="step_b")
+        _make_step(db_session, rule, order=3, step_type="step_c")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            return StepResult(success=True, data={f"from_{step.step_type}": True})
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        # Force a round-trip through the database so stale in-memory state
+        # cannot mask a missing flush.
+        db_session.refresh(execution)
+        data = execution.pipeline_data_json
+
+        assert data["from_step_a"] is True
+        assert data["from_step_b"] is True
+        assert data["from_step_c"] is True
+
+        timings = data.get("_step_timings", [])
+        assert [t["step_type"] for t in timings] == ["step_a", "step_b", "step_c"]
+        assert all(t["success"] is True for t in timings)
+
+    async def test_pipeline_completed_at_persists_after_reload(
+        self, db_session, db_factory
+    ):
+        """Nested mutation of ``_pipeline.completed_at`` must land on disk.
+
+        ``MutableDict`` only tracks top-level ``__setitem__`` / ``update``
+        calls; ``pipeline_data['_pipeline']['completed_at'] = ...`` is a
+        nested write, so the executor must call ``flag_modified`` for the
+        change to survive ``db.refresh``.
+        """
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="step_a")
+        _make_step(db_session, rule, order=2, step_type="step_b")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        with patch.object(
+            executor,
+            "_execute_step",
+            new_callable=AsyncMock,
+            return_value=StepResult(success=True),
+        ):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        db_session.refresh(execution)
+        pipeline_block = execution.pipeline_data_json.get("_pipeline", {})
+        assert pipeline_block.get("completed_at") is not None
+        # Must be an ISO timestamp, not the null placeholder from execute().
+        assert pipeline_block["completed_at"] != ""
+        datetime_like = pipeline_block["completed_at"]
+        assert "T" in datetime_like
+
+    async def test_event_log_snapshot_contains_final_pipeline_data(
+        self, db_session, db_factory
+    ):
+        """The event log snapshot written on completion must include every
+        step's output, not just the first step's. Regression for the drift
+        between ``WorkflowExecution.pipeline_data_json`` and
+        ``EventLog.pipeline_data_json`` when iterations 2+ were lost."""
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="step_a")
+        _make_step(db_session, rule, order=2, step_type="step_b")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            return StepResult(success=True, data={f"from_{step.step_type}": True})
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        event_log = (
+            db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
+        )
+        assert event_log is not None
+        db_session.refresh(event_log)
+
+        payload = event_log.pipeline_data_json or {}
+        assert payload.get("from_step_a") is True
+        assert payload.get("from_step_b") is True
+
+
+class TestPipelineExecutorEarlyExit:
+    """Early-exit routing based on ``StepResult.success``.
+
+    A step can request ``should_continue=False`` for two unrelated reasons:
+    it intentionally skipped (``success=True``) or it errored out
+    (``success=False``). The executor must distinguish these so rate-limit,
+    cool-off, and UI status tracking stay accurate.
+    """
+
+    async def test_success_skip_marks_event_log_ignored(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="step_a")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        with patch.object(
+            executor,
+            "_execute_step",
+            new_callable=AsyncMock,
+            return_value=StepResult(
+                success=True,
+                should_continue=False,
+                data={"skip_reason": "target_person_not_detected"},
+            ),
+        ):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        assert execution.status == "completed"
+        event_log = (
+            db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
+        )
+        assert event_log is not None
+        assert event_log.status == "ignored"
+        # The skip_reason must be preserved in the event log snapshot so the
+        # UI can explain *why* an event was ignored without reading live state.
+        assert (event_log.pipeline_data_json or {}).get("skip_reason") == (
+            "target_person_not_detected"
+        )
+
+    async def test_failure_early_exit_marks_execution_and_event_log_failed(
+        self, db_session, db_factory
+    ):
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="step_a")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        with patch.object(
+            executor,
+            "_execute_step",
+            new_callable=AsyncMock,
+            return_value=StepResult(success=False, should_continue=False),
+        ):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        assert execution.status == "failed"
+        event_log = (
+            db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
+        )
+        assert event_log is not None
+        assert event_log.status == "failed"
+
+    async def test_early_exit_sets_completed_at_on_execution(self, db_session, db_factory):
+        """Both branches of the early exit (skip vs failure) must stamp
+        ``completed_at`` so the workflow isn't left in limbo."""
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="step_a")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+
+        with patch.object(
+            executor,
+            "_execute_step",
+            new_callable=AsyncMock,
+            return_value=StepResult(success=False, should_continue=False),
+        ):
+            execution = await executor.execute(rule, _make_trigger(), db_session)
+
+        db_session.refresh(execution)
+        assert execution.completed_at is not None
+        block = execution.pipeline_data_json.get("_pipeline", {})
+        assert block.get("completed_at") is not None
+
+    async def test_skip_reason_logged_on_early_exit(self, db_session, db_factory):
+        """Operators need to see *why* a pipeline bailed early without
+        digging into the JSON payload. The ``pipeline_early_exit`` log line
+        should carry both the routed event log status and the skip_reason.
+        """
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="step_a")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        import backend.services.pipeline_executor as pe_module
+
+        with (
+            patch.object(pe_module, "logger") as mock_logger,
+            patch.object(
+                executor,
+                "_execute_step",
+                new_callable=AsyncMock,
+                return_value=StepResult(
+                    success=True,
+                    should_continue=False,
+                    data={"skip_reason": "target_person_not_detected"},
+                ),
+            ),
+        ):
+            await executor.execute(rule, trigger, db_session)
+
+        early_exit_calls = [
+            call
+            for call in mock_logger.info.call_args_list
+            if call.args and call.args[0] == "pipeline_early_exit"
+        ]
+        assert len(early_exit_calls) == 1
+        kwargs = early_exit_calls[0].kwargs
+        assert kwargs.get("skip_reason") == "target_person_not_detected"
+        assert kwargs.get("event_log_status") == "ignored"
+
+    async def test_no_skip_reason_logs_none(self, db_session, db_factory):
+        """When a step requests early exit without providing ``skip_reason``,
+        the log line should still fire but with ``skip_reason=None``."""
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="step_a")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        import backend.services.pipeline_executor as pe_module
+
+        with (
+            patch.object(pe_module, "logger") as mock_logger,
+            patch.object(
+                executor,
+                "_execute_step",
+                new_callable=AsyncMock,
+                return_value=StepResult(success=True, should_continue=False),
+            ),
+        ):
+            await executor.execute(rule, trigger, db_session)
+
+        early_exit_calls = [
+            call
+            for call in mock_logger.info.call_args_list
+            if call.args and call.args[0] == "pipeline_early_exit"
+        ]
+        assert len(early_exit_calls) == 1
+        assert early_exit_calls[0].kwargs.get("skip_reason") is None

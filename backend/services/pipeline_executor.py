@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
@@ -154,8 +155,7 @@ class PipelineExecutor:
             completed_at = datetime.now(UTC)
             execution.status = "completed"
             execution.completed_at = completed_at
-            pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
-            execution.pipeline_data_json = pipeline_data
+            _mark_pipeline_completed(execution, completed_at)
             event_log.status = "completed"
             db.commit()
             logger.info("pipeline_no_steps", rule=rule.name)
@@ -237,8 +237,26 @@ class PipelineExecutor:
         trigger: TriggerContext,
         db: Session,
     ) -> WorkflowExecution:
-        """Iterate through steps, handling branching, timing, and early exit."""
-        pipeline_data: dict = dict(execution.pipeline_data_json or {})
+        """Iterate through steps, handling branching, timing, and early exit.
+
+        ``execution.pipeline_data_json`` is wrapped by
+        :class:`sqlalchemy.ext.mutable.MutableDict` (see the column definition
+        on :class:`WorkflowExecution`). All writes in this method go through
+        that tracked reference so SQLAlchemy flushes the updated JSON on every
+        ``db.commit()``. Do not rebind a local plain-dict copy: mutations to a
+        detached copy would not be flagged dirty, and because the session
+        factory runs with ``expire_on_commit=False`` the row would silently
+        drift out of sync with in-memory state.
+
+        Nested mutations such as ``pipeline_data["_pipeline"]["completed_at"]``
+        are invisible to ``MutableDict``; call :func:`_mark_pipeline_completed`
+        (which uses :func:`flag_modified`) for those.
+        """
+        pipeline_data = execution.pipeline_data_json
+        if pipeline_data is None:
+            execution.pipeline_data_json = {}
+            pipeline_data = execution.pipeline_data_json
+
         # Preserve timings across resume cycles
         step_timings: list = list(pipeline_data.get("_step_timings", []))
 
@@ -298,9 +316,11 @@ class PipelineExecutor:
                 # Signal to the except-block that this step's timing is already saved
                 _active_step_started_at = None
 
+                # Merge step output into the tracked dict. ``update`` and
+                # ``__setitem__`` on a MutableDict both fire ``changed()``,
+                # which marks the JSON column dirty for the next flush.
                 pipeline_data.update(result.data)
                 pipeline_data["_step_timings"] = step_timings
-                execution.pipeline_data_json = pipeline_data
                 db.commit()
 
                 # Handle wait
@@ -319,26 +339,44 @@ class PipelineExecutor:
                     )
                     return execution
 
-                # Handle early exit
+                # Handle early exit.
+                #
+                # ``should_continue=False`` carries two distinct meanings:
+                #
+                # * ``success=True`` is an intentional skip (e.g. a filter
+                #   step deciding the rule should not fire). The execution is
+                #   a normal ``completed`` and the event log is ``ignored``
+                #   so rate-limit / cool-off logic treats it as a no-op.
+                # * ``success=False`` is an error (e.g. an unknown step type
+                #   returning a sentinel ``StepResult``). Both the execution
+                #   and the event log must be marked ``failed`` so operators
+                #   can find it in the UI and alerting stays accurate.
                 if not result.should_continue:
                     completed_at = datetime.now(UTC)
-                    execution.status = "completed"
+                    if result.success:
+                        execution.status = "completed"
+                        event_log_status = "ignored"
+                    else:
+                        execution.status = "failed"
+                        event_log_status = "failed"
                     execution.completed_at = completed_at
-                    if "_pipeline" in pipeline_data:
-                        pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
-                    execution.pipeline_data_json = pipeline_data
+                    _mark_pipeline_completed(execution, completed_at)
+
+                    skip_reason = result.data.get("skip_reason")
 
                     event_log = (
                         db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
                     )
                     if event_log:
-                        event_log.status = "ignored"
-                        event_log.pipeline_data_json = pipeline_data
+                        event_log.status = event_log_status
+                        event_log.pipeline_data_json = dict(pipeline_data)
                     db.commit()
                     logger.info(
                         "pipeline_early_exit",
                         rule=execution.rule.name,
                         step=step.label or step.step_type,
+                        event_log_status=event_log_status,
+                        skip_reason=skip_reason,
                     )
                     return execution
 
@@ -351,9 +389,7 @@ class PipelineExecutor:
             execution.status = "completed"
             execution.completed_at = completed_at
             pipeline_data["_step_timings"] = step_timings
-            if "_pipeline" in pipeline_data:
-                pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
-            execution.pipeline_data_json = pipeline_data
+            _mark_pipeline_completed(execution, completed_at)
 
             event_log = db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
             if event_log:
@@ -361,7 +397,7 @@ class PipelineExecutor:
                     event_log.status = "completed"
                 else:
                     event_log.status = "ignored"
-                event_log.pipeline_data_json = pipeline_data
+                event_log.pipeline_data_json = dict(pipeline_data)
             db.commit()
 
             logger.info(
@@ -393,18 +429,17 @@ class PipelineExecutor:
                 exc_info=True,
             )
             pipeline_data["_step_timings"] = step_timings
-            if "_pipeline" in pipeline_data:
-                pipeline_data["_pipeline"]["completed_at"] = completed_at.isoformat()
+            pipeline_data["error"] = str(e)
+            _mark_pipeline_completed(execution, completed_at)
 
             execution.status = "failed"
             execution.completed_at = completed_at
             execution.error = str(e)
-            execution.pipeline_data_json = {**pipeline_data, "error": str(e)}
 
             event_log = db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
             if event_log:
                 event_log.status = "failed"
-                event_log.pipeline_data_json = {**pipeline_data, "error": str(e)}
+                event_log.pipeline_data_json = dict(pipeline_data)
             db.commit()
             return execution
 
@@ -438,17 +473,21 @@ class PipelineExecutor:
             f"{'s' if rule.execution_timeout_minutes != 1 else ''}"
         )
 
-        # Reload execution from DB to get the last committed state
+        # Reload execution from DB to pick up whatever was last committed by
+        # the cancelled ``_run_steps`` coroutine, then mutate the tracked
+        # attribute in place so the MutableDict records the change.
         db.expire(execution)
-        pd = dict(execution.pipeline_data_json or {})
-        if "_pipeline" in pd:
-            pd["_pipeline"]["completed_at"] = completed_at.isoformat()
-        pd["error"] = error_msg
+        pipeline_data = execution.pipeline_data_json
+        if pipeline_data is None:
+            execution.pipeline_data_json = {}
+            pipeline_data = execution.pipeline_data_json
+
+        pipeline_data["error"] = error_msg
+        _mark_pipeline_completed(execution, completed_at)
 
         execution.status = "failed"
         execution.completed_at = completed_at
         execution.error = error_msg
-        execution.pipeline_data_json = pd
 
         event_log = db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
         if event_log:
@@ -484,3 +523,19 @@ def _make_step_timing(
     if error is not None:
         entry["error"] = error
     return entry
+
+
+def _mark_pipeline_completed(execution: WorkflowExecution, completed_at: datetime) -> None:
+    """Stamp ``pipeline_data_json['_pipeline']['completed_at']`` and mark dirty.
+
+    This mutates a nested dict inside the ``MutableDict``-wrapped JSON
+    column. ``MutableDict`` only tracks top-level ``__setitem__`` / ``update``
+    calls, so nested writes must be reported to SQLAlchemy explicitly via
+    :func:`flag_modified` or the next flush will miss the change.
+    """
+    pipeline_data = execution.pipeline_data_json
+    if pipeline_data is None:
+        return
+    block = pipeline_data.setdefault("_pipeline", {})
+    block["completed_at"] = completed_at.isoformat()
+    flag_modified(execution, "pipeline_data_json")

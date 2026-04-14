@@ -18,6 +18,8 @@ class MediaCache(Base):
     object_name: Mapped[str] = mapped_column(String(512), unique=True, index=True)
     presigned_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     sensor_id: Mapped[str | None] = mapped_column(String(128), index=True)
-    captured_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now(), index=True)
+    captured_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), server_default=func.now(), index=True
+    )
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)

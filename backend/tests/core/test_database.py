@@ -144,10 +144,7 @@ class TestApplyColumnMigrations:
 
             with d.engine.connect() as conn:
                 col_names = {
-                    row[1]
-                    for row in conn.execute(
-                        text("PRAGMA table_info(active_image_state)")
-                    )
+                    row[1] for row in conn.execute(text("PRAGMA table_info(active_image_state)"))
                 }
 
             assert "last_served_hash" in col_names

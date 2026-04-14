@@ -53,7 +53,9 @@ class Rule(Base):
     execution_timeout_minutes: Mapped[int] = mapped_column(Integer, default=5)
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), onupdate=func.now(), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(), onupdate=func.now(), nullable=True
+    )
 
     # Relationships
     steps: Mapped[list[PipelineStep]] = relationship(

@@ -103,9 +103,7 @@ class WorkflowExecution(Base):
     # track in-place mutations. Without it, writes from the second step
     # onwards silently drop on the floor while the row is marked "completed",
     # because the session factory runs with expire_on_commit=False.
-    pipeline_data_json: Mapped[dict] = mapped_column(
-        MutableDict.as_mutable(JSON), default=dict
-    )
+    pipeline_data_json: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON), default=dict)
     started_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(

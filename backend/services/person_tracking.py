@@ -2,6 +2,20 @@
 
 Fuses camera-based person identification with Home Assistant presence sensors
 to maintain a real-time model of where each household member is located.
+
+Camera topology
+---------------
+When a ``Sensor.config_json`` contains a ``movement_map`` key, the service
+maps raw person-ID directions ("left-to-right" etc.) to semantic room
+transitions ("entering", "exiting" …) via
+:func:`~backend.services.camera_topology.infer_room_transition`.  The
+resulting :class:`~backend.services.camera_topology.RoomTransition` objects
+are:
+
+1. Stored as metadata on the :class:`~backend.models.person.PersonLocationHistory`
+   row written for the transition (``direction_semantic``, ``from_room_*``).
+2. Returned to the caller in :class:`CameraEventResult` for use by downstream
+   pipeline steps (e.g. to populate ``pipeline_data["room_transitions"]``).
 """
 
 from __future__ import annotations
@@ -26,18 +40,36 @@ from backend.models.person import (
     PersonSighting,
 )
 from backend.models.sensor import Sensor
+from backend.services.camera_topology import RoomTransition, infer_room_transition
 
 logger = get_logger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Data transfer objects
+# ---------------------------------------------------------------------------
+
+
 @dataclass
 class PersonDetection:
+    """Lightweight representation of a single confirmed person detection.
+
+    Attributes:
+        person_id: Identifier returned by the person-ID service.
+        name: Display name of the person.
+        confidence: Face-match confidence score in [0, 1].
+        bbox: Bounding box ``[x1, y1, x2, y2]`` in pixel coordinates.
+        direction: Raw direction string from the person-ID service, or None.
+        frame_index: Index into the ``media_paths`` list passed to
+            :meth:`PersonTrackingService.process_camera_event`, or None.
+    """
+
     person_id: str
     name: str
     confidence: float
     bbox: list[float]
     direction: str | None = None
-    frame_index: int | None = None  # index into the media_paths list passed to process_camera_event
+    frame_index: int | None = None
 
     def dict(self) -> dict:
         return {
@@ -48,6 +80,27 @@ class PersonDetection:
             "direction": self.direction,
             "frame_index": self.frame_index,
         }
+
+
+@dataclass
+class CameraEventResult:
+    """Bundled output of :meth:`PersonTrackingService.process_camera_event`.
+
+    Attributes:
+        detections: De-duplicated (highest-confidence-per-person) list of
+            confirmed detections across all frames.
+        room_transitions: Topology-inferred semantic transitions, one entry
+            per person whose direction could be mapped via the sensor's
+            ``movement_map``.  Empty list when no topology is configured.
+    """
+
+    detections: list[PersonDetection]
+    room_transitions: list[RoomTransition]
+
+
+# ---------------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------------
 
 
 class PersonTrackingService:
@@ -64,9 +117,13 @@ class PersonTrackingService:
         self._person_id = person_id_client
         self._ha = ha_client
         self._ws_manager = ws_manager
-        self._stale_minutes = settings.get("person_tracking.location_stale_minutes", 30)
-        self._ha_propagation = settings.get("person_tracking.ha_propagation", True)
-        self._min_confidence = settings.get("person_id.min_confidence", 0.5)
+        self._stale_minutes: int = settings.get("person_tracking.location_stale_minutes", 30)
+        self._ha_propagation: bool = settings.get("person_tracking.ha_propagation", True)
+        self._min_confidence: float = settings.get("person_id.min_confidence", 0.5)
+
+    # ------------------------------------------------------------------
+    # Primary camera-event processing
+    # ------------------------------------------------------------------
 
     async def process_camera_event(
         self,
@@ -75,26 +132,47 @@ class PersonTrackingService:
         room_name: str,
         include_annotated_image: bool = False,
         save_guest_images: bool = False,
-    ) -> list[PersonDetection]:
+        sensor_config: dict | None = None,
+    ) -> CameraEventResult:
         """Process a camera event through the person-id service.
 
-        Called by the workflow pipeline before the expensive VLLM vision step.
+        Steps:
 
-        1. Downloads images from media_paths (presigned MinIO URLs or local paths)
-        2. Sends them to the person-id service for identification + motion detection
-        3. Records sightings in the database
-        4. Updates location state and history
-        5. Optionally propagates to Home Assistant
+        1. Download images from *media_paths* (presigned MinIO URLs or local
+           paths) and encode them as base64.
+        2. Send to the person-id service for identification + optional motion
+           detection.
+        3. De-duplicate detections across frames (keep highest confidence per
+           person).
+        4. Infer semantic room transitions via the sensor's topology map when
+           ``sensor_config`` contains a ``movement_map``.
+        5. Write :class:`~backend.models.person.PersonSighting` and update
+           :class:`~backend.models.person.PersonLocationState` /
+           :class:`~backend.models.person.PersonLocationHistory` for each
+           detection.
 
-        Returns list of PersonDetection for use by the workflow pipeline.
+        Args:
+            sensor_id: ID of the triggering camera sensor.
+            media_paths: Ordered list of presigned image URLs (or local paths).
+            room_name: Name of the room the sensor is assigned to.
+            include_annotated_image: Request annotated frames from the person-id
+                service (bounding boxes + name labels).
+            save_guest_images: Instruct the person-id service to archive frames
+                that contain unidentified guests.
+            sensor_config: Contents of ``Sensor.config_json`` for the
+                triggering sensor, used to infer room transitions.  Pass
+                ``None`` to skip topology inference.
+
+        Returns:
+            A :class:`CameraEventResult` with ``detections`` and
+            ``room_transitions`` (empty list when no topology is configured).
         """
         if not self._person_id.enabled:
-            return []
+            return CameraEventResult(detections=[], room_transitions=[])
 
-        # Encode images to base64 for the person-id service
         images_b64 = await self._load_images_as_base64(media_paths)
         if not images_b64:
-            return []
+            return CameraEventResult(detections=[], room_transitions=[])
 
         include_motion = settings.get("person_id.include_motion", True)
         batch_result = await self._person_id.identify_batch(
@@ -104,23 +182,21 @@ class PersonTrackingService:
             save_guest_images=save_guest_images,
         )
         if not batch_result:
-            return []
+            return CameraEventResult(detections=[], room_transitions=[])
 
-        # Build a direction lookup from motion results
-        direction_map: dict[str, str] = {}
-        for m in batch_result.motion:
-            direction_map[m.person_id] = m.direction
+        # Build direction lookup from motion results (person_id → direction).
+        direction_map: dict[str, str] = {m.person_id: m.direction for m in batch_result.motion}
 
-        # Deduplicate detections across frames: keep the highest confidence per person.
-        # frame_idx is preserved so callers can map a detection's bbox back to its source image.
-        best_detections: dict[str, PersonDetection] = {}
+        # De-duplicate: keep the highest-confidence detection per person across
+        # all frames, preserving the frame_index for bbox-to-media correlation.
+        best: dict[str, PersonDetection] = {}
         for frame_idx, frame_faces in enumerate(batch_result.frames):
             for face in frame_faces:
                 if face.confidence < self._min_confidence:
                     continue
-                existing = best_detections.get(face.person_id)
+                existing = best.get(face.person_id)
                 if not existing or face.confidence > existing.confidence:
-                    best_detections[face.person_id] = PersonDetection(
+                    best[face.person_id] = PersonDetection(
                         person_id=face.person_id,
                         name=face.name,
                         confidence=face.confidence,
@@ -129,9 +205,25 @@ class PersonTrackingService:
                         frame_index=frame_idx,
                     )
 
-        detections = list(best_detections.values())
+        detections = list(best.values())
 
-        # Record sightings and update location state
+        # Infer room transitions via camera topology map.
+        transitions: list[RoomTransition] = []
+        transition_by_person: dict[str, RoomTransition] = {}
+        for det in detections:
+            t = infer_room_transition(
+                person_id=det.person_id,
+                person_name=det.name,
+                sensor_id=sensor_id,
+                direction_raw=det.direction,
+                confidence=det.confidence,
+                sensor_config=sensor_config,
+            )
+            if t is not None:
+                transitions.append(t)
+                transition_by_person[det.person_id] = t
+
+        # Persist sightings and location state.
         db: Session = self._db_factory()
         try:
             for det in detections:
@@ -152,11 +244,16 @@ class PersonTrackingService:
                     sensor_id=sensor_id,
                     confidence=det.confidence,
                     source="camera",
+                    room_transition=transition_by_person.get(det.person_id),
                 )
         finally:
             db.close()
 
-        return detections
+        return CameraEventResult(detections=detections, room_transitions=transitions)
+
+    # ------------------------------------------------------------------
+    # HA presence sensor polling
+    # ------------------------------------------------------------------
 
     async def poll_ha_presence_sensors(self) -> None:
         """Poll HA presence sensors for rooms without cameras.
@@ -175,9 +272,6 @@ class PersonTrackingService:
                 )
                 .all()
             )
-            if not sensors:
-                return
-
             for sensor in sensors:
                 await self._correlate_presence_sensor(sensor, db)
         except Exception:
@@ -186,10 +280,8 @@ class PersonTrackingService:
             db.close()
 
     async def _correlate_presence_sensor(self, sensor: Sensor, db: Session) -> None:
-        """When a presence sensor reads "on", try to infer who is there."""
-        ha_entity = sensor.ha_entity_id
-        if not ha_entity:
-            ha_entity = f"binary_sensor.{sensor.id}_person_information"
+        """Infer person identity when a binary presence sensor reads "on"."""
+        ha_entity = sensor.ha_entity_id or f"binary_sensor.{sensor.id}_person_information"
 
         try:
             state_data = await self._ha.get_entity_state(ha_entity)
@@ -202,10 +294,8 @@ class PersonTrackingService:
 
         room_name = sensor.room.name if sensor.room else "Unknown"
         now = datetime.now(UTC)
-
-        # Find the person most recently seen near this room
-        # Look at recent sightings (last 10 minutes) sorted by recency
         cutoff = now - timedelta(minutes=10)
+
         recent_sightings = (
             db.query(PersonSighting)
             .filter(
@@ -216,22 +306,17 @@ class PersonTrackingService:
             .limit(20)
             .all()
         )
-
         if not recent_sightings:
             return
 
-        # Find persons who are not already known to be in another room
-        # and were most recently seen, prioritizing those near this room
         for sighting in recent_sightings:
             loc_state = (
                 db.query(PersonLocationState)
                 .filter(PersonLocationState.person_id == sighting.person_id)
                 .first()
             )
-            # If person is already confirmed in this room, skip
             if loc_state and loc_state.current_room_name == room_name:
                 continue
-            # If person was last seen in a different room very recently by camera, skip
             if (
                 loc_state
                 and loc_state.current_room_name != room_name
@@ -240,13 +325,12 @@ class PersonTrackingService:
             ):
                 continue
 
-            # Infer this person is in the presence-sensor room
             await self._record_sighting(
                 db=db,
                 person_id=sighting.person_id,
                 sensor_id=sensor.id,
                 room_name=room_name,
-                confidence=0.6,  # lower confidence for sensor-inferred
+                confidence=0.6,
                 direction=None,
                 bbox=None,
                 source="ha_sensor",
@@ -259,7 +343,11 @@ class PersonTrackingService:
                 confidence=0.6,
                 source="ha_sensor",
             )
-            break  # only assign one person per sensor activation
+            break
+
+    # ------------------------------------------------------------------
+    # Persistence helpers
+    # ------------------------------------------------------------------
 
     async def _record_sighting(
         self,
@@ -272,8 +360,7 @@ class PersonTrackingService:
         bbox: list[float] | None,
         source: str,
     ) -> None:
-        """Record a person sighting in the database."""
-        # Ensure the household member exists (auto-register unknowns as guests)
+        """Insert a :class:`~backend.models.person.PersonSighting` row."""
         member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
         if not member:
             is_guest = person_id == "unknown" or person_id.startswith("unknown_")
@@ -285,7 +372,6 @@ class PersonTrackingService:
             db.add(member)
             db.flush()
 
-        # Find room_id
         from backend.models.room import Room
 
         room = db.query(Room).filter(Room.name == room_name).first()
@@ -314,8 +400,14 @@ class PersonTrackingService:
         sensor_id: str,
         confidence: float,
         source: str,
+        room_transition: RoomTransition | None = None,
     ) -> None:
-        """Update current location state and history for a person."""
+        """Upsert :class:`~backend.models.person.PersonLocationState` and append
+        to :class:`~backend.models.person.PersonLocationHistory` on room change.
+
+        When *room_transition* is provided its ``direction_semantic`` /
+        ``from_room_*`` fields are stored on the new history row.
+        """
         from backend.models.room import Room
 
         now = datetime.now(UTC)
@@ -327,11 +419,9 @@ class PersonTrackingService:
         )
 
         if loc:
-            old_room = loc.current_room_name
-            # Only update if new detection is more confident or different room
-            if room_name != old_room:
-                # Close previous location history entry
-                prev_history = (
+            if room_name != loc.current_room_name:
+                # Close the open history entry for the previous room.
+                prev = (
                     db.query(PersonLocationHistory)
                     .filter(
                         PersonLocationHistory.person_id == person_id,
@@ -339,19 +429,20 @@ class PersonTrackingService:
                     )
                     .first()
                 )
-                if prev_history:
-                    prev_history.exited_at = now
+                if prev:
+                    prev.exited_at = now
                     db.flush()
 
-                # Create new history entry
-                history = PersonLocationHistory(
-                    person_id=person_id,
-                    room_id=room_id,
-                    room_name=room_name,
-                    entered_at=now,
-                    source=source,
+                db.add(
+                    _make_history_entry(
+                        person_id=person_id,
+                        room_id=room_id,
+                        room_name=room_name,
+                        entered_at=now,
+                        source=source,
+                        room_transition=room_transition,
+                    )
                 )
-                db.add(history)
 
             loc.current_room_id = room_id
             loc.current_room_name = room_name
@@ -360,30 +451,30 @@ class PersonTrackingService:
             loc.status = "home"
             loc.confidence = confidence
         else:
-            loc = PersonLocationState(
-                person_id=person_id,
-                current_room_id=room_id,
-                current_room_name=room_name,
-                last_seen_at=now,
-                last_sensor_id=sensor_id,
-                status="home",
-                confidence=confidence,
+            db.add(
+                PersonLocationState(
+                    person_id=person_id,
+                    current_room_id=room_id,
+                    current_room_name=room_name,
+                    last_seen_at=now,
+                    last_sensor_id=sensor_id,
+                    status="home",
+                    confidence=confidence,
+                )
             )
-            db.add(loc)
-
-            # Create initial history entry
-            history = PersonLocationHistory(
-                person_id=person_id,
-                room_id=room_id,
-                room_name=room_name,
-                entered_at=now,
-                source=source,
+            db.add(
+                _make_history_entry(
+                    person_id=person_id,
+                    room_id=room_id,
+                    room_name=room_name,
+                    entered_at=now,
+                    source=source,
+                    room_transition=room_transition,
+                )
             )
-            db.add(history)
 
         db.commit()
 
-        # Propagate to Home Assistant
         if self._ha_propagation:
             await self._propagate_to_ha(person_id, room_name, confidence)
 
@@ -394,32 +485,32 @@ class PersonTrackingService:
         except Exception:
             logger.warning("ha_propagation_failed", person_id=person_id)
 
+    # ------------------------------------------------------------------
+    # Query helpers
+    # ------------------------------------------------------------------
+
     async def get_person_locations(self) -> list[dict]:
-        """Return current location of all tracked persons."""
+        """Return current location of all active tracked persons."""
         db: Session = self._db_factory()
         try:
-            states = (
+            rows = (
                 db.query(PersonLocationState, HouseholdMember)
                 .join(HouseholdMember, PersonLocationState.person_id == HouseholdMember.id)
                 .filter(HouseholdMember.is_active.is_(True))
                 .all()
             )
-            results = []
-            for state, member in states:
-                results.append(
-                    {
-                        "person_id": state.person_id,
-                        "person_name": member.name,
-                        "current_room_name": state.current_room_name,
-                        "last_seen_at": state.last_seen_at.isoformat()
-                        if state.last_seen_at
-                        else None,
-                        "last_sensor_id": state.last_sensor_id,
-                        "status": state.status,
-                        "confidence": state.confidence,
-                    }
-                )
-            return results
+            return [
+                {
+                    "person_id": state.person_id,
+                    "person_name": member.name,
+                    "current_room_name": state.current_room_name,
+                    "last_seen_at": state.last_seen_at.isoformat() if state.last_seen_at else None,
+                    "last_sensor_id": state.last_sensor_id,
+                    "status": state.status,
+                    "confidence": state.confidence,
+                }
+                for state, member in rows
+            ]
         finally:
             db.close()
 
@@ -470,6 +561,8 @@ class PersonTrackingService:
                     "entered_at": e.entered_at.isoformat(),
                     "exited_at": e.exited_at.isoformat() if e.exited_at else None,
                     "source": e.source,
+                    "direction_semantic": e.direction_semantic,
+                    "from_room_name": e.from_room_name,
                 }
                 for e in entries
             ]
@@ -517,21 +610,22 @@ class PersonTrackingService:
 
         db: Session = self._db_factory()
         try:
-            room_id = None
+            room_id: int | None = None
             if room_name:
                 room = db.query(Room).filter(Room.name == room_name).first()
                 room_id = room.id if room else None
 
-            activity = PersonActivity(
-                person_id=person_id,
-                activity_type=activity_type,
-                room_id=room_id,
-                room_name=room_name,
-                confidence=confidence,
-                source_event_id=source_event_id,
-                metadata_json=metadata,
+            db.add(
+                PersonActivity(
+                    person_id=person_id,
+                    activity_type=activity_type,
+                    room_id=room_id,
+                    room_name=room_name,
+                    confidence=confidence,
+                    source_event_id=source_event_id,
+                    metadata_json=metadata,
+                )
             )
-            db.add(activity)
             db.commit()
             logger.info(
                 "activity_recorded",
@@ -591,14 +685,14 @@ class PersonTrackingService:
         """Query activities within a time window.
 
         Supports two modes:
-        - **Relative**: pass *within_minutes* to query from ``now - minutes`` to now.
-        - **Absolute**: pass *window_start* and/or *window_end* as UTC datetimes.
 
-        If both *within_minutes* and explicit window boundaries are provided,
+        - **Relative**: pass *within_minutes* to query from ``now - minutes``
+          to now.
+        - **Absolute**: pass *window_start* and/or *window_end* as UTC
+          datetimes.
+
+        If both *within_minutes* and explicit boundaries are provided,
         *within_minutes* takes precedence.
-
-        *person_id*: when ``None`` or empty, matches activities for any person.
-        *room_name*: when provided, restricts matches to that room.
         """
         now = datetime.now(UTC)
 
@@ -639,6 +733,10 @@ class PersonTrackingService:
         finally:
             db.close()
 
+    # ------------------------------------------------------------------
+    # Static helpers
+    # ------------------------------------------------------------------
+
     @staticmethod
     async def _load_images_as_base64(media_paths: list[str]) -> list[str]:
         """Convert media paths (presigned URLs or local files) to base64 strings."""
@@ -649,12 +747,38 @@ class PersonTrackingService:
                     async with httpx.AsyncClient(timeout=15) as client:
                         resp = await client.get(path)
                         resp.raise_for_status()
-                        b64 = base64.b64encode(resp.content).decode("utf-8")
-                        images.append(b64)
+                        images.append(base64.b64encode(resp.content).decode("utf-8"))
                 else:
                     with open(path, "rb") as f:
-                        b64 = base64.b64encode(f.read()).decode("utf-8")
-                        images.append(b64)
+                        images.append(base64.b64encode(f.read()).decode("utf-8"))
             except Exception:
                 logger.warning("failed_to_load_image", path=path[:100])
         return images
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_history_entry(
+    *,
+    person_id: str,
+    room_id: int | None,
+    room_name: str,
+    entered_at: datetime,
+    source: str,
+    room_transition: RoomTransition | None,
+) -> PersonLocationHistory:
+    """Construct a :class:`PersonLocationHistory` row, optionally enriched with
+    topology-derived fields from *room_transition*."""
+    return PersonLocationHistory(
+        person_id=person_id,
+        room_id=room_id,
+        room_name=room_name,
+        entered_at=entered_at,
+        source=source,
+        direction_semantic=room_transition.semantic if room_transition else None,
+        from_room_id=room_transition.from_room_id if room_transition else None,
+        from_room_name=room_transition.from_room_name if room_transition else None,
+    )

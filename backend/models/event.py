@@ -16,7 +16,9 @@ class EventLog(Base):
     __tablename__ = "event_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    timestamp: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now(), index=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        UTCDateTime(), server_default=func.now(), index=True
+    )
     rule_id: Mapped[int | None] = mapped_column(ForeignKey("rules.id"), nullable=True)
     rule_name: Mapped[str | None] = mapped_column(String(256), index=True)
     sensor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)

@@ -311,8 +311,10 @@ class TestDispatch:
         """An absent or empty whitelist must block execution (fail-closed)."""
         rule = _make_rule_obj(command="/remind", allowed_chat_ids=[])
         svc = self._svc_with_rules([rule])
-        with patch("backend.services.telegram_trigger.settings") as mock_settings, \
-             patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec:
+        with (
+            patch("backend.services.telegram_trigger.settings") as mock_settings,
+            patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec,
+        ):
             mock_settings.get.return_value = []
             await svc._dispatch(_cmd(command="/remind", chat_id="123"))
         mock_exec.assert_not_awaited()
@@ -334,8 +336,10 @@ class TestDispatch:
     async def test_falls_back_to_system_whitelist(self):
         rule = _make_rule_obj(command="/remind", allowed_chat_ids=[])
         svc = self._svc_with_rules([rule])
-        with patch("backend.services.telegram_trigger.settings") as mock_settings, \
-             patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec:
+        with (
+            patch("backend.services.telegram_trigger.settings") as mock_settings,
+            patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec,
+        ):
             mock_settings.get.return_value = ["456"]
             await svc._dispatch(_cmd(command="/remind", chat_id="456"))
         mock_exec.assert_awaited_once()
@@ -344,8 +348,10 @@ class TestDispatch:
         """Per-rule whitelist is used and system whitelist is ignored."""
         rule = _make_rule_obj(command="/remind", allowed_chat_ids=["123"])
         svc = self._svc_with_rules([rule])
-        with patch("backend.services.telegram_trigger.settings") as mock_settings, \
-             patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec:
+        with (
+            patch("backend.services.telegram_trigger.settings") as mock_settings,
+            patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec,
+        ):
             # System has "999"; per-rule only has "123".
             mock_settings.get.return_value = ["999"]
             # "123" is in per-rule → must pass.
@@ -368,8 +374,10 @@ class TestDispatch:
         """Empty strings from unset env vars must not be treated as valid IDs."""
         rule = _make_rule_obj(command="/remind", allowed_chat_ids=["", ""])
         svc = self._svc_with_rules([rule])
-        with patch("backend.services.telegram_trigger.settings") as mock_settings, \
-             patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec:
+        with (
+            patch("backend.services.telegram_trigger.settings") as mock_settings,
+            patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec,
+        ):
             mock_settings.get.return_value = []
             await svc._dispatch(_cmd(command="/remind", chat_id="123"))
         mock_exec.assert_not_awaited()

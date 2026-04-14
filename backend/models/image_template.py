@@ -24,4 +24,6 @@ class ImageTemplate(Base):
     regions_json: Mapped[list] = mapped_column(JSON, default=list)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), onupdate=func.now(), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(), onupdate=func.now(), nullable=True
+    )

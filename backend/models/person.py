@@ -22,7 +22,9 @@ class HouseholdMember(Base):
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), onupdate=func.now(), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(), onupdate=func.now(), nullable=True
+    )
 
     sightings: Mapped[list[PersonSighting]] = relationship(back_populates="person")
     location_state: Mapped[PersonLocationState | None] = relationship(
@@ -42,7 +44,9 @@ class PersonSighting(Base):
     sensor_id: Mapped[str] = mapped_column(String(128), index=True)
     room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
     room_name: Mapped[str | None] = mapped_column(String(128))
-    timestamp: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now(), index=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        UTCDateTime(), server_default=func.now(), index=True
+    )
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     direction: Mapped[str | None] = mapped_column(String(32), nullable=True)
     bbox_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -74,7 +78,13 @@ class PersonLocationState(Base):
 
 
 class PersonLocationHistory(Base):
-    """Room-level location timeline for a person."""
+    """Room-level location timeline for a person.
+
+    The ``direction_semantic`` / ``from_room_*`` fields are populated when a
+    camera topology map is configured on the triggering sensor (see
+    :mod:`backend.services.camera_topology`).  They are ``None`` for entries
+    inferred from Home Assistant presence sensors or legacy camera events.
+    """
 
     __tablename__ = "person_location_history"
 
@@ -87,6 +97,11 @@ class PersonLocationHistory(Base):
     entered_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
     exited_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     source: Mapped[str] = mapped_column(String(32), default="inferred")
+
+    # Camera-topology-derived fields (nullable — absent on legacy rows).
+    direction_semantic: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    from_room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
+    from_room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class PersonActivity(Base):
@@ -105,7 +120,9 @@ class PersonActivity(Base):
     activity_type: Mapped[str] = mapped_column(String(64), index=True)
     room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
     room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    detected_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now(), index=True)
+    detected_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), server_default=func.now(), index=True
+    )
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     source_event_id: Mapped[int | None] = mapped_column(ForeignKey("event_logs.id"), nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)

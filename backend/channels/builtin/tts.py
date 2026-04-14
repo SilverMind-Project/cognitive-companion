@@ -8,6 +8,8 @@ selects the target entity (defaults to ``media_player.living_room_speaker``).
 
 from __future__ import annotations
 
+import asyncio
+
 from backend.channels import ChannelRegistry
 from backend.channels.base import ChannelMetadata, NotificationChannel
 from backend.core.logging import get_logger
@@ -15,6 +17,9 @@ from backend.core.logging import get_logger
 logger = get_logger(__name__)
 
 _DEFAULT_MEDIA_PLAYER = "media_player.living_room_speaker"
+# Seconds to wait after turn_on before sending play_media.  Google Home and
+# similar Chromecast-based devices need ~2 s to finish waking from idle.
+_MEDIA_PLAYER_WAKE_DELAY = 2
 
 
 @ChannelRegistry.register
@@ -67,6 +72,10 @@ class HASpeakerTTSChannel(NotificationChannel):
             )
             if not url:
                 return False
+            # Wake the speaker before sending audio — idle Google Home / Chromecast
+            # devices silently drop play_media calls without this.
+            await ha_client.turn_on_media_player(entity_id)
+            await asyncio.sleep(_MEDIA_PLAYER_WAKE_DELAY)
             await ha_client.play_audio(url, entity_id)
             logger.info("ha_speaker_tts_played", entity_id=entity_id)
             return True

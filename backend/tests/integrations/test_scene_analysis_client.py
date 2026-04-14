@@ -125,7 +125,7 @@ class TestDisabledClient:
 
 class TestHealthCheck:
     async def test_returns_health_dict(self):
-        ctx, http_client = _make_http_mock({"status": "ok"})
+        ctx, _http_client = _make_http_mock({"status": "ok"})
         client = _make_client()
         with patch(_HTTPX_TARGET, return_value=ctx):
             result = await client.health_check()

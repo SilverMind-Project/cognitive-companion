@@ -20,12 +20,12 @@ from backend.services.camera_topology import (
 # Shared fixtures / helpers
 # ---------------------------------------------------------------------------
 
-_BASE_KWARGS = dict(
-    person_id="person-1",
-    person_name="Alice",
-    sensor_id="cam-kitchen",
-    confidence=0.92,
-)
+_BASE_KWARGS = {
+    "person_id": "person-1",
+    "person_name": "Alice",
+    "sensor_id": "cam-kitchen",
+    "confidence": 0.92,
+}
 
 
 def _make_config(movement_map: dict) -> dict:
@@ -298,5 +298,5 @@ class TestImmutability:
             direction_raw="left-to-right",
             sensor_config=_make_config(_doorway_map()),
         )
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             result.person_id = "other"  # type: ignore[misc]

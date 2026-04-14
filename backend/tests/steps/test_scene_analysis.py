@@ -81,9 +81,8 @@ def _tiny_jpeg_file() -> str:
     img = Image.new("RGB", (16, 16), color=(255, 0, 0))
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
-    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-    tmp.write(buf.getvalue())
-    tmp.close()
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp.write(buf.getvalue())
     return tmp.name
 
 

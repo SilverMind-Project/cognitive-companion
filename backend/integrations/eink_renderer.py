@@ -129,9 +129,7 @@ class EInkRenderer:
     ) -> bytes:
         """Render text onto provided raw image bytes (no DB lookup needed)."""
         img: Image.Image = Image.open(BytesIO(image_bytes))
-        img = img.resize(
-            (self._display_width, self._display_height), Image.Resampling.LANCZOS
-        )
+        img = img.resize((self._display_width, self._display_height), Image.Resampling.LANCZOS)
         img = img.convert("RGBA")
         font_path = self._fonts_dir / font_filename
         if not font_path.exists():

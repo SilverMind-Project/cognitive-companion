@@ -27,7 +27,7 @@ backend/
   steps/                   # Step plugin system
     base.py                # StepHandler ABC, StepMetadata, StepResult, TriggerContext, ServiceContainer
     __init__.py            # StepRegistry singleton + auto-discovery
-    builtin/               # 10 built-in step handlers (one file each)
+    builtin/               # 10 built-in step handlers (one file each: llm_call, person_identification, scene_analysis, vision_analysis, notification, ha_action, activity_detection, verification, condition, wait)
   channels/                # Notification channel plugin system
     base.py                # NotificationChannel ABC, ChannelMetadata
     __init__.py            # ChannelRegistry singleton + auto-discovery
@@ -35,7 +35,7 @@ backend/
   filters/                 # Context filter plugin system
     base.py                # ContextFilter ABC, FilterMetadata
     __init__.py            # FilterRegistry singleton + auto-discovery
-    builtin/               # Room, time_range, day_of_week, person_presence, person_activity filters
+    builtin/               # room, time_range, day_of_week, person_presence, person_activity, room_transition filters
   models/
     __init__.py            # Re-exports all models -- import here to register with Base
     sensor.py              # Sensor (camera, presence, button, light, media_player, eink, generic)
@@ -58,6 +58,7 @@ backend/
   services/
     pipeline_executor.py   # Step orchestrator (dispatches to StepRegistry, uses ServiceContainer)
     condition_evaluator.py # Safe recursive-descent expression evaluator for condition steps
+    camera_topology.py     # infer_room_transition() + RoomTransition dataclass for per-camera movement maps
     event_aggregator.py    # Batches per-sensor events, manages media lifecycle
     rules_engine.py        # Rule matching: context via FilterRegistry + dependency + rate-limit checks
     person_tracking.py     # Fuses camera detections with HA presence sensors
@@ -74,6 +75,7 @@ backend/
     tts.py                 # Text-to-speech client (batch + streaming via AudioStream)
     eink_renderer.py       # Internal PIL-based eink display renderer
     person_id_client.py    # HTTP client for person identification service
+    scene_analysis_client.py  # HTTP client for scene-analysis-service (YOLO+Florence-2+CLIP); disabled when `scene_analysis.enabled` is false
     llm/
       base.py              # LLMProvider abstract base + RealtimeLLMProvider
       chain.py             # LLMProviderChain (fallback) + LLMProviderPool (load balancing)
@@ -158,7 +160,7 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 - `StepMetadata` (dataclass) -- step name, description, icon, config JSONSchema.
 - `StepResult` (dataclass) -- step output: success, data dict, should_continue, optional next_step_id or wait_until.
 - `TriggerContext` (dataclass) -- trigger metadata: sensor_id, room_name, media_paths, trigger_type, webhook_payload.
-- `ServiceContainer` (dataclass) -- holds all shared services (LLM providers, HA client, DB session factory, etc.) passed to step handlers.
+- `ServiceContainer` (dataclass) -- holds all shared services passed to step handlers: LLM providers, HA client, DB session factory, minio_client, telegram_client, tts_client, ws_manager, notification_dispatcher, person_tracking, person_id_client, scene_analysis_client, llm_model_registry, eink_renderer, event_aggregator, rag_lookup.
 
 **Data flow**: Pipeline data accumulates across steps. Each step receives the current `pipeline_data` dict and returns a `StepResult`. The executor merges `result.data` into `pipeline_data` before proceeding to the next step. At initialization, `PipelineExecutor` injects a localized `system` object including `system.local_time`, `system.local_date`, `system.local_day_of_week`, and `system.timezone` ensuring downstream steps (like prompts or notifications) have localized time awareness.
 
@@ -168,13 +170,14 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 
 **Wait steps** persist execution state to the `WorkflowExecution` table (status="waiting", resume_at set). The scheduler resumes execution via an APScheduler `DateTrigger`. A `SchedulerBridge` abstraction is injected into `PipelineExecutor` to decouple wait/resume scheduling.
 
-**Built-in step types**: llm_call, person_identification, vision_analysis, logic_reasoning, translation, notification, ha_action, activity_detection, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`.
+**Built-in step types**: llm_call, person_identification, vision_analysis, scene_analysis, notification, ha_action, activity_detection, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`. (`logic_reasoning` and `translation` were removed; use `llm_call` with the appropriate `output_key` instead.)
 
 Step type details:
 
 - `llm_call`: Unified LLM step. Selects a model by `model_id` from `LLMModelRegistry` (loaded from `llm.models` in settings.yaml). Supports vision (image attachment), JSON schema enforcement (`response_format`: `"text"`, `"json_schema"`, `"json_free"`), `special_instructions` prepended to the prompt, context key inclusion, and hallucination retry. Key config: `model_id`, `prompt`, `include_context`, `image_source` (`"none"`, `"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `sort_by_sensor_then_time` (groups images by sensor order then chronologically within each -- enables inter-frame analysis), `images_per_sensor`, `max_images`, `image_time_filter`, `response_format`, `response_json_schema`, `output_key` (defaults to `"llm_response"`; set to `"logic_response"` / `"vision_response"` / `"translation"` for downstream step compatibility), `hallucination_marker`. Uses `services.llm_model_registry` from `ServiceContainer`.
 - `activity_detection`: Records a single activity to the `PersonActivity` table. Config fields: `activity_type` (required), `person_id` (optional), `room_name` (optional), `confidence` (accepts a fixed number or `{{template}}` syntax, defaults to `0.8`). All fields support `{{template}}` syntax. `person_id` defaults to `"unknown"` when empty. `room_name` defaults to the trigger room when empty. Use multiple steps to record multiple activities. **Scene capture**: set `capture_scene_description: true` to store the upstream vision analysis output (default key: `vision_response`) in `metadata_json.scene_description` -- gives each activity record an auditable explanation of *why* it was detected. Use `scene_description_key` to read from a different pipeline key. `metadata_extra` accepts an optional JSON string (template-supported) merged into `metadata_json` for arbitrary extra fields.
 - `verification`: A database query step. Queries the `PersonActivity` table to verify activities within configured time windows. Each condition has `activity_type` (required), optional `person_id` (template-enabled, empty = any person), optional `room_name` (template-enabled, empty = any room), time window (`within_minutes` or `window_start`/`window_end`), and `min_confidence`. Does not capture images or run LLM calls.
+- `scene_analysis`: Calls `services.scene_analysis_client.analyze()` on the standalone scene-analysis-service. Returns YOLO11x object detections, Florence-2-large structured description, CLIP ViT-L/14 embedding, and YAML-configured hazard alerts. Config fields: `run_detect`, `run_describe`, `run_embed`, `run_hazards` (bool flags), `max_images` (int, default 1). Output keys: `scene_detections`, `scene_description`, `scene_embedding`, `scene_hazards`, `scene_detector_available`, `scene_describer_available`, `scene_embedder_available`. Always continues the pipeline; returns empty results when the client is not configured.
 - `vision_analysis`: Instructs the vision LLM (hardwired to `services.vision_provider`). Prefer `llm_call` for new pipelines. Supports `image_source` (`"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `additional_room_names`, `image_time_filter`, structured JSON output via `response_format`/`response_schema`/`response_json_schema`.
 - `logic_reasoning`: Sends a prompt to the logic LLM provider (hardwired to `services.logic_provider`). Prefer `llm_call` for new pipelines. Supports `response_format` (`"default"`, `"activity_detection"`, `"custom"`), `response_schema`, `response_json_schema`.
 - `translation`: Translates text (hardwired to `services.translation_provider`). Prefer `llm_call` for new pipelines. Accepts `special_instructions` and `hallucination_marker` for Tenacity retry.
@@ -210,6 +213,8 @@ A continuous `prompt-bridge` task (started in `_run_backend_loop`) transfers orc
 ### Context Filters
 
 Context filters are plugins in `backend/filters/builtin/`. Each filter inherits `ContextFilter` from `backend/filters/base.py` and is registered via `@FilterRegistry.register`. The `RulesEngine._matches_context()` method delegates to `FilterRegistry.get(context_type).evaluate()`.
+
+**`room_transition` filter** (`backend/filters/builtin/room_transition.py`): Queries `PersonLocationHistory` for entries matching `person_id`, `direction_semantic`, and optional `to_room_name` / `from_room_name` (case-insensitive) within a configurable `within_minutes` window (default 5). Used with the camera topology system: door cameras record transitions to `PersonLocationHistory` via `infer_room_transition()` in `backend/services/camera_topology.py`.
 
 **Negation:** Each `RuleContext` has a `negate` boolean column. When `True`, the filter result is inverted  -  e.g., a room filter with `negate=True` means "NOT in this room". Within a context_type group, contexts are ORed; across groups, they are ANDed. Negation applies per-context before the OR grouping.
 
@@ -632,6 +637,7 @@ One row per eink display device. Links a sensor to its current rendered state an
 - Place tests in `backend/tests/` mirroring the `backend/` structure (e.g., `tests/services/test_rules_engine.py`)
 - `backend/tests/conftest.py` provides `db_engine`, `db_session`, and `db_factory` fixtures backed by an in-memory SQLite instance
 - `backend/tests/core/` holds the `backend.core` test suite (113+ tests, ~98% branch coverage) — the primary reference for how the core layer expects to be consumed
+- Full suite: 591 tests (`make test`)
 - Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone-mismatch when comparing timestamps stored as UTC strings in SQLite
 - Run with: `uv run pytest` or, from the repo root, any of the Makefile targets:
   - `make test` -- full backend suite
@@ -701,6 +707,7 @@ mock external dependencies (ffmpeg, channel registry) via `monkeypatch`.
 | Home Assistant | `HOME_ASSISTANT_URL`, `HOME_ASSISTANT_TOKEN` | Sensor polling, announcements, area discovery |
 | MinIO | `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | Media object storage |
 | Person ID Service | `PERSON_ID_SERVICE_URL` | Face recognition + motion detection |
+| Scene Analysis Service | `scene_analysis.base_url` in settings.yaml | YOLO11x detection, Florence-2 description, CLIP embeddings (optional) |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CAREGIVER_CHAT_ID` | Alert notifications |
 | TTS | `TTS_API_URL` | Text-to-speech announcements |
 

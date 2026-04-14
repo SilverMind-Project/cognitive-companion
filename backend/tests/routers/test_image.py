@@ -69,9 +69,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "_DEFAULT_TEMPLATE", tmp_path / "default.png")
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-a", db_session, _request(active)
-        )
+        response = image_router._serve_image_for_sensor("device-a", db_session, _request(active))
 
         assert response.status_code == 200
         assert response.body == b"first-frame"
@@ -120,9 +118,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "_DEFAULT_TEMPLATE", tmp_path / "default.png")
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-c", db_session, _request(active)
-        )
+        response = image_router._serve_image_for_sensor("device-c", db_session, _request(active))
 
         assert response.status_code == 204
 
@@ -145,9 +141,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "_DEFAULT_TEMPLATE", tmp_path / "default.png")
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-d", db_session, _request(active)
-        )
+        response = image_router._serve_image_for_sensor("device-d", db_session, _request(active))
 
         assert not response.body
 
@@ -172,9 +166,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "_DEFAULT_TEMPLATE", tmp_path / "default.png")
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-e", db_session, _request(active)
-        )
+        response = image_router._serve_image_for_sensor("device-e", db_session, _request(active))
 
         assert response.status_code == 200
         assert response.body == b"new-frame"
@@ -198,9 +190,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "_DEFAULT_TEMPLATE", tmp_path / "default.png")
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-f", db_session, _request(active)
-        )
+        response = image_router._serve_image_for_sensor("device-f", db_session, _request(active))
 
         assert response.status_code == 200
         assert response.body == b"periodic-frame"
@@ -224,9 +214,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "_DEFAULT_TEMPLATE", tmp_path / "default.png")
         monkeypatch.setattr(image_router, "settings", _settings(0))
 
-        response = image_router._serve_image_for_sensor(
-            "device-g", db_session, _request(active)
-        )
+        response = image_router._serve_image_for_sensor("device-g", db_session, _request(active))
 
         assert response.status_code == 200
 
@@ -249,9 +237,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "_DEFAULT_TEMPLATE", tmp_path / "default.png")
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-h", db_session, _request(active)
-        )
+        response = image_router._serve_image_for_sensor("device-h", db_session, _request(active))
 
         assert response.status_code == 200
 
@@ -338,9 +324,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "_DEFAULT_TEMPLATE", default)
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-k", db_session, _request(active)
-        )
+        response = image_router._serve_image_for_sensor("device-k", db_session, _request(active))
 
         assert response.status_code == 200
         assert response.body == b"default-content"

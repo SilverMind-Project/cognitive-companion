@@ -191,6 +191,12 @@ async def lifespan(app: FastAPI):
     person_id_client = PersonIDClient()
     app.state.person_id_client = person_id_client
 
+    # -- Scene analysis client --------------------------------------------
+    from backend.integrations.scene_analysis_client import SceneAnalysisClient
+
+    scene_analysis_client = SceneAnalysisClient()
+    app.state.scene_analysis_client = scene_analysis_client
+
     # -- Person tracking service -------------------------------------------
     from backend.services.person_tracking import PersonTrackingService
 
@@ -230,6 +236,7 @@ async def lifespan(app: FastAPI):
         ha_client=ha_client,
         event_aggregator=event_aggregator,
         llm_model_registry=llm_model_registry,
+        scene_analysis_client=scene_analysis_client,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor

@@ -76,10 +76,10 @@ class _PipelineExecutor(Protocol):
 class _ParsedCommand:
     """A normalised Telegram command extracted from one update message."""
 
-    command: str        # e.g. "/remind"
-    args: list[str]     # tokens after the command
-    raw_text: str       # full original text
-    chat_id: str        # string form of the Telegram chat ID
+    command: str  # e.g. "/remind"
+    args: list[str]  # tokens after the command
+    raw_text: str  # full original text
+    chat_id: str  # string form of the Telegram chat ID
     from_user: dict[str, Any]
 
     @classmethod

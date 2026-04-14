@@ -326,6 +326,10 @@ class HomeAssistantClient:
         except Exception:
             logger.exception("ha_announce_error")
 
+    async def turn_on_media_player(self, entity_id: str) -> None:
+        """Turn on a media player entity (wakes idle/standby devices like Google Home)."""
+        await self._call_service("media_player", "turn_on", {"entity_id": entity_id})
+
     async def play_audio(
         self, audio_url: str, entity_id: str = "media_player.living_room_speaker"
     ) -> None:

@@ -39,6 +39,10 @@ _COLUMN_MIGRATIONS: tuple[str, ...] = (
     # is rolled back cleanly.
     "ALTER TABLE active_image_state ADD COLUMN last_served_hash VARCHAR(64)",
     "ALTER TABLE active_image_state ADD COLUMN last_served_at DATETIME",
+    # Camera-topology fields on PersonLocationHistory (added 2026-04-13).
+    "ALTER TABLE person_location_history ADD COLUMN direction_semantic VARCHAR(32)",
+    "ALTER TABLE person_location_history ADD COLUMN from_room_id INTEGER REFERENCES rooms(id)",
+    "ALTER TABLE person_location_history ADD COLUMN from_room_name VARCHAR(128)",
 )
 
 

@@ -42,8 +42,9 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 
 - **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity)  -  each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home")  -  plus inter-rule dependencies
 - **Six trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP with HMAC), `occupancy_duration` (presence sensor occupied ≥ N minutes), `telegram` (inbound Telegram command) -- each with per-rule threshold and cool-off
-- **Composable pipeline steps** -- 11 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
-  `llm_call`, `person_identification`, `vision_analysis`, `logic_reasoning`, `translation`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
+- **Composable pipeline steps** -- 10 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
+  `llm_call`, `person_identification`, `vision_analysis`, `scene_analysis`, `notification`, `ha_action`, `activity_detection`, `wait`, `condition`, `verification`
+  (`llm_call` is the unified reasoning step covering the use cases of legacy `logic_reasoning` and `translation` types)
 - **Unified LLM step** (`llm_call`) -- single step replaces separate vision/logic/translation steps. Model selected per step from a named registry in `settings.yaml`; supports text, vision, and translation in one interface with configurable output key.
 - **Named model registry** -- configure any number of OpenAI-compatible or Ollama endpoints in `llm.models`. Each entry declares its `api_type`, `capabilities`, and whether it supports `guided_decoding` (vLLM `guided_json`).
 - **Structured output** via native LLM guided decoding -- enforce custom JSON schema output guarantees. For vLLM servers, schemas are sent as `guided_json`; for llama.cpp and others, the schema is injected as a prompt instruction.
@@ -53,6 +54,8 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Annotated person identification images** with bounding boxes and name labels returned inline
 - **Activity tracking** -- detect and record person activities as pipeline outputs for use as context filters in downstream rules. **Scene description capture** (`capture_scene_description`) saves the upstream VLM analysis alongside each activity record for full auditability. **Extensible activity type list** with 30+ pre-programmed suggestions and free-form entry
 - **Motion direction detection** at doorways (left/right, towards/away from camera)
+- **Camera topology** -- configure a per-sensor `movement_map` in `Sensor.config_json` to translate raw motion directions into semantic room transitions (entering, exiting, approaching, stationary). The `room_transition` context filter lets rules fire only on specific transition types.
+- **Scene analysis** -- the `scene_analysis` pipeline step calls the standalone `scene-analysis-service` microservice for YOLO11x object detection, Florence-2-large structured scene description, and CLIP ViT-L/14 image embeddings. Returns detections, captions, dense embeddings, and YAML-configured hazard alerts (`scene_detections`, `scene_description`, `scene_embedding`, `scene_hazards`).
 - **Whole-house location tracking** fusing camera detections with Home Assistant presence sensors, with room-level person presence rules
 - **Prompt templates** -- use `{{variable}}` syntax in LLM step prompts to inline pipeline data (e.g. `{{person_detections.0.name}}`, `{{system.local_time}}`, ``{{vision_response}}`)
 - **Home Assistant actions** as first-class pipeline steps (call any HA service from a rule)
@@ -96,6 +99,7 @@ Optional:
 | Telegram Bot | Caregiver alert notifications |
 | Google Gemini API | Real-time voice conversations |
 | TTS service | Text-to-speech announcements |
+| Scene Analysis Service | YOLO11x object detection, Florence-2 scene description, CLIP embeddings (see `../scene-analysis-service/`) |
 
 ## Quick Start
 
@@ -191,15 +195,15 @@ cognitive-companion/
 │   │   ├── base.py                # StepHandler ABC, StepMetadata, ServiceContainer
 │   │   ├── __init__.py            # StepRegistry singleton + auto-discovery
 │   │   └── builtin/               # 10 built-in step handlers
+│   │       ├── llm_call.py
 │   │       ├── person_identification.py
+│   │       ├── scene_analysis.py
 │   │       ├── vision_analysis.py
-│   │       ├── logic_reasoning.py
-│   │       ├── condition.py
-│   │       ├── activity_detection.py
-│   │       ├── verification.py
 │   │       ├── notification.py
 │   │       ├── ha_action.py
-│   │       ├── translation.py
+│   │       ├── activity_detection.py
+│   │       ├── verification.py
+│   │       ├── condition.py
 │   │       └── wait.py
 │   ├── channels/                  # Notification channel plugin system (E2)
 │   │   ├── base.py                # NotificationChannel ABC
@@ -208,7 +212,7 @@ cognitive-companion/
 │   ├── filters/                   # Context filter plugin system (E4)
 │   │   ├── base.py                # ContextFilter ABC
 │   │   ├── __init__.py            # FilterRegistry singleton
-│   │   └── builtin/               # Room, time_range, day_of_week, person_presence, person_activity
+│   │   └── builtin/               # room, time_range, day_of_week, person_presence, person_activity, room_transition
 │   ├── services/
 │   │   ├── pipeline_executor.py    # Step orchestrator (dispatches via StepRegistry)
 │   │   ├── condition_evaluator.py  # Safe expression parser for condition steps
@@ -218,7 +222,8 @@ cognitive-companion/
 │   │   ├── notification_dispatcher.py  # Multi-channel alert routing via ChannelRegistry
 │   │   ├── workflow.py             # Workflow orchestration
 │   │   └── ...                     # Scheduler, sensor polling, media, RAG
-│   ├── integrations/           # External clients (HA, MinIO, Telegram, TTS, LLMs)
+│   ├── integrations/           # External clients (HA, MinIO, Telegram, TTS, LLMs, scene analysis)
+│   │   ├── scene_analysis_client.py  # HTTP client for scene-analysis-service
 │   │   └── llm/                # LLM providers (vLLM, Ollama, Gemini) + chain/pool support
 │   ├── routers/
 │   │   ├── rules.py            # Rule CRUD + pipeline step endpoints
@@ -379,14 +384,14 @@ Rules no longer use a fixed linear pipeline. Instead, each rule defines a **comp
 
 | Step Type | Purpose |
 |-----------|---------|
-| `person_identification` | Run face recognition on media frames; record sightings and update location |
-| `vision_analysis` | Send media + prompt to the vision LLM. Configurable to fetch temporal snapshots from additional cameras throughout the house. Supports schema-enforced output formatting. |
-| `logic_reasoning` | Evaluate vision output with the logic LLM to decide on actions. Uses `response_format` and `response_json_schema` for guaranteed structured JSON outputs. |
-| `translation` | Translate text to a target language (TranslateGemma). Supports pre-pending special instructions and automated retries via Tenacity when hallucination markers are detected. |
+| `llm_call` | Unified LLM step: vision analysis, reasoning, and translation via any named model in the registry. Supports structured JSON output, sensor-ordered image assembly for inter-frame analysis, and hallucination retry. |
+| `person_identification` | Run face recognition on media frames; record sightings, update location, and emit room transitions based on per-camera topology config. |
+| `vision_analysis` | Send media + prompt to the vision LLM. Configurable to fetch temporal snapshots from additional cameras throughout the house. Supports schema-enforced output formatting. Prefer `llm_call` for new pipelines. |
+| `scene_analysis` | Run YOLO11x object detection, Florence-2-large scene description, and CLIP ViT-L/14 embeddings via the standalone scene-analysis-service microservice. Returns detections, captions, embeddings, and hazard alerts. |
 | `notification` | Dispatch an alert across channels with customizable text templates per-channel (`telegram_template`, etc). Can explicitly trigger rate-limit cool-off. |
 | `ha_action` | Call a Home Assistant service (turn on lights, lock doors, etc.). Can explicitly trigger rate-limit cool-off. |
 | `activity_detection` | Record activities from pipeline data to the PersonActivity table. Can explicitly trigger rate-limit cool-off. |
-| `wait` | Pause execution for a configured duration; resume automatically via scheduler |
+| `wait` | Pause execution for a configured duration; resume automatically via scheduler. |
 | `condition` | Evaluate an expression against pipeline data; branch to different steps. Can conditionally trigger rate-limit cool-off. |
 | `verification` | Query the PersonActivity database to verify whether household members completed (or did not complete) specific activities within a time window. |
 
@@ -602,7 +607,9 @@ Person identification runs as a [companion microservice](../person-identificatio
 
 **Annotated images**: When the `include_annotated_image` flag is set in a `person_identification` pipeline step's config, the person-ID service returns a copy of each frame with bounding boxes and name labels drawn over detected faces. These annotated images are stored in pipeline data and can be forwarded to downstream notification steps for visual confirmation.
 
-**Motion Detection**: Cross-frame centroid tracking classifies movement direction (left-to-right, right-to-left, towards-camera, away-from-camera, stationary). Door-mounted cameras can use this to infer entering vs. leaving.
+**Motion Detection**: Cross-frame centroid tracking classifies movement direction (left-to-right, right-to-left, towards-camera, away-from-camera, stationary).
+
+**Camera Topology**: Each camera sensor accepts a `movement_map` in its `config_json` that maps raw motion directions to semantic transitions: `entering`, `exiting`, `approaching_exit`, `entering_depth`, or `stationary`. The `person_identification` step calls `infer_room_transition()` to compute these transitions and writes them to `PersonLocationHistory`. The `room_transition` context filter lets rules fire only when a person makes a specific type of transition at a doorway.
 
 **Location Tracking**: The `PersonTrackingService` fuses camera detections with Home Assistant presence sensors to maintain per-person location state. When a person's room changes, a history entry is created. For rooms without cameras (e.g., bathrooms), HA presence sensor activations are correlated with the most recent camera sighting to infer who is present.
 

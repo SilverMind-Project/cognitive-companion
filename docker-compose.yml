@@ -11,6 +11,9 @@
 #   - Home Assistant  smart home integration
 #   - MinIO  S3-compatible object storage
 #   - TTS service  text-to-speech
+#
+# GPU-accelerated services (optional):
+#   - scene-analysis-service  YOLO + Florence-2 + CLIP  see ../scene-analysis-service/
 
 services:
   # ─── Backend API ───────────────────────────────────────────────
@@ -46,6 +49,47 @@ services:
       backend:
         condition: service_healthy
 
+  # ─── Scene Analysis Service (optional GPU) ────────────────────
+  # Provides fast object detection (YOLO11x), structured scene
+  # description (Florence-2), and CLIP image embeddings.
+  # Enable by setting SAS_DEVICE=cuda (or cpu for CPU-only mode).
+  # Requires the image to be built from ../scene-analysis-service/.
+  #
+  # To activate: uncomment this block and add to backend's depends_on.
+  #
+  # scene-analysis:
+  #   image: scene-analysis-service:latest
+  #   # build:
+  #   #   context: ../scene-analysis-service
+  #   #   dockerfile: Dockerfile
+  #   container_name: cc-scene-analysis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8100:8100"
+  #   environment:
+  #     - SAS_DEVICE=auto          # auto | cuda | cpu
+  #     - SAS_YOLO_ENABLED=true
+  #     - SAS_FLORENCE_ENABLED=true
+  #     - SAS_CLIP_ENABLED=true
+  #   # GPU access (uncomment when NVIDIA runtime is available):
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           count: 1
+  #   #           capabilities: [gpu]
+  #   volumes:
+  #     - scene-analysis-models:/root/.cache   # HuggingFace + YOLO model cache
+  #   healthcheck:
+  #     test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 60s
+
 volumes:
   backend-data:
     driver: local
+  # scene-analysis-models:
+  #   driver: local

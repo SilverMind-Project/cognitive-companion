@@ -150,6 +150,7 @@ class VLLMVisionProvider(LLMProvider):
         logger.debug("vllm_vision_response", length=len(text))
         return text
 
+
 # ---------------------------------------------------------------------------
 # VLLMTranslationProvider
 # ---------------------------------------------------------------------------

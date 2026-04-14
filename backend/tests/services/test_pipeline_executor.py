@@ -235,9 +235,7 @@ class TestPipelineExecutorErrors:
         result = await executor.execute(rule, trigger, db_session)
 
         assert result.status == "failed"
-        event_log = (
-            db_session.query(EventLog).filter(EventLog.id == result.event_log_id).first()
-        )
+        event_log = db_session.query(EventLog).filter(EventLog.id == result.event_log_id).first()
         assert event_log is not None
         assert event_log.status == "failed"
 
@@ -513,9 +511,7 @@ class TestPipelineExecutorPersistence:
     failed assertion instead of a false pass.
     """
 
-    async def test_multi_step_pipeline_data_persists_across_commits(
-        self, db_session, db_factory
-    ):
+    async def test_multi_step_pipeline_data_persists_across_commits(self, db_session, db_factory):
         rule = _make_rule(db_session)
         _make_step(db_session, rule, order=1, step_type="step_a")
         _make_step(db_session, rule, order=2, step_type="step_b")
@@ -544,9 +540,7 @@ class TestPipelineExecutorPersistence:
         assert [t["step_type"] for t in timings] == ["step_a", "step_b", "step_c"]
         assert all(t["success"] is True for t in timings)
 
-    async def test_pipeline_completed_at_persists_after_reload(
-        self, db_session, db_factory
-    ):
+    async def test_pipeline_completed_at_persists_after_reload(self, db_session, db_factory):
         """Nested mutation of ``_pipeline.completed_at`` must land on disk.
 
         ``MutableDict`` only tracks top-level ``__setitem__`` / ``update``
@@ -578,9 +572,7 @@ class TestPipelineExecutorPersistence:
         datetime_like = pipeline_block["completed_at"]
         assert "T" in datetime_like
 
-    async def test_event_log_snapshot_contains_final_pipeline_data(
-        self, db_session, db_factory
-    ):
+    async def test_event_log_snapshot_contains_final_pipeline_data(self, db_session, db_factory):
         """The event log snapshot written on completion must include every
         step's output, not just the first step's. Regression for the drift
         between ``WorkflowExecution.pipeline_data_json`` and
@@ -599,9 +591,7 @@ class TestPipelineExecutorPersistence:
         with patch.object(executor, "_execute_step", side_effect=mock_execute):
             execution = await executor.execute(rule, trigger, db_session)
 
-        event_log = (
-            db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
-        )
+        event_log = db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
         assert event_log is not None
         db_session.refresh(event_log)
 
@@ -640,9 +630,7 @@ class TestPipelineExecutorEarlyExit:
             execution = await executor.execute(rule, trigger, db_session)
 
         assert execution.status == "completed"
-        event_log = (
-            db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
-        )
+        event_log = db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
         assert event_log is not None
         assert event_log.status == "ignored"
         # The skip_reason must be preserved in the event log snapshot so the
@@ -670,9 +658,7 @@ class TestPipelineExecutorEarlyExit:
             execution = await executor.execute(rule, trigger, db_session)
 
         assert execution.status == "failed"
-        event_log = (
-            db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
-        )
+        event_log = db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
         assert event_log is not None
         assert event_log.status == "failed"
 

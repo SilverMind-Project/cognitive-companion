@@ -62,6 +62,16 @@ const routes = [
         component: () => import("../views/admin/ActivitiesView.vue"),
       },
       {
+        path: "timeline",
+        name: "admin-timeline",
+        component: () => import("../views/admin/PersonTimelineView.vue"),
+      },
+      {
+        path: "reports",
+        name: "admin-reports",
+        component: () => import("../views/admin/DailyReportsView.vue"),
+      },
+      {
         path: "workflows",
         name: "admin-workflows",
         component: () => import("../views/admin/WorkflowsView.vue"),

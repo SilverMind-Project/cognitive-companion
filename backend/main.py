@@ -197,6 +197,22 @@ async def lifespan(app: FastAPI):
     scene_analysis_client = SceneAnalysisClient()
     app.state.scene_analysis_client = scene_analysis_client
 
+    # -- Object trend client -----------------------------------------------
+    from backend.integrations.object_trend_client import ObjectTrendClient
+
+    object_trend_cfg = settings.get("object_trends", {})
+    object_trend_base_url = object_trend_cfg.get("base_url", "")
+    object_trend_enabled = object_trend_cfg.get("enabled", False)
+    object_trend_timeout = object_trend_cfg.get("timeout", 10.0)
+
+    object_trend_client: ObjectTrendClient | None = None
+    if object_trend_enabled and object_trend_base_url:
+        object_trend_client = ObjectTrendClient(
+            base_url=object_trend_base_url,
+            timeout=object_trend_timeout,
+        )
+    app.state.object_trend_client = object_trend_client
+
     # -- Person tracking service -------------------------------------------
     from backend.services.person_tracking import PersonTrackingService
 
@@ -224,6 +240,18 @@ async def lifespan(app: FastAPI):
     )
     app.state.event_aggregator = event_aggregator
 
+    # -- Activity session service ------------------------------------------
+    from backend.services.activity_session import ActivitySessionService
+
+    activity_session_service = ActivitySessionService(get_session)
+    app.state.activity_session_service = activity_session_service
+
+    # -- Daily report service ----------------------------------------------
+    from backend.services.daily_report import DailyReportService
+
+    daily_report_service = DailyReportService(get_session)
+    app.state.daily_report_service = daily_report_service
+
     # -- Pipeline executor -------------------------------------------------
     from backend.services.pipeline_executor import PipelineExecutor
 
@@ -237,6 +265,9 @@ async def lifespan(app: FastAPI):
         event_aggregator=event_aggregator,
         llm_model_registry=llm_model_registry,
         scene_analysis_client=scene_analysis_client,
+        activity_session_service=activity_session_service,
+        daily_report_service=daily_report_service,
+        object_trend_client=object_trend_client,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor
@@ -272,6 +303,12 @@ async def lifespan(app: FastAPI):
     )
     app.state.sensor_polling = sensor_polling
 
+    # -- Activity timeline service -----------------------------------------
+    from backend.services.activity_timeline import ActivityTimelineService
+
+    activity_timeline_service = ActivityTimelineService(get_session)
+    app.state.activity_timeline_service = activity_timeline_service
+
     # -- MCP tool server (official MCP SDK) ----------------------------------
     from backend.mcp.server import get_tool_registry
     from backend.mcp.server import init_services as init_mcp_services
@@ -282,6 +319,9 @@ async def lifespan(app: FastAPI):
         sensor_polling_service=sensor_polling,
         ha_client=ha_client,
         person_tracking=person_tracking,
+        activity_timeline=activity_timeline_service,
+        activity_session=activity_session_service,
+        daily_report=daily_report_service,
     )
 
     # Build the Gemini tool adapter for voice tool calling

@@ -30,6 +30,8 @@
         <v-list-subheader class="mt-2">People</v-list-subheader>
         <v-list-item prepend-icon="mdi-account-group-outline" title="Members &amp; Enrollment" to="/admin/persons" />
         <v-list-item prepend-icon="mdi-run" title="Activities" to="/admin/activities" />
+        <v-list-item prepend-icon="mdi-timeline-text-outline" title="Timeline" to="/admin/timeline" />
+        <v-list-item prepend-icon="mdi-chart-box" title="Daily Reports" to="/admin/reports" />
         <v-list-item prepend-icon="mdi-alert-circle-outline" title="Alerts" to="/admin/alerts" />
       </v-list>
     </v-navigation-drawer>

@@ -172,6 +172,12 @@ person_tracking:
   location_stale_minutes: 30
   ha_propagation: true
 
+# Object trend tracking (semantic-memory-service trend API)
+object_trends:
+  base_url: "${OBJECT_TRENDS_BASE_URL}"
+  enabled: false
+  timeout: 10
+
 # RAG / contextual lookup
 rag:
   enabled: false

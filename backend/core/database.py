@@ -43,6 +43,11 @@ _COLUMN_MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person_location_history ADD COLUMN direction_semantic VARCHAR(32)",
     "ALTER TABLE person_location_history ADD COLUMN from_room_id INTEGER REFERENCES rooms(id)",
     "ALTER TABLE person_location_history ADD COLUMN from_room_name VARCHAR(128)",
+    # Duration-aware activity session fields on person_activities (added 2026-04-16).
+    "ALTER TABLE person_activities ADD COLUMN duration_minutes INTEGER",
+    "ALTER TABLE person_activities ADD COLUMN session_id VARCHAR(64)",
+    # Observation backlink for auditability chain (added 2026-04-16).
+    "ALTER TABLE person_activities ADD COLUMN observation_id INTEGER REFERENCES scene_observations(id)",
 )
 
 

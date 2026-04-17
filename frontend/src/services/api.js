@@ -187,6 +187,40 @@ export const api = {
     return request(`/activities${qs ? "?" + qs : ""}`);
   },
 
+  // Activity Timeline
+  getTimeline: (personId, params = {}) => {
+    const qs = new URLSearchParams({ person_id: personId, ...params }).toString();
+    return request(`/activities/timeline?${qs}`);
+  },
+
+  // Activity Sessions
+  openSession: (personId, data) =>
+    request("/activities/sessions/open", {
+      method: "POST",
+      body: JSON.stringify({ person_id: personId, ...data }),
+    }),
+  closeSession: (sessionId, data = {}) =>
+    request(`/activities/sessions/${sessionId}/close`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getOpenSessions: (personId) => {
+    const qs = personId ? `?person_id=${personId}` : "";
+    return request(`/activities/sessions/open${qs}`);
+  },
+
+  // Daily Reports
+  getDailyReport: (personId, date, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/activities/reports/${personId}/${date}${qs ? "?" + qs : ""}`);
+  },
+  regenerateDailyReport: (personId, date, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/activities/reports/${personId}/${date}/regenerate?${qs}`, {
+      method: "POST",
+    });
+  },
+
   // Image Templates
   getImageTemplates: () => request("/image/templates"),
   createImageTemplate: (formData) => requestForm("/image/templates", "POST", formData),

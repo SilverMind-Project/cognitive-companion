@@ -7,6 +7,9 @@ from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
 from backend.models.media_cache import MediaCache
 from backend.models.person import (
+    ActivitySession,
+    ActivityTypeEnum,
+    DailyReport,
     HouseholdMember,
     PersonActivity,
     PersonLocationHistory,
@@ -20,8 +23,11 @@ from backend.models.sensor import Sensor
 
 __all__ = [
     "ActiveImageState",
+    "ActivitySession",
+    "ActivityTypeEnum",
     "ConversationSession",
     "ConversationTurn",
+    "DailyReport",
     "EmergencyAlert",
     "EventLog",
     "HouseholdMember",

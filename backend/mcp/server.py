@@ -36,6 +36,9 @@ class MCPServices:
     sensor_polling: Any = None
     ha_client: Any = None
     person_tracking: Any = None
+    activity_timeline: Any = None
+    activity_session: Any = None
+    daily_report: Any = None
 
 
 _svc = MCPServices()
@@ -47,6 +50,9 @@ def init_services(
     sensor_polling_service=None,
     ha_client=None,
     person_tracking=None,
+    activity_timeline=None,
+    activity_session=None,
+    daily_report=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -54,6 +60,9 @@ def init_services(
     _svc.sensor_polling = sensor_polling_service
     _svc.ha_client = ha_client
     _svc.person_tracking = person_tracking
+    _svc.activity_timeline = activity_timeline
+    _svc.activity_session = activity_session
+    _svc.daily_report = daily_report
 
 
 # ---------------------------------------------------------------------------
@@ -497,3 +506,82 @@ async def get_weather() -> dict:
     except Exception as exc:
         logger.error("get_weather_error", error=str(exc))
         return {"error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# Timeline, Reports, Sessions tools
+# ---------------------------------------------------------------------------
+
+
+@_register
+async def get_person_timeline(
+    person_id: str,
+    minutes: int = 60,
+) -> list[dict]:
+    """Get the unified activity timeline for a person over a time window."""
+    if not _svc.activity_timeline:
+        return [{"error": "Timeline service not available"}]
+
+    from datetime import UTC, timedelta
+
+    end_time = datetime.now(UTC)
+    start_time = end_time - timedelta(minutes=minutes)
+    events = _svc.activity_timeline.get_timeline(
+        person_id=person_id,
+        start_time=start_time,
+        end_time=end_time,
+        limit=200,
+    )
+    return events
+
+
+@_register
+async def get_daily_report(
+    person_id: str,
+    date: str,
+) -> dict:
+    """Get or generate a daily report for a person on a specific date.
+
+    Args:
+        person_id: Household member ID.
+        date: Date in YYYY-MM-DD format.
+
+    Returns:
+        Daily report dict with aggregated metrics.
+    """
+    if not _svc.daily_report:
+        return {"error": "Daily report service not available"}
+
+    report = _svc.daily_report.get_report(person_id=person_id, date=date)
+    if report:
+        return report
+
+    # No existing report — generate one on demand
+
+    from backend.core.config import settings
+
+    tz_name = settings.get("app.timezone", "UTC")
+    report = _svc.daily_report.generate_daily_report(
+        person_id=person_id,
+        date=date,
+        tz_name=tz_name,
+    )
+    return report
+
+
+@_register
+async def get_open_sessions(
+    person_id: str | None = None,
+) -> list[dict]:
+    """Get currently open activity sessions.
+
+    Args:
+        person_id: Optional household member ID to filter sessions.
+
+    Returns:
+        List of open session dicts with activity type, room, and open time.
+    """
+    if not _svc.activity_session:
+        return [{"error": "Activity session service not available"}]
+
+    return _svc.activity_session.get_open_sessions(person_id=person_id)

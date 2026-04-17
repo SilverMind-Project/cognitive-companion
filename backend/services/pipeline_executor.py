@@ -57,6 +57,9 @@ class PipelineExecutor:
         rag_service=None,
         llm_model_registry=None,
         scene_analysis_client=None,
+        activity_session_service=None,
+        daily_report_service=None,
+        object_trend_client=None,
     ) -> None:
         self._services = ServiceContainer(
             db_factory=db_session_factory,
@@ -70,6 +73,9 @@ class PipelineExecutor:
             rag_service=rag_service,
             llm_model_registry=llm_model_registry,
             scene_analysis_client=scene_analysis_client,
+            activity_session_service=activity_session_service,
+            daily_report_service=daily_report_service,
+            object_trend_client=object_trend_client,
         )
 
     # Expose scheduler for injection after construction

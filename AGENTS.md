@@ -27,15 +27,15 @@ backend/
   steps/                   # Step plugin system
     base.py                # StepHandler ABC, StepMetadata, StepResult, TriggerContext, ServiceContainer
     __init__.py            # StepRegistry singleton + auto-discovery
-    builtin/               # 10 built-in step handlers (one file each: llm_call, person_identification, scene_analysis, vision_analysis, notification, ha_action, activity_detection, verification, condition, wait)
+    builtin/               # 14 built-in step handlers (one file each: llm_call, person_identification, scene_analysis, vision_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, verification, condition, wait)
   channels/                # Notification channel plugin system
     base.py                # NotificationChannel ABC, ChannelMetadata
     __init__.py            # ChannelRegistry singleton + auto-discovery
-    builtin/               # PWA Popup Text, Telegram, eInk, HA Speaker TTS, PWA Realtime AI, PWA TTS Announcement channel plugins
+    builtin/               # PWA Popup Text, Telegram, eInk, HA Speaker TTS, PWA Realtime AI, PWA TTS Announcement, PWA Realtime Voice, Webhook, WebSocket channel plugins
   filters/                 # Context filter plugin system
     base.py                # ContextFilter ABC, FilterMetadata
     __init__.py            # FilterRegistry singleton + auto-discovery
-    builtin/               # room, time_range, day_of_week, person_presence, person_activity, room_transition filters
+    builtin/               # room, time_range, day_of_week, person_presence, person_activity, room_transition, scene_trend filters
   models/
     __init__.py            # Re-exports all models -- import here to register with Base
     sensor.py              # Sensor (camera, presence, button, light, media_player, eink, generic)
@@ -160,7 +160,7 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 - `StepMetadata` (dataclass) -- step name, description, icon, config JSONSchema.
 - `StepResult` (dataclass) -- step output: success, data dict, should_continue, optional next_step_id or wait_until.
 - `TriggerContext` (dataclass) -- trigger metadata: sensor_id, room_name, media_paths, trigger_type, webhook_payload.
-- `ServiceContainer` (dataclass) -- holds all shared services passed to step handlers: LLM providers, HA client, DB session factory, minio_client, telegram_client, tts_client, ws_manager, notification_dispatcher, person_tracking, person_id_client, scene_analysis_client, llm_model_registry, eink_renderer, event_aggregator, rag_lookup.
+- `ServiceContainer` (dataclass) -- holds all shared services passed to step handlers: LLM providers, HA client, DB session factory, minio_client, telegram_client, tts_client, ws_manager, notification_dispatcher, person_tracking, person_id_client, scene_analysis_client, llm_model_registry, eink_renderer, event_aggregator, rag_lookup, activity_session_service, activity_timeline_service, daily_report_service, object_trend_client.
 
 **Data flow**: Pipeline data accumulates across steps. Each step receives the current `pipeline_data` dict and returns a `StepResult`. The executor merges `result.data` into `pipeline_data` before proceeding to the next step. At initialization, `PipelineExecutor` injects a localized `system` object including `system.local_time`, `system.local_date`, `system.local_day_of_week`, and `system.timezone` ensuring downstream steps (like prompts or notifications) have localized time awareness.
 
@@ -170,12 +170,16 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 
 **Wait steps** persist execution state to the `WorkflowExecution` table (status="waiting", resume_at set). The scheduler resumes execution via an APScheduler `DateTrigger`. A `SchedulerBridge` abstraction is injected into `PipelineExecutor` to decouple wait/resume scheduling.
 
-**Built-in step types**: llm_call, person_identification, vision_analysis, scene_analysis, notification, ha_action, activity_detection, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`. (`logic_reasoning` and `translation` were removed; use `llm_call` with the appropriate `output_key` instead.)
+**Built-in step types**: llm_call, person_identification, vision_analysis, scene_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`. (`logic_reasoning` and `translation` were removed; use `llm_call` with the appropriate `output_key` instead.)
 
 Step type details:
 
 - `llm_call`: Unified LLM step. Selects a model by `model_id` from `LLMModelRegistry` (loaded from `llm.models` in settings.yaml). Supports vision (image attachment), JSON schema enforcement (`response_format`: `"text"`, `"json_schema"`, `"json_free"`), `special_instructions` prepended to the prompt, context key inclusion, and hallucination retry. Key config: `model_id`, `prompt`, `include_context`, `image_source` (`"none"`, `"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `sort_by_sensor_then_time` (groups images by sensor order then chronologically within each -- enables inter-frame analysis), `images_per_sensor`, `max_images`, `image_time_filter`, `response_format`, `response_json_schema`, `output_key` (defaults to `"llm_response"`; set to `"logic_response"` / `"vision_response"` / `"translation"` for downstream step compatibility), `hallucination_marker`. Uses `services.llm_model_registry` from `ServiceContainer`.
 - `activity_detection`: Records a single activity to the `PersonActivity` table. Config fields: `activity_type` (required), `person_id` (optional), `room_name` (optional), `confidence` (accepts a fixed number or `{{template}}` syntax, defaults to `0.8`). All fields support `{{template}}` syntax. `person_id` defaults to `"unknown"` when empty. `room_name` defaults to the trigger room when empty. Use multiple steps to record multiple activities. **Scene capture**: set `capture_scene_description: true` to store the upstream vision analysis output (default key: `vision_response`) in `metadata_json.scene_description` -- gives each activity record an auditable explanation of *why* it was detected. Use `scene_description_key` to read from a different pipeline key. `metadata_extra` accepts an optional JSON string (template-supported) merged into `metadata_json` for arbitrary extra fields.
+- `activity_session_start`: Opens a duration-aware activity session via `ActivitySessionService`. Idempotent: reuses an existing open session of the same type for the same person. Config fields: `activity_type` (required), `person_id` (optional, defaults to `"unknown"`), `room_name` (optional, defaults to trigger room), `confidence` (default `0.85`), `timeout_minutes` (uses built-in default for activity type when empty), `metadata_extra` (optional JSON string merged into session metadata), `output_key` (default `"session"`). All string fields support `{{template}}` syntax. Writes `session_id`, `person_id`, `activity_type`, `room_name`, `started_at`, `timeout_minutes`, `was_existing` to pipeline_data.
+- `activity_session_end`: Closes an open activity session and optionally records a `PersonActivity` with `duration_minutes` populated. Config fields: `activity_type` (required), `person_id` (optional), `write_activity_record` (boolean, default `true`), `output_key` (default `"closed_session"`). If no open session exists, logs a warning and continues (never blocks pipeline). Writes `session_id`, `person_id`, `activity_type`, `room_name`, `started_at`, `closed_at`, `duration_minutes`, `status`, `closed_via` to pipeline_data.
+- `daily_report`: Generates end-of-day activity reports via `DailyReportService`. Designed for cron-triggered end-of-day rules. Aggregates sleep, meals, medication, bathroom, door events, exercise, and location data into structured `DailyReport` records with wellness scoring. Config fields: `person_ids` (array, empty = all active members), `report_date_offset_days` (default `0` = today), `generate_summary_text` (boolean, uses LLM for prose summary), `summary_model_id` (default `"gemma4_26b"`), `notify_on_complete` (boolean), `output_key` (default `"daily_reports"`). Writes list of report results with `person_id`, `report_date`, `report_id`, `wellness_score`.
+- `object_trend_analysis`: Queries `semantic-memory-service` for room-level object trend state (clutter scores, persistent/novel objects, anomaly severity) via `ObjectTrendClient`. Designed to precede a `condition` step (branching) or `llm_call` step (LLM-enriched reasoning). Config fields: `room_ids` (array, empty = trigger room), `include_snapshots_hours` (default `0`), `severity_threshold` (enum: "ok"|"info"|"warning"|"critical", default "info"), `output_key` (default `"room_trends"`). Writes `room_trends` (dict), `room_trends_any_warning` (bool), `room_trends_max_severity` (str), `room_trends_summary` (compact text for LLM injection). Graceful degradation: empty results if client is unavailable.
 - `verification`: A database query step. Queries the `PersonActivity` table to verify activities within configured time windows. Each condition has `activity_type` (required), optional `person_id` (template-enabled, empty = any person), optional `room_name` (template-enabled, empty = any room), time window (`within_minutes` or `window_start`/`window_end`), and `min_confidence`. Does not capture images or run LLM calls.
 - `scene_analysis`: Calls `services.scene_analysis_client.analyze()` on the standalone scene-analysis-service. Returns YOLO11x object detections, Florence-2-large structured description, CLIP ViT-L/14 embedding, and YAML-configured hazard alerts. Config fields: `run_detect`, `run_describe`, `run_embed`, `run_hazards` (bool flags), `max_images` (int, default 1). Output keys: `scene_detections`, `scene_description`, `scene_embedding`, `scene_hazards`, `scene_detector_available`, `scene_describer_available`, `scene_embedder_available`. Always continues the pipeline; returns empty results when the client is not configured.
 - `vision_analysis`: Instructs the vision LLM (hardwired to `services.vision_provider`). Prefer `llm_call` for new pipelines. Supports `image_source` (`"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `additional_room_names`, `image_time_filter`, structured JSON output via `response_format`/`response_schema`/`response_json_schema`.
@@ -187,7 +191,7 @@ Step type details:
 
 ### Notification Channels
 
-Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. Built-in channels are: `pwa_popup_text` (UI text popups), `telegram`, `eink` (e-ink display images), `ha_speaker_tts` (smart speaker audio via HA), `pwa_tts_announcement` (TTS audio streamed to PWA), `pwa_realtime_ai` (interactive Gemini Live voice), and `webhook` (outbound HTTP POST).
+Notification channels are plugins in `backend/channels/builtin/`. Each channel inherits `NotificationChannel` from `backend/channels/base.py` and is registered via `@ChannelRegistry.register`. Built-in channels (9 total): `pwa_popup_text` (UI text popups), `telegram`, `eink` (e-ink display images), `ha_speaker_tts` (smart speaker audio via HA), `pwa_tts_announcement` (TTS audio streamed to PWA), `pwa_realtime_ai` (interactive Gemini Live voice), `pwa_realtime_voice` (realtime voice channel), `realtime_voice` (standalone realtime voice), `webhook` (outbound HTTP POST), and `websocket` (direct WebSocket push).
 
 The `NotificationDispatcher` iterates over matched channels from the registry to deliver alerts. Per-step channel overrides (via the `channels` field in notification step config), as well as direct endpoints like `webhook_url`, take precedence over the defaults in `notifications.yaml`.
 
@@ -460,7 +464,7 @@ class YourStepHandler(StepHandler):
 
 1. **That's it.** The step appears automatically in the frontend StepPalette (loaded via `GET /pipeline/step-types`) and gets a generic JSON config editor in StepConfigDialog. For a custom config form, add a `<template v-if>` block in `StepConfigDialog.vue`.
 
-Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata  -  `trigger_type` (`"sensor_event"`, `"cron"`, `"manual"`, `"webhook"`, `"occupancy_duration"`), `sensor_id`, `room_name`, `media_paths`, `webhook_payload`, and `occupancy_duration_minutes` (set for `occupancy_duration` triggers). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, and other shared services.
+Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata  -  `trigger_type` (`"sensor_event"`, `"cron"`, `"manual"`, `"webhook"`, `"occupancy_duration"`), `sensor_id`, `room_name`, `media_paths`, `webhook_payload`, and `occupancy_duration_minutes` (set for `occupancy_duration` triggers). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, minio_client, telegram_client, tts_client, ws_manager, notification_dispatcher, person_tracking, person_id_client, scene_analysis_client, llm_model_registry, eink_renderer, event_aggregator, rag_lookup, activity_session_service, activity_timeline_service, daily_report_service, object_trend_client.
 
 ### Adding a New Context Filter Type
 
@@ -637,7 +641,7 @@ One row per eink display device. Links a sensor to its current rendered state an
 - Place tests in `backend/tests/` mirroring the `backend/` structure (e.g., `tests/services/test_rules_engine.py`)
 - `backend/tests/conftest.py` provides `db_engine`, `db_session`, and `db_factory` fixtures backed by an in-memory SQLite instance
 - `backend/tests/core/` holds the `backend.core` test suite (113+ tests, ~98% branch coverage) — the primary reference for how the core layer expects to be consumed
-- Full suite: 591 tests (`make test`)
+- Full suite: 600+ tests (`make test`)
 - Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone-mismatch when comparing timestamps stored as UTC strings in SQLite
 - Run with: `uv run pytest` or, from the repo root, any of the Makefile targets:
   - `make test` -- full backend suite
@@ -674,13 +678,16 @@ only.
 
 ### Services layer test suite
 
-`backend/tests/services/` holds 177 tests covering the services layer.
-Seven modules have dedicated test files with high branch coverage:
+`backend/tests/services/` holds 200+ tests covering the services layer.
+Ten modules have dedicated test files with high branch coverage:
 
 | Module | Test file | Coverage |
 | ------ | --------- | -------- |
+| `activity_session.py` | `test_activity_session.py` | 95%+ |
+| `activity_timeline.py` | `test_activity_timeline.py` | 90%+ |
 | `condition_evaluator.py` | `test_condition_evaluator.py` | 97% |
 | `conversation_manager.py` | `test_conversation_manager.py` | 100% |
+| `daily_report.py` | `test_daily_report.py` | 90%+ |
 | `media_processor.py` | `test_media_processor.py` | 100% |
 | `notification_dispatcher.py` | `test_notification_dispatcher.py` | 100% |
 | `rag.py` | `test_rag.py` | 100% |

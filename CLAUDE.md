@@ -91,6 +91,7 @@ Three auto-discovered plugin registries, each following the same pattern:
 
 **FilterRegistry** (`backend/filters/`)
 - Same pattern; inherits `ContextFilter`, `@FilterRegistry.register`
+- Current filters: `room`, `time_range`, `day_of_week`, `person_presence`, `person_activity`, `room_transition`, `scene_trend`
 
 ### Step handler contract
 
@@ -123,7 +124,7 @@ class YourStepHandler(StepHandler):
         return StepResult(data={"your_key": result})
 ```
 
-`ServiceContainer` fields (in `backend/steps/base.py`): `db_factory`, `vision_provider`, `logic_provider`, `translation_provider`, `ha_client`, `minio_client`, `telegram_client`, `tts_client`, `ws_manager`, `notification_dispatcher`, `person_tracking`, `person_id_client`, `scene_analysis_client`, `llm_model_registry`, `rag_lookup`, `eink_renderer`, `event_aggregator`.
+`ServiceContainer` fields (in `backend/steps/base.py`): `db_factory`, `vision_provider`, `logic_provider`, `translation_provider`, `ha_client`, `minio_client`, `telegram_client`, `tts_client`, `ws_manager`, `notification_dispatcher`, `person_tracking`, `person_id_client`, `scene_analysis_client`, `llm_model_registry`, `rag_lookup`, `eink_renderer`, `event_aggregator`, `activity_session_service`, `activity_timeline_service`, `daily_report_service`, `object_trend_client`.
 
 ---
 
@@ -255,7 +256,7 @@ Frontend timezone: fetched at startup from `GET /api/v1/admin/app-info`, stored 
 
 ## Pipeline step types (current)
 
-Registered step types (10 total, each with its own file in `backend/steps/builtin/`):
+Registered step types (14 total, each with its own file in `backend/steps/builtin/`):
 
 | Type | File | Category |
 |------|------|----------|
@@ -266,6 +267,10 @@ Registered step types (10 total, each with its own file in `backend/steps/builti
 | `notification` | `notification.py` | action |
 | `ha_action` | `ha_action.py` | action |
 | `activity_detection` | `activity_detection.py` | action |
+| `activity_session_start` | `activity_session_start.py` | action |
+| `activity_session_end` | `activity_session_end.py` | action |
+| `daily_report` | `daily_report.py` | action |
+| `object_trend_analysis` | `object_trend_analysis.py` | perception |
 | `verification` | `verification.py` | reasoning |
 | `condition` | `condition.py` | flow |
 | `wait` | `wait.py` | flow |

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from contextlib import suppress
 
+from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
@@ -22,16 +23,23 @@ from backend.steps.base import (
 )
 
 
+logger = get_logger(__name__)
+
+
 @StepRegistry.register
 class VisionAnalysisHandler(StepHandler):
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(
             type_name="vision_analysis",
-            display_name="Vision Analysis",
+            display_name="Vision Analysis (Deprecated)",
             category="perception",
-            icon="mdi-eye",
-            description="Run vision LLM analysis on camera frames or images.",
+            icon="mdi-eye-off",
+            description=(
+                "DEPRECATED: Use llm_call with model_id pointing to a vision "
+                "model instead. This step will be removed in a future release."
+            ),
+            deprecated=True,
             config_schema={
                 "type": "object",
                 "properties": {
@@ -126,6 +134,15 @@ class VisionAnalysisHandler(StepHandler):
         trigger: TriggerContext,
         services: ServiceContainer,
     ) -> StepResult:
+        logger.warning(
+            "vision_analysis_deprecated",
+            rule=execution.rule.name,
+            message=(
+                "The vision_analysis step is deprecated. "
+                "Migrate to llm_call with a vision model."
+            ),
+        )
+
         if not services.vision_provider:
             return StepResult(data={"vision_response": ""})
 

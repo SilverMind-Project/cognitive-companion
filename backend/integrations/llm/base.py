@@ -21,11 +21,15 @@ import httpx
 
 
 async def encode_image_data_uri(path: str) -> str:
-    """Convert a local file path or HTTP(S) URL to a ``data:<mime>;base64,...`` URI.
+    """Convert a local file path, HTTP(S) URL, or data: URI to a
+    ``data:<mime>;base64,...`` URI.
 
+    Passes through strings that already start with ``data:``.
     Fetches remote images via HTTP; reads local images directly from disk.
     Used by vision-capable providers to inline images in API payloads.
     """
+    if path.startswith("data:"):
+        return path
     if path.startswith(("http://", "https://")):
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(path)

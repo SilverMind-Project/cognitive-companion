@@ -19,10 +19,14 @@
                 class="pa-3 text-center cursor-pointer step-palette-card"
                 rounded="lg"
                 hover
+                :class="st.deprecated ? 'text-grey' : ''"
                 @click="select(st.type)"
               >
-                <v-icon size="28" color="primary" class="mb-1">{{ st.icon }}</v-icon>
-                <div class="text-body-2 font-weight-medium">{{ st.label }}</div>
+                <v-icon size="28" :class="st.deprecated ? 'text-grey' : 'text-primary'" class="mb-1">{{ st.icon }}</v-icon>
+                <div class="text-body-2 font-weight-medium" :class="st.deprecated ? 'text-decoration-line-through' : ''">{{ st.label }}</div>
+                <v-if="st.deprecated" v-slot:append>
+                  <v-chip size="x-small" color="warning" variant="plain">deprecated</v-chip>
+                </v-if>
               </v-card>
             </v-col>
           </v-row>
@@ -69,6 +73,7 @@ const groups = computed(() => {
       type: st.type_name,
       label: st.display_name,
       icon: st.icon,
+      deprecated: st.deprecated || false,
     });
   }
   return CATEGORY_ORDER
@@ -86,15 +91,15 @@ onMounted(async () => {
   } catch {
     // Fallback to hardcoded types if API unavailable
     stepTypes.value = [
-      { type_name: "person_identification", display_name: "Person ID", category: "perception", icon: "mdi-face-recognition" },
-      { type_name: "vision_analysis", display_name: "Vision Analysis", category: "perception", icon: "mdi-eye" },
-      { type_name: "llm_call", display_name: "LLM Call", category: "reasoning", icon: "mdi-brain" },
-      { type_name: "condition", display_name: "Condition", category: "reasoning", icon: "mdi-help-circle" },
-      { type_name: "activity_detection", display_name: "Record Activity", category: "state", icon: "mdi-database-plus" },
-      { type_name: "verification", display_name: "Verify Activity", category: "state", icon: "mdi-check-decagram" },
-      { type_name: "notification", display_name: "Notification", category: "action", icon: "mdi-bell" },
-      { type_name: "ha_action", display_name: "HA Action", category: "action", icon: "mdi-home-automation" },
-      { type_name: "wait", display_name: "Wait", category: "flow", icon: "mdi-timer-sand" },
+      { type_name: "person_identification", display_name: "Person ID", category: "perception", icon: "mdi-face-recognition", deprecated: false },
+      { type_name: "vision_analysis", display_name: "Vision Analysis (Deprecated)", category: "perception", icon: "mdi-eye-off", deprecated: true },
+      { type_name: "llm_call", display_name: "LLM Call", category: "reasoning", icon: "mdi-brain", deprecated: false },
+      { type_name: "condition", display_name: "Condition", category: "reasoning", icon: "mdi-help-circle", deprecated: false },
+      { type_name: "activity_detection", display_name: "Record Activity", category: "state", icon: "mdi-database-plus", deprecated: false },
+      { type_name: "verification", display_name: "Verify Activity", category: "state", icon: "mdi-check-decagram", deprecated: false },
+      { type_name: "notification", display_name: "Notification", category: "action", icon: "mdi-bell", deprecated: false },
+      { type_name: "ha_action", display_name: "HA Action", category: "action", icon: "mdi-home-automation", deprecated: false },
+      { type_name: "wait", display_name: "Wait", category: "flow", icon: "mdi-timer-sand", deprecated: false },
     ];
   } finally {
     loading.value = false;

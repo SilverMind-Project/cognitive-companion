@@ -24,6 +24,7 @@ from backend.integrations.llm.base import (
     encode_image_data_uri,
     strip_thinking,
 )
+from backend.integrations.llm.json_utils import clean_llm_json
 
 logger = get_logger(__name__)
 
@@ -189,6 +190,10 @@ class OpenAICompatibleProvider(LLMProvider):
             text: str = data["choices"][0]["message"]["content"] or ""
             if thinking:
                 text = strip_thinking(text)
+            # Clean markdown fences when guided decoding wasn't used but
+            # a schema was requested — the model may wrap JSON in ``` blocks.
+            if response_schema and not self.guided_decoding:
+                text = clean_llm_json(text)
             logger.debug("openai_compat_response", length=len(text))
             return text
 

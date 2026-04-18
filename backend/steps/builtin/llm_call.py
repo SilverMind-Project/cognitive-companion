@@ -22,11 +22,11 @@ Key capabilities controlled by step config
 from __future__ import annotations
 
 import json
-from contextlib import suppress
 from datetime import UTC, datetime
 
 from backend.core.logging import get_logger
 from backend.core.template import render_template
+from backend.integrations.llm.json_utils import parse_llm_json
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
 from backend.steps.base import (
@@ -106,18 +106,44 @@ class LLMCallHandler(StepHandler):
                         "default": 3,
                         "minimum": 1,
                         "description": (
-                            "Maximum images per sensor when sort_by_sensor_then_time "
-                            "is enabled. Ignored otherwise."
+                            "Default maximum images per sensor. Used as the fallback "
+                            "when sensor_frame_limits does not specify a sensor."
+                        ),
+                    },
+                    "sensor_frame_limits": {
+                        "type": "object",
+                        "additionalProperties": {"type": "integer", "minimum": 1},
+                        "description": (
+                            "Per-camera frame limit overrides. Keys are sensor IDs, "
+                            "values are the max recent frames for that sensor. "
+                            "Sensors not listed here use images_per_sensor as the default."
                         ),
                     },
                     "sort_by_sensor_then_time": {
                         "type": "boolean",
                         "default": False,
                         "description": (
-                            "When true, images are grouped by sensor (in "
-                            "additional_sensor_ids order) then sorted oldest-first "
-                            "within each group. Enables inter-frame analysis by "
-                            "vision reasoning models."
+                            "When true, images within each sensor group are sorted "
+                            "oldest-first (chronological) for inter-frame analysis. "
+                            "When false, images are newest-first. Does not gate "
+                            "per-sensor limits or sensor-ordered assembly."
+                        ),
+                    },
+                    "trigger_images_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": (
+                            "Maximum trigger frames to include (most recent N). "
+                            "0 or unset means all available trigger frames."
+                        ),
+                    },
+                    "use_annotated_image": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When true and pipeline_data contains an annotated_image "
+                            "(base64 JPEG from person_identification), prepend it as "
+                            "the first image in the media payload."
                         ),
                     },
                     "image_time_filter": {
@@ -212,7 +238,10 @@ class LLMCallHandler(StepHandler):
                 "additional_sensor_ids": [],
                 "additional_room_names": [],
                 "images_per_sensor": 3,
+                "sensor_frame_limits": {},
                 "sort_by_sensor_then_time": False,
+                "trigger_images_count": 0,
+                "use_annotated_image": False,
                 "image_time_filter": {},
                 "response_format": "text",
                 "response_schema": "",
@@ -314,8 +343,14 @@ class LLMCallHandler(StepHandler):
         if response_format == "json_schema":
             raw_schema = config.get("response_json_schema", "")
             if raw_schema:
-                with suppress(json.JSONDecodeError, TypeError):
-                    guided_schema = json.loads(raw_schema)
+                guided_schema = parse_llm_json(raw_schema)
+                if isinstance(guided_schema, str):
+                    logger.warning(
+                        "llm_call_schema_parse_failed",
+                        model_id=model_id,
+                        rule=execution.rule.name,
+                    )
+                    guided_schema = None
             format_instruction = config.get("response_schema", "")
             if not format_instruction and guided_schema:
                 format_instruction = "Respond with valid JSON matching the provided schema."
@@ -339,18 +374,23 @@ class LLMCallHandler(StepHandler):
 
         if has_vision and image_source != "none":
             if image_source in ("trigger", "both"):
-                media_paths.extend(trigger.media_paths)
+                frames = trigger.media_paths
+                trigger_count = config.get("trigger_images_count")
+                if trigger_count and trigger_count > 0:
+                    frames = frames[-trigger_count:]
+                media_paths.extend(frames)
 
             if image_source in ("additional", "both") and services.event_aggregator:
                 additional_sensors: list[str] = config.get("additional_sensor_ids") or []
                 additional_rooms: list[str] = config.get("additional_room_names") or []
                 time_filter: dict = config.get("image_time_filter") or {}
                 sort_by_sensor: bool = bool(config.get("sort_by_sensor_then_time", False))
-                images_per_sensor: int = int(config.get("images_per_sensor", 3))
+                default_per_sensor: int = int(config.get("images_per_sensor", 3))
+                sensor_frame_limits: dict = config.get("sensor_frame_limits") or {}
 
                 # Resolve room names to sensor IDs when needed
                 resolved_sensors = list(additional_sensors)
-                if additional_rooms and not sort_by_sensor:
+                if additional_rooms:
                     # Unordered query handles room-to-sensor resolution internally
                     extra = await services.event_aggregator.query_recent_media(
                         sensor_ids=resolved_sensors if resolved_sensors else None,
@@ -361,21 +401,23 @@ class LLMCallHandler(StepHandler):
                         time_end=time_filter.get("time_end"),
                     )
                     media_paths.extend(extra)
-                elif resolved_sensors and sort_by_sensor:
-                    # Sensor-ordered query for inter-frame analysis
+                elif resolved_sensors:
+                    # Sensor-ordered query with per-sensor limits
                     extra = await services.event_aggregator.query_media_by_sensor(
                         sensor_ids_ordered=resolved_sensors,
-                        images_per_sensor=images_per_sensor,
+                        images_per_sensor=default_per_sensor,
+                        sensor_frame_limits=sensor_frame_limits,
                         max_images=max_images,
                         since_minutes=time_filter.get("since_minutes"),
                         time_start=time_filter.get("time_start"),
                         time_end=time_filter.get("time_end"),
+                        chronological=sort_by_sensor,
                     )
                     media_paths.extend(extra)
-                elif resolved_sensors or additional_rooms or image_source == "additional":
+                elif image_source == "additional":
                     extra = await services.event_aggregator.query_recent_media(
-                        sensor_ids=resolved_sensors if resolved_sensors else None,
-                        room_names=additional_rooms if additional_rooms else None,
+                        sensor_ids=None,
+                        room_names=None,
                         limit=max_images,
                         since_minutes=time_filter.get("since_minutes"),
                         time_start=time_filter.get("time_start"),
@@ -384,6 +426,13 @@ class LLMCallHandler(StepHandler):
                     media_paths.extend(extra)
 
             media_paths = media_paths[:max_images]
+
+        # -- Annotated image (from person_identification) ----------------------
+        if config.get("use_annotated_image"):
+            annotated = pipeline_data.get("annotated_image")
+            if annotated:
+                media_paths.insert(0, f"data:image/jpeg;base64,{annotated}")
+                media_paths = media_paths[:max_images]
 
         # -- Call the model ---------------------------------------------------
         hallucination_marker: str = config.get("hallucination_marker", "")
@@ -414,8 +463,7 @@ class LLMCallHandler(StepHandler):
         result_value: str | dict = raw_response or ""
 
         if response_format in ("json_schema", "json_free") and raw_response:
-            with suppress(json.JSONDecodeError, TypeError):
-                result_value = json.loads(raw_response)
+            result_value = parse_llm_json(raw_response)
 
         if isinstance(result_value, str) and not result_value:
             logger.warning(

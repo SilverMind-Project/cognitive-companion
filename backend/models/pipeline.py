@@ -33,9 +33,6 @@ def get_step_types() -> tuple[str, ...]:
     # Fallback for DB migrations and early boot
     return (
         "person_identification",
-        "vision_analysis",
-        "logic_reasoning",
-        "translation",
         "notification",
         "ha_action",
         "activity_detection",

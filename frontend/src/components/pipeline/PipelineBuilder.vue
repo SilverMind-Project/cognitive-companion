@@ -59,7 +59,6 @@ const editingStep = ref(null);
 const STEP_ICONS = {
   person_identification: "mdi-face-recognition",
   llm_call: "mdi-brain",
-  vision_analysis: "mdi-eye",
   notification: "mdi-bell",
   ha_action: "mdi-home-automation",
   activity_detection: "mdi-run",

@@ -69,7 +69,6 @@ class ServiceContainer:
     db_factory: Callable
     person_tracking: Any = None
     person_id_client: Any = None
-    vision_provider: Any = None
     notification_dispatcher: Any = None
     ha_client: Any = None
     event_aggregator: Any = None

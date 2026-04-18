@@ -27,7 +27,7 @@ backend/
   steps/                   # Step plugin system
     base.py                # StepHandler ABC, StepMetadata, StepResult, TriggerContext, ServiceContainer
     __init__.py            # StepRegistry singleton + auto-discovery
-    builtin/               # 14 built-in step handlers (one file each: llm_call, person_identification, scene_analysis, vision_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, verification, condition, wait)
+    builtin/               # 13 built-in step handlers (one file each: llm_call, person_identification, scene_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, verification, condition, wait)
   channels/                # Notification channel plugin system
     base.py                # NotificationChannel ABC, ChannelMetadata
     __init__.py            # ChannelRegistry singleton + auto-discovery
@@ -170,7 +170,7 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 
 **Wait steps** persist execution state to the `WorkflowExecution` table (status="waiting", resume_at set). The scheduler resumes execution via an APScheduler `DateTrigger`. A `SchedulerBridge` abstraction is injected into `PipelineExecutor` to decouple wait/resume scheduling.
 
-**Built-in step types**: llm_call, person_identification, vision_analysis, scene_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`. (`logic_reasoning` and `translation` were removed; use `llm_call` with the appropriate `output_key` instead.)
+**Built-in step types**: llm_call, person_identification, scene_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`. (`vision_analysis`, `logic_reasoning`, and `translation` were removed; use `llm_call` with the appropriate `output_key` instead.)
 
 Step type details:
 
@@ -182,9 +182,9 @@ Step type details:
 - `object_trend_analysis`: Queries `semantic-memory-service` for room-level object trend state (clutter scores, persistent/novel objects, anomaly severity) via `ObjectTrendClient`. Designed to precede a `condition` step (branching) or `llm_call` step (LLM-enriched reasoning). Config fields: `room_ids` (array, empty = trigger room), `include_snapshots_hours` (default `0`), `severity_threshold` (enum: "ok"|"info"|"warning"|"critical", default "info"), `output_key` (default `"room_trends"`). Writes `room_trends` (dict), `room_trends_any_warning` (bool), `room_trends_max_severity` (str), `room_trends_summary` (compact text for LLM injection). Graceful degradation: empty results if client is unavailable.
 - `verification`: A database query step. Queries the `PersonActivity` table to verify activities within configured time windows. Each condition has `activity_type` (required), optional `person_id` (template-enabled, empty = any person), optional `room_name` (template-enabled, empty = any room), time window (`within_minutes` or `window_start`/`window_end`), and `min_confidence`. Does not capture images or run LLM calls.
 - `scene_analysis`: Calls `services.scene_analysis_client.analyze()` on the standalone scene-analysis-service. Returns YOLO11x object detections, Florence-2-large structured description, CLIP ViT-L/14 embedding, and YAML-configured hazard alerts. Config fields: `run_detect`, `run_describe`, `run_embed`, `run_hazards` (bool flags), `max_images` (int, default 1). Output keys: `scene_detections`, `scene_description`, `scene_embedding`, `scene_hazards`, `scene_detector_available`, `scene_describer_available`, `scene_embedder_available`. Always continues the pipeline; returns empty results when the client is not configured.
-- `vision_analysis`: Instructs the vision LLM (hardwired to `services.vision_provider`). Prefer `llm_call` for new pipelines. Supports `image_source` (`"trigger"`, `"additional"`, `"both"`), `additional_sensor_ids`, `additional_room_names`, `image_time_filter`, structured JSON output via `response_format`/`response_schema`/`response_json_schema`.
-- `logic_reasoning`: Sends a prompt to the logic LLM provider (hardwired to `services.logic_provider`). Prefer `llm_call` for new pipelines. Supports `response_format` (`"default"`, `"activity_detection"`, `"custom"`), `response_schema`, `response_json_schema`.
-- `translation`: Translates text (hardwired to `services.translation_provider`). Prefer `llm_call` for new pipelines. Accepts `special_instructions` and `hallucination_marker` for Tenacity retry.
+- `logic_reasoning` (removed): Was a prompt-to-LLM step. Use `llm_call` with `output_key: "logic_response"` instead.
+- `translation` (removed): Was a text translation step. Use `llm_call` with `output_key: "translation"` instead.
+- `vision_analysis` (removed): Was a vision LLM step. Use `llm_call` with `model_id: "cosmos_reason2"`, `image_source: "trigger"`, and `output_key: "vision_response"` instead.
 - `notification`: Formats and delivers alerts using `notifications.yaml` mappings. Has advanced template overriding support per-channel (`telegram_template`, `ha_speaker_tts_template`, `eink_template`, `webhook_template`, `pwa_popup_text_template`, `pwa_realtime_ai_template`) that gracefully degrade to the unified `message_template` format. The `pwa_tts_announcement` channel reuses `ha_speaker_tts_template` since both feed the same TTS engine. Supports `eink_template_id` for selecting an image template and `eink_expiry_minutes` for setting expiry duration.
 
 **Wiring**: `PipelineExecutor` is instantiated in the lifespan in `backend/main.py` and attached to `app.state`. It receives a `ServiceContainer` with all shared services.
@@ -266,11 +266,7 @@ The LLM subsystem (`backend/integrations/llm/`) has two independent layers:
 
 **`OpenAICompatibleProvider`** (`openai_compat.py`): handles all `/v1/chat/completions` servers (vLLM, llama.cpp llama-server, etc.). Supports images (base64 inline), two JSON enforcement modes (`guided_json` payload field for vLLM when `guided_decoding=True`; schema injected as prompt text otherwise), and hallucination retry via tenacity.
 
-**Legacy per-role providers** (used by `vision_analysis`, `logic_reasoning`, `translation` steps): configured under `llm.vision`, `llm.logic`, `llm.translation` in settings.yaml. Each supports three deployment modes:
-
-- **Simple**: single provider (default)
-- **Chain**: primary provider with fallback providers and configurable retry count
-- **Pool**: round-robin load balancing across multiple providers
+**Legacy per-role providers** (`llm.vision`, `llm.logic`, `llm.translation` sections in settings.yaml) have been removed. All LLM calls now go through the named model registry (`llm.models`). The `LLMProviderChain` and `LLMProviderPool` wrappers remain for failover and load balancing within a single model entry's provider list.
 
 `EventAggregator.query_media_by_sensor(sensor_ids_ordered, images_per_sensor, max_images, ...)` returns images grouped by sensor in the specified order, sorted chronologically within each group. Used by `llm_call` when `sort_by_sensor_then_time=True` to produce a temporally coherent sequence for inter-frame analysis.
 

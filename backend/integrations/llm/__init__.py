@@ -9,7 +9,7 @@ Usage::
     from backend.integrations.llm import get_provider, LLMModelRegistry
 
     # Legacy: single provider from settings section
-    provider = get_provider("vllm_vision")
+    provider = get_provider("ollama")
 
     # Registry: look up a named model configured in llm.models
     registry = LLMModelRegistry()
@@ -43,14 +43,6 @@ __all__ = [
 
 # Provider type string -> (module path, class name)
 _PROVIDER_MAP: dict[str, tuple[str, str]] = {
-    "vllm_vision": (
-        "backend.integrations.llm.vllm",
-        "VLLMVisionProvider",
-    ),
-    "vllm_translation": (
-        "backend.integrations.llm.vllm",
-        "VLLMTranslationProvider",
-    ),
     "ollama": (
         "backend.integrations.llm.ollama",
         "OllamaProvider",
@@ -88,9 +80,7 @@ def register_provider(provider_type: str, module_path: str, class_name: str) -> 
 
 # Maps settings YAML provider type -> config section dotted key
 _SETTINGS_SECTION: dict[str, str] = {
-    "vllm_vision": "llm.vision",
-    "vllm_translation": "llm.translation",
-    "ollama": "llm.logic",
+     "ollama": "llm.logic",
 }
 
 
@@ -125,20 +115,20 @@ def get_provider(provider_type: str) -> LLMProvider:
     1. **Simple** -- single provider::
 
         llm:
-          vision:
-            provider: vllm_vision
+          logic:
+            provider: ollama
             url: http://...
-            model: nvidia/Cosmos-Reason2-8B
+            model: llava:7b
 
     2. **Chain** (fallback) -- tries primary, falls back to secondary::
 
         llm:
-          vision:
+          logic:
             primary:
-              provider: vllm_vision
+              provider: ollama
               url: ...
             fallback:
-              provider: ollama
+              provider: openai_compat
               url: ...
             retry_count: 2
 

@@ -729,7 +729,6 @@ function humanize(s) {
 function liveStepIcon(step) {
   const map = {
     llm_call: "mdi-brain",
-    vision_analysis: "mdi-eye-outline",
     logic_reasoning: "mdi-sitemap-outline",
     notification: "mdi-bell-outline",
     verification: "mdi-check-decagram-outline",

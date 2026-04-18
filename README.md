@@ -42,14 +42,14 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 
 - **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity)  -  each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home")  -  plus inter-rule dependencies
 - **Six trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP with HMAC), `occupancy_duration` (presence sensor occupied ≥ N minutes), `telegram` (inbound Telegram command) -- each with per-rule threshold and cool-off
-- **Composable pipeline steps** -- 14 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
-  `llm_call`, `person_identification`, `vision_analysis`, `scene_analysis`, `notification`, `ha_action`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report`, `object_trend_analysis`, `wait`, `condition`, `verification`
-  (`llm_call` is the unified reasoning step covering the use cases of legacy `logic_reasoning` and `translation` types)
-- **Unified LLM step** (`llm_call`) -- single step replaces separate vision/logic/translation steps. Model selected per step from a named registry in `settings.yaml`; supports text, vision, and translation in one interface with configurable output key.
+- **Composable pipeline steps** -- 13 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
+  `llm_call`, `person_identification`, `scene_analysis`, `notification`, `ha_action`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report`, `object_trend_analysis`, `wait`, `condition`, `verification`
+  (`llm_call` is the unified LLM step covering the use cases of legacy `vision_analysis`, `logic_reasoning`, and `translation` types)
+- **Unified LLM step** (`llm_call`) -- single step replaces separate vision, logic, and translation steps. Model selected per step from a named registry in `settings.yaml`; supports text, vision, and translation in one interface with configurable output key.
 - **Named model registry** -- configure any number of OpenAI-compatible or Ollama endpoints in `llm.models`. Each entry declares its `api_type`, `capabilities`, and whether it supports `guided_decoding` (vLLM `guided_json`).
 - **Structured output** via native LLM guided decoding -- enforce custom JSON schema output guarantees. For vLLM servers, schemas are sent as `guided_json`; for llama.cpp and others, the schema is injected as a prompt instruction.
 - **Inter-frame temporal analysis** -- sensor-ordered image assembly groups frames by camera (in configured order) then sorts chronologically within each camera, giving vision reasoning models a coherent sequence for motion and activity analysis.
-- **Cross-sensor image acquisition** -- configure the `llm_call` or `vision_analysis` step to request recent images from alternative cameras and rooms to assemble multi-angle context.
+- **Cross-sensor image acquisition** -- configure the `llm_call` step to request recent images from alternative cameras and rooms to assemble multi-angle context.
 - **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, with in-app enrollment via photo upload
 - **Annotated person identification images** with bounding boxes and name labels returned inline
 - **Activity tracking** -- detect and record person activities as pipeline outputs for use as context filters in downstream rules. **Scene description capture** (`capture_scene_description`) saves the upstream VLM analysis alongside each activity record for full auditability. **Extensible activity type list** with 30+ pre-programmed suggestions and free-form entry
@@ -194,11 +194,10 @@ cognitive-companion/
 │   ├── steps/                     # Step plugin system (E1)
 │   │   ├── base.py                # StepHandler ABC, StepMetadata, ServiceContainer
 │   │   ├── __init__.py            # StepRegistry singleton + auto-discovery
-│   │   └── builtin/               # 10 built-in step handlers
+│   │   └── builtin/               # 13 built-in step handlers
 │   │       ├── llm_call.py
 │   │       ├── person_identification.py
 │   │       ├── scene_analysis.py
-│   │       ├── vision_analysis.py
 │   │       ├── notification.py
 │   │       ├── ha_action.py
 │   │       ├── activity_detection.py
@@ -386,7 +385,6 @@ Rules no longer use a fixed linear pipeline. Instead, each rule defines a **comp
 |-----------|---------|
 | `llm_call` | Unified LLM step: vision analysis, reasoning, and translation via any named model in the registry. Supports structured JSON output, sensor-ordered image assembly for inter-frame analysis, and hallucination retry. |
 | `person_identification` | Run face recognition on media frames; record sightings, update location, and emit room transitions based on per-camera topology config. |
-| `vision_analysis` | Send media + prompt to the vision LLM. Configurable to fetch temporal snapshots from additional cameras throughout the house. Supports schema-enforced output formatting. Prefer `llm_call` for new pipelines. |
 | `scene_analysis` | Run YOLO11x object detection, Florence-2-large scene description, and CLIP ViT-L/14 embeddings via the standalone scene-analysis-service microservice. Returns detections, captions, embeddings, and hazard alerts. |
 | `notification` | Dispatch an alert across channels with customizable text templates per-channel (`telegram_template`, etc). Can explicitly trigger rate-limit cool-off. |
 | `ha_action` | Call a Home Assistant service (turn on lights, lock doors, etc.). Can explicitly trigger rate-limit cool-off. |
@@ -410,19 +408,19 @@ exists(translation) and not contains(vision_response, "empty")
 **Camera monitoring rule** -- the classic detect-analyze-notify chain:
 
 ```text
-person_identification --> vision_analysis --> logic_reasoning --> translation --> notification
+person_identification --> llm_call (model=cosmos_reason2, image_source=trigger, output_key=vision) --> llm_call (model=gemma4_26b, output_key=logic) --> llm_call (model=gemma4_26b, output_key=translation) --> notification
 ```
 
 **Lunch reminder** -- detect the person, analyze activity with LLM, record it, wait, then verify and remind:
 
 ```text
-vision_analysis --> logic_reasoning (response_format: activity_detection) --> activity_detection --> wait (30 min) --> verification --> notification
+llm_call (model=cosmos_reason2, image_source=trigger, output_key=vision) --> llm_call (model=gemma4_26b, output_key=activity, response_format=activity_detection) --> activity_detection --> wait (30 min) --> verification --> notification
 ```
 
 **Light monitor** -- analyze, decide, notify caregiver, wait for response, then verify and act:
 
 ```text
-vision_analysis --> logic_reasoning --> notification --> wait (5 min) --> verification --> ha_action
+llm_call (model=cosmos_reason2, image_source=trigger, output_key=vision) --> llm_call (model=gemma4_26b, output_key=logic) --> notification --> wait (5 min) --> verification --> ha_action
 ```
 
 Each step stores its configuration (prompts, HA service calls, wait durations, condition expressions) in a per-step `config_json` field, so the same step type can behave differently across rules.

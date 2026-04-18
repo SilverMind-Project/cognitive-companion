@@ -23,15 +23,15 @@ class LLMProviderChain(LLMProvider):
     Configuration example (settings.yaml)::
 
         llm:
-          vision:
+          logic:
             primary:
-              provider: vllm_vision
-              url: ${VISION_MODEL_URL}
-              model: nvidia/Cosmos-Reason2-8B
-            fallback:
               provider: ollama
               url: ${LOGIC_MODEL_URL}
-              model: llava:7b
+              model: gemma3:4b
+            fallback:
+              provider: openai_compat
+              url: http://192.168.1.31:8100
+              model: gemma-4-26B-A4B-it-GGUF
             timeout_seconds: 30
             retry_count: 2
     """

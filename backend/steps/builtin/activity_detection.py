@@ -2,7 +2,7 @@
 
 Temporal context note
 ---------------------
-The VLM window fed to upstream ``llm_call`` / ``vision_analysis`` steps spans
+The VLM window fed to upstream ``llm_call`` steps spans
 only the frames held by the EventAggregator (typically 10 s -- 1 min).  For
 activities that unfold over longer durations (e.g. having a meal), configure the
 upstream ``llm_call`` step with::

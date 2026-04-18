@@ -124,7 +124,7 @@ class YourStepHandler(StepHandler):
         return StepResult(data={"your_key": result})
 ```
 
-`ServiceContainer` fields (in `backend/steps/base.py`): `db_factory`, `vision_provider`, `logic_provider`, `translation_provider`, `ha_client`, `minio_client`, `telegram_client`, `tts_client`, `ws_manager`, `notification_dispatcher`, `person_tracking`, `person_id_client`, `scene_analysis_client`, `llm_model_registry`, `rag_lookup`, `eink_renderer`, `event_aggregator`, `activity_session_service`, `activity_timeline_service`, `daily_report_service`, `object_trend_client`.
+`ServiceContainer` fields (in `backend/steps/base.py`): `db_factory`, `ha_client`, `minio_client`, `telegram_client`, `tts_client`, `ws_manager`, `notification_dispatcher`, `person_tracking`, `person_id_client`, `scene_analysis_client`, `llm_model_registry`, `rag_lookup`, `eink_renderer`, `event_aggregator`, `activity_session_service`, `activity_timeline_service`, `daily_report_service`, `object_trend_client`.
 
 ---
 
@@ -256,13 +256,12 @@ Frontend timezone: fetched at startup from `GET /api/v1/admin/app-info`, stored 
 
 ## Pipeline step types (current)
 
-Registered step types (14 total, each with its own file in `backend/steps/builtin/`):
+Registered step types (13 total, each with its own file in `backend/steps/builtin/`):
 
 | Type | File | Category |
 |------|------|----------|
 | `llm_call` | `llm_call.py` | reasoning |
 | `person_identification` | `person_identification.py` | perception |
-| `vision_analysis` | `vision_analysis.py` | perception |
 | `scene_analysis` | `scene_analysis.py` | perception |
 | `notification` | `notification.py` | action |
 | `ha_action` | `ha_action.py` | action |
@@ -272,6 +271,8 @@ Registered step types (14 total, each with its own file in `backend/steps/builti
 | `daily_report` | `daily_report.py` | action |
 | `object_trend_analysis` | `object_trend_analysis.py` | perception |
 | `verification` | `verification.py` | reasoning |
+| `condition` | `condition.py` | flow |
+| `wait` | `wait.py` | flow |
 | `condition` | `condition.py` | flow |
 | `wait` | `wait.py` | flow |
 

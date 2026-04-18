@@ -1,7 +1,8 @@
 """Unified LLM call step -- send a prompt to any configured model.
 
-This step replaces the separate ``vision_analysis``, ``logic_reasoning``,
-and ``translation`` steps with a single, model-agnostic interface.  The
+This step is the single LLM interface for the pipeline, handling vision
+analysis, logic reasoning, and translation through a model-agnostic design.
+The
 specific model is selected per step via ``model_id``, which must match an
 entry in ``llm.models`` in settings.yaml.
 

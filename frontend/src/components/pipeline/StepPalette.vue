@@ -92,7 +92,6 @@ onMounted(async () => {
     // Fallback to hardcoded types if API unavailable
     stepTypes.value = [
       { type_name: "person_identification", display_name: "Person ID", category: "perception", icon: "mdi-face-recognition", deprecated: false },
-      { type_name: "vision_analysis", display_name: "Vision Analysis (Deprecated)", category: "perception", icon: "mdi-eye-off", deprecated: true },
       { type_name: "llm_call", display_name: "LLM Call", category: "reasoning", icon: "mdi-brain", deprecated: false },
       { type_name: "condition", display_name: "Condition", category: "reasoning", icon: "mdi-help-circle", deprecated: false },
       { type_name: "activity_detection", display_name: "Record Activity", category: "state", icon: "mdi-database-plus", deprecated: false },

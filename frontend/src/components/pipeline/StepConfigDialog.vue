@@ -283,36 +283,6 @@
                   />
                 </template>
 
-                <!-- vision_analysis: migration banner -->
-                <template v-if="localStep.step_type === 'vision_analysis'">
-                  <v-alert type="warning" variant="tonal" class="mb-4">
-                    This step is deprecated. Use <strong>LLM Call</strong> instead
-                    with <code>model_id: "cosmos_reason2"</code>,
-                    <code>image_source: "trigger"</code>, and
-                    <code>output_key: "vision_response"</code>.
-                  </v-alert>
-                </template>
-
-                <!-- vision_analysis: prompt -->
-                <template v-if="localStep.step_type === 'vision_analysis'">
-                  <v-textarea
-                    v-model="cfg.prompt"
-                    label="Vision Prompt"
-                    rows="6"
-                    class="mb-4"
-                    hint="Use {{variable}} for template values, e.g. {{person_detections.0.name}}, {{room_name}}"
-                    persistent-hint
-                  />
-                  <v-checkbox v-model="cfg.use_annotated_image" label="Use annotated image" hide-details class="mb-2" />
-                  <v-checkbox
-                    v-model="cfg.thinking"
-                    label="Enable thinking (chain-of-thought)"
-                    hint="The model reasons inside &lt;think&gt;…&lt;/think&gt; tags. Only the final answer is stored."
-                    persistent-hint
-                    class="mb-2"
-                  />
-                </template>
-
                 <!-- notification general -->
                 <template v-if="localStep.step_type === 'notification'">
                   <v-select
@@ -368,7 +338,7 @@
                 </template>
               </v-window-item>
 
-              <!-- Images tab (vision_analysis + llm_call) -->
+              <!-- Images tab (llm_call) -->
               <v-window-item value="images">
                 <template v-if="localStep.step_type === 'llm_call'">
                   <v-alert
@@ -533,7 +503,9 @@
                   </v-card>
                 </template>
 
-                <template v-if="localStep.step_type === 'vision_analysis'">
+                </template>
+
+                <template v-if="localStep.step_type === 'llm_call'">
                   <v-select
                     v-model="cfg.image_source"
                     :items="['trigger', 'additional', 'both']"
@@ -547,7 +519,7 @@
                     label="Max Images"
                     type="number"
                     :min="1"
-                    hint="Maximum total images sent to the vision model"
+                    hint="Maximum total images sent to the LLM"
                     persistent-hint
                     class="mb-4"
                   />
@@ -636,43 +608,12 @@
                   <v-text-field
                     v-model="cfg.output_key"
                     label="Output Key"
-                    hint="Pipeline data key for the result. Use 'logic_response', 'vision_response', or 'translation' for downstream step compatibility."
+                    hint="Pipeline data key for the result. Use 'logic_response' or 'translation' for downstream step compatibility."
                     persistent-hint
                   />
                 </template>
 
-                <template v-if="localStep.step_type === 'vision_analysis'">
-                  <v-select
-                    v-model="cfg.response_format"
-                    :items="['default', 'custom']"
-                    label="Response Format"
-                    hint="Controls the structured JSON output enforced on the vision model"
-                    persistent-hint
-                    class="mb-4"
-                  />
-                  <v-alert v-if="cfg.response_format === 'default'" type="info" variant="tonal" density="compact" class="mb-4">
-                    <div class="text-subtitle-2 mb-1">Output keys (available as <code>vision_response</code>):</div>
-                    String (default free-text output)
-                  </v-alert>
-                  <template v-if="cfg.response_format === 'custom'">
-                    <v-textarea
-                      v-model="cfg.response_schema"
-                      label="Response Format Instruction"
-                      rows="3"
-                      hint="Text instruction appended to the prompt describing expected JSON keys"
-                      persistent-hint
-                      class="mb-4"
-                    />
-                    <v-textarea
-                      v-model="cfg.response_json_schema"
-                      label="JSON Schema (optional)"
-                      rows="10"
-                      hint="Paste a JSON Schema to enforce structured output via guided decoding."
-                      persistent-hint
-                      :error-messages="jsonSchemaError"
-                    />
-                  </template>
-                </template>
+               </template>
 
               </v-window-item>
 
@@ -994,55 +935,8 @@
                 </template>
               </v-window-item>
 
-              <!-- Advanced tab (llm_call + vision_analysis sampling) -->
+              <!-- Advanced tab (llm_call sampling) -->
               <v-window-item value="advanced">
-
-                <!-- vision_analysis sampling overrides -->
-                <template v-if="localStep.step_type === 'vision_analysis'">
-                  <div class="text-subtitle-2 mb-3">Sampling Overrides</div>
-                  <div class="text-caption text-medium-emphasis mb-4">
-                    Leave blank to use the model default.
-                  </div>
-                  <v-row dense>
-                    <v-col cols="12" sm="4">
-                      <v-text-field
-                        v-model.number="cfg.temperature"
-                        label="Temperature"
-                        type="number"
-                        :min="0"
-                        :max="2"
-                        :step="0.05"
-                        clearable
-                        hint="0 - 2"
-                        persistent-hint
-                      />
-                    </v-col>
-                    <v-col cols="12" sm="4">
-                      <v-text-field
-                        v-model.number="cfg.top_p"
-                        label="Top-p"
-                        type="number"
-                        :min="0"
-                        :max="1"
-                        :step="0.05"
-                        clearable
-                        hint="0 - 1"
-                        persistent-hint
-                      />
-                    </v-col>
-                    <v-col cols="12" sm="4">
-                      <v-text-field
-                        v-model.number="cfg.max_tokens"
-                        label="Max Tokens"
-                        type="number"
-                        :min="1"
-                        clearable
-                        hint="tokens"
-                        persistent-hint
-                      />
-                    </v-col>
-                  </v-row>
-                </template>
 
                 <template v-if="localStep.step_type === 'llm_call'">
                   <!-- Thinking -->
@@ -1196,7 +1090,7 @@ const emit = defineEmits(["update:modelValue", "save"]);
 
 const knownTypes = [
   "llm_call",
-  "person_identification", "vision_analysis",
+  "person_identification",
   "notification", "ha_action", "activity_detection",
   "wait", "condition", "verification",
 ];
@@ -1204,7 +1098,6 @@ const knownTypes = [
 const STEP_ICONS = {
   person_identification: "mdi-face-recognition",
   llm_call: "mdi-brain",
-  vision_analysis: "mdi-eye-outline",
   notification: "mdi-bell-outline",
   ha_action: "mdi-home-automation",
   activity_detection: "mdi-run",
@@ -1322,8 +1215,8 @@ const pipelineDataReference = [
   { key: "person_detections.0.frame_index", source: "person_identification — index into trigger media_paths" },
   { key: "person_detections.0.source_media_path", source: "person_identification — presigned URL of the frame containing this bbox" },
   { key: "annotated_image", source: "person_identification — base64 image with bbox overlays" },
-  // -- vision_analysis / llm_call (vision) ------------------------------------
-  { key: "vision_response", source: "vision_analysis / llm_call" },
+  // -- llm_call (vision) -----------------------------------------------------
+  { key: "vision_response", source: "llm_call (output_key=vision_response)" },
   // -- llm_call (reasoning) --------------------------------------------------
   { key: "logic_response", source: "llm_call (output_key=logic_response)" },
   { key: "logic_response.is_notification_needed", source: "llm_call (default notification schema)" },
@@ -1372,10 +1265,6 @@ const tabs = computed(() => {
   const all = [{ key: "general", label: "General", icon: "mdi-tune-variant" }];
   const t = localStep.step_type;
   if (t === "llm_call") {
-    all.push({ key: "images", label: "Images", icon: "mdi-camera-outline" });
-    all.push({ key: "output", label: "Output", icon: "mdi-code-json" });
-    all.push({ key: "advanced", label: "Advanced", icon: "mdi-tune" });
-  } else if (t === "vision_analysis") {
     all.push({ key: "images", label: "Images", icon: "mdi-camera-outline" });
     all.push({ key: "output", label: "Output", icon: "mdi-code-json" });
     all.push({ key: "advanced", label: "Advanced", icon: "mdi-tune" });
@@ -1435,22 +1324,6 @@ const fallbackDefaults = {
     include_motion: false,
     save_guest_images: false,
     additional_sensor_ids: [],
-  },
-  vision_analysis: {
-    prompt: "",
-    use_annotated_image: false,
-    image_source: "trigger",
-    max_images: 5,
-    additional_sensor_ids: [],
-    additional_room_names: [],
-    image_time_filter: {},
-    response_format: "default",
-    response_schema: "",
-    response_json_schema: "",
-    thinking: false,
-    temperature: null,
-    top_p: null,
-    max_tokens: null,
   },
   notification: {
     alert_level: "warning",
@@ -1612,14 +1485,6 @@ watch(
     // Reset llm_call UI state
     showAdditionalRooms.value = false;
 
-    // Populate imageTimeFilter for vision_analysis
-    if (step.step_type === "vision_analysis") {
-      const tf = incoming.image_time_filter || {};
-      imageTimeFilter.since_minutes = tf.since_minutes || null;
-      imageTimeFilter.time_start = tf.time_start || "";
-      imageTimeFilter.time_end = tf.time_end || "";
-    }
-
     // Populate llmImageTimeFilter for llm_call
     if (step.step_type === "llm_call") {
       const tf = incoming.image_time_filter || {};
@@ -1642,16 +1507,6 @@ watch(
       notificationImageTimeFilter.since_minutes = tf.since_minutes || null;
       notificationImageTimeFilter.time_start = tf.time_start || "";
       notificationImageTimeFilter.time_end = tf.time_end || "";
-    }
-
-    // Validate response_json_schema for vision_analysis
-    if (step.step_type === "vision_analysis" && cfg.response_json_schema) {
-      try {
-        JSON.parse(cfg.response_json_schema);
-        jsonSchemaError.value = "";
-      } catch (e) {
-        jsonSchemaError.value = "Invalid JSON: " + e.message;
-      }
     }
 
     // Add _time_mode and _window_*_time helpers to verification conditions for UI
@@ -1811,15 +1666,6 @@ function save() {
       });
     }
 
-    // Merge imageTimeFilter into vision_analysis config
-    if (localStep.step_type === "vision_analysis") {
-      const tf = {};
-      if (imageTimeFilter.since_minutes) tf.since_minutes = imageTimeFilter.since_minutes;
-      if (imageTimeFilter.time_start) tf.time_start = imageTimeFilter.time_start;
-      if (imageTimeFilter.time_end) tf.time_end = imageTimeFilter.time_end;
-      config.image_time_filter = Object.keys(tf).length > 0 ? tf : {};
-    }
-
     // Merge llmImageTimeFilter into llm_call config
     if (localStep.step_type === "llm_call") {
       const tf = {};
@@ -1848,18 +1694,7 @@ function save() {
       config.telegram_image_time_filter = Object.keys(tf).length > 0 ? tf : {};
     }
 
-    // Validate JSON schema for vision_analysis
-    if (localStep.step_type === "vision_analysis" && config.response_json_schema) {
-      try {
-        JSON.parse(config.response_json_schema);
-        jsonSchemaError.value = "";
-      } catch (e) {
-        jsonSchemaError.value = "Invalid JSON: " + e.message;
-        return;
-      }
-    }
-
-    // Parse ha_action data JSON string
+      // Parse ha_action data JSON string
     if (localStep.step_type === "ha_action" && typeof config.data === "string") {
       try {
         config.data = config.data.trim() ? JSON.parse(config.data) : {};

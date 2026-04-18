@@ -22,12 +22,6 @@ database:
 
 # LLM provider configuration
 llm:
-  vision:
-    provider: "vllm_vision"
-    url: "${VISION_MODEL_URL}"
-    model: "nvidia/Cosmos-Reason2-8B"
-    timeout: 120
-
   # Named model registry for the unified llm_call pipeline step.
   # Each entry is independently selectable per step via its id.
   #

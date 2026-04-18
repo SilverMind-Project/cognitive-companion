@@ -60,8 +60,6 @@ const STEP_ICONS = {
   person_identification: "mdi-face-recognition",
   llm_call: "mdi-brain",
   vision_analysis: "mdi-eye",
-  logic_reasoning: "mdi-head-cog",
-  translation: "mdi-translate",
   notification: "mdi-bell",
   ha_action: "mdi-home-automation",
   activity_detection: "mdi-run",

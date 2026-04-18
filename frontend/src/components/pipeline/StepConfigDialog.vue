@@ -283,6 +283,16 @@
                   />
                 </template>
 
+                <!-- vision_analysis: migration banner -->
+                <template v-if="localStep.step_type === 'vision_analysis'">
+                  <v-alert type="warning" variant="tonal" class="mb-4">
+                    This step is deprecated. Use <strong>LLM Call</strong> instead
+                    with <code>model_id: "cosmos_reason2"</code>,
+                    <code>image_source: "trigger"</code>, and
+                    <code>output_key: "vision_response"</code>.
+                  </v-alert>
+                </template>
+
                 <!-- vision_analysis: prompt -->
                 <template v-if="localStep.step_type === 'vision_analysis'">
                   <v-textarea
@@ -376,8 +386,8 @@
                     :items="[
                       { title: 'None (text only)', value: 'none' },
                       { title: 'Trigger frames', value: 'trigger' },
-                      { title: 'Additional cameras', value: 'additional' },
-                      { title: 'Both (trigger + additional)', value: 'both' },
+                      { title: 'Selected cameras', value: 'additional' },
+                      { title: 'Trigger + selected cameras', value: 'both' },
                     ]"
                     item-title="title"
                     item-value="value"
@@ -396,73 +406,131 @@
                     class="mb-4"
                   />
 
-                  <template v-if="cfg.image_source === 'additional' || cfg.image_source === 'both'">
-                    <v-combobox
-                      v-model="cfg.additional_sensor_ids"
-                      :items="cameraSensorItems"
-                      label="Camera Sensors (in analysis order)"
-                      multiple
-                      chips
-                      closable-chips
-                      hint="Sensors are processed in the order listed. Determines grouping when 'Sort by sensor' is on."
-                      persistent-hint
-                      class="mb-4"
-                    />
-                    <v-combobox
-                      v-model="cfg.additional_room_names"
-                      :items="availableRooms"
-                      label="Additional Rooms"
-                      multiple
-                      chips
-                      closable-chips
-                      hint="Pull images from all cameras in these rooms (unordered)"
-                      persistent-hint
-                      class="mb-4"
-                    />
-
+                  <template v-if="cfg.image_source === 'trigger' || cfg.image_source === 'both'">
                     <v-card variant="tonal" class="mb-4 pa-4">
-                      <v-checkbox
-                        v-model="cfg.sort_by_sensor_then_time"
-                        label="Group by sensor, then chronological within each sensor"
-                        hide-details
-                      />
-                      <div class="text-caption text-medium-emphasis ml-8 mt-2">
-                        Enables inter-frame temporal analysis. Images are ordered:
-                        all frames from sensor 1 (oldest to newest), then sensor 2, etc.
-                      </div>
+                      <div class="text-subtitle-2">Trigger Camera</div>
                       <v-text-field
-                        v-if="cfg.sort_by_sensor_then_time"
-                        v-model.number="cfg.images_per_sensor"
-                        label="Images per sensor"
-                        density="compact"
-                        type="number"
-                        :min="1"
-                        class="mt-3"
-                      />
-                    </v-card>
-
-                    <v-card variant="outlined" class="pa-4">
-                      <div class="text-subtitle-2 mb-3">
-                        <v-icon size="small" class="mr-1">mdi-clock-outline</v-icon>
-                        Time Filter (optional)
-                      </div>
-                      <v-text-field
-                        v-model.number="llmImageTimeFilter.since_minutes"
-                        label="Since (minutes ago)"
+                        v-model.number="cfg.trigger_images_count"
+                        label="Max frames"
                         type="number"
                         :min="0"
-                        class="mb-3"
+                        hint="0 = include all available trigger frames"
+                        persistent-hint
+                        density="compact"
+                        class="mt-2"
                       />
-                      <v-row>
-                        <v-col cols="6">
-                          <v-text-field v-model="llmImageTimeFilter.time_start" label="Time Start" placeholder="08:00" />
-                        </v-col>
-                        <v-col cols="6">
-                          <v-text-field v-model="llmImageTimeFilter.time_end" label="Time End" placeholder="18:00" />
-                        </v-col>
-                      </v-row>
                     </v-card>
                   </template>
+
+                  <template v-if="cfg.image_source === 'additional' || cfg.image_source === 'both'">
+                    <div class="text-subtitle-2 mb-2">Additional Cameras</div>
+                    <v-text-field
+                      v-model.number="cfg.images_per_sensor"
+                      label="Default frames per camera"
+                      type="number"
+                      :min="1"
+                      hint="Per-camera default; individual cameras can override below"
+                      persistent-hint
+                      density="compact"
+                      class="mb-4"
+                    />
+
+                    <v-data-table
+                      :headers="[{ title: 'Camera Sensor', key: 'sensor_id' }, { title: 'Frames', key: 'frames', width: 120 }, { title: '', key: 'actions', width: 60, sortable: false }]"
+                      :items="cameraRows"
+                      item-key="sensor_id"
+                      show-select
+                      hide-default-footer
+                      class="mb-4"
+                    >
+                      <template v-slot:item.frames="{ item }">
+                        <v-text-field
+                          :model-value="item.frames"
+                          type="number"
+                          :min="1"
+                          density="compact"
+                          hide-details
+                          class="v-text-field--flush-label"
+                          :class="item.isOverride ? '' : 'text-grey'"
+                          @update:model-value="updateSensorFrameLimit(item.sensor_id, Number($event))"
+                        />
+                      </template>
+                      <template v-slot:item.actions="{ item }">
+                        <v-btn icon size="x-small" variant="text" @click="removeCamera(item.sensor_id)">
+                          <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                      </template>
+                    </v-data-table>
+
+                    <v-combobox
+                      v-model="newCameraId"
+                      :items="cameraSensorItems.filter(id => !cfg.additional_sensor_ids.includes(id))"
+                      label="Add Camera"
+                      clearable
+                      hide-details
+                      class="mb-4"
+                      @update:model-value="addCamera"
+                    />
+
+                    <v-checkbox
+                      v-model="showAdditionalRooms"
+                      label="Pull from rooms (all cameras in these rooms)"
+                      hide-details
+                      class="mb-2"
+                    />
+                    <v-combobox
+                      v-if="showAdditionalRooms"
+                      v-model="cfg.additional_room_names"
+                      :items="availableRooms"
+                      label="Rooms"
+                      multiple
+                      chips
+                      closable-chips
+                      hide-details
+                      class="mb-4"
+                    />
+                  </template>
+
+                  <v-card variant="tonal" class="mb-4 pa-4">
+                    <v-checkbox
+                      v-model="cfg.sort_by_sensor_then_time"
+                      label="Group by sensor, then chronological within each sensor"
+                      hide-details
+                    />
+                    <div class="text-caption text-medium-emphasis ml-8 mt-1">
+                      Enables inter-frame temporal analysis. Images are ordered:
+                      all frames from sensor 1 (oldest to newest), then sensor 2, etc.
+                    </div>
+                  </v-card>
+
+                  <v-checkbox
+                    v-model="cfg.use_annotated_image"
+                    label="Use annotated image (from person identification)"
+                    hide-details
+                    class="mb-4"
+                  />
+
+                  <v-card variant="outlined" class="pa-4">
+                    <div class="text-subtitle-2 mb-3">
+                      <v-icon size="small" class="mr-1">mdi-clock-outline</v-icon>
+                      Time Filter (optional)
+                    </div>
+                    <v-text-field
+                      v-model.number="llmImageTimeFilter.since_minutes"
+                      label="Since (minutes ago)"
+                      type="number"
+                      :min="0"
+                      class="mb-3"
+                    />
+                    <v-row>
+                      <v-col cols="6">
+                        <v-text-field v-model="llmImageTimeFilter.time_start" label="Time Start" placeholder="08:00" />
+                      </v-col>
+                      <v-col cols="6">
+                        <v-text-field v-model="llmImageTimeFilter.time_end" label="Time End" placeholder="18:00" />
+                      </v-col>
+                    </v-row>
+                  </v-card>
                 </template>
 
                 <template v-if="localStep.step_type === 'vision_analysis'">
@@ -1183,6 +1251,49 @@ const selectedLLMModel = computed(() =>
   llmModelItems.value.find((m) => m.id === cfg.model_id) || null
 );
 
+// llm_call camera table state
+const newCameraId = ref(null);
+const showAdditionalRooms = ref(false);
+
+const cameraRows = computed(() => {
+  const sensors = cfg.additional_sensor_ids || [];
+  const limits = cfg.sensor_frame_limits || {};
+  const defaultLimit = cfg.images_per_sensor || 3;
+  return sensors.map(id => ({
+    sensor_id: id,
+    frames: limits[id] ?? defaultLimit,
+    isOverride: id in limits,
+  }));
+});
+
+function updateSensorFrameLimit(sensorId, value) {
+  const defaultLimit = cfg.images_per_sensor || 3;
+  if (!cfg.sensor_frame_limits) cfg.sensor_frame_limits = {};
+  if (value <= 0 || value === defaultLimit) {
+    delete cfg.sensor_frame_limits[sensorId];
+  } else {
+    cfg.sensor_frame_limits[sensorId] = value;
+  }
+}
+
+function addCamera() {
+  if (!newCameraId.value) return;
+  if (!cfg.additional_sensor_ids) cfg.additional_sensor_ids = [];
+  if (!cfg.additional_sensor_ids.includes(newCameraId.value)) {
+    cfg.additional_sensor_ids.push(newCameraId.value);
+  }
+  newCameraId.value = null;
+}
+
+function removeCamera(sensorId) {
+  cfg.additional_sensor_ids = (cfg.additional_sensor_ids || []).filter(
+    id => id !== sensorId
+  );
+  if (cfg.sensor_frame_limits) {
+    delete cfg.sensor_frame_limits[sensorId];
+  }
+}
+
 // Pipeline data reference for the always-visible sidebar.
 const pipelineDataReference = [
   // -- Trigger context -------------------------------------------------------
@@ -1402,10 +1513,13 @@ const fallbackDefaults = {
     include_context: [],
     image_source: "none",
     max_images: 5,
+    trigger_images_count: 0,
     additional_sensor_ids: [],
     additional_room_names: [],
     images_per_sensor: 3,
+    sensor_frame_limits: {},
     sort_by_sensor_then_time: false,
+    use_annotated_image: false,
     image_time_filter: {},
     response_format: "text",
     response_schema: "",
@@ -1494,6 +1608,9 @@ watch(
     // Reset cfg
     Object.keys(cfg).forEach((k) => delete cfg[k]);
     Object.assign(cfg, { ...base, ...incoming });
+
+    // Reset llm_call UI state
+    showAdditionalRooms.value = false;
 
     // Populate imageTimeFilter for vision_analysis
     if (step.step_type === "vision_analysis") {

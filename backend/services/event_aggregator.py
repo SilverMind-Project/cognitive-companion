@@ -336,27 +336,35 @@ class EventAggregator:
         self,
         sensor_ids_ordered: list[str],
         images_per_sensor: int = 3,
+        sensor_frame_limits: dict[str, int] | None = None,
         max_images: int = 15,
         since_minutes: float | None = None,
         time_start: str | None = None,
         time_end: str | None = None,
+        chronological: bool = True,
     ) -> list[str]:
-        """Return images grouped by sensor with intra-sensor chronological order.
+        """Return images grouped by sensor with configurable per-sensor limits.
 
-        Images are assembled as: all images for sensor_ids_ordered[0] (oldest
-        first), then sensor_ids_ordered[1], etc.  This ordering lets vision
-        reasoning models perform inter-frame analysis on a per-sensor basis.
+        Images are assembled as: all images for sensor_ids_ordered[0], then
+        sensor_ids_ordered[1], etc.  Within each sensor group, images are
+        sorted chronologically (oldest first) when *chronological* is ``True``
+        (for inter-frame analysis) or newest-first otherwise.
 
         Parameters
         ----------
         sensor_ids_ordered:
             Sensor IDs in the desired group order.
         images_per_sensor:
-            Maximum images to include from each sensor.
+            Default maximum images to include from each sensor.
+        sensor_frame_limits:
+            Per-sensor override dict mapping sensor ID -> max images.
         max_images:
             Hard cap on total images returned across all sensors.
         since_minutes / time_start / time_end:
             Same time filter semantics as :meth:`query_recent_media`.
+        chronological:
+            When ``True``, intra-sensor ordering is oldest-first.
+            When ``False``, newest-first.
         """
         now_utc = datetime.now(UTC)
 
@@ -389,14 +397,18 @@ class EventAggregator:
             # Fetch all matching rows; group and sort in Python for predictable ordering.
             rows: list[MediaCache] = list(db.execute(base_stmt).scalars().all())
 
-            # Group by sensor, preserving intra-sensor chronological (ASC) order.
+            # Group by sensor, apply per-sensor limits and ordering.
             by_sensor: dict[str, list[MediaCache]] = {sid: [] for sid in sensor_ids_ordered}
             for row in rows:
                 if row.sensor_id in by_sensor:
                     by_sensor[row.sensor_id].append(row)
+            limits = sensor_frame_limits or {}
             for sid in sensor_ids_ordered:
+                limit = limits.get(sid, images_per_sensor)
                 by_sensor[sid].sort(key=lambda r: r.captured_at)
-                by_sensor[sid] = by_sensor[sid][:images_per_sensor]
+                if not chronological:
+                    by_sensor[sid] = list(reversed(by_sensor[sid]))
+                by_sensor[sid] = by_sensor[sid][:limit]
 
             # Flatten in sensor order, apply overall cap.
             ordered_rows: list[MediaCache] = []

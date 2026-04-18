@@ -25,6 +25,7 @@ class StepTypeOut(BaseModel):
     description: str
     config_schema: dict
     default_config: dict
+    deprecated: bool = False
 
 
 class ChannelTypeOut(BaseModel):
@@ -55,6 +56,7 @@ def list_step_types(
             description=m.description,
             config_schema=m.config_schema,
             default_config=m.default_config,
+            deprecated=m.deprecated,
         )
         for m in StepRegistry.all_metadata()
     ]

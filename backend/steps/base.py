@@ -55,6 +55,7 @@ class StepMetadata:
     description: str
     config_schema: dict  # JSONSchema for config_json validation
     default_config: dict  # Default config_json for new steps
+    deprecated: bool = False  # Whether this step type is deprecated
 
 
 @dataclass

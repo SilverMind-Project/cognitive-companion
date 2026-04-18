@@ -273,10 +273,8 @@ Registered step types (13 total, each with its own file in `backend/steps/builti
 | `verification` | `verification.py` | reasoning |
 | `condition` | `condition.py` | flow |
 | `wait` | `wait.py` | flow |
-| `condition` | `condition.py` | flow |
-| `wait` | `wait.py` | flow |
 
-Note: `logic_reasoning` and `translation` step types were removed; use `llm_call` with the appropriate `output_key` instead.
+Note: `logic_reasoning`, `translation`, and `vision_analysis` step types were removed; use `llm_call` with the appropriate `output_key` instead.
 
 ---
 

@@ -120,4 +120,27 @@ export const cts = {
   getKeyframe: (sampleId) => req(`/keyframes/${sampleId}`),
   retainKeyframe: (sampleId) =>
     req(`/keyframes/${sampleId}/retain`, { method: "POST" }),
+
+  // ── Dashboard ───────────────────────────────────────────────────────────────
+  getDashboardSignals: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.person_id) qs.set("person_id", params.person_id);
+    if (params.window_hours) qs.set("window_hours", params.window_hours);
+    if (params.signal_kind) qs.set("signal_kind", params.signal_kind);
+    if (params.limit) qs.set("limit", params.limit);
+    const q = qs.toString();
+    return q ? req(`/dashboard/signals?${q}`) : req("/dashboard/signals");
+  },
+  getDashboardTrajectory: (personId, params = {}) => {
+    const qs = new URLSearchParams({ person_id: personId });
+    if (params.start) qs.set("start", params.start);
+    if (params.end) qs.set("end", params.end);
+    if (params.limit) qs.set("limit", params.limit);
+    return req(`/dashboard/trajectory?${qs.toString()}`);
+  },
+  getDashboardDwellSummary: (personId, date) => {
+    const qs = new URLSearchParams({ person_id: personId });
+    if (date) qs.set("date", date);
+    return req(`/dashboard/dwell_summary?${qs.toString()}`);
+  },
 };

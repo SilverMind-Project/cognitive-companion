@@ -72,7 +72,7 @@ class HASpeakerTTSChannel(NotificationChannel):
             )
             if not url:
                 return False
-            # Wake the speaker before sending audio — idle Google Home / Chromecast
+            # Wake the speaker before sending audio: idle Google Home / Chromecast
             # devices silently drop play_media calls without this.
             await ha_client.turn_on_media_player(entity_id)
             await asyncio.sleep(_MEDIA_PLAYER_WAKE_DELAY)

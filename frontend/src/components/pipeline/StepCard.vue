@@ -130,28 +130,22 @@ const configSummary = computed(() => {
   return parts.join(" | ") || "No configuration";
 });
 
-// Detect template tokens used in this step's config.
-// - Most steps use {{key}} (handled by backend/core/template.py).
-// - Notification steps use {key} (Python .format()).
+// Detect {{key}} template tokens used in this step's config.
+// All steps now use {{key}} syntax via backend/core/template.py.
 const templateTokens = computed(() => {
   const cfg = props.step.config_json;
   if (!cfg || typeof cfg !== "object") return [];
-  const fields = [
-    cfg.prompt,
-    cfg.expression,
-    cfg.system_prompt,
-    cfg.message_template,
-    cfg.title_template,
-    cfg.url_template,
-    cfg.body_template,
-  ].filter((v) => typeof v === "string" && v.length);
-  if (!fields.length) return [];
+  // Collect all string values from the config (including nested objects)
+  const strings = [];
+  function collect(obj) {
+    if (typeof obj === "string") { strings.push(obj); return; }
+    if (obj && typeof obj === "object") Object.values(obj).forEach(collect);
+  }
+  collect(cfg);
+  if (!strings.length) return [];
   const tokens = new Set();
-  const isNotification = props.step.step_type === "notification";
-  const re = isNotification
-    ? /\{([\w][\w.]*)\}/g
-    : /\{\{\s*([\w][\w.]*)\s*\}\}/g;
-  for (const text of fields) {
+  const re = /\{\{\s*([\w][\w.]*)\s*\}\}/g;
+  for (const text of strings) {
     let m;
     while ((m = re.exec(text)) !== null) tokens.add(m[1]);
   }

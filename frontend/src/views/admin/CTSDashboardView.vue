@@ -129,7 +129,7 @@
         <v-card class="mb-4">
           <v-card-title>
             <v-icon start>mdi-door-open</v-icon>
-            Room Dwell — {{ selectedDate || "Today" }}
+            Room Dwell: {{ selectedDate || "Today" }}
           </v-card-title>
           <v-card-text>
             <div v-if="dwellRooms.length > 0">
@@ -239,7 +239,7 @@ const personOptions = computed(() => {
   return Array.from(ids).sort();
 });
 
-// SVG trajectory helpers — map ground_x/y (meters) to SVG coords.
+// SVG trajectory helpers: map ground_x/y (meters) to SVG coords.
 const svgPath = computed(() => {
   if (trajectoryPoints.value.length < 2) return null;
   // Sort ascending by time.

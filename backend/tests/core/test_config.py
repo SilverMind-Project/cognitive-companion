@@ -102,7 +102,7 @@ class TestEnvInterpolation:
 
 class TestMissingFiles:
     def test_missing_yaml_files_are_tolerated(self, tmp_path: Path) -> None:
-        # Empty config dir — all three files missing.
+        # Empty config dir: all three files missing.
         s = Settings(config_dir=tmp_path, env={})
         assert s.get("anything") is None
         assert s.raw() == {"auth": {}, "notifications": {}}
@@ -172,5 +172,5 @@ class TestDefaults:
         # The default dir should be ``<repo>/config`` and at minimum contain
         # the three canonical files in a working checkout.
         assert DEFAULT_CONFIG_DIR.name == "config"
-        # We don't assert file existence here — tests must run in envs without
+        # We don't assert file existence here: tests must run in envs without
         # the YAML files present.

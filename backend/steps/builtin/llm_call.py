@@ -439,7 +439,7 @@ class LLMCallHandler(StepHandler):
         hallucination_marker: str = config.get("hallucination_marker", "")
         thinking: bool = bool(config.get("thinking", False))
 
-        # Sampling overrides — only pass if explicitly set in step config
+        # Sampling overrides: only pass if explicitly set in step config
         raw_temperature = config.get("temperature")
         raw_top_p = config.get("top_p")
         raw_max_tokens = config.get("max_tokens")

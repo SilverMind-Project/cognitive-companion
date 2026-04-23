@@ -124,7 +124,7 @@
                     :hint="
                       form.telegram_trigger_config.allowed_chat_ids?.length
                         ? 'Telegram chat IDs authorised to trigger this rule.'
-                        : 'Required — at least one chat ID must be specified.'
+                        : 'Required: at least one chat ID must be specified.'
                     "
                     persistent-hint
                     :error="!form.telegram_trigger_config.allowed_chat_ids?.length"
@@ -239,7 +239,7 @@
                 v-model="ctxForm.negate"
                 label="Negate (NOT)"
                 color="warning"
-                hint="Invert the filter — e.g. NOT in this room, NOT during this time"
+                hint="Invert the filter: e.g. NOT in this room, NOT during this time"
                 persistent-hint
                 class="mb-3"
               />

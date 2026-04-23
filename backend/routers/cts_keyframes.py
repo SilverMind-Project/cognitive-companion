@@ -3,9 +3,9 @@
 All handlers require ``cts.keyframes.view``.
 
 Routes:
-    GET    /api/v1/cts/keyframes              — list keyframes
-    GET    /api/v1/cts/keyframes/{sample_id}  — get one keyframe
-    POST   /api/v1/cts/keyframes/{sample_id}/retain  — retain past retention
+    GET    /api/v1/cts/keyframes             : list keyframes
+    GET    /api/v1/cts/keyframes/{sample_id} : get one keyframe
+    POST   /api/v1/cts/keyframes/{sample_id}/retain : retain past retention
 
 When ``cts.enabled=false`` every handler returns 404 with code
 ``cts.disabled`` so no CTS code runs.

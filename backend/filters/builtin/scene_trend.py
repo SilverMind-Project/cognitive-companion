@@ -33,7 +33,7 @@ Config schema
         "activity_count": 5,            # required for unusual_activity
 
         # no_recent_activity: person hasn't been seen in the window
-        # (no extra fields needed — just set trend_type)
+        # (no extra fields needed: just set trend_type)
     }
 """
 

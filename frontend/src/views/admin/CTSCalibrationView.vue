@@ -78,7 +78,7 @@
             <div class="text-caption text-medium-emphasis pa-2">
               {{ points.length < 4
                 ? `Click to place point ${points.length + 1} (need ${4 - points.length} more)`
-                : `${points.length} points placed — enter floor coords on the right, then calibrate.`
+                : `${points.length} points placed: enter floor coords on the right, then calibrate.`
               }}
             </div>
           </v-card-text>
@@ -287,7 +287,7 @@ async function runCalibration() {
   result.value = null;
   try {
     result.value = await cts.postHomography(selectedCameraId.value, points.value);
-    notify("Calibration saved — status: " + result.value.status);
+    notify("Calibration saved: status: " + result.value.status);
     existingCalibration.value = true;
   } catch (e) {
     notify(e.message, "error");

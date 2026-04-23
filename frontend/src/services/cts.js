@@ -1,7 +1,7 @@
 /**
  * CTS (Continuous Tracking System) API client.
  *
- * All calls go through the CC backend BFF — the browser never contacts the
+ * All calls go through the CC backend BFF: the browser never contacts the
  * tracking microservices directly.
  */
 

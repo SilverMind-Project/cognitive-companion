@@ -47,7 +47,7 @@ async def health():
 async def app_info():
     """Return public application metadata consumed by the frontend.
 
-    No authentication required — this endpoint exposes only non-sensitive
+    No authentication required: this endpoint exposes only non-sensitive
     configuration values (name, version, timezone).  The frontend uses the
     timezone field to format all displayed timestamps in the operator-configured
     local timezone rather than the browser's timezone.
@@ -80,7 +80,7 @@ async def tts_health():
     if not tts_url:
         return {"configured": False, "status": "not_configured"}
     base = tts_url.rstrip("/")
-    # Strip /v1 suffix if present — health lives at root /health
+    # Strip /v1 suffix if present: health lives at root /health
     if base.endswith("/v1"):
         base = base[:-3]
     try:

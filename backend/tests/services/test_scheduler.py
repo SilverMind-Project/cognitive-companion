@@ -349,7 +349,7 @@ async def test_module_resume_callback_delegates(db_factory, aggregator, pipeline
 @pytest.mark.asyncio
 async def test_module_resume_callback_without_setup_is_noop(db_factory) -> None:
     reset_default_scheduler()
-    # No default, no globals — should log and return, not raise.
+    # No default, no globals: should log and return, not raise.
     await scheduler_module._resume_workflow_callback(1)
 
 

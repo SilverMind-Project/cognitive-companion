@@ -1,7 +1,7 @@
 """CTS feature-flag and system status endpoints.
 
-GET /api/v1/cts/status   — overall CTS status for the UI status bar
-GET /api/v1/cts/features — feature flags visible to the frontend
+GET /api/v1/cts/status  : overall CTS status for the UI status bar
+GET /api/v1/cts/features: feature flags visible to the frontend
 """
 
 from __future__ import annotations

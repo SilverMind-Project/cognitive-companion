@@ -191,7 +191,7 @@ class OpenAICompatibleProvider(LLMProvider):
             if thinking:
                 text = strip_thinking(text)
             # Clean markdown fences when guided decoding wasn't used but
-            # a schema was requested — the model may wrap JSON in ``` blocks.
+            # a schema was requested: the model may wrap JSON in ``` blocks.
             if response_schema and not self.guided_decoding:
                 text = clean_llm_json(text)
             logger.debug("openai_compat_response", length=len(text))

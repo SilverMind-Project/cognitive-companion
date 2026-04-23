@@ -326,6 +326,16 @@ class PipelineExecutor:
                 # ``__setitem__`` on a MutableDict both fire ``changed()``,
                 # which marks the JSON column dirty for the next flush.
                 pipeline_data.update(result.data)
+
+                # When a step has a label, also write its output under that label
+                # as a namespace key.  This lets pipelines with duplicate step
+                # types (e.g. two llm_call steps) reference each step's output
+                # independently via {{my_label.field}} templates.
+                if step.label:
+                    label_key = step.label.strip().lower().replace(" ", "_")
+                    if label_key:
+                        pipeline_data[label_key] = dict(result.data)
+
                 pipeline_data["_step_timings"] = step_timings
                 db.commit()
 

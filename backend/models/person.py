@@ -139,7 +139,7 @@ class PersonLocationHistory(Base):
     exited_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     source: Mapped[str] = mapped_column(String(32), default="inferred")
 
-    # Camera-topology-derived fields (nullable — absent on legacy rows).
+    # Camera-topology-derived fields (nullable: absent on legacy rows).
     direction_semantic: Mapped[str | None] = mapped_column(String(32), nullable=True)
     from_room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
     from_room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)

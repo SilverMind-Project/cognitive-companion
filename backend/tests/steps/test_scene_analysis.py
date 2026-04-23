@@ -285,5 +285,5 @@ class TestConfigForwarding:
             )
         finally:
             os.unlink(tmp2)
-        # Only one analyze call — the second image is ignored
+        # Only one analyze call: the second image is ignored
         client.analyze.assert_called_once()

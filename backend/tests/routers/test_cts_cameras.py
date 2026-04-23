@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-import backend.models  # noqa: F401 — registers all models
+import backend.models  # noqa: F401: registers all models
 from backend.core.auth import AuthContext, get_auth_context
 from backend.core.config import Settings
 from backend.core.database import Base, get_db

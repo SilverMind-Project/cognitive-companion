@@ -1,4 +1,4 @@
-"""Tests for ``WorkflowPipeline`` — sensor event to pipeline execution."""
+"""Tests for ``WorkflowPipeline``: sensor event to pipeline execution."""
 
 from __future__ import annotations
 

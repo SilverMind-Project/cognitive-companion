@@ -285,7 +285,7 @@ class TestTimezoneAwareLimits:
         result = engine._check_rate_limits(rule, db_session, now_et)
         # The past event is on the previous ET calendar day, so today's count = 0.
         assert result is True, (
-            "Daily limit should not be triggered — event was on a previous local calendar day"
+            "Daily limit should not be triggered: event was on a previous local calendar day"
         )
 
     def test_daily_limit_counts_events_after_local_midnight(self, db_session):
@@ -306,7 +306,7 @@ class TestTimezoneAwareLimits:
         assert result is False, "Daily limit (2/2) should block the rule"
 
     def test_cool_off_is_timezone_agnostic(self, db_session):
-        """Cool-off is a relative window (N minutes back from now) — it should
+        """Cool-off is a relative window (N minutes back from now): it should
         work the same regardless of timezone because it uses elapsed UTC time."""
         _make_sensor(db_session)
         rule = _make_rule(db_session, cool_off_minutes=30)
@@ -324,7 +324,7 @@ class TestTimezoneAwareLimits:
         db_session.add(log)
         db_session.commit()
 
-        # Test with America/New_York engine — cool-off should still trigger
+        # Test with America/New_York engine: cool-off should still trigger
         engine = self._engine_ny()
         now_et = datetime.now(ZoneInfo(self._TZ_NY))
         result = engine._check_rate_limits(rule, db_session, now_et)

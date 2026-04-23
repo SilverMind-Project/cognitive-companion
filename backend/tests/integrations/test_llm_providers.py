@@ -41,7 +41,7 @@ class TestStripThinking:
 
 
 # ---------------------------------------------------------------------------
-# LLMProviderChain — sampling params forwarded
+# LLMProviderChain: sampling params forwarded
 # ---------------------------------------------------------------------------
 
 
@@ -81,7 +81,7 @@ class TestLLMProviderChainSampling:
 
 
 # ---------------------------------------------------------------------------
-# LLMProviderPool — sampling params forwarded
+# LLMProviderPool: sampling params forwarded
 # ---------------------------------------------------------------------------
 
 

@@ -86,7 +86,7 @@ const routes = [
         name: "admin-camera-media",
         component: () => import("../views/admin/CameraMediaView.vue"),
       },
-      // CTS — Continuous Tracking System
+      // CTS: Continuous Tracking System
       {
         path: "cts/cameras",
         name: "cts-cameras",

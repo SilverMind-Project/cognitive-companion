@@ -509,7 +509,7 @@ def create_app() -> FastAPI:
     app.include_router(activities.router, prefix=api)
     app.include_router(webhooks.router, prefix=api)
     app.include_router(pipeline.router, prefix=api)
-    # CTS routers — handlers return 404 when cts.enabled=false
+    # CTS routers: handlers return 404 when cts.enabled=false
     app.include_router(cts.router, prefix=api)
     app.include_router(cts_cameras.router, prefix=api)
     app.include_router(cts_calibration.router, prefix=api)

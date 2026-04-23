@@ -144,7 +144,7 @@ async function loadAdjacency() {
     // edge_count only from GET; edges are managed locally until saved
     await cts.getAdjacency();
   } catch {
-    // orchestrator may be offline in dev — silently ignore
+    // orchestrator may be offline in dev: silently ignore
   }
 }
 

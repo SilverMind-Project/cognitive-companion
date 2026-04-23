@@ -161,11 +161,11 @@ class TestBooleanOperators:
         assert evaluator.evaluate("not not flag", {"flag": True}) is True
 
     def test_and_has_higher_precedence_than_or(self, evaluator: ConditionEvaluator) -> None:
-        # a or (b and c) — if a is true, whole thing is true.
+        # a or (b and c): if a is true, whole thing is true.
         assert evaluator.evaluate("a == 1 or b == 1 and c == 1", {"a": 1, "b": 0, "c": 0}) is True
 
     def test_parentheses_override_precedence(self, evaluator: ConditionEvaluator) -> None:
-        # (a or b) and c — needs both sides.
+        # (a or b) and c: needs both sides.
         assert (
             evaluator.evaluate("(a == 1 or b == 1) and c == 1", {"a": 1, "b": 0, "c": 0}) is False
         )
@@ -217,7 +217,7 @@ class TestFunctions:
         # The tokeniser only recognises ``exists``/``contains``; anything else
         # falls through as an identifier path. This test just guards the
         # FUNC-dispatch fall-through branch in _parse_function by feeding a
-        # synthetic FUNC token via tokeniser monkeypatch is overkill — instead
+        # synthetic FUNC token via tokeniser monkeypatch is overkill: instead
         # we exercise the final ``return False, pos`` by looking at the method
         # directly with a fake function name.
         from backend.services.condition_evaluator import _Token
@@ -255,7 +255,7 @@ class TestParserEdgeCases:
         assert evaluator.evaluate('name == "unterminated', {"name": "x"}) is False
 
     def test_unmatched_paren_is_tolerated(self, evaluator: ConditionEvaluator) -> None:
-        # Missing RPAREN is silently accepted — atom returns the inner value.
+        # Missing RPAREN is silently accepted: atom returns the inner value.
         assert evaluator.evaluate("(x == 1", {"x": 1}) is True
 
     def test_tokenise_returns_token_stream(self) -> None:

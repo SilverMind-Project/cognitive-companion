@@ -3,11 +3,11 @@
 All handlers require ``cts.signals.view``.
 
 Routes:
-    GET    /api/v1/cts/signals                  — list recent signals
-    POST   /api/v1/cts/signals/{signal_id}/ack  — acknowledge a signal
-    GET    /api/v1/cts/signals/unacknowledged   — unacknowledged signals
-    GET    /api/v1/cts/signals/summary          — 24h summary for dashboard
-    GET    /api/v1/cts/signals/trend/{person_id} — per-day trend
+    GET    /api/v1/cts/signals                 : list recent signals
+    POST   /api/v1/cts/signals/{signal_id}/ack : acknowledge a signal
+    GET    /api/v1/cts/signals/unacknowledged  : unacknowledged signals
+    GET    /api/v1/cts/signals/summary         : 24h summary for dashboard
+    GET    /api/v1/cts/signals/trend/{person_id}: per-day trend
 
 When ``cts.enabled=false`` every handler returns 404 with code
 ``cts.disabled`` so no CTS code runs.

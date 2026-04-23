@@ -38,7 +38,7 @@ class TestBoundLoggerFormatting:
         assert rec.getMessage() == "sensor sensor_id=cam1 room=Kitchen"
 
     def test_format_is_static(self) -> None:
-        # _format is a pure helper — no logger instance needed.
+        # _format is a pure helper: no logger instance needed.
         assert BoundLogger._format("evt", {}) == "evt"
         assert BoundLogger._format("evt", {"k": 1}) == "evt k=1"
 

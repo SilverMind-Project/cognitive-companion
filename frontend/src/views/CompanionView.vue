@@ -78,7 +78,7 @@ let playbackContext = null;
 let nextPlaybackTime = 0;
 let activePlaybackSources = 0;
 
-// Announcement buffer — accumulates all PCM chunks until stream_end,
+// Announcement buffer: accumulates all PCM chunks until stream_end,
 // then plays the complete audio at once.  Current hardware cannot sustain
 // real-time TTS inference, so partial playback causes audible gaps.
 // TODO: reduce buffer (play incrementally) once faster inference hardware is available.

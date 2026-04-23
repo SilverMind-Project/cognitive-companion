@@ -1,15 +1,15 @@
 """
-``backend.core`` — foundational layer for the Cognitive Companion backend.
+``backend.core``: foundational layer for the Cognitive Companion backend.
 
 This package hosts the small number of primitives that every other backend
 subsystem depends on:
 
-* :mod:`backend.core.config` — YAML-backed :class:`Settings`
-* :mod:`backend.core.database` — SQLAlchemy :class:`Database` wrapper
-* :mod:`backend.core.auth` — :class:`KeyStore` + :class:`AuthContext`
-* :mod:`backend.core.exceptions` — HTTP-aware :class:`AppError` hierarchy
-* :mod:`backend.core.logging` — stdlib :class:`BoundLogger` wrapper
-* :mod:`backend.core.template` — ``{{dotted.path}}`` renderer
+* :mod:`backend.core.config`: YAML-backed :class:`Settings`
+* :mod:`backend.core.database`: SQLAlchemy :class:`Database` wrapper
+* :mod:`backend.core.auth`: :class:`KeyStore` + :class:`AuthContext`
+* :mod:`backend.core.exceptions`: HTTP-aware :class:`AppError` hierarchy
+* :mod:`backend.core.logging`: stdlib :class:`BoundLogger` wrapper
+* :mod:`backend.core.template`: ``{{dotted.path}}`` renderer
 
 All public symbols are re-exported here so call sites can simply do::
 

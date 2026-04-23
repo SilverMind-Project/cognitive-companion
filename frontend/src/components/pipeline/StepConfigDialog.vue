@@ -324,6 +324,190 @@
                   />
                 </template>
 
+                <!-- scene_analysis -->
+                <template v-if="localStep.step_type === 'scene_analysis'">
+                  <v-checkbox v-model="cfg.run_detect" label="Run YOLO object detection" hide-details class="mb-1" />
+                  <v-checkbox v-model="cfg.run_describe" label="Run Florence-2 scene description" hide-details class="mb-1" />
+                  <v-checkbox v-model="cfg.run_hazards" label="Evaluate hazard rules on detections" hide-details class="mb-1" />
+                  <v-checkbox v-model="cfg.run_embed" label="Run CLIP embedding (slow)" hide-details class="mb-4" />
+                  <v-text-field
+                    v-model.number="cfg.max_images"
+                    label="Max Images"
+                    type="number"
+                    :min="1"
+                    hint="Maximum trigger images to analyse (default: 1)"
+                    persistent-hint
+                  />
+                </template>
+
+                <!-- object_trend_analysis -->
+                <template v-if="localStep.step_type === 'object_trend_analysis'">
+                  <v-combobox
+                    v-model="cfg.room_ids"
+                    :items="availableRooms"
+                    label="Room IDs"
+                    multiple
+                    chips
+                    closable-chips
+                    hint="Rooms to query. Leave empty to use the trigger room."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-select
+                    v-model="cfg.severity_threshold"
+                    :items="['ok', 'info', 'warning', 'critical']"
+                    label="Severity Threshold"
+                    hint="Anomalies below this severity are stripped from results."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-text-field
+                    v-model.number="cfg.include_snapshots_hours"
+                    label="Include Snapshots (hours)"
+                    type="number"
+                    :min="0"
+                    hint="If > 0, fetch raw hourly snapshots for LLM context."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-text-field
+                    v-model="cfg.output_key"
+                    label="Output Key"
+                    hint="pipeline_data key for the result map. Default: room_trends"
+                    persistent-hint
+                  />
+                </template>
+
+                <!-- activity_session_start -->
+                <template v-if="localStep.step_type === 'activity_session_start'">
+                  <v-combobox
+                    v-model="cfg.activity_type"
+                    :items="activityTypes"
+                    label="Activity Type"
+                    hint="Supports {{template}} syntax (e.g. {{logic_response.activity_type}})."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-combobox
+                    v-model="cfg.person_id"
+                    :items="availablePersons"
+                    label="Person ID"
+                    clearable
+                    hint="Supports {{template}} syntax (e.g. {{person_detections.0.person_id}})."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-combobox
+                    v-model="cfg.room_name"
+                    :items="availableRooms"
+                    label="Room (optional)"
+                    clearable
+                    hint="Defaults to trigger room when empty. Supports {{template}} syntax."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-text-field
+                    v-model="cfg.confidence"
+                    label="Confidence"
+                    hint="Fixed value (0-1) or {{template}} syntax. Default: 0.85."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-text-field
+                    v-model="cfg.timeout_minutes"
+                    label="Timeout (minutes, optional)"
+                    hint="Max session duration before auto-close. Leave empty for activity-type default."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-textarea
+                    v-model="cfg.metadata_extra"
+                    label="Extra Metadata (JSON, optional)"
+                    rows="3"
+                    hint='Optional JSON merged into session metadata. Supports {{template}} syntax.'
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-text-field
+                    v-model="cfg.output_key"
+                    label="Output Key"
+                    hint="pipeline_data key for the session result. Default: session"
+                    persistent-hint
+                  />
+                </template>
+
+                <!-- activity_session_end -->
+                <template v-if="localStep.step_type === 'activity_session_end'">
+                  <v-combobox
+                    v-model="cfg.activity_type"
+                    :items="activityTypes"
+                    label="Activity Type"
+                    hint="Activity session to close. Supports {{template}} syntax."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-combobox
+                    v-model="cfg.person_id"
+                    :items="availablePersons"
+                    label="Person ID"
+                    clearable
+                    hint="Person whose session to close. Supports {{template}} syntax."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-checkbox
+                    v-model="cfg.write_activity_record"
+                    label="Write PersonActivity record with duration"
+                    hint="Records a PersonActivity entry with duration_minutes populated."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-text-field
+                    v-model="cfg.output_key"
+                    label="Output Key"
+                    hint="pipeline_data key for the closed session result. Default: closed_session"
+                    persistent-hint
+                  />
+                </template>
+
+                <!-- daily_report -->
+                <template v-if="localStep.step_type === 'daily_report'">
+                  <v-combobox
+                    v-model="cfg.person_ids"
+                    :items="availablePersons"
+                    label="Person IDs"
+                    multiple
+                    chips
+                    closable-chips
+                    hint="Leave empty to generate reports for all active household members."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-text-field
+                    v-model.number="cfg.report_date_offset_days"
+                    label="Report Date Offset (days)"
+                    type="number"
+                    hint="0 = today, -1 = yesterday."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-checkbox v-model="cfg.generate_summary_text" label="Generate LLM prose summary" hide-details class="mb-3" />
+                  <v-text-field
+                    v-if="cfg.generate_summary_text"
+                    v-model="cfg.summary_model_id"
+                    label="Summary Model ID"
+                    hint="LLM model ID for summary generation."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  <v-text-field
+                    v-model="cfg.output_key"
+                    label="Output Key"
+                    hint="pipeline_data key for the report list. Default: daily_reports"
+                    persistent-hint
+                  />
+                </template>
+
                 <!-- Generic plugin step -->
                 <template v-if="!knownTypes.includes(localStep.step_type) && localStep.step_type">
                   <v-alert type="info" variant="tonal" class="mb-4">
@@ -560,7 +744,7 @@
                     v-model="cfg.message_template"
                     label="Default Message Template"
                     rows="3"
-                    hint="Default for all channels. Use {message}, {room}, {vision_response}, etc."
+                    hint="Default for all channels. Use {{message}}, {{room_name}}, {{vision_response}}, {{logic_response.user_notification}}, etc."
                     persistent-hint
                     class="mb-5"
                   />
@@ -569,7 +753,7 @@
                     v-model="cfg.telegram_template"
                     label="Telegram Template"
                     rows="3"
-                    hint="HTML supported. Falls back to the default template."
+                    hint="HTML supported. Use {{message}}, {{room_name}}, etc. Falls back to the default template."
                     persistent-hint
                     class="mb-3"
                   />
@@ -577,7 +761,7 @@
                     v-model="cfg.eink_template"
                     label="E-Ink Template"
                     rows="2"
-                    hint="Short plain-text for e-ink displays."
+                    hint="Short plain-text for e-ink displays. Use {{message}}, {{room_name}}, etc."
                     persistent-hint
                     class="mb-3"
                   />
@@ -585,7 +769,7 @@
                     v-model="cfg.ha_speaker_tts_template"
                     label="HA Speaker TTS / PWA Announcement Template"
                     rows="2"
-                    hint="Natural language for spoken announcements (smart speakers and PWA TTS). Falls back to the default template."
+                    hint="Natural language for spoken announcements. Use {{message}}, {{room_name}}, etc."
                     persistent-hint
                     class="mb-3"
                   />
@@ -593,7 +777,7 @@
                     v-model="cfg.pwa_popup_text_template"
                     label="PWA Popup Text Template"
                     rows="2"
-                    hint="Notification text shown in the companion UI overlay."
+                    hint="Notification text shown in the companion UI overlay. Use {{message}}, {{room_name}}, etc."
                     persistent-hint
                     class="mb-3"
                   />
@@ -601,7 +785,7 @@
                     v-model="cfg.pwa_realtime_ai_template"
                     label="PWA Realtime AI Template"
                     rows="2"
-                    hint="Conversational voice prompt for Gemini Live delivery."
+                    hint="Conversational voice prompt for Gemini Live delivery. Use {{message}}, {{room_name}}, etc."
                     persistent-hint
                   />
                 </template>
@@ -775,7 +959,7 @@
                       v-model="cfg.webhook_template"
                       label="Webhook JSON Template (optional)"
                       rows="5"
-                      hint="JSON payload template. Uses {message}, {room}, etc. Falls back to a basic JSON envelope."
+                      hint="JSON payload template. Use {{message}}, {{room_name}}, etc. Falls back to a basic JSON envelope."
                       persistent-hint
                     />
                   </div>
@@ -953,7 +1137,7 @@
 
           <!-- Pipeline Variables sidebar -->
           <v-divider vertical />
-          <div class="step-config-vars px-4 py-5 d-none d-md-flex flex-column">
+          <div class="step-config-vars px-4 py-5 d-none d-md-flex flex-column" style="position: relative;">
             <div class="d-flex align-center mb-3">
               <v-icon size="small" class="mr-2" color="primary">mdi-code-braces</v-icon>
               <div class="text-subtitle-2 font-weight-bold">Pipeline Variables</div>
@@ -984,15 +1168,12 @@
                 <div class="text-caption text-medium-emphasis">{{ item.source }}</div>
               </div>
             </div>
-            <v-alert
-              v-if="copiedToken"
-              type="success"
-              density="compact"
-              variant="tonal"
-              class="mt-2"
-            >
-              Copied {{ copiedToken }}
-            </v-alert>
+            <Transition name="copied-fade">
+              <div v-if="copiedToken" class="copied-toast">
+                <v-icon size="14" color="success" class="mr-1">mdi-check</v-icon>
+                <span class="text-caption">Copied <code>{{ copiedToken }}</code></span>
+              </div>
+            </Transition>
           </div>
         </div>
       </div>
@@ -1002,7 +1183,7 @@
       <v-card-actions class="px-6 py-3">
         <v-icon size="small" color="medium-emphasis" class="mr-1">mdi-information-outline</v-icon>
         <span class="text-caption text-medium-emphasis">
-          Templates use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts; notification templates use single-brace <code class="cc-code">{key}</code>.
+          Use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates to reference pipeline variables. Labeled steps are also accessible as <code class="cc-code">&#123;&#123;step_label.key&#125;&#125;</code>.
         </span>
         <v-spacer />
         <v-btn variant="text" @click="$emit('update:modelValue', false)">Cancel</v-btn>
@@ -1027,16 +1208,30 @@ const emit = defineEmits(["update:modelValue", "save"]);
 const knownTypes = [
   "llm_call",
   "person_identification",
-  "notification", "ha_action", "activity_detection",
-  "wait", "condition", "verification",
+  "scene_analysis",
+  "object_trend_analysis",
+  "notification",
+  "ha_action",
+  "activity_detection",
+  "activity_session_start",
+  "activity_session_end",
+  "daily_report",
+  "wait",
+  "condition",
+  "verification",
 ];
 
 const STEP_ICONS = {
   person_identification: "mdi-face-recognition",
+  scene_analysis: "mdi-image-search",
+  object_trend_analysis: "mdi-chart-line",
   llm_call: "mdi-brain",
   notification: "mdi-bell-outline",
   ha_action: "mdi-home-automation",
   activity_detection: "mdi-run",
+  activity_session_start: "mdi-play",
+  activity_session_end: "mdi-stop",
+  daily_report: "mdi-file-chart",
   wait: "mdi-timer-sand",
   condition: "mdi-help-circle-outline",
   verification: "mdi-check-decagram-outline",
@@ -1124,68 +1319,106 @@ function removeCamera(sensorId) {
 }
 
 // Pipeline data reference for the always-visible sidebar.
+// Grouped by step type. Keys match exactly what each step writes to pipeline_data.
 const pipelineDataReference = [
   // -- Trigger context -------------------------------------------------------
-  { key: "trigger.sensor_id", source: "Trigger context" },
-  { key: "trigger.room_name", source: "Trigger context" },
-  { key: "trigger.media_paths", source: "Trigger context" },
-  { key: "room_name", source: "Trigger context (top-level alias)" },
-  { key: "sensor_id", source: "Trigger context (top-level alias)" },
-  { key: "trigger_input", source: "Webhook / Telegram trigger payload" },
-  { key: "trigger_input.command", source: "Telegram trigger" },
-  { key: "trigger_input.chat_id", source: "Telegram trigger" },
-  { key: "trigger_input.args", source: "Telegram trigger (list)" },
-  { key: "trigger_input.text", source: "Telegram / webhook raw text" },
-  // -- Executor system context -----------------------------------------------
-  { key: "system.local_time", source: "Executor system context" },
-  { key: "system.local_date", source: "Executor system context" },
-  { key: "system.local_day_of_week", source: "Executor system context" },
-  { key: "system.timezone", source: "Executor system context" },
-  // -- person_identification --------------------------------------------------
-  { key: "person_detections", source: "person_identification" },
-  { key: "person_detections.0.person_id", source: "person_identification (first match)" },
-  { key: "person_detections.0.name", source: "person_identification (first match)" },
-  { key: "person_detections.0.confidence", source: "person_identification (first match)" },
-  { key: "person_detections.0.bbox", source: "person_identification — [x1,y1,x2,y2] in pixels" },
-  { key: "person_detections.0.direction", source: "person_identification — motion direction" },
-  { key: "person_detections.0.frame_index", source: "person_identification — index into trigger media_paths" },
-  { key: "person_detections.0.source_media_path", source: "person_identification — presigned URL of the frame containing this bbox" },
-  { key: "annotated_image", source: "person_identification — base64 image with bbox overlays" },
+  { key: "trigger.sensor_id",           source: "Trigger context" },
+  { key: "trigger.room_name",           source: "Trigger context" },
+  { key: "trigger.media_paths",         source: "Trigger context" },
+  { key: "room_name",                   source: "Trigger context (alias)" },
+  { key: "sensor_id",                   source: "Trigger context (alias)" },
+  { key: "trigger_input",               source: "Webhook / Telegram payload" },
+  { key: "trigger_input.command",       source: "Telegram trigger" },
+  { key: "trigger_input.chat_id",       source: "Telegram trigger" },
+  { key: "trigger_input.args",          source: "Telegram trigger (list)" },
+  { key: "trigger_input.text",          source: "Telegram / webhook raw text" },
+  // -- person_identification -------------------------------------------------
+  { key: "person_detections",                       source: "person_identification" },
+  { key: "person_detections.0.person_id",           source: "person_identification: first match" },
+  { key: "person_detections.0.name",                source: "person_identification: first match" },
+  { key: "person_detections.0.confidence",          source: "person_identification: first match" },
+  { key: "person_detections.0.bbox",                source: "person_identification: [x1,y1,x2,y2] pixels" },
+  { key: "person_detections.0.direction",           source: "person_identification: motion direction" },
+  { key: "person_detections.0.frame_index",         source: "person_identification: index into media_paths" },
+  { key: "person_detections.0.source_media_path",   source: "person_identification: presigned URL of frame" },
+  { key: "room_transitions",                        source: "person_identification" },
+  { key: "annotated_image",                         source: "person_identification: base64 bbox overlay" },
+  // -- scene_analysis --------------------------------------------------------
+  { key: "scene_detections",            source: "scene_analysis: YOLO object list" },
+  { key: "scene_detections.0.label",    source: "scene_analysis: object label" },
+  { key: "scene_detections.0.confidence", source: "scene_analysis: detection confidence" },
+  { key: "scene_detections.0.bbox",     source: "scene_analysis: [x1,y1,x2,y2]" },
+  { key: "scene_description",           source: "scene_analysis: Florence-2 text" },
+  { key: "scene_hazards",               source: "scene_analysis: hazard alert list" },
+  { key: "scene_hazards.0.name",        source: "scene_analysis: hazard name" },
+  { key: "scene_hazards.0.severity",    source: "scene_analysis: ok/warning/critical" },
+  { key: "scene_hazards.0.description", source: "scene_analysis: hazard description" },
+  { key: "scene_detector_available",    source: "scene_analysis: bool" },
+  { key: "scene_describer_available",   source: "scene_analysis: bool" },
+  // -- object_trend_analysis -------------------------------------------------
+  { key: "room_trends",                 source: "object_trend_analysis: map of room → trend" },
+  { key: "room_trends_any_warning",     source: "object_trend_analysis: bool" },
+  { key: "room_trends_max_severity",    source: "object_trend_analysis: ok/info/warning/critical" },
+  { key: "room_trends_summary",         source: "object_trend_analysis: compact text for LLM" },
   // -- llm_call (vision) -----------------------------------------------------
-  { key: "vision_response", source: "llm_call (output_key=vision_response)" },
+  { key: "vision_response",             source: "llm_call (output_key=vision_response)" },
   // -- llm_call (reasoning) --------------------------------------------------
-  { key: "logic_response", source: "llm_call (output_key=logic_response)" },
-  { key: "logic_response.is_notification_needed", source: "llm_call (default notification schema)" },
-  { key: "logic_response.user_notification", source: "llm_call (default notification schema)" },
-  { key: "logic_response.alert_level", source: "llm_call (default notification schema)" },
-  { key: "logic_response.reasoning", source: "llm_call (default notification schema)" },
-  { key: "logic_response.activities", source: "llm_call (activity detection schema)" },
-  // -- llm_call (custom output_key) ------------------------------------------
-  { key: "llm_response", source: "llm_call (default output key)" },
-  // -- llm_call (translation output) -----------------------------------------
-  { key: "translation", source: "llm_call (output_key=translation)" },
+  { key: "logic_response",                          source: "llm_call (output_key=logic_response)" },
+  { key: "logic_response.is_notification_needed",   source: "llm_call: default notification schema" },
+  { key: "logic_response.user_notification",        source: "llm_call: default notification schema" },
+  { key: "logic_response.alert_level",              source: "llm_call: default notification schema" },
+  { key: "logic_response.reasoning",                source: "llm_call: default notification schema" },
+  { key: "logic_response.activities",               source: "llm_call: activity detection schema" },
+  // -- llm_call (default / custom output_key) --------------------------------
+  { key: "llm_response",                source: "llm_call (default output_key)" },
+  // -- llm_call (translation) ------------------------------------------------
+  { key: "translation",                 source: "llm_call (output_key=translation)" },
+  // -- Step label namespace (duplicate steps) --------------------------------
+  { key: "<step_label>.<output_key>",   source: "Any labeled step: e.g. vision_step.llm_response" },
   // -- activity_detection ----------------------------------------------------
-  { key: "detected_activities", source: "activity_detection" },
-  { key: "detected_activities.0.person_id", source: "activity_detection (first entry)" },
-  { key: "detected_activities.0.activity_type", source: "activity_detection (first entry)" },
-  { key: "detected_activities.0.confidence", source: "activity_detection (first entry)" },
+  { key: "detected_activities",                     source: "activity_detection" },
+  { key: "detected_activities.0.person_id",         source: "activity_detection: first entry" },
+  { key: "detected_activities.0.activity_type",     source: "activity_detection: first entry" },
+  { key: "detected_activities.0.room_name",         source: "activity_detection: first entry" },
+  { key: "detected_activities.0.confidence",        source: "activity_detection: first entry" },
+  // -- activity_session_start ------------------------------------------------
+  { key: "session",                     source: "activity_session_start (default output_key)" },
+  { key: "session.session_id",          source: "activity_session_start" },
+  { key: "session.person_id",           source: "activity_session_start" },
+  { key: "session.activity_type",       source: "activity_session_start" },
+  { key: "session.room_name",           source: "activity_session_start" },
+  { key: "session.started_at",          source: "activity_session_start: ISO timestamp" },
+  { key: "session.timeout_minutes",     source: "activity_session_start" },
+  { key: "session.was_existing",        source: "activity_session_start: bool, true if reused" },
+  // -- activity_session_end --------------------------------------------------
+  { key: "closed_session",              source: "activity_session_end (default output_key)" },
+  { key: "closed_session.session_id",   source: "activity_session_end" },
+  { key: "closed_session.duration_minutes", source: "activity_session_end" },
+  { key: "closed_session.closed_at",    source: "activity_session_end: ISO timestamp" },
+  { key: "closed_session.closed_via",   source: "activity_session_end: explicit/timeout/stale" },
+  { key: "closed_session.status",       source: "activity_session_end" },
   // -- verification ----------------------------------------------------------
-  { key: "verification.verified", source: "verification" },
-  { key: "verification.match_mode", source: "verification" },
-  { key: "verification.matched_conditions", source: "verification" },
-  { key: "verification.unmatched_conditions", source: "verification" },
+  { key: "verification.verified",           source: "verification: bool" },
+  { key: "verification.match_mode",         source: "verification: all/any" },
+  { key: "verification.matched_conditions", source: "verification: list" },
+  { key: "verification.unmatched_conditions", source: "verification: list" },
   // -- condition -------------------------------------------------------------
-  { key: "condition.result", source: "condition" },
-  { key: "condition.expression", source: "condition" },
-  { key: "condition.branch", source: "condition (true/false)" },
+  { key: "condition.result",            source: "condition: bool" },
+  { key: "condition.expression",        source: "condition" },
+  { key: "condition.branch",            source: "condition: true/false" },
   // -- ha_action -------------------------------------------------------------
-  { key: "ha_action.success", source: "ha_action" },
-  { key: "ha_action.domain", source: "ha_action" },
-  { key: "ha_action.service", source: "ha_action" },
-  { key: "ha_action.entity_id", source: "ha_action" },
+  { key: "ha_action.success",           source: "ha_action: bool" },
+  { key: "ha_action.domain",            source: "ha_action" },
+  { key: "ha_action.service",           source: "ha_action" },
+  { key: "ha_action.entity_id",         source: "ha_action" },
   // -- notification ----------------------------------------------------------
-  { key: "notification_dispatched", source: "notification" },
-  { key: "notification_channels", source: "notification" },
+  { key: "notification_dispatched",     source: "notification: bool" },
+  { key: "notification_channels",       source: "notification: map of channel → result" },
+  // -- daily_report ----------------------------------------------------------
+  { key: "daily_reports",               source: "daily_report (default output_key)" },
+  { key: "daily_reports.0.person_id",   source: "daily_report: first entry" },
+  { key: "daily_reports.0.report_date", source: "daily_report: YYYY-MM-DD" },
+  { key: "daily_reports.0.wellness_score", source: "daily_report: 0-100" },
 ];
 
 const filteredVariables = computed(() => {
@@ -1340,6 +1573,42 @@ const fallbackDefaults = {
     temperature: null,
     top_p: null,
     max_tokens: null,
+  },
+  scene_analysis: {
+    run_detect: true,
+    run_describe: true,
+    run_embed: false,
+    run_hazards: true,
+    max_images: 1,
+  },
+  object_trend_analysis: {
+    room_ids: [],
+    include_snapshots_hours: 0,
+    severity_threshold: "info",
+    output_key: "room_trends",
+  },
+  activity_session_start: {
+    activity_type: "",
+    person_id: "",
+    room_name: "",
+    confidence: 0.85,
+    timeout_minutes: "",
+    metadata_extra: "",
+    output_key: "session",
+  },
+  activity_session_end: {
+    activity_type: "",
+    person_id: "",
+    write_activity_record: true,
+    output_key: "closed_session",
+  },
+  daily_report: {
+    person_ids: [],
+    report_date_offset_days: 0,
+    generate_summary_text: false,
+    summary_model_id: "",
+    notify_on_complete: false,
+    output_key: "daily_reports",
   },
 };
 
@@ -1512,6 +1781,11 @@ const STEP_LABELS = {
   activity_detection: "Record Activity",
   verification: "Verify Activity",
   person_identification: "Person Identification",
+  activity_session_start: "Start Activity Session",
+  activity_session_end: "End Activity Session",
+  daily_report: "Generate Daily Report",
+  object_trend_analysis: "Object Trend Analysis",
+  scene_analysis: "Scene Analysis",
 };
 
 function humanize(type) {
@@ -1740,5 +2014,30 @@ function save() {
 
 .tracking-tight {
   letter-spacing: -0.014em;
+}
+
+.copied-toast {
+  position: absolute;
+  bottom: 16px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  background: rgba(var(--v-theme-success), 0.12);
+  border: 1px solid rgba(var(--v-theme-success), 0.3);
+  border-radius: 8px;
+  padding: 6px 10px;
+  pointer-events: none;
+}
+
+.copied-fade-enter-active,
+.copied-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.copied-fade-enter-from,
+.copied-fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 </style>

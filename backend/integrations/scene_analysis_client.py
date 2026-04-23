@@ -118,7 +118,7 @@ class SceneAnalysisClient:
             return None
 
     # ------------------------------------------------------------------
-    # /detect — object detection only
+    # /detect: object detection only
     # ------------------------------------------------------------------
 
     async def detect(self, image_bytes: bytes) -> SceneDetectResult:
@@ -151,7 +151,7 @@ class SceneAnalysisClient:
         )
 
     # ------------------------------------------------------------------
-    # /describe — structured scene description only
+    # /describe: structured scene description only
     # ------------------------------------------------------------------
 
     async def describe(self, image_bytes: bytes) -> SceneDescribeResult:
@@ -184,7 +184,7 @@ class SceneAnalysisClient:
         )
 
     # ------------------------------------------------------------------
-    # /analyze — full pipeline
+    # /analyze: full pipeline
     # ------------------------------------------------------------------
 
     async def analyze(

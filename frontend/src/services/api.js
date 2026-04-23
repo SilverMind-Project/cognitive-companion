@@ -14,7 +14,7 @@ function authHeaders(extra = {}) {
   return { ...(key ? { "X-API-Key": key } : {}), ...extra };
 }
 
-/** JSON request helper — always injects the API key. */
+/** JSON request helper: always injects the API key. */
 async function request(path, options = {}) {
   const headers = authHeaders({
     "Content-Type": "application/json",
@@ -31,7 +31,7 @@ async function request(path, options = {}) {
 }
 
 /**
- * Multipart/binary POST or PUT — sends FormData with auth header.
+ * Multipart/binary POST or PUT: sends FormData with auth header.
  * Returns parsed JSON on success.
  */
 async function requestForm(path, method, formData) {
@@ -317,7 +317,7 @@ export const api = {
 
   /**
    * Return public application metadata (name, version, timezone).
-   * No API key required — used during app bootstrap to initialise timezone.
+   * No API key required: used during app bootstrap to initialise timezone.
    *
    * @returns {Promise<{name: string, version: string, timezone: string}>}
    */

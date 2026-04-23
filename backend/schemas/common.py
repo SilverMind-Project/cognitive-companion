@@ -4,7 +4,7 @@ Why UTCDatetime?
 ----------------
 SQLite has no native datetime type, and legacy values or non-ORM code paths may
 still surface naive ``datetime`` objects. Pydantic serialises those the same
-way — no ``Z``, no ``+00:00``.
+way: no ``Z``, no ``+00:00``.
 
 JavaScript's ``new Date()`` treats timezone-naive ISO strings as *local* browser
 time (ECMAScript 2015+), not UTC.  When the browser timezone differs from UTC

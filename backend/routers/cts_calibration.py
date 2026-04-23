@@ -45,7 +45,7 @@ _RESIDUAL_WARN = 0.25
 
 
 # ---------------------------------------------------------------------------
-# Homography math (pure function — unit-testable without FastAPI)
+# Homography math (pure function: unit-testable without FastAPI)
 # ---------------------------------------------------------------------------
 
 
@@ -72,7 +72,7 @@ def compute_homography(
 
     H, _ = cv2.findHomography(src, dst, cv2.RANSAC, ransacReprojThreshold=5.0)
     if H is None:
-        raise ValueError("findHomography did not converge — check that points are not collinear")
+        raise ValueError("findHomography did not converge: check that points are not collinear")
 
     # Compute per-point reprojection error in floor-plan metres.
     ones = np.ones((len(src), 1), dtype=np.float64)

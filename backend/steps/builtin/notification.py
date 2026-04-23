@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
 from backend.steps.base import (
@@ -19,17 +20,24 @@ def _format_channel_message(
     trigger: TriggerContext,
     pipeline_data: dict,
 ) -> str:
-    """Render a channel-specific template, falling back to *base_message*."""
+    """Render a channel-specific template using ``{{variable}}`` syntax.
+
+    The special key ``message`` is injected as the resolved base message so
+    templates can reference it as ``{{message}}``.  Falls back to
+    *base_message* when the template is empty.
+    """
     if not template:
         return base_message
-    try:
-        return template.format(
-            message=base_message,
-            room=trigger.room_name or "",
-            **pipeline_data,
-        )
-    except (KeyError, IndexError, ValueError):
-        return base_message
+    trigger_vars = {
+        "room_name": trigger.room_name or "",
+        "sensor_id": trigger.sensor_id or "",
+    }
+    # Inject base_message under the 'message' key for convenience
+    extra: dict = {"message": base_message}
+    merged = {**pipeline_data, **extra}
+    rendered = render_template(template, merged, trigger_vars)
+    # If nothing was substituted and the template still contains {{ }}, fall back
+    return rendered if rendered != template else (rendered or base_message)
 
 
 # Channels that support per-channel template overrides.
@@ -74,30 +82,30 @@ class NotificationHandler(StepHandler):
                     },
                     "message_template": {
                         "type": "string",
-                        "description": "Default template with {message}, {room}, etc.",
+                        "description": "Default message template. Supports {{variable}} syntax (e.g. {{llm_response}}, {{message}}, {{room_name}}).",
                     },
                     "telegram_template": {
                         "type": "string",
-                        "description": "HTML template for Telegram. Falls back to message_template.",
+                        "description": "HTML template for Telegram. Supports {{variable}} syntax. Falls back to message_template.",
                     },
                     "eink_template": {
                         "type": "string",
-                        "description": "Short plain-text template for eInk displays. Falls back to message_template.",
+                        "description": "Short plain-text template for eInk displays. Supports {{variable}} syntax. Falls back to message_template.",
                     },
                     "ha_speaker_tts_template": {
                         "type": "string",
                         "description": (
                             "Natural language template for smart speaker TTS and PWA TTS "
-                            "announcements. Falls back to message_template."
+                            "announcements. Supports {{variable}} syntax. Falls back to message_template."
                         ),
                     },
                     "pwa_popup_text_template": {
                         "type": "string",
-                        "description": "Notification text shown in the companion UI overlay. Falls back to message_template.",
+                        "description": "Notification text shown in the companion UI overlay. Supports {{variable}} syntax. Falls back to message_template.",
                     },
                     "pwa_realtime_ai_template": {
                         "type": "string",
-                        "description": "Conversational voice prompt for Gemini Live delivery. Falls back to message_template.",
+                        "description": "Conversational voice prompt for Gemini Live delivery. Supports {{variable}} syntax. Falls back to message_template.",
                     },
                     "webhook_url": {
                         "type": "string",
@@ -107,7 +115,7 @@ class NotificationHandler(StepHandler):
                         "type": "string",
                         "description": (
                             "JSON payload template for webhook. "
-                            "Use {message}, {room}, etc. Falls back to basic JSON."
+                            "Use {{message}}, {{room_name}}, etc. Falls back to basic JSON."
                         ),
                     },
                     "eink_targets": {
@@ -236,6 +244,11 @@ class NotificationHandler(StepHandler):
         alert_level = config.get("alert_level", "warning")
         channels = config.get("channels", [])
         message_template = config.get("message_template", "")
+
+        trigger_vars = {
+            "room_name": trigger.room_name or "",
+            "sensor_id": trigger.sensor_id or "",
+        }
 
         # Determine base message
         message = (

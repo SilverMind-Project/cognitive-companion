@@ -90,12 +90,17 @@ onMounted(async () => {
     // Fallback to hardcoded types if API unavailable
     stepTypes.value = [
       { type_name: "person_identification", display_name: "Person ID", category: "perception", icon: "mdi-face-recognition", deprecated: false },
+      { type_name: "scene_analysis", display_name: "Scene Analysis", category: "perception", icon: "mdi-image-search", deprecated: false },
+      { type_name: "object_trend_analysis", display_name: "Object Trend Analysis", category: "perception", icon: "mdi-chart-line", deprecated: false },
       { type_name: "llm_call", display_name: "LLM Call", category: "reasoning", icon: "mdi-brain", deprecated: false },
       { type_name: "condition", display_name: "Condition", category: "reasoning", icon: "mdi-help-circle", deprecated: false },
       { type_name: "activity_detection", display_name: "Record Activity", category: "state", icon: "mdi-database-plus", deprecated: false },
       { type_name: "verification", display_name: "Verify Activity", category: "state", icon: "mdi-check-decagram", deprecated: false },
+      { type_name: "activity_session_start", display_name: "Start Activity Session", category: "action", icon: "mdi-play", deprecated: false },
+      { type_name: "activity_session_end", display_name: "End Activity Session", category: "action", icon: "mdi-stop", deprecated: false },
       { type_name: "notification", display_name: "Notification", category: "action", icon: "mdi-bell", deprecated: false },
       { type_name: "ha_action", display_name: "HA Action", category: "action", icon: "mdi-home-automation", deprecated: false },
+      { type_name: "daily_report", display_name: "Daily Report", category: "action", icon: "mdi-file-chart", deprecated: false },
       { type_name: "wait", display_name: "Wait", category: "flow", icon: "mdi-timer-sand", deprecated: false },
     ];
   } finally {

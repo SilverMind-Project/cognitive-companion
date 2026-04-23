@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+
+from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
 from backend.steps.base import (
@@ -22,25 +25,25 @@ class HAActionHandler(StepHandler):
             display_name="HA Action",
             category="action",
             icon="mdi-home-automation",
-            description="Call a Home Assistant service (light, switch, script, etc.).",
+            description="Call a Home Assistant service (light, switch, script, etc.). All string fields support {{variable}} template syntax.",
             config_schema={
                 "type": "object",
                 "properties": {
                     "domain": {
                         "type": "string",
-                        "description": "HA domain (e.g. light, switch, script)",
+                        "description": "HA domain (e.g. light, switch, script). Supports {{variable}} syntax.",
                     },
                     "service": {
                         "type": "string",
-                        "description": "HA service (e.g. turn_on, toggle)",
+                        "description": "HA service (e.g. turn_on, toggle). Supports {{variable}} syntax.",
                     },
                     "entity_id": {
                         "type": "string",
-                        "description": "HA entity ID (e.g. light.living_room)",
+                        "description": "HA entity ID (e.g. light.living_room). Supports {{variable}} syntax.",
                     },
                     "data": {
                         "type": "object",
-                        "description": "Additional service data as JSON",
+                        "description": "Additional service data as JSON. String values support {{variable}} syntax.",
                     },
                     "trigger_cooloff": {
                         "type": "boolean",
@@ -74,10 +77,24 @@ class HAActionHandler(StepHandler):
             )
 
         config = step.config_json or {}
-        domain = config.get("domain", "")
-        service = config.get("service", "")
-        entity_id = config.get("entity_id", "")
-        service_data = dict(config.get("data", {}))
+
+        trigger_vars = {
+            "room_name": trigger.room_name or "",
+            "sensor_id": trigger.sensor_id or "",
+        }
+
+        domain = render_template(config.get("domain", ""), pipeline_data, trigger_vars).strip()
+        service = render_template(config.get("service", ""), pipeline_data, trigger_vars).strip()
+        entity_id = render_template(config.get("entity_id", ""), pipeline_data, trigger_vars).strip()
+
+        # Resolve template expressions in string values of the data dict
+        raw_data = config.get("data", {}) or {}
+        service_data: dict = {}
+        for k, v in raw_data.items():
+            if isinstance(v, str):
+                service_data[k] = render_template(v, pipeline_data, trigger_vars)
+            else:
+                service_data[k] = v
 
         if not domain or not service:
             return StepResult(

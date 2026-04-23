@@ -34,7 +34,7 @@ class TestKeyStoreResolve:
         assert ctx.sensor_id is None
 
     def test_resolve_device_key_preferred_over_api(self) -> None:
-        # Same raw string appears in both lists — device wins.
+        # Same raw string appears in both lists: device wins.
         ks = KeyStore(
             api_keys=[{"key": "SHARED", "name": "api-ver"}],
             device_keys=[

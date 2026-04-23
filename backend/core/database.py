@@ -10,7 +10,7 @@ process-wide :class:`Database` instance, which is how FastAPI routes and
 background services have always consumed this module.
 
 Tests can bypass the singleton by constructing their own :class:`Database`
-against an in-memory engine — no global reset gymnastics required.
+against an in-memory engine: no global reset gymnastics required.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def _apply_column_migrations(engine: Engine) -> None:
                 conn.execute(text(stmt))
                 conn.commit()
             except OperationalError:
-                # Column already present — safe to ignore.
+                # Column already present: safe to ignore.
                 conn.rollback()
 
 
@@ -94,7 +94,7 @@ def _ensure_sqlite_dir(url: str) -> None:
 class Database:
     """Owns an SQLAlchemy :class:`Engine` and a :class:`sessionmaker`.
 
-    The constructor is intentionally lightweight — the engine is created
+    The constructor is intentionally lightweight: the engine is created
     immediately but schema creation is deferred to :meth:`create_all`, which
     imports :mod:`backend.models` lazily so that ``Base.metadata`` is
     populated before ``CREATE TABLE`` runs.
@@ -136,7 +136,7 @@ class Database:
         Then applies lightweight column-level migrations for databases that
         pre-date newly added nullable columns.
         """
-        import backend.models  # noqa: F401  — populates Base.metadata
+        import backend.models  # noqa: F401 : populates Base.metadata
 
         Base.metadata.create_all(bind=self._engine)
         _apply_column_migrations(self._engine)
@@ -196,7 +196,7 @@ def init_db(url: str | None = None) -> None:
 
 
 def get_db() -> Generator[Session, None, None]:
-    """FastAPI dependency — yields a DB session and closes it after the request."""
+    """FastAPI dependency: yields a DB session and closes it after the request."""
     db = _ensure_default()
     sess = db.session()
     try:
@@ -213,7 +213,7 @@ def get_session() -> Session:
 def reset_default_database() -> None:
     """Drop the cached default :class:`Database`.
 
-    Primarily a test-support hook — disposes of the current engine (if any)
+    Primarily a test-support hook: disposes of the current engine (if any)
     so a subsequent :func:`init_db` call starts from a clean slate.
     """
     global _default_database

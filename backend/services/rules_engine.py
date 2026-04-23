@@ -162,7 +162,7 @@ class RulesEngine:
         Both checks compare against UTC timestamps stored in the database.
         The cool-off window is relative (minutes elapsed) so UTC conversion is
         straightforward.  The daily limit window starts at **local midnight**
-        in the configured timezone — "today" means the current calendar day as
+        in the configured timezone: "today" means the current calendar day as
         seen by the operator, not the UTC day boundary.
         """
         if rule.cool_off_minutes > 0:

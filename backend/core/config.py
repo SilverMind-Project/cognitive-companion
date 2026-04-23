@@ -1,14 +1,14 @@
 """
-Configuration loader — reads YAML files with ``${ENV_VAR}`` interpolation.
+Configuration loader: reads YAML files with ``${ENV_VAR}`` interpolation.
 
 Architecture
 ------------
 This module exposes two things:
 
-* :class:`Settings` — a pure, injectable configuration container. It has no
+* :class:`Settings`: a pure, injectable configuration container. It has no
   module-level state and can be instantiated freely in tests with either a
   custom ``config_dir`` or a raw dict via :meth:`Settings.from_dict`.
-* ``settings`` — a module-level :class:`Settings` instance that serves as the
+* ``settings``: a module-level :class:`Settings` instance that serves as the
   application's lazily-loaded singleton. Application code continues to import
   and use ``settings`` exactly as before.
 
@@ -35,7 +35,7 @@ _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")
 DEFAULT_CONFIG_DIR: Path = Path(__file__).resolve().parents[2] / "config"
 
 _CONFIG_FILES: tuple[tuple[str, str | None], ...] = (
-    # (filename, namespace) — namespace=None means merge at top level.
+    # (filename, namespace): namespace=None means merge at top level.
     ("settings.yaml", None),
     ("auth.yaml", "auth"),
     ("notifications.yaml", "notifications"),

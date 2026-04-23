@@ -89,10 +89,10 @@ def setup_logging(
 
     Parameters are all optional:
 
-    * ``level`` — log level name or numeric level. If None, reads
+    * ``level``: log level name or numeric level. If None, reads
       ``app.log_level`` from the application settings (default ``INFO``).
-    * ``stream`` — destination stream, defaults to ``sys.stdout``.
-    * ``fmt`` / ``datefmt`` — formatter overrides.
+    * ``stream``: destination stream, defaults to ``sys.stdout``.
+    * ``fmt`` / ``datefmt``: formatter overrides.
     """
     from backend.core.config import settings
 

@@ -63,7 +63,7 @@ class KeyStore:
     """Immutable lookup table for API + device keys plus a permission map.
 
     :class:`KeyStore` is intentionally decoupled from
-    :mod:`backend.core.config` — construct it directly in tests, or use
+    :mod:`backend.core.config`: construct it directly in tests, or use
     :meth:`from_settings` to load from the live YAML config.
     """
 
@@ -188,7 +188,7 @@ async def get_auth_context(
     header_key: str | None = Depends(_api_key_header),
     query_key: str | None = Query(None, alias="api_key"),
 ) -> AuthContext:
-    """FastAPI dependency — resolve the API key from header, query, or body."""
+    """FastAPI dependency: resolve the API key from header, query, or body."""
     raw_key = header_key or query_key
 
     # For device endpoints, also check JSON body

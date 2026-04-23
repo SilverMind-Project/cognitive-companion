@@ -200,7 +200,7 @@ class TestModuleFacade:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         reset_default_database()
-        # Ensure init_db can do a full create_all() — stub out backend.models
+        # Ensure init_db can do a full create_all(): stub out backend.models
         # so the import inside Database.create_all() is a no-op rather than
         # dragging in the full ORM for this micro-test.
         import sys

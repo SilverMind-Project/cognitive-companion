@@ -556,7 +556,7 @@ async def get_daily_report(
     if report:
         return report
 
-    # No existing report — generate one on demand
+    # No existing report: generate one on demand
 
     from backend.core.config import settings
 

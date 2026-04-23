@@ -1,6 +1,6 @@
 """Unit tests for :class:`~backend.services.cts.subscriber.DementiaSignalSubscriber`.
 
-Tests the decode/handle logic in isolation — no real Redis required.
+Tests the decode/handle logic in isolation: no real Redis required.
 """
 
 from __future__ import annotations

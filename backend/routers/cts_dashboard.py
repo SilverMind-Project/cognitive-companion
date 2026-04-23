@@ -7,7 +7,7 @@ Routes:
     GET /api/v1/cts/dashboard/signals
     GET /api/v1/cts/dashboard/trajectory
     GET /api/v1/cts/dashboard/dwell_summary
-    GET /api/v1/cts/keyframes          (already in cts_keyframes.py — not duplicated)
+    GET /api/v1/cts/keyframes          (already in cts_keyframes.py: not duplicated)
 
 When ``cts.enabled=false`` every handler returns 404 with code
 ``cts.disabled``.

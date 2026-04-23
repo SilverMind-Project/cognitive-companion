@@ -66,7 +66,7 @@ def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> Re
 
     # --- Determine which image file to serve ---
     if state and state.expires_at and state.expires_at < now:
-        # Content has expired — fall back to the default template
+        # Content has expired: fall back to the default template
         serve_path: Path | None = _DEFAULT_TEMPLATE if _DEFAULT_TEMPLATE.exists() else None
     else:
         active_path = eink_renderer.get_active_image_path(sensor_id)
@@ -93,7 +93,7 @@ def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> Re
         logger.debug("eink_no_refresh", sensor_id=sensor_id)
         return Response(status_code=204)
 
-    # --- Content changed or window elapsed — deliver image and record it ---
+    # --- Content changed or window elapsed: deliver image and record it ---
     if state is None:
         state = ActiveImageState(sensor_id=sensor_id)
         db.add(state)

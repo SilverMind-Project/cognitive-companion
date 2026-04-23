@@ -77,4 +77,47 @@ export const cts = {
   postAdjacency: (edges) =>
     req("/calibration/adjacency", { method: "POST", body: JSON.stringify({ edges }) }),
   getAdjacency: () => req("/calibration/adjacency"),
+
+  // ── Dementia signals ────────────────────────────────────────────────────────
+  getSignals: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.person_id) qs.set("person_id", params.person_id);
+    if (params.signal_type) qs.set("signal_type", params.signal_type);
+    if (params.severity) qs.set("severity", params.severity);
+    if (params.window_hours) qs.set("window_hours", params.window_hours);
+    if (params.limit) qs.set("limit", params.limit);
+    const q = qs.toString();
+    return q ? req(`/signals?${q}`) : req("/signals");
+  },
+  acknowledgeSignal: (signalId) =>
+    req(`/signals/${signalId}/ack`, { method: "POST" }),
+  getUnacknowledged: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.person_id) qs.set("person_id", params.person_id);
+    if (params.severity) qs.set("severity", params.severity);
+    if (params.window_hours) qs.set("window_hours", params.window_hours);
+    if (params.limit) qs.set("limit", params.limit);
+    const q = qs.toString();
+    return q ? req(`/signals/unacknowledged?${q}`) : req("/signals/unacknowledged");
+  },
+  getSignalSummary: (personId) => {
+    const qs = personId ? `?person_id=${encodeURIComponent(personId)}` : "";
+    return req(`/signals/summary${qs}`);
+  },
+  getSignalTrend: (personId, days = 7) =>
+    req(`/signals/trend/${personId}?days=${days}`),
+
+  // ── Tagged keyframes ────────────────────────────────────────────────────────
+  getKeyframes: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.person_id) qs.set("person_id", params.person_id);
+    if (params.signal_type) qs.set("signal_type", params.signal_type);
+    if (params.after) qs.set("after", params.after);
+    if (params.limit) qs.set("limit", params.limit);
+    const q = qs.toString();
+    return q ? req(`/keyframes?${q}`) : req("/keyframes");
+  },
+  getKeyframe: (sampleId) => req(`/keyframes/${sampleId}`),
+  retainKeyframe: (sampleId) =>
+    req(`/keyframes/${sampleId}/retain`, { method: "POST" }),
 };

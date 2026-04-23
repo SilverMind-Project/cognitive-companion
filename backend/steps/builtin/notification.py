@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+
+from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
@@ -12,6 +15,8 @@ from backend.steps.base import (
     StepResult,
     TriggerContext,
 )
+
+logger = get_logger(__name__)
 
 
 def _format_channel_message(
@@ -38,6 +43,141 @@ def _format_channel_message(
     rendered = render_template(template, merged, trigger_vars)
     # If nothing was substituted and the template still contains {{ }}, fall back
     return rendered if rendered != template else (rendered or base_message)
+
+
+def _serialize_message_part(value: object) -> str:
+    """Return a stable string representation for notification content."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=True)
+    return str(value)
+
+
+def _resolve_base_message(pipeline_data: dict) -> str:
+    """Pick the highest-priority notification message from pipeline data."""
+    logic_response = pipeline_data.get("logic_response")
+    logic_message = ""
+    if isinstance(logic_response, dict):
+        logic_message = _serialize_message_part(logic_response.get("user_notification"))
+
+    return (
+        _serialize_message_part(pipeline_data.get("translation"))
+        or logic_message
+        or _serialize_message_part(pipeline_data.get("vision_response"))
+    )
+
+
+def _build_channel_messages(
+    config: dict,
+    message: str,
+    trigger: TriggerContext,
+    pipeline_data: dict,
+) -> dict[str, str]:
+    """Build channel-specific messages for channels with template overrides."""
+    channel_messages: dict[str, str] = {}
+    for channel_name, template_field in _CHANNEL_TEMPLATE_FIELDS.items():
+        template = config.get(template_field, "")
+        if template:
+            channel_messages[channel_name] = _format_channel_message(
+                template,
+                message,
+                trigger,
+                pipeline_data,
+            )
+    return channel_messages
+
+
+def _build_rule_config(config: dict, channels: list[str]) -> dict:
+    """Shape per-step dispatcher overrides from the step config."""
+    rule_config: dict = {}
+
+    if channels:
+        rule_config["channels"] = channels
+
+    for key in (
+        "eink_targets",
+        "eink_expiry_minutes",
+        "ha_media_player",
+        "webhook_url",
+    ):
+        value = config.get(key)
+        if value:
+            rule_config[key] = value
+
+    if config.get("eink_template_id") is not None:
+        rule_config["eink_template_id"] = config.get("eink_template_id")
+
+    return rule_config
+
+
+def _dedupe_preserving_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            deduped.append(value)
+    return deduped
+
+
+async def _query_additional_telegram_media(
+    config: dict,
+    services: ServiceContainer,
+) -> list[str]:
+    """Fetch extra Telegram media without failing the whole notification step."""
+    if not services.event_aggregator:
+        return []
+
+    additional_sensors: list[str] = config.get("telegram_additional_sensor_ids") or []
+    additional_rooms: list[str] = config.get("telegram_additional_room_names") or []
+    time_filter: dict = config.get("telegram_image_time_filter") or {}
+    sort_by_sensor: bool = bool(config.get("telegram_sort_by_sensor_then_time", False))
+    images_per_sensor: int = max(1, int(config.get("telegram_images_per_sensor", 1)))
+
+    try:
+        if sort_by_sensor and additional_sensors:
+            return await services.event_aggregator.query_media_by_sensor(
+                sensor_ids_ordered=additional_sensors,
+                images_per_sensor=images_per_sensor,
+                max_images=images_per_sensor * len(additional_sensors),
+                since_minutes=time_filter.get("since_minutes"),
+                time_start=time_filter.get("time_start"),
+                time_end=time_filter.get("time_end"),
+            )
+
+        return await services.event_aggregator.query_recent_media(
+            sensor_ids=additional_sensors if additional_sensors else None,
+            room_names=additional_rooms if additional_rooms else None,
+            limit=5,
+            since_minutes=time_filter.get("since_minutes"),
+            time_start=time_filter.get("time_start"),
+            time_end=time_filter.get("time_end"),
+        )
+    except Exception:
+        logger.exception("notification_additional_media_query_failed")
+        return []
+
+
+async def _select_telegram_image_url(
+    config: dict,
+    trigger: TriggerContext,
+    services: ServiceContainer,
+) -> str | None:
+    """Pick the lead image for Telegram delivery."""
+    telegram_image_source: str = config.get("telegram_image_source", "trigger")
+    media_paths: list[str] = []
+
+    if telegram_image_source in ("trigger", "both"):
+        media_paths.extend(trigger.media_paths)
+
+    if telegram_image_source in ("additional", "both"):
+        media_paths.extend(await _query_additional_telegram_media(config, services))
+
+    deduped_media_paths = _dedupe_preserving_order(media_paths)
+    return deduped_media_paths[0] if deduped_media_paths else None
 
 
 # Channels that support per-channel template overrides.
@@ -245,86 +385,14 @@ class NotificationHandler(StepHandler):
         channels = config.get("channels", [])
         message_template = config.get("message_template", "")
 
-        trigger_vars = {
-            "room_name": trigger.room_name or "",
-            "sensor_id": trigger.sensor_id or "",
-        }
-
         # Determine base message
-        message = (
-            pipeline_data.get("translation")
-            or pipeline_data.get("logic_response", {}).get("user_notification", "")
-            or pipeline_data.get("vision_response", "")
-        )
+        message = _resolve_base_message(pipeline_data)
         if message_template:
             message = _format_channel_message(message_template, message, trigger, pipeline_data)
 
-        # Build per-channel messages using the template mapping
-        channel_messages: dict[str, str] = {}
-        for ch_name, tmpl_field in _CHANNEL_TEMPLATE_FIELDS.items():
-            ch_tmpl = config.get(tmpl_field, "")
-            if ch_tmpl:
-                channel_messages[ch_name] = _format_channel_message(
-                    ch_tmpl, message, trigger, pipeline_data
-                )
-            # Channels without a specific template get the base message
-            # (already formatted by message_template if set).
-
-        # Assemble image for Telegram using the configured image source
-        telegram_image_source: str = config.get("telegram_image_source", "trigger")
-        media_paths: list[str] = []
-
-        if telegram_image_source != "none":
-            if telegram_image_source in ("trigger", "both"):
-                media_paths.extend(trigger.media_paths)
-
-            if telegram_image_source in ("additional", "both") and services.event_aggregator:
-                additional_sensors: list[str] = config.get("telegram_additional_sensor_ids") or []
-                additional_rooms: list[str] = config.get("telegram_additional_room_names") or []
-                time_filter: dict = config.get("telegram_image_time_filter") or {}
-                sort_by_sensor: bool = bool(config.get("telegram_sort_by_sensor_then_time", False))
-                images_per_sensor: int = int(config.get("telegram_images_per_sensor", 1))
-
-                if sort_by_sensor and additional_sensors:
-                    extra = await services.event_aggregator.query_media_by_sensor(
-                        sensor_ids_ordered=additional_sensors,
-                        images_per_sensor=images_per_sensor,
-                        max_images=images_per_sensor * len(additional_sensors),
-                        since_minutes=time_filter.get("since_minutes"),
-                        time_start=time_filter.get("time_start"),
-                        time_end=time_filter.get("time_end"),
-                    )
-                else:
-                    extra = await services.event_aggregator.query_recent_media(
-                        sensor_ids=additional_sensors if additional_sensors else None,
-                        room_names=additional_rooms if additional_rooms else None,
-                        limit=5,
-                        since_minutes=time_filter.get("since_minutes"),
-                        time_start=time_filter.get("time_start"),
-                        time_end=time_filter.get("time_end"),
-                    )
-                media_paths.extend(extra)
-
-        image_url: str | None = media_paths[0] if media_paths else None
-
-        eink_targets = config.get("eink_targets")
-        eink_template_id = config.get("eink_template_id")
-        eink_expiry_minutes = config.get("eink_expiry_minutes")
-        ha_media_player = config.get("ha_media_player")
-        webhook_url = config.get("webhook_url")
-        rule_config: dict = {}
-        if channels:
-            rule_config["channels"] = channels
-        if eink_targets:
-            rule_config["eink_targets"] = eink_targets
-        if eink_template_id is not None:
-            rule_config["eink_template_id"] = eink_template_id
-        if eink_expiry_minutes is not None:
-            rule_config["eink_expiry_minutes"] = eink_expiry_minutes
-        if ha_media_player:
-            rule_config["ha_media_player"] = ha_media_player
-        if webhook_url:
-            rule_config["webhook_url"] = webhook_url
+        channel_messages = _build_channel_messages(config, message, trigger, pipeline_data)
+        image_url = await _select_telegram_image_url(config, trigger, services)
+        rule_config = _build_rule_config(config, channels)
 
         results = await services.notification_dispatcher.dispatch(
             alert_level=alert_level,

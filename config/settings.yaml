@@ -166,9 +166,22 @@ person_tracking:
   location_stale_minutes: 30
   ha_propagation: true
 
-# Object trend tracking (semantic-memory-service trend API)
-object_trends:
-  base_url: "${OBJECT_TRENDS_BASE_URL}"
+# Tracking Orchestrator Service
+# Note: the CTS BFF gateway URL lives under cts.upstream.tracking_orchestrator
+# (supports mTLS). This url is used only for the /health proxy in the dashboard.
+tracking_orchestrator:
+  url: "${TRACKING_ORCHESTRATOR_URL}"   # e.g. http://localhost:8300
+  timeout: 5
+
+# Scene Analysis Service
+scene_analysis:
+  url: "${SCENE_ANALYSIS_URL}"          # e.g. http://localhost:8100
+  enabled: false
+  timeout: 30
+
+# Semantic Memory Service (also provides object trend tracking API)
+semantic_memory:
+  url: "${SEMANTIC_MEMORY_URL}"         # e.g. http://localhost:8300
   enabled: false
   timeout: 10
 

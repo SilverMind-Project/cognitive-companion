@@ -70,6 +70,9 @@ export const api = {
   health: () => fetch(`${BASE}/health`).then((r) => r.json()),
   ttsHealth: () => request("/admin/health/tts"),
   personIdHealth: () => request("/admin/health/person-id"),
+  trackingOrchestratorHealth: () => request("/admin/health/tracking-orchestrator"),
+  sceneAnalysisHealth: () => request("/admin/health/scene-analysis"),
+  semanticMemoryHealth: () => request("/admin/health/semantic-memory"),
 
   // Rooms
   getRooms: () => request("/rooms"),

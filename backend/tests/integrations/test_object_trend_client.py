@@ -91,7 +91,7 @@ _SNAPSHOTS_RESPONSE = [
 
 
 def _make_client() -> ObjectTrendClient:
-    return ObjectTrendClient(base_url="http://trend-test", timeout=5)
+    return ObjectTrendClient(base_url="http://trend-test", timeout=5, enabled=True)
 
 
 def _make_http_mock(json_payload: dict | list, status_code: int = 200) -> MagicMock:
@@ -120,7 +120,7 @@ class TestConfigured:
         assert _make_client().configured is True
 
     async def test_unconfigured_returns_false(self):
-        client = ObjectTrendClient(base_url="", timeout=5)
+        client = ObjectTrendClient(base_url="", timeout=5, enabled=True)
         assert client.configured is False
 
 
@@ -156,7 +156,7 @@ class TestGetRoomTrends:
         assert result is None
 
     async def test_returns_none_when_not_configured(self):
-        client = ObjectTrendClient(base_url="", timeout=5)
+        client = ObjectTrendClient(base_url="", timeout=5, enabled=True)
         result = await client.get_room_trends("living-room")
         assert result is None
 
@@ -171,6 +171,15 @@ class TestGetRoomTrends:
     async def test_falls_back_to_now_when_no_as_of(self):
         resp = dict(_TREND_RESPONSE)
         resp["as_of"] = ""
+        ctx, _ = _make_http_mock(resp)
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            result = await client.get_room_trends("living-room")
+        assert isinstance(result.as_of, datetime)
+
+    async def test_falls_back_to_now_when_as_of_is_invalid(self):
+        resp = dict(_TREND_RESPONSE)
+        resp["as_of"] = "not-a-date"
         ctx, _ = _make_http_mock(resp)
         client = _make_client()
         with patch(_HTTPX_TARGET, return_value=ctx):
@@ -205,9 +214,17 @@ class TestGetAllRoomTrends:
         assert results == []
 
     async def test_returns_empty_when_not_configured(self):
-        client = ObjectTrendClient(base_url="", timeout=5)
+        client = ObjectTrendClient(base_url="", timeout=5, enabled=True)
         results = await client.get_all_room_trends()
         assert results == []
+
+    async def test_skips_malformed_items(self):
+        ctx, _ = _make_http_mock([_ROOMS_RESPONSE[0], "bad-item"])
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            results = await client.get_all_room_trends()
+        assert len(results) == 1
+        assert results[0].room_id == "living-room"
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +263,7 @@ class TestGetSnapshots:
         assert snapshots == []
 
     async def test_returns_empty_when_not_configured(self):
-        client = ObjectTrendClient(base_url="", timeout=5)
+        client = ObjectTrendClient(base_url="", timeout=5, enabled=True)
         snapshots = await client.get_snapshots("living-room")
         assert snapshots == []
 
@@ -259,4 +276,11 @@ class TestGetSnapshots:
             snapshots = await client.get_snapshots("living-room")
         assert snapshots[0].embedding_variance == 0.0
 
+    async def test_skips_malformed_snapshot_items(self):
+        ctx, _ = _make_http_mock([_SNAPSHOTS_RESPONSE[0], "bad-item"])
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            snapshots = await client.get_snapshots("living-room")
+        assert len(snapshots) == 1
+        assert snapshots[0].room_id == "living-room"
 

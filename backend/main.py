@@ -198,17 +198,9 @@ async def lifespan(app: FastAPI):
     # -- Object trend client -----------------------------------------------
     from backend.integrations.object_trend_client import ObjectTrendClient
 
-    object_trend_cfg = settings.get("object_trends", {})
-    object_trend_base_url = object_trend_cfg.get("base_url", "")
-    object_trend_enabled = object_trend_cfg.get("enabled", False)
-    object_trend_timeout = object_trend_cfg.get("timeout", 10.0)
-
-    object_trend_client: ObjectTrendClient | None = None
-    if object_trend_enabled and object_trend_base_url:
-        object_trend_client = ObjectTrendClient(
-            base_url=object_trend_base_url,
-            timeout=object_trend_timeout,
-        )
+    object_trend_client = ObjectTrendClient()
+    if not object_trend_client.configured:
+        object_trend_client = None
     app.state.object_trend_client = object_trend_client
 
     # -- Person tracking service -------------------------------------------

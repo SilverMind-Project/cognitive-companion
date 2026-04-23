@@ -19,6 +19,9 @@ dependencies = [
     "python-telegram-bot>=21.0",
     "tenacity>=9.1.4",
     "mcp[cli]>=1.9",
+    "opencv-python-headless>=4.9",
+    "numpy>=1.26",
+    "pyjwt[cryptography]>=2.8",
 ]
 
 [project.optional-dependencies]
@@ -105,6 +108,8 @@ module = [
     "yaml.*",
     "mcp.*",
     "uvicorn.*",
+    "cv2.*",
+    "jwt.*",
 ]
 ignore_missing_imports = true
 

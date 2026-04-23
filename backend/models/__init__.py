@@ -2,6 +2,7 @@
 
 from backend.models.alert import EmergencyAlert
 from backend.models.conversation import ConversationSession, ConversationTurn
+from backend.models.cts_camera import CtsCamera
 from backend.models.event import EventLog
 from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
@@ -27,6 +28,7 @@ __all__ = [
     "ActivityTypeEnum",
     "ConversationSession",
     "ConversationTurn",
+    "CtsCamera",
     "DailyReport",
     "EmergencyAlert",
     "EventLog",

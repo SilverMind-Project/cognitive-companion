@@ -1,0 +1,101 @@
+"""Pydantic schemas for the CTS camera API."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class CtsCameraCreate(BaseModel):
+    id: str = Field(..., min_length=1, max_length=128)
+    name: str = Field(..., min_length=1, max_length=256)
+    rtsp_url: str = Field(default="", max_length=1024)
+    location: str = Field(default="", max_length=256)
+    enabled: bool = True
+    floor_plan_key: str | None = None
+
+
+class CtsCameraUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=256)
+    rtsp_url: str | None = Field(default=None, max_length=1024)
+    location: str | None = Field(default=None, max_length=256)
+    enabled: bool | None = None
+    floor_plan_key: str | None = None
+
+
+class CtsCameraOut(BaseModel):
+    id: str
+    name: str
+    rtsp_url: str
+    location: str
+    enabled: bool
+    floor_plan_key: str | None
+    has_homography: bool
+    homography_residuals: list[float] | None
+    privacy_zone_count: int
+    health: dict | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Calibration schemas
+# ---------------------------------------------------------------------------
+
+
+class CalibrationPoint(BaseModel):
+    pixel: list[float] = Field(..., min_length=2, max_length=2)
+    floor_m: list[float] = Field(..., min_length=2, max_length=2)
+
+
+class HomographyRequest(BaseModel):
+    camera_id: str = Field(..., min_length=1)
+    points: list[CalibrationPoint] = Field(..., min_length=4)
+
+
+class HomographyResult(BaseModel):
+    camera_id: str
+    matrix: list[list[float]]
+    residuals_m: list[float]
+    max_residual_m: float
+    status: str  # "ok" | "warning" | "error"
+
+
+class PrivacyZoneIn(BaseModel):
+    zone_id: str = Field(..., min_length=1)
+    name: str = ""
+    polygon: list[list[float]] = Field(..., min_length=3)
+    policy: str = Field(..., pattern=r"^(drop_detections|blur_faces|mask_region)$")
+    enabled: bool = True
+
+    @field_validator("polygon")
+    @classmethod
+    def _normalize(cls, pts: list[list[float]]) -> list[list[float]]:
+        for pt in pts:
+            if len(pt) != 2:
+                raise ValueError("each polygon point must be [x, y]")
+            if not all(0.0 <= v <= 1.0 for v in pt):
+                raise ValueError("polygon coordinates must be in [0, 1]")
+        return pts
+
+
+class PrivacyZonesRequest(BaseModel):
+    camera_id: str = Field(..., min_length=1)
+    zones: list[PrivacyZoneIn]
+
+
+class AdjacencyEdgeIn(BaseModel):
+    from_camera: str = Field(..., alias="from", min_length=1)
+    to_camera: str = Field(..., alias="to", min_length=1)
+    min_transit_s: float = Field(default=0.5, ge=0.0)
+    max_transit_s: float = Field(default=30.0, ge=0.0)
+    overlap: bool = False
+
+    model_config = {"populate_by_name": True}
+
+
+class AdjacencyRequest(BaseModel):
+    edges: list[AdjacencyEdgeIn]

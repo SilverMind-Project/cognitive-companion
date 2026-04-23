@@ -49,11 +49,13 @@ backend/
     media_cache.py         # MediaCache (presigned URL tracking)
     image_state.py         # ActiveImageState (per-device eInk display state)
     image_template.py      # ImageTemplate (template definitions with regions)
+    cts_camera.py          # CtsCamera (id, name, rtsp_url, location, enabled, homography_json, privacy_zones_json)
   schemas/                 # Pydantic models mirroring ORM models (*Create, *Update, *Out)
     rule.py                # Rule schemas (includes webhook_config)
     workflow.py            # WorkflowExecution schemas
     activity.py            # PersonActivity schemas
     image.py               # Image template and render schemas
+    cts.py                 # CtsCameraCreate, CtsCameraOut, HomographyRequest/Out, PrivacyZoneRequest/Out, AdjacencyEdge
     event.py, person.py, room.py, sensor.py, alert.py
   services/
     pipeline_executor.py   # Step orchestrator (dispatches to StepRegistry, uses ServiceContainer)
@@ -76,6 +78,8 @@ backend/
     eink_renderer.py       # Internal PIL-based eink display renderer
     person_id_client.py    # HTTP client for person identification service
     scene_analysis_client.py  # HTTP client for scene-analysis-service (YOLO+Florence-2+CLIP); disabled when `scene_analysis.enabled` is false
+    cts_ingress.py         # IngressAdminClient: snapshot, health, RTSP test, reload via ingress service
+    cts_orchestrator.py    # OrchestratorClient: homography, privacy zones, adjacency, status via orchestrator
     llm/
       base.py              # LLMProvider abstract base + RealtimeLLMProvider
       chain.py             # LLMProviderChain (fallback) + LLMProviderPool (load balancing)
@@ -97,7 +101,10 @@ backend/
     workflows.py           # Workflow execution endpoints (list, detail, cancel)
     activities.py          # PersonActivity endpoints
     persons.py             # HouseholdMember CRUD + enrollment proxy (list/enroll/delete via person-ID service)
-    media.py                 # GET /media/buffer -- per-camera aggregator state (flushed images + pending count)
+    media.py               # GET /media/buffer -- per-camera aggregator state (flushed images + pending count)
+    cts.py                 # CTS status + features endpoints; feature-flag gate (_cts_enabled helper)
+    cts_cameras.py         # Camera CRUD, RTSP test, snapshot, health, reload
+    cts_calibration.py     # Homography (OpenCV RANSAC compute_homography), privacy zones, adjacency graph
     events.py, sensors.py, rooms.py, alerts.py, etc.
   websocket/
     connection_manager.py  # WebSocket tracking, broadcast, prompt queue
@@ -106,7 +113,7 @@ backend/
 
 frontend/src/
   views/                   # Vue 3 pages (CompanionView, AdminView + admin/ sub-views)
-    AdminView.vue          # Admin layout with grouped sidebar nav (Automation, Infrastructure, People)
+    AdminView.vue          # Admin layout with grouped sidebar nav (Automation, Infrastructure, Tracking (CTS), People)
     CompanionView.vue      # Senior care voice UI with connection status indicator
     admin/
       DashboardView.vue    # System stats, health checks, person locations, occupancy, alerts
@@ -116,6 +123,10 @@ frontend/src/
       WorkflowsView.vue    # Workflow execution monitor
       EInkTemplatesView.vue  # E-Ink template editor
       CameraMediaView.vue     # Per-camera media buffer: flushed images (with lightbox), pending count, cooldown, auto-refresh, sort
+      CTSCamerasView.vue      # CTS camera roster: add/edit/delete, RTSP test dialog, snapshot dialog, calibration/privacy status
+      CTSCalibrationView.vue  # Homography calibration: click-to-place pixel points on snapshot, floor coordinate inputs, RANSAC fit, residual table
+      CTSPrivacyView.vue      # Privacy zone editor: per-camera polygon list with SVG preview; add/edit/delete zones with normalized coords
+      CTSAdjacencyView.vue    # Camera adjacency graph: from/to pairs with min/max transit window; save pushes full graph to orchestrator
       EventsView.vue, RulesView.vue, SensorsView.vue, RoomsView.vue, AlertsView.vue
   components/
     pipeline/
@@ -134,7 +145,8 @@ frontend/src/
       RegionEditor.vue       # Region property editor
   services/api.js          # API client with auth header injection
   services/WebSocketClient.js  # WebSocket client
-  router/index.js          # Route definitions
+  services/cts.js          # CTS API client: cameras, calibration, privacy zones, adjacency, snapshot (blob URL)
+  router/index.js          # Route definitions; CTS routes under admin: cts/cameras, cts/calibration, cts/privacy, cts/adjacency
 
 person-identification-service/
   app/services/
@@ -637,6 +649,7 @@ One row per eink display device. Links a sensor to its current rendered state an
 - Place tests in `backend/tests/` mirroring the `backend/` structure (e.g., `tests/services/test_rules_engine.py`)
 - `backend/tests/conftest.py` provides `db_engine`, `db_session`, and `db_factory` fixtures backed by an in-memory SQLite instance
 - `backend/tests/core/` holds the `backend.core` test suite (113+ tests, ~98% branch coverage) — the primary reference for how the core layer expects to be consumed
+- `backend/tests/routers/` holds router tests. Each test module creates its own `FastAPI()` + calls `register_exception_handlers()` + sets `app.dependency_overrides[get_auth_context]`. See `test_cts.py`, `test_cts_cameras.py`, `test_cts_calibration.py` for the pattern with `StaticPool`.
 - Full suite: 600+ tests (`make test`)
 - Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone-mismatch when comparing timestamps stored as UTC strings in SQLite
 - Run with: `uv run pytest` or, from the repo root, any of the Makefile targets:

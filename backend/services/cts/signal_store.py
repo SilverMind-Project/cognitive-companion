@@ -1,0 +1,276 @@
+"""SignalStore: persistence and read API for CTS dementia signals.
+
+This module is the sole database-facing layer for dementia signals in
+Cognitive Companion.  The DementiaSignalSubscriber delegates inserts to
+SignalStore; the cts_signals router delegates reads to it.
+
+All methods are async and accept a ``db_factory`` callable that returns
+a SQLAlchemy ``Session``.  Tests inject a factory backed by the in-memory
+SQLite fixture.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from sqlalchemy import case, desc, func, select
+
+from backend.models.cts_signal import DementiaSignal
+
+
+class SignalStore:
+    """Async wrapper around the ``DementiaSignal`` ORM model.
+
+    Parameters
+    ----------
+    db_factory:
+        Callable that returns a new SQLAlchemy ``Session``.  In production
+        this is ``backend.core.database.get_session``; in tests it wraps
+        the in-memory fixture.
+    """
+
+    def __init__(self, db_factory) -> None:  # type: ignore[no-untyped-def]
+        self._db_factory = db_factory
+
+    # -- Write path ----------------------------------------------------------
+
+    async def insert(self, signal_data: dict[str, Any]) -> int:
+        """Insert a single dementia signal received from the orchestrator.
+
+        Parameters
+        ----------
+        signal_data:
+            Dict with keys matching the orchestrator's ``DementiaSignal``
+            proto or JSON envelope.  Required keys: ``person_id``,
+            ``signal_type``, ``severity``, ``window_start``, ``window_end``,
+            ``value``.
+
+        Returns
+        -------
+        int
+            The auto-generated primary-key id of the inserted row.
+        """
+        db = self._db_factory()
+        try:
+            row = DementiaSignal(
+                person_id=signal_data["person_id"],
+                signal_type=signal_data["signal_type"],
+                severity=signal_data["severity"],
+                window_start=self._parse_ts(signal_data["window_start"]),
+                window_end=self._parse_ts(signal_data["window_end"]),
+                value=float(signal_data["value"]),
+                baseline=float(signal_data["baseline"]) if signal_data.get("baseline") is not None else None,
+                z_score=float(signal_data["z_score"]) if signal_data.get("z_score") is not None else None,
+                context_json=signal_data.get("context_json"),
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            return row.id
+        finally:
+            db.close()
+
+    async def acknowledge(self, signal_id: int) -> bool:
+        """Mark a signal as acknowledged by a caregiver.
+
+        Returns ``True`` if a row was updated, ``False`` if not found.
+        """
+        db = self._db_factory()
+        try:
+            row = db.query(DementiaSignal).filter(DementiaSignal.id == signal_id).first()
+            if row is None:
+                return False
+            row.acknowledged_at = datetime.now(UTC)
+            db.commit()
+            return True
+        finally:
+            db.close()
+
+    # -- Read paths ----------------------------------------------------------
+
+    async def list_recent(
+        self,
+        *,
+        person_id: str | None = None,
+        signal_type: str | None = None,
+        severity: str | None = None,
+        window_hours: int = 24,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        """Return recent dementia signals as serialisable dicts.
+
+        Filters are applied with AND logic; ``None`` means "no filter".
+        """
+        db = self._db_factory()
+        try:
+            now = datetime.now(UTC)
+            since = now - timedelta(hours=window_hours)
+
+            q = select(DementiaSignal).where(
+                DementiaSignal.received_at >= since
+            )
+            if person_id:
+                q = q.where(DementiaSignal.person_id == person_id)
+            if signal_type:
+                q = q.where(DementiaSignal.signal_type == signal_type)
+            if severity:
+                q = q.where(DementiaSignal.severity == severity)
+
+            q = q.order_by(desc(DementiaSignal.received_at)).limit(limit)
+            rows = db.execute(q).scalars().all()
+
+            return [self._to_dict(r) for r in rows]
+        finally:
+            db.close()
+
+    async def get_unacknowledged(
+        self,
+        *,
+        person_id: str | None = None,
+        severity: str | None = None,
+        window_hours: int = 24,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Return unacknowledged signals (for alerting / dashboard)."""
+        db = self._db_factory()
+        try:
+            now = datetime.now(UTC)
+            since = now - timedelta(hours=window_hours)
+
+            q = select(DementiaSignal).where(
+                DementiaSignal.acknowledged_at.is_(None),
+                DementiaSignal.received_at >= since,
+            )
+            if person_id:
+                q = q.where(DementiaSignal.person_id == person_id)
+            if severity:
+                q = q.where(DementiaSignal.severity == severity)
+
+            q = q.order_by(desc(DementiaSignal.received_at)).limit(limit)
+            rows = db.execute(q).scalars().all()
+
+            return [self._to_dict(r) for r in rows]
+        finally:
+            db.close()
+
+    async def get_24h_summary(self, person_id: str | None = None) -> dict[str, Any]:
+        """Return a 24-hour summary for the dashboard.
+
+        Returns a dict keyed by signal_type with counts and max severity.
+        """
+        db = self._db_factory()
+        try:
+            now = datetime.now(UTC)
+            since = now - timedelta(hours=24)
+
+            base_q = select(
+                DementiaSignal.signal_type,
+                func.count(DementiaSignal.id).label("count"),
+                func.max(
+                    case(
+                        (DementiaSignal.severity == "emergency", 3),
+                        (DementiaSignal.severity == "warning", 2),
+                        else_=1,
+                    )
+                ).label("max_severity_rank"),
+            ).where(
+                DementiaSignal.received_at >= since,
+            )
+            if person_id:
+                base_q = base_q.where(DementiaSignal.person_id == person_id)
+
+            base_q = base_q.group_by(DementiaSignal.signal_type)
+            rows = db.execute(base_q).all()
+
+            severity_labels = {3: "emergency", 2: "warning", 1: "info"}
+            summary: dict[str, Any] = {}
+            for row in rows:
+                summary[row.signal_type] = {
+                    "count": row.count,
+                    "max_severity": severity_labels.get(row.max_severity_rank, "info"),
+                }
+
+            total = sum(s["count"] for s in summary.values())
+            return {
+                "window_hours": 24,
+                "person_id": person_id,
+                "total_signals": total,
+                "by_type": summary,
+            }
+        finally:
+            db.close()
+
+    async def get_daily_trend(
+        self,
+        person_id: str,
+        days: int = 7,
+    ) -> list[dict[str, Any]]:
+        """Return per-day signal counts for trend charts.
+
+        Returns a list of dicts with ``date``, ``count``, and
+        ``by_severity`` keys.
+        """
+        db = self._db_factory()
+        try:
+            now = datetime.now(UTC)
+            since = now - timedelta(days=days)
+
+            rows = db.execute(
+                select(
+                    func.date(DementiaSignal.received_at).label("day"),
+                    DementiaSignal.severity,
+                    func.count(DementiaSignal.id).label("count"),
+                )
+                .where(
+                    DementiaSignal.person_id == person_id,
+                    DementiaSignal.received_at >= since,
+                )
+                .group_by("day", DementiaSignal.severity)
+                .order_by("day")
+            ).all()
+
+            # Pivot into per-day dicts.
+            days_dict: dict[str, dict[str, Any]] = {}
+            for i in range(days):
+                day_str = (now - timedelta(days=days - 1 + i)).strftime("%Y-%m-%d")
+                days_dict[day_str] = {"date": day_str, "count": 0, "by_severity": {}}
+
+            for row in rows:
+                day_str = row.day.isoformat() if hasattr(row.day, "isoformat") else str(row.day)
+                if day_str not in days_dict:
+                    days_dict[day_str] = {"date": day_str, "count": 0, "by_severity": {}}
+                entry = days_dict[day_str]
+                entry["count"] += row.count
+                entry["by_severity"][row.severity] = row.count
+
+            return list(days_dict.values())
+        finally:
+            db.close()
+
+    # -- Helpers -------------------------------------------------------------
+
+    @staticmethod
+    def _parse_ts(value: str | datetime) -> datetime:
+        """Normalise an ISO-8601 string or datetime into a timezone-aware datetime."""
+        dt = value if isinstance(value, datetime) else datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
+
+    @staticmethod
+    def _to_dict(row: DementiaSignal) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "person_id": row.person_id,
+            "signal_type": row.signal_type,
+            "severity": row.severity,
+            "window_start": row.window_start.isoformat() if row.window_start else None,
+            "window_end": row.window_end.isoformat() if row.window_end else None,
+            "value": row.value,
+            "baseline": row.baseline,
+            "z_score": row.z_score,
+            "context_json": row.context_json,
+            "acknowledged_at": row.acknowledged_at.isoformat() if row.acknowledged_at else None,
+            "received_at": row.received_at.isoformat() if row.received_at else None,
+        }

@@ -397,15 +397,34 @@ async def lifespan(app: FastAPI):
 
     # -- CTS gateway clients (gated by cts.enabled) ------------------------
     if settings.get("cts.enabled", False):
+        import asyncio
+        import socket
+
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
+        from backend.services.cts.signal_store import SignalStore
+        from backend.services.cts.subscriber import DementiaSignalSubscriber
 
         app.state.ingress_admin_client = IngressAdminClient()
         app.state.orchestrator_client = OrchestratorClient()
+
+        signal_store = SignalStore(db_factory=get_session)
+        redis_url = settings.get("redis.url", "redis://localhost:6379")
+        consumer_id = settings.get("cts.consumer_id", socket.gethostname())
+        dementia_subscriber = DementiaSignalSubscriber(
+            redis_url=redis_url,
+            consumer_id=consumer_id,
+            store=signal_store,
+            pipeline=pipeline_executor,
+        )
+        app.state.dementia_signal_subscriber = dementia_subscriber
+        _cts_subscriber_task = asyncio.create_task(dementia_subscriber.start())
         logger.info("cts_gateway_clients_started")
     else:
         app.state.ingress_admin_client = None
         app.state.orchestrator_client = None
+        app.state.dementia_signal_subscriber = None
+        _cts_subscriber_task = None
 
     # Start MCP session manager for streamable HTTP transport
     from backend.mcp.server import mcp_server
@@ -415,6 +434,10 @@ async def lifespan(app: FastAPI):
 
     # -- Shutdown ----------------------------------------------------------
     scheduler.shutdown(wait=False)
+    if _cts_subscriber_task is not None:
+        if app.state.dementia_signal_subscriber is not None:
+            await app.state.dementia_signal_subscriber.stop()
+        _cts_subscriber_task.cancel()
     logger.info("Shutting down Cognitive Companion v2")
 
 
@@ -449,6 +472,8 @@ def create_app() -> FastAPI:
         cts,
         cts_calibration,
         cts_cameras,
+        cts_keyframes,
+        cts_signals,
         device,
         events,
         ha_sync,
@@ -487,6 +512,8 @@ def create_app() -> FastAPI:
     app.include_router(cts.router, prefix=api)
     app.include_router(cts_cameras.router, prefix=api)
     app.include_router(cts_calibration.router, prefix=api)
+    app.include_router(cts_signals.router, prefix=api)
+    app.include_router(cts_keyframes.router, prefix=api)
 
     # WebSocket router (no /api/v1 prefix)
     app.include_router(ws.router)

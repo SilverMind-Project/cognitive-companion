@@ -78,7 +78,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Event aggregation** with configurable batching, windowing, and per-sensor cooldown
 - **Camera Media admin view** -- live-browsable image grid per camera with lightbox, sort order, per-sensor pending-flush counter, cooldown indicator, and configurable auto-refresh
 - **Multi-language support** for feedback delivery and voice interaction via the `translation` pipeline step
-- **Continuous Tracking System (CTS) gateway**: BFF proxy layer for a dedicated multi-camera tracking microservice. Feature-flag gated (`cts.enabled`). Admin views for camera management, homography calibration (OpenCV RANSAC), privacy-zone configuration, and camera adjacency graph. All browser traffic reaches CTS microservices only through the CC backend; no direct exposure of internal services.
+- **Continuous Tracking System (CTS) gateway**: BFF proxy layer for a dedicated multi-camera tracking microservice. Feature-flag gated (`cts.enabled`). Admin views for camera management, homography calibration (OpenCV RANSAC), privacy-zone configuration, and camera adjacency graph. Dementia signal ingestion from the tracking-orchestrator via Redis Streams, with persistence, rule-engine integration (`dementia_signal` context filter), and caregiver-facing signal and keyframe query endpoints. All browser traffic reaches CTS microservices only through the CC backend; no direct exposure of internal services.
 
 ## Prerequisites
 
@@ -342,7 +342,7 @@ All variables are interpolated into YAML config files using `${ENV_VAR}` syntax.
 | `rag` | Optional RAG index configuration |
 | `image` | eInk template and font paths |
 | `logging` | Log level |
-| `cts` | Feature flag (`enabled`), consumer ID, stream names, JWT config |
+| `cts` | Feature flag (`enabled`), consumer ID, stream names, JWT config, Redis URL |
 | `cts_ui` | Per-feature UI flags: `calibration_enabled`, `dashboard_enabled`, `live_view_enabled` |
 
 ### Timezone
@@ -643,6 +643,24 @@ All CTS endpoints require `cts.enabled: true` in `settings.yaml`. When disabled,
 | `POST` | `/cts/calibration/adjacency` | Replace the full camera adjacency graph, push to orchestrator |
 | `GET` | `/cts/calibration/adjacency` | Get edge count from the orchestrator's calibration status |
 
+**Dementia signals:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/cts/signals` | List recent signals (filter by person_id, signal_type, severity, window_hours) |
+| `POST` | `/cts/signals/{id}/ack` | Acknowledge a signal as reviewed by a caregiver |
+| `GET` | `/cts/signals/unacknowledged` | Unacknowledged signals for alerting and dashboard |
+| `GET` | `/cts/signals/summary` | 24-hour signal summary grouped by type and max severity |
+| `GET` | `/cts/signals/trend/{person_id}` | Per-day signal counts for trend charts |
+
+**Keyframes:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/cts/keyframes` | List tagged keyframes (filter by person_id, signal_type, after, limit) |
+| `GET` | `/cts/keyframes/{sample_id}` | Get a single tagged keyframe by sample ID |
+| `POST` | `/cts/keyframes/{sample_id}/retain` | Retain a keyframe past the normal retention window |
+
 ### Other
 
 | Method | Path | Description |
@@ -805,7 +823,7 @@ uv run ruff format .            # Format
 cd .. && backend/.venv/bin/mypy backend/ --config-file backend/pyproject.toml  # Type check
 
 # Tests
-uv run pytest                   # Full backend test suite (208 tests)
+uv run pytest                   # Full backend test suite (852 tests)
 uv run pytest backend/tests/core -v                                 # backend.core only (113 tests)
 uv run pytest backend/tests/core --cov=backend/core --cov-report=term-missing  # with branch coverage
 ```

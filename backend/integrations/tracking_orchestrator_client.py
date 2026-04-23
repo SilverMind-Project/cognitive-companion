@@ -78,3 +78,35 @@ class OrchestratorClient(UpstreamClient):
     async def calibration_status(self) -> dict:
         r = await self._request("GET", "/internal/calibration/status")
         return r.json()
+
+    # -- Keyframe methods (M8) -----------------------------------------------
+
+    async def list_keyframes(
+        self,
+        person_id: str | None = None,
+        signal_type: str | None = None,
+        after: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        """List tagged keyframes, optionally filtered by person or signal."""
+        params: dict[str, str] = {"limit": str(limit)}
+        if person_id:
+            params["person_id"] = person_id
+        if signal_type:
+            params["signal_type"] = signal_type
+        if after:
+            params["after"] = after
+        r = await self._request("GET", "/internal/keyframes", params=params)
+        return r.json().get("keyframes", [])
+
+    async def get_keyframe(self, sample_id: str) -> dict:
+        """Get a single tagged keyframe by sample ID."""
+        r = await self._request("GET", f"/internal/keyframes/{sample_id}")
+        return r.json()
+
+    async def retain_keyframe(self, sample_id: str) -> dict:
+        """Retain a keyframe past the normal retention window."""
+        r = await self._request(
+            "POST", f"/internal/keyframes/{sample_id}/retain"
+        )
+        return r.json()

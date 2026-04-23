@@ -22,6 +22,7 @@ dependencies = [
     "opencv-python-headless>=4.9",
     "numpy>=1.26",
     "pyjwt[cryptography]>=2.8",
+    "redis[hiredis]>=5.0",
 ]
 
 [project.optional-dependencies]

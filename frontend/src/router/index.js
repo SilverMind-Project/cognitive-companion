@@ -107,6 +107,21 @@ const routes = [
         name: "cts-adjacency",
         component: () => import("../views/admin/CTSAdjacencyView.vue"),
       },
+      {
+        path: "cts/dashboard",
+        name: "cts-dashboard",
+        component: () => import("../views/admin/CTSDashboardView.vue"),
+      },
+      {
+        path: "cts/signals",
+        name: "cts-signals",
+        component: () => import("../views/admin/CTSSignalsView.vue"),
+      },
+      {
+        path: "cts/keyframes",
+        name: "cts-keyframes",
+        component: () => import("../views/admin/CTSKeyframesView.vue"),
+      },
     ],
   },
 ];

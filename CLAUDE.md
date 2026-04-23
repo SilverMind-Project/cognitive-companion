@@ -91,7 +91,7 @@ Three auto-discovered plugin registries, each following the same pattern:
 
 **FilterRegistry** (`backend/filters/`)
 - Same pattern; inherits `ContextFilter`, `@FilterRegistry.register`
-- Current filters: `room`, `time_range`, `day_of_week`, `person_presence`, `person_activity`, `room_transition`, `scene_trend`
+- Current filters: `room`, `time_range`, `day_of_week`, `person_presence`, `person_activity`, `room_transition`, `scene_trend`, `dementia_signal`
 
 ### Step handler contract
 
@@ -293,7 +293,7 @@ Note: `logic_reasoning`, `translation`, and `vision_analysis` step types were re
 | `TTSClient` | `integrations/tts.py` | Batch + streaming TTS |
 | `EInkRenderer` | `integrations/eink_renderer.py` | PIL-based e-ink image renderer |
 | `IngressAdminClient` | `integrations/cts_ingress.py` | CTS ingress proxy: snapshot, health, reload, RTSP test |
-| `OrchestratorClient` | `integrations/cts_orchestrator.py` | CTS orchestrator: homography, privacy zones, adjacency, status |
+| `OrchestratorClient` | `integrations/cts_orchestrator.py` | CTS orchestrator: homography, privacy zones, adjacency, status, keyframes |
 
 LLM providers live in `integrations/llm/`:
 - `OpenAICompatibleProvider` — `/v1/chat/completions` (vLLM, llama.cpp)
@@ -318,6 +318,48 @@ movement_map:
 ```
 
 `infer_room_transition()` in `backend/services/camera_topology.py` reads this map and returns a frozen `RoomTransition` dataclass. The `RoomTransitionFilter` (`backend/filters/builtin/room_transition.py`) queries `PersonLocationHistory` for transitions matching a configured `semantic` and optional room names.
+
+---
+
+## CTS (Continuous Tracking System) Integration
+
+The CTS gateway is a BFF proxy layer for the `tracking-orchestrator` and `rtsp-ingress` microservices. All browser and MCP traffic reaches CTS services only through this backend. Feature-flag gated: `cts.enabled` in `config/settings.yaml`.
+
+### Services and modules
+
+| Module | Purpose |
+|--------|---------|
+| `services/cts/signal_store.py` | `SignalStore`: async persistence and read API for `DementiaSignal` ORM rows. All methods use `db = self._db_factory(); try/finally db.close()` — never `with self._db_factory() as db:`. |
+| `services/cts/subscriber.py` | `DementiaSignalSubscriber`: Redis Streams consumer for `tracking.signals` (consumer group `cognitive-companion-signals`). Decodes JSON, validates required fields, persists via `SignalStore`, fires pipeline events. |
+| `services/cts/stream_consumer.py` | `StreamConsumer` base class: consumer-group creation, XAUTOCLAIM reclaim, bounded semaphore, graceful shutdown. Reused by all CTS subscribers. |
+| `filters/builtin/dementia_signal.py` | `DementiaSignalFilter`: rule-engine context filter. Matches on signal kind, person ID, severity (0.0-1.0 mapped from info/warning/emergency), time-of-day window, and cooldown (queries `DementiaSignal.acknowledged_at`). |
+| `models/cts_signal.py` | `DementiaSignal` ORM model. |
+| `models/cts_camera.py` | `CtsCamera` ORM model. |
+| `integrations/cts_ingress.py` | `IngressAdminClient`: RTSP test, snapshot, health, reload. |
+| `integrations/tracking_orchestrator_client.py` | `OrchestratorClient`: homography, privacy zones, adjacency, calibration status, keyframe list/get/retain. |
+
+### CTS routers
+
+| Router | Endpoints | Notes |
+|--------|-----------|-------|
+| `routers/cts.py` | `GET /cts/status`, `GET /cts/features` | Feature-flag status |
+| `routers/cts_cameras.py` | 9 endpoints: CRUD, test-connect, snapshot, health, reload | Proxies to `IngressAdminClient` |
+| `routers/cts_calibration.py` | 6 endpoints: homography, privacy zones, adjacency | OpenCV RANSAC homography fit |
+| `routers/cts_signals.py` | 5 endpoints: list, ack, unacknowledged, summary, trend | Reads from `SignalStore` |
+| `routers/cts_keyframes.py` | 3 endpoints: list, get, retain | Proxies to `OrchestratorClient` |
+
+All handlers call `_cts_enabled()` first and return 404 + `{"code": "cts.disabled"}` when off.
+
+### Lifecycle wiring
+
+`DementiaSignalSubscriber` is started in `main.py` lifespan inside the `if settings.get("cts.enabled")` block. It is stopped (`.stop()` + task cancel) in the shutdown block. The subscriber is accessible at `app.state.dementia_signal_subscriber`.
+
+### CTS-specific test conventions
+
+- `SignalStore` tests: inject `db_factory` from the conftest `db_factory` fixture (returns a plain `Session`).
+- Router tests: override `_get_signal_store` dependency directly with a `SignalStore` backed by an in-memory `StaticPool` engine.
+- `DementiaSignalSubscriber` tests: no real Redis needed — test `decode()` and `handle()` directly.
+- `DementiaSignalFilter` tests: use `db_session` fixture for cooldown tests; pass `db=None` for non-cooldown tests.
 
 ---
 

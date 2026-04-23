@@ -99,6 +99,10 @@ permission_map:
 
   operator:
     - "*"
+    # Explicit CTS permissions (required by CI check: no router references
+    # a permission not listed in auth.yaml)
+    - "cts.cameras.write"
+    - "cts.calibrate"
 
   mcp_readonly:
     - "GET /api/v1/rooms*"

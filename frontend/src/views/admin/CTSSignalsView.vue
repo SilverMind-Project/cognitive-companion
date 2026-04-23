@@ -1,141 +1,150 @@
 <template>
   <div>
-    <v-row>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Dementia Signals</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">CTS-detected behavioural signals, filterable by person, type, and severity.</div>
+      </div>
+      <v-spacer />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadSignals">Refresh</v-btn>
+    </div>
+
+    <v-card class="glass-card">
       <!-- Filters -->
-      <v-col cols="12">
-        <v-card>
-          <v-card-title>Filters</v-card-title>
-          <v-card-text>
-            <v-row>
-              <v-col cols="12" sm="4">
-                <v-select
-                  v-model="filters.person_id"
-                  :items="persons"
-                  label="Person"
-                  clearable
-                  @update:modelValue="loadSignals"
-                />
-              </v-col>
-              <v-col cols="12" sm="3">
-                <v-select
-                  v-model="filters.signal_type"
-                  :items="signalTypes"
-                  label="Signal Type"
-                  clearable
-                  @update:modelValue="loadSignals"
-                />
-              </v-col>
-              <v-col cols="12" sm="3">
-                <v-select
-                  v-model="filters.severity"
-                  :items="['info', 'warning', 'emergency']"
-                  label="Severity"
-                  clearable
-                  @update:modelValue="loadSignals"
-                />
-              </v-col>
-              <v-col cols="12" sm="2">
-                <v-select
-                  v-model="filters.window_hours"
-                  :items="[1, 6, 12, 24, 48, 168]"
-                  label="Window (h)"
-                  @update:modelValue="loadSignals"
-                />
-              </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card>
-      </v-col>
+      <v-card-text class="d-flex ga-4 flex-wrap align-center pa-4">
+        <v-select
+          v-model="filters.person_id"
+          :items="persons"
+          label="Person"
+          variant="outlined"
+          density="compact"
+          clearable
+          hide-details
+          rounded="lg"
+          style="flex: 0 0 auto; width: 200px"
+          @update:modelValue="loadSignals"
+        />
+        <v-select
+          v-model="filters.signal_type"
+          :items="signalTypes"
+          label="Signal Type"
+          variant="outlined"
+          density="compact"
+          clearable
+          hide-details
+          rounded="lg"
+          style="flex: 0 0 auto; width: 220px"
+          @update:modelValue="loadSignals"
+        />
+        <v-select
+          v-model="filters.severity"
+          :items="['info', 'warning', 'emergency']"
+          label="Severity"
+          variant="outlined"
+          density="compact"
+          clearable
+          hide-details
+          rounded="lg"
+          style="flex: 0 0 auto; width: 160px"
+          @update:modelValue="loadSignals"
+        />
+        <v-select
+          v-model="filters.window_hours"
+          :items="[1, 6, 12, 24, 48, 168]"
+          label="Window (h)"
+          variant="outlined"
+          density="compact"
+          hide-details
+          rounded="lg"
+          style="flex: 0 0 auto; width: 130px"
+          @update:modelValue="loadSignals"
+        />
+        <v-spacer />
+        <v-text-field
+          v-model="search"
+          label="Search"
+          prepend-inner-icon="mdi-magnify"
+          density="compact"
+          variant="outlined"
+          hide-details
+          rounded="lg"
+          style="flex: 0 0 auto; width: 200px"
+        />
+      </v-card-text>
+
+      <v-divider />
 
       <!-- Signals Table -->
-      <v-col cols="12">
-        <v-card>
-          <v-card-title>
-            Dementia Signals
-            <v-spacer />
-            <v-text-field
-              v-model="search"
-              label="Search"
-              prepend-inner-icon="mdi-magnify"
-              density="compact"
-              variant="solo-filled"
-              hide-details
-              style="max-width: 240px"
-            />
-          </v-card-title>
-          <v-data-table
-            :headers="headers"
-            :items="signals"
-            :search="search"
-            item-value="id"
-            class="elevation-0"
-            :footer-props="{ 'items-per-page-options': [20, 50, 100] }"
+      <v-data-table
+        :headers="headers"
+        :items="signals"
+        :search="search"
+        item-value="id"
+        class="elevation-0"
+        :footer-props="{ 'items-per-page-options': [20, 50, 100] }"
+      >
+        <template v-slot:item.signal_type="{ value }">
+          <v-chip :color="severityColor(value)" size="small" variant="tonal">
+            {{ signalIcons[value] }} {{ value.replace(/_/g, " ") }}
+          </v-chip>
+        </template>
+        <template v-slot:item.severity="{ value }">
+          <v-chip :color="severityColor(value)" size="small" density="compact" variant="flat">
+            {{ value }}
+          </v-chip>
+        </template>
+        <template v-slot:item.acknowledged_at="{ value }">
+          <v-icon v-if="value" color="green" size="small">mdi-check-circle</v-icon>
+          <v-icon v-else color="orange" size="small">mdi-alert-circle</v-icon>
+        </template>
+        <template v-slot:item.actions="{ item }">
+          <v-btn
+            v-if="!item.acknowledged_at"
+            size="x-small"
+            variant="text"
+            color="primary"
+            @click="acknowledge(item.id)"
           >
-            <template v-slot:item.signal_type="{ value }">
-              <v-chip :color="severityColor(value)" size="small" variant="tonal">
-                {{ signalIcons[value] }} {{ value.replace(/_/g, " ") }}
-              </v-chip>
-            </template>
-            <template v-slot:item.severity="{ value }">
-              <v-chip :color="severityColor(value)" size="small" density="compact" variant="flat">
-                {{ value }}
-              </v-chip>
-            </template>
-            <template v-slot:item.acknowledged_at="{ value }">
-              <v-icon v-if="value" color="green" size="small">mdi-check-circle</v-icon>
-              <v-icon v-else color="orange" size="small">mdi-alert-circle</v-icon>
-            </template>
-            <template v-slot:item.actions="{ item }">
-              <v-btn
-                v-if="!item.acknowledged_at"
-                size="x-small"
-                variant="text"
-                color="primary"
-                @click="acknowledge(item.id)"
-              >
-                <v-icon start>mdi-check</v-icon>
-                Ack
-              </v-btn>
-            </template>
-          </v-data-table>
-        </v-card>
-      </v-col>
+            <v-icon start>mdi-check</v-icon>
+            Ack
+          </v-btn>
+        </template>
+      </v-data-table>
 
-      <!-- Trend Chart -->
-      <v-col cols="12" v-if="selectedPerson">
-        <v-card>
-          <v-card-title>
-            <v-icon start>mdi-chart-timeline</v-icon>
-            7-Day Trend: {{ selectedPerson }}
-          </v-card-title>
-          <v-card-text>
-            <v-simple-table v-if="trend.length > 0" density="compact">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Count</th>
-                  <th>Info</th>
-                  <th>Warning</th>
-                  <th>Emergency</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="day in trend" :key="day.date">
-                  <td>{{ day.date }}</td>
-                  <td class="font-weight-bold">{{ day.count }}</td>
-                  <td>{{ day.by_severity.info || 0 }}</td>
-                  <td>{{ day.by_severity.warning || 0 }}</td>
-                  <td>{{ day.by_severity.emergency || 0 }}</td>
-                </tr>
-              </tbody>
-            </v-simple-table>
-            <div v-else class="text-center text-medium-emphasis py-6">
-              No trend data available.
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
+      <!-- Trend section (only when a person is selected) -->
+      <template v-if="selectedPerson">
+        <v-divider />
+        <v-card-text class="pa-4">
+          <div class="d-flex align-center mb-3">
+            <v-icon start size="18">mdi-chart-timeline</v-icon>
+            <span class="text-subtitle-2 font-weight-semibold">7-Day Trend: {{ selectedPerson }}</span>
+          </div>
+          <v-table v-if="trend.length > 0" density="compact">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Count</th>
+                <th>Info</th>
+                <th>Warning</th>
+                <th>Emergency</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="day in trend" :key="day.date">
+                <td>{{ day.date }}</td>
+                <td class="font-weight-bold">{{ day.count }}</td>
+                <td>{{ day.by_severity.info || 0 }}</td>
+                <td>{{ day.by_severity.warning || 0 }}</td>
+                <td>{{ day.by_severity.emergency || 0 }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+          <div v-else class="text-center text-medium-emphasis py-6">
+            No trend data available.
+          </div>
+        </v-card-text>
+      </template>
+    </v-card>
   </div>
 </template>
 

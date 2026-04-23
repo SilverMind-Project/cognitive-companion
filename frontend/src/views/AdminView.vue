@@ -12,36 +12,36 @@
       </div>
 
       <v-list density="comfortable" nav>
-        <v-list-item prepend-icon="mdi-home-variant-outline" title="Companion" to="/" />
+        <v-list-item rounded="lg" prepend-icon="mdi-home-variant-outline" title="Companion" to="/" />
         <v-divider class="my-2 mx-3" />
-        <v-list-item prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/dashboard" />
+        <v-list-item rounded="lg" prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/dashboard" />
 
         <v-list-subheader class="mt-2">Automation</v-list-subheader>
-        <v-list-item prepend-icon="mdi-shield-check-outline" title="Rules" to="/admin/rules" />
-        <v-list-item prepend-icon="mdi-sitemap-outline" title="Workflows" to="/admin/workflows" />
-        <v-list-item prepend-icon="mdi-calendar-text-outline" title="Events" to="/admin/events" />
+        <v-list-item rounded="lg" prepend-icon="mdi-shield-check-outline" title="Rules" to="/admin/rules" />
+        <v-list-item rounded="lg" prepend-icon="mdi-sitemap-outline" title="Workflows" to="/admin/workflows" />
+        <v-list-item rounded="lg" prepend-icon="mdi-calendar-text-outline" title="Events" to="/admin/events" />
 
         <v-list-subheader class="mt-2">Infrastructure</v-list-subheader>
-        <v-list-item prepend-icon="mdi-access-point" title="Sensors" to="/admin/sensors" />
-        <v-list-item prepend-icon="mdi-floor-plan" title="Rooms" to="/admin/rooms" />
-        <v-list-item prepend-icon="mdi-camera-burst" title="Camera Media" to="/admin/camera-media" />
-        <v-list-item prepend-icon="mdi-image-edit-outline" title="E-Ink Templates" to="/admin/eink-templates" />
+        <v-list-item rounded="lg" prepend-icon="mdi-access-point" title="Sensors" to="/admin/sensors" />
+        <v-list-item rounded="lg" prepend-icon="mdi-floor-plan" title="Rooms" to="/admin/rooms" />
+        <v-list-item rounded="lg" prepend-icon="mdi-camera-burst" title="Camera Media" to="/admin/camera-media" />
+        <v-list-item rounded="lg" prepend-icon="mdi-image-edit-outline" title="E-Ink Templates" to="/admin/eink-templates" />
 
         <v-list-subheader class="mt-2">Tracking (CTS)</v-list-subheader>
-        <v-list-item prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/cts/dashboard" />
-        <v-list-item prepend-icon="mdi-cctv" title="Cameras" to="/admin/cts/cameras" />
-        <v-list-item prepend-icon="mdi-crosshairs-gps" title="Calibration" to="/admin/cts/calibration" />
-        <v-list-item prepend-icon="mdi-eye-off-outline" title="Privacy Zones" to="/admin/cts/privacy" />
-        <v-list-item prepend-icon="mdi-graph-outline" title="Camera Adjacency" to="/admin/cts/adjacency" />
-        <v-list-item prepend-icon="mdi-alert-circle-outline" title="Signals" to="/admin/cts/signals" />
-        <v-list-item prepend-icon="mdi-image-search-outline" title="Keyframes" to="/admin/cts/keyframes" />
+        <v-list-item rounded="lg" prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/cts/dashboard" />
+        <v-list-item rounded="lg" prepend-icon="mdi-cctv" title="Cameras" to="/admin/cts/cameras" />
+        <v-list-item rounded="lg" prepend-icon="mdi-crosshairs-gps" title="Calibration" to="/admin/cts/calibration" />
+        <v-list-item rounded="lg" prepend-icon="mdi-eye-off-outline" title="Privacy Zones" to="/admin/cts/privacy" />
+        <v-list-item rounded="lg" prepend-icon="mdi-graph-outline" title="Camera Adjacency" to="/admin/cts/adjacency" />
+        <v-list-item rounded="lg" prepend-icon="mdi-alert-circle-outline" title="Signals" to="/admin/cts/signals" />
+        <v-list-item rounded="lg" prepend-icon="mdi-image-search-outline" title="Keyframes" to="/admin/cts/keyframes" />
 
         <v-list-subheader class="mt-2">People</v-list-subheader>
-        <v-list-item prepend-icon="mdi-account-group-outline" title="Members &amp; Enrollment" to="/admin/persons" />
-        <v-list-item prepend-icon="mdi-run" title="Activities" to="/admin/activities" />
-        <v-list-item prepend-icon="mdi-timeline-text-outline" title="Timeline" to="/admin/timeline" />
-        <v-list-item prepend-icon="mdi-chart-box" title="Daily Reports" to="/admin/reports" />
-        <v-list-item prepend-icon="mdi-alert-circle-outline" title="Alerts" to="/admin/alerts" />
+        <v-list-item rounded="lg" prepend-icon="mdi-account-group-outline" title="Members &amp; Enrollment" to="/admin/persons" />
+        <v-list-item rounded="lg" prepend-icon="mdi-run" title="Activities" to="/admin/activities" />
+        <v-list-item rounded="lg" prepend-icon="mdi-timeline-text-outline" title="Timeline" to="/admin/timeline" />
+        <v-list-item rounded="lg" prepend-icon="mdi-chart-box" title="Daily Reports" to="/admin/reports" />
+        <v-list-item rounded="lg" prepend-icon="mdi-alert-circle-outline" title="Alerts" to="/admin/alerts" />
       </v-list>
     </v-navigation-drawer>
 

@@ -9,15 +9,17 @@
       <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="load">Refresh</v-btn>
     </div>
 
-    <v-card class="mb-4">
-      <v-card-text class="d-flex ga-3 flex-wrap">
+    <v-card class="glass-card">
+      <v-card-text class="d-flex ga-4 flex-wrap align-center pa-4">
         <v-text-field
           v-model="filter.person_id"
           label="Person ID"
           variant="outlined"
           density="compact"
           clearable
-          style="max-width: 200px"
+          hide-details
+          class="flex-1-1-0"
+          rounded="lg"
           @update:model-value="load"
         />
         <v-text-field
@@ -26,7 +28,9 @@
           variant="outlined"
           density="compact"
           clearable
-          style="max-width: 200px"
+          hide-details
+          class="flex-1-1-0"
+          rounded="lg"
           @update:model-value="load"
         />
         <v-text-field
@@ -35,13 +39,13 @@
           variant="outlined"
           density="compact"
           clearable
-          style="max-width: 200px"
+          hide-details
+          class="flex-1-1-0"
+          rounded="lg"
           @update:model-value="load"
         />
       </v-card-text>
-    </v-card>
-
-    <v-card>
+      <v-divider />
       <v-data-table
         :headers="headers"
         :items="items"
@@ -100,8 +104,3 @@ const formatDate = formatDateTime;
 onMounted(load);
 </script>
 
-<style scoped>
-.tracking-tight {
-  letter-spacing: -0.018em;
-}
-</style>

@@ -24,9 +24,7 @@
               >
                 <v-icon size="28" :class="st.deprecated ? 'text-grey' : 'text-primary'" class="mb-1">{{ st.icon }}</v-icon>
                 <div class="text-body-2 font-weight-medium" :class="st.deprecated ? 'text-decoration-line-through' : ''">{{ st.label }}</div>
-                <v-if="st.deprecated" v-slot:append>
-                  <v-chip size="x-small" color="warning" variant="plain">deprecated</v-chip>
-                </v-if>
+                <v-chip v-if="st.deprecated" size="x-small" color="warning" variant="plain">deprecated</v-chip>
               </v-card>
             </v-col>
           </v-row>

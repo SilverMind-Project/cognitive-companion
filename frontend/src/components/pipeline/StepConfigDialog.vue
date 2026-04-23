@@ -503,68 +503,6 @@
                   </v-card>
                 </template>
 
-                </template>
-
-                <template v-if="localStep.step_type === 'llm_call'">
-                  <v-select
-                    v-model="cfg.image_source"
-                    :items="['trigger', 'additional', 'both']"
-                    label="Image Source"
-                    hint="trigger = frames that triggered the pipeline, additional = extra cameras, both = combine"
-                    persistent-hint
-                    class="mb-4"
-                  />
-                  <v-text-field
-                    v-model.number="cfg.max_images"
-                    label="Max Images"
-                    type="number"
-                    :min="1"
-                    hint="Maximum total images sent to the LLM"
-                    persistent-hint
-                    class="mb-4"
-                  />
-                  <template v-if="cfg.image_source === 'additional' || cfg.image_source === 'both'">
-                    <v-combobox
-                      v-model="cfg.additional_sensor_ids"
-                      :items="cameraSensorItems"
-                      label="Additional Camera Sensors"
-                      multiple
-                      chips
-                      closable-chips
-                      class="mb-4"
-                    />
-                    <v-combobox
-                      v-model="cfg.additional_room_names"
-                      :items="availableRooms"
-                      label="Additional Rooms"
-                      multiple
-                      chips
-                      closable-chips
-                      class="mb-4"
-                    />
-                    <v-card variant="outlined" class="pa-4">
-                      <div class="text-subtitle-2 mb-3">
-                        <v-icon size="small" class="mr-1">mdi-clock-outline</v-icon>
-                        Time Filter (optional)
-                      </div>
-                      <v-text-field
-                        v-model.number="imageTimeFilter.since_minutes"
-                        label="Since (minutes ago)"
-                        type="number"
-                        :min="0"
-                        class="mb-3"
-                      />
-                      <v-row>
-                        <v-col cols="6">
-                          <v-text-field v-model="imageTimeFilter.time_start" label="Time Start" placeholder="08:00" />
-                        </v-col>
-                        <v-col cols="6">
-                          <v-text-field v-model="imageTimeFilter.time_end" label="Time End" placeholder="18:00" />
-                        </v-col>
-                      </v-row>
-                    </v-card>
-                  </template>
-                </template>
               </v-window-item>
 
               <!-- Output tab -->
@@ -612,8 +550,6 @@
                     persistent-hint
                   />
                 </template>
-
-               </template>
 
               </v-window-item>
 

@@ -1,110 +1,216 @@
 <template>
   <div>
+    <!-- Person selector + date picker -->
+    <v-row class="mb-2">
+      <v-col cols="12" sm="4">
+        <v-select
+          v-model="selectedPerson"
+          :items="personOptions"
+          label="Person"
+          prepend-inner-icon="mdi-account"
+          clearable
+          hide-details
+          @update:modelValue="onPersonChange"
+        />
+      </v-col>
+      <v-col cols="12" sm="3">
+        <v-text-field
+          v-model="selectedDate"
+          label="Date (YYYY-MM-DD)"
+          prepend-inner-icon="mdi-calendar"
+          hide-details
+          clearable
+          @change="loadDwellSummary"
+        />
+      </v-col>
+      <v-col cols="12" sm="2">
+        <v-select
+          v-model="windowHours"
+          :items="[6, 12, 24, 48, 168]"
+          label="Signal window (h)"
+          hide-details
+          @update:modelValue="loadSignals"
+        />
+      </v-col>
+      <v-col cols="12" sm="3" class="d-flex align-center">
+        <v-btn
+          prepend-icon="mdi-refresh"
+          variant="tonal"
+          :loading="loading"
+          @click="refreshAll"
+        >
+          Refresh
+        </v-btn>
+      </v-col>
+    </v-row>
+
     <v-row>
-      <!-- Signal Summary Card -->
-      <v-col cols="12" md="4">
-        <v-card>
-          <v-card-title>
-            <v-icon start>mdi-chart-bar</v-icon>
-            24h Signal Summary
-          </v-card-title>
-          <v-card-text v-if="summary && summary.total_signals > 0">
-            <div class="text-h4 font-weight-bold mb-2">
-              {{ summary.total_signals }}
-              <span class="text-body-2 text-medium-emphasis">signals</span>
-            </div>
-            <v-chip-group orientation="horizontal" wrap>
-              <v-chip
-                v-for="(data, type) in summary.by_type"
-                :key="type"
-                :color="severityColor(data.max_severity)"
-                variant="tonal"
-              >
-                {{ type.replace(/_/g, " ") }}
-                <v-icon start size="small">mdi-circle-small</v-icon>
-                {{ data.count }}
-              </v-chip>
-            </v-chip-group>
-          </v-card-text>
-          <v-card-text v-else class="text-center text-medium-emphasis py-8">
-            <v-icon size="64">mdi-inbox-outline</v-icon>
-            <div class="mt-2">No signals in the last 24 hours</div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-
-      <!-- Unacknowledged Alerts -->
-      <v-col cols="12" md="8">
-        <v-card>
-          <v-card-title>
-            <v-icon start>mdi-alert-circle-outline</v-icon>
-            Active Alerts
-            <v-spacer />
-            <v-btn size="small" variant="text" @click="loadUnacknowledged">
-              <v-icon start>mdi-refresh</v-icon>
-              Refresh
-            </v-btn>
-          </v-card-title>
-          <v-data-table
-            :headers="alertHeaders"
-            :items="unacknowledged"
-            item-value="id"
-            :search="search"
-            v-model:search="search"
-            class="elevation-0"
-            no-data-text="No active alerts"
-          >
-            <template v-slot:item.signal_type="{ value }">
-              <v-chip :color="severityColor(value)" size="small" variant="tonal">
-                {{ value.replace(/_/g, " ") }}
-              </v-chip>
-            </template>
-            <template v-slot:item.severity="{ value }">
-              <v-chip :color="severityColor(value)" size="small" density="compact">
-                {{ value }}
-              </v-chip>
-            </template>
-            <template v-slot:item.actions="{ item }">
-              <v-btn size="x-small" variant="text" @click="acknowledge(item.id)">
-                <v-icon start>mdi-check</v-icon>
-                Acknowledge
-              </v-btn>
-            </template>
-          </v-data-table>
-        </v-card>
-      </v-col>
-
-      <!-- Signals Timeline -->
+      <!-- Signal summary cards -->
       <v-col cols="12">
+        <v-row>
+          <v-col
+            v-for="(info, kind) in signalSummary"
+            :key="kind"
+            cols="6"
+            sm="4"
+            md="2"
+          >
+            <v-card :color="severityColor(info.max_severity)" variant="tonal">
+              <v-card-text class="text-center pa-3">
+                <div class="text-h5 font-weight-bold">{{ info.count }}</div>
+                <div class="text-caption">{{ kind.replace(/_/g, " ") }}</div>
+                <v-chip
+                  :color="severityColor(info.max_severity)"
+                  size="x-small"
+                  class="mt-1"
+                >
+                  {{ info.max_severity }}
+                </v-chip>
+              </v-card-text>
+            </v-card>
+          </v-col>
+          <v-col v-if="Object.keys(signalSummary).length === 0" cols="12">
+            <v-alert type="info" variant="tonal" density="compact">
+              No signals in the last {{ windowHours }} hours.
+            </v-alert>
+          </v-col>
+        </v-row>
+      </v-col>
+
+      <!-- Signal timeline -->
+      <v-col cols="12" md="7">
         <v-card>
           <v-card-title>
-            <v-icon start>mdi-timeline</v-icon>
-            Signals Timeline (Last 24h)
+            <v-icon start>mdi-timeline-alert</v-icon>
+            Signal Timeline
+          </v-card-title>
+          <v-card-text class="pa-0">
+            <v-list v-if="signals.length > 0" lines="two" density="compact">
+              <v-list-item
+                v-for="sig in signals"
+                :key="sig.signal_id"
+                :subtitle="`${sig.identity_id} · value: ${sig.value}`"
+              >
+                <template v-slot:prepend>
+                  <v-icon :color="severityColor(sig.severity)" size="small">
+                    {{ severityIcon(sig.severity) }}
+                  </v-icon>
+                </template>
+                <template v-slot:title>
+                  <span class="text-body-2 font-weight-medium">
+                    {{ sig.signal_kind.replace(/_/g, " ") }}
+                  </span>
+                  <v-chip
+                    :color="severityColor(sig.severity)"
+                    size="x-small"
+                    class="ml-2"
+                    variant="flat"
+                  >
+                    {{ sig.severity }}
+                  </v-chip>
+                </template>
+                <template v-slot:append>
+                  <span class="text-caption text-medium-emphasis">
+                    {{ formatTime(sig.emitted_at) }}
+                  </span>
+                </template>
+              </v-list-item>
+            </v-list>
+            <div v-else class="text-center text-medium-emphasis py-8">
+              No signals found.
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+
+      <!-- Room dwell bar chart + floor-plan trajectory -->
+      <v-col cols="12" md="5">
+        <!-- Dwell summary -->
+        <v-card class="mb-4">
+          <v-card-title>
+            <v-icon start>mdi-door-open</v-icon>
+            Room Dwell — {{ selectedDate || "Today" }}
           </v-card-title>
           <v-card-text>
-            <v-timeline density="compact" side="end" align="start" density="compact">
-              <v-timeline-item
-                v-for="signal in recentSignals"
-                :key="signal.id"
-                :color="severityColor(signal.severity)"
-                :dot-icon="signalDot(signal)"
-                size="x-small"
+            <div v-if="dwellRooms.length > 0">
+              <div
+                v-for="room in dwellRooms"
+                :key="room.room_name"
+                class="mb-2"
               >
-                <v-card variant="text" class="pa-2">
-                  <div class="d-flex align-center ga-2">
-                    <v-chip size="x-small" variant="tonal" :color="severityColor(signal.severity)">
-                      {{ signal.signal_type.replace(/_/g, " ") }}
-                    </v-chip>
-                    <span class="text-caption">{{ signal.person_id }}</span>
-                    <span class="text-caption text-medium-emphasis">
-                      {{ formatTime(signal.received_at) }}
-                    </span>
-                  </div>
-                </v-card>
-              </v-timeline-item>
-            </v-timeline>
-            <div v-if="recentSignals.length === 0" class="text-center text-medium-emphasis py-6">
-              No signals recorded yet.
+                <div class="d-flex justify-space-between text-body-2 mb-1">
+                  <span>{{ room.room_name }}</span>
+                  <span class="text-medium-emphasis">{{ formatDuration(room.duration_seconds) }}</span>
+                </div>
+                <v-progress-linear
+                  :model-value="room.fraction * 100"
+                  color="primary"
+                  height="8"
+                  rounded
+                />
+              </div>
+            </div>
+            <div v-else class="text-center text-medium-emphasis py-4">
+              No dwell data for this day.
+            </div>
+          </v-card-text>
+        </v-card>
+
+        <!-- Floor-plan trajectory (SVG overlay) -->
+        <v-card>
+          <v-card-title>
+            <v-icon start>mdi-map-marker-path</v-icon>
+            Trajectory
+          </v-card-title>
+          <v-card-text>
+            <div v-if="trajectoryPoints.length > 0" class="trajectory-canvas">
+              <svg
+                viewBox="0 0 400 300"
+                width="100%"
+                style="background: #f5f5f5; border-radius: 4px"
+                aria-label="Floor-plan trajectory overlay"
+              >
+                <!-- Grid lines -->
+                <line
+                  v-for="x in [100, 200, 300]"
+                  :key="`vg-${x}`"
+                  :x1="x" y1="0" :x2="x" y2="300"
+                  stroke="#ddd" stroke-width="1"
+                />
+                <line
+                  v-for="y in [75, 150, 225]"
+                  :key="`hg-${y}`"
+                  x1="0" :y1="y" x2="400" :y2="y"
+                  stroke="#ddd" stroke-width="1"
+                />
+                <!-- Trajectory path -->
+                <polyline
+                  v-if="svgPath"
+                  :points="svgPath"
+                  fill="none"
+                  stroke="#1976d2"
+                  stroke-width="2"
+                  stroke-linejoin="round"
+                  stroke-linecap="round"
+                  opacity="0.7"
+                />
+                <!-- Most recent position dot -->
+                <circle
+                  v-if="latestPoint"
+                  :cx="latestPoint.svgX"
+                  :cy="latestPoint.svgY"
+                  r="6"
+                  fill="#1976d2"
+                  stroke="white"
+                  stroke-width="2"
+                />
+              </svg>
+              <div class="text-caption text-medium-emphasis mt-1 text-center">
+                {{ trajectoryPoints.length }} points · last seen {{ formatTime(trajectoryPoints[0]?.observed_at) }}
+              </div>
+            </div>
+            <div v-else class="text-center text-medium-emphasis py-4">
+              No trajectory data.
             </div>
           </v-card-text>
         </v-card>
@@ -114,88 +220,144 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
 
-const summary = ref(null);
-const unacknowledged = ref([]);
-const recentSignals = ref([]);
-const search = ref("");
+const selectedPerson = ref(null);
+const selectedDate = ref(null);
+const windowHours = ref(24);
+const loading = ref(false);
 
-const alertHeaders = [
-  { title: "Type", key: "signal_type", width: "20%" },
-  { title: "Person", key: "person_id", width: "15%" },
-  { title: "Severity", key: "severity", width: "12%" },
-  { title: "Value", key: "value", width: "10%" },
-  { title: "Window", key: "window_start", width: "20%" },
-  { title: "Received", key: "received_at", width: "15%" },
-  { title: "Actions", key: "actions", width: "8%", sortable: false },
-];
+const signals = ref([]);
+const signalSummary = ref({});
+const trajectoryPoints = ref([]);
+const dwellRooms = ref([]);
+
+// Derive person list from signals (no separate persons endpoint needed here).
+const personOptions = computed(() => {
+  const ids = new Set(signals.value.map((s) => s.identity_id));
+  return Array.from(ids).sort();
+});
+
+// SVG trajectory helpers — map ground_x/y (meters) to SVG coords.
+const svgPath = computed(() => {
+  if (trajectoryPoints.value.length < 2) return null;
+  // Sort ascending by time.
+  const pts = [...trajectoryPoints.value].sort(
+    (a, b) => new Date(a.observed_at) - new Date(b.observed_at)
+  );
+  return pts.map((p) => `${toSvgX(p.ground_x)},${toSvgY(p.ground_y)}`).join(" ");
+});
+
+const latestPoint = computed(() => {
+  if (!trajectoryPoints.value.length) return null;
+  const p = trajectoryPoints.value[0]; // already sorted desc
+  return { svgX: toSvgX(p.ground_x), svgY: toSvgY(p.ground_y) };
+});
+
+function toSvgX(x) {
+  // Map 0..10m to 20..380px.
+  return Math.max(20, Math.min(380, 20 + (x / 10) * 360));
+}
+function toSvgY(y) {
+  // Map 0..8m to 20..280px (inverted Y).
+  return Math.max(20, Math.min(280, 280 - (y / 8) * 260));
+}
 
 onMounted(() => {
+  loadSignals();
   loadSummary();
-  loadUnacknowledged();
-  loadRecentSignals();
 });
+
+async function refreshAll() {
+  loading.value = true;
+  try {
+    await Promise.all([
+      loadSignals(),
+      loadSummary(),
+      selectedPerson.value ? loadTrajectory() : Promise.resolve(),
+      selectedPerson.value ? loadDwellSummary() : Promise.resolve(),
+    ]);
+  } finally {
+    loading.value = false;
+  }
+}
+
+function onPersonChange() {
+  loadTrajectory();
+  loadDwellSummary();
+}
+
+async function loadSignals() {
+  try {
+    const data = await cts.getDashboardSignals({
+      person_id: selectedPerson.value,
+      window_hours: windowHours.value,
+    });
+    signals.value = data.signals || [];
+  } catch (e) {
+    console.error("Failed to load dashboard signals:", e);
+  }
+}
 
 async function loadSummary() {
   try {
-    summary.value = await cts.getSignalSummary();
+    const data = await cts.getSignalSummary(selectedPerson.value);
+    signalSummary.value = data.by_type || {};
   } catch (e) {
     console.error("Failed to load signal summary:", e);
   }
 }
 
-async function loadUnacknowledged() {
+async function loadTrajectory() {
+  if (!selectedPerson.value) {
+    trajectoryPoints.value = [];
+    return;
+  }
   try {
-    const data = await cts.getUnacknowledged({ window_hours: 24, limit: 50 });
-    unacknowledged.value = data.signals || [];
+    const data = await cts.getDashboardTrajectory(selectedPerson.value, { limit: 200 });
+    trajectoryPoints.value = data.points || [];
   } catch (e) {
-    console.error("Failed to load unacknowledged signals:", e);
+    console.error("Failed to load trajectory:", e);
   }
 }
 
-async function loadRecentSignals() {
-  try {
-    const data = await cts.getSignals({ window_hours: 24, limit: 100 });
-    recentSignals.value = data.signals || [];
-  } catch (e) {
-    console.error("Failed to load recent signals:", e);
+async function loadDwellSummary() {
+  if (!selectedPerson.value) {
+    dwellRooms.value = [];
+    return;
   }
-}
-
-async function acknowledge(signalId) {
   try {
-    await cts.acknowledgeSignal(signalId);
-    unacknowledged.value = unacknowledged.value.filter((s) => s.id !== signalId);
-    await loadSummary();
+    const data = await cts.getDashboardDwellSummary(
+      selectedPerson.value,
+      selectedDate.value || undefined
+    );
+    dwellRooms.value = data.rooms || [];
   } catch (e) {
-    console.error("Failed to acknowledge signal:", e);
+    console.error("Failed to load dwell summary:", e);
   }
 }
 
 function severityColor(severity) {
-  const map = { info: "grey", warning: "orange", emergency: "red" };
-  return map[severity] || "grey";
+  return { info: "grey", warning: "orange", emergency: "red" }[severity] || "grey";
 }
 
-function signalDot(signal) {
-  const icons = {
-    pacing: "mdi-walk",
-    sundowning_index: "mdi-weather-night",
-    bathroom_dwell_anomaly: "mdi-toilet",
-    stillness_anomaly: "mdi-bed",
-    nighttime_movement: "mdi-moon-waning-crescent",
-  };
-  return icons[signal.signal_type] || "mdi-alert";
+function severityIcon(severity) {
+  return (
+    { info: "mdi-information", warning: "mdi-alert", emergency: "mdi-alert-circle" }[severity] ||
+    "mdi-circle"
+  );
 }
 
 function formatTime(iso) {
   if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleTimeString();
-  } catch {
-    return iso;
-  }
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return "0m";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 </script>

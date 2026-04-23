@@ -110,3 +110,52 @@ class OrchestratorClient(UpstreamClient):
             "POST", f"/internal/keyframes/{sample_id}/retain"
         )
         return r.json()
+
+    # -- Dashboard methods (M8) ----------------------------------------------
+
+    async def get_dashboard_signals(
+        self,
+        person_id: str | None = None,
+        window_hours: int = 24,
+        signal_kind: str | None = None,
+        limit: int = 200,
+    ) -> dict:
+        """Fetch recent dementia signals from the orchestrator dashboard."""
+        params: dict[str, str] = {
+            "window_hours": str(window_hours),
+            "limit": str(limit),
+        }
+        if person_id:
+            params["person_id"] = person_id
+        if signal_kind:
+            params["signal_kind"] = signal_kind
+        r = await self._request("GET", "/internal/dashboard/signals", params=params)
+        return r.json()
+
+    async def get_dashboard_trajectory(
+        self,
+        person_id: str,
+        start: str | None = None,
+        end: str | None = None,
+        limit: int = 500,
+    ) -> dict:
+        """Fetch trajectory points for floor-plan overlay."""
+        params: dict[str, str] = {"person_id": person_id, "limit": str(limit)}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        r = await self._request("GET", "/internal/dashboard/trajectory", params=params)
+        return r.json()
+
+    async def get_dashboard_dwell_summary(
+        self,
+        person_id: str,
+        date: str | None = None,
+    ) -> dict:
+        """Fetch room dwell aggregation for one day."""
+        params: dict[str, str] = {"person_id": person_id}
+        if date:
+            params["date"] = date
+        r = await self._request("GET", "/internal/dashboard/dwell_summary", params=params)
+        return r.json()

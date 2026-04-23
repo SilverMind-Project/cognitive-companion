@@ -11,8 +11,8 @@
       </v-btn>
     </div>
 
-    <v-card class="mb-4">
-      <v-card-text class="d-flex ga-3 flex-wrap align-end">
+    <v-card class="glass-card">
+      <v-card-text class="d-flex ga-4 flex-wrap align-center pa-4">
         <v-select
           v-model="selectedPerson"
           :items="persons"
@@ -22,7 +22,9 @@
           variant="outlined"
           density="compact"
           clearable
-          style="max-width: 250px"
+          hide-details
+          rounded="lg"
+          style="max-width: 240px"
           @update:model-value="onPersonChange"
         />
         <v-select
@@ -31,38 +33,43 @@
           label="Time Window"
           variant="outlined"
           density="compact"
+          hide-details
+          rounded="lg"
           style="max-width: 160px"
           @update:model-value="load"
         />
-        <v-chip-group v-model="activeSources" mandatory column>
-          <v-chip @click="toggleSource('activity')" :color="activeSources.includes('activity') ? 'primary' : ''" :variant="activeSources.includes('activity') ? 'flat' : 'tonal'" size="small">
+        <v-chip-group column>
+          <v-chip @click="toggleSource('activity')" :color="activeSources.includes('activity') ? 'primary' : ''" :variant="activeSources.includes('activity') ? 'flat' : 'tonal'" size="small" rounded="pill">
             <v-icon start size="14">mdi-check-circle</v-icon> Activity
           </v-chip>
-          <v-chip @click="toggleSource('session')" :color="activeSources.includes('session') ? 'success' : ''" :variant="activeSources.includes('session') ? 'flat' : 'tonal'" size="small">
+          <v-chip @click="toggleSource('session')" :color="activeSources.includes('session') ? 'success' : ''" :variant="activeSources.includes('session') ? 'flat' : 'tonal'" size="small" rounded="pill">
             <v-icon start size="14">mdi-play-circle</v-icon> Session
           </v-chip>
-          <v-chip @click="toggleSource('location')" :color="activeSources.includes('location') ? 'info' : ''" :variant="activeSources.includes('location') ? 'flat' : 'tonal'" size="small">
+          <v-chip @click="toggleSource('location')" :color="activeSources.includes('location') ? 'info' : ''" :variant="activeSources.includes('location') ? 'flat' : 'tonal'" size="small" rounded="pill">
             <v-icon start size="14">mdi-door</v-icon> Location
           </v-chip>
-          <v-chip @click="toggleSource('sighting')" :color="activeSources.includes('sighting') ? 'warning' : ''" :variant="activeSources.includes('sighting') ? 'flat' : 'tonal'" size="small">
+          <v-chip @click="toggleSource('sighting')" :color="activeSources.includes('sighting') ? 'warning' : ''" :variant="activeSources.includes('sighting') ? 'flat' : 'tonal'" size="small" rounded="pill">
             <v-icon start size="14">mdi-camera</v-icon> Sighting
           </v-chip>
         </v-chip-group>
       </v-card-text>
+      <v-divider />
+      <template v-if="selectedPerson">
+        <PersonTimeline
+          ref="timelineRef"
+          :person-id="selectedPerson"
+          :hours="hours"
+          :event-types="activeSources"
+        />
+      </template>
+      <template v-else>
+        <div class="pa-4">
+          <v-alert type="info" variant="tonal">
+            Select a person to view their activity timeline.
+          </v-alert>
+        </div>
+      </template>
     </v-card>
-
-    <v-card v-if="selectedPerson">
-      <PersonTimeline
-        ref="timelineRef"
-        :person-id="selectedPerson"
-        :hours="hours"
-        :event-types="activeSources"
-      />
-    </v-card>
-
-    <v-alert v-else type="info" variant="tonal">
-      Select a person to view their activity timeline.
-    </v-alert>
   </div>
 </template>
 

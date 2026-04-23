@@ -10,7 +10,7 @@
       :prepend-icon="event.is_primary ? undefined : 'mdi-circle-small'"
     >
       <!-- Primary events get a full card -->
-      <v-card v-if="event.is_primary" class="primary-event-card" variant="flat">
+      <v-card v-if="event.is_primary" class="primary-event-card glass-card" variant="elevated">
         <v-card-text class="pa-4">
           <div class="d-flex align-start">
             <div class="flex-grow-1">
@@ -147,7 +147,7 @@ defineExpose({ load });
 
 <style scoped>
 .primary-event-card {
-  border-left: 3px solid var(--v-primary-base);
+  border-left: 3px solid var(--cc-brand);
 }
 
 .compact-event {
@@ -160,7 +160,7 @@ defineExpose({ load });
 }
 
 .v-timeline {
-  max-height: 70vh;
+  max-height: calc(100vh - 280px);
   overflow-y: auto;
 }
 </style>

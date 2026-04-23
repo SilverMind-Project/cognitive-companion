@@ -96,7 +96,9 @@ kbd {
 }
 
 .v-navigation-drawer {
-  background-color: var(--cc-bg-elevated) !important;
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  background-color: rgba(11, 11, 15, 0.80) !important;
   border-right: 1px solid var(--cc-divider) !important;
 }
 
@@ -262,4 +264,46 @@ kbd {
   padding: 2px 6px;
   border-radius: 6px;
   font-weight: 500;
+}
+
+/* ----- Admin UI utility classes ----- */
+
+/* Glass surface for filter panel cards. */
+.glass-filter-panel {
+  background-color: var(--cc-surface-glass) !important;
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border: 1px solid var(--cc-divider-strong) !important;
+  border-radius: var(--cc-radius-md) !important;
+  box-shadow: var(--cc-shadow-sm);
+}
+
+/* Glass surface for primary content cards (dark-mode default). */
+.glass-card {
+  background-color: rgba(28, 28, 30, 0.60) !important;
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--cc-radius-md) !important;
+  box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.40);
+}
+
+/* Light mode override for .glass-card */
+@media (prefers-color-scheme: light) {
+  .glass-card {
+    background-color: rgba(255, 255, 255, 0.72) !important;
+    border: 1px solid rgba(255, 255, 255, 0.60) !important;
+    box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.10);
+  }
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.55);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* Global tracking-tight utility (replaces scoped rules in individual views). */
+.tracking-tight {
+  letter-spacing: -0.018em;
 }

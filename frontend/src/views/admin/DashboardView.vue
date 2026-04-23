@@ -34,7 +34,7 @@
       <v-col cols="12" sm="6" md="4" v-for="svc in healthServices" :key="svc.name">
         <v-card class="pa-4">
           <div class="d-flex align-center">
-            <v-icon :color="svc.ok ? 'success' : 'error'" size="24" class="mr-3">
+            <v-icon :color="svc.color ?? (svc.ok ? 'success' : 'error')" size="24" class="mr-3">
               {{ svc.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}
             </v-icon>
             <div>
@@ -256,6 +256,21 @@ async function loadData() {
     }
   } catch {
     services.push({ name: "Semantic Memory", ok: false, detail: "Unreachable" });
+  }
+
+  try {
+    const llmResults = await api.llmHealth();
+    for (const m of llmResults) {
+      if (m.status === "success") {
+        services.push({ name: m.name, ok: true, detail: m.configured_model });
+      } else if (m.status === "warning") {
+        services.push({ name: m.name, ok: false, color: "warning", detail: m.detail });
+      } else {
+        services.push({ name: m.name, ok: false, detail: m.detail || "Unreachable" });
+      }
+    }
+  } catch {
+    services.push({ name: "LLM Models", ok: false, detail: "Health check failed" });
   }
 
   healthServices.value = services;

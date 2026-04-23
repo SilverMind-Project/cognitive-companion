@@ -48,7 +48,7 @@ llm:
       name: "Gemma 4 26B (General)"
       api_type: "openai"
       base_url: "${GEMMA_MODEL_URL}"
-      model: "gemma-4-26B-A4B-it-GGUF"
+      model: "gemma-4-26B-A4B-it"
       capabilities: ["text", "vision", "translation"]
       max_tokens: 32000
       timeout: 120

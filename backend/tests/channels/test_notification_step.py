@@ -33,6 +33,7 @@ class FakeWorkflowExecution:
 @dataclass
 class FakeServiceContainer:
     notification_dispatcher: AsyncMock | None = None
+    event_aggregator: AsyncMock | None = None
 
 
 class TestFormatChannelMessage:
@@ -42,7 +43,7 @@ class TestFormatChannelMessage:
 
     def test_formats_template_with_message_and_room(self):
         result = _format_channel_message(
-            "Alert: {message} in {room}",
+            "Alert: {{message}} in {{room_name}}",
             "fire detected",
             FakeTriggerContext(room_name="kitchen"),
             {},
@@ -51,7 +52,7 @@ class TestFormatChannelMessage:
 
     def test_formats_with_pipeline_data(self):
         result = _format_channel_message(
-            "{message} (from {vision_response})",
+            "{{message}} (from {{vision_response}})",
             "alert",
             FakeTriggerContext(),
             {"vision_response": "fire visible"},
@@ -60,12 +61,12 @@ class TestFormatChannelMessage:
 
     def test_falls_back_on_key_error(self):
         result = _format_channel_message(
-            "{message} {nonexistent_key}",
+            "{{message}} {{nonexistent_key}}",
             "hello",
             FakeTriggerContext(),
             {},
         )
-        assert result == "hello"
+        assert result == "hello {{nonexistent_key}}"
 
 
 class TestNotificationHandlerMetadata:
@@ -161,8 +162,8 @@ class TestNotificationHandlerExecute:
         step = FakePipelineStep(
             config_json={
                 "alert_level": "info",
-                "ha_speaker_tts_template": "Spoken: {message}",
-                "pwa_popup_text_template": "UI: {message}",
+                "ha_speaker_tts_template": "Spoken: {{message}}",
+                "pwa_popup_text_template": "UI: {{message}}",
             }
         )
         pipeline_data = {"logic_response": {"user_notification": "hello"}}
@@ -233,3 +234,51 @@ class TestNotificationHandlerExecute:
 
         call_kwargs = dispatcher.dispatch.call_args[1]
         assert call_kwargs["image_url"] == "https://minio/img.jpg"
+
+    @pytest.mark.asyncio
+    async def test_uses_translation_before_non_dict_logic_response(self):
+        dispatcher = AsyncMock(return_value={})
+        services = FakeServiceContainer(notification_dispatcher=dispatcher)
+        step = FakePipelineStep(config_json={"alert_level": "info"})
+        pipeline_data = {
+            "translation": "translated alert",
+            "logic_response": "not-a-dict",
+            "vision_response": "fallback alert",
+        }
+
+        handler = NotificationHandler()
+        await handler.execute(step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services)
+
+        call_kwargs = dispatcher.dispatch.call_args[1]
+        assert call_kwargs["message"] == "translated alert"
+
+    @pytest.mark.asyncio
+    async def test_additional_media_lookup_failure_does_not_fail_dispatch(self):
+        dispatcher = AsyncMock(return_value={})
+        aggregator = AsyncMock()
+        aggregator.query_recent_media.side_effect = RuntimeError("boom")
+        services = FakeServiceContainer(
+            notification_dispatcher=dispatcher,
+            event_aggregator=aggregator,
+        )
+        step = FakePipelineStep(
+            config_json={
+                "alert_level": "info",
+                "telegram_image_source": "both",
+            }
+        )
+        trigger = FakeTriggerContext(media_paths=["https://minio/trigger.jpg"])
+        pipeline_data = {"logic_response": {"user_notification": "test"}}
+
+        handler = NotificationHandler()
+        result = await handler.execute(
+            step,
+            FakeWorkflowExecution(),
+            pipeline_data,
+            trigger,
+            services,
+        )
+
+        assert result.data["notification_dispatched"] is True
+        call_kwargs = dispatcher.dispatch.call_args[1]
+        assert call_kwargs["image_url"] == "https://minio/trigger.jpg"

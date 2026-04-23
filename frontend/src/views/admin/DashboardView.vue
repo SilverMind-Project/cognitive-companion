@@ -212,6 +212,52 @@ async function loadData() {
     services.push({ name: "TTS Service", ok: false, detail: "Unreachable" });
   }
 
+  try {
+    const to = await api.trackingOrchestratorHealth();
+    if (!to.configured) {
+      services.push({ name: "Tracking Orchestrator", ok: false, detail: "Not configured" });
+    } else if (to.status === "unreachable") {
+      services.push({ name: "Tracking Orchestrator", ok: false, detail: "Unreachable" });
+    } else {
+      const st = to.status || "unknown";
+      const ver = to.version ? ` · v${to.version}` : "";
+      services.push({ name: "Tracking Orchestrator", ok: st === "running", detail: `${st}${ver}` });
+    }
+  } catch {
+    services.push({ name: "Tracking Orchestrator", ok: false, detail: "Unreachable" });
+  }
+
+  try {
+    const sa = await api.sceneAnalysisHealth();
+    if (!sa.configured) {
+      services.push({ name: "Scene Analysis", ok: false, detail: "Not configured" });
+    } else if (sa.status === "unreachable") {
+      services.push({ name: "Scene Analysis", ok: false, detail: "Unreachable" });
+    } else {
+      const parts = [];
+      if (sa.detector_available) parts.push("detector");
+      if (sa.describer_available) parts.push("describer");
+      if (sa.embedder_available) parts.push("embedder");
+      const detail = parts.length ? parts.join(" · ") : (sa.status || "ok");
+      services.push({ name: "Scene Analysis", ok: sa.status === "ok", detail });
+    }
+  } catch {
+    services.push({ name: "Scene Analysis", ok: false, detail: "Unreachable" });
+  }
+
+  try {
+    const sm = await api.semanticMemoryHealth();
+    if (!sm.configured) {
+      services.push({ name: "Semantic Memory", ok: false, detail: "Not configured" });
+    } else if (sm.status === "unreachable") {
+      services.push({ name: "Semantic Memory", ok: false, detail: "Unreachable" });
+    } else {
+      services.push({ name: "Semantic Memory", ok: sm.status === "healthy", detail: sm.status || "healthy" });
+    }
+  } catch {
+    services.push({ name: "Semantic Memory", ok: false, detail: "Unreachable" });
+  }
+
   healthServices.value = services;
   refreshing.value = false;
 }

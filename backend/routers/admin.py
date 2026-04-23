@@ -93,6 +93,45 @@ async def tts_health():
         return {"configured": True, "status": "unreachable"}
 
 
+async def _proxy_health(url: str, timeout: float = 5.0) -> dict:
+    """Fetch /health from *url* and return a normalised response dict."""
+    if not url:
+        return {"configured": False, "status": "not_configured"}
+    base = url.rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(f"{base}/health")
+            resp.raise_for_status()
+            data = resp.json()
+            return {"configured": True, **data}
+    except Exception:
+        return {"configured": True, "status": "unreachable"}
+
+
+@router.get("/health/tracking-orchestrator")
+async def tracking_orchestrator_health():
+    """Proxy health check to the Tracking Orchestrator service."""
+    url = settings.get("tracking_orchestrator.url") or ""
+    timeout = float(settings.get("tracking_orchestrator.timeout") or 5)
+    return await _proxy_health(url, timeout)
+
+
+@router.get("/health/scene-analysis")
+async def scene_analysis_health():
+    """Proxy health check to the Scene Analysis service."""
+    url = settings.get("scene_analysis.url") or ""
+    timeout = float(settings.get("scene_analysis.timeout") or 5)
+    return await _proxy_health(url, timeout)
+
+
+@router.get("/health/semantic-memory")
+async def semantic_memory_health():
+    """Proxy health check to the Semantic Memory service."""
+    url = settings.get("semantic_memory.url") or ""
+    timeout = float(settings.get("semantic_memory.timeout") or 5)
+    return await _proxy_health(url, timeout)
+
+
 @router.post("/config/reload")
 def reload_config(
     _auth: AuthContext = Depends(require_permission("admin")),

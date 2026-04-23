@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import pytest
 
-import backend.models  # noqa: F401: registers DementiaSignal with Base
 from backend.services.cts.signal_store import SignalStore
 
 # ---------------------------------------------------------------------------

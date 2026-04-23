@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.core.config import DEFAULT_CONFIG_DIR, Settings
+from backend.core.config import DEFAULT_CONFIG_DIR, SettingNotFoundError, Settings
 
 
 @pytest.fixture
@@ -62,6 +62,15 @@ class TestFromDict:
         # Point config_dir at a non-existent path to prove we don't read it.
         s._config_dir = tmp_path / "does-not-exist"
         assert s.get("k") == "v"
+
+    def test_get_required_returns_value(self) -> None:
+        s = Settings.from_dict({"a": {"b": 1}})
+        assert s.get_required("a.b") == 1
+
+    def test_get_required_raises_for_missing_nested_key(self) -> None:
+        s = Settings.from_dict({"a": {"b": 1}})
+        with pytest.raises(SettingNotFoundError, match=r"a\.c"):
+            s.get_required("a.c")
 
 
 class TestLoadFromYaml:
@@ -143,6 +152,11 @@ class TestDunderSugar:
     def test_getitem(self, config_dir: Path) -> None:
         s = Settings(config_dir=config_dir, env={})
         assert s["app.log_level"] == "INFO"
+
+    def test_getitem_raises_for_missing_key(self, config_dir: Path) -> None:
+        s = Settings(config_dir=config_dir, env={})
+        with pytest.raises(SettingNotFoundError, match=r"nope\.nada"):
+            _ = s["nope.nada"]
 
     def test_contains_true_for_existing_key(self, config_dir: Path) -> None:
         s = Settings(config_dir=config_dir, env={})

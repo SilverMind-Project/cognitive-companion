@@ -29,7 +29,12 @@ import yaml
 
 from backend.core.logging import get_logger
 
-__all__ = ["DEFAULT_CONFIG_DIR", "Settings", "settings"]
+__all__ = [
+    "DEFAULT_CONFIG_DIR",
+    "SettingNotFoundError",
+    "Settings",
+    "settings",
+]
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")
 DEFAULT_CONFIG_DIR: Path = Path(__file__).resolve().parents[2] / "config"
@@ -42,6 +47,15 @@ _CONFIG_FILES: tuple[tuple[str, str | None], ...] = (
 )
 
 logger = get_logger(__name__)
+_MISSING = object()
+
+
+class SettingNotFoundError(KeyError):
+    """Raised when a required config value is missing."""
+
+    def __init__(self, dotted_key: str) -> None:
+        super().__init__(f"Required setting not found: {dotted_key}")
+        self.dotted_key = dotted_key
 
 
 def _interpolate(value: Any, env: Mapping[str, str]) -> Any:
@@ -142,14 +156,16 @@ class Settings:
         through a non-dict value.
         """
         self._ensure_loaded()
-        node: Any = self._data
-        for part in dotted_key.split("."):
-            if not isinstance(node, dict):
-                return default
-            node = node.get(part)
-            if node is None:
-                return default
-        return node
+        value = self._lookup(dotted_key, default=_MISSING)
+        return default if value is _MISSING else value
+
+    def get_required(self, dotted_key: str) -> Any:
+        """Retrieve a nested value and raise when it is missing."""
+        self._ensure_loaded()
+        value = self._lookup(dotted_key, default=_MISSING)
+        if value is _MISSING:
+            raise SettingNotFoundError(dotted_key)
+        return value
 
     def raw(self) -> dict:
         """Return the full merged config dict (for debugging / admin endpoint)."""
@@ -159,16 +175,25 @@ class Settings:
     # -- dunder sugar ---------------------------------------------------------
 
     def __getitem__(self, key: str) -> Any:
-        return self.get(key)
+        return self.get_required(key)
 
     def __contains__(self, key: str) -> bool:
-        return self.get(key) is not None
+        self._ensure_loaded()
+        return self._lookup(key, default=_MISSING) is not _MISSING
 
     # -- internal -------------------------------------------------------------
 
     def _ensure_loaded(self) -> None:
         if not self._loaded:
             self.reload()
+
+    def _lookup(self, dotted_key: str, *, default: Any) -> Any:
+        node: Any = self._data
+        for part in dotted_key.split("."):
+            if not isinstance(node, dict) or part not in node:
+                return default
+            node = node[part]
+        return node
 
 
 #: Process-wide settings singleton. Imported throughout the backend as

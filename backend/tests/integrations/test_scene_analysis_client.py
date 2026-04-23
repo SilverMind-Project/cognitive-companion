@@ -60,12 +60,8 @@ _ANALYZE_RESPONSE = {
 
 
 def _make_client(*, enabled: bool = True) -> SceneAnalysisClient:
-    """Return a SceneAnalysisClient bypassing settings lookup."""
-    client = SceneAnalysisClient.__new__(SceneAnalysisClient)
-    client.base_url = "http://sas-test"
-    client.timeout = 5
-    client.enabled = enabled
-    return client
+    """Return a SceneAnalysisClient with explicit injected config."""
+    return SceneAnalysisClient(base_url="http://sas-test", timeout=5, enabled=enabled)
 
 
 def _make_http_mock(json_payload: dict, status_code: int = 200) -> MagicMock:
@@ -95,6 +91,10 @@ class TestDisabledClient:
     async def test_health_check_returns_none(self):
         client = _make_client(enabled=False)
         assert await client.health_check() is None
+
+    async def test_unconfigured_returns_false(self):
+        client = SceneAnalysisClient(base_url="", timeout=5, enabled=True)
+        assert client.configured is False
 
     async def test_detect_returns_empty(self):
         client = _make_client(enabled=False)
@@ -177,6 +177,21 @@ class TestDetect:
         call_args = http_client.post.call_args
         assert "http://sas-test/detect" in str(call_args)
 
+    async def test_skips_malformed_detection_entries(self):
+        ctx, _ = _make_http_mock(
+            {
+                "detections": [
+                    {"label": "person", "confidence": 0.95, "bbox": [0, 0, 1, 1], "class_id": 1},
+                    {"label": "broken", "confidence": "bad", "bbox": "oops", "class_id": "x"},
+                ],
+                "detector_available": True,
+            }
+        )
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            result = await client.detect(b"image-data")
+        assert [item.label for item in result.detections] == ["person"]
+
 
 # ---------------------------------------------------------------------------
 # /describe
@@ -252,3 +267,24 @@ class TestAnalyze:
         assert params["run_describe"] == "false"
         assert params["run_embed"] == "false"
         assert params["run_hazards"] == "true"
+
+    async def test_ignores_malformed_hazards_and_embedding_values(self):
+        ctx, _ = _make_http_mock(
+            {
+                "detections": _ANALYZE_RESPONSE["detections"],
+                "description": "ok",
+                "embedding": [0.1, "bad", 0.3],
+                "hazards": [
+                    _ANALYZE_RESPONSE["hazards"][0],
+                    {"name": "broken", "severity": "warning", "description": "bad", "detection": {}},
+                ],
+                "detector_available": True,
+                "describer_available": True,
+                "embedder_available": True,
+            }
+        )
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            result = await client.analyze(b"image-data")
+        assert result.embedding == [0.1, 0.3]
+        assert [hazard.name for hazard in result.hazards] == ["fire"]

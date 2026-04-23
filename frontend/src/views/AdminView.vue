@@ -27,6 +27,12 @@
         <v-list-item prepend-icon="mdi-camera-burst" title="Camera Media" to="/admin/camera-media" />
         <v-list-item prepend-icon="mdi-image-edit-outline" title="E-Ink Templates" to="/admin/eink-templates" />
 
+        <v-list-subheader class="mt-2">Tracking (CTS)</v-list-subheader>
+        <v-list-item prepend-icon="mdi-cctv" title="Cameras" to="/admin/cts/cameras" />
+        <v-list-item prepend-icon="mdi-crosshairs-gps" title="Calibration" to="/admin/cts/calibration" />
+        <v-list-item prepend-icon="mdi-eye-off-outline" title="Privacy Zones" to="/admin/cts/privacy" />
+        <v-list-item prepend-icon="mdi-graph-outline" title="Camera Adjacency" to="/admin/cts/adjacency" />
+
         <v-list-subheader class="mt-2">People</v-list-subheader>
         <v-list-item prepend-icon="mdi-account-group-outline" title="Members &amp; Enrollment" to="/admin/persons" />
         <v-list-item prepend-icon="mdi-run" title="Activities" to="/admin/activities" />

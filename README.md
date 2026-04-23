@@ -78,6 +78,7 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 - **Event aggregation** with configurable batching, windowing, and per-sensor cooldown
 - **Camera Media admin view** -- live-browsable image grid per camera with lightbox, sort order, per-sensor pending-flush counter, cooldown indicator, and configurable auto-refresh
 - **Multi-language support** for feedback delivery and voice interaction via the `translation` pipeline step
+- **Continuous Tracking System (CTS) gateway**: BFF proxy layer for a dedicated multi-camera tracking microservice. Feature-flag gated (`cts.enabled`). Admin views for camera management, homography calibration (OpenCV RANSAC), privacy-zone configuration, and camera adjacency graph. All browser traffic reaches CTS microservices only through the CC backend; no direct exposure of internal services.
 
 ## Prerequisites
 
@@ -185,11 +186,13 @@ cognitive-companion/
 │   │   ├── person.py           # HouseholdMember, PersonSighting, PersonActivity
 │   │   ├── event.py            # EventLog
 │   │   ├── alert.py            # Alert
+│   │   ├── cts_camera.py       # CtsCamera (id, name, rtsp_url, location, enabled, homography, privacy zones)
 │   │   └── ...                 # Room, Sensor, Conversation, etc.
 │   ├── schemas/
 │   │   ├── rule.py             # Rule + PipelineStep request/response schemas
 │   │   ├── workflow.py         # WorkflowExecution schemas
 │   │   ├── activity.py         # PersonActivity schemas
+│   │   ├── cts.py              # CtsCamera, homography, privacy zone, adjacency schemas
 │   │   └── ...                 # Alert, Event, Person, Room, Sensor schemas
 │   ├── steps/                     # Step plugin system (E1)
 │   │   ├── base.py                # StepHandler ABC, StepMetadata, ServiceContainer
@@ -223,6 +226,8 @@ cognitive-companion/
 │   │   └── ...                     # Scheduler, sensor polling, media, RAG
 │   ├── integrations/           # External clients (HA, MinIO, Telegram, TTS, LLMs, scene analysis)
 │   │   ├── scene_analysis_client.py  # HTTP client for scene-analysis-service
+│   │   ├── cts_ingress.py      # IngressAdminClient: RTSP test, snapshot, health, reload via ingress
+│   │   ├── cts_orchestrator.py # OrchestratorClient: homography, privacy zones, adjacency, status
 │   │   └── llm/                # LLM providers (vLLM, Ollama, Gemini) + chain/pool support
 │   ├── routers/
 │   │   ├── rules.py            # Rule CRUD + pipeline step endpoints
@@ -231,6 +236,9 @@ cognitive-companion/
 │   │   ├── workflows.py        # Workflow execution list/detail/cancel
 │   │   ├── activities.py       # Person activity log
 │   │   ├── media.py            # GET /media/buffer -- per-camera aggregator + MediaCache state
+│   │   ├── cts.py              # CTS feature-flag router: GET /cts/status, /cts/features
+│   │   ├── cts_cameras.py      # Camera CRUD + RTSP test + snapshot + health + reload
+│   │   ├── cts_calibration.py  # Homography fit (OpenCV RANSAC), privacy zones, adjacency graph
 │   │   └── ...                 # Alerts, events, persons, sensors, rooms, etc.
 │   ├── mcp/                    # MCP server (official SDK), Gemini tool adapter, auth middleware
 │   ├── websocket/              # WebSocket connection manager and audio handler
@@ -250,7 +258,11 @@ cognitive-companion/
 │       │   │   ├── RoomsView.vue
 │       │   │   ├── CameraMediaView.vue   # Per-camera media buffer: image grid, lightbox, auto-refresh
 │       │   │   ├── EventsView.vue
-│       │   │   └── AlertsView.vue
+│       │   │   ├── AlertsView.vue
+│       │   │   ├── CTSCamerasView.vue    # CTS camera roster, RTSP test, snapshot preview
+│       │   │   ├── CTSCalibrationView.vue # Click-to-place homography calibration, residual table
+│       │   │   ├── CTSPrivacyView.vue    # Per-camera privacy zone editor with SVG polygon preview
+│       │   │   └── CTSAdjacencyView.vue  # Camera adjacency graph (from/to edges, transit window)
 │       │   └── CompanionView.vue
 │       ├── components/
 │       │   ├── pipeline/
@@ -264,7 +276,10 @@ cognitive-companion/
 │       │       ├── TranscriptWidget.vue # Conversation transcript display
 │       │       ├── AlertWidget.vue    # Emergency alert overlay
 │       │       └── index.js           # Built-in widget registration
-│       ├── services/           # API client, WebSocket client
+│       ├── services/
+│       │   ├── api.js              # API client with auth header injection
+│       │   ├── WebSocketClient.js  # WebSocket client
+│       │   └── cts.js              # Dedicated CTS API client (cameras, calibration, adjacency)
 │       ├── router/             # Vue Router configuration
 │       └── stores/             # Pinia state management
 ├── config/
@@ -300,6 +315,9 @@ cognitive-companion/
 | `CC_ADMIN_API_KEY` | Admin API key |
 | `CC_CAREGIVER_API_KEY` | Caregiver API key (read-only + alerts) |
 | `CC_MCP_API_KEY` | MCP/AI agent API key (read-only) |
+| `CC_OPERATOR_API_KEY` | Operator API key (full access, for CTS admin) |
+| `CC_CAREGIVER_ADMIN_API_KEY` | Caregiver admin key (cameras, calibration, identity corrections) |
+| `CTS_JWT_PRIVATE_KEY_PEM` | EdDSA private key for service-to-service JWT auth (CTS upstream) |
 
 All variables are interpolated into YAML config files using `${ENV_VAR}` syntax.
 
@@ -324,6 +342,8 @@ All variables are interpolated into YAML config files using `${ENV_VAR}` syntax.
 | `rag` | Optional RAG index configuration |
 | `image` | eInk template and font paths |
 | `logging` | Log level |
+| `cts` | Feature flag (`enabled`), consumer ID, stream names, JWT config |
+| `cts_ui` | Per-feature UI flags: `calibration_enabled`, `dashboard_enabled`, `live_view_enabled` |
 
 ### Timezone
 
@@ -586,6 +606,42 @@ Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cr
 |--------|---------------------------------------|---------------------------------------------------------------------|
 | `POST` | `/webhooks/{rule_id}`                 | Trigger a webhook-enabled rule (requires `X-Webhook-Secret` header) |
 | `POST` | `/webhooks/{rule_id}/generate-secret` | Generate or regenerate the webhook secret for a rule                |
+
+### CTS (Continuous Tracking System)
+
+All CTS endpoints require `cts.enabled: true` in `settings.yaml`. When disabled, every handler returns `404` with `{"code": "cts.disabled"}`.
+
+**Feature flags and status:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/cts/status` | Returns `{enabled, calibration_enabled, dashboard_enabled}` |
+| `GET` | `/cts/features` | Returns per-feature UI flag map |
+
+**Camera management:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/cts/cameras` | List all CTS cameras |
+| `POST` | `/cts/cameras` | Register a new camera (id, name, rtsp_url, location, enabled) |
+| `GET` | `/cts/cameras/{id}` | Get camera detail with calibration and privacy zone counts |
+| `PATCH` | `/cts/cameras/{id}` | Update camera fields |
+| `DELETE` | `/cts/cameras/{id}` | Delete a camera |
+| `POST` | `/cts/cameras/test-connect` | Test an RTSP URL without persisting anything |
+| `GET` | `/cts/cameras/{id}/snapshot` | Fetch a JPEG snapshot via the ingress proxy |
+| `GET` | `/cts/cameras/{id}/health` | Fetch stream health; falls back to cached data when ingress is unreachable |
+| `POST` | `/cts/cameras/{id}/reload` | Hot-reload the camera stream in the ingress service |
+
+**Calibration:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/cts/calibration/homography` | Fit a 3x3 homography (OpenCV RANSAC), validate residuals, push to orchestrator |
+| `GET` | `/cts/calibration/homography/{camera_id}` | Retrieve stored homography matrix and residuals |
+| `POST` | `/cts/calibration/privacy_zones` | Replace all privacy zones for a camera, push to orchestrator |
+| `GET` | `/cts/calibration/privacy_zones/{camera_id}` | Get current privacy zones for a camera |
+| `POST` | `/cts/calibration/adjacency` | Replace the full camera adjacency graph, push to orchestrator |
+| `GET` | `/cts/calibration/adjacency` | Get edge count from the orchestrator's calibration status |
 
 ### Other
 

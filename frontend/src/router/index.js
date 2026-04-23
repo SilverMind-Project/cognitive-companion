@@ -86,6 +86,27 @@ const routes = [
         name: "admin-camera-media",
         component: () => import("../views/admin/CameraMediaView.vue"),
       },
+      // CTS — Continuous Tracking System
+      {
+        path: "cts/cameras",
+        name: "cts-cameras",
+        component: () => import("../views/admin/CTSCamerasView.vue"),
+      },
+      {
+        path: "cts/calibration",
+        name: "cts-calibration",
+        component: () => import("../views/admin/CTSCalibrationView.vue"),
+      },
+      {
+        path: "cts/privacy",
+        name: "cts-privacy",
+        component: () => import("../views/admin/CTSPrivacyView.vue"),
+      },
+      {
+        path: "cts/adjacency",
+        name: "cts-adjacency",
+        component: () => import("../views/admin/CTSAdjacencyView.vue"),
+      },
     ],
   },
 ];

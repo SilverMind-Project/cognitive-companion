@@ -1,0 +1,276 @@
+"""CTS camera CRUD, health, and snapshot endpoints.
+
+All write paths (POST, PATCH, DELETE) require ``cts.cameras.write``.
+Read paths (GET, test-connect, snapshot) require ``cts.cameras.read``.
+
+When ``cts.enabled=false`` every handler returns 404 with code
+``cts.disabled`` so no CTS code runs.
+
+Routes:
+    GET    /api/v1/cts/cameras
+    POST   /api/v1/cts/cameras
+    GET    /api/v1/cts/cameras/{camera_id}
+    PATCH  /api/v1/cts/cameras/{camera_id}
+    DELETE /api/v1/cts/cameras/{camera_id}
+    POST   /api/v1/cts/cameras/test-connect
+    GET    /api/v1/cts/cameras/{camera_id}/snapshot
+    GET    /api/v1/cts/cameras/{camera_id}/health
+    POST   /api/v1/cts/cameras/{camera_id}/reload
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.orm import Session
+
+from backend.core.auth import AuthContext, require_permission
+from backend.core.config import settings
+from backend.core.database import get_db
+from backend.core.exceptions import ConflictError, NotFoundError
+from backend.core.logging import get_logger
+from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
+from backend.models.cts_camera import CtsCamera
+from backend.schemas.cts_camera import CtsCameraCreate, CtsCameraOut, CtsCameraUpdate
+
+logger = get_logger(__name__)
+
+router = APIRouter(prefix="/cts/cameras", tags=["cts-cameras"])
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _cts_enabled() -> None:
+    if not settings.get("cts.enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "cts.disabled", "message": "CTS is not enabled on this instance."},
+        )
+
+
+def _get_ingress(request: Request):
+    client = getattr(request.app.state, "ingress_admin_client", None)
+    if client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "upstream.unavailable", "service": "rtsp_ingress",
+                    "message": "Ingress client not initialised."},
+        )
+    return client
+
+
+def _upstream_to_http(exc: UpstreamError) -> HTTPException:
+    code_map = {
+        400: status.HTTP_400_BAD_REQUEST,
+        403: status.HTTP_403_FORBIDDEN,
+        404: status.HTTP_404_NOT_FOUND,
+        409: status.HTTP_409_CONFLICT,
+        503: status.HTTP_503_SERVICE_UNAVAILABLE,
+        504: status.HTTP_504_GATEWAY_TIMEOUT,
+    }
+    http_code = code_map.get(exc.status, status.HTTP_502_BAD_GATEWAY)
+    return HTTPException(
+        status_code=http_code,
+        detail={"code": str(exc.code), "service": exc.service, "message": str(exc)},
+    )
+
+
+def _to_out(cam: CtsCamera) -> CtsCameraOut:
+    homography = cam.homography
+    residuals = cam.homography_residuals
+    return CtsCameraOut(
+        id=cam.id,
+        name=cam.name,
+        rtsp_url=cam.rtsp_url,
+        location=cam.location,
+        enabled=cam.enabled,
+        floor_plan_key=cam.floor_plan_key,
+        has_homography=homography is not None,
+        homography_residuals=residuals if residuals else None,
+        privacy_zone_count=len(cam.privacy_zones) if cam.privacy_zones else 0,
+        health=cam.health_json,
+        created_at=cam.created_at,
+        updated_at=cam.updated_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CRUD endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("", response_model=list[CtsCameraOut])
+def list_cameras(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+) -> list[CtsCameraOut]:
+    _cts_enabled()
+    return [_to_out(c) for c in db.query(CtsCamera).order_by(CtsCamera.name).all()]
+
+
+@router.post("", response_model=CtsCameraOut, status_code=status.HTTP_201_CREATED)
+def create_camera(
+    payload: CtsCameraCreate,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+) -> CtsCameraOut:
+    _cts_enabled()
+    if db.get(CtsCamera, payload.id):
+        raise ConflictError(f"Camera '{payload.id}' already exists")
+    cam = CtsCamera(**payload.model_dump())
+    db.add(cam)
+    db.commit()
+    db.refresh(cam)
+    logger.info("cts_camera_created", camera_id=cam.id)
+    return _to_out(cam)
+
+
+@router.get("/{camera_id}", response_model=CtsCameraOut)
+def get_camera(
+    camera_id: str,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+) -> CtsCameraOut:
+    _cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    return _to_out(cam)
+
+
+@router.patch("/{camera_id}", response_model=CtsCameraOut)
+def update_camera(
+    camera_id: str,
+    payload: CtsCameraUpdate,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+) -> CtsCameraOut:
+    _cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(cam, field, value)
+    db.commit()
+    db.refresh(cam)
+    logger.info("cts_camera_updated", camera_id=camera_id)
+    return _to_out(cam)
+
+
+@router.delete("/{camera_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_camera(
+    camera_id: str,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+) -> None:
+    _cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    db.delete(cam)
+    db.commit()
+    logger.info("cts_camera_deleted", camera_id=camera_id)
+
+
+# ---------------------------------------------------------------------------
+# Test-connect (does not persist anything)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/test-connect")
+async def rtsp_test_connect(
+    body: dict,
+    request: Request,
+    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+) -> dict:
+    _cts_enabled()
+    rtsp_url: str = body.get("rtsp_url", "")
+    if not rtsp_url:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="rtsp_url is required",
+        )
+    ingress = _get_ingress(request)
+    try:
+        return await ingress.test_connection(rtsp_url=rtsp_url)
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        raise _upstream_to_http(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# Snapshot
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{camera_id}/snapshot")
+async def get_snapshot(
+    camera_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+) -> Response:
+    _cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    ingress = _get_ingress(request)
+    try:
+        data = await ingress.snapshot(camera_id=camera_id)
+        return Response(content=data, media_type="image/jpeg")
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        raise _upstream_to_http(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{camera_id}/health")
+async def get_health(
+    camera_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+) -> dict:
+    _cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    ingress = _get_ingress(request)
+    try:
+        health = await ingress.stream_health(camera_id=camera_id)
+        # Persist latest health snapshot for the UI to read without polling ingress.
+        cam.health_json = health
+        db.commit()
+        return health
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        # Return cached health if upstream is unavailable.
+        if cam.health_json:
+            return {**cam.health_json, "_cached": True}
+        raise _upstream_to_http(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# Reload
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{camera_id}/reload", status_code=status.HTTP_204_NO_CONTENT)
+async def reload_camera(
+    camera_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+) -> None:
+    _cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    ingress = _get_ingress(request)
+    try:
+        await ingress.reload_camera(camera_id=camera_id)
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        raise _upstream_to_http(exc) from exc

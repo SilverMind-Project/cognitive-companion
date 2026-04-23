@@ -215,6 +215,44 @@ image:
 #       mode: "any"
 cameras: {}
 
+# Continuous Tracking System (CTS) — gated by feature flag
+cts:
+  enabled: false  # Set to true to enable CTS integration
+
+  # Redis Streams config (M8/M9 subscribers).
+  consumer_id: "${HOSTNAME}"
+  tracking_events_stream: "tracking.events"
+  revisions_stream: "tracking.revisions"
+  signals_stream: "tracking.signals"
+  scene_samples_stream: "scene.samples"
+
+  # Service JWT signing (EdDSA).  Leave blank for dev mode (no JWT).
+  jwt:
+    private_key_pem: ""   # PEM-encoded Ed25519 private key
+    kid: "cts-svc-key-1"
+
+  # BFF gateway clients.  When ca_file is absent, mTLS is disabled (dev mode).
+  upstream:
+    rtsp_ingress:
+      url: "${CTS_INGRESS_URL}"
+      timeout_s: 5.0
+      ca_file: ""          # Leave blank for dev; set to CA cert path for prod
+      client_cert: ""
+      client_key: ""
+
+    tracking_orchestrator:
+      url: "${CTS_ORCHESTRATOR_URL}"
+      timeout_s: 5.0
+      ca_file: ""
+      client_cert: ""
+      client_key: ""
+
+# CTS UI feature flags
+cts_ui:
+  calibration_enabled: true
+  dashboard_enabled: true
+  live_view_enabled: false   # Enabled in M9
+
 # Logging
 logging:
   level: "INFO"

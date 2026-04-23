@@ -395,6 +395,18 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Scheduler started")
 
+    # -- CTS gateway clients (gated by cts.enabled) ------------------------
+    if settings.get("cts.enabled", False):
+        from backend.integrations.ingress_admin_client import IngressAdminClient
+        from backend.integrations.tracking_orchestrator_client import OrchestratorClient
+
+        app.state.ingress_admin_client = IngressAdminClient()
+        app.state.orchestrator_client = OrchestratorClient()
+        logger.info("cts_gateway_clients_started")
+    else:
+        app.state.ingress_admin_client = None
+        app.state.orchestrator_client = None
+
     # Start MCP session manager for streamable HTTP transport
     from backend.mcp.server import mcp_server
 
@@ -434,6 +446,9 @@ def create_app() -> FastAPI:
         admin,
         alerts,
         conversations,
+        cts,
+        cts_calibration,
+        cts_cameras,
         device,
         events,
         ha_sync,
@@ -468,6 +483,10 @@ def create_app() -> FastAPI:
     app.include_router(activities.router, prefix=api)
     app.include_router(webhooks.router, prefix=api)
     app.include_router(pipeline.router, prefix=api)
+    # CTS routers — handlers return 404 when cts.enabled=false
+    app.include_router(cts.router, prefix=api)
+    app.include_router(cts_cameras.router, prefix=api)
+    app.include_router(cts_calibration.router, prefix=api)
 
     # WebSocket router (no /api/v1 prefix)
     app.include_router(ws.router)

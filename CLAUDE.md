@@ -233,6 +233,9 @@ Do not catch these in routers. Let global handlers in `register_exception_handle
 - For step handler tests: use `@dataclass class _FakeStep` instead of `PipelineStep`. SQLAlchemy instrumentation breaks when you set mapped attributes on objects created with `__new__`.
 - For `ServiceContainer`: pass only the fields your step uses. The rest default to `None`.
 - When overriding a class-level property in tests, use a local subclass — never `type(obj).prop = property(...)`. Class mutation leaks between test instances.
+- For router tests, override `get_auth_context` (not `require_permission`): `app.dependency_overrides[get_auth_context] = lambda: AuthContext(key="x", name="tester", permissions=["*"])`. `require_permission` is a factory returning a closure; overriding the factory has no effect.
+- For router tests with SQLite in-memory: use `poolclass=StaticPool` from `sqlalchemy.pool`. Without it, SQLAlchemy may open new connections (each a fresh empty DB), so tables created by `create_all` vanish.
+- Always call `register_exception_handlers(app)` on every test `FastAPI()` instance. Bare apps lack the CC handlers; `NotFoundError` and `ConflictError` produce 500s instead of 404/409.
 
 ---
 
@@ -289,6 +292,8 @@ Note: `logic_reasoning`, `translation`, and `vision_analysis` step types were re
 | `TelegramClient` | `integrations/telegram.py` | Caregiver alerts + command triggers |
 | `TTSClient` | `integrations/tts.py` | Batch + streaming TTS |
 | `EInkRenderer` | `integrations/eink_renderer.py` | PIL-based e-ink image renderer |
+| `IngressAdminClient` | `integrations/cts_ingress.py` | CTS ingress proxy: snapshot, health, reload, RTSP test |
+| `OrchestratorClient` | `integrations/cts_orchestrator.py` | CTS orchestrator: homography, privacy zones, adjacency, status |
 
 LLM providers live in `integrations/llm/`:
 - `OpenAICompatibleProvider` — `/v1/chat/completions` (vLLM, llama.cpp)

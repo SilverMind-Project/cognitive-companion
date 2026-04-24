@@ -44,6 +44,32 @@ class InteractivePromptHandler(StepHandler):
                         "type": "string",
                         "description": "Popup message template with {{variable}} syntax",
                     },
+                    "popup_title": {
+                        "type": "string",
+                        "default": "Question for You",
+                        "description": "Title shown at the top of the popup dialog",
+                    },
+                    "popup_icon": {
+                        "type": "string",
+                        "enum": [
+                            "mdi-message-question",
+                            "mdi-help-circle",
+                            "mdi-alert",
+                            "mdi-alert-circle",
+                            "mdi-alert-octagon",
+                            "mdi-bell",
+                            "mdi-bell-ring",
+                            "mdi-information",
+                            "mdi-volume-high",
+                            "mdi-account-voice",
+                            "mdi-check-circle",
+                            "mdi-heart-pulse",
+                            "mdi-pill",
+                            "mdi-human-greeting",
+                        ],
+                        "default": "mdi-message-question",
+                        "description": "Material Design icon displayed in the popup",
+                    },
                     "auto_escalate": {
                         "type": "boolean",
                         "default": False,
@@ -84,6 +110,8 @@ class InteractivePromptHandler(StepHandler):
                 ],
             },
             default_config={
+                "popup_title": "Question for You",
+                "popup_icon": "mdi-message-question",
                 "auto_escalate": False,
                 "escalate_button_text": "I need help",
                 "dismiss_button_text": "I'm okay",
@@ -120,6 +148,8 @@ class InteractivePromptHandler(StepHandler):
         output_key = config.get("output_key", "interactive_response")
         escalate_button_text = config.get("escalate_button_text", "I need help")
         dismiss_button_text = config.get("dismiss_button_text", "I'm okay")
+        popup_title = config.get("popup_title", "Question for You")
+        popup_icon = config.get("popup_icon", "mdi-message-question")
 
         # Validate that at least one channel is configured
         if not voice_prompt_template and not popup_message_template:
@@ -214,6 +244,8 @@ class InteractivePromptHandler(StepHandler):
                         "execution_id": execution.id,
                         "step_id": step.id,
                         "message": rendered_popup_message,
+                        "title": popup_title,
+                        "icon": popup_icon,
                         "escalate_button_text": escalate_button_text,
                         "dismiss_button_text": dismiss_button_text,
                         "countdown_seconds": countdown_seconds,
@@ -270,6 +302,22 @@ class InteractivePromptHandler(StepHandler):
                         channel="pwa_realtime_ai",
                         countdown_seconds=countdown_seconds,
                     )
+                    # Signal frontend to auto-enable microphone so the user
+                    # can respond to Gemini Live without tapping the mic.
+                    try:
+                        await ws_manager.broadcast({
+                            "type": "enable_microphone",
+                            "reason": "interactive_prompt_voice",
+                            "execution_id": execution.id,
+                            "step_id": step.id,
+                        })
+                    except Exception as broadcast_error:
+                        logger.error(
+                            "interactive_prompt_enable_mic_error",
+                            execution_id=execution.id,
+                            step_id=step.id,
+                            error=str(broadcast_error),
+                        )
                 except Exception as e:
                     logger.error(
                         "interactive_prompt_send_error",

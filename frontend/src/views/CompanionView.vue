@@ -81,6 +81,8 @@ const interactivePromptData = ref({
   execution_id: null,
   step_id: null,
   message: "",
+  title: "Question for You",
+  icon: "mdi-message-question",
   escalate_button_text: "I need help",
   dismiss_button_text: "I'm okay",
   countdown_seconds: 30,
@@ -125,6 +127,8 @@ function getWidgetProps(widgetId) {
       return {
         visible: interactivePromptVisible.value,
         message: interactivePromptData.value.message,
+        title: interactivePromptData.value.title,
+        icon: interactivePromptData.value.icon,
         escalateButtonText: interactivePromptData.value.escalate_button_text,
         dismissButtonText: interactivePromptData.value.dismiss_button_text,
         countdownSeconds: interactivePromptData.value.countdown_seconds,
@@ -348,12 +352,22 @@ onMounted(() => {
       execution_id: data.execution_id,
       step_id: data.step_id,
       message: data.message || "",
+      title: data.title || "Question for You",
+      icon: data.icon || "mdi-message-question",
       escalate_button_text: data.escalate_button_text || "I need help",
       dismiss_button_text: data.dismiss_button_text || "I'm okay",
       countdown_seconds: data.countdown_seconds || 30,
       server_timestamp: data.server_timestamp || new Date().toISOString(),
     };
     interactivePromptVisible.value = true;
+  });
+
+  wsClient.on("onEnableMicrophone", () => {
+    // Auto-enable mic so the user can respond to a voice prompt from
+    // Gemini Live without manually tapping the microphone button.
+    if (!recording.value) {
+      toggleRecording();
+    }
   });
 
   wsClient.on("onInteractiveResponse", (data) => {

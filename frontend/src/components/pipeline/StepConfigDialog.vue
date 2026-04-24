@@ -662,7 +662,7 @@
                   <v-alert type="info" variant="tonal" density="compact" class="mb-4">
                     Configure at least one channel (popup or voice) to prompt the user for a response.
                   </v-alert>
-                  
+
                   <v-textarea
                     v-model="cfg.popup_message_template"
                     label="Popup Message Template"
@@ -671,16 +671,50 @@
                     persistent-hint
                     class="mb-4"
                   />
-                  
+
+                  <v-row>
+                    <v-col cols="12" md="6">
+                      <v-text-field
+                        v-model="cfg.popup_title"
+                        label="Popup Title"
+                        hint="Default: 'Question for You'"
+                        persistent-hint
+                      />
+                    </v-col>
+                    <v-col cols="12" md="6">
+                      <v-select
+                        v-model="cfg.popup_icon"
+                        :items="interactivePromptIconOptions"
+                        item-title="title"
+                        item-value="value"
+                        label="Popup Icon"
+                        hint="Icon displayed at the top of the popup"
+                        persistent-hint
+                      >
+                        <template v-slot:item="{ props: itemProps, item }">
+                          <v-list-item v-bind="itemProps">
+                            <template v-slot:prepend>
+                              <v-icon>{{ item.raw.value }}</v-icon>
+                            </template>
+                          </v-list-item>
+                        </template>
+                        <template v-slot:selection="{ item }">
+                          <v-icon class="mr-2">{{ item.raw.value }}</v-icon>
+                          {{ item.raw.title }}
+                        </template>
+                      </v-select>
+                    </v-col>
+                  </v-row>
+
                   <v-textarea
                     v-model="cfg.voice_prompt_template"
                     label="Voice Prompt Template"
                     rows="3"
-                    hint="Conversational prompt for Gemini Live voice channel. Use {{variable}} syntax."
+                    hint="Conversational prompt for Gemini Live voice channel. Use {{variable}} syntax. When set, the microphone auto-enables so the user can reply."
                     persistent-hint
                     class="mb-4"
                   />
-                  
+
                   <v-divider class="mb-4" />
                   
                   <v-row>
@@ -1477,6 +1511,23 @@ const STEP_ICONS = {
 };
 
 const stepIcon = computed(() => STEP_ICONS[localStep.step_type] || "mdi-cog-outline");
+
+const interactivePromptIconOptions = [
+  { title: "Question", value: "mdi-message-question" },
+  { title: "Help", value: "mdi-help-circle" },
+  { title: "Warning", value: "mdi-alert" },
+  { title: "Alert", value: "mdi-alert-circle" },
+  { title: "Critical Alert", value: "mdi-alert-octagon" },
+  { title: "Bell", value: "mdi-bell" },
+  { title: "Bell Ring", value: "mdi-bell-ring" },
+  { title: "Information", value: "mdi-information" },
+  { title: "Speaker", value: "mdi-volume-high" },
+  { title: "Voice", value: "mdi-account-voice" },
+  { title: "Check", value: "mdi-check-circle" },
+  { title: "Health", value: "mdi-heart-pulse" },
+  { title: "Medication", value: "mdi-pill" },
+  { title: "Greeting", value: "mdi-human-greeting" },
+];
 
 const contextKeys = [
   "vision_response",

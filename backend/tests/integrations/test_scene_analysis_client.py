@@ -15,7 +15,7 @@ from backend.integrations.scene_analysis_client import (
     SceneDetectResult,
 )
 
-_HTTPX_TARGET = "backend.integrations.scene_analysis_client.httpx.AsyncClient"
+_HTTPX_TARGET = "backend.integrations._http_base.httpx.AsyncClient"
 
 _DETECT_RESPONSE = {
     "detections": [
@@ -288,3 +288,47 @@ class TestAnalyze:
             result = await client.analyze(b"image-data")
         assert result.embedding == [0.1, 0.3]
         assert [hazard.name for hazard in result.hazards] == ["fire"]
+
+
+# ---------------------------------------------------------------------------
+# sensor_id header
+# ---------------------------------------------------------------------------
+
+
+class TestSensorIdHeader:
+    async def test_detect_propagates_sensor_id(self):
+        ctx, http_client = _make_http_mock(_DETECT_RESPONSE)
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            await client.detect(b"img", sensor_id="cam_kitchen")
+        call_args = http_client.post.call_args
+        headers = call_args.kwargs.get("headers", {})
+        assert headers.get("X-Sensor-Id") == "cam_kitchen"
+
+    async def test_describe_propagates_sensor_id(self):
+        ctx, http_client = _make_http_mock(_DESCRIBE_RESPONSE)
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            await client.describe(b"img", sensor_id="cam_kitchen")
+        call_args = http_client.post.call_args
+        headers = call_args.kwargs.get("headers", {})
+        assert headers.get("X-Sensor-Id") == "cam_kitchen"
+
+    async def test_analyze_propagates_sensor_id(self):
+        ctx, http_client = _make_http_mock(_ANALYZE_RESPONSE)
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            await client.analyze(b"img", sensor_id="cam_kitchen")
+        call_args = http_client.post.call_args
+        headers = call_args.kwargs.get("headers", {})
+        assert headers.get("X-Sensor-Id") == "cam_kitchen"
+
+    async def test_no_sensor_id_when_none(self):
+        ctx, http_client = _make_http_mock(_DETECT_RESPONSE)
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            await client.detect(b"img")
+        call_args = http_client.post.call_args
+        # When sensor_id is None, no X-Sensor-Id header should be present
+        headers = call_args.kwargs.get("headers", {})
+        assert "X-Sensor-Id" not in headers

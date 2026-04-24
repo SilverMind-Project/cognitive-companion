@@ -5,7 +5,9 @@ contexts (via FilterRegistry), dependencies, and rate limits.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
@@ -87,7 +89,7 @@ class RulesEngine:
     # -- context checking (via FilterRegistry) --------------------------------
 
     def _check_contexts(
-        self, rule: Rule, sensor: Sensor, now: datetime, db: Session | None = None
+        self, rule: Rule, sensor: Sensor, now: datetime, db: Session | None = None, services: Any = None
     ) -> bool:
         """Contexts act as filters.
 
@@ -102,21 +104,26 @@ class RulesEngine:
             by_type.setdefault(ctx.context_type, []).append(ctx)
 
         for _ctx_type, contexts in by_type.items():
-            if not any(self._matches_context(ctx, sensor, now, db) for ctx in contexts):
+            if not any(self._matches_context(ctx, sensor, now, db, services) for ctx in contexts):
                 return False
         return True
 
     def _matches_context(
-        self, ctx: RuleContext, sensor: Sensor, now: datetime, db: Session | None = None
+        self, ctx: RuleContext, sensor: Sensor, now: datetime, db: Session | None = None, services: Any = None
     ) -> bool:
         """Delegate context evaluation to the FilterRegistry.
 
         When ``ctx.negate`` is True the filter result is inverted, enabling
         rules like "NOT in Kitchen" or "NOT during 09:00-17:00".
+
+        Filter evaluate methods may be sync or async. Async results are
+        awaited here so the rest of the engine stays synchronous.
         """
         filter_instance = FilterRegistry.get(ctx.context_type)
         if filter_instance:
-            result = filter_instance.evaluate(ctx.config_json or {}, sensor, now, db)
+            result = filter_instance.evaluate(ctx.config_json or {}, sensor, now, db, services)
+            if asyncio.iscoroutine(result):
+                result = asyncio.get_event_loop().run_until_complete(result)
             return (not result) if ctx.negate else result
         logger.warning("unknown_context_type", context_type=ctx.context_type)
         return True  # unknown type = don't filter

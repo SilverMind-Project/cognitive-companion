@@ -58,7 +58,7 @@ def test_service_container_has_all_required_fields():
         'scene_analysis_client',
         'activity_session_service',
         'daily_report_service',
-        'object_trend_client',
+        'semantic_memory_client',
         'interactive_response_service',
     ]
 

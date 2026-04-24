@@ -378,6 +378,155 @@
                   />
                 </template>
 
+                <!-- semantic_memory_write -->
+                <template v-if="localStep.step_type === 'semantic_memory_write'">
+                  <v-select
+                    v-model="cfg.write_type"
+                    :items="['observation', 'movement']"
+                    label="Write Type"
+                    hint="What to persist in semantic memory."
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <!-- Observation fields -->
+                  <template v-if="cfg.write_type === 'observation'">
+                    <v-combobox
+                      v-model="cfg.room_id"
+                      :items="availableRooms"
+                      label="Room ID"
+                      hint="Room where the observation occurred."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-textarea
+                      v-model="cfg.description"
+                      label="Description"
+                      rows="3"
+                      hint="Human-readable description of the scene."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-combobox
+                      v-model="cfg.object_list"
+                      :items="[]"
+                      label="Objects Detected"
+                      multiple
+                      chips
+                      closable-chips
+                      hint="List of object labels. Supports {{template}} syntax."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-combobox
+                      v-model="cfg.hazard_flags"
+                      :items="[]"
+                      label="Hazard Flags"
+                      multiple
+                      chips
+                      closable-chips
+                      hint="List of hazard flags (e.g. 'door_unsafe', 'person_on_floor')."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-text-field
+                      v-model="cfg.source"
+                      label="Source"
+                      hint="Source identifier. Default: scene_intel"
+                      persistent-hint
+                    />
+                  </template>
+
+                  <!-- Movement fields -->
+                  <template v-if="cfg.write_type === 'movement'">
+                    <v-combobox
+                      v-model="cfg.person_id"
+                      :items="availablePersons"
+                      label="Person ID"
+                      hint="Person who moved. Supports {{template}} syntax."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-combobox
+                      v-model="cfg.from_room_id"
+                      :items="availableRooms"
+                      label="From Room"
+                      hint="Starting room. Supports {{template}} syntax."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-combobox
+                      v-model="cfg.to_room_id"
+                      :items="availableRooms"
+                      label="To Room"
+                      hint="Destination room. Supports {{template}} syntax."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-combobox
+                      v-model="cfg.direction_semantic"
+                      :items="['entering', 'exiting', 'approaching_exit', 'entering_depth', 'stationary', 'any']"
+                      label="Direction Semantic"
+                      hint="Type of movement."
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-text-field
+                      v-model="cfg.confidence"
+                      label="Confidence"
+                      hint="Confidence score (0-1). Default: 0.8"
+                      persistent-hint
+                      class="mb-4"
+                    />
+                    <v-combobox
+                      v-model="cfg.observation_id"
+                      :items="[]"
+                      label="Observation ID (optional)"
+                      hint="Link this movement to a prior observation. Supports {{template}} syntax."
+                      persistent-hint
+                    />
+                  </template>
+                </template>
+
+                <!-- semantic_memory_query -->
+                <template v-if="localStep.step_type === 'semantic_memory_query'">
+                  <v-select
+                    v-model="cfg.query_type"
+                    :items="['observations', 'movements', 'objects', 'trends']"
+                    label="Query Type"
+                    hint="What to retrieve from semantic memory."
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <v-combobox
+                    v-model="cfg.room_id"
+                    :items="availableRooms"
+                    label="Room ID (optional)"
+                    clearable
+                    hint="Filter by room. Supports {{template}} syntax."
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <v-text-field
+                    v-model.number="cfg.since_minutes"
+                    label="Lookback (minutes)"
+                    type="number"
+                    :min="1"
+                    hint="How far back to search. Default: 60"
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <v-text-field
+                    v-model="cfg.output_key"
+                    label="Output Key"
+                    hint="pipeline_data key for the result. Default: memory_context"
+                    persistent-hint
+                  />
+                </template>
+
                 <!-- activity_session_start -->
                 <template v-if="localStep.step_type === 'activity_session_start'">
                   <v-combobox
@@ -1323,6 +1472,8 @@ const STEP_ICONS = {
   condition: "mdi-help-circle-outline",
   verification: "mdi-check-decagram-outline",
   interactive_prompt: "mdi-message-question",
+  semantic_memory_write: "mdi-database-plus-outline",
+  semantic_memory_query: "mdi-database-search-outline",
 };
 
 const stepIcon = computed(() => STEP_ICONS[localStep.step_type] || "mdi-cog-outline");
@@ -1336,6 +1487,10 @@ const contextKeys = [
   "annotated_image",
   "verification",
   "condition",
+  "scene_memory_observation_id",
+  "semantic_memory_observation_id",
+  "semantic_memory_movement_ids",
+  "memory_context",
 ];
 
 const localStep = reactive({
@@ -1507,6 +1662,17 @@ const pipelineDataReference = [
   { key: "daily_reports.0.person_id",   source: "daily_report: first entry" },
   { key: "daily_reports.0.report_date", source: "daily_report: YYYY-MM-DD" },
   { key: "daily_reports.0.wellness_score", source: "daily_report: 0-100" },
+  // -- scene_analysis (write_to_memory) --------------------------------------
+  { key: "scene_memory_observation_id", source: "scene_analysis: observation ID when write_to_memory=True" },
+  // -- semantic_memory_write -------------------------------------------------
+  { key: "semantic_memory_observation_id", source: "semantic_memory_write: stored observation ID" },
+  { key: "semantic_memory_movement_ids", source: "semantic_memory_write: list of movement IDs" },
+  // -- semantic_memory_query -------------------------------------------------
+  { key: "memory_context.summary",      source: "semantic_memory_query: LLM-ready summary" },
+  { key: "memory_context.recent_objects", source: "semantic_memory_query: object label list" },
+  { key: "memory_context.recent_hazards", source: "semantic_memory_query: hazard list" },
+  { key: "memory_context.observations", source: "semantic_memory_query: observation records" },
+  { key: "memory_context.observations_count", source: "semantic_memory_query: int" },
 ];
 
 const filteredVariables = computed(() => {

@@ -19,7 +19,7 @@ Result keys written to ``pipeline_data``
 ``room_trends_summary``
     Compact single-line text ready for LLM prompt injection.
 
-Graceful degradation: if ``object_trend_client`` is ``None`` or the
+Graceful degradation: if ``semantic_memory_client`` is ``None`` or the
 service returns no data, the step writes empty results and continues.
 """
 
@@ -109,7 +109,7 @@ class ObjectTrendAnalysisHandler(StepHandler):
         trigger: TriggerContext,
         services: ServiceContainer,
     ) -> StepResult:
-        if not services.object_trend_client:
+        if not services.semantic_memory_client:
             return StepResult(data=_empty_output())
 
         config = step.config_json or {}
@@ -131,7 +131,16 @@ class ObjectTrendAnalysisHandler(StepHandler):
         any_warning = False
 
         for room_id in room_ids:
-            result = await services.object_trend_client.get_room_trends(room_id)
+            try:
+                result = await services.semantic_memory_client.get_room_trends(room_id)
+            except Exception as exc:
+                logger.warning(
+                    "trend_fetch_failed",
+                    room_id=room_id,
+                    error=str(exc),
+                )
+                continue
+
             if not result:
                 continue
 
@@ -155,20 +164,27 @@ class ObjectTrendAnalysisHandler(StepHandler):
 
             # Include snapshots if requested
             if include_snapshots > 0:
-                snapshots = await services.object_trend_client.get_snapshots(
-                    room_id, since_hours=include_snapshots
-                )
-                room_data["snapshots"] = [
-                    {
-                        "period_start": s.period_start.isoformat() if s.period_start else None,
-                        "unique_object_count": s.unique_object_count,
-                        "object_counts": s.object_counts,
-                        "persistent_objects": s.persistent_objects,
-                        "novel_objects": s.novel_objects,
-                        "embedding_variance": s.embedding_variance,
-                    }
-                    for s in snapshots
-                ]
+                try:
+                    snapshots = await services.semantic_memory_client.get_snapshots(
+                        room_id, since_hours=include_snapshots
+                    )
+                    room_data["snapshots"] = [
+                        {
+                            "period_start": s.period_start.isoformat() if s.period_start else None,
+                            "unique_object_count": s.unique_object_count,
+                            "object_counts": s.object_counts,
+                            "persistent_objects": s.persistent_objects,
+                            "novel_objects": s.novel_objects,
+                            "embedding_variance": s.embedding_variance,
+                        }
+                        for s in snapshots
+                    ]
+                except Exception as exc:
+                    logger.warning(
+                        "trend_snapshots_failed",
+                        room_id=room_id,
+                        error=str(exc),
+                    )
 
             trends[room_id] = room_data
 

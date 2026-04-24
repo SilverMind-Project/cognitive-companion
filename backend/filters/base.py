@@ -33,13 +33,23 @@ class ContextFilter(ABC):
         """Return filter type metadata."""
         ...
 
-    @abstractmethod
     def evaluate(
         self,
         config: dict,
         sensor: Any,
         now: datetime,
         db: Session | None = None,
+        services: Any = None,
     ) -> bool:
-        """Return True if the context filter passes."""
-        ...
+        """Return True if the context filter passes.
+
+        Args:
+            config: Filter-specific configuration from the rule context.
+            sensor: The Sensor that triggered the event.
+            now: Current datetime (in the operator timezone).
+            db: SQLAlchemy session for database queries.
+            services: ServiceContainer with integration clients
+                (e.g. semantic_memory_client). Defaults to None for
+                backward compatibility with existing filters.
+        """
+        return True

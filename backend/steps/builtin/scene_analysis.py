@@ -94,6 +94,11 @@ class SceneAnalysisHandler(StepHandler):
                         "minimum": 1,
                         "description": "Maximum number of trigger images to analyse.",
                     },
+                    "write_to_memory": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Automatically persist the analysis result to semantic memory.",
+                    },
                 },
             },
             default_config={
@@ -102,6 +107,7 @@ class SceneAnalysisHandler(StepHandler):
                 "run_embed": False,
                 "run_hazards": True,
                 "max_images": 1,
+                "write_to_memory": False,
             },
         )
 
@@ -149,6 +155,30 @@ class SceneAnalysisHandler(StepHandler):
             described=bool(result.description),
         )
 
+        # -- Optional: auto-write to semantic memory --------------------------
+        scene_memory_observation_id: int | None = None
+        if config.get("write_to_memory", False) and services.semantic_memory_client:
+            from backend.integrations.semantic_memory_client import ObservationCreate
+
+            room_name = trigger.room_name or "unknown"
+            obs = ObservationCreate(
+                room_id=room_name,
+                description=result.description,
+                object_list=[d.label for d in result.detections],
+                hazard_flags=[h.name for h in result.hazards],
+                embedding=result.embedding if isinstance(result.embedding, list) else [],
+                source="scene_intel",
+            )
+            record = await services.semantic_memory_client.create_observation(obs)
+            if record:
+                scene_memory_observation_id = record.id
+                logger.info(
+                    "scene_analysis_memory_write",
+                    observation_id=record.id,
+                )
+            else:
+                logger.warning("scene_analysis_memory_write_failed")
+
         return StepResult(
             data={
                 "scene_detections": [
@@ -179,6 +209,7 @@ class SceneAnalysisHandler(StepHandler):
                 "scene_detector_available": result.detector_available,
                 "scene_describer_available": result.describer_available,
                 "scene_embedder_available": result.embedder_available,
+                "scene_memory_observation_id": scene_memory_observation_id,
             }
         )
 

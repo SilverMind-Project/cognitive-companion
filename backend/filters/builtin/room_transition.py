@@ -25,6 +25,7 @@ constraint matches at least one history row in the time window.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -94,7 +95,14 @@ class RoomTransitionFilter(ContextFilter):
             },
         )
 
-    def evaluate(self, config: dict, sensor, now: datetime, db: Session | None = None) -> bool:
+    def evaluate(
+        self,
+        config: dict,
+        sensor,
+        now: datetime,
+        db: Session | None = None,
+        services: Any = None,
+    ) -> bool:
         if not db:
             return False
 

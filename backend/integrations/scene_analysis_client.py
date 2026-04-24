@@ -1,8 +1,8 @@
 """HTTP client for the scene-analysis-service.
 
-Mirrors the pattern of :mod:`backend.integrations.person_id_client`:
-configured from ``settings.yaml``, returns ``None`` / empty structures on
-any failure so callers never need to handle exceptions.
+Rebuilt on top of :mod:`backend.integrations._http_base`.  Public surface
+and dataclass names are identical to the previous implementation so all
+existing callers compile without changes.
 
 Settings keys (under ``scene_analysis``)::
 
@@ -10,10 +10,6 @@ Settings keys (under ``scene_analysis``)::
       url: "http://localhost:8100"
       enabled: true
       timeout: 30
-
-All three result dataclasses map 1-to-1 to the service's Pydantic response
-models so the cognitive-companion backend never needs to import from the
-scene-analysis-service package directly.
 """
 
 from __future__ import annotations
@@ -24,19 +20,20 @@ from typing import TypeVar
 import httpx
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
+
+from ._http_base import HttpUpstreamClient
 
 logger = get_logger(__name__)
 _PayloadModel = TypeVar("_PayloadModel", bound=BaseModel)
 
 
 # ---------------------------------------------------------------------------
-# Result dataclasses
+# Frozen result dataclasses (public API surface)
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class SceneDetection:
     """A single object-detection result from the scene-analysis-service."""
 
@@ -46,7 +43,7 @@ class SceneDetection:
     class_id: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class SceneHazardAlert:
     """A hazard flagged by the scene-analysis-service rule engine."""
 
@@ -56,19 +53,19 @@ class SceneHazardAlert:
     detection: SceneDetection
 
 
-@dataclass
+@dataclass(frozen=True)
 class SceneDetectResult:
     detections: list[SceneDetection] = field(default_factory=list)
     detector_available: bool = False
 
 
-@dataclass
+@dataclass(frozen=True)
 class SceneDescribeResult:
     description: str = ""
     describer_available: bool = False
 
 
-@dataclass
+@dataclass(frozen=True)
 class SceneAnalyzeResult:
     detections: list[SceneDetection] = field(default_factory=list)
     description: str = ""
@@ -77,6 +74,11 @@ class SceneAnalyzeResult:
     detector_available: bool = False
     describer_available: bool = False
     embedder_available: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Pydantic wire-level payloads (private)
+# ---------------------------------------------------------------------------
 
 
 class _SceneDetectionPayload(BaseModel):
@@ -185,7 +187,7 @@ class _SceneAnalyzePayload(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class SceneAnalysisClient:
+class SceneAnalysisClient(HttpUpstreamClient):
     """Async HTTP client for the scene-analysis-service.
 
     All public methods return ``None`` / empty result objects when:
@@ -197,29 +199,7 @@ class SceneAnalysisClient:
     without defensive null-checking on the result.
     """
 
-    def __init__(
-        self,
-        *,
-        base_url: str | None = None,
-        timeout: float | None = None,
-        enabled: bool | None = None,
-    ) -> None:
-        self.base_url: str = (
-            base_url if base_url is not None else settings.get_required("scene_analysis.url")
-        ).rstrip("/")
-        self.timeout: float = float(
-            timeout if timeout is not None else settings.get_required("scene_analysis.timeout")
-        )
-        self.enabled: bool = (
-            bool(enabled)
-            if enabled is not None
-            else bool(settings.get_required("scene_analysis.enabled"))
-        )
-
-    @property
-    def configured(self) -> bool:
-        """Whether the client is enabled and has a target URL."""
-        return self.enabled and bool(self.base_url)
+    SETTINGS_PREFIX = "scene_analysis"
 
     # ------------------------------------------------------------------
     # Health
@@ -227,26 +207,24 @@ class SceneAnalysisClient:
 
     async def health_check(self) -> dict | None:
         """Return the service health dict, or None when unreachable."""
-        if not self.configured:
-            return None
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.get(f"{self.base_url}/health")
-                resp.raise_for_status()
-                return resp.json()
-        except Exception:
-            logger.warning("scene_analysis_health_check_failed")
-            return None
+        return await self._get_json("/health")
 
     # ------------------------------------------------------------------
     # /detect: object detection only
     # ------------------------------------------------------------------
 
-    async def detect(self, image_bytes: bytes) -> SceneDetectResult:
+    async def detect(
+        self,
+        image_bytes: bytes,
+        *,
+        sensor_id: str | None = None,
+    ) -> SceneDetectResult:
         """Run object detection on raw image bytes.
 
         Args:
             image_bytes: Raw image data (JPEG, PNG, etc.).
+            sensor_id: Optional sensor identifier; sent as ``X-Sensor-Id``
+                header for server-side correlation.
 
         Returns:
             :class:`SceneDetectResult` with detected objects, or an empty
@@ -254,10 +232,14 @@ class SceneAnalysisClient:
         """
         if not self.configured:
             return SceneDetectResult()
+        headers: dict[str, str] = {}
+        if sensor_id is not None:
+            headers["X-Sensor-Id"] = sensor_id
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.post(
-                    f"{self.base_url}/detect",
+                    f"{self._base_url}/detect",
+                    headers=headers,
                     files={"image": ("image.jpg", image_bytes, "image/jpeg")},
                 )
                 resp.raise_for_status()
@@ -276,11 +258,18 @@ class SceneAnalysisClient:
     # /describe: structured scene description only
     # ------------------------------------------------------------------
 
-    async def describe(self, image_bytes: bytes) -> SceneDescribeResult:
+    async def describe(
+        self,
+        image_bytes: bytes,
+        *,
+        sensor_id: str | None = None,
+    ) -> SceneDescribeResult:
         """Generate a structured scene description for raw image bytes.
 
         Args:
             image_bytes: Raw image data.
+            sensor_id: Optional sensor identifier; sent as ``X-Sensor-Id``
+                header for server-side correlation.
 
         Returns:
             :class:`SceneDescribeResult` with the description string, or an
@@ -288,10 +277,14 @@ class SceneAnalysisClient:
         """
         if not self.configured:
             return SceneDescribeResult()
+        headers: dict[str, str] = {}
+        if sensor_id is not None:
+            headers["X-Sensor-Id"] = sensor_id
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.post(
-                    f"{self.base_url}/describe",
+                    f"{self._base_url}/describe",
+                    headers=headers,
                     files={"image": ("image.jpg", image_bytes, "image/jpeg")},
                 )
                 resp.raise_for_status()
@@ -318,6 +311,7 @@ class SceneAnalysisClient:
         run_describe: bool = True,
         run_embed: bool = True,
         run_hazards: bool = True,
+        sensor_id: str | None = None,
     ) -> SceneAnalyzeResult:
         """Run the full analysis pipeline on raw image bytes.
 
@@ -327,6 +321,8 @@ class SceneAnalysisClient:
             run_describe: Whether to run scene description.
             run_embed: Whether to run CLIP embedding.
             run_hazards: Whether to evaluate hazard rules.
+            sensor_id: Optional sensor identifier; sent as ``X-Sensor-Id``
+                header for server-side correlation.
 
         Returns:
             :class:`SceneAnalyzeResult` with populated fields for each
@@ -334,10 +330,14 @@ class SceneAnalysisClient:
         """
         if not self.configured:
             return SceneAnalyzeResult()
+        headers: dict[str, str] = {}
+        if sensor_id is not None:
+            headers["X-Sensor-Id"] = sensor_id
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.post(
-                    f"{self.base_url}/analyze",
+                    f"{self._base_url}/analyze",
+                    headers=headers,
                     params={
                         "run_detect": str(run_detect).lower(),
                         "run_describe": str(run_describe).lower(),

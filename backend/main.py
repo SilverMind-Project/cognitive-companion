@@ -195,13 +195,13 @@ async def lifespan(app: FastAPI):
     scene_analysis_client = SceneAnalysisClient()
     app.state.scene_analysis_client = scene_analysis_client
 
-    # -- Object trend client -----------------------------------------------
-    from backend.integrations.object_trend_client import ObjectTrendClient
+    # -- Semantic memory client --------------------------------------------
+    from backend.integrations.semantic_memory_client import SemanticMemoryClient
 
-    object_trend_client = ObjectTrendClient()
-    if not object_trend_client.configured:
-        object_trend_client = None
-    app.state.object_trend_client = object_trend_client
+    semantic_memory_client = SemanticMemoryClient()
+    if not semantic_memory_client.configured:
+        semantic_memory_client = None
+    app.state.semantic_memory_client = semantic_memory_client
 
     # -- Person tracking service -------------------------------------------
     from backend.services.person_tracking import PersonTrackingService
@@ -266,7 +266,7 @@ async def lifespan(app: FastAPI):
         scene_analysis_client=scene_analysis_client,
         activity_session_service=activity_session_service,
         daily_report_service=daily_report_service,
-        object_trend_client=object_trend_client,
+        semantic_memory_client=semantic_memory_client,
         interactive_response_service=interactive_response_service,
         # scheduler bridge injected below after scheduler is created
     )
@@ -323,6 +323,7 @@ async def lifespan(app: FastAPI):
         activity_session=activity_session_service,
         daily_report=daily_report_service,
         interactive_response=interactive_response_service,
+        semantic_memory_client=semantic_memory_client,
     )
 
     # Build the Gemini tool adapter for voice tool calling

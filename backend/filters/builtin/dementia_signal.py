@@ -20,6 +20,7 @@ All config keys are optional.  An empty config matches any signal.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -94,6 +95,7 @@ class DementiaSignalFilter(ContextFilter):
         sensor,
         now: datetime,
         db: Session | None = None,
+        services: Any = None,
     ) -> bool:
         """Evaluate whether a dementia signal event matches this filter.
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -30,6 +31,13 @@ class DayOfWeekFilter(ContextFilter):
             },
         )
 
-    def evaluate(self, config: dict, sensor, now: datetime, db: Session | None = None) -> bool:
+    def evaluate(
+        self,
+        config: dict,
+        sensor,
+        now: datetime,
+        db: Session | None = None,
+        services: Any = None,
+    ) -> bool:
         days = config.get("days", [])
         return now.weekday() in days

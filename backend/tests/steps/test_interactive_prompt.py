@@ -75,8 +75,17 @@ def mock_scheduler():
 
 @pytest.fixture
 def mock_notification_dispatcher(mock_connection_manager):
-    """Create a mock notification dispatcher."""
+    """Create a mock notification dispatcher.
+
+    The handler accesses ws_manager via
+    ``notification_dispatcher._dispatch_services.ws_manager``, so the
+    mock must expose that attribute chain.
+    """
+    dispatch_services = Mock()
+    dispatch_services.ws_manager = mock_connection_manager
     dispatcher = Mock()
+    dispatcher._dispatch_services = dispatch_services
+    # Also expose connection_manager for tests that assert on it directly
     dispatcher.connection_manager = mock_connection_manager
     return dispatcher
 
@@ -563,10 +572,10 @@ class TestInteractivePromptHandlerExecute:
 
             # Verify render_template was called with correct arguments
             mock_render.assert_called_once()
-            call_args = mock_render.call_args[0]
-            assert call_args[0] == "Hello {{name}}, are you in {{room_name}}?"
-            assert call_args[1] == {"name": "John"}
-            assert call_args[2] == {"room_name": "bedroom", "sensor_id": None}
+            args, _kwargs = mock_render.call_args
+            assert args[0] == "Hello {{name}}, are you in {{room_name}}?"
+            assert args[1] == {"name": "John"}
+            assert args[2] == {"room_name": "bedroom", "sensor_id": None}
 
         # Assert
         assert result.success is True

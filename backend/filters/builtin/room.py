@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,14 @@ class RoomFilter(ContextFilter):
             },
         )
 
-    def evaluate(self, config: dict, sensor, now: datetime, db: Session | None = None) -> bool:
+    def evaluate(
+        self,
+        config: dict,
+        sensor,
+        now: datetime,
+        db: Session | None = None,
+        services: Any = None,
+    ) -> bool:
         room_name = config.get("room_name", "")
         room_id = config.get("room_id")
         if room_id and sensor.room_id:

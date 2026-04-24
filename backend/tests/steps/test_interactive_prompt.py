@@ -224,8 +224,11 @@ class TestInteractivePromptHandlerExecute:
         assert "execution_id=124" in call_args[1]["prompt"]
         assert "step_id=2" in call_args[1]["prompt"]
 
-        # Verify popup message was NOT sent
-        mock_notification_dispatcher.connection_manager.broadcast.assert_not_called()
+        # Voice-only path still broadcasts the enable_microphone signal so
+        # the frontend can auto-enable the mic for Gemini Live replies.
+        mock_notification_dispatcher.connection_manager.broadcast.assert_called_once()
+        mic_call = mock_notification_dispatcher.connection_manager.broadcast.call_args[0][0]
+        assert mic_call["type"] == "enable_microphone"
 
         # Verify timeout was scheduled
         mock_scheduler.apscheduler.add_job.assert_called_once()
@@ -274,8 +277,14 @@ class TestInteractivePromptHandlerExecute:
         assert result.wait_until is not None
         assert execution.status == "waiting_for_response"
 
-        # Verify BOTH channels were sent
-        mock_notification_dispatcher.connection_manager.broadcast.assert_called_once()
+        # Both channels fire: popup broadcast + voice send + enable_microphone broadcast
+        assert mock_notification_dispatcher.connection_manager.broadcast.call_count == 2
+        broadcast_types = [
+            call.args[0]["type"]
+            for call in mock_notification_dispatcher.connection_manager.broadcast.call_args_list
+        ]
+        assert "interactive_prompt" in broadcast_types
+        assert "enable_microphone" in broadcast_types
         mock_notification_dispatcher.connection_manager.send_backend_task.assert_called_once()
 
         # Verify timeout was scheduled
@@ -422,8 +431,15 @@ class TestInteractivePromptHandlerExecute:
         assert result.wait_until is not None  # Should still wait since voice succeeded
         assert execution.status == "waiting_for_response"
 
-        # Verify popup was attempted
-        mock_notification_dispatcher.connection_manager.broadcast.assert_called_once()
+        # Popup broadcast is attempted; after voice succeeds the handler also
+        # broadcasts enable_microphone. Both calls hit the failing mock but
+        # are caught and logged.
+        assert mock_notification_dispatcher.connection_manager.broadcast.call_count == 2
+        broadcast_types = [
+            call.args[0]["type"]
+            for call in mock_notification_dispatcher.connection_manager.broadcast.call_args_list
+        ]
+        assert broadcast_types == ["interactive_prompt", "enable_microphone"]
 
         # Verify voice was sent successfully
         mock_notification_dispatcher.connection_manager.send_backend_task.assert_called_once()

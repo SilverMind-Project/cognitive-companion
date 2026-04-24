@@ -13,6 +13,7 @@ const NOTIFICATION_TYPES = new Set([
 
 const INTERACTIVE_PROMPT_TYPE = "interactive_prompt";
 const INTERACTIVE_RESPONSE_TYPE = "interactive_response";
+const ENABLE_MICROPHONE_TYPE = "enable_microphone";
 
 export class WebSocketClient {
   constructor(url) {
@@ -36,6 +37,7 @@ export class WebSocketClient {
       onAnnouncement: [],
       onInteractivePrompt: [],
       onInteractiveResponse: [],
+      onEnableMicrophone: [],
     };
   }
 
@@ -102,6 +104,8 @@ export class WebSocketClient {
           this._notify("onInteractivePrompt", data);
         } else if (data.type === INTERACTIVE_RESPONSE_TYPE) {
           this._notify("onInteractiveResponse", data);
+        } else if (data.type === ENABLE_MICROPHONE_TYPE) {
+          this._notify("onEnableMicrophone", data);
         } else if (NOTIFICATION_TYPES.has(data.type)) {
           this._notify("onCommand", data);
         } else {

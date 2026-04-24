@@ -8,11 +8,11 @@
     <div class="interactive-prompt-card">
       <!-- Icon -->
       <div class="prompt-icon-wrap">
-        <v-icon :size="96" color="#93c5fd">mdi-message-question</v-icon>
+        <v-icon :size="96" color="#93c5fd">{{ icon }}</v-icon>
       </div>
 
       <!-- Title -->
-      <h2 class="prompt-title">Question for You</h2>
+      <h2 class="prompt-title">{{ title }}</h2>
 
       <!-- Message -->
       <p class="prompt-message">{{ message }}</p>
@@ -50,6 +50,8 @@ import { ref, computed, watch, onUnmounted } from "vue";
 const props = defineProps({
   visible: { type: Boolean, default: false },
   message: { type: String, default: "" },
+  title: { type: String, default: "Question for You" },
+  icon: { type: String, default: "mdi-message-question" },
   escalateButtonText: { type: String, default: "I need help" },
   dismissButtonText: { type: String, default: "I'm okay" },
   countdownSeconds: { type: Number, default: 30 },

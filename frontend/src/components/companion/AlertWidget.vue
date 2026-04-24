@@ -1,14 +1,14 @@
 <template>
   <v-dialog
     :model-value="visible"
-    :max-width="alertType === 'emergency' ? 560 : 500"
+    max-width="60vw"
     persistent
     no-click-animation
   >
     <div class="alert-card" :class="`alert-card--${alertType}`">
       <!-- Icon -->
       <div class="alert-icon-wrap" :class="`icon-wrap--${alertType}`">
-        <v-icon :size="64" :color="iconColor">{{ alertIcon }}</v-icon>
+        <v-icon :size="96" :color="iconColor">{{ alertIcon }}</v-icon>
       </div>
 
       <!-- Title -->
@@ -61,14 +61,16 @@ const iconColor   = computed(() => config.value.iconColor);
 <style scoped>
 /* ── Card ───────────────────────────────────────────────────────────────── */
 .alert-card {
-  border-radius: 28px;
-  padding: 40px 36px 32px;
+  border-radius: 32px;
+  padding: 60px 48px 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 16px;
+  gap: 24px;
   backdrop-filter: blur(24px);
+  min-height: 50vh;
+  justify-content: center;
 }
 
 .alert-card--emergency {
@@ -97,13 +99,13 @@ const iconColor   = computed(() => config.value.iconColor);
 
 /* ── Icon ───────────────────────────────────────────────────────────────── */
 .alert-icon-wrap {
-  width: 100px;
-  height: 100px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .icon-wrap--emergency { background: rgba(239, 68,  68,  0.15); }
@@ -113,7 +115,7 @@ const iconColor   = computed(() => config.value.iconColor);
 
 /* ── Title ──────────────────────────────────────────────────────────────── */
 .alert-title {
-  font-size: 1.75rem;
+  font-size: 2.5rem;
   font-weight: 700;
   line-height: 1.2;
   margin: 0;
@@ -126,19 +128,20 @@ const iconColor   = computed(() => config.value.iconColor);
 
 /* ── Message ────────────────────────────────────────────────────────────── */
 .alert-message {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   line-height: 1.6;
   color: rgba(255, 255, 255, 0.88);
   margin: 0;
-  max-width: 420px;
+  max-width: 90%;
 }
 
 /* ── Actions ────────────────────────────────────────────────────────────── */
 .alert-actions {
   display: flex;
-  gap: 14px;
+  gap: 20px;
   width: 100%;
-  margin-top: 8px;
+  max-width: 600px;
+  margin-top: 16px;
 }
 
 .alert-actions--one  { justify-content: center; }
@@ -146,10 +149,10 @@ const iconColor   = computed(() => config.value.iconColor);
 
 .action-btn {
   flex: 1;
-  height: 60px;
+  height: 70px;
   border: none;
-  border-radius: 16px;
-  font-size: 1.15rem;
+  border-radius: 18px;
+  font-size: 1.3rem;
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.2s, transform 0.15s;
@@ -164,7 +167,7 @@ const iconColor   = computed(() => config.value.iconColor);
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.90);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  max-width: 260px;
+  max-width: 320px;
 }
 
 .action-btn--dismiss:hover {

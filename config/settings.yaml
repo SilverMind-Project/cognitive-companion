@@ -151,6 +151,7 @@ mcp:
     - "get_local_datetime"
     - "get_person_activities"
     - "get_enrolled_persons"
+    - "submit_user_response"
 
 # Person Identification Service
 person_id:

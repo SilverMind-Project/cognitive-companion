@@ -242,6 +242,16 @@ async def lifespan(app: FastAPI):
     daily_report_service = DailyReportService(get_session)
     app.state.daily_report_service = daily_report_service
 
+    # -- Interactive response service --------------------------------------
+    from backend.services.interactive_response import InteractiveResponseService
+
+    # Note: scheduler will be injected after it's created below
+    interactive_response_service = InteractiveResponseService(
+        db_factory=get_session,
+        scheduler=None,  # Injected later
+    )
+    app.state.interactive_response_service = interactive_response_service
+
     # -- Pipeline executor -------------------------------------------------
     from backend.services.pipeline_executor import PipelineExecutor
 
@@ -257,6 +267,7 @@ async def lifespan(app: FastAPI):
         activity_session_service=activity_session_service,
         daily_report_service=daily_report_service,
         object_trend_client=object_trend_client,
+        interactive_response_service=interactive_response_service,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor
@@ -311,6 +322,7 @@ async def lifespan(app: FastAPI):
         activity_timeline=activity_timeline_service,
         activity_session=activity_session_service,
         daily_report=daily_report_service,
+        interactive_response=interactive_response_service,
     )
 
     # Build the Gemini tool adapter for voice tool calling
@@ -329,6 +341,9 @@ async def lifespan(app: FastAPI):
     # Inject scheduler bridge into pipeline executor for wait/resume
     scheduler_bridge = SchedulerBridge(scheduler)
     pipeline_executor._scheduler = scheduler_bridge
+
+    # Inject scheduler bridge into interactive response service
+    interactive_response_service.scheduler = scheduler_bridge
 
     # Add HA sensor polling job
     from apscheduler.triggers.interval import IntervalTrigger
@@ -471,6 +486,7 @@ def create_app() -> FastAPI:
         events,
         ha_sync,
         image,
+        interactive_responses,
         media,
         occupancy,
         persons,
@@ -491,6 +507,7 @@ def create_app() -> FastAPI:
     app.include_router(events.router, prefix=api)
     app.include_router(device.router, prefix=api)
     app.include_router(image.router, prefix=api)
+    app.include_router(interactive_responses.router, prefix=api)
     app.include_router(media.router, prefix=api)
     app.include_router(admin.router, prefix=api)
     app.include_router(occupancy.router, prefix=api)

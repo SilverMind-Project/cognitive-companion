@@ -59,6 +59,7 @@ class PipelineExecutor:
         activity_session_service=None,
         daily_report_service=None,
         object_trend_client=None,
+        interactive_response_service=None,
     ) -> None:
         self._services = ServiceContainer(
             db_factory=db_session_factory,
@@ -74,6 +75,7 @@ class PipelineExecutor:
             activity_session_service=activity_session_service,
             daily_report_service=daily_report_service,
             object_trend_client=object_trend_client,
+            interactive_response_service=interactive_response_service,
         )
 
     # Expose scheduler for injection after construction

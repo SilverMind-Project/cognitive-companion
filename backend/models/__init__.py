@@ -7,6 +7,7 @@ from backend.models.cts_signal import DementiaSignal
 from backend.models.event import EventLog
 from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
+from backend.models.interactive_response import InteractiveResponse
 from backend.models.media_cache import MediaCache
 from backend.models.person import (
     ActivitySession,
@@ -36,6 +37,7 @@ __all__ = [
     "EventLog",
     "HouseholdMember",
     "ImageTemplate",
+    "InteractiveResponse",
     "MediaCache",
     "PersonActivity",
     "PersonLocationHistory",

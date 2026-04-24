@@ -119,6 +119,12 @@ export const api = {
   alertAction: (id, action) =>
     request(`/alerts/${id}/action`, { method: "POST", body: JSON.stringify(action) }),
 
+  // Interactive Responses
+  getInteractiveResponses: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/interactive-responses${qs ? "?" + qs : ""}`);
+  },
+
   // Events
   getEvents: (params = {}) => {
     const qs = new URLSearchParams(params).toString();

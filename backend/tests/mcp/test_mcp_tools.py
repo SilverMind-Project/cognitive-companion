@@ -21,6 +21,7 @@ def svc():
     _svc.activity_timeline = None
     _svc.activity_session = None
     _svc.daily_report = None
+    _svc.interactive_response = None
 
 
 class TestGetPersonTimeline:
@@ -183,3 +184,204 @@ class TestGetOpenSessions:
 
         result = await get_open_sessions()
         assert result == [{"error": "Activity session service not available"}]
+
+
+class TestSubmitUserResponse:
+    """Tests for submit_user_response MCP tool."""
+
+    @pytest.mark.asyncio
+    async def test_valid_call_with_needs_help_true(self, svc):
+        """Should map needs_help=True to action='escalate' and record response."""
+        from unittest.mock import AsyncMock
+
+        from backend.models.interactive_response import InteractiveResponse
+
+        mock_service = MagicMock()
+        mock_response = InteractiveResponse(
+            id=1,
+            execution_id=123,
+            step_id=456,
+            channel="pwa_realtime_ai",
+            action="escalate",
+            timestamp=datetime.now(UTC),
+            raw_response_json={"needs_help": True, "user_statement": "I fell down"},
+        )
+        mock_service.record_response = AsyncMock(return_value=mock_response)
+        svc.interactive_response = mock_service
+
+        from backend.mcp.server import submit_user_response
+
+        result = await submit_user_response(
+            execution_id=123,
+            step_id=456,
+            needs_help=True,
+            user_statement="I fell down",
+        )
+
+        assert result["success"] is True
+        assert result["action"] == "escalate"
+        mock_service.record_response.assert_called_once()
+        call_kwargs = mock_service.record_response.call_args.kwargs
+        assert call_kwargs["execution_id"] == 123
+        assert call_kwargs["step_id"] == 456
+        assert call_kwargs["channel"] == "pwa_realtime_ai"
+        assert call_kwargs["action"] == "escalate"
+        assert call_kwargs["raw_response"]["needs_help"] is True
+        assert call_kwargs["raw_response"]["user_statement"] == "I fell down"
+
+    @pytest.mark.asyncio
+    async def test_valid_call_with_needs_help_false(self, svc):
+        """Should map needs_help=False to action='dismiss' and record response."""
+        from unittest.mock import AsyncMock
+
+        from backend.models.interactive_response import InteractiveResponse
+
+        mock_service = MagicMock()
+        mock_response = InteractiveResponse(
+            id=2,
+            execution_id=123,
+            step_id=456,
+            channel="pwa_realtime_ai",
+            action="dismiss",
+            timestamp=datetime.now(UTC),
+            raw_response_json={"needs_help": False},
+        )
+        mock_service.record_response = AsyncMock(return_value=mock_response)
+        svc.interactive_response = mock_service
+
+        from backend.mcp.server import submit_user_response
+
+        result = await submit_user_response(
+            execution_id=123,
+            step_id=456,
+            needs_help=False,
+        )
+
+        assert result["success"] is True
+        assert result["action"] == "dismiss"
+        mock_service.record_response.assert_called_once()
+        call_kwargs = mock_service.record_response.call_args.kwargs
+        assert call_kwargs["action"] == "dismiss"
+        assert call_kwargs["raw_response"]["needs_help"] is False
+        assert "user_statement" not in call_kwargs["raw_response"]
+
+    @pytest.mark.asyncio
+    async def test_with_user_statement_provided(self, svc):
+        """Should store user_statement in raw_response when provided."""
+        from unittest.mock import AsyncMock
+
+        from backend.models.interactive_response import InteractiveResponse
+
+        mock_service = MagicMock()
+        mock_response = InteractiveResponse(
+            id=3,
+            execution_id=123,
+            step_id=456,
+            channel="pwa_realtime_ai",
+            action="escalate",
+            timestamp=datetime.now(UTC),
+            raw_response_json={"needs_help": True, "user_statement": "Help me please"},
+        )
+        mock_service.record_response = AsyncMock(return_value=mock_response)
+        svc.interactive_response = mock_service
+
+        from backend.mcp.server import submit_user_response
+
+        result = await submit_user_response(
+            execution_id=123,
+            step_id=456,
+            needs_help=True,
+            user_statement="Help me please",
+        )
+
+        assert result["success"] is True
+        call_kwargs = mock_service.record_response.call_args.kwargs
+        assert call_kwargs["raw_response"]["user_statement"] == "Help me please"
+
+    @pytest.mark.asyncio
+    async def test_missing_execution_id(self, svc):
+        """Should return error when execution_id is invalid."""
+        svc.interactive_response = MagicMock()
+
+        from backend.mcp.server import submit_user_response
+
+        result = await submit_user_response(
+            execution_id=0,  # Invalid
+            step_id=456,
+            needs_help=True,
+        )
+
+        assert "error" in result
+        assert "execution_id" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_missing_step_id(self, svc):
+        """Should return error when step_id is invalid."""
+        svc.interactive_response = MagicMock()
+
+        from backend.mcp.server import submit_user_response
+
+        result = await submit_user_response(
+            execution_id=123,
+            step_id=-1,  # Invalid
+            needs_help=True,
+        )
+
+        assert "error" in result
+        assert "step_id" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_service_unavailable(self, svc):
+        """Should return error when interactive_response service is not available."""
+        svc.interactive_response = None
+
+        from backend.mcp.server import submit_user_response
+
+        result = await submit_user_response(
+            execution_id=123,
+            step_id=456,
+            needs_help=True,
+        )
+
+        assert "error" in result
+        assert "not available" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_service_error_handling(self, svc):
+        """Should catch and return error when service raises exception."""
+        from unittest.mock import AsyncMock
+
+        mock_service = MagicMock()
+        mock_service.record_response = AsyncMock(side_effect=ValueError("Invalid data"))
+        svc.interactive_response = mock_service
+
+        from backend.mcp.server import submit_user_response
+
+        result = await submit_user_response(
+            execution_id=123,
+            step_id=456,
+            needs_help=True,
+        )
+
+        assert "error" in result
+        assert "Validation error" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_duplicate_response_handling(self, svc):
+        """Should return success for duplicate responses (idempotent)."""
+        from unittest.mock import AsyncMock
+
+        mock_service = MagicMock()
+        mock_service.record_response = AsyncMock(return_value=None)  # Indicates duplicate
+        svc.interactive_response = mock_service
+
+        from backend.mcp.server import submit_user_response
+
+        result = await submit_user_response(
+            execution_id=123,
+            step_id=456,
+            needs_help=True,
+        )
+
+        assert result["success"] is True
+        assert "duplicate" in result["message"].lower()

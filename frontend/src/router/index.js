@@ -52,6 +52,11 @@ const routes = [
         component: () => import("../views/admin/AlertsView.vue"),
       },
       {
+        path: "interactive-responses",
+        name: "admin-interactive-responses",
+        component: () => import("../views/admin/InteractiveResponsesView.vue"),
+      },
+      {
         path: "persons",
         name: "admin-persons",
         component: () => import("../views/admin/PersonsView.vue"),

@@ -39,6 +39,7 @@ class MCPServices:
     activity_timeline: Any = None
     activity_session: Any = None
     daily_report: Any = None
+    interactive_response: Any = None
 
 
 _svc = MCPServices()
@@ -53,6 +54,7 @@ def init_services(
     activity_timeline=None,
     activity_session=None,
     daily_report=None,
+    interactive_response=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -63,6 +65,7 @@ def init_services(
     _svc.activity_timeline = activity_timeline
     _svc.activity_session = activity_session
     _svc.daily_report = daily_report
+    _svc.interactive_response = interactive_response
 
 
 # ---------------------------------------------------------------------------
@@ -585,3 +588,91 @@ async def get_open_sessions(
         return [{"error": "Activity session service not available"}]
 
     return _svc.activity_session.get_open_sessions(person_id=person_id)
+
+
+# ---------------------------------------------------------------------------
+# Interactive Response tool
+# ---------------------------------------------------------------------------
+
+
+@_register
+async def submit_user_response(
+    execution_id: int,
+    step_id: int,
+    needs_help: bool,
+    user_statement: str | None = None,
+) -> dict:
+    """Submit the user's response to the system's question about whether they need help.
+
+    Args:
+        execution_id: The workflow execution ID.
+        step_id: The pipeline step ID.
+        needs_help: True if user needs help, False if user is okay.
+        user_statement: The user's exact words (optional).
+
+    Returns:
+        Success confirmation or error dict.
+    """
+    # Validate required parameters
+    if not isinstance(execution_id, int) or execution_id <= 0:
+        return {"error": "execution_id must be a positive integer"}
+    if not isinstance(step_id, int) or step_id <= 0:
+        return {"error": "step_id must be a positive integer"}
+    if not isinstance(needs_help, bool):
+        return {"error": "needs_help must be a boolean"}
+
+    # Map needs_help to action
+    action = "escalate" if needs_help else "dismiss"
+
+    # Build raw_response_json for audit
+    raw_response = {
+        "needs_help": needs_help,
+    }
+    if user_statement:
+        raw_response["user_statement"] = user_statement
+
+    # Get InteractiveResponseService from service container
+    interactive_response_service = getattr(_svc, "interactive_response", None)
+    if not interactive_response_service:
+        return {"error": "Interactive response service not available"}
+
+    # Record the response
+    try:
+        response = await interactive_response_service.record_response(
+            execution_id=execution_id,
+            step_id=step_id,
+            channel="pwa_realtime_ai",
+            action=action,
+            timestamp=datetime.now(UTC),
+            raw_response=raw_response,
+        )
+
+        if response is None:
+            # Duplicate response (already recorded)
+            return {
+                "success": True,
+                "message": "Response already recorded (duplicate ignored)",
+            }
+
+        return {
+            "success": True,
+            "message": f"Response recorded: {action}",
+            "action": action,
+        }
+
+    except ValueError as e:
+        logger.error(
+            "submit_user_response_validation_error",
+            execution_id=execution_id,
+            step_id=step_id,
+            error=str(e),
+        )
+        return {"error": f"Validation error: {e}"}
+    except Exception as e:
+        logger.error(
+            "submit_user_response_error",
+            execution_id=execution_id,
+            step_id=step_id,
+            error=str(e),
+        )
+        return {"error": f"Failed to record response: {e}"}

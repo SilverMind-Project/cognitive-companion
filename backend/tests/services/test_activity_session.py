@@ -505,20 +505,25 @@ class TestActivitySessionQueryHelpers:
     def test_get_sessions_for_day_multiple_people(self, db_factory):
         """Should correctly filter sessions by person."""
         service = ActivitySessionService(db_factory)
+
+        # Use a fixed time to avoid midnight boundary issues
         now = datetime.now(UTC)
+        test_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if test_time > now:
+            test_time = test_time - timedelta(days=1)
 
         service.open_session(
             person_id="person123",
             activity_type="sleep",
             room_name="bedroom",
             confidence=0.95,
-            started_at=now - timedelta(hours=5),
+            started_at=test_time - timedelta(hours=5),
             start_event_id=None,
         )
         service.close_session(
             person_id="person123",
             activity_type="sleep",
-            ended_at=now - timedelta(hours=3),
+            ended_at=test_time - timedelta(hours=3),
             end_event_id=None,
             closed_via="explicit",
         )
@@ -528,18 +533,18 @@ class TestActivitySessionQueryHelpers:
             activity_type="sleep",
             room_name="bedroom",
             confidence=0.90,
-            started_at=now - timedelta(hours=4),
+            started_at=test_time - timedelta(hours=4),
             start_event_id=None,
         )
         service.close_session(
             person_id="person456",
             activity_type="sleep",
-            ended_at=now - timedelta(hours=2),
+            ended_at=test_time - timedelta(hours=2),
             end_event_id=None,
             closed_via="explicit",
         )
 
-        today_str = now.date().isoformat()
+        today_str = test_time.date().isoformat()
         sessions = service.get_sessions_for_day("person123", today_str)
 
         assert len(sessions) == 1

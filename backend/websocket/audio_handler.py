@@ -134,6 +134,8 @@ class AudioSessionHandler:
                             if context:
                                 text = f"[Context: {context}]\n{text}"
                         await self._client_to_backend.put(("text", text))
+                    elif msg_type == "interactive_response":
+                        await self._handle_interactive_response(data)
         except WebSocketDisconnect:
             logger.info("ws_client_disconnected_in_reader")
         except Exception as exc:
@@ -451,3 +453,110 @@ class AudioSessionHandler:
         """Keep the WebSocket alive for push notifications when no AI backend."""
         await self.ws.send_json({"type": "error", "message": "Backend AI not configured."})
         await self._client_disconnected.wait()
+
+    async def _handle_interactive_response(self, data: dict) -> None:
+        """Handle interactive_response WebSocket message.
+
+        Validates the payload, records the response via InteractiveResponseService,
+        and sends acknowledgment back to the client.
+
+        Args:
+            data: Raw message data from WebSocket
+        """
+
+        from pydantic import ValidationError
+
+        from backend.schemas.interactive_response import InteractiveResponseMessage
+
+        try:
+            # Validate payload using Pydantic schema
+            message = InteractiveResponseMessage(**data)
+
+            # Validate action field
+            if message.action not in ("escalate", "dismiss"):
+                raise ValueError(f"Invalid action: {message.action}")
+
+            # Get InteractiveResponseService from app state
+            interactive_service = getattr(self.ws.app.state, "interactive_response_service", None)
+
+            if interactive_service is None:
+                logger.error("interactive_response_service_not_configured")
+                await self.ws.send_json({
+                    "type": "error",
+                    "message": "Interactive response service not configured",
+                })
+                return
+
+            # Record the response
+            response = await interactive_service.record_response(
+                execution_id=message.execution_id,
+                step_id=message.step_id,
+                channel="pwa_popup_text",
+                action=message.action,
+                timestamp=message.timestamp,
+                raw_response={"button_id": message.action},
+            )
+
+            # Send acknowledgment to client
+            if response is not None:
+                await self.ws.send_json({
+                    "type": "interactive_response_ack",
+                    "execution_id": message.execution_id,
+                    "step_id": message.step_id,
+                    "status": "success",
+                })
+                logger.info(
+                    "interactive_response_handled",
+                    execution_id=message.execution_id,
+                    step_id=message.step_id,
+                    action=message.action,
+                )
+            else:
+                # Duplicate response - still send success ack (idempotent)
+                await self.ws.send_json({
+                    "type": "interactive_response_ack",
+                    "execution_id": message.execution_id,
+                    "step_id": message.step_id,
+                    "status": "duplicate",
+                })
+                logger.info(
+                    "interactive_response_duplicate_ack",
+                    execution_id=message.execution_id,
+                    step_id=message.step_id,
+                )
+
+        except ValidationError as e:
+            # Validation error - log and send error response
+            logger.error(
+                "interactive_response_validation_error",
+                error=str(e),
+                data=data,
+            )
+            await self.ws.send_json({
+                "type": "error",
+                "message": f"Invalid interactive_response payload: {e}",
+            })
+
+        except ValueError as e:
+            # Invalid action or other value error
+            logger.error(
+                "interactive_response_value_error",
+                error=str(e),
+                data=data,
+            )
+            await self.ws.send_json({
+                "type": "error",
+                "message": str(e),
+            })
+
+        except Exception as e:
+            # Unexpected error - log and send error response
+            logger.error(
+                "interactive_response_handler_error",
+                error=str(e),
+                data=data,
+            )
+            await self.ws.send_json({
+                "type": "error",
+                "message": "Failed to process interactive response",
+            })

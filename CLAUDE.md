@@ -259,7 +259,7 @@ Frontend timezone: fetched at startup from `GET /api/v1/admin/app-info`, stored 
 
 ## Pipeline step types (current)
 
-Registered step types (13 total, each with its own file in `backend/steps/builtin/`):
+Registered step types (14 total, each with its own file in `backend/steps/builtin/`):
 
 | Type | File | Category |
 |------|------|----------|
@@ -276,6 +276,7 @@ Registered step types (13 total, each with its own file in `backend/steps/builti
 | `verification` | `verification.py` | reasoning |
 | `condition` | `condition.py` | flow |
 | `wait` | `wait.py` | flow |
+| `interactive_prompt` | `interactive_prompt.py` | flow |
 
 Note: `logic_reasoning`, `translation`, and `vision_analysis` step types were removed; use `llm_call` with the appropriate `output_key` instead.
 

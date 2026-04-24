@@ -29,10 +29,12 @@
 
         <v-list-subheader class="mt-2">Tracking (CTS)</v-list-subheader>
         <v-list-item rounded="lg" prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/cts/dashboard" />
+        <v-list-item rounded="lg" prepend-icon="mdi-video-outline" title="Live View" to="/admin/cts/live" />
         <v-list-item rounded="lg" prepend-icon="mdi-cctv" title="Cameras" to="/admin/cts/cameras" />
         <v-list-item rounded="lg" prepend-icon="mdi-crosshairs-gps" title="Calibration" to="/admin/cts/calibration" />
         <v-list-item rounded="lg" prepend-icon="mdi-eye-off-outline" title="Privacy Zones" to="/admin/cts/privacy" />
         <v-list-item rounded="lg" prepend-icon="mdi-graph-outline" title="Camera Adjacency" to="/admin/cts/adjacency" />
+        <v-list-item rounded="lg" prepend-icon="mdi-account-edit-outline" title="Identity Corrections" to="/admin/cts/identity-corrections" />
         <v-list-item rounded="lg" prepend-icon="mdi-alert-circle-outline" title="Signals" to="/admin/cts/signals" />
         <v-list-item rounded="lg" prepend-icon="mdi-image-search-outline" title="Keyframes" to="/admin/cts/keyframes" />
 

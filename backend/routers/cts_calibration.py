@@ -167,7 +167,7 @@ async def post_homography(
         ) from None
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"code": "cts.calibration.invalid_points", "message": str(exc)},
         ) from exc
 
@@ -321,7 +321,7 @@ async def post_adjacency(
     for edge in body.edges:
         if edge.max_transit_s < edge.min_transit_s:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={
                     "code": "cts.calibration.invalid_transit",
                     "message": (

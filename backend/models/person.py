@@ -144,6 +144,14 @@ class PersonLocationHistory(Base):
     from_room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
     from_room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    # CTS M9 identity-rewrite lineage.  When set, this row was superseded by
+    # the named revision; ``IdentityRewriter`` uses this to drop the row from
+    # reads without physically deleting it (audit trail is preserved).
+    superseded_by_revision_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    global_track_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+
 
 class PersonActivity(Base):
     """Detected activity for a person (e.g. eating, sleeping, taking medication).

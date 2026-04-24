@@ -294,6 +294,11 @@ class SchedulerBridge:
             self._owner = None
             self._scheduler = scheduler
 
+    @property
+    def apscheduler(self) -> AsyncIOScheduler:
+        """The underlying ``AsyncIOScheduler`` (for ``add_job`` etc.)."""
+        return self._scheduler
+
     def schedule_workflow_resume(self, execution_id: int, resume_at: datetime) -> None:
         if self._owner is not None:
             self._owner.schedule_workflow_resume(execution_id, resume_at)

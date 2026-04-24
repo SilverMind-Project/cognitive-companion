@@ -58,7 +58,7 @@ class PipelineExecutor:
         scene_analysis_client=None,
         activity_session_service=None,
         daily_report_service=None,
-        object_trend_client=None,
+        semantic_memory_client=None,
         interactive_response_service=None,
     ) -> None:
         self._services = ServiceContainer(
@@ -74,7 +74,7 @@ class PipelineExecutor:
             scene_analysis_client=scene_analysis_client,
             activity_session_service=activity_session_service,
             daily_report_service=daily_report_service,
-            object_trend_client=object_trend_client,
+            semantic_memory_client=semantic_memory_client,
             interactive_response_service=interactive_response_service,
         )
 

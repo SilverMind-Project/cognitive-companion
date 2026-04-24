@@ -321,6 +321,21 @@
                   hint="Leave empty to match any room while home"
                   persistent-hint
                 />
+                <v-text-field
+                  v-model.number="ctxForm.config.within_minutes"
+                  label="Lookback (minutes)"
+                  variant="outlined"
+                  type="number"
+                  hint="How far back to check for presence. Default: 15"
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-checkbox
+                  v-model="ctxForm.config.use_semantic_memory"
+                  label="Use semantic memory for corroboration"
+                  hint="Cross-check with the latest movement record from semantic memory."
+                  persistent-hint
+                />
               </template>
 
               <!-- Person activity filter -->
@@ -346,6 +361,91 @@
                   variant="outlined"
                   type="number"
                   hint="Check if activity occurred within this time window"
+                  persistent-hint
+                />
+              </template>
+
+              <!-- Scene Contains filter -->
+              <template v-else-if="ctxForm.context_type === 'scene_contains'">
+                <v-combobox
+                  v-model="ctxForm.config.objects_any"
+                  :items="[]"
+                  label="Objects (any)"
+                  multiple
+                  chips
+                  closable-chips
+                  hint="Filter observations containing any of these objects"
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-combobox
+                  v-model="ctxForm.config.hazard_flags_any"
+                  :items="[]"
+                  label="Hazard Flags (any)"
+                  multiple
+                  chips
+                  closable-chips
+                  hint="Filter observations with any of these hazard flags"
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-text-field
+                  v-model.number="ctxForm.config.within_minutes"
+                  label="Lookback (minutes)"
+                  variant="outlined"
+                  type="number"
+                  hint="How far back to check. Default: 60"
+                  persistent-hint
+                />
+              </template>
+
+              <!-- Person Movement (Memory) filter -->
+              <template v-else-if="ctxForm.context_type === 'person_movement_memory'">
+                <v-autocomplete
+                  v-model="ctxForm.config.person_id"
+                  :items="personIds"
+                  label="Person"
+                  variant="outlined"
+                  clearable
+                  class="mb-3"
+                />
+                <v-select
+                  v-model="ctxForm.config.semantic"
+                  :items="['entering', 'exiting', 'approaching_exit', 'entering_depth', 'stationary', 'any']"
+                  label="Movement Type"
+                  variant="outlined"
+                  hint="Direction semantic to match"
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-autocomplete
+                  v-model="ctxForm.config.to_room_id"
+                  :items="roomNames"
+                  label="To Room (optional)"
+                  variant="outlined"
+                  clearable
+                  hint="Filter by destination room"
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-text-field
+                  v-model.number="ctxForm.config.within_minutes"
+                  label="Lookback (minutes)"
+                  variant="outlined"
+                  type="number"
+                  hint="How far back to check. Default: 30"
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-text-field
+                  v-model.number="ctxForm.config.min_confidence"
+                  label="Min Confidence"
+                  variant="outlined"
+                  type="number"
+                  :min="0"
+                  :max="1"
+                  :step="0.05"
+                  hint="Minimum confidence score. Default: 0"
                   persistent-hint
                 />
               </template>
@@ -662,6 +762,8 @@ const contextTypeItems = [
   { label: "Day of Week", value: "day_of_week" },
   { label: "Person Presence", value: "person_presence" },
   { label: "Person Activity", value: "person_activity" },
+  { label: "Scene Contains", value: "scene_contains" },
+  { label: "Person Movement (Memory)", value: "person_movement_memory" },
 ];
 
 const dayItems = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -843,6 +945,8 @@ function ctxIcon(type) {
     day_of_week: { icon: "mdi-calendar-week", color: "purple" },
     person_presence: { icon: "mdi-account-check", color: "success" },
     person_activity: { icon: "mdi-run", color: "info" },
+    scene_contains: { icon: "mdi-image-search", color: "teal" },
+    person_movement_memory: { icon: "mdi-map-marker-distance", color: "deep-orange" },
   };
   return map[type] || { icon: "mdi-filter", color: "grey" };
 }
@@ -853,8 +957,17 @@ function ctxSummary(ctx) {
     case "room": return c.room_name || "Any room";
     case "time_range": return `${c.start_time || '?'} - ${c.end_time || '?'}`;
     case "day_of_week": return Array.isArray(c.days) ? c.days.join(", ") : JSON.stringify(c);
-    case "person_presence": return `${c.person_id || 'any person'} is ${c.status || '?'}${c.room_name ? ' in ' + c.room_name : ''}`;
+    case "person_presence":
+      return `${c.person_id || 'any person'} is ${c.status || '?'}${c.room_name ? ' in ' + c.room_name : ''}${c.use_semantic_memory ? ' (semantic)' : ''}`;
     case "person_activity": return `${c.person_id || 'any person'}: ${c.activity_type || '?'}`;
+    case "scene_contains": {
+      const parts = [];
+      if (c.objects_any?.length) parts.push(`objects: ${c.objects_any.join(", ")}`);
+      if (c.hazard_flags_any?.length) parts.push(`hazards: ${c.hazard_flags_any.join(", ")}`);
+      return parts.length ? parts.join(" + ") : "Any scene";
+    }
+    case "person_movement_memory":
+      return `${c.person_id || 'any person'}: ${c.semantic || 'any'}${c.to_room_id ? ' → ' + c.to_room_id : ''}`;
     default: return JSON.stringify(c);
   }
 }
@@ -960,7 +1073,7 @@ async function addContext() {
   try {
     let config;
     const t = ctxForm.value.context_type;
-    if (["room", "time_range", "day_of_week", "person_presence", "person_activity"].includes(t)) {
+    if (["room", "time_range", "day_of_week", "person_presence", "person_activity", "scene_contains", "person_movement_memory"].includes(t)) {
       config = { ...ctxForm.value.config };
     } else {
       config = JSON.parse(ctxConfigStr.value);

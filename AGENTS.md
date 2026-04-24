@@ -27,7 +27,7 @@ backend/
   steps/                   # Step plugin system
     base.py                # StepHandler ABC, StepMetadata, StepResult, TriggerContext, ServiceContainer
     __init__.py            # StepRegistry singleton + auto-discovery
-    builtin/               # 13 built-in step handlers (one file each: llm_call, person_identification, scene_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, verification, condition, wait)
+    builtin/               # 15 built-in step handlers (one file each: llm_call, person_identification, scene_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, verification, condition, wait, semantic_memory_write, semantic_memory_query)
   channels/                # Notification channel plugin system
     base.py                # NotificationChannel ABC, ChannelMetadata
     __init__.py            # ChannelRegistry singleton + auto-discovery
@@ -35,7 +35,7 @@ backend/
   filters/                 # Context filter plugin system
     base.py                # ContextFilter ABC, FilterMetadata
     __init__.py            # FilterRegistry singleton + auto-discovery
-    builtin/               # room, time_range, day_of_week, person_presence, person_activity, room_transition, scene_trend filters
+    builtin/               # room, time_range, day_of_week, person_presence, person_activity, room_transition, scene_trend, scene_contains, person_movement_memory filters
   models/
     __init__.py            # Re-exports all models -- import here to register with Base
     sensor.py              # Sensor (camera, presence, button, light, media_player, eink, generic)
@@ -172,7 +172,7 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 - `StepMetadata` (dataclass) -- step name, description, icon, config JSONSchema.
 - `StepResult` (dataclass) -- step output: success, data dict, should_continue, optional next_step_id or wait_until.
 - `TriggerContext` (dataclass) -- trigger metadata: sensor_id, room_name, media_paths, trigger_type, webhook_payload.
-- `ServiceContainer` (dataclass) -- holds all shared services passed to step handlers: LLM providers, HA client, DB session factory, minio_client, telegram_client, tts_client, ws_manager, notification_dispatcher, person_tracking, person_id_client, scene_analysis_client, llm_model_registry, eink_renderer, event_aggregator, rag_lookup, activity_session_service, activity_timeline_service, daily_report_service, object_trend_client.
+- `ServiceContainer` (dataclass) -- holds all shared services passed to step handlers: LLM providers, HA client, DB session factory, minio_client, telegram_client, tts_client, ws_manager, notification_dispatcher, person_tracking, person_id_client, scene_analysis_client, semantic_memory_client, llm_model_registry, eink_renderer, event_aggregator, rag_lookup, activity_session_service, activity_timeline_service, daily_report_service, object_trend_client.
 
 **Data flow**: Pipeline data accumulates across steps. Each step receives the current `pipeline_data` dict and returns a `StepResult`. The executor merges `result.data` into `pipeline_data` before proceeding to the next step. At initialization, `PipelineExecutor` injects a localized `system` object including `system.local_time`, `system.local_date`, `system.local_day_of_week`, and `system.timezone` ensuring downstream steps (like prompts or notifications) have localized time awareness.
 
@@ -182,7 +182,7 @@ Rules have composable pipeline steps executed in sequence by `PipelineExecutor`.
 
 **Wait steps** persist execution state to the `WorkflowExecution` table (status="waiting", resume_at set). The scheduler resumes execution via an APScheduler `DateTrigger`. A `SchedulerBridge` abstraction is injected into `PipelineExecutor` to decouple wait/resume scheduling.
 
-**Built-in step types**: llm_call, person_identification, scene_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, wait, condition, verification. Each lives in its own file under `backend/steps/builtin/`. (`vision_analysis`, `logic_reasoning`, and `translation` were removed; use `llm_call` with the appropriate `output_key` instead.)
+**Built-in step types**: llm_call, person_identification, scene_analysis, notification, ha_action, activity_detection, activity_session_start, activity_session_end, daily_report, object_trend_analysis, wait, condition, verification, semantic_memory_write, semantic_memory_query. Each lives in its own file under `backend/steps/builtin/`. (`vision_analysis`, `logic_reasoning`, and `translation` were removed; use `llm_call` with the appropriate `output_key` instead.)
 
 Step type details:
 
@@ -193,6 +193,8 @@ Step type details:
 - `daily_report`: Generates end-of-day activity reports via `DailyReportService`. Designed for cron-triggered end-of-day rules. Aggregates sleep, meals, medication, bathroom, door events, exercise, and location data into structured `DailyReport` records with wellness scoring. Config fields: `person_ids` (array, empty = all active members), `report_date_offset_days` (default `0` = today), `generate_summary_text` (boolean, uses LLM for prose summary), `summary_model_id` (default `"gemma4_26b"`), `notify_on_complete` (boolean), `output_key` (default `"daily_reports"`). Writes list of report results with `person_id`, `report_date`, `report_id`, `wellness_score`.
 - `object_trend_analysis`: Queries `semantic-memory-service` for room-level object trend state (clutter scores, persistent/novel objects, anomaly severity) via `ObjectTrendClient`. Designed to precede a `condition` step (branching) or `llm_call` step (LLM-enriched reasoning). Config fields: `room_ids` (array, empty = trigger room), `include_snapshots_hours` (default `0`), `severity_threshold` (enum: "ok"|"info"|"warning"|"critical", default "info"), `output_key` (default `"room_trends"`). Writes `room_trends` (dict), `room_trends_any_warning` (bool), `room_trends_max_severity` (str), `room_trends_summary` (compact text for LLM injection). Graceful degradation: empty results if client is unavailable.
 - `verification`: A database query step. Queries the `PersonActivity` table to verify activities within configured time windows. Each condition has `activity_type` (required), optional `person_id` (template-enabled, empty = any person), optional `room_name` (template-enabled, empty = any room), time window (`within_minutes` or `window_start`/`window_end`), and `min_confidence`. Does not capture images or run LLM calls.
+- `semantic_memory_write`: Persists scene observations and person movements to the semantic-memory-service. Config fields: `write_observation` (boolean, default true), `write_movements` (boolean, default true), `source` (enum: "scene_intel", "llm_vision", "manual", default "scene_intel"), `description_key`, `detections_key`, `embedding_key`, `hazards_key`, `movements_key`. Uses `services.semantic_memory_client`. Output keys: `semantic_memory_observation_id`, `semantic_memory_movement_ids`, `semantic_memory_write_available`.
+- `semantic_memory_query`: Fetches recent scene observations from semantic memory for downstream LLM or condition steps. Config fields: `room_id`, `use_trigger_room` (boolean, default true), `since_minutes` (default 60), `objects_any`, `hazard_flags_any`, `query_text`, `limit` (default 5), `output_key` (default "memory_context"). Uses `services.semantic_memory_client`. Output: `pipeline_data[output_key] = {recent_objects, recent_hazards, observations, summary, observations_count}`.
 - `scene_analysis`: Calls `services.scene_analysis_client.analyze()` on the standalone scene-analysis-service. Returns YOLO11x object detections, Florence-2-large structured description, CLIP ViT-L/14 embedding, and YAML-configured hazard alerts. Config fields: `run_detect`, `run_describe`, `run_embed`, `run_hazards` (bool flags), `max_images` (int, default 1). Output keys: `scene_detections`, `scene_description`, `scene_embedding`, `scene_hazards`, `scene_detector_available`, `scene_describer_available`, `scene_embedder_available`. Always continues the pipeline; returns empty results when the client is not configured.
 - `logic_reasoning` (removed): Was a prompt-to-LLM step. Use `llm_call` with `output_key: "logic_response"` instead.
 - `translation` (removed): Was a text translation step. Use `llm_call` with `output_key: "translation"` instead.
@@ -231,6 +233,10 @@ A continuous `prompt-bridge` task (started in `_run_backend_loop`) transfers orc
 Context filters are plugins in `backend/filters/builtin/`. Each filter inherits `ContextFilter` from `backend/filters/base.py` and is registered via `@FilterRegistry.register`. The `RulesEngine._matches_context()` method delegates to `FilterRegistry.get(context_type).evaluate()`.
 
 **`room_transition` filter** (`backend/filters/builtin/room_transition.py`): Queries `PersonLocationHistory` for entries matching `person_id`, `direction_semantic`, and optional `to_room_name` / `from_room_name` (case-insensitive) within a configurable `within_minutes` window (default 5). Used with the camera topology system: door cameras record transitions to `PersonLocationHistory` via `infer_room_transition()` in `backend/services/camera_topology.py`.
+
+**`scene_contains` filter** (`backend/filters/builtin/scene_contains.py`): Gates rules on "object or hazard has been observed in this room within the last N minutes" using the semantic-memory-service. Config: `room_id` (required), `objects_any` (list of labels), `hazard_flags_any` (list of flags), `within_minutes` (default 30), `min_observation_count` (default 1). OR semantics between objects and hazards paths. Requires `services.semantic_memory_client`.
+
+**`person_movement_memory` filter** (`backend/filters/builtin/person_movement_memory.py`): Gates rules on movement transitions stored in semantic memory (camera-topology-derived), independent of local `PersonLocationHistory`. Config: `person_id` (required), `semantic` (enum: entering, exiting, approaching_exit, entering_depth, stationary, any), `to_room_id` (optional), `within_minutes` (default 30), `min_confidence` (default 0.0). Requires `services.semantic_memory_client`.
 
 **Negation:** Each `RuleContext` has a `negate` boolean column. When `True`, the filter result is inverted  -  e.g., a room filter with `negate=True` means "NOT in this room". Within a context_type group, contexts are ORed; across groups, they are ANDed. Negation applies per-context before the OR grouping.
 
@@ -472,7 +478,7 @@ class YourStepHandler(StepHandler):
 
 1. **That's it.** The step appears automatically in the frontend StepPalette (loaded via `GET /pipeline/step-types`) and gets a generic JSON config editor in StepConfigDialog. For a custom config form, add a `<template v-if>` block in `StepConfigDialog.vue`.
 
-Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata  -  `trigger_type` (`"sensor_event"`, `"cron"`, `"manual"`, `"webhook"`, `"occupancy_duration"`), `sensor_id`, `room_name`, `media_paths`, `webhook_payload`, and `occupancy_duration_minutes` (set for `occupancy_duration` triggers). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, minio_client, telegram_client, tts_client, ws_manager, notification_dispatcher, person_tracking, person_id_client, scene_analysis_client, llm_model_registry, eink_renderer, event_aggregator, rag_lookup, activity_session_service, activity_timeline_service, daily_report_service, object_trend_client.
+Key types (all in `backend/steps/base.py`): `TriggerContext` carries trigger metadata  -  `trigger_type` (`"sensor_event"`, `"cron"`, `"manual"`, `"webhook"`, `"occupancy_duration"`), `sensor_id`, `room_name`, `media_paths`, `webhook_payload`, and `occupancy_duration_minutes` (set for `occupancy_duration` triggers). `StepResult` fields: `success`, `data` (merged into pipeline_data), `should_continue`, `next_step_id` (for branching), `wait_until` (for delayed resume). `ServiceContainer` holds LLM providers, HA client, DB session factory, minio_client, telegram_client, tts_client, ws_manager, notification_dispatcher, person_tracking, person_id_client, scene_analysis_client, semantic_memory_client, llm_model_registry, eink_renderer, event_aggregator, rag_lookup, activity_session_service, activity_timeline_service, daily_report_service, object_trend_client.
 
 ### Adding a New Context Filter Type
 
@@ -724,6 +730,7 @@ mock external dependencies (ffmpeg, channel registry) via `monkeypatch`.
 | MinIO | `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | Media object storage |
 | Person ID Service | `PERSON_ID_SERVICE_URL` | Face recognition + motion detection |
 | Scene Analysis Service | `scene_analysis.base_url` in settings.yaml | YOLO11x detection, Florence-2 description, CLIP embeddings (optional) |
+| Semantic Memory Service | `SEMANTIC_MEMORY_URL` in settings.yaml | Scene observations, movement transitions, object presence, room trends |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CAREGIVER_CHAT_ID` | Alert notifications |
 | TTS | `TTS_API_URL` | Text-to-speech announcements |
 
@@ -741,6 +748,7 @@ mock external dependencies (ffmpeg, channel registry) via `monkeypatch`.
 - **Use lazy imports for required dependencies** -- all imports at top of file (PEP 8). Exception: optional deps (e.g. `google-genai`) may use guarded lazy imports with a comment explaining why
 - **Use `alert()` or `confirm()` in Vue views** -- use the `useNotify` and `useConfirm` composables from `frontend/src/composables/`
 - **Swallow errors silently** -- bare `catch {}` blocks must log via `console.error` (frontend) or `logger.error` (backend)
+- **Import `ObjectTrendClient` or `backend.integrations.object_trend_client`** -- that module was deleted as part of the semantic memory integration. Use `SemanticMemoryClient` from `backend.integrations.semantic_memory_client` instead.
 
 ## Timezone Conventions
 

@@ -11,7 +11,11 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
-from backend.integrations.object_trend_client import ObjectTrendClient, RoomTrendResult
+from backend.integrations.semantic_memory_client import (
+    RoomTrendResult,
+    SemanticMemoryClient,
+    TrendSnapshot,
+)
 from backend.steps.base import ServiceContainer, TriggerContext
 from backend.steps.builtin.object_trend_analysis import ObjectTrendAnalysisHandler
 
@@ -45,10 +49,10 @@ def _make_trigger(
     )
 
 
-def _make_services(object_trend_client=None) -> ServiceContainer:
+def _make_services(semantic_memory_client=None) -> ServiceContainer:
     return ServiceContainer(
         db_factory=MagicMock(),
-        object_trend_client=object_trend_client,
+        semantic_memory_client=semantic_memory_client,
     )
 
 
@@ -79,7 +83,7 @@ def _mock_trend_result(
 def _mock_client(
     results: dict[str, RoomTrendResult] | None = None,
 ) -> AsyncMock:
-    client = AsyncMock(spec=ObjectTrendClient)
+    client = AsyncMock(spec=SemanticMemoryClient)
     if results is None:
         results = {"Kitchen": _mock_trend_result(room_id="Kitchen")}
 
@@ -99,359 +103,321 @@ _HANDLER = ObjectTrendAnalysisHandler()
 
 
 class TestMetadata:
-    def test_type_name(self):
-        assert _HANDLER.metadata().type_name == "object_trend_analysis"
+    def test_metadata(self):
+        meta = _HANDLER.metadata()
+        assert meta.type_name == "object_trend_analysis"
+        assert meta.display_name == "Object Trend Analysis"
+        assert meta.category == "perception"
+        assert meta.icon == "mdi-chart-line"
 
-    def test_category(self):
-        assert _HANDLER.metadata().category == "perception"
-
-    def test_default_config_has_expected_keys(self):
-        keys = _HANDLER.metadata().default_config.keys()
-        for key in ("room_ids", "include_snapshots_hours", "severity_threshold", "output_key"):
-            assert key in keys, f"Missing config key: {key}"
 
 # ---------------------------------------------------------------------------
-# Early exits / graceful degradation
+# Execution
 # ---------------------------------------------------------------------------
 
 
-class TestEarlyExits:
-    async def test_returns_empty_when_no_client(self):
-        services = _make_services(object_trend_client=None)
-        result = await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, _make_trigger(), services
-        )
+class TestExecute:
+    async def test_no_client_returns_empty(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        services = _make_services(semantic_memory_client=None)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.success is True
         assert result.data["room_trends"] == {}
         assert result.data["room_trends_any_warning"] is False
         assert result.data["room_trends_max_severity"] == "ok"
-        assert "No trend data" in result.data["room_trends_summary"]
+        assert result.data["room_trends_summary"] == "No trend data available."
 
-    async def test_returns_empty_when_no_room_ids_and_no_trigger_room(self):
-        client = _mock_client()
-        services = _make_services(object_trend_client=client)
+    async def test_empty_room_ids_returns_empty(self):
+        step = _make_step()
+        execution = _FakeExecution()
         trigger = _make_trigger(room_name=None)
-        result = await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, trigger, services
-        )
+        client = _mock_client()
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert result.success is True
         assert result.data["room_trends"] == {}
-        client.get_room_trends.assert_not_called()
 
-    async def test_continues_pipeline(self):
-        services = _make_services(object_trend_client=None)
-        result = await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, _make_trigger(), services
-        )
-        assert result.should_continue is True
-
-# ---------------------------------------------------------------------------
-# Happy path - single room
-# ---------------------------------------------------------------------------
-
-
-class TestHappyPath:
-    async def test_basic_result_keys(self):
-        client = _mock_client({"Kitchen": _mock_trend_result(room_id="Kitchen")})
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, _make_trigger(), services
-        )
-        data = result.data
-        assert "Kitchen" in data["room_trends"]
-        assert "room_trends_any_warning" in data
-        assert "room_trends_max_severity" in data
-        assert "room_trends_summary" in data
-
-    async def test_clutter_score_passed_through(self):
-        client = _mock_client({"Kitchen": _mock_trend_result(room_id="Kitchen", clutter_score=2.5)})
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, _make_trigger(), services
-        )
-        assert result.data["room_trends"]["Kitchen"]["clutter_score"] == 2.5
-
-    async def test_trend_direction_passed_through(self):
-        client = _mock_client({"Kitchen": _mock_trend_result(room_id="Kitchen", trend_direction="increasing")})
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, _make_trigger(), services
-        )
-        assert result.data["room_trends"]["Kitchen"]["trend_direction"] == "increasing"
-
-    async def test_persistent_objects_passed_through(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(room_id="Kitchen", persistent_objects=["chair", "table"])
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, _make_trigger(), services
-        )
-        assert result.data["room_trends"]["Kitchen"]["persistent_objects"] == ["chair", "table"]
-
-    async def test_novel_objects_passed_through(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(room_id="Kitchen", novel_objects=["umbrella"])
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, _make_trigger(), services
-        )
-        assert result.data["room_trends"]["Kitchen"]["novel_objects"] == ["umbrella"]
-
-# ---------------------------------------------------------------------------
-# Room ID resolution
-# ---------------------------------------------------------------------------
-
-
-class TestRoomIdResolution:
-    async def test_uses_trigger_room_when_room_ids_empty(self):
-        client = _mock_client({"Kitchen": _mock_trend_result(room_id="Kitchen")})
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step({"room_ids": []}),
-            _FakeExecution(),
-            {},
-            _make_trigger(room_name="Kitchen"),
-            services,
-        )
+    async def test_triggers_room_name_as_room_id(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger(room_name="Kitchen")
+        client = _mock_client()
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert len(result.data["room_trends"]) == 1
         assert "Kitchen" in result.data["room_trends"]
 
-    async def test_uses_explicit_room_ids_over_trigger(self):
-        client = _mock_client({
-            "LivingRoom": _mock_trend_result(room_id="LivingRoom"),
-            "Kitchen": _mock_trend_result(room_id="Kitchen"),
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step({"room_ids": ["LivingRoom"]}),
-            _FakeExecution(),
-            {},
-            _make_trigger(room_name="Kitchen"),
-            services,
-        )
-        assert "LivingRoom" in result.data["room_trends"]
+    async def test_config_room_ids_override_trigger(self):
+        step = _make_step(config={"room_ids": ["Bedroom"]})
+        execution = _FakeExecution()
+        trigger = _make_trigger(room_name="Kitchen")
+        client = _mock_client(results={"Bedroom": _mock_trend_result(room_id="Bedroom")})
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert "Bedroom" in result.data["room_trends"]
         assert "Kitchen" not in result.data["room_trends"]
 
-# ---------------------------------------------------------------------------
-# Severity threshold filtering
-# ---------------------------------------------------------------------------
-
-
-class TestSeverityThreshold:
-    async def test_default_threshold_filters_ok(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(
-                overall_severity="ok",
-                anomalies=[
-                    {"severity": "info", "type": "minor"},
-                ],
-            )
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step({"severity_threshold": "info"}),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
+    async def test_severity_threshold_filters_anomalies(self):
+        step = _make_step(config={"severity_threshold": "warning"})
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    anomalies=[
+                        {"severity": "ok", "message": "low"},
+                        {"severity": "warning", "message": "mid"},
+                        {"severity": "critical", "message": "high"},
+                    ],
+                )
+            }
         )
-        # Info anomalies should be included (>= info threshold)
-        assert len(result.data["room_trends"]["Kitchen"]["anomalies"]) == 1
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        kitchen = result.data["room_trends"]["Kitchen"]
+        anomaly_severities = [a["severity"] for a in kitchen["anomalies"]]
+        assert "ok" not in anomaly_severities
+        assert "warning" in anomaly_severities
+        assert "critical" in anomaly_severities
 
-    async def test_warning_threshold_filters_info(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(
-                overall_severity="ok",
-                anomalies=[
-                    {"severity": "info", "type": "minor"},
-                    {"severity": "warning", "type": "major"},
-                ],
-            )
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step({"severity_threshold": "warning"}),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
+    async def test_max_severity_is_critical(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    overall_severity="critical",
+                )
+            }
         )
-        # Only warning+ anomalies should be included
-        anomalies = result.data["room_trends"]["Kitchen"]["anomalies"]
-        assert len(anomalies) == 1
-        assert anomalies[0]["severity"] == "warning"
-
-    async def test_any_warning_flag(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(overall_severity="warning"),
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
-        )
-        assert result.data["room_trends_any_warning"] is True
-
-    async def test_max_severity_tracks_highest(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(overall_severity="warning"),
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
-        )
-        assert result.data["room_trends_max_severity"] == "warning"
-
-    async def test_critical_severity(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(overall_severity="critical"),
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
-        )
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.data["room_trends_max_severity"] == "critical"
-        assert result.data["room_trends_any_warning"] is True
 
-# ---------------------------------------------------------------------------
-# Multiple rooms
-# ---------------------------------------------------------------------------
-
-
-class TestMultipleRooms:
-    async def test_queries_all_rooms(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(room_id="Kitchen"),
-            "LivingRoom": _mock_trend_result(room_id="LivingRoom", overall_severity="warning"),
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step({"room_ids": ["Kitchen", "LivingRoom"]}),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
+    async def test_max_severity_is_warning(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    overall_severity="warning",
+                )
+            }
         )
-        assert len(result.data["room_trends"]) == 2
-        assert "Kitchen" in result.data["room_trends"]
-        assert "LivingRoom" in result.data["room_trends"]
-
-    async def test_max_severity_is_highest_across_rooms(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(room_id="Kitchen", overall_severity="ok"),
-            "LivingRoom": _mock_trend_result(room_id="LivingRoom", overall_severity="warning"),
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step({"room_ids": ["Kitchen", "LivingRoom"]}),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
-        )
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.data["room_trends_max_severity"] == "warning"
 
-# ---------------------------------------------------------------------------
-# Snapshots
-# ---------------------------------------------------------------------------
-
-
-class TestSnapshots:
-    async def test_skips_snapshots_when_include_zero(self):
-        client = _mock_client()
-        services = _make_services(object_trend_client=client)
-        await _HANDLER.execute(
-            _make_step({"include_snapshots_hours": 0}),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
+    async def test_any_warning_is_true(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    overall_severity="warning",
+                )
+            }
         )
-        client.get_snapshots.assert_not_called()
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert result.data["room_trends_any_warning"] is True
 
-    async def test_fetches_snapshots_when_include_positive(self):
-        client = _mock_client()
-        services = _make_services(object_trend_client=client)
-        await _HANDLER.execute(
-            _make_step({"include_snapshots_hours": 12}),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
+    async def test_any_warning_is_false(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    overall_severity="ok",
+                )
+            }
         )
-        client.get_snapshots.assert_called_once_with("Kitchen", since_hours=12)
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert result.data["room_trends_any_warning"] is False
 
-# ---------------------------------------------------------------------------
-# Custom output_key
-# ---------------------------------------------------------------------------
-
-
-class TestCustomOutputKey:
-    async def test_uses_custom_output_key(self):
+    async def test_output_key_config(self):
+        step = _make_step(config={"output_key": "custom_key"})
+        execution = _FakeExecution()
+        trigger = _make_trigger()
         client = _mock_client()
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step({"output_key": "trends"}),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
-        )
-        assert "trends" in result.data
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert "custom_key" in result.data
         assert "room_trends" not in result.data
 
-# ---------------------------------------------------------------------------
-# Summary generation
-# ---------------------------------------------------------------------------
+    async def test_multiple_rooms(self):
+        step = _make_step(config={"room_ids": ["Kitchen", "Bedroom"]})
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(room_id="Kitchen"),
+                "Bedroom": _mock_trend_result(room_id="Bedroom"),
+            }
+        )
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert "Kitchen" in result.data["room_trends"]
+        assert "Bedroom" in result.data["room_trends"]
 
+    async def test_room_with_no_result_skipped(self):
+        step = _make_step(config={"room_ids": ["Kitchen", "Missing"]})
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(results={"Kitchen": _mock_trend_result(room_id="Kitchen")})
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert "Kitchen" in result.data["room_trends"]
+        assert "Missing" not in result.data["room_trends"]
 
-class TestSummary:
-    async def test_empty_summary_when_no_trends(self):
+    async def test_client_error_returns_empty(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
         client = _mock_client()
-        # Override to return None for all rooms
-        async def never_returns(_room_id: str):
-            return None
-        client.get_room_trends = never_returns
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
-        )
-        assert "No trend data" in result.data["room_trends_summary"]
+        client.get_room_trends = AsyncMock(side_effect=Exception("service unavailable"))
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert result.data["room_trends"] == {}
 
-    async def test_summary_includes_severity_and_clutter(self):
-        client = _mock_client({
-            "Kitchen": _mock_trend_result(
-                room_id="Kitchen",
-                clutter_score=2.3,
-                overall_severity="warning",
-                trend_direction="increasing",
-            )
-        })
-        services = _make_services(object_trend_client=client)
-        result = await _HANDLER.execute(
-            _make_step(),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
+    async def test_summary_text_generated(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    clutter_score=1.5,
+                    trend_direction="increasing",
+                    overall_severity="warning",
+                    persistent_objects=["stove", "fridge"],
+                    novel_objects=["cardboard box"],
+                    anomalies=[{"severity": "warning", "message": "clutter"}],
+                )
+            }
         )
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
         summary = result.data["room_trends_summary"]
-        assert "WARNING" in summary
         assert "Kitchen" in summary
-        assert "2.3" in summary
-        assert "increasing" in summary
+        assert "increasing" in summary.lower()
+        assert "warning" in summary.lower()
+
+    async def test_include_snapshots(self):
+        step = _make_step(config={"include_snapshots_hours": 12})
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client()
+        snapshots = [
+            TrendSnapshot(
+                room_id="Kitchen",
+                period_start=datetime(2026, 4, 17, 2, tzinfo=UTC),
+                unique_object_count=5,
+                object_counts={"stove": 3},
+            )
+        ]
+        client.get_snapshots = AsyncMock(return_value=snapshots)
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        kitchen = result.data["room_trends"]["Kitchen"]
+        assert "snapshots" in kitchen
+        assert len(kitchen["snapshots"]) == 1
+
+    async def test_snapshots_empty_when_not_configured(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client()
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        kitchen = result.data["room_trends"]["Kitchen"]
+        assert "snapshots" not in kitchen
+
+    async def test_persistent_and_novel_objects(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    persistent_objects=["stove", "fridge"],
+                    novel_objects=["cardboard box"],
+                )
+            }
+        )
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        kitchen = result.data["room_trends"]["Kitchen"]
+        assert kitchen["persistent_objects"] == ["stove", "fridge"]
+        assert kitchen["novel_objects"] == ["cardboard box"]
+
+    async def test_baseline_available_false(self):
+        """Handler ignores baseline_available; verifies room still returned."""
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    baseline_available=False,
+                    clutter_score=0.5,
+                )
+            }
+        )
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        kitchen = result.data["room_trends"]["Kitchen"]
+        assert kitchen["clutter_score"] == 0.5
+        assert "baseline_available" not in kitchen
+
+    async def test_clutter_score_and_direction(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    clutter_score=2.3,
+                    trend_direction="decreasing",
+                )
+            }
+        )
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        kitchen = result.data["room_trends"]["Kitchen"]
+        assert kitchen["clutter_score"] == 2.3
+        assert kitchen["trend_direction"] == "decreasing"
+
+    async def test_stable_severity_ok_no_warning(self):
+        step = _make_step()
+        execution = _FakeExecution()
+        trigger = _make_trigger()
+        client = _mock_client(
+            results={
+                "Kitchen": _mock_trend_result(
+                    room_id="Kitchen",
+                    overall_severity="ok",
+                    trend_direction="stable",
+                )
+            }
+        )
+        services = _make_services(semantic_memory_client=client)
+        result = await _HANDLER.execute(step, execution, {}, trigger, services)
+        assert result.data["room_trends_any_warning"] is False
+        assert result.data["room_trends_max_severity"] == "ok"

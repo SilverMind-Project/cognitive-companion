@@ -52,11 +52,18 @@ async def app_info():
     configuration values (name, version, timezone).  The frontend uses the
     timezone field to format all displayed timestamps in the operator-configured
     local timezone rather than the browser's timezone.
+
+    Also exposes health-check URLs for Scene Analysis and Semantic Memory
+    services so the dashboard can render status tiles.
     """
     return {
         "name": settings.get("app.name", "Cognitive Companion"),
         "version": settings.get("app.version", "2.0.0"),
         "timezone": settings.get("app.timezone", "UTC"),
+        "health_urls": {
+            "scene_analysis": "/admin/health/scene-analysis",
+            "semantic_memory": "/admin/health/semantic-memory",
+        },
     }
 
 

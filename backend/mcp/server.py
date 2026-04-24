@@ -40,6 +40,7 @@ class MCPServices:
     activity_session: Any = None
     daily_report: Any = None
     interactive_response: Any = None
+    semantic_memory_client: Any = None
 
 
 _svc = MCPServices()
@@ -55,6 +56,7 @@ def init_services(
     activity_session=None,
     daily_report=None,
     interactive_response=None,
+    semantic_memory_client=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -66,6 +68,7 @@ def init_services(
     _svc.activity_session = activity_session
     _svc.daily_report = daily_report
     _svc.interactive_response = interactive_response
+    _svc.semantic_memory_client = semantic_memory_client
 
 
 # ---------------------------------------------------------------------------
@@ -509,6 +512,226 @@ async def get_weather() -> dict:
     except Exception as exc:
         logger.error("get_weather_error", error=str(exc))
         return {"error": str(exc)}
+
+
+# ---------------------------------------------------------------------------
+# Semantic Memory read tools
+# ---------------------------------------------------------------------------
+
+
+@_register
+async def get_recent_scene_objects(
+    room_id: str,
+    minutes: int = 60,
+) -> list[dict]:
+    """Get recent objects detected in a room from semantic memory.
+
+    Args:
+        room_id: Room identifier to query.
+        minutes: Lookback window in minutes (default 60).
+
+    Returns:
+        List of dicts with label, last_seen_minutes_ago, observation_count.
+    """
+    client = _svc.semantic_memory_client
+    if not client:
+        return [{"error": "Semantic memory service not available"}]
+
+    try:
+        from backend.integrations.semantic_memory_client import ObjectPresenceRecord
+
+        records = await client.get_recent_objects(room_id, since_minutes=minutes)
+        now = datetime.now(UTC)
+        results: list[dict] = []
+        for rec in records:
+            if isinstance(rec, ObjectPresenceRecord):
+                delta = (now - rec.last_seen_at).total_seconds() / 60
+                results.append(
+                    {
+                        "label": rec.label,
+                        "last_seen_minutes_ago": round(delta, 1),
+                        "observation_count": rec.observation_count,
+                    }
+                )
+        return results
+    except Exception as exc:
+        logger.error("get_recent_scene_objects_error", room_id=room_id, error=str(exc))
+        return [{"error": str(exc)}]
+
+
+@_register
+async def get_scene_observations(
+    room_id: str | None = None,
+    since_minutes: int = 60,
+    objects_any: list[str] | None = None,
+    limit: int = 5,
+) -> list[dict]:
+    """Get recent scene observations from semantic memory.
+
+    Args:
+        room_id: Optional room to filter observations.
+        since_minutes: Lookback window in minutes (default 60).
+        objects_any: Optional list of object labels to filter by.
+        limit: Maximum number of observations (default 5).
+
+    Returns:
+        List of dicts with id, observed_at, room_name, description,
+        object_list, hazard_flags. No raw embeddings.
+    """
+    client = _svc.semantic_memory_client
+    if not client:
+        return [{"error": "Semantic memory service not available"}]
+
+    try:
+        from backend.integrations.semantic_memory_client import ObservationSearchRequest
+
+        req = ObservationSearchRequest(
+            room_id=room_id,
+            since_minutes=since_minutes,
+            objects_any=objects_any or [],
+            limit=limit,
+        )
+        hits = await client.search_observations(req)
+        return [
+            {
+                "id": hit.id,
+                "observed_at": hit.observed_at.isoformat() if hit.observed_at else None,
+                "room_id": hit.room_id,
+                "description": hit.description,
+                "object_list": hit.object_list,
+                "hazard_flags": hit.hazard_flags,
+            }
+            for hit in hits
+        ]
+    except Exception as exc:
+        logger.error("get_scene_observations_error", error=str(exc))
+        return [{"error": str(exc)}]
+
+
+@_register
+async def get_person_movements(
+    person_id: str,
+    semantic: str | None = None,
+    minutes: int = 60,
+) -> list[dict]:
+    """Get recent movement transitions for a person from semantic memory.
+
+    Args:
+        person_id: Person identifier.
+        semantic: Optional direction semantic filter (entering, exiting, etc.).
+        minutes: Lookback window in minutes (default 60).
+
+    Returns:
+        List of movement transition dicts.
+    """
+    client = _svc.semantic_memory_client
+    if not client:
+        return [{"error": "Semantic memory service not available"}]
+
+    try:
+        transitions = await client.get_transitions(
+            person_id,
+            semantic=semantic,
+            since_minutes=minutes,
+        )
+        return [
+            {
+                "id": t.id,
+                "person_id": t.person_id,
+                "from_room_id": t.from_room_id,
+                "to_room_id": t.to_room_id,
+                "direction_semantic": t.direction_semantic,
+                "confidence": t.confidence,
+                "observed_at": t.observed_at.isoformat() if t.observed_at else None,
+            }
+            for t in transitions
+        ]
+    except Exception as exc:
+        logger.error("get_person_movements_error", person_id=person_id, error=str(exc))
+        return [{"error": str(exc)}]
+
+
+@_register
+async def get_room_trend(room_id: str) -> dict:
+    """Get current room trend data from semantic memory.
+
+    Args:
+        room_id: Room identifier.
+
+    Returns:
+        Dict with clutter_score, trend_direction, overall_severity,
+        persistent_objects, novel_objects, anomalies.
+    """
+    client = _svc.semantic_memory_client
+    if not client:
+        return {"error": "Semantic memory service not available"}
+
+    try:
+        result = await client.get_room_trends(room_id)
+        if result is None:
+            return {"room_id": room_id, "trend_direction": "unknown"}
+        return {
+            "room_id": result.room_id,
+            "room_name": result.room_name,
+            "clutter_score": result.clutter_score,
+            "trend_direction": result.trend_direction,
+            "overall_severity": result.overall_severity,
+            "persistent_objects": result.persistent_objects,
+            "novel_objects": result.novel_objects,
+            "anomalies": result.anomalies,
+        }
+    except Exception as exc:
+        logger.error("get_room_trend_error", room_id=room_id, error=str(exc))
+        return {"error": str(exc)}
+
+
+@_register
+async def search_similar_scenes(
+    query_text: str,
+    room_id: str | None = None,
+    limit: int = 5,
+) -> list[dict]:
+    """Search semantic memory for scenes similar to a text query.
+
+    Args:
+        query_text: Natural language query (e.g. "person sitting on floor").
+        room_id: Optional room to restrict search.
+        limit: Maximum results (default 5).
+
+    Returns:
+        List of matching observation dicts. Embedding fields are stripped.
+    """
+    client = _svc.semantic_memory_client
+    if not client:
+        return [{"error": "Semantic memory service not available"}]
+
+    try:
+        from backend.integrations.semantic_memory_client import ObservationSearchRequest
+
+        req = ObservationSearchRequest(
+            room_id=room_id,
+            query_text=query_text,
+            limit=limit,
+        )
+        hits = await client.search_observations(req)
+        # Strip embedding fields even if present upstream
+        return [
+            {
+                "id": hit.id,
+                "observed_at": hit.observed_at.isoformat() if hit.observed_at else None,
+                "room_id": hit.room_id,
+                "description": hit.description,
+                "object_list": hit.object_list,
+                "hazard_flags": hit.hazard_flags,
+                "text_similarity": hit.text_similarity,
+                "image_similarity": hit.image_similarity,
+                "source": hit.source,
+            }
+            for hit in hits
+        ]
+    except Exception as exc:
+        logger.error("search_similar_scenes_error", error=str(exc))
+        return [{"error": str(exc)}]
 
 
 # ---------------------------------------------------------------------------

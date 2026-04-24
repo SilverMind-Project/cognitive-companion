@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -35,7 +36,14 @@ class TimeRangeFilter(ContextFilter):
             },
         )
 
-    def evaluate(self, config: dict, sensor, now: datetime, db: Session | None = None) -> bool:
+    def evaluate(
+        self,
+        config: dict,
+        sensor,
+        now: datetime,
+        db: Session | None = None,
+        services: Any = None,
+    ) -> bool:
         start_str = config.get("start_time", "00:00")
         end_str = config.get("end_time", "23:59")
         current = now.strftime("%H:%M")

@@ -47,6 +47,11 @@ class PersonIdentificationHandler(StepHandler):
                         "type": "array",
                         "items": {"type": "string"},
                     },
+                    "write_movements_to_memory": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Persist room transitions to semantic memory.",
+                    },
                 },
             },
             default_config={
@@ -55,6 +60,7 @@ class PersonIdentificationHandler(StepHandler):
                 "include_annotated_image": True,
                 "include_motion": False,
                 "save_guest_images": False,
+                "write_movements_to_memory": False,
             },
         )
 
@@ -134,6 +140,24 @@ class PersonIdentificationHandler(StepHandler):
             "person_detections": detection_dicts,
             "room_transitions": [t.to_dict() for t in camera_result.room_transitions],
         }
+
+        # -- Optional: write movements to semantic memory --------------------
+        if config.get("write_movements_to_memory", False) and services.semantic_memory_client:
+            from backend.integrations.semantic_memory_client import MovementCreate
+
+            movement_ids: list[int] = []
+            for t in camera_result.room_transitions:
+                movement = MovementCreate(
+                    person_id=t.person_id or "unknown",
+                    from_room_id=t.from_room_id or "unknown",
+                    to_room_id=t.to_room_id or "unknown",
+                    direction_semantic=t.direction_semantic or "any",
+                    confidence=t.confidence or 0.8,
+                )
+                record = await services.semantic_memory_client.create_movement(movement)
+                if record:
+                    movement_ids.append(record.id)
+            result_data["semantic_memory_movement_ids"] = movement_ids
 
         # Store annotated image if available.
         if detections and hasattr(detections[0], "annotated_image"):

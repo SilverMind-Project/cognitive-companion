@@ -74,6 +74,19 @@ const alertDialog = ref(false);
 const alertMessage = ref("");
 const alertType = ref("info");
 const connected = ref(false);
+
+// Interactive prompt state
+const interactivePromptVisible = ref(false);
+const interactivePromptData = ref({
+  execution_id: null,
+  step_id: null,
+  message: "",
+  escalate_button_text: "I need help",
+  dismiss_button_text: "I'm okay",
+  countdown_seconds: 30,
+  server_timestamp: new Date().toISOString(),
+});
+
 let playbackContext = null;
 let nextPlaybackTime = 0;
 let activePlaybackSources = 0;
@@ -108,6 +121,15 @@ function getWidgetProps(widgetId) {
       return { transcript: transcript.value };
     case "alert":
       return { visible: alertDialog.value, message: alertMessage.value, alertType: alertType.value };
+    case "interactive-prompt":
+      return {
+        visible: interactivePromptVisible.value,
+        message: interactivePromptData.value.message,
+        escalateButtonText: interactivePromptData.value.escalate_button_text,
+        dismissButtonText: interactivePromptData.value.dismiss_button_text,
+        countdownSeconds: interactivePromptData.value.countdown_seconds,
+        serverTimestamp: interactivePromptData.value.server_timestamp,
+      };
     default:
       return {};
   }
@@ -130,6 +152,11 @@ function getWidgetEvents(widgetId) {
       return {
         dismiss: dismissAlert,
         "request-assistance": requestAssistance,
+      };
+    case "interactive-prompt":
+      return {
+        response: onInteractiveResponse,
+        timeout: onInteractiveTimeout,
       };
     default:
       return {};
@@ -167,6 +194,26 @@ function dismissAlert() {
 
 function requestAssistance() {
   alertDialog.value = false;
+}
+
+function onInteractiveResponse(action) {
+  if (!interactivePromptData.value.execution_id || !interactivePromptData.value.step_id) {
+    console.error("Cannot send interactive response: missing execution_id or step_id");
+    return;
+  }
+  
+  wsClient.sendInteractiveResponse(
+    interactivePromptData.value.execution_id,
+    interactivePromptData.value.step_id,
+    action
+  );
+  
+  interactivePromptVisible.value = false;
+}
+
+function onInteractiveTimeout() {
+  // Timeout is handled by backend, just close the dialog
+  interactivePromptVisible.value = false;
 }
 
 function getPlaybackContext() {
@@ -295,6 +342,26 @@ onMounted(() => {
 
   wsClient.on("onConnect", () => { connected.value = true; });
   wsClient.on("onDisconnect", () => { connected.value = false; });
+
+  wsClient.on("onInteractivePrompt", (data) => {
+    interactivePromptData.value = {
+      execution_id: data.execution_id,
+      step_id: data.step_id,
+      message: data.message || "",
+      escalate_button_text: data.escalate_button_text || "I need help",
+      dismiss_button_text: data.dismiss_button_text || "I'm okay",
+      countdown_seconds: data.countdown_seconds || 30,
+      server_timestamp: data.server_timestamp || new Date().toISOString(),
+    };
+    interactivePromptVisible.value = true;
+  });
+
+  wsClient.on("onInteractiveResponse", (data) => {
+    // Close any open interactive prompt when response is received from another channel
+    if (interactivePromptVisible.value) {
+      interactivePromptVisible.value = false;
+    }
+  });
 });
 
 onUnmounted(() => {

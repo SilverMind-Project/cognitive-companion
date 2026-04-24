@@ -79,6 +79,7 @@ class ServiceContainer:
     activity_session_service: Any = None
     daily_report_service: Any = None
     object_trend_client: Any = None
+    interactive_response_service: Any = None
 
 
 # ---------------------------------------------------------------------------

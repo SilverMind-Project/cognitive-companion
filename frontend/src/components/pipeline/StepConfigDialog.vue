@@ -508,6 +508,92 @@
                   />
                 </template>
 
+                <!-- interactive_prompt -->
+                <template v-if="localStep.step_type === 'interactive_prompt'">
+                  <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+                    Configure at least one channel (popup or voice) to prompt the user for a response.
+                  </v-alert>
+                  
+                  <v-textarea
+                    v-model="cfg.popup_message_template"
+                    label="Popup Message Template"
+                    rows="3"
+                    hint="Message shown in the PWA popup dialog. Use {{variable}} syntax for pipeline data."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  
+                  <v-textarea
+                    v-model="cfg.voice_prompt_template"
+                    label="Voice Prompt Template"
+                    rows="3"
+                    hint="Conversational prompt for Gemini Live voice channel. Use {{variable}} syntax."
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  
+                  <v-divider class="mb-4" />
+                  
+                  <v-row>
+                    <v-col cols="6">
+                      <v-text-field
+                        v-model="cfg.escalate_button_text"
+                        label="Escalate Button Text"
+                        hint="Default: 'I need help'"
+                        persistent-hint
+                      />
+                    </v-col>
+                    <v-col cols="6">
+                      <v-text-field
+                        v-model="cfg.dismiss_button_text"
+                        label="Dismiss Button Text"
+                        hint="Default: 'I'm okay'"
+                        persistent-hint
+                      />
+                    </v-col>
+                  </v-row>
+                  
+                  <v-slider
+                    v-model="cfg.countdown_seconds"
+                    label="Countdown Duration (seconds)"
+                    :min="5"
+                    :max="300"
+                    :step="5"
+                    thumb-label="always"
+                    color="primary"
+                    class="mb-4"
+                  />
+                  
+                  <v-select
+                    v-model="cfg.timeout_action"
+                    :items="[
+                      { title: 'Escalate (treat as help needed)', value: 'escalate' },
+                      { title: 'Dismiss (treat as okay)', value: 'dismiss' },
+                    ]"
+                    item-title="title"
+                    item-value="value"
+                    label="Timeout Action"
+                    hint="Action to take when user doesn't respond in time"
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  
+                  <v-checkbox
+                    v-model="cfg.auto_escalate"
+                    label="Auto-escalate on affirmative response or timeout"
+                    hint="Sets pipeline_data.auto_escalate_triggered flag for downstream conditional logic"
+                    persistent-hint
+                    class="mb-4"
+                  />
+                  
+                  <v-text-field
+                    v-model="cfg.output_key"
+                    label="Output Key"
+                    hint="pipeline_data key for the response. Default: interactive_response"
+                    persistent-hint
+                  />
+                </template>
+
                 <!-- Generic plugin step -->
                 <template v-if="!knownTypes.includes(localStep.step_type) && localStep.step_type">
                   <v-alert type="info" variant="tonal" class="mb-4">
@@ -1219,6 +1305,7 @@ const knownTypes = [
   "wait",
   "condition",
   "verification",
+  "interactive_prompt",
 ];
 
 const STEP_ICONS = {
@@ -1235,6 +1322,7 @@ const STEP_ICONS = {
   wait: "mdi-timer-sand",
   condition: "mdi-help-circle-outline",
   verification: "mdi-check-decagram-outline",
+  interactive_prompt: "mdi-message-question",
 };
 
 const stepIcon = computed(() => STEP_ICONS[localStep.step_type] || "mdi-cog-outline");

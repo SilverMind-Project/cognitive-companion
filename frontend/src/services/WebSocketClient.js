@@ -11,6 +11,9 @@ const NOTIFICATION_TYPES = new Set([
   "warning",
 ]);
 
+const INTERACTIVE_PROMPT_TYPE = "interactive_prompt";
+const INTERACTIVE_RESPONSE_TYPE = "interactive_response";
+
 export class WebSocketClient {
   constructor(url) {
     this.url = url;
@@ -31,6 +34,8 @@ export class WebSocketClient {
       onAudioBlob: [],
       onStatus: [],
       onAnnouncement: [],
+      onInteractivePrompt: [],
+      onInteractiveResponse: [],
     };
   }
 
@@ -93,6 +98,10 @@ export class WebSocketClient {
           this._notify("onStatus", data);
         } else if (data.type === "tool_calls") {
           this._notify("onStatus", data);
+        } else if (data.type === INTERACTIVE_PROMPT_TYPE) {
+          this._notify("onInteractivePrompt", data);
+        } else if (data.type === INTERACTIVE_RESPONSE_TYPE) {
+          this._notify("onInteractiveResponse", data);
         } else if (NOTIFICATION_TYPES.has(data.type)) {
           this._notify("onCommand", data);
         } else {
@@ -121,6 +130,16 @@ export class WebSocketClient {
 
   sendText(text) {
     this._sendJson({ type: "text", text });
+  }
+
+  sendInteractiveResponse(executionId, stepId, action) {
+    this._sendJson({
+      type: INTERACTIVE_RESPONSE_TYPE,
+      execution_id: executionId,
+      step_id: stepId,
+      action: action,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   on(event, callback) {

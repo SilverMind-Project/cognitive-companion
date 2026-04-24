@@ -10,6 +10,7 @@ import { registerWidget } from "./WidgetRegistry.js";
 import VoiceWidget from "./VoiceWidget.vue";
 import TranscriptWidget from "./TranscriptWidget.vue";
 import AlertWidget from "./AlertWidget.vue";
+import InteractivePromptDialog from "./InteractivePromptDialog.vue";
 
 registerWidget({
   id: "voice",
@@ -36,4 +37,13 @@ registerWidget({
   component: AlertWidget,
   position: "overlay",
   priority: 1,
+});
+
+registerWidget({
+  id: "interactive-prompt",
+  name: "Interactive Prompt",
+  icon: "mdi-message-question",
+  component: InteractivePromptDialog,
+  position: "overlay",
+  priority: 2,
 });

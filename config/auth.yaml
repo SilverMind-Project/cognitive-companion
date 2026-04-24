@@ -114,6 +114,7 @@ permission_map:
     - "GET /api/v1/persons*"
     - "GET /api/v1/activities*"
     - "GET /api/v1/workflows*"
+    - "GET /api/v1/interactive-responses*"
     - "GET /mcp*"
     - "POST /mcp*"
     - "GET /api/v1/image/*"

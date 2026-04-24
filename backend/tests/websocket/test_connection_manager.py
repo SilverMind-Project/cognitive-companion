@@ -70,3 +70,39 @@ class TestBroadcast:
 
         await mgr.broadcast({"type": "test"})
         assert stale_ws not in mgr.active_connections
+
+    @pytest.mark.asyncio
+    async def test_broadcasts_interactive_prompt_with_all_fields(self):
+        """Test that interactive_prompt messages are broadcast with all required fields."""
+        mgr = ConnectionManager()
+        ws1, ws2 = _make_ws(), _make_ws()
+        mgr.active_connections = [ws1, ws2]
+
+        # Simulate the interactive_prompt message sent by InteractivePromptHandler
+        interactive_prompt_payload = {
+            "type": "interactive_prompt",
+            "execution_id": 123,
+            "step_id": 456,
+            "message": "Are you okay? Do you need help?",
+            "escalate_button_text": "I need help",
+            "dismiss_button_text": "I'm okay",
+            "countdown_seconds": 30,
+            "server_timestamp": "2024-01-15T10:30:00Z",
+        }
+
+        await mgr.broadcast(interactive_prompt_payload)
+
+        # Verify both clients received the message
+        ws1.send_json.assert_called_once()
+        ws2.send_json.assert_called_once()
+
+        # Verify the message structure
+        sent_message = ws1.send_json.call_args[0][0]
+        assert sent_message["type"] == "interactive_prompt"
+        assert sent_message["execution_id"] == 123
+        assert sent_message["step_id"] == 456
+        assert sent_message["message"] == "Are you okay? Do you need help?"
+        assert sent_message["escalate_button_text"] == "I need help"
+        assert sent_message["dismiss_button_text"] == "I'm okay"
+        assert sent_message["countdown_seconds"] == 30
+        assert sent_message["server_timestamp"] == "2024-01-15T10:30:00Z"

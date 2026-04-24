@@ -42,8 +42,8 @@ Each rule defines a **composable pipeline** -- an ordered sequence of steps exec
 
 - **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity)  -  each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home")  -  plus inter-rule dependencies
 - **Six trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP with HMAC), `occupancy_duration` (presence sensor occupied ≥ N minutes), `telegram` (inbound Telegram command) -- each with per-rule threshold and cool-off
-- **Composable pipeline steps** -- 13 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
-  `llm_call`, `person_identification`, `scene_analysis`, `notification`, `ha_action`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report`, `object_trend_analysis`, `wait`, `condition`, `verification`
+- **Composable pipeline steps** -- 14 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
+  `llm_call`, `person_identification`, `scene_analysis`, `notification`, `ha_action`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report`, `object_trend_analysis`, `wait`, `condition`, `verification`, `interactive_prompt`
   (`llm_call` is the unified LLM step covering the use cases of legacy `vision_analysis`, `logic_reasoning`, and `translation` types)
 - **Unified LLM step** (`llm_call`) -- single step replaces separate vision, logic, and translation steps. Model selected per step from a named registry in `settings.yaml`; supports text, vision, and translation in one interface with configurable output key.
 - **Named model registry** -- configure any number of OpenAI-compatible or Ollama endpoints in `llm.models`. Each entry declares its `api_type`, `capabilities`, and whether it supports `guided_decoding` (vLLM `guided_json`).

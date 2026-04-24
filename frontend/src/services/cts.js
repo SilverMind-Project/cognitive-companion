@@ -143,4 +143,41 @@ export const cts = {
     if (date) qs.set("date", date);
     return req(`/dashboard/dwell_summary?${qs.toString()}`);
   },
+
+  // ── Identity corrections (M9) ──────────────────────────────────────────────
+  getGlobalTracks: (openOnly = true) =>
+    req(`/identity/global_tracks?open_only=${openOnly}`),
+  applyCorrection: (payload) =>
+    req("/identity/corrections", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  mergeIdentities: (payload) =>
+    req("/identity/merges", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getRevisions: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.window_hours) qs.set("window_hours", params.window_hours);
+    if (params.limit) qs.set("limit", params.limit);
+    const q = qs.toString();
+    return q ? req(`/identity/revisions?${q}`) : req("/identity/revisions");
+  },
+
+  // ── Live view WebSocket ───────────────────────────────────────────────────
+  openLiveSocket(onMessage) {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const key = encodeURIComponent(getApiKey());
+    const url = `${proto}//${window.location.host}/ws/cts?api_key=${key}`;
+    const ws = new WebSocket(url);
+    ws.onmessage = (ev) => {
+      try {
+        onMessage(JSON.parse(ev.data));
+      } catch (err) {
+        console.error("cts_live_ws_parse_error", err);
+      }
+    };
+    return ws;
+  },
 };

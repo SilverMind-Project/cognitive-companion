@@ -41,6 +41,7 @@ class MCPServices:
     daily_report: Any = None
     interactive_response: Any = None
     semantic_memory_client: Any = None
+    cts_runtime: Any = None
 
 
 _svc = MCPServices()
@@ -57,6 +58,7 @@ def init_services(
     daily_report=None,
     interactive_response=None,
     semantic_memory_client=None,
+    cts_runtime=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -69,6 +71,7 @@ def init_services(
     _svc.daily_report = daily_report
     _svc.interactive_response = interactive_response
     _svc.semantic_memory_client = semantic_memory_client
+    _svc.cts_runtime = cts_runtime
 
 
 # ---------------------------------------------------------------------------
@@ -899,3 +902,135 @@ async def submit_user_response(
             error=str(e),
         )
         return {"error": f"Failed to record response: {e}"}
+
+
+# ---------------------------------------------------------------------------
+# CTS tracking MCP tools (M9)
+# ---------------------------------------------------------------------------
+
+
+@_register
+async def get_tracking_status() -> dict:
+    """Return a summary of the continuous-tracking runtime.
+
+    Reports whether CTS is enabled, the consumer_id used, and which
+    stream subscribers are currently running. Returns a structured dict
+    with ``enabled`` set to ``False`` when the feature flag is off so
+    downstream agents can branch cleanly.
+    """
+    if not settings.get("cts.enabled", False):
+        return {"enabled": False, "subscribers": []}
+
+    runtime = _svc.cts_runtime  # type: ignore[attr-defined]
+    if runtime is None:
+        return {"enabled": True, "subscribers": [], "error": "runtime_not_started"}
+    return {"enabled": True, **runtime.status()}
+
+
+@_register
+async def get_person_location(person_id: str) -> dict:
+    """Return the currently inferred room and history for ``person_id``.
+
+    Reads the :class:`PersonLocationState` row and the open
+    :class:`PersonLocationHistory` row (if any) so the caller can reason
+    about "how long have they been there".
+    """
+    from backend.models.person import PersonLocationHistory, PersonLocationState
+
+    db: Session = _svc.db_factory()
+    try:
+        state = (
+            db.query(PersonLocationState)
+            .filter(PersonLocationState.person_id == person_id)
+            .first()
+        )
+        if state is None:
+            return {"person_id": person_id, "found": False}
+
+        latest = (
+            db.query(PersonLocationHistory)
+            .filter(
+                PersonLocationHistory.person_id == person_id,
+                PersonLocationHistory.exited_at.is_(None),
+                PersonLocationHistory.superseded_by_revision_id.is_(None),
+            )
+            .order_by(PersonLocationHistory.entered_at.desc())
+            .first()
+        )
+
+        entered_iso = latest.entered_at.isoformat() if latest and latest.entered_at else None
+        dwell_minutes: float | None = None
+        if latest and latest.entered_at:
+            entered = latest.entered_at
+            if entered.tzinfo is None:
+                entered = entered.replace(tzinfo=UTC)
+            dwell_minutes = round((datetime.now(UTC) - entered).total_seconds() / 60.0, 2)
+
+        return {
+            "person_id": person_id,
+            "found": True,
+            "current_room_name": state.current_room_name,
+            "current_room_id": state.current_room_id,
+            "last_seen_at": state.last_seen_at.isoformat() if state.last_seen_at else None,
+            "last_sensor_id": state.last_sensor_id,
+            "status": state.status,
+            "confidence": state.confidence,
+            "entered_current_room_at": entered_iso,
+            "dwell_minutes": dwell_minutes,
+        }
+    finally:
+        db.close()
+
+
+@_register
+async def get_recent_dementia_signals(
+    person_id: str | None = None,
+    window_hours: int = 24,
+    signal_kind: str | None = None,
+    severity_min: str = "info",
+    limit: int = 50,
+) -> dict:
+    """Return recent dementia signals, optionally filtered by person / kind.
+
+    ``severity_min`` accepts ``info``, ``warning``, ``emergency`` and
+    returns only signals at that severity or higher.
+    """
+    from backend.services.cts.signal_store import SignalStore
+
+    order = ["info", "warning", "emergency"]
+    try:
+        min_idx = order.index(severity_min)
+    except ValueError:
+        min_idx = 0
+
+    store = SignalStore(db_factory=_svc.db_factory)
+    results: list[dict] = []
+    for sev in order[min_idx:]:
+        batch = await store.list_recent(
+            person_id=person_id,
+            signal_type=signal_kind,
+            severity=sev,
+            window_hours=window_hours,
+            limit=limit,
+        )
+        results.extend(batch)
+    # Deduplicate by id.
+    seen: set[int] = set()
+    deduped: list[dict] = []
+    for sig in results:
+        sid = sig.get("id")
+        if isinstance(sid, int):
+            if sid in seen:
+                continue
+            seen.add(sid)
+        deduped.append(sig)
+    deduped.sort(
+        key=lambda s: s.get("received_at") or "",
+        reverse=True,
+    )
+    return {
+        "count": len(deduped),
+        "window_hours": window_hours,
+        "person_id": person_id,
+        "signals": deduped[:limit],
+    }

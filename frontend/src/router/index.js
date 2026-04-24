@@ -127,6 +127,17 @@ const routes = [
         name: "cts-keyframes",
         component: () => import("../views/admin/CTSKeyframesView.vue"),
       },
+      {
+        path: "cts/live",
+        name: "cts-live",
+        component: () => import("../views/admin/CTSLiveView.vue"),
+      },
+      {
+        path: "cts/identity-corrections",
+        name: "cts-identity-corrections",
+        component: () =>
+          import("../views/admin/CTSIdentityCorrectionsView.vue"),
+      },
     ],
   },
 ];

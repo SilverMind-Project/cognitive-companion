@@ -48,6 +48,11 @@ _COLUMN_MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person_activities ADD COLUMN session_id VARCHAR(64)",
     # Observation backlink for auditability chain (added 2026-04-16).
     "ALTER TABLE person_activities ADD COLUMN observation_id INTEGER REFERENCES scene_observations(id)",
+    # CTS M9: identity-rewrite lineage for PersonLocationHistory rows.  When
+    # an IdentityRevision arrives we soft-delete the prior rows by setting
+    # superseded_by_revision_id and insert new rows with the revised person_id.
+    "ALTER TABLE person_location_history ADD COLUMN superseded_by_revision_id VARCHAR(64)",
+    "ALTER TABLE person_location_history ADD COLUMN global_track_id VARCHAR(128)",
 )
 
 

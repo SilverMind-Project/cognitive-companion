@@ -324,6 +324,7 @@ async def lifespan(app: FastAPI):
         daily_report=daily_report_service,
         interactive_response=interactive_response_service,
         semantic_memory_client=semantic_memory_client,
+        cts_runtime=None,  # Populated below after CTS bootstrapping.
     )
 
     # Build the Gemini tool adapter for voice tool calling
@@ -403,36 +404,48 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Scheduler started")
 
-    # -- CTS gateway clients (gated by cts.enabled) ------------------------
+    # -- CTS gateway clients + runtime (gated by cts.enabled) --------------
+    cts_runtime = None
     if settings.get("cts.enabled", False):
-        import asyncio
         import socket
 
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
-        from backend.services.cts.signal_store import SignalStore
-        from backend.services.cts.subscriber import DementiaSignalSubscriber
+        from backend.services.cts.runtime import CTSRuntime, CTSRuntimeConfig
 
         app.state.ingress_admin_client = IngressAdminClient()
         app.state.orchestrator_client = OrchestratorClient()
 
-        signal_store = SignalStore(db_factory=get_session)
         redis_url = settings.get("redis.url", "redis://localhost:6379")
         consumer_id = settings.get("cts.consumer_id", socket.gethostname())
-        dementia_subscriber = DementiaSignalSubscriber(
-            redis_url=redis_url,
-            consumer_id=consumer_id,
-            store=signal_store,
+        cts_runtime = CTSRuntime(
+            config=CTSRuntimeConfig(
+                redis_url=redis_url,
+                consumer_id=consumer_id,
+                cts_lock_s=float(settings.get("cts.lock_seconds", 60)),
+            ),
+            db_factory=get_session,
+            ws_manager=ws_manager,
             pipeline=pipeline_executor,
         )
-        app.state.dementia_signal_subscriber = dementia_subscriber
-        _cts_subscriber_task = asyncio.create_task(dementia_subscriber.start())
-        logger.info("cts_gateway_clients_started")
+        app.state.cts_runtime = cts_runtime
+        # Expose individual subscribers for tests / diagnostics.
+        app.state.dementia_signal_subscriber = cts_runtime.dementia_signal_subscriber
+        app.state.tracking_event_subscriber = cts_runtime.tracking_event_subscriber
+        app.state.identity_revision_subscriber = cts_runtime.identity_revision_subscriber
+        await cts_runtime.start()
+        # Now that the runtime exists, surface it to the MCP tool set.
+        from backend.mcp.server import _svc as _mcp_svc
+
+        _mcp_svc.cts_runtime = cts_runtime
+        logger.info("cts_runtime_started")
     else:
         app.state.ingress_admin_client = None
         app.state.orchestrator_client = None
+        app.state.cts_runtime = None
         app.state.dementia_signal_subscriber = None
-        _cts_subscriber_task = None
+        app.state.tracking_event_subscriber = None
+        app.state.identity_revision_subscriber = None
 
     # Start MCP session manager for streamable HTTP transport
     from backend.mcp.server import mcp_server
@@ -442,10 +455,8 @@ async def lifespan(app: FastAPI):
 
     # -- Shutdown ----------------------------------------------------------
     scheduler.shutdown(wait=False)
-    if _cts_subscriber_task is not None:
-        if app.state.dementia_signal_subscriber is not None:
-            await app.state.dementia_signal_subscriber.stop()
-        _cts_subscriber_task.cancel()
+    if cts_runtime is not None:
+        await cts_runtime.stop()
     logger.info("Shutting down Cognitive Companion v2")
 
 
@@ -481,7 +492,9 @@ def create_app() -> FastAPI:
         cts_calibration,
         cts_cameras,
         cts_dashboard,
+        cts_identity,
         cts_keyframes,
+        cts_live,
         cts_signals,
         device,
         events,
@@ -526,9 +539,11 @@ def create_app() -> FastAPI:
     app.include_router(cts_signals.router, prefix=api)
     app.include_router(cts_keyframes.router, prefix=api)
     app.include_router(cts_dashboard.router, prefix=api)
+    app.include_router(cts_identity.router, prefix=api)
 
-    # WebSocket router (no /api/v1 prefix)
+    # WebSocket routers (no /api/v1 prefix).
     app.include_router(ws.router)
+    app.include_router(cts_live.router)
 
     # Health check (no auth required)
     @app.get("/api/v1/health")

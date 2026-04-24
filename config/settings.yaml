@@ -248,6 +248,10 @@ cts:
   signals_stream: "tracking.signals"
   scene_samples_stream: "scene.samples"
 
+  # Source-authority lock: how long a CTS PersonLocationState write is
+  # protected from a subsequent out-of-order CTS event (seconds).
+  lock_seconds: 60
+
   # Service JWT signing (EdDSA).  Leave blank for dev mode (no JWT).
   jwt:
     private_key_pem: ""   # PEM-encoded Ed25519 private key

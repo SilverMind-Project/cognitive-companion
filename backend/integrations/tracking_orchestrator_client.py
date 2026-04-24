@@ -55,6 +55,34 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("POST", "/internal/corrections", json=body)
         return r.json()
 
+    async def manual_identity_override(
+        self,
+        *,
+        global_track_id: str,
+        new_identity_id: str | None,
+        actor: str,
+        reason: str = "manual",
+        display_name: str | None = None,
+        evidence: dict | None = None,
+    ) -> dict:
+        """Apply a caregiver-authored identity override for ``global_track_id``.
+
+        Thin typed wrapper over :meth:`post_manual_correction`. The orchestrator
+        synthesizes an ``IdentityRevision`` from the override and publishes it
+        on the ``tracking.revisions`` stream; the CC subscriber picks it up
+        and rewrites the local history.
+        """
+        body: dict = {
+            "global_track_id": global_track_id,
+            "new_identity_id": new_identity_id,
+            "actor": actor,
+            "reason": reason,
+            "evidence": evidence or {},
+        }
+        if display_name is not None:
+            body["display_name"] = display_name
+        return await self.post_manual_correction(body)
+
     async def get_global_tracks(self, *, open_only: bool = True) -> list[dict]:
         r = await self._request(
             "GET",

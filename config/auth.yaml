@@ -78,6 +78,7 @@ permission_map:
     - "GET /api/v1/conversations/*"
     - "GET /api/v1/activities*"
     - "GET /api/v1/workflows*"
+    - "GET /ws/cts"
     # CTS read-only permissions
     - "cts.view"
     - "cts.live.subscribe"
@@ -87,7 +88,9 @@ permission_map:
   caregiver_admin:
     - "GET /api/v1/*"
     - "POST /api/v1/alerts/*/action"
+    - "POST /api/v1/cts/identity/*"
     - "GET /api/v1/activities*"
+    - "GET /ws/cts"
     # CTS permissions for caregiver admin
     - "cts.view"
     - "cts.live.subscribe"

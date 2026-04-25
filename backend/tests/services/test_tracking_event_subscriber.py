@@ -1,39 +1,59 @@
 """Unit tests for :class:`TrackingEventSubscriber` decode + handle.
 
-We never talk to Redis here: the ``decode`` method is a pure function and
-``handle`` is exercised by passing a stub writer that records calls.
+The subscriber consumes proto-encoded ``TrackingEvent`` messages off the
+``tracking.events`` Redis Stream. ``decode`` is a pure function over the
+raw fields dict; ``handle`` is exercised through a stub writer that
+records calls.
 """
 
 from __future__ import annotations
 
 import pytest
 
+from backend.integrations.proto.continuoustracking.v1 import (  # type: ignore[attr-defined]
+    tracking_pb2,
+)
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 
 
-def _make_fields(room: str = "kitchen", identity_id: str = "grandma") -> dict:
-    return {
-        b"event_id": b"evt-1",
-        b"camera_id": b"kitchen-1",
-        b"event_time_unix_ns": b"1735305600000000000",
-        b"frame_index": b"42",
-        b"detection_count": b"1",
-        b"minio_key": b"frames/evt-1.jpg",
-        b"room_name": room.encode(),
-        b"detection.0.id": b"det-0",
-        b"detection.0.bbox_xmin": b"10",
-        b"detection.0.bbox_ymin": b"20",
-        b"detection.0.bbox_xmax": b"110",
-        b"detection.0.bbox_ymax": b"220",
-        b"detection.0.confidence": b"0.92",
-        b"detection.0.tracklet_id": b"t-1",
-        b"detection.0.global_track_id": b"gt-1",
-        b"detection.0.identity_id": identity_id.encode(),
-        b"detection.0.identity_confidence": b"0.87",
-        b"detection.0.floor_x_mm": b"1000",
-        b"detection.0.floor_y_mm": b"2000",
-    }
+def _make_event(
+    *,
+    camera_id: str = "kitchen-1",
+    room: str = "kitchen",
+    identity_id: str = "grandma",
+    confidence: float = 0.87,
+    event_time_unix_ns: int = 1735305600000000000,
+) -> tracking_pb2.TrackingEvent:
+    ev = tracking_pb2.TrackingEvent(
+        camera_id=camera_id,
+        event_id="evt-1",
+        event_time_unix_ns=event_time_unix_ns,
+        room_name=room,
+    )
+    ev.frame_ref.minio_key = "frames/evt-1.jpg"
+    ev.frame_ref.frame_index = 42
+    det = ev.detections.add(
+        detection_id="det-0",
+        confidence=0.92,
+        tracklet_id="t-1",
+        global_track_id="gt-1",
+    )
+    det.bbox.x_min, det.bbox.y_min = 10, 20
+    det.bbox.x_max, det.bbox.y_max = 110, 220
+    det.floor_point.x_mm = 1000
+    det.floor_point.y_mm = 2000
+    det.floor_point.calibrated = True
+    if identity_id:
+        rev = ev.identity_revisions.add()
+        rev.global_track_id = "gt-1"
+        rev.map_identity_id = identity_id
+        rev.candidates.add(identity_id=identity_id, probability=confidence)
+    return ev
+
+
+def _proto_fields(message: tracking_pb2.TrackingEvent) -> dict[bytes, bytes]:
+    return {b"event": message.SerializeToString()}
 
 
 class _StubWriter:
@@ -59,44 +79,48 @@ def subscriber():
 
 
 class TestDecode:
-    def test_reassembles_detection_fields(self, subscriber):
+    def test_decodes_proto_event(self, subscriber):
         sub, _ = subscriber
-        event = sub.decode(b"0-0", _make_fields())
+        event = sub.decode(b"0-0", _proto_fields(_make_event()))
         assert event is not None
         assert event["camera_id"] == "kitchen-1"
         assert event["room_name"] == "kitchen"
-        assert len(event["detections"]) == 1
+        assert event["minio_key"] == "frames/evt-1.jpg"
+        assert event["frame_index"] == 42
+        assert event["detection_count"] == 1
+
         det = event["detections"][0]
         assert det["identity_id"] == "grandma"
-        assert det["bbox"] == {
-            "x_min": 10,
-            "y_min": 20,
-            "x_max": 110,
-            "y_max": 220,
-        }
         assert det["identity_confidence"] == pytest.approx(0.87)
+        assert det["bbox"] == {"x_min": 10, "y_min": 20, "x_max": 110, "y_max": 220}
+        assert det["floor_point"] == {"x_mm": 1000, "y_mm": 2000}
 
     def test_event_time_falls_back_to_now_on_zero_ns(self, subscriber):
         sub, _ = subscriber
-        fields = _make_fields()
-        fields[b"event_time_unix_ns"] = b"0"
-        event = sub.decode(b"0-0", fields)
+        event = sub.decode(b"0-0", _proto_fields(_make_event(event_time_unix_ns=0)))
         assert event is not None
         assert event["event_time"]
 
     def test_no_room_name_becomes_none(self, subscriber):
         sub, _ = subscriber
-        fields = _make_fields(room="")
-        event = sub.decode(b"0-0", fields)
+        event = sub.decode(b"0-0", _proto_fields(_make_event(room="")))
         assert event is not None
         assert event["room_name"] is None
+
+    def test_missing_payload_returns_none(self, subscriber):
+        sub, _ = subscriber
+        assert sub.decode(b"0-0", {}) is None
+
+    def test_garbage_payload_returns_none(self, subscriber):
+        sub, _ = subscriber
+        assert sub.decode(b"0-0", {b"event": b"not-protobuf-\xff\x01"}) is None
 
 
 class TestHandle:
     @pytest.mark.asyncio
     async def test_forwards_to_writer_and_acks(self, subscriber):
         sub, writer = subscriber
-        event = sub.decode(b"0-0", _make_fields())
+        event = sub.decode(b"0-0", _proto_fields(_make_event()))
         assert event is not None
         ok = await sub.handle(event)
         assert ok is True
@@ -112,7 +136,7 @@ class TestHandle:
                 raise RuntimeError("db_broken")
 
         sub._writer = _BoomWriter()  # type: ignore[assignment]
-        event = sub.decode(b"0-0", _make_fields())
+        event = sub.decode(b"0-0", _proto_fields(_make_event()))
         assert event is not None
         ok = await sub.handle(event)
         assert ok is False
@@ -141,7 +165,7 @@ def test_uses_in_memory_writer(db_factory):
         ws_manager=None,
         pipeline=None,
     )
-    event = sub.decode(b"0-0", _make_fields())
+    event = sub.decode(b"0-0", _proto_fields(_make_event()))
     assert event is not None
     import asyncio
 

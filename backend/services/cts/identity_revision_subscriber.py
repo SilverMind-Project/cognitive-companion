@@ -1,20 +1,24 @@
-"""IdentityRevisionSubscriber: consume tracking.revisions.
+"""IdentityRevisionSubscriber: consume tracking.revisions (proto wire format).
 
-Decodes the JSON payload produced by the orchestrator's
-:class:`tracking_orchestrator.app.transport.revision_publisher.RevisionPublisher`
-and delegates to :class:`IdentityRewriter`.
+Decodes ``IdentityRevision`` proto messages from the
+``tracking.revisions`` Redis Stream and delegates to
+:class:`IdentityRewriter`.
 """
 
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
+from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
 logger = get_logger(__name__)
+
+FIELD = b"revision"
 
 
 class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
@@ -45,59 +49,50 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
     # -- StreamConsumer abstract methods -------------------------------------
 
     def decode(self, message_id: bytes, fields: dict) -> dict[str, Any] | None:
-        """Parse the flat-field JSON payload from the orchestrator.
+        payload = fields.get(FIELD) or fields.get(FIELD.decode())
+        if payload is None:
+            logger.warning("revision_missing_payload", message_id=message_id)
+            return None
+        if isinstance(payload, str):
+            payload = payload.encode("latin-1")
 
-        Fields that were JSON-encoded on the producer side (``tracklet_ids``,
-        ``evidence``) are decoded here; the rest are passed through as strings.
-        """
         try:
-            decoded = {_k(k): _v(v) for k, v in fields.items()}
+            message = tracking_pb2.IdentityRevision.FromString(payload)
         except Exception:
-            logger.warning("revision_decode_error", message_id=message_id)
+            logger.exception("revision_proto_decode_error", message_id=message_id)
             return None
 
-        required = {"revision_id", "global_track_id", "revision_time"}
-        if not required.issubset(decoded):
+        if not message.revision_id or not message.global_track_id:
             logger.warning(
-                "revision_missing_fields",
+                "revision_missing_required_fields",
                 message_id=message_id,
-                missing=required - set(decoded.keys()),
+                revision_id=message.revision_id,
+                global_track_id=message.global_track_id,
             )
             return None
 
-        tracklet_ids: list[str] = []
-        raw_tracklets = decoded.get("tracklet_ids", "[]")
         try:
-            parsed = json.loads(raw_tracklets) if raw_tracklets else []
-            if isinstance(parsed, list):
-                tracklet_ids = [str(x) for x in parsed]
+            evidence = json.loads(message.evidence_json) if message.evidence_json else {}
+            if not isinstance(evidence, dict):
+                evidence = {}
         except json.JSONDecodeError:
-            logger.warning("revision_tracklet_ids_not_json", raw=raw_tracklets[:64])
-
-        evidence: dict[str, Any] = {}
-        raw_ev = decoded.get("evidence", "{}")
-        try:
-            parsed_ev = json.loads(raw_ev) if raw_ev else {}
-            if isinstance(parsed_ev, dict):
-                evidence = parsed_ev
-        except json.JSONDecodeError:
-            logger.warning("revision_evidence_not_json", raw=raw_ev[:64])
+            logger.warning("revision_evidence_not_json", raw=message.evidence_json[:64])
+            evidence = {}
 
         return {
-            "revision_id": decoded["revision_id"],
-            "global_track_id": decoded["global_track_id"],
-            "tracklet_ids": tracklet_ids,
-            "previous_identity_id": decoded.get("previous_identity_id") or None,
-            "new_identity_id": decoded.get("new_identity_id") or None,
-            "map_identity_id": decoded.get("map_identity_id", ""),
-            "posterior_entropy": _to_float(decoded.get("posterior_entropy")),
-            "reason": decoded.get("reason", ""),
+            "revision_id": message.revision_id,
+            "global_track_id": message.global_track_id,
+            "tracklet_ids": list(message.tracklet_ids),
+            "previous_identity_id": message.previous_identity_id or None,
+            "new_identity_id": message.new_identity_id or None,
+            "map_identity_id": message.map_identity_id,
+            "posterior_entropy": float(message.posterior_entropy),
+            "reason": message.reason,
             "evidence": evidence,
-            "revision_time": decoded["revision_time"],
+            "revision_time": _ns_to_iso(message.revision_time_unix_ns),
         }
 
     async def handle(self, revision: dict[str, Any]) -> bool:
-        """Apply the revision; fire a pipeline event if a pipeline is attached."""
         try:
             result = await self._rewriter.apply(revision)
         except Exception:
@@ -124,23 +119,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         return True
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _k(key: Any) -> str:
-    return key.decode("utf-8") if isinstance(key, bytes | bytearray) else str(key)
-
-
-def _v(value: Any) -> str:
-    if isinstance(value, bytes | bytearray):
-        return value.decode("utf-8", errors="replace")
-    return str(value)
-
-
-def _to_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value) if value not in (None, "") else default
-    except (TypeError, ValueError):
-        return default
+def _ns_to_iso(ns: int) -> str:
+    if ns <= 0:
+        return datetime.now(UTC).isoformat()
+    return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()

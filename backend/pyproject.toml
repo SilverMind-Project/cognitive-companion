@@ -23,6 +23,8 @@ dependencies = [
     "numpy>=1.26",
     "pyjwt[cryptography]>=2.8",
     "redis[hiredis]>=5.0",
+    "protobuf>=5.29",
+    "prometheus-client>=0.25.0",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +52,7 @@ packages = ["backend"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+extend-exclude = ["integrations/proto"]
 
 [tool.ruff.lint]
 select = [
@@ -148,3 +151,8 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[dependency-groups]
+dev = [
+    "fakeredis>=2.35.1",
+]

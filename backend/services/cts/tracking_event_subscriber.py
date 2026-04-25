@@ -1,43 +1,35 @@
 """TrackingEventSubscriber: consume tracking.events and apply to location state.
 
-Decodes :mod:`backend.services.cts.stream_consumer`-shaped messages from the
-``tracking.events`` Redis Stream, reassembles the flat field payload into a
-structured event dict, and delegates to :class:`LocationWriter`.
+Decodes :class:`TrackingEvent` proto messages from the ``tracking.events``
+Redis Stream, translates them into the dict shape that :class:`LocationWriter`
+consumes, and forwards live-frame broadcasts to the WebSocket fan-out.
 
-The wire format is currently JSON-flat (see tech-debt TD-001/TD-004). The
-decoder is tolerant of missing per-detection fields: events published by
-older orchestrator builds simply produce ``identity_id=""`` detections that
-:class:`LocationWriter` skips cleanly.
+Wire format
+-----------
+Each Redis Streams message carries one field, ``event``, whose value is the
+raw protobuf body of a ``continuoustracking.v1.TrackingEvent``. The
+orchestrator publishes via ``RedisStreamsTransport.publish_event``; this
+subscriber is the only consumer.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
+from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
 logger = get_logger(__name__)
 
+# Redis Streams field name carrying the proto body.
+FIELD = b"event"
+
 
 class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
-    """Consume ``tracking.events`` and apply them to PersonLocationState.
-
-    Parameters
-    ----------
-    redis_url:
-        Redis connection URL.
-    consumer_id:
-        Unique ID for this consumer instance (usually ``socket.gethostname()``).
-    writer:
-        :class:`LocationWriter` that persists the event to CC tables.
-    ws_manager:
-        Optional :class:`ConnectionManager` for live bbox broadcasts.
-    pipeline:
-        Optional pipeline executor; fires ``cts.event`` events when a rule
-        wants to key off raw tracking events.
-    """
+    """Consume ``tracking.events`` and apply them to PersonLocationState."""
 
     STREAM = "tracking.events"
     GROUP = "cognitive-companion-events"
@@ -66,52 +58,75 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
     # -- StreamConsumer abstract methods ------------------------------------
 
     def decode(self, message_id: bytes, fields: dict) -> dict[str, Any] | None:
-        """Reassemble the flat field payload into an event dict.
+        """Decode the proto envelope into the LocationWriter event dict."""
+        payload = fields.get(FIELD) or fields.get(FIELD.decode())
+        if payload is None:
+            logger.warning("tracking_event_missing_payload", message_id=message_id)
+            return None
+        if isinstance(payload, str):
+            payload = payload.encode("latin-1")
 
-        The orchestrator serializes one Redis Stream field per detection
-        attribute (e.g. ``detection.0.bbox_xmin``).  We re-group them here
-        so downstream code sees a structured dict.
-        """
-        decoded = {_k(k): _v(v) for k, v in fields.items()}
+        try:
+            message = tracking_pb2.TrackingEvent.FromString(payload)
+        except Exception:
+            logger.exception("tracking_event_proto_decode_error", message_id=message_id)
+            return None
 
-        event: dict[str, Any] = {
-            "event_id": decoded.get("event_id", ""),
-            "camera_id": decoded.get("camera_id", ""),
-            "event_time": _event_time_iso(decoded.get("event_time_unix_ns", "0")),
-            "frame_index": _to_int(decoded.get("frame_index")),
-            "detection_count": _to_int(decoded.get("detection_count")),
-            "minio_key": decoded.get("minio_key", ""),
-            "room_name": decoded.get("room_name", "") or None,
-        }
+        # MAP identities live on IdentityRevision sub-messages; the top
+        # candidate's probability acts as the per-detection confidence.
+        identity_by_track: dict[str, tuple[str, float]] = {}
+        for revision in message.identity_revisions:
+            if not revision.global_track_id or not revision.map_identity_id:
+                continue
+            confidence = next(
+                (
+                    float(c.probability)
+                    for c in revision.candidates
+                    if c.identity_id == revision.map_identity_id
+                ),
+                0.0,
+            )
+            identity_by_track[revision.global_track_id] = (
+                revision.map_identity_id,
+                confidence,
+            )
 
         detections: list[dict[str, Any]] = []
-        indexes = _detection_indexes(decoded)
-        for idx in sorted(indexes):
+        for det in message.detections:
+            identity_id, identity_conf = identity_by_track.get(
+                det.global_track_id, ("", 0.0)
+            )
             detections.append(
                 {
-                    "id": decoded.get(f"detection.{idx}.id", ""),
-                    "tracklet_id": decoded.get(f"detection.{idx}.tracklet_id", ""),
-                    "global_track_id": decoded.get(f"detection.{idx}.global_track_id", ""),
-                    "identity_id": decoded.get(f"detection.{idx}.identity_id", ""),
-                    "identity_confidence": _to_float(
-                        decoded.get(f"detection.{idx}.identity_confidence")
-                    ),
-                    "confidence": _to_float(decoded.get(f"detection.{idx}.confidence")),
+                    "id": det.detection_id,
+                    "tracklet_id": det.tracklet_id,
+                    "global_track_id": det.global_track_id,
+                    "identity_id": identity_id,
+                    "identity_confidence": identity_conf,
+                    "confidence": float(det.confidence),
                     "bbox": {
-                        "x_min": _to_int(decoded.get(f"detection.{idx}.bbox_xmin")),
-                        "y_min": _to_int(decoded.get(f"detection.{idx}.bbox_ymin")),
-                        "x_max": _to_int(decoded.get(f"detection.{idx}.bbox_xmax")),
-                        "y_max": _to_int(decoded.get(f"detection.{idx}.bbox_ymax")),
+                        "x_min": int(det.bbox.x_min),
+                        "y_min": int(det.bbox.y_min),
+                        "x_max": int(det.bbox.x_max),
+                        "y_max": int(det.bbox.y_max),
                     },
                     "floor_point": {
-                        "x_mm": _to_int(decoded.get(f"detection.{idx}.floor_x_mm")),
-                        "y_mm": _to_int(decoded.get(f"detection.{idx}.floor_y_mm")),
+                        "x_mm": int(det.floor_point.x_mm),
+                        "y_mm": int(det.floor_point.y_mm),
                     },
                 }
             )
-        event["detections"] = detections
 
-        return event
+        return {
+            "event_id": message.event_id,
+            "camera_id": message.camera_id,
+            "event_time": _ns_to_iso(message.event_time_unix_ns),
+            "frame_index": int(message.frame_ref.frame_index),
+            "detection_count": len(detections),
+            "minio_key": message.frame_ref.minio_key,
+            "room_name": message.room_name or None,
+            "detections": detections,
+        }
 
     async def handle(self, event: dict[str, Any]) -> bool:
         """Apply the event to CC location state."""
@@ -122,7 +137,6 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             return False
 
         if self._ws_manager is not None and event.get("detections"):
-            # Broadcast the raw frame payload for the Live view.
             try:
                 await self._ws_manager.broadcast(
                     {
@@ -156,61 +170,12 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
 
 # ---------------------------------------------------------------------------
-# Helpers (decode a Redis-Streams flat bytes dict into a clean Python dict)
+# Helpers
 # ---------------------------------------------------------------------------
 
 
-def _k(key: Any) -> str:
-    return key.decode("utf-8") if isinstance(key, bytes | bytearray) else str(key)
-
-
-def _v(value: Any) -> str:
-    if isinstance(value, bytes | bytearray):
-        return value.decode("utf-8", errors="replace")
-    return str(value)
-
-
-def _to_int(value: Any, default: int = 0) -> int:
-    if value is None or value == "":
-        return default
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _to_float(value: Any, default: float = 0.0) -> float:
-    if value is None or value == "":
-        return default
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _event_time_iso(ns_str: str) -> str:
-    """Convert unix-ns string to ISO-8601 UTC."""
-    from datetime import UTC, datetime
-
-    try:
-        ns = int(ns_str)
-    except (TypeError, ValueError):
-        ns = 0
+def _ns_to_iso(ns: int) -> str:
+    """Convert unix-ns to an ISO-8601 UTC string."""
     if ns <= 0:
         return datetime.now(UTC).isoformat()
     return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()
-
-
-def _detection_indexes(decoded: dict[str, str]) -> set[int]:
-    """Find unique detection indexes referenced by the flat fields."""
-    idxs: set[int] = set()
-    for key in decoded:
-        if not key.startswith("detection."):
-            continue
-        parts = key.split(".")
-        if len(parts) >= 2:
-            try:
-                idxs.add(int(parts[1]))
-            except ValueError:
-                continue
-    return idxs

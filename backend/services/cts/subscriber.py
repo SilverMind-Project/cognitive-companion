@@ -1,69 +1,53 @@
 """DementiaSignalSubscriber: Redis Streams consumer for tracking.signals.
 
-This subscriber consumes ``DementiaSignal`` messages from the
-``tracking.signals`` Redis Stream, persists them via :class:`SignalStore`,
-and fires an event into the pipeline so existing rule-engine plumbing
-can match on signal type.
+Decodes ``DementiaSignal`` proto messages from the ``tracking.signals``
+Redis Stream, persists them via :class:`SignalStore`, and fires an event
+into the pipeline so existing rule-engine plumbing can match on signal
+type.
 
-Architecture
-------------
-The subscriber reuses the shared :class:`StreamConsumer` base class
-(defined in :mod:`backend.services.cts.stream_consumer`) so each
-subscriber is ~60 lines of actual logic.  Tests inject a fake Redis
-via :class:`redis.asyncio.Redis` mock.
-
-Field-name mapping
-------------------
-The orchestrator's ``SignalPublisher`` serializes using the orchestrator's
-domain names (``identity_id``, ``signal_kind``, ``context``).  The CC
-``SignalStore`` uses the CC-side names (``person_id``, ``signal_type``,
-``context_json``).  This subscriber maps between the two namespaces so
-both sides remain consistent with their own domain models.
+Wire format: each Redis Streams message is a single field ``signal``
+carrying the raw protobuf body of a
+``continuoustracking.v1.DementiaSignal``.
 """
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
+from backend.integrations.proto.continuoustracking.v1 import signals_pb2
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
 logger = get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Field mapping: orchestrator publisher → CC subscriber
-#
-# The orchestrator's SignalPublisher._serialize() emits:
-#   identity_id, signal_kind, context, severity, value, baseline,
-#   z_score, window_start, window_end, emitted_at, signal_id
-#
-# The CC's SignalStore.insert() expects:
-#   person_id, signal_type, context_json, severity, value, baseline,
-#   z_score, window_start, window_end
-# ---------------------------------------------------------------------------
+FIELD = b"signal"
 
-# Required fields that MUST be present in the publisher payload.
-# Uses the orchestrator's field names.
-_REQUIRED_PUBLISHER_FIELDS = {"identity_id", "signal_kind", "severity", "window_start", "window_end", "value"}
+
+# Proto enum -> CC-canonical string. CC tables and filters key on the
+# string form (matches the orchestrator's domain Literal aliases) so this
+# subscriber is the single point of translation.
+
+_PROTO_KIND_TO_STR: dict[int, str] = {
+    signals_pb2.DEMENTIA_SIGNAL_KIND_PACING: "pacing",
+    signals_pb2.DEMENTIA_SIGNAL_KIND_SUNDOWNING_INDEX: "sundowning_index",
+    signals_pb2.DEMENTIA_SIGNAL_KIND_BATHROOM_DWELL_ANOMALY: "bathroom_dwell_anomaly",
+    signals_pb2.DEMENTIA_SIGNAL_KIND_NIGHTTIME_MOVEMENT: "nighttime_movement",
+    signals_pb2.DEMENTIA_SIGNAL_KIND_STILLNESS_ANOMALY: "stillness_anomaly",
+    signals_pb2.DEMENTIA_SIGNAL_KIND_ABSENCE: "absence",
+}
+
+_PROTO_SEVERITY_TO_STR: dict[int, str] = {
+    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_INFO: "info",
+    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_WARNING: "warning",
+    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_EMERGENCY: "emergency",
+}
 
 
 class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
-    """Consume ``tracking.signals`` and persist each signal.
-
-    Parameters
-    ----------
-    redis_url:
-        Redis connection URL.
-    consumer_id:
-        Unique ID for this consumer instance (typically ``socket.gethostname()``).
-    store:
-        :class:`SignalStore` instance for database persistence.
-    pipeline:
-        Optional :class:`PipelineExecutor` (or compatible) for firing
-        events into the rule engine.  Pass ``None`` if the pipeline
-        is not available (e.g. during tests).
-    """
+    """Consume ``tracking.signals`` and persist each signal."""
 
     STREAM = "tracking.signals"
     GROUP = "cognitive-companion-signals"
@@ -90,48 +74,53 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
     # -- StreamConsumer abstract methods -------------------------------------
 
     def decode(self, message_id: bytes, fields: dict) -> dict[str, Any] | None:
-        """Parse raw Redis Stream fields into a signal dict.
-
-        The publisher sends a single ``signal`` field containing a
-        JSON-encoded dict.  Field names are mapped from orchestrator
-        conventions to CC conventions before validation.
-
-        Returns ``None`` to drop+ack malformed messages.
-        """
-        raw = fields.get(b"signal")
-        if raw is None:
+        """Decode the proto envelope into the SignalStore dict shape."""
+        payload = fields.get(FIELD) or fields.get(FIELD.decode())
+        if payload is None:
             return None
+        if isinstance(payload, str):
+            payload = payload.encode("latin-1")
 
-        # Try JSON first (primary format for now; proto can be added later).
         try:
-            import json
-
-            signal_data = json.loads(raw.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            logger.warning("dementia_signal_parse_error", message_id=message_id)
+            message = signals_pb2.DementiaSignal.FromString(payload)
+        except Exception:
+            logger.warning("dementia_signal_proto_decode_error", message_id=message_id)
             return None
 
-        # Map orchestrator field names → CC field names.
-        # Accept both naming conventions for forward/backward compatibility.
-        signal_data = _map_field_names(signal_data)
-
-        # Validate required fields (using CC-canonical names after mapping).
-        required = {"person_id", "signal_type", "severity", "window_start", "window_end", "value"}
-        if not required.issubset(signal_data):
+        kind = _PROTO_KIND_TO_STR.get(message.kind)
+        severity = _PROTO_SEVERITY_TO_STR.get(message.severity)
+        if not kind or not severity or not message.identity_id:
             logger.warning(
                 "dementia_signal_missing_fields",
                 message_id=message_id,
-                missing=required - set(signal_data.keys()),
+                kind=message.kind,
+                severity=message.severity,
+                identity_id=message.identity_id,
             )
             return None
 
-        return signal_data
+        try:
+            context = json.loads(message.context_json) if message.context_json else {}
+            if not isinstance(context, dict):
+                context = {}
+        except json.JSONDecodeError:
+            logger.warning("dementia_signal_context_not_json", raw=message.context_json[:64])
+            context = {}
+
+        return {
+            "signal_id": message.signal_id,
+            "person_id": message.identity_id,
+            "signal_type": kind,
+            "severity": severity,
+            "value": float(message.value),
+            "baseline": float(message.baseline) if message.has_baseline else None,
+            "z_score": float(message.z_score) if message.has_z_score else None,
+            "window_start": _ns_to_iso(message.window_start_unix_ns),
+            "window_end": _ns_to_iso(message.window_end_unix_ns),
+            "context_json": context,
+        }
 
     async def handle(self, signal: dict[str, Any]) -> bool:
-        """Persist the signal and optionally fire a pipeline event.
-
-        Returns ``True`` to ack the message, ``False`` to leave it pending.
-        """
         try:
             signal_id = await self._store.insert(signal)
             logger.info(
@@ -142,7 +131,6 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
                 severity=signal["severity"],
             )
 
-            # Fire event into the rule engine if available.
             if self._pipeline is not None:
                 try:
                     await self._pipeline.fire_event(
@@ -160,7 +148,6 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
                     )
                 except Exception:
                     logger.exception("dementia_signal_pipeline_fire_error")
-
         except Exception:
             logger.exception("dementia_signal_handle_error")
             return False
@@ -168,33 +155,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
         return True
 
 
-def _map_field_names(data: dict[str, Any]) -> dict[str, Any]:
-    """Map orchestrator field names to CC field names.
-
-    Orchestrator sends: ``identity_id``, ``signal_kind``, ``context``
-    CC expects:         ``person_id``,   ``signal_type``,  ``context_json``
-
-    Both naming conventions are accepted for compatibility.  If both are
-    present the orchestrator name wins (it's the canonical source).
-    """
-    mapped = dict(data)
-
-    # identity_id → person_id
-    if "identity_id" in mapped and "person_id" not in mapped:
-        mapped["person_id"] = mapped.pop("identity_id")
-    elif "identity_id" in mapped:
-        mapped.pop("identity_id")
-
-    # signal_kind → signal_type
-    if "signal_kind" in mapped and "signal_type" not in mapped:
-        mapped["signal_type"] = mapped.pop("signal_kind")
-    elif "signal_kind" in mapped:
-        mapped.pop("signal_kind")
-
-    # context → context_json
-    if "context" in mapped and "context_json" not in mapped:
-        mapped["context_json"] = mapped.pop("context")
-    elif "context" in mapped:
-        mapped.pop("context")
-
-    return mapped
+def _ns_to_iso(ns: int) -> str:
+    if ns <= 0:
+        return datetime.now(UTC).isoformat()
+    return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()

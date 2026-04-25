@@ -25,7 +25,7 @@ WorkflowExecution records from race conditions during concurrent access:
 - Behavior: Block concurrent access until transaction commits
 - Critical sections:
   1. **Resume operations** (`resume()`): Prevents concurrent resume attempts
-     (manual + scheduled) from racing on status transition waiting→running
+     (manual + scheduled) from racing on status transition waiting->running
   2. **Timeout handling** (`_handle_timeout()`): Ensures exclusive access
      when marking execution as failed after cancellation, preventing conflicts
      with the cancelled coroutine's uncommitted changes
@@ -71,6 +71,11 @@ from backend.core.logging import get_logger
 from backend.models.event import EventLog
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.models.rule import Rule
+from backend.services.pipeline_data_manager import (
+    apply_step_result,
+    build_initial_pipeline_data,
+    copy_pipeline_snapshot,
+)
 from backend.steps import StepRegistry
 from backend.steps.base import ServiceContainer, StepResult, TriggerContext
 
@@ -172,29 +177,17 @@ class PipelineExecutor:
         now_local = datetime.now(local_tz)
         now_utc = datetime.now(UTC)
 
-        pipeline_data: dict = {
-            "trigger": {
-                "type": trigger.trigger_type,
-                "sensor_id": trigger.sensor_id,
-                "room_name": trigger.room_name,
-                "media_paths": trigger.media_paths,
-                "media_type": trigger.media_type,
-            },
-            "system": {
-                "local_time": now_local.strftime("%I:%M %p"),
-                "local_date": now_local.strftime("%Y-%m-%d"),
-                "local_day_of_week": now_local.strftime("%A"),
-                "timezone": str(local_tz),
-            },
-            "_pipeline": {
-                "started_at": now_utc.isoformat(),
-                "completed_at": None,
-            },
-            "_step_timings": [],
-        }
-
-        if trigger.webhook_payload:
-            pipeline_data["trigger_input"] = trigger.webhook_payload
+        pipeline_data: dict = build_initial_pipeline_data(
+            trigger_type=trigger.trigger_type,
+            sensor_id=trigger.sensor_id,
+            room_name=trigger.room_name,
+            media_paths=trigger.media_paths,
+            media_type=trigger.media_type,
+            webhook_payload=trigger.webhook_payload,
+            now_utc=now_utc,
+            now_local=now_local,
+            timezone_name=str(local_tz),
+        )
 
         execution = WorkflowExecution(
             rule_id=rule.id,
@@ -237,14 +230,16 @@ class PipelineExecutor:
 
     async def resume(self, execution_id: int, db: Session) -> WorkflowExecution:
         """Resume a waiting workflow execution from its current step.
-        
+
         Uses pessimistic locking (SELECT FOR UPDATE) to ensure exclusive access
         during the critical status transition from 'waiting' to 'running'. This
         prevents race conditions where multiple resume attempts could occur
         simultaneously (e.g., manual resume + scheduled resume).
+
+        For interactive_prompt steps, loads the recorded response and merges it
+        into pipeline_data before continuing to the next step.
         """
         # CRITICAL SECTION: Acquire row-level lock for status transition
-        # This prevents concurrent resume attempts from racing
         execution = (
             db.query(WorkflowExecution)
             .filter(WorkflowExecution.id == execution_id)
@@ -269,11 +264,26 @@ class PipelineExecutor:
         )
 
         current_order = None
+        current_step: PipelineStep | None = None
         if execution.current_step_id:
             for s in steps:
                 if s.id == execution.current_step_id:
                     current_order = s.order
+                    current_step = s
                     break
+
+        # For interactive_prompt steps: merge the response into pipeline_data
+        # before advancing. The executor is the only writer of pipeline_data_json.
+        if current_step and current_step.step_type == "interactive_prompt":
+            merged = self._merge_interactive_response(execution, current_step, db)
+            if not merged:
+                # Response not yet available; keep waiting
+                logger.info(
+                    "resume_interactive_no_response_yet",
+                    execution_id=execution_id,
+                    step_id=current_step.id,
+                )
+                return execution
 
         if current_order is not None:
             steps = [s for s in steps if s.order > current_order]
@@ -302,6 +312,62 @@ class PipelineExecutor:
             )
         except TimeoutError:
             return self._handle_timeout(rule, execution, db)
+
+    def _merge_interactive_response(
+        self,
+        execution: WorkflowExecution,
+        step: PipelineStep,
+        db: Session,
+    ) -> bool:
+        """Load the InteractiveResponse for *step* and merge it into pipeline_data.
+
+        Returns True if a response was found and merged, False otherwise.
+        The caller holds the row lock so this is safe to commit.
+        """
+        from backend.models.interactive_response import InteractiveResponse
+        from backend.services.pipeline_data_manager import apply_interactive_response
+
+        response = (
+            db.query(InteractiveResponse)
+            .filter(
+                InteractiveResponse.execution_id == execution.id,
+                InteractiveResponse.step_id == step.id,
+            )
+            .first()
+        )
+        if response is None:
+            return False
+
+        config = step.config_json or {}
+        output_key = config.get("output_key", "interactive_response")
+        auto_escalate = config.get("auto_escalate", False)
+
+        response_payload = {
+            "channel": response.channel,
+            "action": response.action,
+            "timestamp": response.timestamp.isoformat(),
+            "raw_response": response.raw_response_json or {},
+        }
+
+        pipeline_data = execution.pipeline_data_json
+        if pipeline_data is None:
+            execution.pipeline_data_json = {}
+            pipeline_data = execution.pipeline_data_json
+
+        apply_interactive_response(
+            pipeline_data,
+            step_id=step.id,
+            step_type=step.step_type,
+            label=step.label,
+            output_key=output_key,
+            response_payload=response_payload,
+            auto_escalate=auto_escalate,
+            channel=response.channel,
+            action=response.action,
+        )
+        flag_modified(execution, "pipeline_data_json")
+        db.commit()
+        return True
 
     # -- step execution -------------------------------------------------------
 
@@ -391,33 +457,31 @@ class PipelineExecutor:
                 # Signal to the except-block that this step's timing is already saved
                 _active_step_started_at = None
 
-                # Merge step output into the tracked dict. ``update`` and
-                # ``__setitem__`` on a MutableDict both fire ``changed()``,
-                # which marks the JSON column dirty for the next flush.
-                pipeline_data.update(result.data)
-
-                # When a step has a label, also write its output under that label
-                # as a namespace key.  This lets pipelines with duplicate step
-                # types (e.g. two llm_call steps) reference each step's output
-                # independently via {{my_label.field}} templates.
-                if step.label:
-                    label_key = step.label.strip().lower().replace(" ", "_")
-                    if label_key:
-                        pipeline_data[label_key] = dict(result.data)
+                # Merge step output into the tracked dict via the canonical helper.
+                # apply_step_result writes:
+                #   - steps.by_id.<id>.outputs  (canonical, always)
+                #   - steps.by_label.<slug>      (friendly alias when unique)
+                #   - legacy top-level aliases   (last-writer-wins, collision logged)
+                apply_step_result(
+                    pipeline_data,
+                    step_id=step.id,
+                    step_type=step.step_type,
+                    label=step.label,
+                    result_data=result.data,
+                )
 
                 pipeline_data["_step_timings"] = step_timings
                 db.commit()
 
                 # Handle wait
-                # CRITICAL SECTION: Status transition to 'waiting'
-                # The execution row is already loaded in this transaction, so we
-                # don't need an additional SELECT FOR UPDATE here. The commit will
-                # use the version column (optimistic locking) to detect conflicts.
                 if result.wait_until:
                     execution.status = "waiting"
                     execution.resume_at = result.wait_until
+                    # Record which step we are waiting on so resume() can
+                    # load the interactive response if needed.
+                    execution.current_step_id = step.id
                     db.commit()
-                    if self._services.scheduler:
+                    if self._services.scheduler and step.step_type != "interactive_prompt":
                         self._services.scheduler.schedule_workflow_resume(
                             execution.id, result.wait_until
                         )
@@ -429,17 +493,6 @@ class PipelineExecutor:
                     return execution
 
                 # Handle early exit.
-                #
-                # ``should_continue=False`` carries two distinct meanings:
-                #
-                # * ``success=True`` is an intentional skip (e.g. a filter
-                #   step deciding the rule should not fire). The execution is
-                #   a normal ``completed`` and the event log is ``ignored``
-                #   so rate-limit / cool-off logic treats it as a no-op.
-                # * ``success=False`` is an error (e.g. an unknown step type
-                #   returning a sentinel ``StepResult``). Both the execution
-                #   and the event log must be marked ``failed`` so operators
-                #   can find it in the UI and alerting stays accurate.
                 if not result.should_continue:
                     completed_at = datetime.now(UTC)
                     if result.success:
@@ -458,7 +511,7 @@ class PipelineExecutor:
                     )
                     if event_log:
                         event_log.status = event_log_status
-                        event_log.pipeline_data_json = dict(pipeline_data)
+                        event_log.pipeline_data_json = copy_pipeline_snapshot(pipeline_data)
                     db.commit()
                     logger.info(
                         "pipeline_early_exit",
@@ -486,7 +539,7 @@ class PipelineExecutor:
                     event_log.status = "completed"
                 else:
                     event_log.status = "ignored"
-                event_log.pipeline_data_json = dict(pipeline_data)
+                event_log.pipeline_data_json = copy_pipeline_snapshot(pipeline_data)
             db.commit()
 
             logger.info(
@@ -497,6 +550,11 @@ class PipelineExecutor:
             return execution
 
         except Exception as e:
+            import contextlib
+            # Rollback any failed transaction before attempting cleanup writes.
+            with contextlib.suppress(Exception):
+                db.rollback()
+
             completed_at = datetime.now(UTC)
 
             # Record timing for the step that raised, if not already saved
@@ -528,7 +586,7 @@ class PipelineExecutor:
             event_log = db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
             if event_log:
                 event_log.status = "failed"
-                event_log.pipeline_data_json = dict(pipeline_data)
+                event_log.pipeline_data_json = copy_pipeline_snapshot(pipeline_data)
             db.commit()
             return execution
 
@@ -556,11 +614,9 @@ class PipelineExecutor:
         db: Session,
     ) -> WorkflowExecution:
         """Mark the execution as failed due to timeout and persist the state.
-        
+
         Uses pessimistic locking (SELECT FOR UPDATE) to ensure exclusive access
-        when transitioning to 'failed' status. This prevents race conditions where
-        the cancelled coroutine might still be attempting to commit changes while
-        we're marking the execution as timed out.
+        when transitioning to 'failed' status.
         """
         completed_at = datetime.now(UTC)
         error_msg = (
@@ -569,8 +625,6 @@ class PipelineExecutor:
         )
 
         # CRITICAL SECTION: Acquire row-level lock for timeout handling
-        # The cancelled coroutine may have uncommitted changes, so we need
-        # exclusive access to ensure a clean state transition to 'failed'.
         db.rollback()  # Discard any uncommitted changes from cancelled coroutine
         execution = (
             db.query(WorkflowExecution)
@@ -685,4 +739,3 @@ async def _update_pipeline_data_with_retry(
             )
             await asyncio.sleep(delay)
             db.rollback()
-

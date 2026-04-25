@@ -844,9 +844,11 @@ class TestOptimisticLockingRetry:
             data["will_fail"] = True
 
         # Mock commit to always raise StaleDataError
-        with patch.object(db_session, "commit", side_effect=StaleDataError("Always fails")):
-            with pytest.raises(StaleDataError):
-                await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
+        with (
+            patch.object(db_session, "commit", side_effect=StaleDataError("Always fails")),
+            pytest.raises(StaleDataError),
+        ):
+            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
 
     async def test_lock_conflict_logging(self, db_session, db_factory):
         """Lock conflicts are logged with appropriate warnings."""
@@ -895,3 +897,273 @@ class TestOptimisticLockingRetry:
         kwargs = warning_calls[0].kwargs
         assert kwargs.get("execution_id") == execution.id
         assert kwargs.get("attempt") == 1
+
+
+class TestCanonicalStepNamespace:
+    """Canonical steps.by_id namespace is written and survives persistence."""
+
+    async def test_canonical_namespace_written_after_step(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="llm_call")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            return StepResult(success=True, data={"vision_response": "hello"})
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, trigger, db_session)
+
+        db_session.refresh(result)
+        data = result.pipeline_data_json
+        assert "steps" in data
+        by_id = data["steps"]["by_id"]
+        assert len(by_id) == 1
+        entry = next(iter(by_id.values()))
+        assert entry["step_type"] == "llm_call"
+        assert entry["outputs"]["vision_response"] == "hello"
+
+    async def test_two_same_type_steps_both_in_canonical_namespace(self, db_session, db_factory):
+        """Two llm_call steps with the same output_key must both survive under steps.by_id."""
+        rule = _make_rule(db_session)
+        step_a = _make_step(db_session, rule, order=1, step_type="llm_call")
+        step_b = _make_step(db_session, rule, order=2, step_type="llm_call")
+        db_session.commit()
+        db_session.refresh(step_a)
+        db_session.refresh(step_b)
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            return StepResult(success=True, data={"llm_response": f"from_{step.order}"})
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, trigger, db_session)
+
+        db_session.refresh(result)
+        data = result.pipeline_data_json
+        by_id = data["steps"]["by_id"]
+        assert len(by_id) == 2
+
+        id_a = str(step_a.id)
+        id_b = str(step_b.id)
+        assert by_id[id_a]["outputs"]["llm_response"] == "from_1"
+        assert by_id[id_b]["outputs"]["llm_response"] == "from_2"
+
+    async def test_legacy_top_level_alias_still_present_for_single_step(
+        self, db_session, db_factory
+    ):
+        """Legacy top-level alias must still be written for backward compatibility."""
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="llm_call")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            return StepResult(success=True, data={"vision_response": "result"})
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, trigger, db_session)
+
+        db_session.refresh(result)
+        assert result.pipeline_data_json.get("vision_response") == "result"
+
+    async def test_label_slug_alias_written_to_by_label(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        step = _make_step(db_session, rule, order=1, step_type="llm_call")
+        step.label = "Vision Analysis"
+        db_session.commit()
+        db_session.refresh(step)
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        async def mock_execute(s, execution, pipeline_data, trigger):
+            return StepResult(success=True, data={"vision_response": "ok"})
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, trigger, db_session)
+
+        db_session.refresh(result)
+        by_label = result.pipeline_data_json["steps"]["by_label"]
+        assert "vision_analysis" in by_label
+        assert by_label["vision_analysis"] == str(step.id)
+
+    async def test_event_log_snapshot_contains_canonical_step_data(
+        self, db_session, db_factory
+    ):
+        """Event log snapshot must include the canonical steps namespace."""
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="llm_call")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            return StepResult(success=True, data={"vision_response": "snapshot_test"})
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        from backend.models.event import EventLog
+        event_log = db_session.query(EventLog).filter(
+            EventLog.id == execution.event_log_id
+        ).first()
+        assert event_log is not None
+        db_session.refresh(event_log)
+
+        payload = event_log.pipeline_data_json or {}
+        assert "steps" in payload
+        assert len(payload["steps"]["by_id"]) == 1
+
+    async def test_alias_collision_logged_for_duplicate_output_keys(
+        self, db_session, db_factory
+    ):
+        """When two steps write the same legacy key, a collision is recorded."""
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="llm_call")
+        _make_step(db_session, rule, order=2, step_type="llm_call")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            return StepResult(success=True, data={"llm_response": f"step_{step.order}"})
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, trigger, db_session)
+
+        db_session.refresh(result)
+        data = result.pipeline_data_json
+        # Last writer wins at top level
+        assert data.get("llm_response") == "step_2"
+        # Collision recorded
+        collisions = data.get("_alias_collisions", [])
+        assert len(collisions) == 1
+        assert collisions[0]["key"] == "llm_response"
+
+    async def test_exception_cleanup_after_stale_data_error(self, db_session, db_factory):
+        """After a commit failure the except block must not raise PendingRollbackError."""
+        from sqlalchemy.orm.exc import StaleDataError
+
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1, step_type="llm_call")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        commit_count = [0]
+        original_commit = db_session.commit
+
+        def patched_commit():
+            commit_count[0] += 1
+            # Fail on the step-data commit (3rd commit: event_log, execution, step)
+            if commit_count[0] == 3:
+                raise StaleDataError("simulated conflict")
+            return original_commit()
+
+        with patch.object(db_session, "commit", side_effect=patched_commit):
+            result = await executor.execute(rule, trigger, db_session)
+
+        # Must be failed, not an unhandled exception
+        assert result.status == "failed"
+
+
+class TestInteractivePromptResumeIntegration:
+    """Executor merges interactive response during resume()."""
+
+    async def test_resume_merges_response_into_pipeline_data(self, db_session, db_factory):
+        """When an interactive_prompt step has a recorded response, resume() must
+        merge it into pipeline_data before advancing to the next step."""
+        from datetime import UTC, datetime
+
+        from backend.models.interactive_response import InteractiveResponse
+        from backend.models.pipeline import WorkflowExecution
+
+        rule = _make_rule(db_session)
+        prompt_step = _make_step(db_session, rule, order=1, step_type="interactive_prompt",
+                                  config={"output_key": "interactive_response", "auto_escalate": False})
+        next_step = _make_step(db_session, rule, order=2, step_type="notification")
+        db_session.commit()
+        db_session.refresh(prompt_step)
+        db_session.refresh(next_step)
+
+        # Create a waiting execution paused at the interactive_prompt step
+        execution = WorkflowExecution(
+            rule_id=rule.id,
+            status="waiting",
+            current_step_id=prompt_step.id,
+            pipeline_data_json={
+                "trigger": {"sensor_id": "cam1", "room_name": "Kitchen",
+                            "media_paths": [], "media_type": "image"},
+                "steps": {"by_id": {}, "by_label": {}, "sequence": []},
+            },
+        )
+        db_session.add(execution)
+        db_session.commit()
+        db_session.refresh(execution)
+
+        # Record a response
+        response = InteractiveResponse(
+            execution_id=execution.id,
+            step_id=prompt_step.id,
+            channel="pwa_popup_text",
+            action="escalate",
+            timestamp=datetime.now(UTC),
+            raw_response_json={"button_id": "escalate"},
+        )
+        db_session.add(response)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        seen_data = []
+
+        async def mock_execute(step, exec_, pipeline_data, trigger):
+            seen_data.append(dict(pipeline_data))
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.resume(execution.id, db_session)
+
+        assert result.status == "completed"
+        # The notification step should have seen the merged response
+        assert len(seen_data) == 1
+        assert "interactive_response" in seen_data[0]
+        assert seen_data[0]["interactive_response"]["action"] == "escalate"
+
+    async def test_resume_stays_waiting_when_no_response(self, db_session, db_factory):
+        """If no InteractiveResponse exists yet, resume() must keep the execution waiting."""
+        from backend.models.pipeline import WorkflowExecution
+
+        rule = _make_rule(db_session)
+        prompt_step = _make_step(db_session, rule, order=1, step_type="interactive_prompt",
+                                  config={"output_key": "interactive_response"})
+        db_session.commit()
+        db_session.refresh(prompt_step)
+
+        execution = WorkflowExecution(
+            rule_id=rule.id,
+            status="waiting",
+            current_step_id=prompt_step.id,
+            pipeline_data_json={"trigger": {}, "steps": {"by_id": {}, "by_label": {}, "sequence": []}},
+        )
+        db_session.add(execution)
+        db_session.commit()
+        db_session.refresh(execution)
+
+        executor = _make_executor(db_factory)
+
+        with patch.object(executor, "_execute_step", new_callable=AsyncMock) as mock_step:
+            result = await executor.resume(execution.id, db_session)
+
+        # Must remain waiting -- no step should have been executed
+        assert result.status == "waiting"
+        mock_step.assert_not_awaited()

@@ -193,7 +193,8 @@ class ActivityDetectionHandler(StepHandler):
 
         if config.get("capture_scene_description", False):
             scene_key = config.get("scene_description_key", "vision_response") or "vision_response"
-            scene_value = pipeline_data.get(scene_key)
+            from backend.services.pipeline_data_manager import resolve_pipeline_value
+            scene_value = resolve_pipeline_value(pipeline_data, scene_key)
             if scene_value is not None:
                 metadata["scene_description"] = scene_value
                 metadata["scene_description_source"] = scene_key

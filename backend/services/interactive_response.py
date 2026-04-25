@@ -1,10 +1,29 @@
-"""Interactive response service for managing user responses to interactive prompts."""
+"""Interactive response service for managing user responses to interactive prompts.
+
+Ownership model
+---------------
+This service is the authoritative writer of :class:`InteractiveResponse` rows.
+It does NOT write to ``WorkflowExecution.pipeline_data_json``.
+
+The executor (:class:`PipelineExecutor`) is the sole writer of
+``pipeline_data_json``.  When ``resume()`` is called for an
+``interactive_prompt`` step, the executor loads the response row and merges it
+into pipeline_data via :func:`pipeline_data_manager.apply_interactive_response`.
+
+Resume scheduling
+-----------------
+After persisting the response row, this service calls
+:meth:`_request_resume_when_waiting` which polls the execution status with
+bounded exponential backoff.  This handles the race where a user responds
+before the executor has committed ``status="waiting"``.
+"""
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -15,12 +34,15 @@ from backend.models.interactive_response import InteractiveResponse
 
 logger = get_logger(__name__)
 
+# Retry schedule for waiting on execution to reach "waiting" status (seconds)
+_RESUME_RETRY_DELAYS = (0.05, 0.1, 0.2, 0.4, 0.8)
+
 
 @dataclass
 class InteractiveResponseService:
     """Manages interactive response lifecycle with dependency injection."""
 
-    db_factory: Callable[[], Session]  # Session factory, not global connection
+    db_factory: Callable[[], Session]
     scheduler: Any  # Scheduler service for resume scheduling
 
     async def record_response(
@@ -66,7 +88,6 @@ class InteractiveResponseService:
 
         db: Session = self.db_factory()
         try:
-            # Create response record
             response = InteractiveResponse(
                 execution_id=execution_id,
                 step_id=step_id,
@@ -99,13 +120,12 @@ class InteractiveResponseService:
                 action=action,
             )
 
-            # Update pipeline_data with response and auto-escalation logic
-            await self._update_pipeline_data(
-                db, execution_id, step_id, channel, action, timestamp, raw_response
-            )
+            # Cancel the timeout job when a real (non-timeout) response arrives
+            if channel != "timeout":
+                await self.cancel_pending_response(execution_id, step_id)
 
-            # Trigger pipeline resumption via scheduler
-            await self._trigger_resume(execution_id)
+            # Schedule resume once the execution reaches "waiting" status
+            await self._request_resume_when_waiting(execution_id)
 
             return response
 
@@ -117,18 +137,10 @@ class InteractiveResponseService:
         execution_id: int,
         step_id: int,
     ) -> InteractiveResponse | None:
-        """Retrieve a response by execution and step ID.
-
-        Args:
-            execution_id: Workflow execution ID
-            step_id: Pipeline step ID
-
-        Returns:
-            InteractiveResponse if found, None otherwise
-        """
+        """Retrieve a response by execution and step ID."""
         db: Session = self.db_factory()
         try:
-            response = (
+            return (
                 db.query(InteractiveResponse)
                 .filter(
                     InteractiveResponse.execution_id == execution_id,
@@ -136,7 +148,6 @@ class InteractiveResponseService:
                 )
                 .first()
             )
-            return response
         finally:
             db.close()
 
@@ -145,18 +156,10 @@ class InteractiveResponseService:
         execution_id: int,
         step_id: int,
     ) -> bool:
-        """Check if a response already exists (for timeout handling).
-
-        Args:
-            execution_id: Workflow execution ID
-            step_id: Pipeline step ID
-
-        Returns:
-            True if response exists, False otherwise
-        """
+        """Check if a response already exists (for timeout handling)."""
         db: Session = self.db_factory()
         try:
-            exists = (
+            return (
                 db.query(InteractiveResponse)
                 .filter(
                     InteractiveResponse.execution_id == execution_id,
@@ -165,7 +168,6 @@ class InteractiveResponseService:
                 .first()
                 is not None
             )
-            return exists
         finally:
             db.close()
 
@@ -174,13 +176,7 @@ class InteractiveResponseService:
         execution_id: int,
         step_id: int,
     ) -> None:
-        """Cancel timeout task when response arrives early.
-
-        Args:
-            execution_id: Workflow execution ID
-            step_id: Pipeline step ID
-        """
-        # Cancel the timeout job if it exists
+        """Cancel the timeout job when a real response arrives early."""
         job_id = f"interactive_timeout_{execution_id}_{step_id}"
         try:
             self.scheduler.apscheduler.remove_job(job_id)
@@ -190,126 +186,69 @@ class InteractiveResponseService:
                 step_id=step_id,
             )
         except Exception:
-            # Job may not exist or already fired - this is fine
+            # Job may not exist or already fired -- this is fine
             logger.debug(
                 "interactive_timeout_cancel_skipped",
                 execution_id=execution_id,
                 step_id=step_id,
             )
 
-    async def _update_pipeline_data(
-        self,
-        db: Session,
-        execution_id: int,
-        step_id: int,
-        channel: str,
-        action: str,
-        timestamp: datetime,
-        raw_response: dict,
-    ) -> None:
-        """Update pipeline_data with response and auto-escalation logic.
+    async def _request_resume_when_waiting(self, execution_id: int) -> None:
+        """Schedule an immediate resume once the execution is in 'waiting' status.
 
-        Args:
-            db: Database session
-            execution_id: Workflow execution ID
-            step_id: Pipeline step ID
-            channel: Response channel
-            action: User action
-            timestamp: Response timestamp
-            raw_response: Channel-specific response data
+        Polls with bounded exponential backoff to handle the race where the
+        user responds before the executor has committed ``status="waiting"``.
+        If the execution is already terminal, stops without scheduling.
         """
-        from sqlalchemy.orm.attributes import flag_modified
+        from backend.models.pipeline import WorkflowExecution
 
-        from backend.models.pipeline import PipelineStep, WorkflowExecution
-
-        # Load WorkflowExecution
-        execution = db.query(WorkflowExecution).filter(
-            WorkflowExecution.id == execution_id
-        ).first()
-
-        if not execution:
-            logger.warning(
-                "interactive_response_execution_not_found",
-                execution_id=execution_id,
-                step_id=step_id,
-            )
-            return
-
-        # Load PipelineStep to get config
-        step = db.query(PipelineStep).filter(PipelineStep.id == step_id).first()
-
-        if not step:
-            logger.warning(
-                "interactive_response_step_not_found",
-                execution_id=execution_id,
-                step_id=step_id,
-            )
-            return
-
-        # Get step config
-        config = step.config_json or {}
-        output_key = config.get("output_key", "interactive_response")
-        auto_escalate = config.get("auto_escalate", False)
-
-        # Initialize pipeline_data if needed
-        if execution.pipeline_data_json is None:
-            execution.pipeline_data_json = {}
-
-        pipeline_data = execution.pipeline_data_json
-
-        # Add response data to pipeline_data
-        pipeline_data[output_key] = {
-            "channel": channel,
-            "action": action,
-            "timestamp": timestamp.isoformat(),
-            "raw_response": raw_response,
-        }
-
-        # Implement auto-escalation logic (Requirements 17.1-17.4)
-        if auto_escalate:
-            # Set auto_escalate_triggered when action="escalate" (Requirement 17.2)
-            if action == "escalate":
-                pipeline_data["auto_escalate_triggered"] = True
-                logger.info(
-                    "interactive_auto_escalate_triggered",
-                    execution_id=execution_id,
-                    step_id=step_id,
-                    reason="action_escalate",
+        for delay in _RESUME_RETRY_DELAYS:
+            db: Session = self.db_factory()
+            try:
+                execution = (
+                    db.query(WorkflowExecution)
+                    .filter(WorkflowExecution.id == execution_id)
+                    .first()
                 )
-            # Set auto_escalate_triggered when channel="timeout" (Requirement 17.3)
-            elif channel == "timeout":
-                pipeline_data["auto_escalate_triggered"] = True
+                if execution is None:
+                    logger.warning(
+                        "interactive_resume_execution_not_found",
+                        execution_id=execution_id,
+                    )
+                    return
+
+                status = execution.status
+            finally:
+                db.close()
+
+            if status == "waiting":
+                resume_at = datetime.now(UTC)
+                self.scheduler.schedule_workflow_resume(execution_id, resume_at)
                 logger.info(
-                    "interactive_auto_escalate_triggered",
+                    "interactive_pipeline_resume_scheduled",
                     execution_id=execution_id,
-                    step_id=step_id,
-                    reason="timeout",
                 )
+                return
 
-        # Mark pipeline_data as modified for SQLAlchemy to track the change
-        flag_modified(execution, "pipeline_data_json")
-        db.commit()
+            if status in ("completed", "failed", "cancelled"):
+                logger.info(
+                    "interactive_resume_execution_terminal",
+                    execution_id=execution_id,
+                    status=status,
+                )
+                return
 
-        logger.info(
-            "interactive_pipeline_data_updated",
-            execution_id=execution_id,
-            step_id=step_id,
-            output_key=output_key,
-            auto_escalate=auto_escalate,
-        )
+            # Still "running" -- executor hasn't committed "waiting" yet
+            logger.debug(
+                "interactive_resume_waiting_for_status",
+                execution_id=execution_id,
+                status=status,
+                retry_delay=delay,
+            )
+            await asyncio.sleep(delay)
 
-    async def _trigger_resume(self, execution_id: int) -> None:
-        """Trigger immediate pipeline resumption.
-
-        Args:
-            execution_id: Workflow execution ID
-        """
-        from datetime import UTC
-
-        # Schedule immediate resume (use current time as resume_at)
-        resume_at = datetime.now(UTC)
-        self.scheduler.schedule_workflow_resume(execution_id, resume_at)
-        logger.info(
-            "interactive_pipeline_resume_scheduled",
+        # Exhausted retries -- log hard error
+        logger.error(
+            "interactive_resume_retries_exhausted",
             execution_id=execution_id,
         )

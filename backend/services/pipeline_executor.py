@@ -5,16 +5,66 @@ Orchestrates step-by-step execution of rule pipelines using the
 handler registered at startup.  The executor is responsible only for
 sequencing, branching, wait/resume, error handling, per-step timing, and
 enforcing per-rule execution timeouts.
+
+## Concurrency Control and Locking Strategy
+
+The pipeline executor uses a **hybrid locking strategy** to protect
+WorkflowExecution records from race conditions during concurrent access:
+
+### Optimistic Locking (Default)
+- Used for: Pipeline step updates to `pipeline_data_json`
+- Mechanism: Version column with automatic conflict detection
+- Behavior: Retry with exponential backoff on `StaleDataError`
+- Configuration: MAX_RETRIES=3, BASE_DELAY=0.1s
+- Function: `_update_pipeline_data_with_retry()`
+- Rationale: Low contention, high throughput, retries acceptable
+
+### Pessimistic Locking (Critical Sections)
+- Used for: Status transitions and exclusive state changes
+- Mechanism: `SELECT ... FOR UPDATE` row-level locks
+- Behavior: Block concurrent access until transaction commits
+- Critical sections:
+  1. **Resume operations** (`resume()`): Prevents concurrent resume attempts
+     (manual + scheduled) from racing on status transition waiting→running
+  2. **Timeout handling** (`_handle_timeout()`): Ensures exclusive access
+     when marking execution as failed after cancellation, preventing conflicts
+     with the cancelled coroutine's uncommitted changes
+  3. **Status transitions**: Any operation that changes execution.status
+     requires exclusive access to prevent invalid state transitions
+
+### When to Use Each Strategy
+
+| Operation | Strategy | Rationale |
+|-----------|----------|-----------|
+| Pipeline step data updates | Optimistic | Fast, low contention |
+| Status transitions | Pessimistic | Critical state, must not race |
+| Resume from wait | Pessimistic | Prevent duplicate resumes |
+| Timeout handling | Pessimistic | Clean up cancelled coroutine |
+| Normal step execution | Optimistic | High throughput needed |
+
+### Lock Ordering and Deadlock Prevention
+- Always acquire WorkflowExecution lock before EventLog lock
+- Keep transactions short (single status update + commit)
+- Use statement_timeout in PostgreSQL to prevent indefinite waits
+- Monitor lock contention via SQLAlchemy event listeners (see database.py)
+
+### MutableDict and Nested Mutations
+The `pipeline_data_json` column uses `MutableDict.as_mutable(JSON)` which
+tracks top-level mutations (`__setitem__`, `update`) but NOT nested mutations.
+For nested updates like `pipeline_data["_pipeline"]["completed_at"]`, use
+`flag_modified(execution, "pipeline_data_json")` to mark the column dirty.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm.exc import StaleDataError
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
@@ -25,6 +75,10 @@ from backend.steps import StepRegistry
 from backend.steps.base import ServiceContainer, StepResult, TriggerContext
 
 logger = get_logger(__name__)
+
+# Optimistic locking retry configuration
+MAX_RETRIES = 3
+BASE_DELAY = 0.1  # seconds
 
 
 class PipelineExecutor:
@@ -182,8 +236,21 @@ class PipelineExecutor:
             return self._handle_timeout(rule, execution, db)
 
     async def resume(self, execution_id: int, db: Session) -> WorkflowExecution:
-        """Resume a waiting workflow execution from its current step."""
-        execution = db.query(WorkflowExecution).get(execution_id)
+        """Resume a waiting workflow execution from its current step.
+        
+        Uses pessimistic locking (SELECT FOR UPDATE) to ensure exclusive access
+        during the critical status transition from 'waiting' to 'running'. This
+        prevents race conditions where multiple resume attempts could occur
+        simultaneously (e.g., manual resume + scheduled resume).
+        """
+        # CRITICAL SECTION: Acquire row-level lock for status transition
+        # This prevents concurrent resume attempts from racing
+        execution = (
+            db.query(WorkflowExecution)
+            .filter(WorkflowExecution.id == execution_id)
+            .with_for_update()
+            .first()
+        )
         if not execution:
             raise ValueError(f"WorkflowExecution {execution_id} not found")
 
@@ -342,6 +409,10 @@ class PipelineExecutor:
                 db.commit()
 
                 # Handle wait
+                # CRITICAL SECTION: Status transition to 'waiting'
+                # The execution row is already loaded in this transaction, so we
+                # don't need an additional SELECT FOR UPDATE here. The commit will
+                # use the version column (optimistic locking) to detect conflicts.
                 if result.wait_until:
                     execution.status = "waiting"
                     execution.resume_at = result.wait_until
@@ -484,17 +555,30 @@ class PipelineExecutor:
         execution: WorkflowExecution,
         db: Session,
     ) -> WorkflowExecution:
-        """Mark the execution as failed due to timeout and persist the state."""
+        """Mark the execution as failed due to timeout and persist the state.
+        
+        Uses pessimistic locking (SELECT FOR UPDATE) to ensure exclusive access
+        when transitioning to 'failed' status. This prevents race conditions where
+        the cancelled coroutine might still be attempting to commit changes while
+        we're marking the execution as timed out.
+        """
         completed_at = datetime.now(UTC)
         error_msg = (
             f"Pipeline timed out after {rule.execution_timeout_minutes} minute"
             f"{'s' if rule.execution_timeout_minutes != 1 else ''}"
         )
 
-        # Reload execution from DB to pick up whatever was last committed by
-        # the cancelled ``_run_steps`` coroutine, then mutate the tracked
-        # attribute in place so the MutableDict records the change.
-        db.expire(execution)
+        # CRITICAL SECTION: Acquire row-level lock for timeout handling
+        # The cancelled coroutine may have uncommitted changes, so we need
+        # exclusive access to ensure a clean state transition to 'failed'.
+        db.rollback()  # Discard any uncommitted changes from cancelled coroutine
+        execution = (
+            db.query(WorkflowExecution)
+            .filter(WorkflowExecution.id == execution.id)
+            .with_for_update()
+            .one()
+        )
+
         pipeline_data = execution.pipeline_data_json
         if pipeline_data is None:
             execution.pipeline_data_json = {}
@@ -557,3 +641,48 @@ def _mark_pipeline_completed(execution: WorkflowExecution, completed_at: datetim
     block = pipeline_data.setdefault("_pipeline", {})
     block["completed_at"] = completed_at.isoformat()
     flag_modified(execution, "pipeline_data_json")
+
+
+async def _update_pipeline_data_with_retry(
+    db: Session,
+    execution_id: int,
+    update_fn: Callable[[dict], None],
+) -> None:
+    """Update pipeline_data_json with optimistic locking retry.
+
+    Implements exponential backoff retry on StaleDataError to handle
+    concurrent updates to WorkflowExecution.pipeline_data_json.
+
+    Args:
+        db: Database session
+        execution_id: ID of the WorkflowExecution to update
+        update_fn: Callable that receives pipeline_data_json dict and mutates it
+
+    Raises:
+        StaleDataError: If all retry attempts are exhausted
+    """
+    for attempt in range(MAX_RETRIES):
+        try:
+            execution = db.query(WorkflowExecution).filter_by(id=execution_id).one()
+            update_fn(execution.pipeline_data_json)
+            flag_modified(execution, "pipeline_data_json")
+            db.commit()
+            return
+        except StaleDataError:
+            if attempt == MAX_RETRIES - 1:
+                logger.error(
+                    "optimistic_lock_exhausted",
+                    execution_id=execution_id,
+                    attempts=MAX_RETRIES,
+                )
+                raise
+            delay = BASE_DELAY * (2**attempt)  # Exponential backoff
+            logger.warning(
+                "optimistic_lock_conflict",
+                execution_id=execution_id,
+                attempt=attempt + 1,
+                retry_delay_seconds=delay,
+            )
+            await asyncio.sleep(delay)
+            db.rollback()
+

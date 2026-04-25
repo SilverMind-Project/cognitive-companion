@@ -108,6 +108,9 @@ class WorkflowExecution(Base):
     )
     resume_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    __mapper_args__ = {"version_id_col": version}
 
     rule: Mapped[Rule] = relationship()
     current_step: Mapped[PipelineStep | None] = relationship(foreign_keys=[current_step_id])

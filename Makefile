@@ -32,6 +32,10 @@ help:
 	@echo "  make typecheck-core    Mypy over backend.core only (strict)"
 	@echo "  make check             lint + typecheck-core + test-core (fast gate)"
 	@echo "  make check-all         lint + typecheck-core + test (core + services)"
+	@echo "  make migrate           Run Alembic migrations (upgrade to head)"
+	@echo "  make migration         Generate new Alembic migration (autogenerate)"
+	@echo "  make migration-history Show Alembic migration history"
+	@echo "  make init-db           Initialize PostgreSQL database and run migrations"
 	@echo "  make clean             Remove caches & coverage artifacts"
 
 .PHONY: test
@@ -84,6 +88,22 @@ check: lint typecheck-core test-core
 
 .PHONY: check-all
 check-all: lint typecheck-core test-core test-services
+
+.PHONY: migrate
+migrate:
+	cd backend && uv run alembic upgrade head
+
+.PHONY: migration
+migration:
+	cd backend && uv run alembic revision --autogenerate
+
+.PHONY: migration-history
+migration-history:
+	cd backend && uv run alembic history
+
+.PHONY: init-db
+init-db:
+	uv run --project backend python scripts/init_db.py
 
 .PHONY: clean
 clean:

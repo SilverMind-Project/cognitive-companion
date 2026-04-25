@@ -18,7 +18,19 @@ cors:
     - "https://nanai.khoofia.com"
 
 database:
-  url: "sqlite:///data/cognitive_companion.db"
+  # PostgreSQL connection (replaces SQLite)
+  # Connection string format: postgresql+psycopg://{user}:{password}@{host}:{port}/{db}
+  url: "postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
+  
+  # Connection pool settings
+  pool_size: 5              # Number of connections to maintain in the pool
+  max_overflow: 10          # Maximum number of connections to create beyond pool_size
+  pool_timeout: 30          # Seconds to wait before giving up on getting a connection
+  pool_recycle: 3600        # Seconds before recycling a connection (1 hour)
+  pool_pre_ping: true       # Test connections for liveness before using them
+  
+  # Echo SQL statements to logs (set to true for debugging)
+  echo: false
 
 # LLM provider configuration
 llm:

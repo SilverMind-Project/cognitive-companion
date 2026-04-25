@@ -8,12 +8,32 @@ functions are shared with the Gemini Live voice companion via GeminiToolAdapter.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from mcp.server.fastmcp import FastMCP
+# Workaround for module name collision: ``backend/mcp/`` shadows the ``mcp``
+# PyPI package when ``backend/`` is on sys.path (e.g. during pytest).
+# Temporarily strip any path entry whose basename is "backend" so that
+# ``import mcp`` resolves to the installed package, not this sub-package.
+import os as _os
+
+_original_path = sys.path.copy()
+_collision_paths = [
+    p for p in sys.path
+    if p == "" or _os.path.basename(p.rstrip("/")) == "backend"
+]
+for _p in _collision_paths:
+    if _p in sys.path:
+        sys.path.remove(_p)
+
+try:
+    from mcp.server.fastmcp import FastMCP
+finally:
+    sys.path = _original_path
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

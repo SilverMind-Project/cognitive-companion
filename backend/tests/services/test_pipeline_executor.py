@@ -753,3 +753,145 @@ class TestPipelineExecutorEarlyExit:
         ]
         assert len(early_exit_calls) == 1
         assert early_exit_calls[0].kwargs.get("skip_reason") is None
+
+
+class TestOptimisticLockingRetry:
+    """Tests for _update_pipeline_data_with_retry function."""
+
+    async def test_successful_update_on_first_attempt(self, db_session, db_factory):
+        """When no conflict occurs, update succeeds on first attempt."""
+        from backend.services.pipeline_executor import _update_pipeline_data_with_retry
+
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        with patch.object(
+            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
+        ):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        # Update pipeline data using retry logic
+        def update_fn(data):
+            data["test_key"] = "test_value"
+
+        await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
+
+        db_session.refresh(execution)
+        assert execution.pipeline_data_json["test_key"] == "test_value"
+
+    async def test_retry_on_stale_data_error(self, db_session, db_factory):
+        """When StaleDataError occurs, function retries with exponential backoff."""
+        from sqlalchemy.orm.exc import StaleDataError
+
+        from backend.services.pipeline_executor import _update_pipeline_data_with_retry
+
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        with patch.object(
+            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
+        ):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        # Simulate StaleDataError on first attempt, success on second
+        attempt_count = [0]
+
+        original_commit = db_session.commit
+
+        def mock_commit():
+            attempt_count[0] += 1
+            if attempt_count[0] == 1:
+                raise StaleDataError("Version mismatch")
+            return original_commit()
+
+        def update_fn(data):
+            data["retry_test"] = f"attempt_{attempt_count[0]}"
+
+        with patch.object(db_session, "commit", side_effect=mock_commit):
+            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
+
+        # Should have retried once
+        assert attempt_count[0] == 2
+
+    async def test_exhausted_retries_raises_error(self, db_session, db_factory):
+        """When all retries are exhausted, StaleDataError is raised."""
+        import pytest
+        from sqlalchemy.orm.exc import StaleDataError
+
+        from backend.services.pipeline_executor import _update_pipeline_data_with_retry
+
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        with patch.object(
+            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
+        ):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        def update_fn(data):
+            data["will_fail"] = True
+
+        # Mock commit to always raise StaleDataError
+        with patch.object(db_session, "commit", side_effect=StaleDataError("Always fails")):
+            with pytest.raises(StaleDataError):
+                await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
+
+    async def test_lock_conflict_logging(self, db_session, db_factory):
+        """Lock conflicts are logged with appropriate warnings."""
+        from sqlalchemy.orm.exc import StaleDataError
+
+        import backend.services.pipeline_executor as pe_module
+        from backend.services.pipeline_executor import _update_pipeline_data_with_retry
+
+        rule = _make_rule(db_session)
+        _make_step(db_session, rule, order=1)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        trigger = _make_trigger()
+
+        with patch.object(
+            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
+        ):
+            execution = await executor.execute(rule, trigger, db_session)
+
+        attempt_count = [0]
+        original_commit = db_session.commit
+
+        def mock_commit():
+            attempt_count[0] += 1
+            if attempt_count[0] == 1:
+                raise StaleDataError("Version mismatch")
+            return original_commit()
+
+        def update_fn(data):
+            data["logging_test"] = True
+
+        with (
+            patch.object(pe_module, "logger") as mock_logger,
+            patch.object(db_session, "commit", side_effect=mock_commit),
+        ):
+            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
+
+        # Verify warning was logged
+        warning_calls = [
+            call
+            for call in mock_logger.warning.call_args_list
+            if call.args and call.args[0] == "optimistic_lock_conflict"
+        ]
+        assert len(warning_calls) == 1
+        kwargs = warning_calls[0].kwargs
+        assert kwargs.get("execution_id") == execution.id
+        assert kwargs.get("attempt") == 1

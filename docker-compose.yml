@@ -16,6 +16,27 @@
 #   - scene-analysis-service  YOLO + Florence-2 + CLIP  see ../scene-analysis-service/
 
 services:
+  # ─── PostgreSQL Database ───────────────────────────────────────
+  postgres:
+    image: postgres:17
+    container_name: cc-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # ─── Backend API ───────────────────────────────────────────────
   backend:
     build:
@@ -29,6 +50,9 @@ services:
       - backend-data:/app/data
     env_file:
       - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "backend/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 30s
@@ -89,6 +113,8 @@ services:
   #     start_period: 60s
 
 volumes:
+  postgres-data:
+    driver: local
   backend-data:
     driver: local
   # scene-analysis-models:

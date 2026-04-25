@@ -115,15 +115,15 @@ class TestListSignals:
 
     def test_returns_inserted_signal(self, client_and_store):
         client, store = client_and_store
-        asyncio.get_event_loop().run_until_complete(store.insert(_BASE_SIGNAL))
+        asyncio.run(store.insert(_BASE_SIGNAL))
         r = client.get("/api/v1/cts/signals")
         assert r.status_code == 200
         assert r.json()["count"] == 1
 
     def test_filter_by_person_id(self, client_and_store):
         client, store = client_and_store
-        asyncio.get_event_loop().run_until_complete(store.insert(_BASE_SIGNAL))
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(store.insert(_BASE_SIGNAL))
+        asyncio.run(
             store.insert({**_BASE_SIGNAL, "person_id": "dad"})
         )
         r = client.get("/api/v1/cts/signals", params={"person_id": "grandma"})
@@ -144,7 +144,7 @@ class TestListSignals:
 class TestAcknowledgeSignal:
     def test_ack_existing_signal(self, client_and_store):
         client, store = client_and_store
-        sid = asyncio.get_event_loop().run_until_complete(store.insert(_BASE_SIGNAL))
+        sid = asyncio.run(store.insert(_BASE_SIGNAL))
         r = client.post(f"/api/v1/cts/signals/{sid}/ack")
         assert r.status_code == 200
         assert r.json()["acknowledged"] is True
@@ -165,15 +165,15 @@ class TestAcknowledgeSignal:
 class TestListUnacknowledged:
     def test_returns_unacknowledged(self, client_and_store):
         client, store = client_and_store
-        asyncio.get_event_loop().run_until_complete(store.insert(_BASE_SIGNAL))
+        asyncio.run(store.insert(_BASE_SIGNAL))
         r = client.get("/api/v1/cts/signals/unacknowledged")
         assert r.status_code == 200
         assert r.json()["count"] == 1
 
     def test_excludes_acknowledged(self, client_and_store):
         client, store = client_and_store
-        sid = asyncio.get_event_loop().run_until_complete(store.insert(_BASE_SIGNAL))
-        asyncio.get_event_loop().run_until_complete(store.acknowledge(sid))
+        sid = asyncio.run(store.insert(_BASE_SIGNAL))
+        asyncio.run(store.acknowledge(sid))
         r = client.get("/api/v1/cts/signals/unacknowledged")
         assert r.status_code == 200
         assert r.json()["count"] == 0
@@ -193,7 +193,7 @@ class TestGetSummary:
 
     def test_summary_after_insert(self, client_and_store):
         client, store = client_and_store
-        asyncio.get_event_loop().run_until_complete(store.insert(_BASE_SIGNAL))
+        asyncio.run(store.insert(_BASE_SIGNAL))
         r = client.get("/api/v1/cts/signals/summary")
         assert r.status_code == 200
         assert r.json()["total_signals"] == 1

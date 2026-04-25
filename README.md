@@ -113,7 +113,52 @@ cp .env.example .env
 
 Review `config/settings.yaml` for application behavior (event aggregation, LLM models, polling intervals). See [Configuration](#configuration) for details.
 
-### 2. Start the Person Identification Service
+### 2. Set Up PostgreSQL
+
+Cognitive Companion uses PostgreSQL 17 as its database backend. You have two options:
+
+**Option A: Docker Compose (Recommended for Development)**
+
+The included `docker-compose.yml` automatically starts a PostgreSQL 17 container:
+
+```bash
+docker compose up -d postgres
+```
+
+**Option B: External PostgreSQL Server**
+
+Configure connection parameters in `.env`:
+
+```bash
+POSTGRES_HOST=your-postgres-host
+POSTGRES_PORT=5432
+POSTGRES_USER=your-username
+POSTGRES_PASSWORD=your-password
+POSTGRES_DB=cognitive-companion
+```
+
+**Initialize the Database**
+
+Run migrations and seed initial data:
+
+```bash
+make init-db
+```
+
+This command:
+- Creates the database if it doesn't exist
+- Runs Alembic migrations to create all tables
+- Seeds rooms and sensors from `config/auth.yaml`
+
+**Database Management Commands**
+
+```bash
+make migrate              # Run pending migrations
+make migration            # Generate new migration (after model changes)
+make migration-history    # View migration history
+```
+
+### 3. Start the Person Identification Service
 
 The face recognition service runs as a standalone GPU-accelerated container. See [`../person-identification-service/README.md`](../person-identification-service/README.md) for full setup and enrollment instructions.
 
@@ -122,7 +167,7 @@ cd ../person-identification-service
 docker compose up -d
 ```
 
-### 3. Start with Docker Compose
+### 4. Start with Docker Compose
 
 ```bash
 cp .env.example .env
@@ -132,7 +177,7 @@ docker compose up -d
 
 This starts the backend (port 8000) and frontend (port 80).
 
-### 4. Local Development (without Docker)
+### 5. Local Development (without Docker)
 
 **Backend:**
 
@@ -853,6 +898,45 @@ gradual-adoption settings used by the rest of the tree:
 - **Strict typing.** A dedicated `[[tool.mypy.overrides]]` block for
   `backend.core.*` sets `disallow_untyped_defs = true` and
   `disallow_incomplete_defs = true`.
+
+### Database
+
+**PostgreSQL 17** is the production database. Tests use **testcontainers** to spin up isolated PostgreSQL instances.
+
+**Schema Migrations**
+
+Alembic manages schema changes:
+
+```bash
+make migrate              # Apply pending migrations
+make migration            # Generate new migration after model changes
+make migration-history    # View migration history
+```
+
+**Connection Pool Tuning**
+
+Configure in `config/settings.yaml`:
+
+```yaml
+database:
+  pool_size: 5              # Base connection pool size
+  max_overflow: 10          # Additional connections under load
+  pool_timeout: 30          # Seconds to wait for connection
+  pool_recycle: 3600        # Recycle connections after 1 hour
+  pool_pre_ping: true       # Test connections before use
+```
+
+**Timezone Handling**
+
+All datetime columns use the `UTCDateTime` custom type, which:
+- Stores timestamps as `TIMESTAMP WITH TIME ZONE` in PostgreSQL
+- Enforces timezone-aware datetimes (rejects naive datetimes)
+- Normalizes all values to UTC for storage
+- Returns timezone-aware UTC datetimes on retrieval
+
+**Concurrency Protection**
+
+The `WorkflowExecution` model uses optimistic locking with a `version` column to prevent race conditions during concurrent updates. The `PipelineExecutor` automatically retries on version conflicts with exponential backoff.
 - **No upward dependencies.** Modules in `backend.core` must not import from
   `backend.services`, `backend.routers`, `backend.channels`, etc., and only
   the FastAPI-facing leaves (`auth`, `exceptions.register_exception_handlers`)

@@ -312,24 +312,30 @@ class TestActivitySessionTimeout:
         service = ActivitySessionService(db_factory)
 
         # Create an old session that should timeout
+        db1 = db_factory()
         old_session = _make_session(
-            db_factory(),
+            db1,
             person_id="person123",
             activity_type="bathroom",  # 90 min timeout
             opened_at=datetime.now(UTC) - timedelta(minutes=100),
             status="open",
             timeout_minutes=90,
         )
+        db1.commit()
+        db1.close()
 
         # Create a recent session that should NOT timeout
+        db2 = db_factory()
         recent_session = _make_session(
-            db_factory(),
+            db2,
             person_id="person456",
             activity_type="sleep",
             opened_at=datetime.now(UTC) - timedelta(minutes=10),
             status="open",
             timeout_minutes=720,
         )
+        db2.commit()
+        db2.close()
 
         results = service.close_timed_out_sessions()
 

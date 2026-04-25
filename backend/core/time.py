@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import DateTime
 from sqlalchemy.engine import Dialect
 from sqlalchemy.sql.type_api import TypeEngine
 from sqlalchemy.types import TypeDecorator
 
-__all__ = ["UTCDateTime", "normalize_utc_datetime"]
+from backend.core.config import settings
+
+__all__ = ["UTCDateTime", "from_app_timezone", "normalize_utc_datetime", "to_app_timezone"]
 
 
 def normalize_utc_datetime(value: datetime | None) -> datetime | None:
@@ -61,3 +64,29 @@ class UTCDateTime(TypeDecorator[datetime]):
 
     def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
         return normalize_utc_datetime(value)
+
+
+def to_app_timezone(utc_dt: datetime) -> datetime:
+    """Convert UTC datetime to application timezone.
+    
+    Args:
+        utc_dt: A timezone-aware datetime in UTC
+        
+    Returns:
+        The datetime converted to the application timezone configured in settings
+    """
+    app_tz_name = settings.get("app.timezone", "America/New_York")
+    app_tz = ZoneInfo(app_tz_name)
+    return utc_dt.astimezone(app_tz)
+
+
+def from_app_timezone(app_dt: datetime) -> datetime:
+    """Convert application timezone datetime to UTC.
+    
+    Args:
+        app_dt: A timezone-aware datetime in the application timezone
+        
+    Returns:
+        The datetime converted to UTC
+    """
+    return app_dt.astimezone(UTC)

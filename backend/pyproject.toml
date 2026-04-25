@@ -25,6 +25,9 @@ dependencies = [
     "redis[hiredis]>=5.0",
     "protobuf>=5.29",
     "prometheus-client>=0.25.0",
+    "psycopg[binary]>=3.0",
+    "psycopg[pool]>=3.0",
+    "alembic>=1.13",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +42,7 @@ dev = [
     "pytest-cov>=5.0",
     "coverage>=7.6",
     "httpx>=0.27",          # FastAPI TestClient dependency
+    "testcontainers[postgres]>=4.0",
 ]
 
 [build-system]

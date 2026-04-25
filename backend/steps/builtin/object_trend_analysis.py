@@ -110,7 +110,9 @@ class ObjectTrendAnalysisHandler(StepHandler):
         services: ServiceContainer,
     ) -> StepResult:
         if not services.semantic_memory_client:
-            return StepResult(data=_empty_output())
+            config = step.config_json or {}
+            output_key = config.get("output_key", "room_trends")
+            return StepResult(data=_empty_output(output_key))
 
         config = step.config_json or {}
         room_ids: list[str] = config.get("room_ids", [])
@@ -123,7 +125,7 @@ class ObjectTrendAnalysisHandler(StepHandler):
             room_ids = [trigger.room_name]
 
         if not room_ids:
-            return StepResult(data=_empty_output())
+            return StepResult(data=_empty_output(output_key))
 
         # Fetch trends for each room
         trends: dict = {}
@@ -218,9 +220,9 @@ class ObjectTrendAnalysisHandler(StepHandler):
 # ---------------------------------------------------------------------------
 
 
-def _empty_output() -> dict:
+def _empty_output(output_key: str = "room_trends") -> dict:
     return {
-        "room_trends": {},
+        output_key: {},
         "room_trends_any_warning": False,
         "room_trends_max_severity": "ok",
         "room_trends_summary": "No trend data available.",

@@ -108,12 +108,13 @@ class DailyReportHandler(StepHandler):
         services: ServiceContainer,
     ) -> StepResult:
         config = step.config_json or {}
+        output_key = (config.get("output_key", "daily_reports") or "daily_reports").strip() or "daily_reports"
 
         if not services.daily_report_service:
             logger.warning("daily_report_no_service")
             return StepResult(
                 success=False,
-                data={"daily_reports": {"error": "daily_report_service not available"}},
+                data={output_key: {"error": "daily_report_service not available"}},
             )
 
         try:
@@ -129,25 +130,24 @@ class DailyReportHandler(StepHandler):
             person_ids = config.get("person_ids", [])
             if not person_ids and services.person_tracking:
                 # Fetch all active household members
-                    db = services.person_tracking._db_factory()
-                    try:
-                        from backend.models.person import HouseholdMember
+                db = services.person_tracking._db_factory()
+                try:
+                    from backend.models.person import HouseholdMember
 
-                        members = (
-                            db.query(HouseholdMember)
-                            .filter(HouseholdMember.is_active == True)  # noqa: E712
-                            .all()
-                        )
-                        person_ids = [m.id for m in members]
-                    finally:
-                        db.close()
+                    members = (
+                        db.query(HouseholdMember)
+                        .filter(HouseholdMember.is_active == True)  # noqa: E712
+                        .all()
+                    )
+                    person_ids = [m.id for m in members]
+                finally:
+                    db.close()
 
             if not person_ids:
                 logger.info("daily_report_no_persons")
-                return StepResult(data={"daily_reports": []})
+                return StepResult(data={output_key: []})
 
             generate_summary = config.get("generate_summary_text", False)
-            output_key = (config.get("output_key", "daily_reports") or "daily_reports").strip() or "daily_reports"
             tz_name = settings.get("app.timezone", "UTC")
 
             results = []
@@ -193,5 +193,5 @@ class DailyReportHandler(StepHandler):
             logger.exception("daily_report_step_error")
             return StepResult(
                 success=False,
-                data={"daily_reports": {"error": "daily report step failed"}},
+                data={output_key: {"error": "daily report step failed"}},
             )

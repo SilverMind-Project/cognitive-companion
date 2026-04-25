@@ -214,12 +214,8 @@ class InteractivePromptHandler(StepHandler):
             )
 
         # Update WorkflowExecution status to "waiting_for_response"
-        db = services.db_factory()
-        try:
-            execution.status = "waiting_for_response"
-            db.commit()
-        finally:
-            db.close()
+        # NOTE: The executor handles the status transition to "waiting" after
+        # this step returns. Do NOT open a separate session here.
 
         # Calculate timeout timestamp
         timeout_timestamp = datetime.now(UTC) + timedelta(seconds=countdown_seconds)

@@ -308,7 +308,8 @@ class LLMCallHandler(StepHandler):
         ]
 
         for key in include_context:
-            value = pipeline_data.get(key)
+            from backend.services.pipeline_data_manager import resolve_pipeline_value
+            value = resolve_pipeline_value(pipeline_data, key)
             if value is not None:
                 if isinstance(value, list):
                     if key == "person_detections":

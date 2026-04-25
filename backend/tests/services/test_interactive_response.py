@@ -90,7 +90,7 @@ def test_execution(db_factory, test_rule: Rule) -> WorkflowExecution:
     try:
         execution = WorkflowExecution(
             rule_id=test_rule.id,
-            status="waiting_for_response",
+            status="waiting",
         )
         db.add(execution)
         db.commit()
@@ -500,231 +500,59 @@ async def test_cancel_pending_response_job_not_found(
     await service.cancel_pending_response(execution_id=123, step_id=456)
 
 
+
+
 # ---------------------------------------------------------------------------
-# Auto-escalation logic (Requirements 17.1-17.4)
+# Ownership model: service does NOT write pipeline_data_json
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_auto_escalate_on_escalate_action(
-    service: InteractiveResponseService,
-    db_factory,
-    test_execution: WorkflowExecution,
-    test_rule: Rule,
-) -> None:
-    """Auto-escalation triggered when action='escalate' and auto_escalate=True."""
-    # Create step with auto_escalate=True
-    db: Session = db_factory()
-    try:
-        step = PipelineStep(
-            rule_id=test_rule.id,
-            order=0,
-            step_type="interactive_prompt",
-            label="Test Interactive Prompt",
-            config_json={
-                "auto_escalate": True,
-                "output_key": "interactive_response",
-            },
-        )
-        db.add(step)
-        db.commit()
-        db.refresh(step)
-    finally:
-        db.close()
-
-    timestamp = datetime.now(UTC)
-    await service.record_response(
-        execution_id=test_execution.id,
-        step_id=step.id,
-        channel="pwa_popup_text",
-        action="escalate",
-        timestamp=timestamp,
-        raw_response={"button_id": "escalate"},
-    )
-
-    # Verify auto_escalate_triggered flag is set
-    db = db_factory()
-    try:
-        execution = db.query(WorkflowExecution).filter(
-            WorkflowExecution.id == test_execution.id
-        ).first()
-        assert execution is not None
-        pipeline_data = execution.pipeline_data_json
-        assert pipeline_data is not None
-        assert pipeline_data.get("auto_escalate_triggered") is True
-        assert pipeline_data["interactive_response"]["action"] == "escalate"
-    finally:
-        db.close()
-
-
-@pytest.mark.asyncio
-async def test_auto_escalate_on_timeout(
-    service: InteractiveResponseService,
-    db_factory,
-    test_execution: WorkflowExecution,
-    test_rule: Rule,
-) -> None:
-    """Auto-escalation triggered when channel='timeout' and auto_escalate=True."""
-    # Create step with auto_escalate=True
-    db: Session = db_factory()
-    try:
-        step = PipelineStep(
-            rule_id=test_rule.id,
-            order=0,
-            step_type="interactive_prompt",
-            label="Test Interactive Prompt",
-            config_json={
-                "auto_escalate": True,
-                "output_key": "interactive_response",
-            },
-        )
-        db.add(step)
-        db.commit()
-        db.refresh(step)
-    finally:
-        db.close()
-
-    timestamp = datetime.now(UTC)
-    await service.record_response(
-        execution_id=test_execution.id,
-        step_id=step.id,
-        channel="timeout",
-        action="escalate",
-        timestamp=timestamp,
-        raw_response={"timeout_action": "escalate"},
-    )
-
-    # Verify auto_escalate_triggered flag is set
-    db = db_factory()
-    try:
-        execution = db.query(WorkflowExecution).filter(
-            WorkflowExecution.id == test_execution.id
-        ).first()
-        assert execution is not None
-        pipeline_data = execution.pipeline_data_json
-        assert pipeline_data is not None
-        assert pipeline_data.get("auto_escalate_triggered") is True
-        assert pipeline_data["interactive_response"]["channel"] == "timeout"
-    finally:
-        db.close()
-
-
-@pytest.mark.asyncio
-async def test_no_auto_escalate_when_disabled(
-    service: InteractiveResponseService,
-    db_factory,
-    test_execution: WorkflowExecution,
-    test_rule: Rule,
-) -> None:
-    """Auto-escalation NOT triggered when auto_escalate=False."""
-    # Create step with auto_escalate=False
-    db: Session = db_factory()
-    try:
-        step = PipelineStep(
-            rule_id=test_rule.id,
-            order=0,
-            step_type="interactive_prompt",
-            label="Test Interactive Prompt",
-            config_json={
-                "auto_escalate": False,
-                "output_key": "interactive_response",
-            },
-        )
-        db.add(step)
-        db.commit()
-        db.refresh(step)
-    finally:
-        db.close()
-
-    timestamp = datetime.now(UTC)
-    await service.record_response(
-        execution_id=test_execution.id,
-        step_id=step.id,
-        channel="pwa_popup_text",
-        action="escalate",
-        timestamp=timestamp,
-        raw_response={"button_id": "escalate"},
-    )
-
-    # Verify auto_escalate_triggered flag is NOT set
-    db = db_factory()
-    try:
-        execution = db.query(WorkflowExecution).filter(
-            WorkflowExecution.id == test_execution.id
-        ).first()
-        assert execution is not None
-        pipeline_data = execution.pipeline_data_json
-        assert pipeline_data is not None
-        assert "auto_escalate_triggered" not in pipeline_data
-        assert pipeline_data["interactive_response"]["action"] == "escalate"
-    finally:
-        db.close()
-
-
-@pytest.mark.asyncio
-async def test_no_auto_escalate_on_dismiss_action(
-    service: InteractiveResponseService,
-    db_factory,
-    test_execution: WorkflowExecution,
-    test_rule: Rule,
-) -> None:
-    """Auto-escalation NOT triggered when action='dismiss' even with auto_escalate=True."""
-    # Create step with auto_escalate=True
-    db: Session = db_factory()
-    try:
-        step = PipelineStep(
-            rule_id=test_rule.id,
-            order=0,
-            step_type="interactive_prompt",
-            label="Test Interactive Prompt",
-            config_json={
-                "auto_escalate": True,
-                "output_key": "interactive_response",
-            },
-        )
-        db.add(step)
-        db.commit()
-        db.refresh(step)
-    finally:
-        db.close()
-
-    timestamp = datetime.now(UTC)
-    await service.record_response(
-        execution_id=test_execution.id,
-        step_id=step.id,
-        channel="pwa_popup_text",
-        action="dismiss",
-        timestamp=timestamp,
-        raw_response={"button_id": "dismiss"},
-    )
-
-    # Verify auto_escalate_triggered flag is NOT set
-    db = db_factory()
-    try:
-        execution = db.query(WorkflowExecution).filter(
-            WorkflowExecution.id == test_execution.id
-        ).first()
-        assert execution is not None
-        pipeline_data = execution.pipeline_data_json
-        assert pipeline_data is not None
-        assert "auto_escalate_triggered" not in pipeline_data
-        assert pipeline_data["interactive_response"]["action"] == "dismiss"
-    finally:
-        db.close()
-
-
-@pytest.mark.asyncio
-async def test_pipeline_data_updated_with_response(
+async def test_record_response_does_not_write_pipeline_data(
     service: InteractiveResponseService,
     db_factory,
     test_execution: WorkflowExecution,
     test_step: PipelineStep,
 ) -> None:
-    """Pipeline data updated with response information."""
+    """Service must NOT write to WorkflowExecution.pipeline_data_json.
+
+    The executor is the sole writer of pipeline_data_json.
+    """
+    timestamp = datetime.now(UTC)
+    await service.record_response(
+        execution_id=test_execution.id,
+        step_id=test_step.id,
+        channel="pwa_popup_text",
+        action="escalate",
+        timestamp=timestamp,
+        raw_response={"button_id": "escalate"},
+    )
+
+    db: Session = db_factory()
+    try:
+        execution = db.query(WorkflowExecution).filter(
+            WorkflowExecution.id == test_execution.id
+        ).first()
+        assert execution is not None
+        pipeline_data = execution.pipeline_data_json
+        # The service must not have written interactive_response into pipeline_data
+        assert not pipeline_data or "interactive_response" not in (pipeline_data or {})
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_response_row_persisted_with_correct_fields(
+    service: InteractiveResponseService,
+    db_factory,
+    test_execution: WorkflowExecution,
+    test_step: PipelineStep,
+) -> None:
+    """InteractiveResponse row contains all fields needed for executor merge."""
     timestamp = datetime.now(UTC)
     raw_response = {"button_id": "escalate", "extra_data": "test"}
 
-    await service.record_response(
+    result = await service.record_response(
         execution_id=test_execution.id,
         step_id=test_step.id,
         channel="pwa_popup_text",
@@ -733,72 +561,110 @@ async def test_pipeline_data_updated_with_response(
         raw_response=raw_response,
     )
 
-    # Verify pipeline_data contains response
-    db = db_factory()
-    try:
-        execution = db.query(WorkflowExecution).filter(
-            WorkflowExecution.id == test_execution.id
-        ).first()
-        assert execution is not None
-        pipeline_data = execution.pipeline_data_json
-        assert pipeline_data is not None
-        assert "interactive_response" in pipeline_data
-
-        response_data = pipeline_data["interactive_response"]
-        assert response_data["channel"] == "pwa_popup_text"
-        assert response_data["action"] == "escalate"
-        assert response_data["timestamp"] == timestamp.isoformat()
-        assert response_data["raw_response"] == raw_response
-    finally:
-        db.close()
+    assert result is not None
+    assert result.channel == "pwa_popup_text"
+    assert result.action == "escalate"
+    assert result.raw_response_json == raw_response
 
 
 @pytest.mark.asyncio
-async def test_custom_output_key(
+async def test_timeout_channel_does_not_cancel_timeout_job(
     service: InteractiveResponseService,
     db_factory,
+    fake_scheduler: FakeScheduler,
     test_execution: WorkflowExecution,
-    test_rule: Rule,
+    test_step: PipelineStep,
 ) -> None:
-    """Response stored with custom output_key."""
-    # Create step with custom output_key
-    db: Session = db_factory()
-    try:
-        step = PipelineStep(
-            rule_id=test_rule.id,
-            order=0,
-            step_type="interactive_prompt",
-            label="Test Interactive Prompt",
-            config_json={
-                "output_key": "custom_response_key",
-            },
-        )
-        db.add(step)
-        db.commit()
-        db.refresh(step)
-    finally:
-        db.close()
-
+    """Timeout-generated responses must not try to cancel the timeout job."""
     timestamp = datetime.now(UTC)
     await service.record_response(
         execution_id=test_execution.id,
-        step_id=step.id,
+        step_id=test_step.id,
+        channel="timeout",
+        action="escalate",
+        timestamp=timestamp,
+        raw_response={"timeout_action": "escalate"},
+    )
+
+    # cancel_pending_response should NOT have been called for timeout channel
+    assert len(fake_scheduler.remove_job_calls) == 0
+
+
+@pytest.mark.asyncio
+async def test_non_timeout_channel_cancels_timeout_job(
+    service: InteractiveResponseService,
+    db_factory,
+    fake_scheduler: FakeScheduler,
+    test_execution: WorkflowExecution,
+    test_step: PipelineStep,
+) -> None:
+    """Real (non-timeout) responses must cancel the pending timeout job."""
+    timestamp = datetime.now(UTC)
+    await service.record_response(
+        execution_id=test_execution.id,
+        step_id=test_step.id,
         channel="pwa_popup_text",
         action="escalate",
         timestamp=timestamp,
         raw_response={},
     )
 
-    # Verify response stored with custom key
-    db = db_factory()
+    assert len(fake_scheduler.remove_job_calls) == 1
+    assert fake_scheduler.remove_job_calls[0] == (
+        f"interactive_timeout_{test_execution.id}_{test_step.id}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_resume_scheduled_when_execution_is_waiting(
+    service: InteractiveResponseService,
+    db_factory,
+    fake_scheduler: FakeScheduler,
+    test_execution: WorkflowExecution,
+    test_step: PipelineStep,
+) -> None:
+    """Resume is scheduled immediately when execution is already 'waiting'."""
+    timestamp = datetime.now(UTC)
+    await service.record_response(
+        execution_id=test_execution.id,
+        step_id=test_step.id,
+        channel="pwa_popup_text",
+        action="escalate",
+        timestamp=timestamp,
+        raw_response={},
+    )
+
+    assert len(fake_scheduler.resume_calls) == 1
+    assert fake_scheduler.resume_calls[0][0] == test_execution.id
+
+
+@pytest.mark.asyncio
+async def test_resume_not_scheduled_for_terminal_execution(
+    service: InteractiveResponseService,
+    db_factory,
+    fake_scheduler: FakeScheduler,
+    test_rule: Rule,
+    test_step: PipelineStep,
+) -> None:
+    """Resume must not be scheduled when execution is already terminal."""
+    db: Session = db_factory()
     try:
-        execution = db.query(WorkflowExecution).filter(
-            WorkflowExecution.id == test_execution.id
-        ).first()
-        assert execution is not None
-        pipeline_data = execution.pipeline_data_json
-        assert pipeline_data is not None
-        assert "custom_response_key" in pipeline_data
-        assert "interactive_response" not in pipeline_data
+        execution = WorkflowExecution(rule_id=test_rule.id, status="completed")
+        db.add(execution)
+        db.commit()
+        db.refresh(execution)
+        exec_id = execution.id
     finally:
         db.close()
+
+    timestamp = datetime.now(UTC)
+    await service.record_response(
+        execution_id=exec_id,
+        step_id=test_step.id,
+        channel="pwa_popup_text",
+        action="escalate",
+        timestamp=timestamp,
+        raw_response={},
+    )
+
+    assert len(fake_scheduler.resume_calls) == 0

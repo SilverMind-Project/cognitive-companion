@@ -148,10 +148,11 @@ class SemanticMemoryWriteHandler(StepHandler):
 
         # -- Observation write ------------------------------------------------
         if write_obs:
-            description = pipeline_data.get(desc_key, "")
-            detections = pipeline_data.get(det_key, [])
-            embedding = pipeline_data.get(emb_key, [])
-            hazards = pipeline_data.get(haz_key, [])
+            from backend.services.pipeline_data_manager import resolve_pipeline_value
+            description = resolve_pipeline_value(pipeline_data, desc_key, default="")
+            detections = resolve_pipeline_value(pipeline_data, det_key, default=[])
+            embedding = resolve_pipeline_value(pipeline_data, emb_key, default=[])
+            hazards = resolve_pipeline_value(pipeline_data, haz_key, default=[])
 
             object_list: list[str] = []
             if isinstance(detections, list):
@@ -194,7 +195,8 @@ class SemanticMemoryWriteHandler(StepHandler):
 
         # -- Movement writes --------------------------------------------------
         if write_mov:
-            transitions = pipeline_data.get(mov_key, [])
+            from backend.services.pipeline_data_manager import resolve_pipeline_value
+            transitions = resolve_pipeline_value(pipeline_data, mov_key, default=[])
             if isinstance(transitions, list):
                 for transition in transitions:
                     if not isinstance(transition, dict):

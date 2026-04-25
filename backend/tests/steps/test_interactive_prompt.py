@@ -160,7 +160,8 @@ class TestInteractivePromptHandlerExecute:
         # Assert
         assert result.success is True
         assert result.wait_until is not None
-        assert execution.status == "waiting_for_response"
+        # The executor transitions status to "waiting" after the step returns.
+        # The step no longer mutates execution.status directly.
 
         # Verify popup message was sent
         mock_notification_dispatcher.connection_manager.broadcast.assert_called_once()
@@ -216,7 +217,8 @@ class TestInteractivePromptHandlerExecute:
         # Assert
         assert result.success is True
         assert result.wait_until is not None
-        assert execution.status == "waiting_for_response"
+        # The executor transitions status to "waiting" after the step returns.
+        # The step no longer mutates execution.status directly.
 
         # Verify voice prompt was sent
         mock_notification_dispatcher.connection_manager.send_backend_task.assert_called_once()
@@ -275,7 +277,8 @@ class TestInteractivePromptHandlerExecute:
         # Assert
         assert result.success is True
         assert result.wait_until is not None
-        assert execution.status == "waiting_for_response"
+        # The executor transitions status to "waiting" after the step returns.
+        # The step no longer mutates execution.status directly.
 
         # Both channels fire: popup broadcast + voice send + enable_microphone broadcast
         assert mock_notification_dispatcher.connection_manager.broadcast.call_count == 2
@@ -429,7 +432,8 @@ class TestInteractivePromptHandlerExecute:
         # Assert
         assert result.success is True
         assert result.wait_until is not None  # Should still wait since voice succeeded
-        assert execution.status == "waiting_for_response"
+        # The executor transitions status to "waiting" after the step returns.
+        # The step no longer mutates execution.status directly.
 
         # Popup broadcast is attempted; after voice succeeds the handler also
         # broadcasts enable_microphone. Both calls hit the failing mock but
@@ -684,7 +688,8 @@ class TestInteractivePromptHandlerExecute:
         # Assert
         assert result.success is True
         assert result.wait_until is not None
-        assert execution.status == "waiting_for_response"
+        # The executor transitions status to "waiting" after the step returns.
+        # The step no longer mutates execution.status directly.
 
         # Verify popup message was sent with correct fields
         mock_notification_dispatcher.connection_manager.broadcast.assert_called_once()

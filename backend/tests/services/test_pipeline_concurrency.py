@@ -189,9 +189,11 @@ class TestOptimisticLocking:
             data["test"] = "value"
 
         # Mock commit to always raise StaleDataError
-        with patch.object(db_session, "commit", side_effect=StaleDataError("Always fails")):
-            with pytest.raises(StaleDataError):
-                await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
+        with (
+            patch.object(db_session, "commit", side_effect=StaleDataError("Always fails")),
+            pytest.raises(StaleDataError),
+        ):
+            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
 
     async def test_retry_logic_uses_exponential_backoff(self, db_session: Session):
         """_update_pipeline_data_with_retry must use exponential backoff."""
@@ -216,9 +218,11 @@ class TestOptimisticLocking:
             if commit_count <= 2:
                 raise StaleDataError("Simulated conflict")
 
-        with patch.object(db_session, "commit", side_effect=mock_commit):
-            with patch("asyncio.sleep", side_effect=mock_sleep):
-                await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
+        with (
+            patch.object(db_session, "commit", side_effect=mock_commit),
+            patch("asyncio.sleep", side_effect=mock_sleep),
+        ):
+            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
 
         # Should have exponential backoff: 0.1, 0.2
         assert len(sleep_delays) == 2
@@ -256,7 +260,7 @@ class TestPessimisticLocking:
     async def test_timeout_handler_uses_pessimistic_lock(self, db_session: Session, db_factory):
         """_handle_timeout must use SELECT FOR UPDATE for exclusive access."""
         rule = _make_rule(db_session, execution_timeout_minutes=1)
-        step = _make_step(db_session, rule, order=1)
+        _make_step(db_session, rule, order=1)
         execution = _make_execution(db_session, rule)
         db_session.commit()
 
@@ -364,7 +368,7 @@ class TestVersionConflictDetection:
     ):
         """Pipeline execution must detect version conflicts during commit."""
         rule = _make_rule(db_session)
-        step = _make_step(db_session, rule, order=1, step_type="notification")
+        _make_step(db_session, rule, order=1, step_type="notification")
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -395,11 +399,11 @@ class TestVersionConflictDetection:
             return StepResult(success=True, data={"step_output": "test"})
 
         with patch.object(executor, "_execute_step", side_effect=mock_execute_step):
-            # The pipeline should raise an exception when it tries to commit
-            # after the concurrent update. This could be StaleDataError or
-            # PendingRollbackError depending on when the error is caught.
-            with pytest.raises((StaleDataError, Exception)):
-                await executor.execute(rule, trigger, db_session)
+            # The pipeline catches the StaleDataError internally, rolls back,
+            # and marks the execution as failed rather than propagating.
+            result = await executor.execute(rule, trigger, db_session)
+
+        assert result.status == "failed"
 
 
 # ---------------------------------------------------------------------------

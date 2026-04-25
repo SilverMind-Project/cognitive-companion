@@ -30,7 +30,7 @@ class SignalStore:
         the in-memory fixture.
     """
 
-    def __init__(self, db_factory) -> None:  # type: ignore[no-untyped-def]
+    def __init__(self, db_factory) -> None:
         self._db_factory = db_factory
 
     # -- Write path ----------------------------------------------------------

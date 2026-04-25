@@ -344,8 +344,10 @@ class LLMCallHandler(StepHandler):
         if response_format == "json_schema":
             raw_schema = config.get("response_json_schema", "")
             if raw_schema:
-                guided_schema = parse_llm_json(raw_schema)
-                if isinstance(guided_schema, str):
+                parsed_schema = parse_llm_json(raw_schema)
+                if isinstance(parsed_schema, dict):
+                    guided_schema = parsed_schema
+                else:
                     logger.warning(
                         "llm_call_schema_parse_failed",
                         model_id=model_id,
@@ -461,7 +463,7 @@ class LLMCallHandler(StepHandler):
 
         # -- Parse output -----------------------------------------------------
         output_key: str = config.get("output_key", "llm_response") or "llm_response"
-        result_value: str | dict = raw_response or ""
+        result_value: str | dict | list = raw_response or ""
 
         if response_format in ("json_schema", "json_free") and raw_response:
             result_value = parse_llm_json(raw_response)

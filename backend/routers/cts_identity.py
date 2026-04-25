@@ -99,7 +99,7 @@ async def list_global_tracks(
         tracks = await client.get_global_tracks(open_only=open_only)
     except UpstreamError as exc:
         raise HTTPException(
-            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY,
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
             detail={"code": "cts.upstream_error", "message": str(exc)},
         ) from exc
     return {"tracks": tracks, "count": len(tracks)}
@@ -136,7 +136,7 @@ async def apply_correction(
         )
     except UpstreamError as exc:
         raise HTTPException(
-            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY,
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
             detail={"code": "cts.upstream_error", "message": str(exc)},
         ) from exc
 
@@ -182,7 +182,7 @@ async def merge_identities(
         )
     except UpstreamError as exc:
         raise HTTPException(
-            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY,
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
             detail={"code": "cts.upstream_error", "message": str(exc)},
         ) from exc
 

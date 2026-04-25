@@ -198,9 +198,8 @@ async def lifespan(app: FastAPI):
     # -- Semantic memory client --------------------------------------------
     from backend.integrations.semantic_memory_client import SemanticMemoryClient
 
-    semantic_memory_client = SemanticMemoryClient()
-    if not semantic_memory_client.configured:
-        semantic_memory_client = None
+    _smc = SemanticMemoryClient()
+    semantic_memory_client: SemanticMemoryClient | None = _smc if _smc.configured else None
     app.state.semantic_memory_client = semantic_memory_client
 
     # -- Person tracking service -------------------------------------------

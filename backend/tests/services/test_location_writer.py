@@ -3,6 +3,9 @@
 Exercises the two core flows: (1) first-sighting insert, (2) room change
 producing a close+insert pair on PersonLocationHistory, and (3) the
 source-authority veto path.
+
+Uses :class:`SqlAlchemyLocationRepository` wrapping the in-memory SQLite
+session provided by the ``db_factory`` conftest fixture.
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from backend.models.person import HouseholdMember, PersonLocationHistory, PersonLocationState
+from backend.services.cts.location_repository import SqlAlchemyLocationRepository
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.source_authority import SourceAuthority
 
@@ -51,10 +55,19 @@ def _event(
     }
 
 
+def _make_repo_factory(db_factory):
+    """Wrap the db_factory to return SqlAlchemyLocationRepository instances."""
+
+    def _factory():
+        return SqlAlchemyLocationRepository(db_factory())
+
+    return _factory
+
+
 @pytest.fixture
 def writer(db_factory):
     _register_member(db_factory, "grandma")
-    return LocationWriter(db_factory=db_factory)
+    return LocationWriter(repo_factory=_make_repo_factory(db_factory))
 
 
 class TestFirstSighting:
@@ -130,7 +143,8 @@ class TestSourceAuthority:
     async def test_out_of_order_event_is_rejected(self, db_factory):
         _register_member(db_factory, "grandma")
         writer = LocationWriter(
-            db_factory=db_factory, authority=SourceAuthority(cts_lock_s=60)
+            repo_factory=_make_repo_factory(db_factory),
+            authority=SourceAuthority(cts_lock_s=60),
         )
 
         # Write current state from "now".
@@ -146,5 +160,71 @@ class TestSourceAuthority:
         try:
             state = db.query(PersonLocationState).one()
             assert state.current_room_name == "kitchen"
+        finally:
+            db.close()
+
+
+class TestMultipleDetections:
+    @pytest.mark.asyncio
+    async def test_multiple_persons_in_single_event(self, db_factory):
+        """An event with detections for two different persons should create
+        state and history for both."""
+        _register_member(db_factory, "grandma")
+        _register_member(db_factory, "grandpa")
+        writer = LocationWriter(repo_factory=_make_repo_factory(db_factory))
+
+        event = {
+            "event_id": "evt-multi",
+            "camera_id": "living-1",
+            "event_time": datetime.now(UTC).isoformat(),
+            "room_name": "living_room",
+            "detections": [
+                {
+                    "id": "det-1",
+                    "tracklet_id": "t-1",
+                    "global_track_id": "gt-1",
+                    "identity_id": "grandma",
+                    "identity_confidence": 0.95,
+                },
+                {
+                    "id": "det-2",
+                    "tracklet_id": "t-2",
+                    "global_track_id": "gt-2",
+                    "identity_id": "grandpa",
+                    "identity_confidence": 0.88,
+                },
+            ],
+        }
+        touched = await writer.apply(event)
+        assert set(touched) == {"grandma", "grandpa"}
+
+        db = db_factory()
+        try:
+            states = db.query(PersonLocationState).all()
+            assert len(states) == 2
+            assert {s.person_id for s in states} == {"grandma", "grandpa"}
+        finally:
+            db.close()
+
+
+class TestNoRoomName:
+    @pytest.mark.asyncio
+    async def test_state_update_without_room_change(self, db_factory):
+        """Event with no room_name should still upsert state but not
+        create history rows."""
+        _register_member(db_factory, "grandma")
+        writer = LocationWriter(repo_factory=_make_repo_factory(db_factory))
+
+        await writer.apply(_event("grandma", None))
+
+        db = db_factory()
+        try:
+            # State should exist but with no room
+            states = db.query(PersonLocationState).all()
+            assert len(states) == 1
+
+            # No history should be written when room_name is None
+            history = db.query(PersonLocationHistory).all()
+            assert len(history) == 0
         finally:
             db.close()

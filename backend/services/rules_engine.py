@@ -124,6 +124,7 @@ class RulesEngine:
             result = filter_instance.evaluate(ctx.config_json or {}, sensor, now, db, services)
             if asyncio.iscoroutine(result):
                 result = asyncio.get_event_loop().run_until_complete(result)
+            assert isinstance(result, bool)
             return (not result) if ctx.negate else result
         logger.warning("unknown_context_type", context_type=ctx.context_type)
         return True  # unknown type = don't filter

@@ -79,6 +79,7 @@ class StreamConsumer(ABC, Generic[T]):
         self._stopped.set()
 
     async def _tick(self) -> None:
+        assert self._redis is not None
         try:
             claimed = await self._reclaim()
             if claimed:
@@ -103,6 +104,7 @@ class StreamConsumer(ABC, Generic[T]):
             await asyncio.sleep(1.0)
 
     async def _fan_out(self, messages: list) -> None:
+        assert self._redis is not None
         for message_id, fields in messages:
             msg = self.decode(message_id, fields)
             if msg is None:
@@ -113,6 +115,7 @@ class StreamConsumer(ABC, Generic[T]):
             asyncio.create_task(self._run_one(message_id, msg))  # noqa: RUF006
 
     async def _run_one(self, message_id, msg: T) -> None:
+        assert self._redis is not None
         async with self._sem:
             try:
                 ok = await self.handle(msg)
@@ -129,6 +132,7 @@ class StreamConsumer(ABC, Generic[T]):
             )
 
     async def _reclaim(self) -> list | None:
+        assert self._redis is not None
         res = await self._redis.xautoclaim(
             self._cfg.stream,
             self._cfg.group,
@@ -142,6 +146,7 @@ class StreamConsumer(ABC, Generic[T]):
         return res[1]
 
     async def _ensure_group(self) -> None:
+        assert self._redis is not None
         try:
             await self._redis.xgroup_create(
                 self._cfg.stream,

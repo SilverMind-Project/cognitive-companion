@@ -851,7 +851,7 @@ async def submit_user_response(
     action = "escalate" if needs_help else "dismiss"
 
     # Build raw_response_json for audit
-    raw_response = {
+    raw_response: dict[str, Any] = {
         "needs_help": needs_help,
     }
     if user_statement:
@@ -921,7 +921,7 @@ async def get_tracking_status() -> dict:
     if not settings.get("cts.enabled", False):
         return {"enabled": False, "subscribers": []}
 
-    runtime = _svc.cts_runtime  # type: ignore[attr-defined]
+    runtime = _svc.cts_runtime
     if runtime is None:
         return {"enabled": True, "subscribers": [], "error": "runtime_not_started"}
     return {"enabled": True, **runtime.status()}

@@ -184,7 +184,9 @@ class _ObservationPayload(BaseModel):
     @field_validator("observed_at", "created_at", mode="before")
     @classmethod
     def _parse_observed(cls, value: object) -> datetime:
-        return normalize_utc_datetime(_coerce_datetime(value))
+        dt = normalize_utc_datetime(_coerce_datetime(value))
+        assert dt is not None
+        return dt
 
     @field_validator("object_list", "hazard_flags", mode="before")
     @classmethod
@@ -218,7 +220,9 @@ class _ObservationSearchHitPayload(BaseModel):
     @field_validator("observed_at", mode="before")
     @classmethod
     def _parse_observed(cls, value: object) -> datetime:
-        return normalize_utc_datetime(_coerce_datetime(value))
+        dt = normalize_utc_datetime(_coerce_datetime(value))
+        assert dt is not None
+        return dt
 
     @field_validator("object_list", "hazard_flags", mode="before")
     @classmethod
@@ -252,7 +256,9 @@ class _MovementPayload(BaseModel):
     @field_validator("observed_at", mode="before")
     @classmethod
     def _parse_observed(cls, value: object) -> datetime:
-        return normalize_utc_datetime(_coerce_datetime(value))
+        dt = normalize_utc_datetime(_coerce_datetime(value))
+        assert dt is not None
+        return dt
 
     def to_record(self) -> MovementRecord:
         return MovementRecord(
@@ -287,7 +293,9 @@ class _ObjectPresencePayload(BaseModel):
     @field_validator("last_seen_at", mode="before")
     @classmethod
     def _parse_last_seen(cls, value: object) -> datetime:
-        return normalize_utc_datetime(_coerce_datetime(value))
+        dt = normalize_utc_datetime(_coerce_datetime(value))
+        assert dt is not None
+        return dt
 
     def to_record(self) -> ObjectPresenceRecord:
         return ObjectPresenceRecord(
@@ -312,7 +320,9 @@ class _RoomTrendPayload(BaseModel):
     @field_validator("as_of", mode="before")
     @classmethod
     def _parse_as_of(cls, value: object) -> datetime:
-        return normalize_utc_datetime(_coerce_datetime(value))
+        dt = normalize_utc_datetime(_coerce_datetime(value))
+        assert dt is not None
+        return dt
 
     @field_validator("persistent_objects", "novel_objects", mode="before")
     @classmethod
@@ -351,7 +361,9 @@ class _TrendSnapshotPayload(BaseModel):
     @field_validator("period_start", mode="before")
     @classmethod
     def _parse_period_start(cls, value: object) -> datetime:
-        return normalize_utc_datetime(_coerce_datetime(value))
+        dt = normalize_utc_datetime(_coerce_datetime(value))
+        assert dt is not None
+        return dt
 
     @field_validator("object_counts", mode="before")
     @classmethod

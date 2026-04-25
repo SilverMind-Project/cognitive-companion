@@ -477,22 +477,28 @@ class TestDailyReportGeneration:
     def test_generate_report_with_room_time(self, db_factory):
         """Should calculate time spent in each room."""
         service = DailyReportService(db_factory)
-        today = datetime.now(UTC).date().isoformat()
+
+        # Use a fixed time to avoid midnight boundary issues
+        now = datetime.now(UTC)
+        test_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if test_time > now:
+            test_time = test_time - timedelta(days=1)
+        today = test_time.date().isoformat()
 
         # Create location history
         _make_location_history(
             db_factory(),
             person_id="person123",
             room_name="bedroom",
-            entered_at=datetime.now(UTC) - timedelta(hours=8),
-            exited_at=datetime.now(UTC) - timedelta(hours=2),
+            entered_at=test_time - timedelta(hours=8),
+            exited_at=test_time - timedelta(hours=2),
         )
         _make_location_history(
             db_factory(),
             person_id="person123",
             room_name="kitchen",
-            entered_at=datetime.now(UTC) - timedelta(hours=2),
-            exited_at=datetime.now(UTC),
+            entered_at=test_time - timedelta(hours=2),
+            exited_at=test_time,
         )
 
         report = service.generate_daily_report(
@@ -542,15 +548,21 @@ class TestWellnessScoring:
     def test_wellness_score_full_adherence(self, db_factory):
         """Should give high score with full medication adherence and good sleep."""
         service = DailyReportService(db_factory)
-        today = datetime.now(UTC).date().isoformat()
+
+        # Use a fixed time to avoid midnight boundary issues
+        now = datetime.now(UTC)
+        test_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if test_time > now:
+            test_time = test_time - timedelta(days=1)
+        today = test_time.date().isoformat()
 
         # Full medication adherence
         _make_activity_session(
             db_factory(),
             person_id="person123",
             activity_type=ActivityTypeEnum.medication,
-            opened_at=datetime.now(UTC) - timedelta(hours=6),
-            closed_at=datetime.now(UTC) - timedelta(hours=5.5),
+            opened_at=test_time - timedelta(hours=6),
+            closed_at=test_time - timedelta(hours=5.5),
             duration_minutes=30,
             status="closed",
         )
@@ -558,8 +570,8 @@ class TestWellnessScoring:
             db_factory(),
             person_id="person123",
             activity_type=ActivityTypeEnum.medication,
-            opened_at=datetime.now(UTC) - timedelta(hours=3),
-            closed_at=datetime.now(UTC) - timedelta(hours=2.5),
+            opened_at=test_time - timedelta(hours=3),
+            closed_at=test_time - timedelta(hours=2.5),
             duration_minutes=30,
             status="closed",
         )
@@ -567,8 +579,8 @@ class TestWellnessScoring:
             db_factory(),
             person_id="person123",
             activity_type=ActivityTypeEnum.medication,
-            opened_at=datetime.now(UTC) - timedelta(hours=1),
-            closed_at=datetime.now(UTC) - timedelta(hours=0.5),
+            opened_at=test_time - timedelta(hours=1),
+            closed_at=test_time - timedelta(hours=0.5),
             duration_minutes=30,
             status="closed",
         )
@@ -578,8 +590,8 @@ class TestWellnessScoring:
             db_factory(),
             person_id="person123",
             activity_type=ActivityTypeEnum.sleep,
-            opened_at=datetime.now(UTC) - timedelta(hours=9),
-            closed_at=datetime.now(UTC) - timedelta(hours=1),
+            opened_at=test_time - timedelta(hours=9),
+            closed_at=test_time - timedelta(hours=1),
             duration_minutes=480,
             status="closed",
         )
@@ -589,8 +601,8 @@ class TestWellnessScoring:
             db_factory(),
             person_id="person123",
             activity_type=ActivityTypeEnum.exercise,
-            opened_at=datetime.now(UTC) - timedelta(hours=4),
-            closed_at=datetime.now(UTC) - timedelta(hours=3.5),
+            opened_at=test_time - timedelta(hours=4),
+            closed_at=test_time - timedelta(hours=3.5),
             duration_minutes=30,
             status="closed",
         )

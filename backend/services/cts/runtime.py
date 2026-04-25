@@ -18,6 +18,7 @@ from typing import Any
 from backend.core.logging import get_logger
 from backend.services.cts.identity_revision_subscriber import IdentityRevisionSubscriber
 from backend.services.cts.identity_rewriter import IdentityRewriter
+from backend.services.cts.location_repository import SqlAlchemyLocationRepository
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.source_authority import SourceAuthority
@@ -55,7 +56,7 @@ class CTSRuntime:
         self,
         *,
         config: CTSRuntimeConfig,
-        db_factory,  # type: ignore[no-untyped-def]
+        db_factory,
         ws_manager: Any = None,
         pipeline: Any = None,
     ) -> None:
@@ -65,7 +66,11 @@ class CTSRuntime:
         self._pipeline = pipeline
 
         authority = SourceAuthority(cts_lock_s=config.cts_lock_s)
-        self.location_writer = LocationWriter(db_factory=db_factory, authority=authority)
+
+        def _repo_factory() -> SqlAlchemyLocationRepository:
+            return SqlAlchemyLocationRepository(db_factory())
+
+        self.location_writer = LocationWriter(repo_factory=_repo_factory, authority=authority)
         self.identity_rewriter = IdentityRewriter(
             db_factory=db_factory, ws_manager=ws_manager
         )

@@ -17,6 +17,9 @@ CC must:
 The rewriter is idempotent: replaying the same revision is a no-op because
 the match query (``superseded_by_revision_id IS NULL``) excludes already-
 rewritten rows.
+
+This implementation delegates persistence to a :class:`LocationRepository`
+for consistency with :class:`LocationWriter` and testability.
 """
 
 from __future__ import annotations
@@ -36,7 +39,11 @@ class IdentityRewriter:
     Parameters
     ----------
     db_factory:
-        Session factory; same signature as :class:`SignalStore`.
+        Session factory for the raw query path (revision row lookup).
+        The :class:`LocationRepository` handles structured writes, but
+        the rewriter still needs a raw session for the multi-row UPDATE
+        (stamping ``superseded_by_revision_id``) which doesn't map cleanly
+        to the repository protocol.
     ws_manager:
         Optional :class:`ConnectionManager` to broadcast revision events.
     """
@@ -45,7 +52,7 @@ class IdentityRewriter:
 
     def __init__(
         self,
-        db_factory,  # type: ignore[no-untyped-def]
+        db_factory,
         ws_manager: Any = None,
     ) -> None:
         self._db_factory = db_factory

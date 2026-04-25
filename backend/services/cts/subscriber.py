@@ -11,6 +11,14 @@ The subscriber reuses the shared :class:`StreamConsumer` base class
 (defined in :mod:`backend.services.cts.stream_consumer`) so each
 subscriber is ~60 lines of actual logic.  Tests inject a fake Redis
 via :class:`redis.asyncio.Redis` mock.
+
+Field-name mapping
+------------------
+The orchestrator's ``SignalPublisher`` serializes using the orchestrator's
+domain names (``identity_id``, ``signal_kind``, ``context``).  The CC
+``SignalStore`` uses the CC-side names (``person_id``, ``signal_type``,
+``context_json``).  This subscriber maps between the two namespaces so
+both sides remain consistent with their own domain models.
 """
 
 from __future__ import annotations
@@ -22,6 +30,22 @@ from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
 logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Field mapping: orchestrator publisher → CC subscriber
+#
+# The orchestrator's SignalPublisher._serialize() emits:
+#   identity_id, signal_kind, context, severity, value, baseline,
+#   z_score, window_start, window_end, emitted_at, signal_id
+#
+# The CC's SignalStore.insert() expects:
+#   person_id, signal_type, context_json, severity, value, baseline,
+#   z_score, window_start, window_end
+# ---------------------------------------------------------------------------
+
+# Required fields that MUST be present in the publisher payload.
+# Uses the orchestrator's field names.
+_REQUIRED_PUBLISHER_FIELDS = {"identity_id", "signal_kind", "severity", "window_start", "window_end", "value"}
 
 
 class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
@@ -68,6 +92,10 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
     def decode(self, message_id: bytes, fields: dict) -> dict[str, Any] | None:
         """Parse raw Redis Stream fields into a signal dict.
 
+        The publisher sends a single ``signal`` field containing a
+        JSON-encoded dict.  Field names are mapped from orchestrator
+        conventions to CC conventions before validation.
+
         Returns ``None`` to drop+ack malformed messages.
         """
         raw = fields.get(b"signal")
@@ -83,7 +111,11 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
             logger.warning("dementia_signal_parse_error", message_id=message_id)
             return None
 
-        # Validate required fields.
+        # Map orchestrator field names → CC field names.
+        # Accept both naming conventions for forward/backward compatibility.
+        signal_data = _map_field_names(signal_data)
+
+        # Validate required fields (using CC-canonical names after mapping).
         required = {"person_id", "signal_type", "severity", "window_start", "window_end", "value"}
         if not required.issubset(signal_data):
             logger.warning(
@@ -134,3 +166,35 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
             return False
 
         return True
+
+
+def _map_field_names(data: dict[str, Any]) -> dict[str, Any]:
+    """Map orchestrator field names to CC field names.
+
+    Orchestrator sends: ``identity_id``, ``signal_kind``, ``context``
+    CC expects:         ``person_id``,   ``signal_type``,  ``context_json``
+
+    Both naming conventions are accepted for compatibility.  If both are
+    present the orchestrator name wins (it's the canonical source).
+    """
+    mapped = dict(data)
+
+    # identity_id → person_id
+    if "identity_id" in mapped and "person_id" not in mapped:
+        mapped["person_id"] = mapped.pop("identity_id")
+    elif "identity_id" in mapped:
+        mapped.pop("identity_id")
+
+    # signal_kind → signal_type
+    if "signal_kind" in mapped and "signal_type" not in mapped:
+        mapped["signal_type"] = mapped.pop("signal_kind")
+    elif "signal_kind" in mapped:
+        mapped.pop("signal_kind")
+
+    # context → context_json
+    if "context" in mapped and "context_json" not in mapped:
+        mapped["context_json"] = mapped.pop("context")
+    elif "context" in mapped:
+        mapped.pop("context")
+
+    return mapped

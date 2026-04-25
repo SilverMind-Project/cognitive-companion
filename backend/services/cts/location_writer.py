@@ -2,7 +2,8 @@
 
 Consumes decoded tracking events (dicts produced by
 :class:`backend.services.cts.tracking_event_subscriber.TrackingEventSubscriber`)
-and applies them to the canonical person-location tables.
+and applies them to the canonical person-location tables via a
+:class:`LocationRepository`.
 
 Behaviour
 ---------
@@ -16,11 +17,8 @@ Behaviour
   from the event, and a nullable ``superseded_by_revision_id`` that
   :class:`IdentityRewriter` fills in when an identity revision arrives.
 
-This service is read-free on the hot path: it reads only the current state
-row for the identity, which is already indexed by ``person_id``.  It is
-safe to call concurrently from multiple subscribers because the
-per-identity upsert sequence is short and SQLite's default isolation is
-SERIALIZABLE for in-transaction writes.
+This service delegates all persistence to the injected
+:class:`LocationRepository`, keeping the writer free of direct ORM calls.
 """
 
 from __future__ import annotations
@@ -29,7 +27,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
-from backend.models.person import PersonLocationHistory, PersonLocationState
 from backend.services.cts.source_authority import SourceAuthority
 
 logger = get_logger(__name__)
@@ -40,9 +37,10 @@ class LocationWriter:
 
     Parameters
     ----------
-    db_factory:
-        Callable that returns a new SQLAlchemy ``Session``. Matches the
-        signature used by :class:`SignalStore`.
+    repo_factory:
+        Callable that returns a fresh :class:`LocationRepository` instance.
+        In production this wraps ``SqlAlchemyLocationRepository(get_session())``.
+        In tests it returns :class:`InMemoryLocationRepository`.
     authority:
         Source-authority policy. Defaults to :class:`SourceAuthority`
         configured to favor CTS over sensor-inferred sources.
@@ -52,10 +50,10 @@ class LocationWriter:
 
     def __init__(
         self,
-        db_factory,  # type: ignore[no-untyped-def]
+        repo_factory,
         authority: SourceAuthority | None = None,
     ) -> None:
-        self._db_factory = db_factory
+        self._repo_factory = repo_factory
         self._authority = authority or SourceAuthority()
 
     async def apply(self, event: dict[str, Any]) -> list[str]:
@@ -65,11 +63,13 @@ class LocationWriter:
         detections = event.get("detections") or []
         room_name = event.get("room_name") or None
         camera_id = event.get("camera_id") or ""
-        event_time = _parse_ts(event.get("event_time")) if event.get("event_time") else datetime.now(UTC)
+        event_time = (
+            _parse_ts(event.get("event_time")) if event.get("event_time") else datetime.now(UTC)
+        )
 
         touched: list[str] = []
 
-        db = self._db_factory()
+        repo = self._repo_factory()
         try:
             for det in detections:
                 person_id = (det.get("identity_id") or "").strip()
@@ -78,11 +78,7 @@ class LocationWriter:
                 global_track_id = det.get("global_track_id") or None
                 confidence = float(det.get("identity_confidence") or 0.0)
 
-                current = (
-                    db.query(PersonLocationState)
-                    .filter(PersonLocationState.person_id == person_id)
-                    .first()
-                )
+                current = repo.get_state(person_id)
 
                 if current is not None and not self._authority.cts_supersedes(
                     current_source=current.last_sensor_id or "",
@@ -98,57 +94,37 @@ class LocationWriter:
 
                 # Persist the source prefix so :class:`SourceAuthority` can
                 # distinguish CTS-owned state from other providers later.
-                stamped_sensor_id = (
-                    f"cts:{camera_id}" if camera_id else "cts"
+                stamped_sensor_id = f"cts:{camera_id}" if camera_id else "cts"
+
+                repo.upsert_state(
+                    person_id=person_id,
+                    room_name=room_name or (current.current_room_name if current else None),
+                    sensor_id=stamped_sensor_id,
+                    confidence=confidence,
+                    status="home",
+                    event_time=event_time,
                 )
-                if current is None:
-                    current = PersonLocationState(
-                        person_id=person_id,
-                        current_room_name=room_name,
-                        last_seen_at=event_time,
-                        last_sensor_id=stamped_sensor_id,
-                        status="home",
-                        confidence=confidence,
-                        updated_at=event_time,
-                    )
-                    db.add(current)
-                else:
-                    current.current_room_name = room_name or current.current_room_name
-                    current.last_seen_at = event_time
-                    current.last_sensor_id = stamped_sensor_id
-                    current.status = "home"
-                    current.confidence = confidence
-                    current.updated_at = event_time
 
                 if changed_room and room_name:
                     # Close the open prior row for this person.
-                    prev = (
-                        db.query(PersonLocationHistory)
-                        .filter(
-                            PersonLocationHistory.person_id == person_id,
-                            PersonLocationHistory.exited_at.is_(None),
-                            PersonLocationHistory.superseded_by_revision_id.is_(None),
-                        )
-                        .order_by(PersonLocationHistory.entered_at.desc())
-                        .first()
+                    repo.close_open_history(
+                        person_id,
+                        exited_at=event_time,
+                        require_no_superseded=True,
                     )
-                    if prev is not None:
-                        prev.exited_at = event_time
 
-                    db.add(
-                        PersonLocationHistory(
-                            person_id=person_id,
-                            room_name=room_name,
-                            entered_at=event_time,
-                            source=self.SOURCE,
-                            global_track_id=global_track_id,
-                        )
+                    repo.append_history(
+                        person_id=person_id,
+                        room_name=room_name,
+                        entered_at=event_time,
+                        source=self.SOURCE,
+                        global_track_id=global_track_id,
                     )
 
                 touched.append(person_id)
 
             if touched:
-                db.commit()
+                repo.commit()
                 logger.info(
                     "cts_location_write",
                     event_camera=camera_id,
@@ -156,20 +132,22 @@ class LocationWriter:
                     room=room_name,
                 )
             else:
-                db.rollback()
+                repo.rollback()
         except Exception:
-            db.rollback()
+            repo.rollback()
             logger.exception("cts_location_write_error")
             raise
         finally:
-            db.close()
+            repo.close()
 
         return touched
 
 
-def _parse_ts(value: str | datetime) -> datetime:
+def _parse_ts(value: Any) -> datetime:
     """Normalise an ISO-8601 string or datetime to a tz-aware UTC datetime."""
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if not isinstance(value, str):
+        raise TypeError(f"Expected str or datetime, got {type(value)}")
     dt = datetime.fromisoformat(value)
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)

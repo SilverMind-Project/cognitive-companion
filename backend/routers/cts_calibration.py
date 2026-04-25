@@ -62,7 +62,7 @@ def compute_homography(
     Raises ``ImportError`` if ``opencv-python-headless`` is not installed.
     Raises ``ValueError`` if fewer than 4 point pairs are provided.
     """
-    import cv2  # type: ignore[import-untyped]
+    import cv2
 
     if len(pixel_points) < 4 or len(floor_points) < 4:
         raise ValueError("At least 4 point pairs required to fit a homography")

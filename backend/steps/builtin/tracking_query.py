@@ -250,7 +250,7 @@ class TrackingQueryHandler(StepHandler):
 
     @staticmethod
     async def _read_signals(
-        db_factory,  # type: ignore[no-untyped-def]
+        db_factory,
         *,
         person_id: str,
         kind: str | None,

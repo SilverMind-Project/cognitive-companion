@@ -121,6 +121,7 @@ class TestHandle:
 def test_uses_in_memory_writer(db_factory):
     """End-to-end: real :class:`LocationWriter`, decoded event, assertion on state."""
     from backend.models.person import HouseholdMember
+    from backend.services.cts.location_repository import SqlAlchemyLocationRepository
 
     db = db_factory()
     try:
@@ -129,7 +130,10 @@ def test_uses_in_memory_writer(db_factory):
     finally:
         db.close()
 
-    writer = LocationWriter(db_factory=db_factory)
+    def _repo_factory() -> SqlAlchemyLocationRepository:
+        return SqlAlchemyLocationRepository(db_factory())
+
+    writer = LocationWriter(repo_factory=_repo_factory)
     sub = TrackingEventSubscriber(
         redis_url="redis://localhost:6379",
         consumer_id="test",

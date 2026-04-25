@@ -7,6 +7,7 @@ Each context filter type (room, time_range, day_of_week, etc.) implements
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -40,7 +41,7 @@ class ContextFilter(ABC):
         now: datetime,
         db: Session | None = None,
         services: Any = None,
-    ) -> bool:
+    ) -> bool | Awaitable[bool]:
         """Return True if the context filter passes.
 
         Args:

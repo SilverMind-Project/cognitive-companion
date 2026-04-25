@@ -407,73 +407,55 @@ class PersonTrackingService:
 
         When *room_transition* is provided its ``direction_semantic`` /
         ``from_room_*`` fields are stored on the new history row.
+
+        Persistence is delegated to :class:`LocationRepository` (M10 / TD-005)
+        so this service and the CTS :class:`LocationWriter` share one
+        canonical write path.
         """
         from backend.models.room import Room
+        from backend.services.cts.location_repository import (
+            SqlAlchemyLocationRepository,
+        )
 
         now = datetime.now(UTC)
         room = db.query(Room).filter(Room.name == room_name).first()
         room_id = room.id if room else None
 
-        loc = (
-            db.query(PersonLocationState).filter(PersonLocationState.person_id == person_id).first()
+        repo = SqlAlchemyLocationRepository(db)
+
+        existing = repo.get_state(person_id)
+        room_changed = existing is None or existing.current_room_name != room_name
+
+        if room_changed:
+            repo.close_open_history(person_id, exited_at=now)
+            repo.append_history(
+                person_id=person_id,
+                room_id=room_id,
+                room_name=room_name,
+                entered_at=now,
+                source=source,
+                direction_semantic=(
+                    room_transition.semantic if room_transition else None
+                ),
+                from_room_id=(
+                    room_transition.from_room_id if room_transition else None
+                ),
+                from_room_name=(
+                    room_transition.from_room_name if room_transition else None
+                ),
+            )
+
+        repo.upsert_state(
+            person_id=person_id,
+            room_name=room_name,
+            room_id=room_id,
+            sensor_id=sensor_id,
+            confidence=confidence,
+            status="home",
+            event_time=now,
         )
 
-        if loc:
-            if room_name != loc.current_room_name:
-                # Close the open history entry for the previous room.
-                prev = (
-                    db.query(PersonLocationHistory)
-                    .filter(
-                        PersonLocationHistory.person_id == person_id,
-                        PersonLocationHistory.exited_at.is_(None),
-                    )
-                    .first()
-                )
-                if prev:
-                    prev.exited_at = now
-                    db.flush()
-
-                db.add(
-                    _make_history_entry(
-                        person_id=person_id,
-                        room_id=room_id,
-                        room_name=room_name,
-                        entered_at=now,
-                        source=source,
-                        room_transition=room_transition,
-                    )
-                )
-
-            loc.current_room_id = room_id
-            loc.current_room_name = room_name
-            loc.last_seen_at = now
-            loc.last_sensor_id = sensor_id
-            loc.status = "home"
-            loc.confidence = confidence
-        else:
-            db.add(
-                PersonLocationState(
-                    person_id=person_id,
-                    current_room_id=room_id,
-                    current_room_name=room_name,
-                    last_seen_at=now,
-                    last_sensor_id=sensor_id,
-                    status="home",
-                    confidence=confidence,
-                )
-            )
-            db.add(
-                _make_history_entry(
-                    person_id=person_id,
-                    room_id=room_id,
-                    room_name=room_name,
-                    entered_at=now,
-                    source=source,
-                    room_transition=room_transition,
-                )
-            )
-
-        db.commit()
+        repo.commit()
 
         if self._ha_propagation:
             await self._propagate_to_ha(person_id, room_name, confidence)
@@ -756,29 +738,3 @@ class PersonTrackingService:
         return images
 
 
-# ---------------------------------------------------------------------------
-# Module-level helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_history_entry(
-    *,
-    person_id: str,
-    room_id: int | None,
-    room_name: str,
-    entered_at: datetime,
-    source: str,
-    room_transition: RoomTransition | None,
-) -> PersonLocationHistory:
-    """Construct a :class:`PersonLocationHistory` row, optionally enriched with
-    topology-derived fields from *room_transition*."""
-    return PersonLocationHistory(
-        person_id=person_id,
-        room_id=room_id,
-        room_name=room_name,
-        entered_at=entered_at,
-        source=source,
-        direction_semantic=room_transition.semantic if room_transition else None,
-        from_room_id=room_transition.from_room_id if room_transition else None,
-        from_room_name=room_transition.from_room_name if room_transition else None,
-    )

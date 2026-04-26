@@ -332,14 +332,7 @@
                   <v-checkbox v-model="cfg.run_describe" label="Run Florence-2 scene description" hide-details class="mb-1" />
                   <v-checkbox v-model="cfg.run_hazards" label="Evaluate hazard rules on detections" hide-details class="mb-1" />
                   <v-checkbox v-model="cfg.run_embed" label="Run CLIP embedding (slow)" hide-details class="mb-4" />
-                  <v-text-field
-                    v-model.number="cfg.max_images"
-                    label="Max Images"
-                    type="number"
-                    :min="1"
-                    hint="Maximum trigger images to analyse (default: 1)"
-                    persistent-hint
-                  />
+                  <v-checkbox v-model="cfg.write_to_memory" label="Write result to semantic memory" hide-details class="mb-2" />
                 </template>
 
                 <!-- object_trend_analysis -->
@@ -958,6 +951,138 @@
                   </v-card>
                 </template>
 
+
+                <template v-else-if="localStep.step_type === 'scene_analysis'">
+                  <v-select
+                    v-model="cfg.image_source"
+                    :items="[
+                      { title: 'Trigger frames', value: 'trigger' },
+                      { title: 'Selected cameras', value: 'additional' },
+                      { title: 'Trigger + selected cameras', value: 'both' },
+                    ]"
+                    item-title="title"
+                    item-value="value"
+                    label="Image Source"
+                    class="mb-4"
+                  />
+
+                  <v-text-field
+                    v-model.number="cfg.max_images"
+                    label="Max Images (total)"
+                    type="number"
+                    :min="1"
+                    hint="Hard cap on total images analysed"
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <template v-if="cfg.image_source === 'trigger' || cfg.image_source === 'both'">
+                    <v-card variant="tonal" class="mb-4 pa-4">
+                      <div class="text-subtitle-2">Trigger Camera</div>
+                      <v-text-field
+                        v-model.number="cfg.trigger_images_count"
+                        label="Max frames"
+                        type="number"
+                        :min="0"
+                        hint="0 = include all available trigger frames"
+                        persistent-hint
+                        density="compact"
+                        class="mt-2"
+                      />
+                    </v-card>
+                  </template>
+
+                  <template v-if="cfg.image_source === 'additional' || cfg.image_source === 'both'">
+                    <div class="text-subtitle-2 mb-2">Additional Cameras</div>
+                    <v-text-field
+                      v-model.number="cfg.images_per_sensor"
+                      label="Default frames per camera"
+                      type="number"
+                      :min="1"
+                      hint="Per-camera default; individual cameras can override below"
+                      persistent-hint
+                      density="compact"
+                      class="mb-4"
+                    />
+
+                    <v-data-table
+                      :headers="[{ title: 'Camera Sensor', key: 'sensor_id' }, { title: 'Frames', key: 'frames', width: 120 }, { title: '', key: 'actions', width: 60, sortable: false }]"
+                      :items="cameraRows"
+                      item-key="sensor_id"
+                      show-select
+                      hide-default-footer
+                      class="mb-4"
+                    >
+                      <template v-slot:item.frames="{ item }">
+                        <v-text-field
+                          :model-value="item.frames"
+                          type="number"
+                          :min="1"
+                          density="compact"
+                          hide-details
+                          class="v-text-field--flush-label"
+                          :class="item.isOverride ? '' : 'text-grey'"
+                          @update:model-value="updateSensorFrameLimit(item.sensor_id, Number($event))"
+                        />
+                      </template>
+                      <template v-slot:item.actions="{ item }">
+                        <v-btn icon size="x-small" variant="text" @click="removeCamera(item.sensor_id)">
+                          <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                      </template>
+                    </v-data-table>
+
+                    <v-combobox
+                      v-model="newCameraId"
+                      :items="cameraSensorItems.filter(id => !(cfg.additional_sensor_ids || []).includes(id))"
+                      label="Add Camera"
+                      clearable
+                      hide-details
+                      class="mb-4"
+                      @update:model-value="addCamera"
+                    />
+
+                    <v-checkbox
+                      v-model="showAdditionalRooms"
+                      label="Pull from rooms (all cameras in these rooms)"
+                      hide-details
+                      class="mb-2"
+                    />
+                    <v-combobox
+                      v-if="showAdditionalRooms"
+                      v-model="cfg.additional_room_names"
+                      :items="availableRooms"
+                      label="Rooms"
+                      multiple
+                      chips
+                      closable-chips
+                      hide-details
+                      class="mb-4"
+                    />
+                  </template>
+
+                  <v-card variant="outlined" class="pa-4">
+                    <div class="text-subtitle-2 mb-3">
+                      <v-icon size="small" class="mr-1">mdi-clock-outline</v-icon>
+                      Time Filter (optional)
+                    </div>
+                    <v-text-field
+                      v-model.number="sceneImageTimeFilter.since_minutes"
+                      label="Since (minutes ago)"
+                      type="number"
+                      :min="0"
+                      class="mb-3"
+                    />
+                    <v-row>
+                      <v-col cols="6">
+                        <v-text-field v-model="sceneImageTimeFilter.time_start" label="Time Start" placeholder="08:00" />
+                      </v-col>
+                      <v-col cols="6">
+                        <v-text-field v-model="sceneImageTimeFilter.time_end" label="Time End" placeholder="18:00" />
+                      </v-col>
+                    </v-row>
+                  </v-card>
+                </template>
               </v-window-item>
 
               <!-- Output tab -->
@@ -1572,6 +1697,7 @@ const jsonSchemaError = ref("");
 const imageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
 const llmImageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
 const notificationImageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
+const sceneImageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
 const llmJsonSchemaError = ref("");
 const cameraSensorItems = ref([]);
 
@@ -1744,6 +1870,8 @@ const tabs = computed(() => {
     all.push({ key: "images", label: "Images", icon: "mdi-camera-outline" });
     all.push({ key: "output", label: "Output", icon: "mdi-code-json" });
     all.push({ key: "advanced", label: "Advanced", icon: "mdi-tune" });
+  } else if (t === "scene_analysis") {
+    all.push({ key: "images", label: "Images", icon: "mdi-camera-outline" });
   } else if (t === "notification") {
     all.push({ key: "templates", label: "Templates", icon: "mdi-message-text-outline" });
     all.push({ key: "channels", label: "Channel Options", icon: "mdi-tune" });
@@ -1886,7 +2014,15 @@ const fallbackDefaults = {
     run_describe: true,
     run_embed: false,
     run_hazards: true,
+    write_to_memory: false,
+    image_source: "trigger",
     max_images: 1,
+    trigger_images_count: 0,
+    additional_sensor_ids: [],
+    additional_room_names: [],
+    images_per_sensor: 1,
+    sensor_frame_limits: {},
+    image_time_filter: {},
   },
   object_trend_analysis: {
     room_ids: [],
@@ -2019,6 +2155,14 @@ watch(
       notificationImageTimeFilter.since_minutes = tf.since_minutes || null;
       notificationImageTimeFilter.time_start = tf.time_start || "";
       notificationImageTimeFilter.time_end = tf.time_end || "";
+    }
+
+    // Populate sceneImageTimeFilter for scene_analysis
+    if (step.step_type === "scene_analysis") {
+      const tf = incoming.image_time_filter || {};
+      sceneImageTimeFilter.since_minutes = tf.since_minutes || null;
+      sceneImageTimeFilter.time_start = tf.time_start || "";
+      sceneImageTimeFilter.time_end = tf.time_end || "";
     }
 
     // Add _time_mode and _window_*_time helpers to verification conditions for UI
@@ -2209,6 +2353,15 @@ function save() {
       if (notificationImageTimeFilter.time_start) tf.time_start = notificationImageTimeFilter.time_start;
       if (notificationImageTimeFilter.time_end) tf.time_end = notificationImageTimeFilter.time_end;
       config.telegram_image_time_filter = Object.keys(tf).length > 0 ? tf : {};
+    }
+
+    // Merge sceneImageTimeFilter into scene_analysis config
+    if (localStep.step_type === "scene_analysis") {
+      const tf = {};
+      if (sceneImageTimeFilter.since_minutes) tf.since_minutes = sceneImageTimeFilter.since_minutes;
+      if (sceneImageTimeFilter.time_start) tf.time_start = sceneImageTimeFilter.time_start;
+      if (sceneImageTimeFilter.time_end) tf.time_end = sceneImageTimeFilter.time_end;
+      config.image_time_filter = Object.keys(tf).length > 0 ? tf : {};
     }
 
       // Parse ha_action data JSON string

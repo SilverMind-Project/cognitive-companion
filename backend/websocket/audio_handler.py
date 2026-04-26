@@ -25,9 +25,11 @@ import time
 from collections.abc import Callable
 
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 
 from backend.core.logging import get_logger
 from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
+from backend.schemas.interactive_response import InteractiveResponseMessage
 from backend.services.conversation_manager import ConversationManager
 from backend.websocket.connection_manager import ConnectionManager
 
@@ -464,9 +466,6 @@ class AudioSessionHandler:
             data: Raw message data from WebSocket
         """
 
-        from pydantic import ValidationError
-
-        from backend.schemas.interactive_response import InteractiveResponseMessage
 
         try:
             # Validate payload using Pydantic schema

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.services.condition_evaluator import ConditionEvaluator
 from backend.steps import StepRegistry
@@ -14,6 +16,10 @@ from backend.steps.base import (
 )
 
 _condition_eval = ConditionEvaluator()
+# Strip {{ }} wrappers so authors can write either form:
+#   steps.foo.outputs.bar == "x"          (evaluator IDENT syntax)
+#   {{steps.foo.outputs.bar}} == "x"      (template-style reference)
+_TEMPLATE_REF_RE = re.compile(r"\{\{\s*([\w][\w.]*)\s*\}\}")
 
 
 @StepRegistry.register
@@ -57,8 +63,9 @@ class ConditionHandler(StepHandler):
         trigger: TriggerContext,
         services: ServiceContainer,
     ) -> StepResult:
-        config = step.config_json or {}
+        config = step.config_json
         expression = config.get("expression", "true")
+        expression = _TEMPLATE_REF_RE.sub(r"\1", expression)
 
         result = _condition_eval.evaluate(expression, pipeline_data)
 

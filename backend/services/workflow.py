@@ -63,15 +63,19 @@ class WorkflowPipeline:
             media_type=media_type,
         )
 
-        tasks = [
-            self.pipeline_executor.execute(rule, trigger, db)
-            for rule in matched_rules
-            if self._concurrent_limit_allows(rule, db)
-        ]
+        allowed = [r for r in matched_rules if self._concurrent_limit_allows(r, db)]
+        logger.info(
+            "workflow_dispatching",
+            sensor_id=sensor_id,
+            matched=len(matched_rules),
+            allowed=len(allowed),
+            allowed_names=[r.name for r in allowed],
+        )
+        tasks = [self.pipeline_executor.execute(rule, trigger, db) for rule in allowed]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         executions: list[WorkflowExecution] = []
-        for rule, result in zip(matched_rules, results, strict=False):
+        for rule, result in zip(allowed, results, strict=False):
             if isinstance(result, WorkflowExecution):
                 executions.append(result)
             elif isinstance(result, Exception):
@@ -117,15 +121,12 @@ class WorkflowPipeline:
             occupancy_duration_minutes=duration_minutes,
         )
 
-        tasks = [
-            self.pipeline_executor.execute(rule, trigger, db)
-            for rule in matched_rules
-            if self._concurrent_limit_allows(rule, db)
-        ]
+        allowed = [r for r in matched_rules if self._concurrent_limit_allows(r, db)]
+        tasks = [self.pipeline_executor.execute(rule, trigger, db) for rule in allowed]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         executions: list[WorkflowExecution] = []
-        for rule, result in zip(matched_rules, results, strict=False):
+        for rule, result in zip(allowed, results, strict=False):
             if isinstance(result, WorkflowExecution):
                 executions.append(result)
             elif isinstance(result, Exception):

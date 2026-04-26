@@ -440,6 +440,9 @@ class EventAggregator:
 
         async def _timer_body() -> None:
             await asyncio.sleep(self.window_seconds)
+            # Remove self from timers before calling flush so that flush's
+            # _cancel_timer call does not cancel the currently-running task.
+            self.timers.pop(sensor_id, None)
             await self.flush(sensor_id)
 
         task = asyncio.create_task(_timer_body(), name=f"flush-timer-{sensor_id}")

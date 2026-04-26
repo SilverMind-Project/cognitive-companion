@@ -262,3 +262,158 @@ class TestParserEdgeCases:
         tokens = _tokenise("x > 5 and y == true")
         kinds = [t.kind for t in tokens]
         assert kinds == ["IDENT", "CMP", "NUMBER", "AND", "IDENT", "CMP", "BOOL"]
+
+
+# ---------------------------------------------------------------------------
+# steps.* namespace paths  (canonical pipeline_data layout)
+# ---------------------------------------------------------------------------
+
+
+class TestStepsNamespace:
+    """Condition expressions against the ``steps.<label>.outputs.*`` layout
+    produced by :func:`backend.services.pipeline_data_manager.apply_step_result`.
+    """
+
+    @pytest.fixture
+    def steps_data(self) -> dict:
+        return {
+            "steps": {
+                "interactive_prompt_1": {
+                    "step_id": 7,
+                    "step_type": "interactive_prompt",
+                    "outputs": {
+                        "interactive_response": {
+                            "action": "escalate",
+                            "channel": "pwa_popup_text",
+                            "timestamp": "2026-04-25T10:00:00+00:00",
+                        }
+                    },
+                },
+                "llm_call_1": {
+                    "step_id": 8,
+                    "step_type": "llm_call",
+                    "outputs": {
+                        "llm_response": {"is_alert_needed": True, "severity": "high"}
+                    },
+                },
+            }
+        }
+
+    def test_steps_string_comparison(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        assert (
+            evaluator.evaluate(
+                'steps.interactive_prompt_1.outputs.interactive_response.action == "escalate"',
+                steps_data,
+            )
+            is True
+        )
+
+    def test_steps_string_comparison_false(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        assert (
+            evaluator.evaluate(
+                'steps.interactive_prompt_1.outputs.interactive_response.action == "dismiss"',
+                steps_data,
+            )
+            is False
+        )
+
+    def test_steps_bool_field(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        assert (
+            evaluator.evaluate(
+                "steps.llm_call_1.outputs.llm_response.is_alert_needed == true",
+                steps_data,
+            )
+            is True
+        )
+
+    def test_steps_nested_string_field(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        assert (
+            evaluator.evaluate(
+                'steps.llm_call_1.outputs.llm_response.severity == "high"',
+                steps_data,
+            )
+            is True
+        )
+
+    def test_steps_missing_label_is_none(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        assert (
+            evaluator.evaluate(
+                "exists(steps.no_such_step.outputs.interactive_response)",
+                steps_data,
+            )
+            is False
+        )
+
+    def test_steps_exists_check(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        assert (
+            evaluator.evaluate(
+                "exists(steps.interactive_prompt_1.outputs.interactive_response)",
+                steps_data,
+            )
+            is True
+        )
+
+
+# ---------------------------------------------------------------------------
+# Template-style {{ }} wrappers via condition step pre-processing
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateWrapperStripping:
+    """The condition step strips ``{{ }}`` wrappers before calling the evaluator,
+    so these tests exercise the evaluator with the already-stripped expression
+    (same as what the step would pass after substitution).
+    """
+
+    @pytest.fixture
+    def steps_data(self) -> dict:
+        return {
+            "steps": {
+                "interactive_prompt_1": {
+                    "step_id": 7,
+                    "step_type": "interactive_prompt",
+                    "outputs": {
+                        "interactive_response": {
+                            "action": "escalate",
+                            "channel": "pwa_popup_text",
+                        }
+                    },
+                }
+            }
+        }
+
+    def _strip(self, expression: str) -> str:
+        import re
+        return re.sub(r"\{\{\s*([\w][\w.]*)\s*\}\}", r"\1", expression)
+
+    def test_stripped_lhs_comparison(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        raw = '{{steps.interactive_prompt_1.outputs.interactive_response.action}} == "escalate"'
+        assert evaluator.evaluate(self._strip(raw), steps_data) is True
+
+    def test_stripped_exists(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        raw = "exists(steps.interactive_prompt_1.outputs.interactive_response)"
+        # No braces here; just verifying the stripped form also works.
+        assert evaluator.evaluate(self._strip(raw), steps_data) is True
+
+    def test_stripped_bare_path_truthy(
+        self, evaluator: ConditionEvaluator, steps_data: dict
+    ) -> None:
+        raw = "{{steps.interactive_prompt_1.outputs.interactive_response}}"
+        # Resolves to a non-None dict, which is truthy.
+        assert evaluator.evaluate(self._strip(raw), steps_data) is True

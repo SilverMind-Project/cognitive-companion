@@ -61,6 +61,7 @@ class MCPServices:
     interactive_response: Any = None
     semantic_memory_client: Any = None
     cts_runtime: Any = None
+    ws_manager: Any = None
 
 
 _svc = MCPServices()
@@ -78,6 +79,7 @@ def init_services(
     interactive_response=None,
     semantic_memory_client=None,
     cts_runtime=None,
+    ws_manager=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -91,6 +93,7 @@ def init_services(
     _svc.interactive_response = interactive_response
     _svc.semantic_memory_client = semantic_memory_client
     _svc.cts_runtime = cts_runtime
+    _svc.ws_manager = ws_manager
 
 
 # ---------------------------------------------------------------------------
@@ -898,6 +901,25 @@ async def submit_user_response(
                 "success": True,
                 "message": "Response already recorded (duplicate ignored)",
             }
+
+        # Broadcast to all connected frontend clients so any open popup dialog
+        # is dismissed when the user responds via voice.
+        if _svc.ws_manager:
+            try:
+                await _svc.ws_manager.broadcast({
+                    "type": "interactive_response",
+                    "execution_id": execution_id,
+                    "step_id": step_id,
+                    "action": action,
+                    "channel": "pwa_realtime_ai",
+                })
+            except Exception as broadcast_err:
+                logger.error(
+                    "submit_user_response_broadcast_error",
+                    execution_id=execution_id,
+                    step_id=step_id,
+                    error=str(broadcast_err),
+                )
 
         return {
             "success": True,

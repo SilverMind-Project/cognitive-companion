@@ -160,6 +160,13 @@ class PipelineExecutor:
         over the active execution (waits do not count against the limit because
         the coroutine is not running during a wait).
         """
+        logger.info(
+            "pipeline_execute_start",
+            rule=rule.name,
+            rule_id=rule.id,
+            trigger_type=trigger.trigger_type,
+            sensor_id=trigger.sensor_id,
+        )
         # Create event log
         event_log = EventLog(
             rule_id=rule.id,

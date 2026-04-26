@@ -324,6 +324,7 @@ async def lifespan(app: FastAPI):
         interactive_response=interactive_response_service,
         semantic_memory_client=semantic_memory_client,
         cts_runtime=None,  # Populated below after CTS bootstrapping.
+        ws_manager=ws_manager,
     )
 
     # Build the Gemini tool adapter for voice tool calling

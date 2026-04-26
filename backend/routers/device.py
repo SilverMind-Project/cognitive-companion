@@ -1,5 +1,5 @@
 """
-Device endpoints for hardware integrations (reCamera, reTerminal).
+Device endpoints for hardware integrations (reCamera).
 
 reCamera pushes a JSON payload with a nested data object containing a
 base64-encoded JPEG and the results of its on-device YOLO11 model.  The
@@ -158,17 +158,3 @@ async def recamera_upload(
         detected_labels=detected_labels,
     )
     return {"status": "accepted", "object_name": object_name}
-
-
-# @router.post("/reterminal")
-# async def reterminal_event(
-#     payload: ReTerminalPayload,
-#     auth: AuthContext = Depends(require_permission("device:reterminal")),
-# ):
-#     """Accept an event from a reTerminal device."""
-#     logger.info(
-#         "reterminal_event_received",
-#         event_type=payload.event_type,
-#         data=payload.data,
-#     )
-#     return {"status": "accepted"}

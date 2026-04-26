@@ -28,6 +28,7 @@ dependencies = [
     "psycopg[binary]>=3.0",
     "psycopg[pool]>=3.0",
     "alembic>=1.13",
+    "jmespath>=1.0",
 ]
 
 [project.optional-dependencies]

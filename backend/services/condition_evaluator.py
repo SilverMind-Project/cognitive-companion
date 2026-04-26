@@ -6,18 +6,38 @@ code injection.
 
 Supported syntax
 ----------------
-- Path access: ``person_detections.count``, ``logic_response.is_notification_needed``
+- Path access: ``steps.scene_analysis_1.outputs.count``
 - Literals: integers, floats, ``true``, ``false``, ``null``, quoted strings
 - Comparisons: ``==``, ``!=``, ``>``, ``<``, ``>=``, ``<=``
 - Boolean operators: ``and``, ``or``, ``not``
-- Functions: ``exists(path)``, ``contains(path, value)``
 - Parenthesised sub-expressions: ``(expr)``
 
-Examples::
+Built-in functions
+------------------
+- ``exists(path)`` -- true if the path resolves to a non-None value
+- ``contains(path, value)`` -- substring / membership test (case-sensitive)
+- ``icontains(path, value)`` -- case-insensitive substring test
+- ``lower(path)`` -- returns the string value at path in lowercase
+- ``upper(path)`` -- returns the string value at path in uppercase
+- ``jq(expr)`` -- evaluate a JMESPath expression against the full pipeline
+  data and return the result; supports custom functions ``lower()``,
+  ``upper()``, and ``icontains()`` inside filter projections
 
-    person_detections.count > 0
-    logic_response.is_notification_needed == true
-    exists(translation) and not contains(vision_response, "empty")
+JMESPath examples (inside ``jq()``)
+-------------------------------------
+- Filter an array: ``jq("steps.sa.outputs.scene_detections[?label == 'person']")``
+- Case-insensitive label filter:
+  ``jq("length(steps.sa.outputs.scene_detections[?contains(lower(label), 'person')])")``
+- Confidence threshold (backtick = JMESPath JSON literal):
+  jq("steps.sa.outputs.scene_detections[?confidence > `0.9`]")
+- Count and compare (outer grammar):
+  jq("length(steps.sa.outputs.scene_detections[?label == 'person'])") > 0
+- Per-image description: 
+  jq("contains(lower(steps.scene_analysis_1.outputs.scene_images[0].scene_description), 'kitchen')")
+- Per-image detection filter: 
+  jq("length(steps.scene_analysis_1.outputs.scene_images[1].scene_detections[?label == 'person'])") > 0
+- Cross-all-images flatten + filter: 
+  jq("length(steps.scene_analysis_1.outputs.scene_images[].scene_detections[] | [?label == 'person'])") > 0
 """
 
 from __future__ import annotations
@@ -26,9 +46,35 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+import jmespath
+from jmespath import functions as _jmespath_fn
+
 from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# JMESPath custom functions  (usable inside jq() filter projections)
+# ---------------------------------------------------------------------------
+
+
+class _CustomFunctions(_jmespath_fn.Functions):
+    @_jmespath_fn.signature({"types": ["string"]})
+    def _func_lower(self, s: str) -> str:
+        return s.lower()
+
+    @_jmespath_fn.signature({"types": ["string"]})
+    def _func_upper(self, s: str) -> str:
+        return s.upper()
+
+    @_jmespath_fn.signature({"types": ["string"]}, {"types": ["string"]})
+    def _func_icontains(self, subject: str, search: str) -> bool:
+        return search.lower() in subject.lower()
+
+
+_JMESPATH_OPTIONS = jmespath.Options(custom_functions=_CustomFunctions())
+
 
 # ---------------------------------------------------------------------------
 # Tokeniser
@@ -43,7 +89,7 @@ _TOKEN_SPEC = [
     ("AND", r"\band\b"),
     ("OR", r"\bor\b"),
     ("NOT", r"\bnot\b"),
-    ("FUNC", r"\b(?:exists|contains)\b"),
+    ("FUNC", r"\b(?:exists|contains|icontains|jq|lower|upper)\b"),
     ("IDENT", r"[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*"),
     ("LPAREN", r"\("),
     ("RPAREN", r"\)"),
@@ -77,7 +123,11 @@ def _tokenise(expression: str) -> list[_Token]:
 
 
 class ConditionEvaluator:
-    """Evaluate a condition expression against a ``pipeline_data`` dict."""
+    """Evaluate a condition expression against a ``pipeline_data`` dict.
+
+    Supports dotted path access, comparison operators, boolean combinators,
+    built-in functions, and JMESPath queries via the ``jq()`` function.
+    """
 
     def evaluate(self, expression: str, data: dict[str, Any]) -> bool:
         """Return *True* if *expression* holds for *data*.
@@ -97,7 +147,7 @@ class ConditionEvaluator:
     def _parse_or(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         left, pos = self._parse_and(tokens, pos, data)
         while pos < len(tokens) and tokens[pos].kind == "OR":
-            pos += 1  # consume 'or'
+            pos += 1
             right, pos = self._parse_and(tokens, pos, data)
             left = left or right
         return left, pos
@@ -105,7 +155,7 @@ class ConditionEvaluator:
     def _parse_and(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         left, pos = self._parse_not(tokens, pos, data)
         while pos < len(tokens) and tokens[pos].kind == "AND":
-            pos += 1  # consume 'and'
+            pos += 1
             right, pos = self._parse_not(tokens, pos, data)
             left = left and right
         return left, pos
@@ -132,7 +182,6 @@ class ConditionEvaluator:
 
         tok = tokens[pos]
 
-        # Parenthesised sub-expression
         if tok.kind == "LPAREN":
             pos += 1
             value, pos = self._parse_or(tokens, pos, data)
@@ -140,17 +189,15 @@ class ConditionEvaluator:
                 pos += 1
             return value, pos
 
-        # Function call
         if tok.kind == "FUNC":
             return self._parse_function(tokens, pos, data)
 
-        # Literal values
         if tok.kind == "NUMBER":
             val = float(tok.value) if "." in tok.value else int(tok.value)
             return val, pos + 1
 
         if tok.kind == "STRING":
-            return tok.value[1:-1], pos + 1  # strip quotes
+            return tok.value[1:-1], pos + 1
 
         if tok.kind == "BOOL":
             return tok.value == "true", pos + 1
@@ -158,53 +205,78 @@ class ConditionEvaluator:
         if tok.kind == "NULL":
             return None, pos + 1
 
-        # Path lookup against pipeline data
         if tok.kind == "IDENT":
             return _resolve_path(data, tok.value), pos + 1
 
-        # Unknown token  skip
         return None, pos + 1
 
     def _parse_function(self, tokens: list[_Token], pos: int, data: dict) -> tuple[Any, int]:
         func_name = tokens[pos].value
-        pos += 1  # consume function name
+        pos += 1
 
-        # Expect '('
-        if pos < len(tokens) and tokens[pos].kind == "LPAREN":
-            pos += 1
-        else:
+        if pos >= len(tokens) or tokens[pos].kind != "LPAREN":
             return False, pos
+        pos += 1  # consume '('
 
         args: list[Any] = []
         while pos < len(tokens) and tokens[pos].kind != "RPAREN":
             if tokens[pos].kind == "COMMA":
                 pos += 1
                 continue
-            # Arguments are either path identifiers or literal values
             val, pos = self._parse_atom(tokens, pos, data)
             args.append(val)
 
-        # Consume ')'
         if pos < len(tokens) and tokens[pos].kind == "RPAREN":
             pos += 1
 
-        if func_name == "exists":
-            # exists(path)  check if path resolves to a non-None value
-            # Re-resolve: the arg was already resolved, so check truthiness
-            return args[0] is not None if args else False, pos
+        return self._call_function(func_name, args, data), pos
 
-        if func_name == "contains":
-            # contains(path_value, search_value)
-            if len(args) >= 2:
-                haystack = args[0]
-                needle = args[1]
-                if isinstance(haystack, str):
-                    return str(needle) in haystack, pos
-                if isinstance(haystack, (list, dict)):
-                    return needle in haystack, pos
-            return False, pos
+    def _call_function(self, name: str, args: list[Any], data: dict) -> Any:
+        if name == "jq":
+            if not args or not isinstance(args[0], str):
+                logger.warning("jq_requires_string_literal")
+                return None
+            try:
+                return jmespath.search(args[0], data, _JMESPATH_OPTIONS)
+            except Exception:
+                logger.warning("jq_eval_failed", expression=args[0])
+                return None
 
-        return False, pos
+        if name == "exists":
+            return args[0] is not None if args else False
+
+        if name == "contains":
+            if len(args) < 2:
+                return False
+            haystack, needle = args[0], args[1]
+            if isinstance(haystack, str):
+                return str(needle) in haystack
+            if isinstance(haystack, (list, dict)):
+                return needle in haystack
+            return False
+
+        if name == "icontains":
+            if len(args) < 2:
+                return False
+            haystack, needle = args[0], args[1]
+            if isinstance(haystack, str):
+                return str(needle).lower() in haystack.lower()
+            return False
+
+        if name == "lower":
+            if not args:
+                return None
+            val = args[0]
+            return val.lower() if isinstance(val, str) else val
+
+        if name == "upper":
+            if not args:
+                return None
+            val = args[0]
+            return val.upper() if isinstance(val, str) else val
+
+        logger.warning("unknown_function", name=name)
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -213,10 +285,9 @@ class ConditionEvaluator:
 
 
 def _resolve_path(data: dict, path: str) -> Any:
-    """Resolve a dotted path like ``person_detections.count`` against *data*.
+    """Resolve a dotted path like ``steps.sa.outputs.count`` against *data*.
 
-    Supports both nested dict access and special ``count`` / ``length``
-    accessors on list values.
+    List values support ``.count`` / ``.length`` / ``.len`` as length accessors.
     """
     parts = path.split(".")
     current: Any = data
@@ -233,7 +304,6 @@ def _resolve_path(data: dict, path: str) -> Any:
 
 
 def _compare(left: Any, right: Any, op: str) -> bool:
-    """Compare two values with the given operator."""
     try:
         if op == "==":
             return left == right

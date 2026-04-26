@@ -1,7 +1,7 @@
 """Initial schema
 
 Revision ID: 68d9e37c65c2
-Revises: 
+Revises:
 Create Date: 2026-04-25 12:19:28.854209
 
 """
@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 
+import backend.core.time
 from alembic import op
 
 # revision identifiers, used by Alembic.

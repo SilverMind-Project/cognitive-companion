@@ -107,7 +107,7 @@ class TestRoundTripConsistency:
 
     def test_round_trip_preserves_values(self) -> None:
         """Test that parsing then serializing produces equivalent URL.
-        
+
         This validates requirement 19.5: round-trip consistency.
         """
         original_url = "postgresql+psycopg://testuser:testpass@dbhost:5432/testdb"

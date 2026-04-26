@@ -31,17 +31,17 @@ class PostgresConnectionParams:
 
 def parse_postgres_url(url: str) -> PostgresConnectionParams:
     """Parse a PostgreSQL connection URL.
-    
+
     Supports formats:
     - postgresql://user:password@host:port/database
     - postgresql+psycopg://user:password@host:port/database
-    
+
     Args:
         url: PostgreSQL connection URL
-        
+
     Returns:
         Parsed connection parameters
-        
+
     Raises:
         ValueError: If URL is invalid or missing required parameters
     """
@@ -67,8 +67,8 @@ def parse_postgres_url(url: str) -> PostgresConnectionParams:
     # Validate port
     try:
         port = int(port_str)
-    except ValueError:
-        raise ValueError(f"Invalid port number: {port_str}")
+    except ValueError as err:
+        raise ValueError(f"Invalid port number: {port_str}") from err
 
     if not (1 <= port <= 65535):
         raise ValueError(f"Port must be between 1 and 65535, got: {port}")
@@ -97,11 +97,11 @@ def serialize_postgres_url(
     dialect: str = "postgresql+psycopg",
 ) -> str:
     """Serialize connection parameters to a PostgreSQL URL.
-    
+
     Args:
         params: Connection parameters
         dialect: SQLAlchemy dialect (default: postgresql+psycopg)
-        
+
     Returns:
         PostgreSQL connection URL
     """
@@ -116,10 +116,10 @@ def serialize_postgres_url(
 
 def mask_password(url: str) -> str:
     """Mask the password in a connection URL for safe logging.
-    
+
     Args:
         url: PostgreSQL connection URL
-        
+
     Returns:
         URL with password replaced by '***'
     """
@@ -129,10 +129,10 @@ def mask_password(url: str) -> str:
 
 def validate_postgres_params(params: dict[str, Any]) -> list[str]:
     """Validate PostgreSQL connection parameters.
-    
+
     Args:
         params: Dictionary of connection parameters
-        
+
     Returns:
         List of validation error messages (empty if valid)
     """

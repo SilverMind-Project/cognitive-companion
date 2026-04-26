@@ -11,37 +11,7 @@ from backend.services.pipeline_data_manager import (
     copy_pipeline_snapshot,
     reserved_pipeline_keys,
     resolve_pipeline_value,
-    slugify_step_label,
 )
-
-# ---------------------------------------------------------------------------
-# slugify_step_label
-# ---------------------------------------------------------------------------
-
-
-def test_slugify_basic():
-    assert slugify_step_label("Vision Step") == "vision_step"
-
-
-def test_slugify_special_chars():
-    assert slugify_step_label("My LLM-Call!") == "my_llm_call"
-
-
-def test_slugify_none():
-    assert slugify_step_label(None) is None
-
-
-def test_slugify_empty():
-    assert slugify_step_label("") is None
-
-
-def test_slugify_whitespace_only():
-    assert slugify_step_label("   ") is None
-
-
-def test_slugify_already_slug():
-    assert slugify_step_label("my_step") == "my_step"
-
 
 # ---------------------------------------------------------------------------
 # build_initial_pipeline_data
@@ -123,9 +93,7 @@ def test_build_initial_has_steps_namespace():
         timezone_name="UTC",
     )
     assert "steps" in data
-    assert "by_id" in data["steps"]
-    assert "by_label" in data["steps"]
-    assert "sequence" in data["steps"]
+    assert data["steps"] == {}
 
 
 def test_build_initial_webhook_payload_injected():
@@ -170,97 +138,67 @@ def _empty_data() -> dict:
         "system": {},
         "_pipeline": {"started_at": "x", "completed_at": None},
         "_step_timings": [],
-        "steps": {"by_id": {}, "by_label": {}, "sequence": []},
+        "steps": {},
     }
 
 
-def test_apply_step_result_writes_canonical_namespace():
+def test_apply_step_result_writes_label_key():
     data = _empty_data()
-    apply_step_result(data, step_id=12, step_type="llm_call", label="Vision Step", result_data={"vision_response": "hello"})
+    apply_step_result(data, step_id=12, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "hello"})
 
-    assert "12" in data["steps"]["by_id"]
-    entry = data["steps"]["by_id"]["12"]
+    assert "llm_call_1" in data["steps"]
+    entry = data["steps"]["llm_call_1"]
     assert entry["step_id"] == 12
     assert entry["step_type"] == "llm_call"
-    assert entry["label"] == "Vision Step"
-    assert entry["label_slug"] == "vision_step"
-    assert entry["outputs"]["vision_response"] == "hello"
+    assert entry["outputs"]["llm_response"] == "hello"
 
 
-def test_apply_step_result_updates_sequence():
+def test_apply_step_result_two_steps_both_survive():
     data = _empty_data()
-    apply_step_result(data, step_id=1, step_type="llm_call", label=None, result_data={"a": 1})
-    apply_step_result(data, step_id=2, step_type="notification", label=None, result_data={"b": 2})
+    apply_step_result(data, step_id=10, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "first"})
+    apply_step_result(data, step_id=11, step_type="llm_call", label="llm_call_2", result_data={"llm_response": "second"})
 
-    assert data["steps"]["sequence"] == ["1", "2"]
-
-
-def test_apply_step_result_sequence_no_duplicates():
-    data = _empty_data()
-    apply_step_result(data, step_id=5, step_type="llm_call", label=None, result_data={"x": 1})
-    apply_step_result(data, step_id=5, step_type="llm_call", label=None, result_data={"x": 2})
-
-    assert data["steps"]["sequence"].count("5") == 1
-
-
-def test_apply_step_result_two_same_type_both_survive():
-    data = _empty_data()
-    apply_step_result(data, step_id=10, step_type="llm_call", label="Step A", result_data={"llm_response": "first"})
-    apply_step_result(data, step_id=11, step_type="llm_call", label="Step B", result_data={"llm_response": "second"})
-
-    # Both canonical entries survive
-    assert data["steps"]["by_id"]["10"]["outputs"]["llm_response"] == "first"
-    assert data["steps"]["by_id"]["11"]["outputs"]["llm_response"] == "second"
-
-
-def test_apply_step_result_label_slug_alias_created():
-    data = _empty_data()
-    apply_step_result(data, step_id=7, step_type="llm_call", label="My Vision", result_data={"vision_response": "x"})
-
-    assert data["steps"]["by_label"]["my_vision"] == "7"
-
-
-def test_apply_step_result_reserved_label_not_overwritten():
-    data = _empty_data()
-    # "trigger" is a reserved key -- slug should not overwrite it
-    apply_step_result(data, step_id=3, step_type="llm_call", label="trigger", result_data={"foo": "bar"})
-
-    # The reserved key "trigger" must remain the original dict, not the step output
-    assert isinstance(data["trigger"], dict)
-    # The label slug "trigger" must not appear in by_label (it's reserved)
-    assert "trigger" not in data["steps"]["by_label"]
-
-
-def test_apply_step_result_legacy_top_level_alias_written():
-    data = _empty_data()
-    apply_step_result(data, step_id=1, step_type="llm_call", label=None, result_data={"vision_response": "hello"})
-
-    assert data["vision_response"] == "hello"
-
-
-def test_apply_step_result_alias_collision_recorded():
-    data = _empty_data()
-    apply_step_result(data, step_id=1, step_type="llm_call", label=None, result_data={"llm_response": "first"})
-    apply_step_result(data, step_id=2, step_type="llm_call", label=None, result_data={"llm_response": "second"})
-
-    # Last writer wins at top level
-    assert data["llm_response"] == "second"
-    # Collision recorded
-    collisions = data.get("_alias_collisions", [])
-    assert len(collisions) == 1
-    assert collisions[0]["key"] == "llm_response"
-    assert collisions[0]["old_step_id"] == "1"
-    assert collisions[0]["new_step_id"] == "2"
+    assert data["steps"]["llm_call_1"]["outputs"]["llm_response"] == "first"
+    assert data["steps"]["llm_call_2"]["outputs"]["llm_response"] == "second"
 
 
 def test_apply_step_result_outputs_deep_copied():
     data = _empty_data()
     result_data = {"nested": {"value": 1}}
-    apply_step_result(data, step_id=1, step_type="llm_call", label=None, result_data=result_data)
+    apply_step_result(data, step_id=1, step_type="llm_call", label="llm_call_1", result_data=result_data)
 
-    # Mutating the original should not affect the canonical record
     result_data["nested"]["value"] = 999
-    assert data["steps"]["by_id"]["1"]["outputs"]["nested"]["value"] == 1
+    assert data["steps"]["llm_call_1"]["outputs"]["nested"]["value"] == 1
+
+
+def test_apply_step_result_no_top_level_aliases():
+    data = _empty_data()
+    apply_step_result(data, step_id=1, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "hello"})
+
+    assert "llm_response" not in data
+
+
+def test_apply_step_result_cooloff_promoted_to_top_level():
+    data = _empty_data()
+    apply_step_result(data, step_id=1, step_type="condition", label="condition_1", result_data={"_cooloff_triggered": True})
+
+    assert data.get("_cooloff_triggered") is True
+    assert data["steps"]["condition_1"]["outputs"]["_cooloff_triggered"] is True
+
+
+def test_apply_step_result_cooloff_not_promoted_when_absent():
+    data = _empty_data()
+    apply_step_result(data, step_id=1, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "x"})
+
+    assert "_cooloff_triggered" not in data
+
+
+def test_apply_step_result_overwrite_same_label():
+    data = _empty_data()
+    apply_step_result(data, step_id=5, step_type="llm_call", label="llm_call_1", result_data={"x": 1})
+    apply_step_result(data, step_id=5, step_type="llm_call", label="llm_call_1", result_data={"x": 2})
+
+    assert data["steps"]["llm_call_1"]["outputs"]["x"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +213,7 @@ def test_apply_interactive_response_writes_output_key():
         data,
         step_id=5,
         step_type="interactive_prompt",
-        label="Ask User",
+        label="interactive_prompt_1",
         output_key="interactive_response",
         response_payload=payload,
         auto_escalate=False,
@@ -283,8 +221,8 @@ def test_apply_interactive_response_writes_output_key():
         action="escalate",
     )
 
-    assert data["interactive_response"] == payload
-    assert "5" in data["steps"]["by_id"]
+    assert data["steps"]["interactive_prompt_1"]["outputs"]["interactive_response"] == payload
+    assert "interactive_prompt_1" in data["steps"]
 
 
 def test_apply_interactive_response_auto_escalate_on_escalate():
@@ -294,7 +232,7 @@ def test_apply_interactive_response_auto_escalate_on_escalate():
         data,
         step_id=5,
         step_type="interactive_prompt",
-        label=None,
+        label="interactive_prompt_1",
         output_key="interactive_response",
         response_payload=payload,
         auto_escalate=True,
@@ -302,7 +240,7 @@ def test_apply_interactive_response_auto_escalate_on_escalate():
         action="escalate",
     )
 
-    assert data.get("auto_escalate_triggered") is True
+    assert data["steps"]["interactive_prompt_1"]["outputs"].get("auto_escalate_triggered") is True
 
 
 def test_apply_interactive_response_auto_escalate_on_timeout():
@@ -312,7 +250,7 @@ def test_apply_interactive_response_auto_escalate_on_timeout():
         data,
         step_id=5,
         step_type="interactive_prompt",
-        label=None,
+        label="interactive_prompt_1",
         output_key="interactive_response",
         response_payload=payload,
         auto_escalate=True,
@@ -320,7 +258,7 @@ def test_apply_interactive_response_auto_escalate_on_timeout():
         action="escalate",
     )
 
-    assert data.get("auto_escalate_triggered") is True
+    assert data["steps"]["interactive_prompt_1"]["outputs"].get("auto_escalate_triggered") is True
 
 
 def test_apply_interactive_response_no_auto_escalate_on_dismiss():
@@ -330,7 +268,7 @@ def test_apply_interactive_response_no_auto_escalate_on_dismiss():
         data,
         step_id=5,
         step_type="interactive_prompt",
-        label=None,
+        label="interactive_prompt_1",
         output_key="interactive_response",
         response_payload=payload,
         auto_escalate=True,
@@ -338,7 +276,7 @@ def test_apply_interactive_response_no_auto_escalate_on_dismiss():
         action="dismiss",
     )
 
-    assert "auto_escalate_triggered" not in data
+    assert "auto_escalate_triggered" not in data["steps"]["interactive_prompt_1"]["outputs"]
 
 
 def test_apply_interactive_response_auto_escalate_disabled():
@@ -348,7 +286,7 @@ def test_apply_interactive_response_auto_escalate_disabled():
         data,
         step_id=5,
         step_type="interactive_prompt",
-        label=None,
+        label="interactive_prompt_1",
         output_key="interactive_response",
         response_payload=payload,
         auto_escalate=False,
@@ -356,7 +294,7 @@ def test_apply_interactive_response_auto_escalate_disabled():
         action="escalate",
     )
 
-    assert "auto_escalate_triggered" not in data
+    assert "auto_escalate_triggered" not in data["steps"]["interactive_prompt_1"]["outputs"]
 
 
 # ---------------------------------------------------------------------------
@@ -365,15 +303,14 @@ def test_apply_interactive_response_auto_escalate_disabled():
 
 
 def test_copy_pipeline_snapshot_deep_copies():
-    data = {"nested": {"value": 1}, "steps": {"by_id": {"1": {"outputs": {"x": 2}}}}}
+    data = {"nested": {"value": 1}, "steps": {"llm_call_1": {"outputs": {"x": 2}}}}
     snapshot = copy_pipeline_snapshot(data)
 
-    # Mutate original
     data["nested"]["value"] = 999
-    data["steps"]["by_id"]["1"]["outputs"]["x"] = 999
+    data["steps"]["llm_call_1"]["outputs"]["x"] = 999
 
     assert snapshot["nested"]["value"] == 1
-    assert snapshot["steps"]["by_id"]["1"]["outputs"]["x"] == 2
+    assert snapshot["steps"]["llm_call_1"]["outputs"]["x"] == 2
 
 
 def test_copy_pipeline_snapshot_is_independent():
@@ -390,13 +327,13 @@ def test_copy_pipeline_snapshot_is_independent():
 
 
 def test_resolve_pipeline_value_top_level():
-    data = {"vision_response": "hello"}
-    assert resolve_pipeline_value(data, "vision_response") == "hello"
+    data = {"trigger": {"type": "sensor_event"}}
+    assert resolve_pipeline_value(data, "trigger.type") == "sensor_event"
 
 
 def test_resolve_pipeline_value_dotted_path():
-    data = {"steps": {"by_id": {"12": {"outputs": {"vision_response": {"summary": "ok"}}}}}}
-    result = resolve_pipeline_value(data, "steps.by_id.12.outputs.vision_response.summary")
+    data = {"steps": {"llm_call_1": {"outputs": {"llm_response": {"summary": "ok"}}}}}
+    result = resolve_pipeline_value(data, "steps.llm_call_1.outputs.llm_response.summary")
     assert result == "ok"
 
 

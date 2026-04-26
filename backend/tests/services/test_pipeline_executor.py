@@ -19,11 +19,18 @@ def _make_rule(db, name="Test Rule", **kwargs):
     return rule
 
 
-def _make_step(db, rule, order, step_type="notification", config=None, enabled=True):
+_step_type_counts: dict[str, int] = {}
+
+
+def _make_step(db, rule, order, step_type="notification", config=None, enabled=True, label=None):
+    if label is None:
+        _step_type_counts[step_type] = _step_type_counts.get(step_type, 0) + 1
+        label = f"{step_type}_{_step_type_counts[step_type]}"
     step = PipelineStep(
         rule_id=rule.id,
         order=order,
         step_type=step_type,
+        label=label,
         config_json=config or {},
         enabled=enabled,
     )
@@ -124,8 +131,8 @@ class TestPipelineExecutorSequencing:
 
     async def test_pipeline_data_accumulates_across_steps(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
-        _make_step(db_session, rule, order=2, step_type="step_b")
+        _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
+        _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -139,8 +146,9 @@ class TestPipelineExecutorSequencing:
         with patch.object(executor, "_execute_step", side_effect=mock_execute):
             await executor.execute(rule, trigger, db_session)
 
-        # Step B should see data produced by step A
-        assert "from_step_a" in seen_data[1]
+        # Step B should see data produced by step A under steps.step_a_1.outputs
+        assert "step_a_1" in seen_data[1]["steps"]
+        assert seen_data[1]["steps"]["step_a_1"]["outputs"].get("from_step_a") is True
 
 
 class TestPipelineExecutorBranching:
@@ -513,9 +521,9 @@ class TestPipelineExecutorPersistence:
 
     async def test_multi_step_pipeline_data_persists_across_commits(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
-        _make_step(db_session, rule, order=2, step_type="step_b")
-        _make_step(db_session, rule, order=3, step_type="step_c")
+        _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
+        _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
+        _make_step(db_session, rule, order=3, step_type="step_c", label="step_c_1")
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -532,9 +540,9 @@ class TestPipelineExecutorPersistence:
         db_session.refresh(execution)
         data = execution.pipeline_data_json
 
-        assert data["from_step_a"] is True
-        assert data["from_step_b"] is True
-        assert data["from_step_c"] is True
+        assert data["steps"]["step_a_1"]["outputs"]["from_step_a"] is True
+        assert data["steps"]["step_b_1"]["outputs"]["from_step_b"] is True
+        assert data["steps"]["step_c_1"]["outputs"]["from_step_c"] is True
 
         timings = data.get("_step_timings", [])
         assert [t["step_type"] for t in timings] == ["step_a", "step_b", "step_c"]
@@ -574,12 +582,10 @@ class TestPipelineExecutorPersistence:
 
     async def test_event_log_snapshot_contains_final_pipeline_data(self, db_session, db_factory):
         """The event log snapshot written on completion must include every
-        step's output, not just the first step's. Regression for the drift
-        between ``WorkflowExecution.pipeline_data_json`` and
-        ``EventLog.pipeline_data_json`` when iterations 2+ were lost."""
+        step's output under steps.<label>.outputs."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
-        _make_step(db_session, rule, order=2, step_type="step_b")
+        _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
+        _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -596,8 +602,8 @@ class TestPipelineExecutorPersistence:
         db_session.refresh(event_log)
 
         payload = event_log.pipeline_data_json or {}
-        assert payload.get("from_step_a") is True
-        assert payload.get("from_step_b") is True
+        assert payload["steps"]["step_a_1"]["outputs"].get("from_step_a") is True
+        assert payload["steps"]["step_b_1"]["outputs"].get("from_step_b") is True
 
 
 class TestPipelineExecutorEarlyExit:
@@ -611,7 +617,7 @@ class TestPipelineExecutorEarlyExit:
 
     async def test_success_skip_marks_event_log_ignored(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
+        _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -633,9 +639,9 @@ class TestPipelineExecutorEarlyExit:
         event_log = db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
         assert event_log is not None
         assert event_log.status == "ignored"
-        # The skip_reason must be preserved in the event log snapshot so the
-        # UI can explain *why* an event was ignored without reading live state.
-        assert (event_log.pipeline_data_json or {}).get("skip_reason") == (
+        # The skip_reason must be preserved in the step's outputs in the event log snapshot.
+        payload = event_log.pipeline_data_json or {}
+        assert payload["steps"]["step_a_1"]["outputs"].get("skip_reason") == (
             "target_person_not_detected"
         )
 
@@ -900,17 +906,18 @@ class TestOptimisticLockingRetry:
 
 
 class TestCanonicalStepNamespace:
-    """Canonical steps.by_id namespace is written and survives persistence."""
+    """Canonical steps.<label> namespace is written and survives persistence."""
 
     async def test_canonical_namespace_written_after_step(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="llm_call")
+        step = _make_step(db_session, rule, order=1, step_type="llm_call", label="llm_call_1")
         db_session.commit()
+        db_session.refresh(step)
 
         executor = _make_executor(db_factory)
         trigger = _make_trigger()
 
-        async def mock_execute(step, execution, pipeline_data, trigger):
+        async def mock_execute(s, execution, pipeline_data, trigger):
             return StepResult(success=True, data={"vision_response": "hello"})
 
         with patch.object(executor, "_execute_step", side_effect=mock_execute):
@@ -919,20 +926,17 @@ class TestCanonicalStepNamespace:
         db_session.refresh(result)
         data = result.pipeline_data_json
         assert "steps" in data
-        by_id = data["steps"]["by_id"]
-        assert len(by_id) == 1
-        entry = next(iter(by_id.values()))
+        assert "llm_call_1" in data["steps"]
+        entry = data["steps"]["llm_call_1"]
         assert entry["step_type"] == "llm_call"
         assert entry["outputs"]["vision_response"] == "hello"
 
     async def test_two_same_type_steps_both_in_canonical_namespace(self, db_session, db_factory):
-        """Two llm_call steps with the same output_key must both survive under steps.by_id."""
+        """Two llm_call steps with distinct labels must both survive in steps."""
         rule = _make_rule(db_session)
-        step_a = _make_step(db_session, rule, order=1, step_type="llm_call")
-        step_b = _make_step(db_session, rule, order=2, step_type="llm_call")
+        _make_step(db_session, rule, order=1, step_type="llm_call", label="vision_call")
+        _make_step(db_session, rule, order=2, step_type="llm_call", label="logic_call")
         db_session.commit()
-        db_session.refresh(step_a)
-        db_session.refresh(step_b)
 
         executor = _make_executor(db_factory)
         trigger = _make_trigger()
@@ -945,20 +949,13 @@ class TestCanonicalStepNamespace:
 
         db_session.refresh(result)
         data = result.pipeline_data_json
-        by_id = data["steps"]["by_id"]
-        assert len(by_id) == 2
+        assert data["steps"]["vision_call"]["outputs"]["llm_response"] == "from_1"
+        assert data["steps"]["logic_call"]["outputs"]["llm_response"] == "from_2"
 
-        id_a = str(step_a.id)
-        id_b = str(step_b.id)
-        assert by_id[id_a]["outputs"]["llm_response"] == "from_1"
-        assert by_id[id_b]["outputs"]["llm_response"] == "from_2"
-
-    async def test_legacy_top_level_alias_still_present_for_single_step(
-        self, db_session, db_factory
-    ):
-        """Legacy top-level alias must still be written for backward compatibility."""
+    async def test_step_outputs_not_at_top_level(self, db_session, db_factory):
+        """Step outputs must not be mirrored at the top level of pipeline_data."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="llm_call")
+        _make_step(db_session, rule, order=1, step_type="llm_call", label="llm_call_1")
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -971,14 +968,12 @@ class TestCanonicalStepNamespace:
             result = await executor.execute(rule, trigger, db_session)
 
         db_session.refresh(result)
-        assert result.pipeline_data_json.get("vision_response") == "result"
+        assert "vision_response" not in result.pipeline_data_json
 
-    async def test_label_slug_alias_written_to_by_label(self, db_session, db_factory):
+    async def test_step_keyed_by_label(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        step = _make_step(db_session, rule, order=1, step_type="llm_call")
-        step.label = "Vision Analysis"
+        _make_step(db_session, rule, order=1, step_type="llm_call", label="vision_analysis")
         db_session.commit()
-        db_session.refresh(step)
 
         executor = _make_executor(db_factory)
         trigger = _make_trigger()
@@ -990,16 +985,16 @@ class TestCanonicalStepNamespace:
             result = await executor.execute(rule, trigger, db_session)
 
         db_session.refresh(result)
-        by_label = result.pipeline_data_json["steps"]["by_label"]
-        assert "vision_analysis" in by_label
-        assert by_label["vision_analysis"] == str(step.id)
+        steps = result.pipeline_data_json["steps"]
+        assert "vision_analysis" in steps
+        assert steps["vision_analysis"]["outputs"]["vision_response"] == "ok"
 
     async def test_event_log_snapshot_contains_canonical_step_data(
         self, db_session, db_factory
     ):
         """Event log snapshot must include the canonical steps namespace."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="llm_call")
+        _make_step(db_session, rule, order=1, step_type="llm_call", label="llm_call_1")
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -1020,15 +1015,16 @@ class TestCanonicalStepNamespace:
 
         payload = event_log.pipeline_data_json or {}
         assert "steps" in payload
-        assert len(payload["steps"]["by_id"]) == 1
+        assert len(payload["steps"]) == 1
+        assert "llm_call_1" in payload["steps"]
 
-    async def test_alias_collision_logged_for_duplicate_output_keys(
+    async def test_two_steps_with_same_output_key_both_survive(
         self, db_session, db_factory
     ):
-        """When two steps write the same legacy key, a collision is recorded."""
+        """Two steps that write the same output key must each be accessible via their label."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="llm_call")
-        _make_step(db_session, rule, order=2, step_type="llm_call")
+        _make_step(db_session, rule, order=1, step_type="llm_call", label="step_a")
+        _make_step(db_session, rule, order=2, step_type="llm_call", label="step_b")
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -1042,12 +1038,9 @@ class TestCanonicalStepNamespace:
 
         db_session.refresh(result)
         data = result.pipeline_data_json
-        # Last writer wins at top level
-        assert data.get("llm_response") == "step_2"
-        # Collision recorded
-        collisions = data.get("_alias_collisions", [])
-        assert len(collisions) == 1
-        assert collisions[0]["key"] == "llm_response"
+        assert data["steps"]["step_a"]["outputs"]["llm_response"] == "step_1"
+        assert data["steps"]["step_b"]["outputs"]["llm_response"] == "step_2"
+        assert "_alias_collisions" not in data
 
     async def test_exception_cleanup_after_stale_data_error(self, db_session, db_factory):
         """After a commit failure the except block must not raise PendingRollbackError."""
@@ -1104,7 +1097,7 @@ class TestInteractivePromptResumeIntegration:
             pipeline_data_json={
                 "trigger": {"sensor_id": "cam1", "room_name": "Kitchen",
                             "media_paths": [], "media_type": "image"},
-                "steps": {"by_id": {}, "by_label": {}, "sequence": []},
+                "steps": {},
             },
         )
         db_session.add(execution)
@@ -1134,10 +1127,11 @@ class TestInteractivePromptResumeIntegration:
             result = await executor.resume(execution.id, db_session)
 
         assert result.status == "completed"
-        # The notification step should have seen the merged response
+        # The notification step should have seen the merged response from the prompt step's label
         assert len(seen_data) == 1
-        assert "interactive_response" in seen_data[0]
-        assert seen_data[0]["interactive_response"]["action"] == "escalate"
+        prompt_label = prompt_step.label
+        assert prompt_label in seen_data[0]["steps"]
+        assert seen_data[0]["steps"][prompt_label]["outputs"]["interactive_response"]["action"] == "escalate"
 
     async def test_resume_stays_waiting_when_no_response(self, db_session, db_factory):
         """If no InteractiveResponse exists yet, resume() must keep the execution waiting."""
@@ -1153,7 +1147,7 @@ class TestInteractivePromptResumeIntegration:
             rule_id=rule.id,
             status="waiting",
             current_step_id=prompt_step.id,
-            pipeline_data_json={"trigger": {}, "steps": {"by_id": {}, "by_label": {}, "sequence": []}},
+            pipeline_data_json={"trigger": {}, "steps": {}},
         )
         db_session.add(execution)
         db_session.commit()

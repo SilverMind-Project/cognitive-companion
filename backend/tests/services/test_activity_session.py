@@ -345,8 +345,12 @@ class TestActivitySessionTimeout:
         assert results[0].closed_via == "timeout"
 
         # Verify recent session is still open
-        recent = db_factory().get(ActivitySession, recent_session.id)
-        assert recent.status == "open"
+        verify_db = db_factory()
+        try:
+            recent = verify_db.get(ActivitySession, recent_session.id)
+            assert recent.status == "open"
+        finally:
+            verify_db.close()
 
     def test_close_timed_out_sessions_no_timeout(self, db_factory):
         """Should not close sessions without timeout configured."""

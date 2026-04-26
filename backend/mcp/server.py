@@ -8,17 +8,16 @@ functions are shared with the Gemini Live voice companion via GeminiToolAdapter.
 
 from __future__ import annotations
 
-import sys
-from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Any
-from zoneinfo import ZoneInfo
-
 # Workaround for module name collision: ``backend/mcp/`` shadows the ``mcp``
 # PyPI package when ``backend/`` is on sys.path (e.g. during pytest).
 # Temporarily strip any path entry whose basename is "backend" so that
 # ``import mcp`` resolves to the installed package, not this sub-package.
 import os as _os
+import sys
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+from zoneinfo import ZoneInfo
 
 _original_path = sys.path.copy()
 _collision_paths = [
@@ -34,11 +33,11 @@ try:
 finally:
     sys.path = _original_path
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
-from backend.core.config import settings
-from backend.core.logging import get_logger
+from backend.core.config import settings  # noqa: E402
+from backend.core.logging import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
 

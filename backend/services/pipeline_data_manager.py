@@ -2,12 +2,9 @@
 
 Single source of truth for all mutations to ``pipeline_data`` dicts.
 The executor and interactive-response service must use these helpers
-instead of mutating the dict directly so that:
-
-* canonical per-step namespacing is applied consistently
-* legacy top-level aliases are projected for backward compatibility
-* alias collisions are detected and logged
-* deep-copy semantics are enforced for snapshots
+instead of mutating the dict directly so that canonical per-step
+namespacing is applied consistently and deep-copy semantics are enforced
+for snapshots.
 
 Canonical shape written by :func:`apply_step_result`
 ------------------------------------------------------
@@ -19,35 +16,35 @@ Canonical shape written by :func:`apply_step_result`
         "_pipeline": {"started_at": "...", "completed_at": null},
         "_step_timings": [],
         "steps": {
-            "by_id": {
-                "12": {
-                    "step_id": 12,
-                    "step_type": "llm_call",
-                    "label": "Vision Step",
-                    "label_slug": "vision_step",
-                    "outputs": {"vision_response": {...}}
-                }
+            "llm_call_1": {
+                "step_id": 12,
+                "step_type": "llm_call",
+                "outputs": {"llm_response": {...}}
             },
-            "by_label": {"vision_step": "12"},
-            "sequence": ["12"]
-        },
-        # legacy top-level aliases (last-writer-wins, collision logged)
-        "vision_response": {...},
-        "_alias_collisions": [{"key": "...", "old_step_id": ..., "new_step_id": ...}]
+            "notification_1": {
+                "step_id": 13,
+                "step_type": "notification",
+                "outputs": {"notification_dispatched": true}
+            }
+        }
     }
 
 Template access
 ---------------
-* Canonical: ``{{steps.by_id.12.outputs.vision_response.summary}}``
-* By label:  ``{{steps.by_label.vision_step}}`` resolves to ``"12"``; then
-  ``{{steps.by_id.12.outputs.vision_response.summary}}``
-* Legacy (deprecated): ``{{vision_response.summary}}``
+* ``{{steps.llm_call_1.outputs.llm_response.summary}}``
+* ``{{steps.notification_1.outputs.notification_dispatched}}``
+
+Pipeline control flags
+----------------------
+``_cooloff_triggered`` is a special flag that step handlers may include in
+their ``result_data``.  When present, :func:`apply_step_result` promotes it
+to the top level of *data* so the executor can read it without knowing which
+step label to look under.
 """
 
 from __future__ import annotations
 
 import copy
-import re
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
@@ -57,7 +54,9 @@ from backend.core.template import resolve_path
 
 logger = get_logger(__name__)
 
-# Keys that must never be overwritten by a step label slug.
+_PIPELINE_CONTROL_FLAGS: frozenset[str] = frozenset({"_cooloff_triggered"})
+
+# Keys that must never be used as step labels.
 _RESERVED_KEYS: frozenset[str] = frozenset(
     {
         "trigger",
@@ -65,32 +64,16 @@ _RESERVED_KEYS: frozenset[str] = frozenset(
         "_pipeline",
         "_step_timings",
         "_cooloff_triggered",
-        "_alias_collisions",
         "_pending_interactive_step_id",
         "steps",
         "error",
     }
 )
 
-_SLUG_RE = re.compile(r"[^a-z0-9_]")
-
 
 def reserved_pipeline_keys() -> frozenset[str]:
-    """Return the set of keys that step label slugs must not overwrite."""
+    """Return the set of keys that step labels must not collide with."""
     return _RESERVED_KEYS
-
-
-def slugify_step_label(label: str | None) -> str | None:
-    """Normalise a step label into a safe identifier slug.
-
-    Returns ``None`` when the label is empty or produces an empty slug.
-    """
-    if not label:
-        return None
-    slug = label.strip().lower()
-    slug = _SLUG_RE.sub("_", slug)
-    slug = re.sub(r"_+", "_", slug).strip("_")
-    return slug or None
 
 
 def resolve_pipeline_value(
@@ -120,11 +103,7 @@ def build_initial_pipeline_data(
     now_local: datetime,
     timezone_name: str,
 ) -> dict[str, Any]:
-    """Build the initial ``pipeline_data`` dict for a new execution.
-
-    This is the canonical factory; the executor must not construct the dict
-    inline.
-    """
+    """Build the initial ``pipeline_data`` dict for a new execution."""
     data: dict[str, Any] = {
         "trigger": {
             "type": trigger_type,
@@ -144,11 +123,7 @@ def build_initial_pipeline_data(
             "completed_at": None,
         },
         "_step_timings": [],
-        "steps": {
-            "by_id": {},
-            "by_label": {},
-            "sequence": [],
-        },
+        "steps": {},
     }
     if webhook_payload:
         data["trigger_input"] = webhook_payload
@@ -159,84 +134,36 @@ def apply_step_result(
     data: dict[str, Any],
     step_id: int,
     step_type: str,
-    label: str | None,
+    label: str,
     result_data: dict[str, Any],
 ) -> dict[str, Any]:
     """Merge a step's output into *data* using the canonical namespace.
 
     Writes:
-    * ``steps.by_id.<step_id>.outputs`` -- canonical, always present
-    * ``steps.by_label.<slug>`` -- friendly alias pointing to step_id str
-    * ``steps.sequence`` -- ordered list of step_id strings
-    * legacy top-level aliases -- last-writer-wins, collision logged
+    * ``steps.<label>`` -- canonical entry keyed by step label
+    * top-level pipeline control flags (``_cooloff_triggered``) when present
 
     Returns *data* (mutated in place) for convenience.
     """
-    step_id_str = str(step_id)
-    slug = slugify_step_label(label)
+    steps_ns: dict[str, Any] = data.setdefault("steps", {})
 
-    # Ensure the steps namespace exists (may be absent on resumed executions
-    # that pre-date this helper).
-    steps_ns: dict[str, Any] = data.setdefault("steps", {"by_id": {}, "by_label": {}, "sequence": []})
-    by_id: dict[str, Any] = steps_ns.setdefault("by_id", {})
-    by_label: dict[str, Any] = steps_ns.setdefault("by_label", {})
-    sequence: list[str] = steps_ns.setdefault("sequence", [])
-
-    # Deep-copy the outputs so mutations to pipeline_data don't corrupt the
-    # canonical record.
-    outputs = copy.deepcopy(result_data)
-
-    by_id[step_id_str] = {
+    steps_ns[label] = {
         "step_id": step_id,
         "step_type": step_type,
-        "label": label,
-        "label_slug": slug,
-        "outputs": outputs,
+        "outputs": copy.deepcopy(result_data),
     }
 
-    if step_id_str not in sequence:
-        sequence.append(step_id_str)
-
-    # Friendly label alias
-    if slug and slug not in _RESERVED_KEYS:
-        existing_id = by_label.get(slug)
-        if existing_id is not None and existing_id != step_id_str:
-            logger.warning(
-                "pipeline_label_alias_collision",
-                slug=slug,
-                old_step_id=existing_id,
-                new_step_id=step_id_str,
+    # Promote pipeline control flags to the top level so the executor can
+    # read them without knowing which step label to look under.
+    for flag in _PIPELINE_CONTROL_FLAGS:
+        if flag in result_data:
+            data[flag] = result_data[flag]
+            logger.debug(
+                "pipeline_control_flag_promoted",
+                flag=flag,
+                step_label=label,
+                value=result_data[flag],
             )
-        by_label[slug] = step_id_str
-
-    # Legacy top-level aliases (last-writer-wins)
-    collisions: list[dict[str, Any]] = data.setdefault("_alias_collisions", [])
-    for key, value in result_data.items():
-        if key in _RESERVED_KEYS:
-            continue
-        existing = data.get(key)
-        if existing is not None:
-            # Find which step previously wrote this key
-            old_step_id: str | None = None
-            for sid, entry in by_id.items():
-                if sid != step_id_str and key in entry.get("outputs", {}):
-                    old_step_id = sid
-                    break
-            if old_step_id is not None:
-                logger.warning(
-                    "pipeline_alias_collision",
-                    key=key,
-                    old_step_id=old_step_id,
-                    new_step_id=step_id_str,
-                )
-                collisions.append(
-                    {
-                        "key": key,
-                        "old_step_id": old_step_id,
-                        "new_step_id": step_id_str,
-                    }
-                )
-        data[key] = value
 
     return data
 
@@ -245,7 +172,7 @@ def apply_interactive_response(
     data: dict[str, Any],
     step_id: int,
     step_type: str,
-    label: str | None,
+    label: str,
     output_key: str,
     response_payload: dict[str, Any],
     auto_escalate: bool,
@@ -275,9 +202,5 @@ def apply_interactive_response(
 
 
 def copy_pipeline_snapshot(data: dict[str, Any]) -> dict[str, Any]:
-    """Return a deep copy of *data* suitable for persisting to EventLog.
-
-    Using ``dict(data)`` (shallow copy) is unsafe because nested structures
-    (e.g. ``_pipeline``, ``steps``) would be shared references.
-    """
+    """Return a deep copy of *data* suitable for persisting to EventLog."""
     return copy.deepcopy(data)

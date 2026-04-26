@@ -28,13 +28,13 @@ from backend.core.logging import get_logger
 __all__ = [
     "Base",
     "Database",
+    "_apply_column_migrations",
     "get_db",
     "get_lock_contention_metrics",
     "get_session",
     "init_db",
     "reset_default_database",
     "reset_lock_contention_metrics",
-    "_apply_column_migrations",
 ]
 
 logger = get_logger(__name__)
@@ -57,7 +57,7 @@ _lock_contention_metrics = {
 
 def _install_lock_monitoring(engine: Engine) -> None:
     """Install SQLAlchemy event listeners to monitor lock contention.
-    
+
     Tracks lock wait times for SELECT FOR UPDATE queries and logs waits
     exceeding 100ms at WARNING level. Maintains metrics for monitoring.
     """
@@ -94,7 +94,7 @@ def _install_lock_monitoring(engine: Engine) -> None:
 
 def get_lock_contention_metrics() -> dict[str, Any]:
     """Return current lock contention metrics.
-    
+
     Returns:
         Dictionary containing:
         - total_lock_waits: Total number of SELECT FOR UPDATE queries
@@ -115,7 +115,7 @@ def get_lock_contention_metrics() -> dict[str, Any]:
 
 def reset_lock_contention_metrics() -> None:
     """Reset lock contention metrics to zero.
-    
+
     Useful for testing or periodic metric collection.
     """
     _lock_contention_metrics["total_lock_waits"] = 0
@@ -262,7 +262,7 @@ class Database:
 
     def session(self) -> Session:
         """Return a new :class:`Session`. Caller is responsible for closing.
-        
+
         Raises:
             SQLAlchemyTimeoutError: If connection pool is exhausted and timeout is reached.
         """
@@ -292,7 +292,7 @@ class Database:
 
     def session_scope(self) -> Generator[Session, None, None]:
         """Generator yielding a session that is always closed on exit.
-        
+
         Raises:
             SQLAlchemyTimeoutError: If connection pool is exhausted and timeout is reached.
         """

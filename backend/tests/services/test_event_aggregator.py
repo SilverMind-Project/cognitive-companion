@@ -166,3 +166,33 @@ class TestEventAggregatorWindowTimer:
         # Wait for timer to expire
         await asyncio.sleep(0.15)
         assert callback.await_count == 1
+
+    async def test_window_timer_callback_not_cancelled_by_self(self, db_factory):
+        """Regression: flush() called _cancel_timer() which cancelled the currently-running
+        timer task, injecting CancelledError at the next event-loop yield point. Any
+        callback that contains asyncio.gather (as the real process_event does) would be
+        silently aborted. The fix is to remove the task from self.timers in _timer_body
+        before calling flush, so _cancel_timer finds nothing to cancel.
+        """
+        executed: list[str] = []
+
+        async def yielding_callback(sensor_id: str, media_paths: list[str]) -> None:
+            # asyncio.gather yields to the event loop -- this was the exact cancellation point.
+            async def _work() -> None:
+                executed.append(sensor_id)
+
+            await asyncio.gather(_work())
+
+        agg, _, _ = _make_aggregator(
+            db_factory,
+            callback=yielding_callback,
+            batch_size=10,
+            window_seconds=0.05,
+        )
+
+        await agg.add_event("cam1", "minio://bucket/img1.jpg")
+        await asyncio.sleep(0.15)  # let the window timer fire
+
+        assert executed == ["cam1"], (
+            "callback was silently cancelled; timer task cancelled itself via _cancel_timer"
+        )

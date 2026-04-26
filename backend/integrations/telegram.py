@@ -162,6 +162,43 @@ class TelegramClient:
             logger.exception("telegram_send_photo_failed", chat_id=chat_id)
             return False
 
+    async def send_media_group(
+        self,
+        chat_id: str | int,
+        photos: list[bytes],
+        caption: str | None = None,
+        parse_mode: str | None = "HTML",
+    ) -> bool:
+        """Send multiple photos as a Telegram media group (album).
+
+        The caption is attached to the first photo only, which is how Telegram
+        displays album captions. Falls back to a single send_photo call when
+        only one photo is supplied.
+        """
+        if not self._bot:
+            return False
+        if not photos:
+            return False
+        if len(photos) == 1:
+            return await self.send_photo(chat_id, photos[0], caption=caption)
+        try:
+            import telegram
+
+            media = [
+                telegram.InputMediaPhoto(
+                    media=photo,
+                    caption=caption if i == 0 else None,
+                    parse_mode=parse_mode if i == 0 else None,
+                )
+                for i, photo in enumerate(photos)
+            ]
+            await self._bot.send_media_group(chat_id=chat_id, media=media)
+            logger.info("telegram_media_group_sent", chat_id=chat_id, count=len(photos))
+            return True
+        except Exception:
+            logger.exception("telegram_send_media_group_failed", chat_id=chat_id)
+            return False
+
     async def send_voice(
         self,
         chat_id: str | int,

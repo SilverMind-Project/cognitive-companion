@@ -38,6 +38,7 @@ class NotificationChannel(ABC):
         alert_level: str,
         room_name: str,
         image_url: str | None = None,
+        image_urls: list[str] | None = None,
         config: dict | None = None,
         services: Any = None,
     ) -> bool:

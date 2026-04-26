@@ -45,6 +45,7 @@ class _RecordingChannel(NotificationChannel):
         alert_level: str,
         room_name: str,
         image_url: str | None = None,
+        image_urls: list[str] | None = None,
         config: dict | None = None,
         services: Any = None,
     ) -> bool:
@@ -54,6 +55,7 @@ class _RecordingChannel(NotificationChannel):
                 "alert_level": alert_level,
                 "room_name": room_name,
                 "image_url": image_url,
+                "image_urls": image_urls,
                 "config": config,
                 "services": services,
             }
@@ -239,3 +241,79 @@ async def test_dispatch_empty_rule_config_channels_falls_back(
         rule_config={"channels": []},
     )
     assert len(primary.calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# image_urls threading
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_dispatch_image_urls_threaded_to_channel(fake_registry, default_settings) -> None:
+    primary = fake_registry("primary", _RecordingChannel())
+    fake_registry("secondary", _RecordingChannel())
+
+    dispatcher = NotificationDispatcher()
+    await dispatcher.dispatch(
+        alert_level="high",
+        message="hi",
+        room_name="Kitchen",
+        image_urls=["https://minio/a.jpg", "https://minio/b.jpg"],
+    )
+
+    call = primary.calls[0]
+    assert call["image_urls"] == ["https://minio/a.jpg", "https://minio/b.jpg"]
+    # image_url should be the first entry for backward-compat channels
+    assert call["image_url"] == "https://minio/a.jpg"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_image_url_compat_wrapped_in_list(fake_registry, default_settings) -> None:
+    """Legacy callers passing image_url (str) still work; channel receives it in image_urls too."""
+    primary = fake_registry("primary", _RecordingChannel())
+    fake_registry("secondary", _RecordingChannel())
+
+    dispatcher = NotificationDispatcher()
+    await dispatcher.dispatch(
+        alert_level="high",
+        message="hi",
+        room_name="Kitchen",
+        image_url="https://minio/single.jpg",
+    )
+
+    call = primary.calls[0]
+    assert call["image_url"] == "https://minio/single.jpg"
+    assert call["image_urls"] == ["https://minio/single.jpg"]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_no_images_passes_empty_list(fake_registry, default_settings) -> None:
+    primary = fake_registry("primary", _RecordingChannel())
+    fake_registry("secondary", _RecordingChannel())
+
+    dispatcher = NotificationDispatcher()
+    await dispatcher.dispatch(alert_level="high", message="hi", room_name="Kitchen")
+
+    call = primary.calls[0]
+    assert call["image_url"] is None
+    assert call["image_urls"] == []
+
+
+@pytest.mark.asyncio
+async def test_dispatch_image_urls_supersedes_image_url(fake_registry, default_settings) -> None:
+    """When both image_url and image_urls are supplied, image_urls wins."""
+    primary = fake_registry("primary", _RecordingChannel())
+    fake_registry("secondary", _RecordingChannel())
+
+    dispatcher = NotificationDispatcher()
+    await dispatcher.dispatch(
+        alert_level="high",
+        message="hi",
+        room_name="Kitchen",
+        image_url="https://minio/ignored.jpg",
+        image_urls=["https://minio/wins_1.jpg", "https://minio/wins_2.jpg"],
+    )
+
+    call = primary.calls[0]
+    assert call["image_urls"] == ["https://minio/wins_1.jpg", "https://minio/wins_2.jpg"]
+    assert call["image_url"] == "https://minio/wins_1.jpg"

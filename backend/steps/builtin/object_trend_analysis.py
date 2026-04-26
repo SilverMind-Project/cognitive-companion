@@ -111,14 +111,13 @@ class ObjectTrendAnalysisHandler(StepHandler):
     ) -> StepResult:
         if not services.semantic_memory_client:
             config = step.config_json or {}
-            output_key = config.get("output_key", "room_trends")
+            output_key: str = config.get("output_key", "room_trends")
             return StepResult(data=_empty_output(output_key))
 
         config = step.config_json or {}
         room_ids: list[str] = config.get("room_ids", [])
         include_snapshots: int = config.get("include_snapshots_hours", 0)
         severity_threshold: str = config.get("severity_threshold", "info")
-        output_key: str = config.get("output_key", "room_trends")
 
         # Resolve room IDs: empty list -> use trigger room
         if not room_ids and trigger.room_name:

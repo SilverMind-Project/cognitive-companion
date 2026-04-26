@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from backend.models.pipeline import WorkflowExecution
 from backend.models.rule import Rule
@@ -203,6 +203,38 @@ class TestProcessEventConcurrencyGating:
         assert executor.execute.await_count == 1
         call_args = executor.execute.call_args
         assert call_args.args[0].name == "Free Rule"
+
+    async def test_exception_attributed_to_allowed_rule_not_blocked_rule(self, db_session):
+        """Regression: zip was against matched_rules instead of allowed.
+
+        When matched = [blocked, free] and free raises, the old code would zip
+        the RuntimeError against blocked (wrong rule) and never process free in
+        the loop at all, so the error was logged under the blocked rule's name.
+        """
+        sensor = _make_sensor(db_session)
+        rule_busy = _make_rule(db_session, name="Busy Rule", max_concurrent_executions=1)
+        rule_free = _make_rule(db_session, name="Free Rule", max_concurrent_executions=1)
+        _add_running_execution(db_session, rule_busy)
+        db_session.commit()
+
+        executor = MagicMock()
+        executor.execute = AsyncMock(side_effect=RuntimeError("pipeline failed"))
+        rules_engine = MagicMock()
+        # Blocked rule comes first -- this is what exposed the zip bug.
+        rules_engine.get_matching_rules.return_value = [rule_busy, rule_free]
+
+        pipeline = WorkflowPipeline(rules_engine=rules_engine, pipeline_executor=executor)
+
+        with patch("backend.services.workflow.logger") as mock_logger:
+            result = await pipeline.process_event(
+                sensor_id=sensor.id, media_paths=[], media_type="image", db=db_session
+            )
+
+        assert result == []
+        mock_logger.error.assert_called_once()
+        error_kwargs = mock_logger.error.call_args.kwargs
+        assert error_kwargs["rule_id"] == rule_free.id
+        assert error_kwargs["rule"] == "Free Rule"
 
     async def test_unlimited_rule_always_executes(self, db_session, db_factory):
         """max_concurrent_executions=0 is never blocked."""

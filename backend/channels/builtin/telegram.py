@@ -43,6 +43,7 @@ class TelegramChannel(NotificationChannel):
         alert_level: str,
         room_name: str,
         image_url: str | None = None,
+        image_urls: list[str] | None = None,
         config: dict | None = None,
         services=None,
     ) -> bool:
@@ -59,10 +60,15 @@ class TelegramChannel(NotificationChannel):
         max_side = settings.get("notifications.telegram.max_image_side", 1920)
         any_sent = False
 
-        # Pre-fetch and scale image once for all targets
-        image_bytes: bytes | None = None
-        if image_url:
-            image_bytes = await fetch_and_prepare_image(image_url, max_side)
+        # Resolve the list of URLs to send (image_urls supersedes image_url)
+        urls: list[str] = image_urls if image_urls else ([image_url] if image_url else [])
+
+        # Pre-fetch and scale all images once, shared across targets
+        all_image_bytes: list[bytes] = []
+        for url in urls:
+            data = await fetch_and_prepare_image(url, max_side)
+            if data:
+                all_image_bytes.append(data)
 
         for target in targets:
             target_levels = target.get("alert_levels", [])
@@ -73,9 +79,13 @@ class TelegramChannel(NotificationChannel):
             if not chat_id:
                 continue
 
-            if image_bytes:
+            if len(all_image_bytes) > 1:
+                ok = await services.telegram_client.send_media_group(
+                    chat_id, all_image_bytes, caption=message
+                )
+            elif len(all_image_bytes) == 1:
                 ok = await services.telegram_client.send_photo(
-                    chat_id, image_bytes, caption=message
+                    chat_id, all_image_bytes[0], caption=message
                 )
             else:
                 ok = await services.telegram_client.send_message(chat_id, message)

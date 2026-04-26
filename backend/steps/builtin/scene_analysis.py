@@ -1,23 +1,26 @@
 """Scene analysis pipeline step.
 
-Calls the scene-analysis-service to run fast object detection (YOLO11x),
+Calls the scene-analysis-service to run fast object detection (YOLO),
 structured scene description (Florence-2), and optionally CLIP embeddings
-on the images collected by the trigger.
+on the images collected by the trigger or selected cameras.
 
 Result keys written to ``pipeline_data``
 -----------------------------------------
 ``scene_detections``
-    List of object-detection dicts (label, confidence, bbox, class_id).
+    Aggregated list of object-detection dicts across all images
+    (label, confidence, bbox, class_id).
 
 ``scene_description``
-    Structured text description from Florence-2 (empty string when
-    Florence is not loaded or the describer is disabled).
+    Structured text description from Florence-2 — first non-empty result
+    across all images.
 
 ``scene_embedding``
-    CLIP embedding vector as a list of floats (empty list when not loaded).
+    CLIP embedding vector as a list of floats — first non-empty result
+    across all images.
 
 ``scene_hazards``
-    List of hazard-alert dicts (name, severity, description, detection).
+    Aggregated list of hazard-alert dicts across all images
+    (name, severity, description, detection).
 
 ``scene_detector_available``
     bool - whether YOLO was loaded in the service.
@@ -34,6 +37,8 @@ empty.
 """
 
 from __future__ import annotations
+
+import httpx
 
 from backend.core.logging import get_logger
 from backend.integrations.scene_analysis_client import SceneAnalyzeResult
@@ -88,11 +93,51 @@ class SceneAnalysisHandler(StepHandler):
                         "default": True,
                         "description": "Evaluate hazard rules on detections.",
                     },
+                    "image_source": {
+                        "type": "string",
+                        "enum": ["trigger", "additional", "both"],
+                        "default": "trigger",
+                        "description": "Which images to analyse.",
+                    },
                     "max_images": {
                         "type": "integer",
                         "default": 1,
                         "minimum": 1,
-                        "description": "Maximum number of trigger images to analyse.",
+                        "description": "Hard cap on total images to analyse.",
+                    },
+                    "trigger_images_count": {
+                        "type": "integer",
+                        "default": 0,
+                        "minimum": 0,
+                        "description": "Max frames from the trigger camera. 0 = all available.",
+                    },
+                    "additional_sensor_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "description": "Sensor IDs to pull additional frames from.",
+                    },
+                    "additional_room_names": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "description": "Pull recent frames from all cameras in these rooms.",
+                    },
+                    "images_per_sensor": {
+                        "type": "integer",
+                        "default": 1,
+                        "minimum": 1,
+                        "description": "Default frames per additional camera.",
+                    },
+                    "sensor_frame_limits": {
+                        "type": "object",
+                        "default": {},
+                        "description": "Per-sensor frame count overrides.",
+                    },
+                    "image_time_filter": {
+                        "type": "object",
+                        "default": {},
+                        "description": "Optional time window for additional image queries.",
                     },
                     "write_to_memory": {
                         "type": "boolean",
@@ -106,7 +151,14 @@ class SceneAnalysisHandler(StepHandler):
                 "run_describe": True,
                 "run_embed": False,
                 "run_hazards": True,
+                "image_source": "trigger",
                 "max_images": 1,
+                "trigger_images_count": 0,
+                "additional_sensor_ids": [],
+                "additional_room_names": [],
+                "images_per_sensor": 1,
+                "sensor_frame_limits": {},
+                "image_time_filter": {},
                 "write_to_memory": False,
             },
         )
@@ -121,38 +173,56 @@ class SceneAnalysisHandler(StepHandler):
     ) -> StepResult:
         _empty = _empty_result()
 
-        if not services.scene_analysis_client:
+        if not services.scene_analysis_client or not services.scene_analysis_client.configured:
+            logger.debug("scene_analysis_disabled")
             return StepResult(data=_empty)
 
         config = step.config_json or {}
-        max_images: int = config.get("max_images", 1)
-        media_paths = list(trigger.media_paths)[:max_images]
+        media_paths = await _gather_images(config, trigger, services)
 
         if not media_paths:
             logger.debug("scene_analysis_no_images", trigger=trigger.sensor_id)
             return StepResult(data=_empty)
 
-        # Use the first (most recent) image for analysis.
-        image_path = media_paths[0]
-        image_bytes = _read_image(image_path)
-        if not image_bytes:
-            logger.warning("scene_analysis_image_unreadable", path=image_path)
-            return StepResult(data=_empty)
+        all_detections = []
+        all_hazards = []
+        description = ""
+        embedding: list = []
+        detector_available = False
+        describer_available = False
+        embedder_available = False
 
-        result: SceneAnalyzeResult = await services.scene_analysis_client.analyze(
-            image_bytes,
-            run_detect=config.get("run_detect", True),
-            run_describe=config.get("run_describe", True),
-            run_embed=config.get("run_embed", False),
-            run_hazards=config.get("run_hazards", True),
-        )
+        for image_path in media_paths:
+            image_bytes = await _fetch_image(image_path)
+            if not image_bytes:
+                logger.warning("scene_analysis_image_unreadable", path=image_path)
+                continue
+
+            result: SceneAnalyzeResult = await services.scene_analysis_client.analyze(
+                image_bytes,
+                run_detect=config.get("run_detect", True),
+                run_describe=config.get("run_describe", True),
+                run_embed=config.get("run_embed", False),
+                run_hazards=config.get("run_hazards", True),
+            )
+
+            all_detections.extend(result.detections)
+            all_hazards.extend(result.hazards)
+            if not description and result.description:
+                description = result.description
+            if not embedding and result.embedding:
+                embedding = result.embedding
+            detector_available = detector_available or result.detector_available
+            describer_available = describer_available or result.describer_available
+            embedder_available = embedder_available or result.embedder_available
 
         logger.info(
             "scene_analysis_done",
             sensor_id=trigger.sensor_id,
-            detections=len(result.detections),
-            hazards=len(result.hazards),
-            described=bool(result.description),
+            images=len(media_paths),
+            detections=len(all_detections),
+            hazards=len(all_hazards),
+            described=bool(description),
         )
 
         # -- Optional: auto-write to semantic memory --------------------------
@@ -163,10 +233,10 @@ class SceneAnalysisHandler(StepHandler):
             room_name = trigger.room_name or "unknown"
             obs = ObservationCreate(
                 room_id=room_name,
-                description=result.description,
-                object_list=[d.label for d in result.detections],
-                hazard_flags=[h.name for h in result.hazards],
-                embedding=result.embedding if isinstance(result.embedding, list) else [],
+                description=description,
+                object_list=[d.label for d in all_detections],
+                hazard_flags=[h.name for h in all_hazards],
+                embedding=embedding if isinstance(embedding, list) else [],
                 source="scene_intel",
             )
             record = await services.semantic_memory_client.create_observation(obs)
@@ -188,10 +258,10 @@ class SceneAnalysisHandler(StepHandler):
                         "bbox": d.bbox,
                         "class_id": d.class_id,
                     }
-                    for d in result.detections
+                    for d in all_detections
                 ],
-                "scene_description": result.description,
-                "scene_embedding": result.embedding,
+                "scene_description": description,
+                "scene_embedding": embedding,
                 "scene_hazards": [
                     {
                         "name": h.name,
@@ -204,11 +274,11 @@ class SceneAnalysisHandler(StepHandler):
                             "class_id": h.detection.class_id,
                         },
                     }
-                    for h in result.hazards
+                    for h in all_hazards
                 ],
-                "scene_detector_available": result.detector_available,
-                "scene_describer_available": result.describer_available,
-                "scene_embedder_available": result.embedder_available,
+                "scene_detector_available": detector_available,
+                "scene_describer_available": describer_available,
+                "scene_embedder_available": embedder_available,
                 "scene_memory_observation_id": scene_memory_observation_id,
             }
         )
@@ -231,13 +301,76 @@ def _empty_result() -> dict:
     }
 
 
-def _read_image(path: str) -> bytes | None:
-    """Read image bytes from a local filesystem path.
+async def _gather_images(
+    config: dict,
+    trigger: TriggerContext,
+    services: ServiceContainer,
+) -> list[str]:
+    """Collect image paths from trigger and/or additional cameras."""
+    image_source: str = config.get("image_source", "trigger")
+    max_images: int = int(config.get("max_images", 1))
+    media_paths: list[str] = []
 
-    Returns ``None`` when the file is absent or unreadable.
+    if image_source in ("trigger", "both"):
+        frames = list(trigger.media_paths)
+        trigger_count = config.get("trigger_images_count")
+        if trigger_count and trigger_count > 0:
+            frames = frames[-trigger_count:]
+        media_paths.extend(frames)
+
+    if image_source in ("additional", "both") and services.event_aggregator:
+        additional_sensors: list[str] = config.get("additional_sensor_ids") or []
+        additional_rooms: list[str] = config.get("additional_room_names") or []
+        time_filter: dict = config.get("image_time_filter") or {}
+        default_per_sensor: int = int(config.get("images_per_sensor", 1))
+        sensor_frame_limits: dict = config.get("sensor_frame_limits") or {}
+
+        resolved_sensors = list(additional_sensors)
+        if additional_rooms:
+            extra = await services.event_aggregator.query_recent_media(
+                sensor_ids=resolved_sensors if resolved_sensors else None,
+                room_names=additional_rooms,
+                limit=max_images,
+                since_minutes=time_filter.get("since_minutes"),
+                time_start=time_filter.get("time_start"),
+                time_end=time_filter.get("time_end"),
+            )
+            media_paths.extend(extra)
+        elif resolved_sensors:
+            extra = await services.event_aggregator.query_media_by_sensor(
+                sensor_ids_ordered=resolved_sensors,
+                images_per_sensor=default_per_sensor,
+                sensor_frame_limits=sensor_frame_limits,
+                max_images=max_images,
+                since_minutes=time_filter.get("since_minutes"),
+                time_start=time_filter.get("time_start"),
+                time_end=time_filter.get("time_end"),
+                chronological=False,
+            )
+            media_paths.extend(extra)
+        elif image_source == "additional":
+            extra = await services.event_aggregator.query_recent_media(
+                sensor_ids=None,
+                room_names=None,
+                limit=max_images,
+                since_minutes=time_filter.get("since_minutes"),
+                time_start=time_filter.get("time_start"),
+                time_end=time_filter.get("time_end"),
+            )
+            media_paths.extend(extra)
+
+    return media_paths[:max_images]
+
+
+async def _fetch_image(url: str) -> bytes | None:
+    """Fetch image bytes from an HTTP(S) URL (e.g. presigned MinIO).
+
+    Returns ``None`` on any network or HTTP error.
     """
     try:
-        with open(path, "rb") as fh:
-            return fh.read()
-    except OSError:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.content
+    except Exception:
         return None

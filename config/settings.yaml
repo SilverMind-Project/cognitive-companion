@@ -69,6 +69,18 @@ llm:
       temperature: 0.7
       top_p: 0.9
 
+    - id: "qwen-3.6-35b"
+      name: "Qwen 3.6 35b MOE (General)"
+      api_type: "openai"
+      base_url: "${GEMMA_MODEL_URL}"
+      model: "gemma-4-26B-A4B-it"
+      capabilities: ["text", "translation"]
+      max_tokens: 32000
+      timeout: 180
+      guided_decoding: false
+      supports_thinking: true
+      temperature: 0.7
+      top_p: 0.9
 
   realtime:
     provider: "gemini_live"
@@ -197,7 +209,7 @@ tracking_orchestrator:
 # Scene Analysis Service
 scene_analysis:
   url: "${SCENE_ANALYSIS_URL}"          # e.g. http://localhost:8300
-  enabled: false
+  enabled: true
   timeout: 30
 
 # Semantic Memory Service (also provides object trend tracking API)

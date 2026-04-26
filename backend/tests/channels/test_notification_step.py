@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from backend.steps.builtin.notification import NotificationHandler, _format_channel_message
+from backend.steps.builtin.notification import (
+    NotificationHandler,
+    _format_channel_message,
+    _select_telegram_image_urls,
+)
 
 
 @dataclass
@@ -233,7 +237,7 @@ class TestNotificationHandlerExecute:
         await handler.execute(step, FakeWorkflowExecution(), pipeline_data, trigger, services)
 
         call_kwargs = dispatcher.dispatch.call_args[1]
-        assert call_kwargs["image_url"] == "https://minio/img.jpg"
+        assert call_kwargs["image_urls"] == ["https://minio/img.jpg"]
 
     @pytest.mark.asyncio
     async def test_uses_translation_before_non_dict_logic_response(self):
@@ -281,4 +285,118 @@ class TestNotificationHandlerExecute:
 
         assert result.data["notification_dispatched"] is True
         call_kwargs = dispatcher.dispatch.call_args[1]
-        assert call_kwargs["image_url"] == "https://minio/trigger.jpg"
+        assert call_kwargs["image_urls"] == ["https://minio/trigger.jpg"]
+
+
+# ---------------------------------------------------------------------------
+# _select_telegram_image_urls -- multi-image collection
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FakeEventAggregator:
+    recent_media: list[str] = field(default_factory=list)
+    sensor_media: list[str] = field(default_factory=list)
+
+    async def query_recent_media(self, **_kwargs) -> list[str]:
+        return self.recent_media
+
+    async def query_media_by_sensor(self, **_kwargs) -> list[str]:
+        return self.sensor_media
+
+
+class TestSelectTelegramImageUrls:
+    @pytest.mark.asyncio
+    async def test_trigger_source_returns_trigger_paths(self):
+        trigger = FakeTriggerContext(media_paths=["https://minio/t1.jpg", "https://minio/t2.jpg"])
+        config = {"telegram_image_source": "trigger"}
+        services = FakeServiceContainer()
+
+        urls = await _select_telegram_image_urls(config, trigger, services)
+
+        assert urls == ["https://minio/t1.jpg", "https://minio/t2.jpg"]
+
+    @pytest.mark.asyncio
+    async def test_none_source_returns_empty_list(self):
+        trigger = FakeTriggerContext(media_paths=["https://minio/t1.jpg"])
+        config = {"telegram_image_source": "none"}
+        services = FakeServiceContainer()
+
+        urls = await _select_telegram_image_urls(config, trigger, services)
+
+        assert urls == []
+
+    @pytest.mark.asyncio
+    async def test_additional_source_queries_aggregator(self):
+        aggregator = FakeEventAggregator(recent_media=["https://minio/a.jpg"])
+        trigger = FakeTriggerContext(media_paths=["https://minio/t.jpg"])
+        config = {"telegram_image_source": "additional"}
+        services = FakeServiceContainer(event_aggregator=aggregator)
+
+        urls = await _select_telegram_image_urls(config, trigger, services)
+
+        assert urls == ["https://minio/a.jpg"]
+
+    @pytest.mark.asyncio
+    async def test_both_source_combines_trigger_and_additional(self):
+        aggregator = FakeEventAggregator(
+            recent_media=["https://minio/extra1.jpg", "https://minio/extra2.jpg"]
+        )
+        trigger = FakeTriggerContext(media_paths=["https://minio/trigger.jpg"])
+        config = {"telegram_image_source": "both"}
+        services = FakeServiceContainer(event_aggregator=aggregator)
+
+        urls = await _select_telegram_image_urls(config, trigger, services)
+
+        assert urls == [
+            "https://minio/trigger.jpg",
+            "https://minio/extra1.jpg",
+            "https://minio/extra2.jpg",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_deduplicates_across_sources(self):
+        aggregator = FakeEventAggregator(
+            recent_media=["https://minio/shared.jpg", "https://minio/extra.jpg"]
+        )
+        trigger = FakeTriggerContext(media_paths=["https://minio/shared.jpg"])
+        config = {"telegram_image_source": "both"}
+        services = FakeServiceContainer(event_aggregator=aggregator)
+
+        urls = await _select_telegram_image_urls(config, trigger, services)
+
+        assert urls == ["https://minio/shared.jpg", "https://minio/extra.jpg"]
+
+    @pytest.mark.asyncio
+    async def test_execute_passes_all_images_to_dispatch(self):
+        """End-to-end: multiple trigger images reach dispatcher as image_urls list."""
+        dispatcher = AsyncMock(return_value={})
+        services = FakeServiceContainer(notification_dispatcher=dispatcher)
+        step = FakePipelineStep(config_json={"alert_level": "info"})
+        trigger = FakeTriggerContext(
+            media_paths=["https://minio/img1.jpg", "https://minio/img2.jpg"]
+        )
+        pipeline_data = {"logic_response": {"user_notification": "test"}}
+
+        handler = NotificationHandler()
+        await handler.execute(step, FakeWorkflowExecution(), pipeline_data, trigger, services)
+
+        call_kwargs = dispatcher.dispatch.call_args[1]
+        assert call_kwargs["image_urls"] == [
+            "https://minio/img1.jpg",
+            "https://minio/img2.jpg",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_execute_passes_empty_list_when_no_images(self):
+        dispatcher = AsyncMock(return_value={})
+        services = FakeServiceContainer(notification_dispatcher=dispatcher)
+        step = FakePipelineStep(config_json={"alert_level": "info"})
+        trigger = FakeTriggerContext(media_paths=[])
+        pipeline_data = {"logic_response": {"user_notification": "test"}}
+
+        handler = NotificationHandler()
+        await handler.execute(step, FakeWorkflowExecution(), pipeline_data, trigger, services)
+
+        call_kwargs = dispatcher.dispatch.call_args[1]
+        assert call_kwargs["image_urls"] == []

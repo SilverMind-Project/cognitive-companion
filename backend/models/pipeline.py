@@ -59,7 +59,7 @@ class PipelineStep(Base):
     rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"), index=True)
     order: Mapped[int] = mapped_column(Integer, default=0)
     step_type: Mapped[str] = mapped_column(String(64))
-    label: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    label: Mapped[str] = mapped_column(String(256), server_default="")
     config_json: Mapped[dict] = mapped_column(JSON, default=dict)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 

@@ -53,6 +53,7 @@ class NotificationDispatcher:
         message: str,
         room_name: str,
         image_url: str | None = None,
+        image_urls: list[str] | None = None,
         rule_config: dict | None = None,
         channel_messages: dict[str, str] | None = None,
     ) -> dict[str, bool]:
@@ -63,8 +64,12 @@ class NotificationDispatcher:
         channel-specific formatted messages. Channels not in the dict
         receive the default *message*.
 
+        *image_urls* supersedes the legacy *image_url* when provided.
+
         Returns dict of channel -> success.
         """
+        resolved_image_urls: list[str] = image_urls or ([image_url] if image_url else [])
+
         # Per-step channel overrides take precedence over config-file defaults
         override_channels = (rule_config or {}).get("channels") if rule_config else None
 
@@ -92,7 +97,8 @@ class NotificationDispatcher:
                 message=ch_message,
                 alert_level=alert_level,
                 room_name=room_name,
-                image_url=image_url,
+                image_url=resolved_image_urls[0] if resolved_image_urls else None,
+                image_urls=resolved_image_urls,
                 config=channel_config,
                 services=self._dispatch_services,
             )

@@ -161,12 +161,12 @@ async def _query_additional_telegram_media(
         return []
 
 
-async def _select_telegram_image_url(
+async def _select_telegram_image_urls(
     config: dict,
     trigger: TriggerContext,
     services: ServiceContainer,
-) -> str | None:
-    """Pick the lead image for Telegram delivery."""
+) -> list[str]:
+    """Collect all images for Telegram delivery in priority order."""
     telegram_image_source: str = config.get("telegram_image_source", "trigger")
     media_paths: list[str] = []
 
@@ -176,8 +176,7 @@ async def _select_telegram_image_url(
     if telegram_image_source in ("additional", "both"):
         media_paths.extend(await _query_additional_telegram_media(config, services))
 
-    deduped_media_paths = _dedupe_preserving_order(media_paths)
-    return deduped_media_paths[0] if deduped_media_paths else None
+    return _dedupe_preserving_order(media_paths)
 
 
 # Channels that support per-channel template overrides.
@@ -391,14 +390,14 @@ class NotificationHandler(StepHandler):
             message = _format_channel_message(message_template, message, trigger, pipeline_data)
 
         channel_messages = _build_channel_messages(config, message, trigger, pipeline_data)
-        image_url = await _select_telegram_image_url(config, trigger, services)
+        image_urls = await _select_telegram_image_urls(config, trigger, services)
         rule_config = _build_rule_config(config, channels)
 
         results = await services.notification_dispatcher.dispatch(
             alert_level=alert_level,
             message=message,
             room_name=trigger.room_name or "Unknown",
-            image_url=image_url,
+            image_urls=image_urls,
             rule_config=rule_config if rule_config else None,
             channel_messages=channel_messages if channel_messages else None,
         )

@@ -1,8 +1,8 @@
 <template>
   <v-dialog
     :model-value="modelValue"
-    width="1120"
-    max-width="96vw"
+    width="1440"
+    max-width="98vw"
     :fullscreen="$vuetify.display.smAndDown"
     scrollable
     @update:model-value="$emit('update:modelValue', $event)"
@@ -2531,6 +2531,7 @@ function save() {
 
 .step-config-content {
   overflow-y: auto;
+  overflow-x: hidden;
   min-width: 0;
 }
 
@@ -2544,6 +2545,7 @@ function save() {
 
 .step-config-vars {
   width: 300px;
+  flex-shrink: 0;
   background-color: var(--cc-bg-elevated);
   min-width: 0;
 }

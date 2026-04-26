@@ -1,12 +1,13 @@
 <template>
   <div>
-    <v-timeline side="end" density="compact">
+    <v-timeline side="end" density="compact" class="cc-pipeline-timeline">
       <v-timeline-item
         v-for="(step, index) in steps"
         :key="step.id"
         :icon="stepIcon(step.step_type)"
-        :dot-color="step.enabled ? 'primary' : 'grey'"
+        :dot-color="step.enabled ? stepDotColor(step.step_type) : 'grey'"
         size="small"
+        fill-dot
       >
         <StepCard
           :step="step"
@@ -56,19 +57,32 @@ const paletteOpen = ref(false);
 const configOpen = ref(false);
 const editingStep = ref(null);
 
-const STEP_ICONS = {
-  person_identification: "mdi-face-recognition",
-  llm_call: "mdi-brain",
-  notification: "mdi-bell",
-  ha_action: "mdi-home-automation",
-  activity_detection: "mdi-run",
-  wait: "mdi-timer-sand",
-  condition: "mdi-help-circle",
-  verification: "mdi-check-decagram",
+const STEP_META = {
+  person_identification:  { icon: "mdi-face-recognition",          color: "indigo" },
+  scene_analysis:         { icon: "mdi-image-search",               color: "teal" },
+  object_trend_analysis:  { icon: "mdi-chart-line",                 color: "teal" },
+  semantic_memory_query:  { icon: "mdi-database-search-outline",    color: "teal" },
+  semantic_memory_write:  { icon: "mdi-database-plus-outline",      color: "indigo" },
+  llm_call:               { icon: "mdi-brain",                      color: "purple" },
+  condition:              { icon: "mdi-help-circle-outline",        color: "blue-grey" },
+  verification:           { icon: "mdi-check-decagram",             color: "green" },
+  tracking_query:         { icon: "mdi-map-marker-path",            color: "teal" },
+  activity_detection:     { icon: "mdi-database-plus",              color: "indigo" },
+  activity_session_start: { icon: "mdi-play-circle-outline",        color: "green" },
+  activity_session_end:   { icon: "mdi-stop-circle-outline",        color: "red" },
+  notification:           { icon: "mdi-bell-outline",               color: "orange" },
+  ha_action:              { icon: "mdi-home-automation",            color: "blue" },
+  daily_report:           { icon: "mdi-file-chart-outline",         color: "indigo" },
+  interactive_prompt:     { icon: "mdi-forum-outline",              color: "cyan" },
+  wait:                   { icon: "mdi-timer-sand",                 color: "amber" },
 };
 
 function stepIcon(type) {
-  return STEP_ICONS[type] || "mdi-circle-outline";
+  return STEP_META[type]?.icon || "mdi-circle-outline";
+}
+
+function stepDotColor(type) {
+  return STEP_META[type]?.color || "primary";
 }
 
 async function loadSteps() {
@@ -159,3 +173,14 @@ async function saveStepConfig(data) {
 
 onMounted(loadSteps);
 </script>
+
+<style scoped>
+.cc-pipeline-timeline {
+  --v-timeline-item-padding: 8px;
+}
+.cc-pipeline-timeline :deep(.v-timeline-item__body) {
+  padding-bottom: 12px;
+  width: 100%;
+  min-width: 0;
+}
+</style>

@@ -2,70 +2,107 @@
   <v-card
     :variant="step.enabled ? 'elevated' : 'outlined'"
     :class="{ 'opacity-50': !step.enabled }"
-    density="compact"
+    rounded="lg"
   >
-    <v-card-text class="d-flex align-center py-2 gap-1">
-      <!-- Step number badge -->
-      <v-chip size="x-small" variant="tonal" color="primary" class="me-2 flex-shrink-0">
-        {{ index + 1 }}
-      </v-chip>
+    <v-card-text class="pa-4">
+      <!-- Header row -->
+      <div class="d-flex align-center gap-2">
+        <v-chip size="x-small" variant="tonal" color="primary" class="flex-shrink-0 font-weight-bold step-num-chip">
+          {{ index + 1 }}
+        </v-chip>
 
-      <!-- Step info -->
-      <div class="flex-grow-1 min-width-0">
-        <div class="d-flex align-center">
-          <div class="text-subtitle-2 font-weight-bold">{{ humanize(step.step_type) }}</div>
-          <v-tooltip v-if="templateTokens.length" location="top">
+        <v-icon size="18" :color="stepColor" class="flex-shrink-0">{{ stepIcon }}</v-icon>
+
+        <div class="flex-grow-1 min-width-0">
+          <div class="d-flex align-center gap-1 flex-wrap">
+            <span class="text-subtitle-2 font-weight-bold">{{ stepDisplayName }}</span>
+            <v-tooltip v-if="templateTokens.length" location="top">
+              <template #activator="{ props: tipProps }">
+                <v-chip
+                  v-bind="tipProps"
+                  size="x-small"
+                  variant="tonal"
+                  color="info"
+                  class="cc-token-chip"
+                >
+                  <v-icon start size="10">mdi-code-braces</v-icon>
+                  {{ templateTokens.length }}
+                </v-chip>
+              </template>
+              <div class="text-caption font-weight-bold mb-1">Templated values:</div>
+              <div v-for="t in templateTokens" :key="t" class="text-caption cc-mono">{{ t }}</div>
+            </v-tooltip>
+          </div>
+          <div v-if="step.label" class="text-caption text-medium-emphasis">{{ step.label }}</div>
+        </div>
+
+        <!-- Reorder + actions -->
+        <div class="d-flex align-center flex-shrink-0">
+          <div class="d-flex flex-column" style="gap:0">
+            <v-btn
+              icon="mdi-chevron-up"
+              size="x-small"
+              variant="text"
+              :disabled="index === 0"
+              style="height:18px; min-width:28px"
+              @click.stop="$emit('moveup')"
+            />
+            <v-btn
+              icon="mdi-chevron-down"
+              size="x-small"
+              variant="text"
+              :disabled="index === total - 1"
+              style="height:18px; min-width:28px"
+              @click.stop="$emit('movedown')"
+            />
+          </div>
+          <v-divider vertical class="mx-1" />
+          <v-btn icon="mdi-pencil" size="x-small" variant="text" @click.stop="$emit('edit')" />
+          <v-btn
+            :icon="step.enabled ? 'mdi-eye' : 'mdi-eye-off'"
+            size="x-small"
+            variant="text"
+            @click.stop="$emit('toggle')"
+          />
+          <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click.stop="$emit('delete')" />
+        </div>
+      </div>
+
+      <!-- Detail chips row -->
+      <div v-if="detailChips.length" class="d-flex flex-wrap mt-3">
+        <template v-for="chip in detailChips" :key="chip.key">
+          <v-tooltip v-if="chip.tooltip" location="top" :max-width="320">
             <template #activator="{ props: tipProps }">
               <v-chip
                 v-bind="tipProps"
-                size="x-small"
-                variant="tonal"
-                color="info"
-                class="ml-2 cc-token-chip"
+                size="small"
+                :color="chip.color || undefined"
+                :variant="chip.color ? 'tonal' : 'outlined'"
+                :prepend-icon="chip.icon"
+                class="cc-detail-chip"
               >
-                <v-icon start size="10">mdi-code-braces</v-icon>
-                {{ templateTokens.length }}
+                {{ chip.label }}
               </v-chip>
             </template>
-            <div class="text-caption">Templated values:</div>
-            <div v-for="t in templateTokens" :key="t" class="text-caption">{{ t }}</div>
+            <span class="cc-mono text-caption">{{ chip.tooltip }}</span>
           </v-tooltip>
-        </div>
-        <div v-if="step.label" class="text-caption text-grey">{{ step.label }}</div>
-        <div class="text-caption text-grey-darken-1 text-truncate">{{ configSummary }}</div>
+          <v-chip
+            v-else
+            size="small"
+            :color="chip.color || undefined"
+            :variant="chip.color ? 'tonal' : 'outlined'"
+            :prepend-icon="chip.icon"
+            class="cc-detail-chip"
+          >
+            {{ chip.label }}
+          </v-chip>
+        </template>
       </div>
 
-      <!-- Reorder buttons -->
-      <div class="d-flex flex-column" style="gap:0">
-        <v-btn
-          icon="mdi-chevron-up"
-          size="x-small"
-          variant="text"
-          :disabled="index === 0"
-          style="height:18px; min-width:28px"
-          @click.stop="$emit('moveup')"
-        />
-        <v-btn
-          icon="mdi-chevron-down"
-          size="x-small"
-          variant="text"
-          :disabled="index === total - 1"
-          style="height:18px; min-width:28px"
-          @click.stop="$emit('movedown')"
-        />
+      <!-- Prompt / expression / template preview -->
+      <div v-if="textPreview" class="mt-3 cc-preview-text text-caption text-medium-emphasis">
+        {{ textPreview }}
       </div>
-
-      <v-divider vertical class="mx-1" />
-
-      <!-- Action buttons -->
-      <v-btn icon="mdi-pencil" size="x-small" variant="text" @click.stop="$emit('edit')" />
-      <v-btn
-        :icon="step.enabled ? 'mdi-eye' : 'mdi-eye-off'"
-        size="x-small"
-        variant="text"
-        @click.stop="$emit('toggle')"
-      />
-      <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click.stop="$emit('delete')" />
     </v-card-text>
   </v-card>
 </template>
@@ -81,10 +118,26 @@ const props = defineProps({
 
 defineEmits(["edit", "delete", "toggle", "moveup", "movedown"]);
 
+// ── Display names ────────────────────────────────────────────────────────────
+
 const STEP_LABELS = {
   activity_detection: "Record Activity",
-  verification: "Verify Activity",
+  activity_session_start: "Start Activity Session",
+  activity_session_end: "End Activity Session",
+  condition: "Condition",
+  daily_report: "Daily Report",
+  ha_action: "HA Action",
+  interactive_prompt: "Interactive Prompt",
+  llm_call: "LLM Call",
+  notification: "Notification",
+  object_trend_analysis: "Object Trend Analysis",
   person_identification: "Person Identification",
+  scene_analysis: "Scene Analysis",
+  semantic_memory_query: "Memory Query",
+  semantic_memory_write: "Memory Write",
+  tracking_query: "Tracking Query",
+  verification: "Verify Activity",
+  wait: "Wait",
 };
 
 function humanize(type) {
@@ -96,46 +149,38 @@ function humanize(type) {
     .join(" ");
 }
 
-const configSummary = computed(() => {
-  const cfg = props.step.config_json;
-  if (!cfg || typeof cfg !== "object") return "";
+const stepDisplayName = computed(() => humanize(props.step.step_type));
 
-  const parts = [];
+// ── Icons + colors ────────────────────────────────────────────────────────────
 
-  if (cfg.model_id) parts.push(`model: ${cfg.model_id}`);
-  if (cfg.output_key) parts.push(`→ ${cfg.output_key}`);
-  if (cfg.prompt) {
-    const trimmed = cfg.prompt.length > 60 ? cfg.prompt.slice(0, 60) + "..." : cfg.prompt;
-    parts.push(trimmed);
-  }
-  if (cfg.minutes != null) parts.push(`wait: ${cfg.minutes}min`);
-  if (cfg.target_language) parts.push(`lang: ${cfg.target_language}`);
-  if (cfg.domain) parts.push(`${cfg.domain}.${cfg.service || "*"}`);
-  if (cfg.entity_id) parts.push(cfg.entity_id);
-  if (cfg.alert_level) parts.push(`level: ${cfg.alert_level}`);
-  if (cfg.expression) {
-    const trimmed = cfg.expression.length > 50 ? cfg.expression.slice(0, 50) + "..." : cfg.expression;
-    parts.push(trimmed);
-  }
-  if (cfg.min_confidence != null) parts.push(`confidence >= ${cfg.min_confidence}`);
-  if (cfg.target_persons?.length) parts.push(`persons: ${cfg.target_persons.join(", ")}`);
-  if (cfg.activities_of_interest?.length) parts.push(`activities: ${cfg.activities_of_interest.join(", ")}`);
-  if (cfg.source_key) parts.push(`source: ${cfg.source_key} → ${cfg.activities_path || "activities"}`);
-  if (cfg.conditions?.length) {
-    parts.push(`${cfg.conditions.length} condition${cfg.conditions.length > 1 ? "s" : ""} (${cfg.match_mode || "all"})`);
-  }
-  if (cfg.re_notify_if_failed) parts.push(`re-notify: ${cfg.re_notify_delay_minutes || 5}min`);
-  if (cfg.response_format && cfg.response_format !== "default") parts.push(`format: ${cfg.response_format}`);
+const STEP_META = {
+  person_identification: { icon: "mdi-face-recognition", color: "indigo" },
+  scene_analysis:        { icon: "mdi-image-search", color: "teal" },
+  object_trend_analysis: { icon: "mdi-chart-line", color: "teal" },
+  semantic_memory_query: { icon: "mdi-database-search-outline", color: "teal" },
+  semantic_memory_write: { icon: "mdi-database-plus-outline", color: "indigo" },
+  llm_call:              { icon: "mdi-brain", color: "purple" },
+  condition:             { icon: "mdi-help-circle-outline", color: "blue-grey" },
+  verification:          { icon: "mdi-check-decagram", color: "green" },
+  tracking_query:        { icon: "mdi-map-marker-path", color: "teal" },
+  activity_detection:    { icon: "mdi-database-plus", color: "indigo" },
+  activity_session_start:{ icon: "mdi-play-circle-outline", color: "green" },
+  activity_session_end:  { icon: "mdi-stop-circle-outline", color: "red" },
+  notification:          { icon: "mdi-bell-outline", color: "orange" },
+  ha_action:             { icon: "mdi-home-automation", color: "blue" },
+  daily_report:          { icon: "mdi-file-chart-outline", color: "indigo" },
+  interactive_prompt:    { icon: "mdi-forum-outline", color: "cyan" },
+  wait:                  { icon: "mdi-timer-sand", color: "amber" },
+};
 
-  return parts.join(" | ") || "No configuration";
-});
+const stepIcon = computed(() => STEP_META[props.step.step_type]?.icon || "mdi-circle-outline");
+const stepColor = computed(() => STEP_META[props.step.step_type]?.color || "grey");
 
-// Detect {{key}} template tokens used in this step's config.
-// All steps now use {{key}} syntax via backend/core/template.py.
+// ── Template tokens ───────────────────────────────────────────────────────────
+
 const templateTokens = computed(() => {
   const cfg = props.step.config_json;
   if (!cfg || typeof cfg !== "object") return [];
-  // Collect all string values from the config (including nested objects)
   const strings = [];
   function collect(obj) {
     if (typeof obj === "string") { strings.push(obj); return; }
@@ -151,10 +196,177 @@ const templateTokens = computed(() => {
   }
   return Array.from(tokens);
 });
+
+// ── Detail chips ──────────────────────────────────────────────────────────────
+
+const ALERT_COLORS = { emergency: "red", warning: "orange", info: "blue", reminder: "green" };
+
+function truncate(s, n) {
+  if (!s) return "";
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+const detailChips = computed(() => {
+  const cfg = props.step.config_json;
+  if (!cfg || typeof cfg !== "object") return [];
+  const type = props.step.step_type;
+  const chips = [];
+  let key = 0;
+  const chip = (label, icon, color, tooltip) => chips.push({ key: key++, label, icon, color: color || undefined, tooltip });
+
+  if (type === "llm_call") {
+    if (cfg.model_id) {
+      const short = truncate(cfg.model_id, 28);
+      chip(short, "mdi-chip", "purple", cfg.model_id !== short ? cfg.model_id : undefined);
+    }
+    const maxImgs = cfg.max_images ?? 5;
+    const triggerImgs = cfg.trigger_images_count ?? 0;
+    const additionalSensors = cfg.additional_sensor_ids?.length || 0;
+    const additionalRooms = cfg.additional_room_names?.length || 0;
+    if (maxImgs > 0) chip(`≤ ${maxImgs} images`, "mdi-image-multiple-outline", "teal");
+    if (triggerImgs > 0) chip(`${triggerImgs} trigger frame${triggerImgs > 1 ? "s" : ""}`, "mdi-camera", "teal");
+    if (additionalSensors > 0) chip(`+${additionalSensors} sensor${additionalSensors > 1 ? "s" : ""}`, "mdi-camera-plus-outline", "cyan");
+    if (additionalRooms > 0) chip(cfg.additional_room_names.join(", "), "mdi-home-outline", "cyan");
+    if (cfg.output_key && cfg.output_key !== "llm_response") chip(`→ ${cfg.output_key}`, "mdi-export-variant", "blue-grey");
+    if (cfg.response_format && cfg.response_format !== "default") chip(cfg.response_format, "mdi-code-json", "blue-grey");
+  }
+
+  if (type === "scene_analysis") {
+    const source = cfg.image_source || "trigger";
+    chip(source, "mdi-image-outline", "teal");
+    const maxImgs = cfg.max_images ?? 1;
+    if (maxImgs > 1) chip(`≤ ${maxImgs} images`, "mdi-image-multiple-outline", "teal");
+    if (cfg.run_detect !== false) chip("detect", "mdi-eye-outline", "green");
+    if (cfg.run_describe !== false) chip("describe", "mdi-text-box-outline", "green");
+    if (cfg.run_hazards !== false) chip("hazards", "mdi-alert-outline", "orange");
+    if (cfg.run_embed) chip("embed", "mdi-vector-combine", "blue");
+    const addSensors = cfg.additional_sensor_ids?.length || 0;
+    const addRooms = cfg.additional_room_names?.length || 0;
+    if (addSensors > 0) chip(`+${addSensors} sensor${addSensors > 1 ? "s" : ""}`, "mdi-camera-plus-outline", "cyan");
+    if (addRooms > 0) chip(cfg.additional_room_names.join(", "), "mdi-home-outline", "cyan");
+    if (cfg.output_key && cfg.output_key !== "scene_images") chip(`→ ${cfg.output_key}`, "mdi-export-variant", "blue-grey");
+  }
+
+  if (type === "notification") {
+    const level = cfg.alert_level || "warning";
+    chip(level, "mdi-bell-outline", ALERT_COLORS[level] || "orange");
+    if (cfg.channels?.length) chip(cfg.channels.join(", "), "mdi-send-outline", undefined);
+    const telegramSrc = cfg.telegram_image_source;
+    if (telegramSrc && telegramSrc !== "trigger") chip(`telegram: ${telegramSrc}`, "mdi-send", "blue");
+    if (cfg.trigger_cooloff === false) chip("no cooloff", "mdi-timer-off-outline", "warning");
+  }
+
+  if (type === "condition") {
+    if (cfg.trigger_cooloff) chip("cooloff on match", "mdi-timer-outline", "blue-grey");
+  }
+
+  if (type === "person_identification") {
+    if (cfg.target_persons?.length) {
+      chip(cfg.target_persons.join(", "), "mdi-account-outline", "indigo");
+    } else {
+      chip("all persons", "mdi-account-group-outline", "indigo");
+    }
+    if (cfg.min_confidence != null) chip(`≥ ${Math.round(cfg.min_confidence * 100)}% conf`, "mdi-percent", "teal");
+    if (cfg.include_annotated_image) chip("annotated image", "mdi-image-edit-outline", undefined);
+    if (cfg.write_movements_to_memory) chip("writes to memory", "mdi-database-arrow-up-outline", "purple");
+  }
+
+  if (type === "ha_action") {
+    const domain = cfg.domain || "";
+    const service = cfg.service || "";
+    if (domain || service) chip(`${domain}.${service}`, "mdi-home-automation", "blue");
+    if (cfg.entity_id) chip(truncate(cfg.entity_id, 32), "mdi-identifier", undefined, cfg.entity_id.length > 32 ? cfg.entity_id : undefined);
+  }
+
+  if (type === "wait") {
+    const mins = cfg.minutes ?? 5;
+    chip(`${mins} min`, "mdi-timer-sand", "amber");
+  }
+
+  if (type === "verification") {
+    if (cfg.conditions?.length) {
+      const mode = cfg.match_mode || "all";
+      chip(`${cfg.conditions.length} condition${cfg.conditions.length > 1 ? "s" : ""} (${mode})`, "mdi-check-all", undefined);
+    }
+    if (cfg.re_notify_if_failed) chip(`re-notify ${cfg.re_notify_delay_minutes || 5}min`, "mdi-bell-ring-outline", "orange");
+  }
+
+  if (type === "activity_detection") {
+    if (cfg.activity_type) chip(cfg.activity_type, "mdi-run", "indigo");
+    if (cfg.person_id) chip(cfg.person_id, "mdi-account-outline", undefined);
+    if (cfg.room_name) chip(cfg.room_name, "mdi-home-outline", undefined);
+    const conf = cfg.confidence ?? 0.8;
+    chip(`${Math.round(conf * 100)}% conf`, "mdi-percent", "teal");
+  }
+
+  if (type === "activity_session_start" || type === "activity_session_end") {
+    if (cfg.activity_type) chip(cfg.activity_type, "mdi-run", "indigo");
+    if (cfg.source_key) chip(`source: ${cfg.source_key}`, "mdi-link-variant", "blue-grey");
+  }
+
+  if (type === "object_trend_analysis") {
+    if (cfg.room_ids?.length) chip(cfg.room_ids.join(", "), "mdi-home-group", "indigo");
+    else chip("all rooms", "mdi-home-group", "indigo");
+    if (cfg.severity_threshold) chip(cfg.severity_threshold, "mdi-alert-circle-outline", undefined);
+    if (cfg.output_key && cfg.output_key !== "room_trends") chip(`→ ${cfg.output_key}`, "mdi-export-variant", "blue-grey");
+  }
+
+  if (type === "semantic_memory_query") {
+    if (cfg.output_key) chip(`→ ${cfg.output_key}`, "mdi-export-variant", "blue-grey");
+    if (cfg.top_k) chip(`top ${cfg.top_k}`, "mdi-format-list-numbered", undefined);
+  }
+
+  if (type === "semantic_memory_write") {
+    if (cfg.source_key) chip(`source: ${cfg.source_key}`, "mdi-link-variant", "blue-grey");
+  }
+
+  return chips;
+});
+
+// ── Text preview (prompt / expression / message template) ─────────────────────
+
+const textPreview = computed(() => {
+  const cfg = props.step.config_json;
+  if (!cfg || typeof cfg !== "object") return "";
+  const type = props.step.step_type;
+
+  if (type === "llm_call" && cfg.prompt) return truncate(cfg.prompt, 120);
+  if (type === "condition" && cfg.expression) return truncate(cfg.expression, 100);
+  if (type === "notification" && (cfg.message_template || cfg.telegram_template)) {
+    return truncate(cfg.message_template || cfg.telegram_template, 120);
+  }
+  if (type === "semantic_memory_query" && cfg.query) return truncate(cfg.query, 100);
+  if (type === "semantic_memory_write" && cfg.content) return truncate(cfg.content, 100);
+  return "";
+});
 </script>
 
 <style scoped>
 .cc-token-chip {
   font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+.cc-mono {
+  font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+.cc-detail-chip {
+  max-width: 260px;
+  overflow: hidden;
+  margin-right: 6px;
+  margin-bottom: 5px;
+}
+.cc-detail-chip :deep(.v-chip__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cc-preview-text {
+  border-left: 2px solid rgba(var(--v-theme-on-surface), 0.12);
+  padding-left: 8px;
+  font-style: italic;
+  line-height: 1.4;
+}
+.step-num-chip {
+  min-width: 24px;
+  justify-content: center;
 }
 </style>

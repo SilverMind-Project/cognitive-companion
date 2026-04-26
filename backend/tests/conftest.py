@@ -188,6 +188,9 @@ def _truncate_tables(request, db_engine):
             return
         quoted = ", ".join(f'"{t}"' for t in table_names)
         with db_engine.connect() as conn:
+            # Cap how long TRUNCATE waits for locks.  If a test leaks an open
+            # transaction the fixture would otherwise hang indefinitely.
+            conn.execute(text("SET lock_timeout = '10s'"))
             conn.execute(text(f"TRUNCATE {quoted} RESTART IDENTITY CASCADE"))
             conn.commit()
     except Exception as exc:

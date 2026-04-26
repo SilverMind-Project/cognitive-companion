@@ -34,7 +34,7 @@
     </div>
 
     <StepPalette v-model="paletteOpen" @select="addStep" />
-    <StepConfigDialog v-model="configOpen" :step="editingStep" @save="saveStepConfig" />
+    <StepConfigDialog v-model="configOpen" :step="editingStep" :all-steps="steps" @save="saveStepConfig" />
   </div>
 </template>
 

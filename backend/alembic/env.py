@@ -8,16 +8,16 @@ workspace_root = Path(__file__).resolve().parent.parent.parent
 if str(workspace_root) not in sys.path:
     sys.path.insert(0, str(workspace_root))
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool  # noqa: E402
 
-import backend.models  # noqa: F401 - imports register models with Base
-from alembic import context
+import backend.models  # noqa: E402 F401
+from alembic import context  # noqa: E402
 
 # Import settings to read database URL
-from backend.core.config import settings
+from backend.core.config import settings  # noqa: E402
 
 # Import Base and all models so Base.metadata is populated
-from backend.core.database import Base
+from backend.core.database import Base  # noqa: E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

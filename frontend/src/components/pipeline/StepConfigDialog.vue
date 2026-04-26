@@ -53,8 +53,10 @@
                 <v-text-field
                   v-model="localStep.label"
                   label="Step Label"
-                  hint="Optional display name for this step"
+                  hint="Used as the key in pipeline_data.steps — must be unique, lowercase, letters/digits/underscores only"
                   persistent-hint
+                  :rules="labelRules"
+                  :error-messages="labelUniqueError"
                   class="mb-5"
                 />
 
@@ -1470,6 +1472,7 @@ import { isoToLocalHHMM, localHHMMToUTCISO } from "../../services/timezone.js";
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   step: { type: Object, default: null },
+  allSteps: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(["update:modelValue", "save"]);
@@ -1511,6 +1514,19 @@ const STEP_ICONS = {
 };
 
 const stepIcon = computed(() => STEP_ICONS[localStep.step_type] || "mdi-cog-outline");
+
+const LABEL_RE = /^[a-z][a-z0-9_]*$/;
+const labelRules = [
+  (v) => !!v || "Step label is required",
+  (v) => LABEL_RE.test(v) || "Label must start with a letter and contain only lowercase letters, digits, and underscores",
+];
+const labelUniqueError = computed(() => {
+  const label = localStep.label;
+  if (!label) return "";
+  const currentId = props.step?.id;
+  const conflict = props.allSteps.find((s) => s.label === label && s.id !== currentId);
+  return conflict ? `Label '${label}' is already used by another step in this pipeline` : "";
+});
 
 const interactivePromptIconOptions = [
   { title: "Question", value: "mdi-message-question" },
@@ -1619,111 +1635,97 @@ const pipelineDataReference = [
   { key: "trigger.sensor_id",           source: "Trigger context" },
   { key: "trigger.room_name",           source: "Trigger context" },
   { key: "trigger.media_paths",         source: "Trigger context" },
-  { key: "room_name",                   source: "Trigger context (alias)" },
-  { key: "sensor_id",                   source: "Trigger context (alias)" },
   { key: "trigger_input",               source: "Webhook / Telegram payload" },
   { key: "trigger_input.command",       source: "Telegram trigger" },
   { key: "trigger_input.chat_id",       source: "Telegram trigger" },
   { key: "trigger_input.args",          source: "Telegram trigger (list)" },
   { key: "trigger_input.text",          source: "Telegram / webhook raw text" },
+  // -- Path pattern ----------------------------------------------------------
+  { key: "steps.<label>.outputs.<key>", source: "General pattern — replace <label> with the step label" },
   // -- person_identification -------------------------------------------------
-  { key: "person_detections",                       source: "person_identification" },
-  { key: "person_detections.0.person_id",           source: "person_identification: first match" },
-  { key: "person_detections.0.name",                source: "person_identification: first match" },
-  { key: "person_detections.0.confidence",          source: "person_identification: first match" },
-  { key: "person_detections.0.bbox",                source: "person_identification: [x1,y1,x2,y2] pixels" },
-  { key: "person_detections.0.direction",           source: "person_identification: motion direction" },
-  { key: "person_detections.0.frame_index",         source: "person_identification: index into media_paths" },
-  { key: "person_detections.0.source_media_path",   source: "person_identification: presigned URL of frame" },
-  { key: "room_transitions",                        source: "person_identification" },
-  { key: "annotated_image",                         source: "person_identification: base64 bbox overlay" },
+  { key: "steps.person_identification_1.outputs.person_detections",                     source: "person_identification" },
+  { key: "steps.person_identification_1.outputs.person_detections.0.person_id",         source: "person_identification: first match" },
+  { key: "steps.person_identification_1.outputs.person_detections.0.name",              source: "person_identification: first match" },
+  { key: "steps.person_identification_1.outputs.person_detections.0.confidence",        source: "person_identification: first match" },
+  { key: "steps.person_identification_1.outputs.person_detections.0.bbox",              source: "person_identification: [x1,y1,x2,y2] pixels" },
+  { key: "steps.person_identification_1.outputs.person_detections.0.direction",         source: "person_identification: motion direction" },
+  { key: "steps.person_identification_1.outputs.person_detections.0.source_media_path", source: "person_identification: presigned URL of frame" },
+  { key: "steps.person_identification_1.outputs.room_transitions",                      source: "person_identification" },
+  { key: "steps.person_identification_1.outputs.annotated_image",                       source: "person_identification: base64 bbox overlay" },
   // -- scene_analysis --------------------------------------------------------
-  { key: "scene_detections",            source: "scene_analysis: YOLO object list" },
-  { key: "scene_detections.0.label",    source: "scene_analysis: object label" },
-  { key: "scene_detections.0.confidence", source: "scene_analysis: detection confidence" },
-  { key: "scene_detections.0.bbox",     source: "scene_analysis: [x1,y1,x2,y2]" },
-  { key: "scene_description",           source: "scene_analysis: Florence-2 text" },
-  { key: "scene_hazards",               source: "scene_analysis: hazard alert list" },
-  { key: "scene_hazards.0.name",        source: "scene_analysis: hazard name" },
-  { key: "scene_hazards.0.severity",    source: "scene_analysis: ok/warning/critical" },
-  { key: "scene_hazards.0.description", source: "scene_analysis: hazard description" },
-  { key: "scene_detector_available",    source: "scene_analysis: bool" },
-  { key: "scene_describer_available",   source: "scene_analysis: bool" },
+  { key: "steps.scene_analysis_1.outputs.scene_detections",             source: "scene_analysis: YOLO object list" },
+  { key: "steps.scene_analysis_1.outputs.scene_detections.0.label",    source: "scene_analysis: object label" },
+  { key: "steps.scene_analysis_1.outputs.scene_detections.0.confidence", source: "scene_analysis: detection confidence" },
+  { key: "steps.scene_analysis_1.outputs.scene_detections.0.bbox",     source: "scene_analysis: [x1,y1,x2,y2]" },
+  { key: "steps.scene_analysis_1.outputs.scene_description",           source: "scene_analysis: Florence-2 text" },
+  { key: "steps.scene_analysis_1.outputs.scene_hazards",               source: "scene_analysis: hazard alert list" },
+  { key: "steps.scene_analysis_1.outputs.scene_hazards.0.name",        source: "scene_analysis: hazard name" },
+  { key: "steps.scene_analysis_1.outputs.scene_hazards.0.severity",    source: "scene_analysis: ok/warning/critical" },
+  { key: "steps.scene_analysis_1.outputs.scene_hazards.0.description", source: "scene_analysis: hazard description" },
   // -- object_trend_analysis -------------------------------------------------
-  { key: "room_trends",                 source: "object_trend_analysis: map of room → trend" },
-  { key: "room_trends_any_warning",     source: "object_trend_analysis: bool" },
-  { key: "room_trends_max_severity",    source: "object_trend_analysis: ok/info/warning/critical" },
-  { key: "room_trends_summary",         source: "object_trend_analysis: compact text for LLM" },
-  // -- llm_call (vision) -----------------------------------------------------
-  { key: "vision_response",             source: "llm_call (output_key=vision_response)" },
-  // -- llm_call (reasoning) --------------------------------------------------
-  { key: "logic_response",                          source: "llm_call (output_key=logic_response)" },
-  { key: "logic_response.is_notification_needed",   source: "llm_call: default notification schema" },
-  { key: "logic_response.user_notification",        source: "llm_call: default notification schema" },
-  { key: "logic_response.alert_level",              source: "llm_call: default notification schema" },
-  { key: "logic_response.reasoning",                source: "llm_call: default notification schema" },
-  { key: "logic_response.activities",               source: "llm_call: activity detection schema" },
-  // -- llm_call (default / custom output_key) --------------------------------
-  { key: "llm_response",                source: "llm_call (default output_key)" },
-  // -- llm_call (translation) ------------------------------------------------
-  { key: "translation",                 source: "llm_call (output_key=translation)" },
-  // -- Step label namespace (duplicate steps) --------------------------------
-  { key: "<step_label>.<output_key>",   source: "Any labeled step: e.g. vision_step.llm_response" },
+  { key: "steps.object_trend_analysis_1.outputs.room_trends",             source: "object_trend_analysis: map of room to trend" },
+  { key: "steps.object_trend_analysis_1.outputs.room_trends_any_warning", source: "object_trend_analysis: bool" },
+  { key: "steps.object_trend_analysis_1.outputs.room_trends_max_severity", source: "object_trend_analysis: ok/info/warning/critical" },
+  { key: "steps.object_trend_analysis_1.outputs.room_trends_summary",     source: "object_trend_analysis: compact text for LLM" },
+  // -- llm_call --------------------------------------------------------------
+  { key: "steps.llm_call_1.outputs.llm_response",                        source: "llm_call (default output_key)" },
+  { key: "steps.llm_call_1.outputs.llm_response.is_notification_needed", source: "llm_call: default notification schema" },
+  { key: "steps.llm_call_1.outputs.llm_response.user_notification",      source: "llm_call: default notification schema" },
+  { key: "steps.llm_call_1.outputs.llm_response.alert_level",            source: "llm_call: default notification schema" },
+  { key: "steps.llm_call_1.outputs.llm_response.reasoning",              source: "llm_call: default notification schema" },
+  { key: "steps.llm_call_1.outputs.llm_response.activities",             source: "llm_call: activity detection schema" },
   // -- activity_detection ----------------------------------------------------
-  { key: "detected_activities",                     source: "activity_detection" },
-  { key: "detected_activities.0.person_id",         source: "activity_detection: first entry" },
-  { key: "detected_activities.0.activity_type",     source: "activity_detection: first entry" },
-  { key: "detected_activities.0.room_name",         source: "activity_detection: first entry" },
-  { key: "detected_activities.0.confidence",        source: "activity_detection: first entry" },
+  { key: "steps.activity_detection_1.outputs.detected_activities",                   source: "activity_detection" },
+  { key: "steps.activity_detection_1.outputs.detected_activities.0.person_id",       source: "activity_detection: first entry" },
+  { key: "steps.activity_detection_1.outputs.detected_activities.0.activity_type",   source: "activity_detection: first entry" },
+  { key: "steps.activity_detection_1.outputs.detected_activities.0.room_name",       source: "activity_detection: first entry" },
+  { key: "steps.activity_detection_1.outputs.detected_activities.0.confidence",      source: "activity_detection: first entry" },
   // -- activity_session_start ------------------------------------------------
-  { key: "session",                     source: "activity_session_start (default output_key)" },
-  { key: "session.session_id",          source: "activity_session_start" },
-  { key: "session.person_id",           source: "activity_session_start" },
-  { key: "session.activity_type",       source: "activity_session_start" },
-  { key: "session.room_name",           source: "activity_session_start" },
-  { key: "session.started_at",          source: "activity_session_start: ISO timestamp" },
-  { key: "session.timeout_minutes",     source: "activity_session_start" },
-  { key: "session.was_existing",        source: "activity_session_start: bool, true if reused" },
+  { key: "steps.activity_session_start_1.outputs.session",              source: "activity_session_start (default output_key)" },
+  { key: "steps.activity_session_start_1.outputs.session.session_id",   source: "activity_session_start" },
+  { key: "steps.activity_session_start_1.outputs.session.person_id",    source: "activity_session_start" },
+  { key: "steps.activity_session_start_1.outputs.session.activity_type", source: "activity_session_start" },
+  { key: "steps.activity_session_start_1.outputs.session.room_name",    source: "activity_session_start" },
+  { key: "steps.activity_session_start_1.outputs.session.started_at",   source: "activity_session_start: ISO timestamp" },
+  { key: "steps.activity_session_start_1.outputs.session.was_existing", source: "activity_session_start: bool, true if reused" },
   // -- activity_session_end --------------------------------------------------
-  { key: "closed_session",              source: "activity_session_end (default output_key)" },
-  { key: "closed_session.session_id",   source: "activity_session_end" },
-  { key: "closed_session.duration_minutes", source: "activity_session_end" },
-  { key: "closed_session.closed_at",    source: "activity_session_end: ISO timestamp" },
-  { key: "closed_session.closed_via",   source: "activity_session_end: explicit/timeout/stale" },
-  { key: "closed_session.status",       source: "activity_session_end" },
+  { key: "steps.activity_session_end_1.outputs.closed_session",                  source: "activity_session_end (default output_key)" },
+  { key: "steps.activity_session_end_1.outputs.closed_session.session_id",       source: "activity_session_end" },
+  { key: "steps.activity_session_end_1.outputs.closed_session.duration_minutes", source: "activity_session_end" },
+  { key: "steps.activity_session_end_1.outputs.closed_session.closed_at",        source: "activity_session_end: ISO timestamp" },
+  { key: "steps.activity_session_end_1.outputs.closed_session.closed_via",       source: "activity_session_end: explicit/timeout/stale" },
+  { key: "steps.activity_session_end_1.outputs.closed_session.status",           source: "activity_session_end" },
   // -- verification ----------------------------------------------------------
-  { key: "verification.verified",           source: "verification: bool" },
-  { key: "verification.match_mode",         source: "verification: all/any" },
-  { key: "verification.matched_conditions", source: "verification: list" },
-  { key: "verification.unmatched_conditions", source: "verification: list" },
+  { key: "steps.verification_1.outputs.verification.verified",             source: "verification: bool" },
+  { key: "steps.verification_1.outputs.verification.match_mode",           source: "verification: all/any" },
+  { key: "steps.verification_1.outputs.verification.matched_conditions",   source: "verification: list" },
+  { key: "steps.verification_1.outputs.verification.unmatched_conditions", source: "verification: list" },
   // -- condition -------------------------------------------------------------
-  { key: "condition.result",            source: "condition: bool" },
-  { key: "condition.expression",        source: "condition" },
-  { key: "condition.branch",            source: "condition: true/false" },
+  { key: "steps.condition_1.outputs.condition.result",   source: "condition: bool" },
+  { key: "steps.condition_1.outputs.condition.expression", source: "condition" },
+  { key: "steps.condition_1.outputs.condition.branch",   source: "condition: true/false" },
   // -- ha_action -------------------------------------------------------------
-  { key: "ha_action.success",           source: "ha_action: bool" },
-  { key: "ha_action.domain",            source: "ha_action" },
-  { key: "ha_action.service",           source: "ha_action" },
-  { key: "ha_action.entity_id",         source: "ha_action" },
+  { key: "steps.ha_action_1.outputs.ha_action.success",   source: "ha_action: bool" },
+  { key: "steps.ha_action_1.outputs.ha_action.domain",    source: "ha_action" },
+  { key: "steps.ha_action_1.outputs.ha_action.service",   source: "ha_action" },
+  { key: "steps.ha_action_1.outputs.ha_action.entity_id", source: "ha_action" },
   // -- notification ----------------------------------------------------------
-  { key: "notification_dispatched",     source: "notification: bool" },
-  { key: "notification_channels",       source: "notification: map of channel → result" },
+  { key: "steps.notification_1.outputs.notification_dispatched", source: "notification: bool" },
+  { key: "steps.notification_1.outputs.notification_channels",   source: "notification: map of channel to result" },
   // -- daily_report ----------------------------------------------------------
-  { key: "daily_reports",               source: "daily_report (default output_key)" },
-  { key: "daily_reports.0.person_id",   source: "daily_report: first entry" },
-  { key: "daily_reports.0.report_date", source: "daily_report: YYYY-MM-DD" },
-  { key: "daily_reports.0.wellness_score", source: "daily_report: 0-100" },
-  // -- scene_analysis (write_to_memory) --------------------------------------
-  { key: "scene_memory_observation_id", source: "scene_analysis: observation ID when write_to_memory=True" },
+  { key: "steps.daily_report_1.outputs.daily_reports",                  source: "daily_report (default output_key)" },
+  { key: "steps.daily_report_1.outputs.daily_reports.0.person_id",      source: "daily_report: first entry" },
+  { key: "steps.daily_report_1.outputs.daily_reports.0.report_date",    source: "daily_report: YYYY-MM-DD" },
+  { key: "steps.daily_report_1.outputs.daily_reports.0.wellness_score", source: "daily_report: 0-100" },
   // -- semantic_memory_write -------------------------------------------------
-  { key: "semantic_memory_observation_id", source: "semantic_memory_write: stored observation ID" },
-  { key: "semantic_memory_movement_ids", source: "semantic_memory_write: list of movement IDs" },
+  { key: "steps.semantic_memory_write_1.outputs.semantic_memory_observation_id", source: "semantic_memory_write: stored observation ID" },
+  { key: "steps.semantic_memory_write_1.outputs.semantic_memory_movement_ids",   source: "semantic_memory_write: list of movement IDs" },
   // -- semantic_memory_query -------------------------------------------------
-  { key: "memory_context.summary",      source: "semantic_memory_query: LLM-ready summary" },
-  { key: "memory_context.recent_objects", source: "semantic_memory_query: object label list" },
-  { key: "memory_context.recent_hazards", source: "semantic_memory_query: hazard list" },
-  { key: "memory_context.observations", source: "semantic_memory_query: observation records" },
-  { key: "memory_context.observations_count", source: "semantic_memory_query: int" },
+  { key: "steps.semantic_memory_query_1.outputs.memory_context.summary",             source: "semantic_memory_query: LLM-ready summary" },
+  { key: "steps.semantic_memory_query_1.outputs.memory_context.recent_objects",      source: "semantic_memory_query: object label list" },
+  { key: "steps.semantic_memory_query_1.outputs.memory_context.recent_hazards",      source: "semantic_memory_query: hazard list" },
+  { key: "steps.semantic_memory_query_1.outputs.memory_context.observations",        source: "semantic_memory_query: observation records" },
+  { key: "steps.semantic_memory_query_1.outputs.memory_context.observations_count",  source: "semantic_memory_query: int" },
 ];
 
 const filteredVariables = computed(() => {
@@ -2218,6 +2220,9 @@ function save() {
       }
     }
   }
+
+  const labelValid = labelRules.every((r) => r(localStep.label) === true);
+  if (!labelValid || labelUniqueError.value) return;
 
   emit("save", {
     step_type: localStep.step_type,

@@ -164,6 +164,33 @@ def list_steps(
     return steps
 
 
+def _generate_default_label(db: Session, rule_id: int, step_type: str) -> str:
+    """Return a unique default label like ``llm_call_1`` for the given step type."""
+    existing_labels = {
+        row[0]
+        for row in db.query(PipelineStep.label)
+        .filter(PipelineStep.rule_id == rule_id, PipelineStep.label.isnot(None))
+        .all()
+    }
+    n = 1
+    while True:
+        candidate = f"{step_type}_{n}"
+        if candidate not in existing_labels:
+            return candidate
+        n += 1
+
+
+def _assert_label_unique(db: Session, rule_id: int, label: str, exclude_step_id: int | None = None) -> None:
+    q = db.query(PipelineStep).filter(
+        PipelineStep.rule_id == rule_id,
+        PipelineStep.label == label,
+    )
+    if exclude_step_id is not None:
+        q = q.filter(PipelineStep.id != exclude_step_id)
+    if q.first():
+        raise ConflictError(f"A step with label '{label}' already exists in this pipeline")
+
+
 @router.post("/{rule_id}/steps", response_model=PipelineStepOut, status_code=201)
 def add_step(
     rule_id: int,
@@ -184,10 +211,15 @@ def add_step(
     )
     next_order = (max_order[0] + 1) if max_order else 0
 
+    label = payload.label or _generate_default_label(db, rule_id, payload.step_type)
+    _assert_label_unique(db, rule_id, label)
+
+    data = payload.model_dump()
+    data["label"] = label
     step = PipelineStep(
         rule_id=rule_id,
         order=next_order,
-        **payload.model_dump(),
+        **data,
     )
     db.add(step)
     db.commit()
@@ -239,7 +271,10 @@ def update_step(
     )
     if not step:
         raise NotFoundError("PipelineStep", step_id)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    if "label" in updates and updates["label"] is not None:
+        _assert_label_unique(db, rule_id, updates["label"], exclude_step_id=step_id)
+    for key, value in updates.items():
         setattr(step, key, value)
     db.commit()
     db.refresh(step)

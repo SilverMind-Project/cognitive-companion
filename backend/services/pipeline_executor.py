@@ -458,10 +458,8 @@ class PipelineExecutor:
                 _active_step_started_at = None
 
                 # Merge step output into the tracked dict via the canonical helper.
-                # apply_step_result writes:
-                #   - steps.by_id.<id>.outputs  (canonical, always)
-                #   - steps.by_label.<slug>      (friendly alias when unique)
-                #   - legacy top-level aliases   (last-writer-wins, collision logged)
+                # apply_step_result writes steps.<label>.outputs and promotes
+                # pipeline control flags (_cooloff_triggered) to the top level.
                 apply_step_result(
                     pipeline_data,
                     step_id=step.id,

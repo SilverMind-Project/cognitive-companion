@@ -202,7 +202,7 @@ scene_analysis:
 
 # Semantic Memory Service (also provides object trend tracking API)
 semantic_memory:
-  url: "${SEMANTIC_MEMORY_URL}"         # e.g. http://localhost:8600
+  url: "${SEMANTIC_MEMORY_URL}"         # e.g. http://localhost:8400
   enabled: false
   timeout: 10
 

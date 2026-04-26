@@ -132,7 +132,7 @@ class TestDSTTransitions:
 
     def test_spring_forward_transition(self) -> None:
         """Test DST spring forward (2:00 AM -> 3:00 AM) in America/New_York.
-        
+
         In 2026, DST starts on March 8 at 2:00 AM EST -> 3:00 AM EDT.
         """
         # 1:30 AM EST (before spring forward)
@@ -149,7 +149,7 @@ class TestDSTTransitions:
 
     def test_fall_back_transition(self) -> None:
         """Test DST fall back (2:00 AM -> 1:00 AM) in America/New_York.
-        
+
         In 2026, DST ends on November 1 at 2:00 AM EDT -> 1:00 AM EST.
         """
         # 1:30 AM EDT (before fall back, first occurrence)

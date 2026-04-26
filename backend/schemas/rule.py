@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
+
+_LABEL_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 # -- Pipeline Step -----------------------------------------------------------
 
@@ -17,6 +20,13 @@ class PipelineStepCreate(BaseModel):
     next_step_on_true: int | None = None
     next_step_on_false: int | None = None
 
+    @field_validator("label")
+    @classmethod
+    def label_must_be_slug(cls, v: str | None) -> str | None:
+        if v is not None and not _LABEL_RE.match(v):
+            raise ValueError("label must match ^[a-z][a-z0-9_]*$")
+        return v
+
 
 class PipelineStepUpdate(BaseModel):
     step_type: str | None = None
@@ -25,6 +35,13 @@ class PipelineStepUpdate(BaseModel):
     enabled: bool | None = None
     next_step_on_true: int | None = None
     next_step_on_false: int | None = None
+
+    @field_validator("label")
+    @classmethod
+    def label_must_be_slug(cls, v: str | None) -> str | None:
+        if v is not None and not _LABEL_RE.match(v):
+            raise ValueError("label must match ^[a-z][a-z0-9_]*$")
+        return v
 
 
 class PipelineStepOut(BaseModel):

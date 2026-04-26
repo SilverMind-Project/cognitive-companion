@@ -68,10 +68,10 @@ class UTCDateTime(TypeDecorator[datetime]):
 
 def to_app_timezone(utc_dt: datetime) -> datetime:
     """Convert UTC datetime to application timezone.
-    
+
     Args:
         utc_dt: A timezone-aware datetime in UTC
-        
+
     Returns:
         The datetime converted to the application timezone configured in settings
     """
@@ -82,10 +82,10 @@ def to_app_timezone(utc_dt: datetime) -> datetime:
 
 def from_app_timezone(app_dt: datetime) -> datetime:
     """Convert application timezone datetime to UTC.
-    
+
     Args:
         app_dt: A timezone-aware datetime in the application timezone
-        
+
     Returns:
         The datetime converted to UTC
     """

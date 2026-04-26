@@ -136,22 +136,24 @@ def test_lock_monitoring_tracks_metrics_with_mocked_query():
             return fn
         return decorator
 
-    with patch("backend.core.database.event.listens_for", side_effect=mock_listens_for):
-        with patch("backend.core.database.time.time") as mock_time:
-            _install_lock_monitoring(mock_engine)
+    with (
+        patch("backend.core.database.event.listens_for", side_effect=mock_listens_for),
+        patch("backend.core.database.time.time") as mock_time,
+    ):
+        _install_lock_monitoring(mock_engine)
 
-            # Simulate a query with 50ms wait
-            mock_time.side_effect = [0.0, 0.05]
-            mock_context = Mock()
+        # Simulate a query with 50ms wait
+        mock_time.side_effect = [0.0, 0.05]
+        mock_context = Mock()
 
-            # Call before and after callbacks
-            before_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
-            after_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
+        # Call before and after callbacks
+        before_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
+        after_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
 
-            # Check metrics
-            metrics = get_lock_contention_metrics()
-            assert metrics["total_lock_waits"] == 1
-            assert metrics["total_wait_time_ms"] == 50.0
+        # Check metrics
+        metrics = get_lock_contention_metrics()
+        assert metrics["total_lock_waits"] == 1
+        assert metrics["total_wait_time_ms"] == 50.0
 
 
 def test_lock_monitoring_logs_waits_over_100ms():
@@ -174,24 +176,26 @@ def test_lock_monitoring_logs_waits_over_100ms():
             return fn
         return decorator
 
-    with patch("backend.core.database.event.listens_for", side_effect=mock_listens_for):
-        with patch("backend.core.database.time.time") as mock_time:
-            with patch("backend.core.database.logger") as mock_logger:
-                _install_lock_monitoring(mock_engine)
+    with (
+        patch("backend.core.database.event.listens_for", side_effect=mock_listens_for),
+        patch("backend.core.database.time.time") as mock_time,
+        patch("backend.core.database.logger") as mock_logger,
+    ):
+        _install_lock_monitoring(mock_engine)
 
-                # Simulate a query with 150ms wait
-                mock_time.side_effect = [0.0, 0.15]
-                mock_context = Mock()
+        # Simulate a query with 150ms wait
+        mock_time.side_effect = [0.0, 0.15]
+        mock_context = Mock()
 
-                # Call before and after callbacks
-                before_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
-                after_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
+        # Call before and after callbacks
+        before_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
+        after_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
 
-                # Verify warning was logged
-                mock_logger.warning.assert_called_once()
-                call_args = mock_logger.warning.call_args
-                assert call_args[0][0] == "lock_wait"
-                assert call_args[1]["wait_time_ms"] == 150.0
+        # Verify warning was logged
+        mock_logger.warning.assert_called_once()
+        call_args = mock_logger.warning.call_args
+        assert call_args[0][0] == "lock_wait"
+        assert call_args[1]["wait_time_ms"] == 150.0
 
 
 def test_lock_monitoring_does_not_log_waits_under_100ms():
@@ -214,21 +218,23 @@ def test_lock_monitoring_does_not_log_waits_under_100ms():
             return fn
         return decorator
 
-    with patch("backend.core.database.event.listens_for", side_effect=mock_listens_for):
-        with patch("backend.core.database.time.time") as mock_time:
-            with patch("backend.core.database.logger") as mock_logger:
-                _install_lock_monitoring(mock_engine)
+    with (
+        patch("backend.core.database.event.listens_for", side_effect=mock_listens_for),
+        patch("backend.core.database.time.time") as mock_time,
+        patch("backend.core.database.logger") as mock_logger,
+    ):
+        _install_lock_monitoring(mock_engine)
 
-                # Simulate a query with 50ms wait
-                mock_time.side_effect = [0.0, 0.05]
-                mock_context = Mock()
+        # Simulate a query with 50ms wait
+        mock_time.side_effect = [0.0, 0.05]
+        mock_context = Mock()
 
-                # Call before and after callbacks
-                before_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
-                after_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
+        # Call before and after callbacks
+        before_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
+        after_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
 
-                # Verify warning was NOT logged
-                mock_logger.warning.assert_not_called()
+        # Verify warning was NOT logged
+        mock_logger.warning.assert_not_called()
 
 
 def test_lock_contention_metrics_accumulate():
@@ -251,22 +257,24 @@ def test_lock_contention_metrics_accumulate():
             return fn
         return decorator
 
-    with patch("backend.core.database.event.listens_for", side_effect=mock_listens_for):
-        with patch("backend.core.database.time.time") as mock_time:
-            _install_lock_monitoring(mock_engine)
+    with (
+        patch("backend.core.database.event.listens_for", side_effect=mock_listens_for),
+        patch("backend.core.database.time.time") as mock_time,
+    ):
+        _install_lock_monitoring(mock_engine)
 
-            # Simulate 3 queries
-            for i in range(3):
-                mock_time.side_effect = [0.0, 0.05]
-                mock_context = Mock()
-                before_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
-                after_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
+        # Simulate 3 queries
+        for _i in range(3):
+            mock_time.side_effect = [0.0, 0.05]
+            mock_context = Mock()
+            before_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
+            after_callback(None, None, "SELECT * FOR UPDATE", None, mock_context, False)
 
-            # Check metrics
-            metrics = get_lock_contention_metrics()
-            assert metrics["total_lock_waits"] == 3
-            assert metrics["total_wait_time_ms"] == 150.0  # 3 * 50ms
-            assert metrics["avg_wait_time_ms"] == 50.0
+        # Check metrics
+        metrics = get_lock_contention_metrics()
+        assert metrics["total_lock_waits"] == 3
+        assert metrics["total_wait_time_ms"] == 150.0  # 3 * 50ms
+        assert metrics["avg_wait_time_ms"] == 50.0
 
 
 def test_reset_lock_contention_metrics():
@@ -380,27 +388,29 @@ def test_lock_monitoring_truncates_long_statements():
             return fn
         return decorator
 
-    with patch("backend.core.database.event.listens_for", side_effect=mock_listens_for):
-        with patch("backend.core.database.time.time") as mock_time:
-            with patch("backend.core.database.logger") as mock_logger:
-                _install_lock_monitoring(mock_engine)
+    with (
+        patch("backend.core.database.event.listens_for", side_effect=mock_listens_for),
+        patch("backend.core.database.time.time") as mock_time,
+        patch("backend.core.database.logger") as mock_logger,
+    ):
+        _install_lock_monitoring(mock_engine)
 
-                # Simulate a 150ms wait with a very long query
-                mock_time.side_effect = [0.0, 0.15]
-                mock_context = Mock()
+        # Simulate a 150ms wait with a very long query
+        mock_time.side_effect = [0.0, 0.15]
+        mock_context = Mock()
 
-                long_query = "SELECT * FROM test_table WHERE " + " OR ".join(
-                    f"id = {i}" for i in range(100)
-                ) + " FOR UPDATE"
+        long_query = "SELECT * FROM test_table WHERE " + " OR ".join(
+            f"id = {i}" for i in range(100)
+        ) + " FOR UPDATE"
 
-                before_callback(None, None, long_query, None, mock_context, False)
-                after_callback(None, None, long_query, None, mock_context, False)
+        before_callback(None, None, long_query, None, mock_context, False)
+        after_callback(None, None, long_query, None, mock_context, False)
 
-                # Verify statement was truncated to 200 characters
-                mock_logger.warning.assert_called_once()
-                call_args = mock_logger.warning.call_args
-                logged_statement = call_args[1]["statement"]
-                assert len(logged_statement) <= 200
+        # Verify statement was truncated to 200 characters
+        mock_logger.warning.assert_called_once()
+        call_args = mock_logger.warning.call_args
+        logged_statement = call_args[1]["statement"]
+        assert len(logged_statement) <= 200
 
 
 def test_lock_monitoring_tracks_waits_over_100ms_count():

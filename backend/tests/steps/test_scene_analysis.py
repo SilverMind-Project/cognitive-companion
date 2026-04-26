@@ -227,6 +227,7 @@ class TestHappyPath:
                 _make_trigger(media_paths=[_MINIO_URL]),
                 services,
             )
+        assert "scene_images" in result.data
         assert "scene_detections" in result.data
         assert "scene_description" in result.data
         assert "scene_embedding" in result.data
@@ -359,7 +360,27 @@ class TestMultiImageAggregation:
         assert "chair" in labels
         assert client.analyze.call_count == 2
 
-    async def test_description_is_first_nonempty(self):
+    async def test_description_joins_nonempty(self):
+        client = AsyncMock(spec=SceneAnalysisClient)
+        client.configured = True
+        client.analyze = AsyncMock(
+            side_effect=[
+                SceneAnalyzeResult(description="A living room."),
+                SceneAnalyzeResult(description="A kitchen with a stove."),
+            ]
+        )
+        services = _make_services(scene_analysis_client=client)
+        with _patch_http():
+            result = await _HANDLER.execute(
+                _make_step({"max_images": 2}),
+                _FakeExecution(),
+                {},
+                _make_trigger(media_paths=[_MINIO_URL, _MINIO_URL2]),
+                services,
+            )
+        assert result.data["scene_description"] == "A living room.\n---\nA kitchen with a stove."
+
+    async def test_description_skips_empty_entries(self):
         client = AsyncMock(spec=SceneAnalysisClient)
         client.configured = True
         client.analyze = AsyncMock(
@@ -378,6 +399,42 @@ class TestMultiImageAggregation:
                 services,
             )
         assert result.data["scene_description"] == "A kitchen with a stove."
+
+    async def test_scene_images_has_per_image_entry(self):
+        det = SceneDetection(label="person", confidence=0.9, bbox=[0, 0, 100, 100], class_id=0)
+        client = AsyncMock(spec=SceneAnalysisClient)
+        client.configured = True
+        client.analyze = AsyncMock(
+            side_effect=[
+                SceneAnalyzeResult(detections=[det], description="Image one."),
+                SceneAnalyzeResult(description="Image two."),
+            ]
+        )
+        services = _make_services(scene_analysis_client=client)
+        with _patch_http():
+            result = await _HANDLER.execute(
+                _make_step({"max_images": 2}),
+                _FakeExecution(),
+                {},
+                _make_trigger(media_paths=[_MINIO_URL, _MINIO_URL2]),
+                services,
+            )
+        images = result.data["scene_images"]
+        assert len(images) == 2
+        assert images[0]["image_path"] == _MINIO_URL
+        assert images[0]["scene_description"] == "Image one."
+        assert len(images[0]["scene_detections"]) == 1
+        assert images[0]["scene_detections"][0]["label"] == "person"
+        assert images[1]["image_path"] == _MINIO_URL2
+        assert images[1]["scene_description"] == "Image two."
+        assert images[1]["scene_detections"] == []
+
+    async def test_scene_images_empty_on_no_client(self):
+        services = _make_services(scene_analysis_client=None)
+        result = await _HANDLER.execute(
+            _make_step(), _FakeExecution(), {}, _make_trigger(), services
+        )
+        assert result.data["scene_images"] == []
 
     async def test_hazards_aggregated_across_images(self):
         det = SceneDetection(label="fire", confidence=0.9, bbox=[0, 0, 10, 10], class_id=99)

@@ -6,13 +6,17 @@ on the images collected by the trigger or selected cameras.
 
 Result keys written to ``pipeline_data``
 -----------------------------------------
+``scene_images``
+    Per-image list of dicts, one entry per analysed image:
+    ``{image_path, scene_description, scene_detections, scene_hazards, scene_embedding}``.
+    Use ``jq()`` in condition steps to filter individual images.
+
 ``scene_detections``
     Aggregated list of object-detection dicts across all images
     (label, confidence, bbox, class_id).
 
 ``scene_description``
-    Structured text description from Florence-2 — first non-empty result
-    across all images.
+    All non-empty Florence-2 descriptions joined by ``\\n---\\n``.
 
 ``scene_embedding``
     CLIP embedding vector as a list of floats — first non-empty result
@@ -184,9 +188,10 @@ class SceneAnalysisHandler(StepHandler):
             logger.debug("scene_analysis_no_images", trigger=trigger.sensor_id)
             return StepResult(data=_empty)
 
+        image_results: list[dict] = []
         all_detections = []
         all_hazards = []
-        description = ""
+        all_descriptions: list[str] = []
         embedding: list = []
         detector_available = False
         describer_available = False
@@ -206,15 +211,50 @@ class SceneAnalysisHandler(StepHandler):
                 run_hazards=config.get("run_hazards", True),
             )
 
+            per_image_detections = [
+                {
+                    "label": d.label,
+                    "confidence": d.confidence,
+                    "bbox": d.bbox,
+                    "class_id": d.class_id,
+                }
+                for d in result.detections
+            ]
+            per_image_hazards = [
+                {
+                    "name": h.name,
+                    "severity": h.severity,
+                    "description": h.description,
+                    "detection": {
+                        "label": h.detection.label,
+                        "confidence": h.detection.confidence,
+                        "bbox": h.detection.bbox,
+                        "class_id": h.detection.class_id,
+                    },
+                }
+                for h in result.hazards
+            ]
+            image_results.append(
+                {
+                    "image_path": image_path,
+                    "scene_description": result.description or "",
+                    "scene_detections": per_image_detections,
+                    "scene_hazards": per_image_hazards,
+                    "scene_embedding": result.embedding or [],
+                }
+            )
+
             all_detections.extend(result.detections)
             all_hazards.extend(result.hazards)
-            if not description and result.description:
-                description = result.description
+            if result.description:
+                all_descriptions.append(result.description)
             if not embedding and result.embedding:
                 embedding = result.embedding
             detector_available = detector_available or result.detector_available
             describer_available = describer_available or result.describer_available
             embedder_available = embedder_available or result.embedder_available
+
+        description = "\n---\n".join(all_descriptions)
 
         logger.info(
             "scene_analysis_done",
@@ -251,6 +291,7 @@ class SceneAnalysisHandler(StepHandler):
 
         return StepResult(
             data={
+                "scene_images": image_results,
                 "scene_detections": [
                     {
                         "label": d.label,
@@ -291,6 +332,7 @@ class SceneAnalysisHandler(StepHandler):
 
 def _empty_result() -> dict:
     return {
+        "scene_images": [],
         "scene_detections": [],
         "scene_description": "",
         "scene_embedding": [],
@@ -298,6 +340,7 @@ def _empty_result() -> dict:
         "scene_detector_available": False,
         "scene_describer_available": False,
         "scene_embedder_available": False,
+        "scene_memory_observation_id": None,
     }
 
 

@@ -75,6 +75,7 @@ class ServiceContainer:
     scheduler: Any = None
     rag_service: Any = None
     llm_model_registry: Any = None  # LLMModelRegistry for the unified llm_call step
+    presence: Any = None  # PresenceService (Block 1)
     scene_analysis_client: Any = None
     activity_session_service: Any = None
     daily_report_service: Any = None

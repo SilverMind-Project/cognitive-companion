@@ -84,6 +84,7 @@ permission_map:
     - "cts.live.subscribe"
     - "cts.signals.view"
     - "cts.keyframes.view"
+    - "GET /api/v1/cts/presence/*"
 
   caregiver_admin:
     - "GET /api/v1/*"

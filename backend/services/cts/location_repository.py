@@ -103,6 +103,19 @@ class LocationRepository(Protocol):
         """Return the current room name for *person_id*, or ``None``."""
         ...
 
+    def get_open_history_row(
+        self,
+        person_id: str,
+        room_name: str | None = None,
+    ) -> PersonLocationHistory | None:
+        """Return the most recent open history row for *person_id*.
+
+        An "open" row is one where ``exited_at IS NULL`` and
+        ``superseded_by_revision_id IS NULL``.  When *room_name* is
+        provided, also filter to that room.
+        """
+        ...
+
     def commit(self) -> None:
         """Commit the current transaction."""
         ...
@@ -228,6 +241,25 @@ class SqlAlchemyLocationRepository:
     def current_room_for(self, person_id: str) -> str | None:
         state = self.get_state(person_id)
         return state.current_room_name if state is not None else None
+
+    def get_open_history_row(
+        self,
+        person_id: str,
+        room_name: str | None = None,
+    ) -> PersonLocationHistory | None:
+        query = self._db.query(PersonLocationHistory).filter(
+            PersonLocationHistory.person_id == person_id,
+            PersonLocationHistory.exited_at.is_(None),
+            PersonLocationHistory.superseded_by_revision_id.is_(None),
+        )
+        if room_name is not None:
+            query = query.filter(
+                PersonLocationHistory.room_name == room_name,
+            )
+        return (
+            query.order_by(PersonLocationHistory.entered_at.desc())
+            .first()
+        )
 
     def commit(self) -> None:
         self._db.commit()
@@ -401,6 +433,37 @@ class InMemoryLocationRepository:
     def current_room_for(self, person_id: str) -> str | None:
         s = self._states.get(person_id)
         return s.current_room_name if s is not None else None
+
+    def get_open_history_row(
+        self,
+        person_id: str,
+        room_name: str | None = None,
+    ) -> PersonLocationHistory | None:
+        candidates = [
+            h
+            for h in reversed(self._history)
+            if h.person_id == person_id
+            and h.exited_at is None
+            and h.superseded_by_revision_id is None
+        ]
+        if room_name is not None:
+            candidates = [h for h in candidates if h.room_name == room_name]
+        if not candidates:
+            return None
+        row = candidates[0]
+        return PersonLocationHistory(
+            person_id=row.person_id,
+            room_id=row.room_id,
+            room_name=row.room_name,
+            entered_at=row.entered_at,
+            exited_at=row.exited_at,
+            source=row.source,
+            global_track_id=row.global_track_id,
+            direction_semantic=row.direction_semantic,
+            from_room_id=row.from_room_id,
+            from_room_name=row.from_room_name,
+            superseded_by_revision_id=row.superseded_by_revision_id,
+        )
 
     def commit(self) -> None:
         pass  # no-op for in-memory

@@ -24,14 +24,14 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n!continuoustracking/v1/frame.proto\x12\x15\x63ontinuoustracking.v1\"\xb7\x01\n\nFrameReady\x12\x11\n\tcamera_id\x18\x01 \x01(\t\x12\x11\n\tminio_key\x18\x02 \x01(\t\x12\x13\n\x0b\x66rame_index\x18\x03 \x01(\x03\x12\x1c\n\x14\x63\x61pture_time_unix_ns\x18\x04 \x01(\x06\x12\x1d\n\x15received_time_unix_ns\x18\x05 \x01(\x06\x12\r\n\x05width\x18\x06 \x01(\x05\x12\x0e\n\x06height\x18\x07 \x01(\x05\x12\x12\n\nsample_fps\x18\x08 \x01(\x02\"\xb4\x01\n\rFrameResponse\x12\x11\n\tcamera_id\x18\x01 \x01(\t\x12\x13\n\x0b\x66rame_index\x18\x02 \x01(\x03\x12\x0f\n\x07success\x18\x03 \x01(\x08\x12\x12\n\nerror_code\x18\x04 \x01(\t\x12\x1d\n\x15processing_latency_us\x18\x05 \x01(\x03\x12\x17\n\x0f\x64\x65tection_count\x18\x06 \x01(\x05\x12\x1e\n\x16\x63ompleted_time_unix_ns\x18\x07 \x01(\x06\x42\x44ZBgithub.com/khoofia/continuous-tracking/proto/continuoustracking/v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n!continuoustracking/v1/frame.proto\x12\x15\x63ontinuoustracking.v1\"\xb7\x01\n\nFrameReady\x12\x11\n\tcamera_id\x18\x01 \x01(\t\x12\x11\n\tminio_key\x18\x02 \x01(\t\x12\x13\n\x0b\x66rame_index\x18\x03 \x01(\x03\x12\x1c\n\x14\x63\x61pture_time_unix_ns\x18\x04 \x01(\x06\x12\x1d\n\x15received_time_unix_ns\x18\x05 \x01(\x06\x12\r\n\x05width\x18\x06 \x01(\x05\x12\x0e\n\x06height\x18\x07 \x01(\x05\x12\x12\n\nsample_fps\x18\x08 \x01(\x02\"\xb4\x01\n\rFrameResponse\x12\x11\n\tcamera_id\x18\x01 \x01(\t\x12\x13\n\x0b\x66rame_index\x18\x02 \x01(\x03\x12\x0f\n\x07success\x18\x03 \x01(\x08\x12\x12\n\nerror_code\x18\x04 \x01(\t\x12\x1d\n\x15processing_latency_us\x18\x05 \x01(\x03\x12\x17\n\x0f\x64\x65tection_count\x18\x06 \x01(\x05\x12\x1e\n\x16\x63ompleted_time_unix_ns\x18\x07 \x01(\x06\x42OZMgithub.com/SilverMind-Project/continuous-tracking/proto/continuoustracking/v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'continuoustracking.v1.frame_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
-  _globals['DESCRIPTOR']._serialized_options = b'ZBgithub.com/khoofia/continuous-tracking/proto/continuoustracking/v1'
+  _globals['DESCRIPTOR']._serialized_options = b'ZMgithub.com/SilverMind-Project/continuous-tracking/proto/continuoustracking/v1'
   _globals['_FRAMEREADY']._serialized_start=61
   _globals['_FRAMEREADY']._serialized_end=244
   _globals['_FRAMERESPONSE']._serialized_start=247

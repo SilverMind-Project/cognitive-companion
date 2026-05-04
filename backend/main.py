@@ -434,6 +434,32 @@ async def lifespan(app: FastAPI):
         app.state.tracking_event_subscriber = cts_runtime.tracking_event_subscriber
         app.state.identity_revision_subscriber = cts_runtime.identity_revision_subscriber
         await cts_runtime.start()
+
+        # -- PresenceService (Block 1: skeleton, CTS-only provider) --------
+        from backend.services.cts.location_repository import (
+            SqlAlchemyLocationRepository,
+        )
+        from backend.services.presence import PresenceService
+        from backend.services.presence.providers.cts_location import (
+            CtsLocationProvider,
+        )
+
+        location_repository = SqlAlchemyLocationRepository(
+            cts_runtime.db_factory(),
+        )
+        cts_provider = CtsLocationProvider(
+            location_repository=location_repository,
+            ttl_seconds=settings.get("presence.cts_ttl_seconds", 120),
+            priority=50,
+        )
+        presence_service = PresenceService(
+            providers=[cts_provider],
+            confidence_floor=0.0,
+        )
+        app.state.presence = presence_service
+        location_repository.close()
+        logger.info("presence_service_started")
+
         # Now that the runtime exists, surface it to the MCP tool set.
         from backend.mcp.server import _svc as _mcp_svc
 
@@ -495,6 +521,7 @@ def create_app() -> FastAPI:
         cts_identity,
         cts_keyframes,
         cts_live,
+        cts_presence,
         cts_signals,
         device,
         events,
@@ -536,6 +563,7 @@ def create_app() -> FastAPI:
     app.include_router(cts.router, prefix=api)
     app.include_router(cts_cameras.router, prefix=api)
     app.include_router(cts_calibration.router, prefix=api)
+    app.include_router(cts_presence.router, prefix=api)
     app.include_router(cts_signals.router, prefix=api)
     app.include_router(cts_keyframes.router, prefix=api)
     app.include_router(cts_dashboard.router, prefix=api)

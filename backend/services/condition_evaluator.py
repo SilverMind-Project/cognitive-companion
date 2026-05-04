@@ -32,11 +32,11 @@ JMESPath examples (inside ``jq()``)
   jq("steps.sa.outputs.scene_detections[?confidence > `0.9`]")
 - Count and compare (outer grammar):
   jq("length(steps.sa.outputs.scene_detections[?label == 'person'])") > 0
-- Per-image description: 
+- Per-image description:
   jq("contains(lower(steps.scene_analysis_1.outputs.scene_images[0].scene_description), 'kitchen')")
-- Per-image detection filter: 
+- Per-image detection filter:
   jq("length(steps.scene_analysis_1.outputs.scene_images[1].scene_detections[?label == 'person'])") > 0
-- Cross-all-images flatten + filter: 
+- Cross-all-images flatten + filter:
   jq("length(steps.scene_analysis_1.outputs.scene_images[].scene_detections[] | [?label == 'person'])") > 0
 """
 

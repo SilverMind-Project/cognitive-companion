@@ -261,6 +261,12 @@ image:
 #       mode: "any"
 cameras: {}
 
+# Presence service configuration
+# Block 1 stub: CTS-only provider with configurable TTL.
+# Block 3 introduces the full provider chain in config/presence.yaml.
+presence:
+  cts_ttl_seconds: 120
+
 # Continuous Tracking System (CTS) — gated by feature flag
 cts:
   enabled: false  # Set to true to enable CTS integration

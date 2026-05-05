@@ -5,14 +5,13 @@ from __future__ import annotations
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import Engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import backend.models  # noqa: F401
 from backend.core.auth import AuthContext, get_auth_context
 from backend.core.config import Settings
-from backend.core.database import Base, get_db
+from backend.core.database import get_db
 from backend.core.exceptions import register_exception_handlers
 from backend.routers.cts_calibration import compute_homography, router
 
@@ -61,18 +60,12 @@ class TestComputeHomography:
 # ---------------------------------------------------------------------------
 
 
-def _make_client(cts_enabled: bool = True) -> TestClient:
+def _make_client(db_engine: Engine, cts_enabled: bool = True) -> TestClient:
     from unittest.mock import AsyncMock, MagicMock, patch
 
     cfg = Settings.from_dict({"cts": {"enabled": cts_enabled}})
 
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(bind=engine)
-    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
 
     def _override_db():
         db = Session()
@@ -107,15 +100,15 @@ def _make_client(cts_enabled: bool = True) -> TestClient:
 
 
 @pytest.fixture
-def client():
-    c = _make_client(cts_enabled=True)
+def client(db_engine: Engine):
+    c = _make_client(db_engine, cts_enabled=True)
     yield c
     c._patcher.stop()  # type: ignore[attr-defined]
 
 
 @pytest.fixture
-def client_off():
-    c = _make_client(cts_enabled=False)
+def client_off(db_engine: Engine):
+    c = _make_client(db_engine, cts_enabled=False)
     yield c
     c._patcher.stop()  # type: ignore[attr-defined]
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from pydantic import BaseModel, Field, field_validator
+
+from backend.schemas.common import UTCDatetime
 
 
 class CtsCameraCreate(BaseModel):
@@ -35,8 +35,8 @@ class CtsCameraOut(BaseModel):
     homography_residuals: list[float] | None
     privacy_zone_count: int
     health: dict | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDatetime
+    updated_at: UTCDatetime
 
     model_config = {"from_attributes": True}
 

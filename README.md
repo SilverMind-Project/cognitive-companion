@@ -331,7 +331,7 @@ cognitive-companion/
 │   ├── settings.yaml           # Application settings
 │   ├── auth.yaml               # API keys, device keys, permissions
 │   └── notifications.yaml      # Alert routing and escalation
-├── data/                       # Runtime data (SQLite DB, media cache)
+├── data/                       # Runtime data (media cache)
 ├── docker-compose.yml          # Compose file (backend + frontend)
 ├── backend/pyproject.toml      # Python dependencies and tooling
 ├── backend/uv.lock             # Locked dependency versions (uv)
@@ -373,7 +373,7 @@ All variables are interpolated into YAML config files using `${ENV_VAR}` syntax.
 | `app` | Name, version, timezone, debug mode |
 | `server` | Host and port binding |
 | `cors` | Allowed origins |
-| `database` | SQLite database URL |
+| `database` | PostgreSQL database URL |
 | `llm` | Vision, logic, translation, and realtime LLM provider configs |
 | `tts` | TTS voice and speed |
 | `homeassistant` | HA URL, token, polling interval, bathroom time limit |
@@ -962,7 +962,7 @@ npm run build                   # Production build
 
 ### Database
 
-SQLite with SQLAlchemy 2.0. Tables are auto-created on startup. For schema changes, delete `data/cognitive_companion.db` and restart -- there are no migrations.
+PostgreSQL with SQLAlchemy 2.0. Tables are auto-created during init. For schema changes, use Alembic migrations via `make migrate`.
 
 ### Extending the Pipeline (Plugin System)
 

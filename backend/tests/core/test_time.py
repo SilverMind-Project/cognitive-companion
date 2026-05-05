@@ -8,7 +8,6 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
-from sqlalchemy.dialects.sqlite import dialect as sqlite_dialect
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -42,35 +41,32 @@ class TestNormalizeUtcDatetime:
 
         assert normalized == datetime(2026, 4, 11, 13, 30, 0, tzinfo=UTC)
 
+    def test_returns_none_for_none(self) -> None:
+        assert normalize_utc_datetime(None) is None
+
 
 class TestUTCDateTime:
-    def test_sqlite_bind_param_stores_naive_utc(self) -> None:
-        value = datetime(2026, 4, 11, 9, 30, 0, tzinfo=ZoneInfo("America/New_York"))
-
-        bound = UTCDateTime().process_bind_param(value, sqlite_dialect())
-
-        assert bound == datetime(2026, 4, 11, 13, 30, 0)
-        assert bound.tzinfo is None
-
     def test_postgres_bind_param_stores_aware_utc(self) -> None:
         value = datetime(2026, 4, 11, 9, 30, 0, tzinfo=ZoneInfo("America/New_York"))
 
         bound = UTCDateTime().process_bind_param(value, postgresql_dialect())
 
         assert bound == datetime(2026, 4, 11, 13, 30, 0, tzinfo=UTC)
+        assert bound.tzinfo is UTC
 
     def test_rejects_naive_bind_values(self) -> None:
         with pytest.raises(ValueError, match="timezone-aware"):
-            UTCDateTime().process_bind_param(datetime(2026, 4, 11, 13, 30, 0), sqlite_dialect())
+            UTCDateTime().process_bind_param(datetime(2026, 4, 11, 13, 30, 0), postgresql_dialect())
 
-    def test_sqlite_result_values_are_normalized_to_aware_utc(self) -> None:
+    def test_result_value_normalizes_naive_to_utc(self) -> None:
+        """Defensive normalisation for server defaults that may return naive values."""
         value = datetime(2026, 4, 11, 13, 30, 0)
 
-        loaded = UTCDateTime().process_result_value(value, sqlite_dialect())
+        loaded = UTCDateTime().process_result_value(value, postgresql_dialect())
 
         assert loaded == datetime(2026, 4, 11, 13, 30, 0, tzinfo=UTC)
 
-    def test_sqlite_round_trip_returns_aware_utc(self, db_session) -> None:
+    def test_postgres_round_trip_returns_aware_utc(self, db_session) -> None:
         original = datetime(2026, 4, 11, 9, 30, 0, tzinfo=ZoneInfo("America/New_York"))
 
         row = _TimestampRow(occurred_at=original)
@@ -87,10 +83,8 @@ class TestTimezoneConversionUtilities:
     """Test timezone conversion utilities for application timezone handling."""
 
     def test_to_app_timezone_converts_utc_to_configured_timezone(self) -> None:
-        """Test conversion from UTC to application timezone."""
         utc_dt = datetime(2026, 4, 11, 13, 30, 0, tzinfo=UTC)
 
-        # Assuming default app timezone is America/New_York (UTC-4 in April)
         app_dt = to_app_timezone(utc_dt)
 
         assert app_dt.tzinfo is not None
@@ -98,7 +92,6 @@ class TestTimezoneConversionUtilities:
         assert app_dt.hour == 9  # 13:30 UTC = 09:30 EDT
 
     def test_from_app_timezone_converts_to_utc(self) -> None:
-        """Test conversion from application timezone to UTC."""
         app_dt = datetime(2026, 4, 11, 9, 30, 0, tzinfo=ZoneInfo("America/New_York"))
 
         utc_dt = from_app_timezone(app_dt)
@@ -107,7 +100,6 @@ class TestTimezoneConversionUtilities:
         assert utc_dt == datetime(2026, 4, 11, 13, 30, 0, tzinfo=UTC)
 
     def test_round_trip_conversion_preserves_instant(self) -> None:
-        """Test that converting UTC -> App -> UTC preserves the instant."""
         original_utc = datetime(2026, 4, 11, 13, 30, 0, tzinfo=UTC)
 
         app_dt = to_app_timezone(original_utc)
@@ -115,13 +107,10 @@ class TestTimezoneConversionUtilities:
 
         assert back_to_utc == original_utc
 
-    def test_to_app_timezone_with_different_timezone(self) -> None:
-        """Test conversion with a different source timezone."""
-        # Create a datetime in Pacific timezone
+    def test_to_app_timezone_with_different_source_timezone(self) -> None:
         pacific_dt = datetime(2026, 4, 11, 6, 30, 0, tzinfo=ZoneInfo("America/Los_Angeles"))
         utc_dt = pacific_dt.astimezone(UTC)
 
-        # Convert to app timezone (Eastern)
         app_dt = to_app_timezone(utc_dt)
 
         assert app_dt.hour == 9  # 06:30 PDT = 09:30 EDT
@@ -131,75 +120,42 @@ class TestDSTTransitions:
     """Test handling of Daylight Saving Time transitions."""
 
     def test_spring_forward_transition(self) -> None:
-        """Test DST spring forward (2:00 AM -> 3:00 AM) in America/New_York.
-
-        In 2026, DST starts on March 8 at 2:00 AM EST -> 3:00 AM EDT.
-        """
-        # 1:30 AM EST (before spring forward)
+        """DST spring forward (2:00 AM -> 3:00 AM) in America/New_York, 2026-03-08."""
         before_dst = datetime(2026, 3, 8, 1, 30, 0, tzinfo=ZoneInfo("America/New_York"))
-        utc_before = before_dst.astimezone(UTC)
-
-        # 3:30 AM EDT (after spring forward, 2:30 doesn't exist)
         after_dst = datetime(2026, 3, 8, 3, 30, 0, tzinfo=ZoneInfo("America/New_York"))
-        utc_after = after_dst.astimezone(UTC)
 
-        # The UTC difference should be 1 hour (not 2) due to DST
-        time_diff = utc_after - utc_before
-        assert time_diff.total_seconds() == 3600  # 1 hour in seconds
+        time_diff = after_dst.astimezone(UTC) - before_dst.astimezone(UTC)
+        assert time_diff.total_seconds() == 3600  # 1 hour gap due to DST
 
     def test_fall_back_transition(self) -> None:
-        """Test DST fall back (2:00 AM -> 1:00 AM) in America/New_York.
-
-        In 2026, DST ends on November 1 at 2:00 AM EDT -> 1:00 AM EST.
-        """
-        # 1:30 AM EDT (before fall back, first occurrence)
+        """DST fall back (2:00 AM -> 1:00 AM) in America/New_York, 2026-11-01."""
         before_dst = datetime(2026, 11, 1, 1, 30, 0, tzinfo=ZoneInfo("America/New_York"), fold=0)
-        utc_before = before_dst.astimezone(UTC)
-
-        # 1:30 AM EST (after fall back, second occurrence)
         after_dst = datetime(2026, 11, 1, 1, 30, 0, tzinfo=ZoneInfo("America/New_York"), fold=1)
-        utc_after = after_dst.astimezone(UTC)
 
-        # The UTC difference should be 1 hour (same local time, different UTC)
-        time_diff = utc_after - utc_before
-        assert time_diff.total_seconds() == 3600  # 1 hour in seconds
+        time_diff = after_dst.astimezone(UTC) - before_dst.astimezone(UTC)
+        assert time_diff.total_seconds() == 3600
 
-    def test_utc_datetime_storage_across_dst_boundary(self, db_session) -> None:
-        """Test that UTC storage correctly handles DST transitions."""
-        # Store timestamps before and after DST transition
+    def test_utc_storage_across_dst_boundary(self, db_session) -> None:
+        """PostgreSQL TIMESTAMPTZ stores UTC; DST boundaries are irrelevant at storage."""
         before_dst = datetime(2026, 3, 8, 1, 30, 0, tzinfo=ZoneInfo("America/New_York"))
         after_dst = datetime(2026, 3, 8, 3, 30, 0, tzinfo=ZoneInfo("America/New_York"))
 
-        row1 = _TimestampRow(occurred_at=before_dst)
-        row2 = _TimestampRow(occurred_at=after_dst)
-        db_session.add_all([row1, row2])
+        db_session.add_all([
+            _TimestampRow(occurred_at=before_dst),
+            _TimestampRow(occurred_at=after_dst),
+        ])
         db_session.commit()
         db_session.expire_all()
 
-        # Retrieve and verify both are in UTC
-        loaded_rows = db_session.execute(select(_TimestampRow).order_by(_TimestampRow.id)).scalars().all()
+        loaded = db_session.execute(select(_TimestampRow).order_by(_TimestampRow.id)).scalars().all()
 
-        assert loaded_rows[0].occurred_at.tzinfo == UTC
-        assert loaded_rows[1].occurred_at.tzinfo == UTC
+        assert loaded[0].occurred_at.tzinfo == UTC
+        assert loaded[1].occurred_at.tzinfo == UTC
+        assert (loaded[1].occurred_at - loaded[0].occurred_at).total_seconds() == 3600
 
-        # Verify the time difference is 1 hour (not 2) due to DST
-        time_diff = loaded_rows[1].occurred_at - loaded_rows[0].occurred_at
-        assert time_diff.total_seconds() == 3600
-
-    def test_normalize_utc_datetime_handles_dst(self) -> None:
-        """Test that normalize_utc_datetime correctly handles DST-aware datetimes."""
-        # Create a datetime during DST
+    def test_normalize_handles_dst_aware_datetimes(self) -> None:
         summer_dt = datetime(2026, 7, 15, 12, 0, 0, tzinfo=ZoneInfo("America/New_York"))
-
-        # Create a datetime during standard time
         winter_dt = datetime(2026, 1, 15, 12, 0, 0, tzinfo=ZoneInfo("America/New_York"))
 
-        summer_utc = normalize_utc_datetime(summer_dt)
-        winter_utc = normalize_utc_datetime(winter_dt)
-
-        # Summer: EDT is UTC-4, so 12:00 EDT = 16:00 UTC
-        assert summer_utc.hour == 16
-
-        # Winter: EST is UTC-5, so 12:00 EST = 17:00 UTC
-        assert winter_utc.hour == 17
-
+        assert normalize_utc_datetime(summer_dt).hour == 16  # EDT = UTC-4
+        assert normalize_utc_datetime(winter_dt).hour == 17  # EST = UTC-5

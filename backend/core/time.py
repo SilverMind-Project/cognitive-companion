@@ -18,11 +18,12 @@ __all__ = ["UTCDateTime", "from_app_timezone", "normalize_utc_datetime", "to_app
 def normalize_utc_datetime(value: datetime | None) -> datetime | None:
     """Return *value* as a UTC-aware datetime.
 
-    SQLite commonly round-trips ``DateTime(timezone=True)`` columns as naive
-    datetimes. Throughout this codebase, those naive values are treated as UTC
-    by convention.
+    PostgreSQL ``TIMESTAMPTZ`` columns always carry UTC offset information, so
+    loaded values are already timezone-aware in the normal case.  This function
+    acts as a safety net for server-default values (e.g. ``now()``) that
+    SQLAlchemy may surface as naive datetimes before the ORM type processor
+    runs, and for any non-ORM code paths that bypass the type decorator.
     """
-
     if value is None:
         return None
     if value.tzinfo is None:
@@ -31,18 +32,19 @@ def normalize_utc_datetime(value: datetime | None) -> datetime | None:
 
 
 class UTCDateTime(TypeDecorator[datetime]):
-    """SQLAlchemy column type that always round-trips aware UTC datetimes.
+    """SQLAlchemy column type that always round-trips UTC-aware datetimes.
 
-    SQLite does not have a native timezone-aware timestamp type, so SQLAlchemy
-    round-trips ``DateTime(timezone=True)`` values as naive ``datetime``
-    objects there. This type centralizes the compatibility behavior:
+    Maps to ``TIMESTAMPTZ`` in PostgreSQL, which stores all values as UTC
+    internally and returns them with timezone offset information.
 
-    - bind values must be timezone-aware
-    - values are normalized to UTC before persistence
-    - SQLite stores naive UTC values for lexical ordering compatibility
-    - loaded values are always returned as UTC-aware datetimes
+    Contract:
+    - Bind values must be timezone-aware; they are normalised to UTC before
+      being handed to the driver.
+    - Loaded values are always returned as UTC-aware ``datetime`` objects via
+      ``process_result_value``.
 
-    That gives application code one invariant regardless of database backend.
+    This gives application code a single invariant: every ``datetime`` object
+    obtained from the ORM is UTC-aware, regardless of how it was inserted.
     """
 
     impl = DateTime
@@ -56,24 +58,21 @@ class UTCDateTime(TypeDecorator[datetime]):
             return None
         if value.tzinfo is None:
             raise ValueError("UTCDateTime only accepts timezone-aware datetimes")
-
-        normalized = value.astimezone(UTC)
-        if dialect.name == "sqlite":
-            return normalized.replace(tzinfo=None)
-        return normalized
+        return value.astimezone(UTC)
 
     def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
         return normalize_utc_datetime(value)
 
 
 def to_app_timezone(utc_dt: datetime) -> datetime:
-    """Convert UTC datetime to application timezone.
+    """Convert a UTC-aware datetime to the application timezone.
 
     Args:
-        utc_dt: A timezone-aware datetime in UTC
+        utc_dt: A timezone-aware datetime (UTC).
 
     Returns:
-        The datetime converted to the application timezone configured in settings
+        The same instant expressed in the timezone configured under
+        ``app.timezone`` in ``settings.yaml``.
     """
     app_tz_name = settings.get("app.timezone", "America/New_York")
     app_tz = ZoneInfo(app_tz_name)
@@ -81,12 +80,12 @@ def to_app_timezone(utc_dt: datetime) -> datetime:
 
 
 def from_app_timezone(app_dt: datetime) -> datetime:
-    """Convert application timezone datetime to UTC.
+    """Convert an application-timezone datetime to UTC.
 
     Args:
-        app_dt: A timezone-aware datetime in the application timezone
+        app_dt: A timezone-aware datetime in the application timezone.
 
     Returns:
-        The datetime converted to UTC
+        The same instant expressed as UTC.
     """
     return app_dt.astimezone(UTC)

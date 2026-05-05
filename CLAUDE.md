@@ -1,6 +1,6 @@
 # Cognitive Companion — Claude guidance
 
-Privacy-first, on-premise AI system for senior care. Python 3.12 FastAPI backend, Vue 3 + Vuetify frontend, SQLite database, plugin-based pipeline execution.
+Privacy-first, on-premise AI system for senior care. Python 3.12 FastAPI backend, Vue 3 + Vuetify frontend, PostgreSQL database, plugin-based pipeline execution.
 
 ---
 
@@ -130,11 +130,10 @@ class YourStepHandler(StepHandler):
 
 ## Database
 
-SQLAlchemy 2.0 ORM, SQLite (WAL mode). `Database` class in `backend/core/database.py` owns the engine and session factory.
+SQLAlchemy 2.0 ORM, PostgreSQL. `Database` class in `backend/core/database.py` owns the engine and session factory.
 
-**No migrations.** For schema changes:
-- New tables or dropped columns: delete `data/cognitive_companion.db` and restart. Tables are auto-created from ORM models.
-- New nullable columns on existing tables: add an `ALTER TABLE ... ADD COLUMN` statement to `_COLUMN_MIGRATIONS` in `backend/core/database.py`. `Database.create_all()` runs these at startup.
+**Database schema:** For schema changes:
+- Use Alembic migrations (`make migrate`). Do NOT rely on `create_all` in production. Tables are auto-created from the ORM models only during initial setup or in development environments.
 
 **Session usage:**
 
@@ -151,7 +150,7 @@ finally:
 
 ```python
 from backend.core.database import Database
-db = Database("sqlite:///:memory:")
+db = Database("postgresql+psycopg://user:pass@localhost/test_db")
 sess = db.session()
 ```
 
@@ -222,19 +221,19 @@ Do not catch these in routers. Let global handlers in `register_exception_handle
 ## Testing
 
 - Framework: `pytest` + `pytest-asyncio` (asyncio_mode = "auto" — all `async def` test methods run without decoration)
-- Fixtures: `db_engine`, `db_session`, `db_factory` in `backend/tests/conftest.py` (in-memory SQLite)
+- Fixtures: `db_engine`, `db_session`, `db_factory` in `backend/tests/conftest.py` (backed by a PostgreSQL testcontainer)
 - Structure: mirrors `backend/` (e.g., `backend/tests/services/test_rules_engine.py`)
 - Run: `make test` or `uv run --project backend pytest backend/tests`
 
 **Key conventions:**
 
-- Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone mismatches with naive-UTC values in the in-memory SQLite DB.
-- Do not mock the database — use the in-memory fixture. Mocking DB leads to integration gaps.
+- Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone mismatches with UTC values in the test DB.
+- Do not mock the database — use the testcontainer fixture. Mocking DB leads to integration gaps.
 - For step handler tests: use `@dataclass class _FakeStep` instead of `PipelineStep`. SQLAlchemy instrumentation breaks when you set mapped attributes on objects created with `__new__`.
 - For `ServiceContainer`: pass only the fields your step uses. The rest default to `None`.
 - When overriding a class-level property in tests, use a local subclass — never `type(obj).prop = property(...)`. Class mutation leaks between test instances.
 - For router tests, override `get_auth_context` (not `require_permission`): `app.dependency_overrides[get_auth_context] = lambda: AuthContext(key="x", name="tester", permissions=["*"])`. `require_permission` is a factory returning a closure; overriding the factory has no effect.
-- For router tests with SQLite in-memory: use `poolclass=StaticPool` from `sqlalchemy.pool`. Without it, SQLAlchemy may open new connections (each a fresh empty DB), so tables created by `create_all` vanish.
+- For router tests: ensure tests share the same database pool so tables created by `create_all` are preserved.
 - Always call `register_exception_handlers(app)` on every test `FastAPI()` instance. Bare apps lack the CC handlers; `NotFoundError` and `ConflictError` produce 500s instead of 404/409.
 
 ---
@@ -245,11 +244,11 @@ Single source of truth: `app.timezone` in `config/settings.yaml` (IANA format, e
 
 | Concern | Rule |
 |---------|------|
-| Database storage | All timestamps stored as naive UTC. Use `datetime.now(UTC)`. |
+| Database storage | All timestamps stored as UTC-aware datetimes using PostgreSQL's `TIMESTAMPTZ`. Use `datetime.now(UTC)`. |
 | Timezone source | Always `settings.get("app.timezone", "UTC")`. Never hardcode. |
 | ZoneInfo | `from zoneinfo import ZoneInfo` (stdlib). Never `pytz`. |
 | Local time | `datetime.now(ZoneInfo(tz_name))` for wall-clock values. |
-| UTC comparison from local | `local_dt.astimezone(UTC).replace(tzinfo=None)` for SQLite queries. |
+| UTC comparison from local | `local_dt.astimezone(UTC)` for PostgreSQL queries. |
 | Cron scheduling | Pass `timezone=ZoneInfo(tz_name)` to every `CronTrigger.from_crontab()`. |
 | Context filters | `now` passed to `evaluate()` must already be in app timezone. `RulesEngine` ensures this. |
 
@@ -366,7 +365,7 @@ All handlers call `_cts_enabled()` first and return 404 + `{"code": "cts.disable
 
 ## What NOT to do
 
-- Run structural migrations. Delete `data/cognitive_companion.db` and restart instead.
+- Avoid manual structural migrations in production. Use `make migrate` via Alembic. `Database.create_all()` should only be used in development or tests.
 - Use `print()`. Use `get_logger()`.
 - Instantiate services inside routers. Access them from `request.app.state`.
 - Add dependencies without updating `pyproject.toml` and running `uv lock` (backend) or `package.json` (frontend).

@@ -8,28 +8,21 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import Engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 import backend.models  # noqa: F401
 from backend.core.auth import AuthContext, get_auth_context
 from backend.core.config import Settings
-from backend.core.database import Base, reset_default_database
+from backend.core.database import reset_default_database
 from backend.core.exceptions import register_exception_handlers
 from backend.models.person import HouseholdMember, PersonLocationHistory
 
 
-def _build_app(cts_enabled: bool = True, orchestrator=None):
+def _build_app(db_engine: Engine, cts_enabled: bool = True, orchestrator=None):
     cfg = Settings.from_dict({"cts": {"enabled": cts_enabled}})
 
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(bind=engine)
-    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
 
     def _session():
         return Session()
@@ -59,8 +52,8 @@ def _reset_db():
 
 
 class TestCTSDisabledGuard:
-    def test_global_tracks_disabled(self):
-        client, _, patchers = _build_app(cts_enabled=False)
+    def test_global_tracks_disabled(self, db_engine):
+        client, _, patchers = _build_app(db_engine, cts_enabled=False)
         try:
             r = client.get("/api/v1/cts/identity/global_tracks")
             assert r.status_code == 404
@@ -69,8 +62,8 @@ class TestCTSDisabledGuard:
             for p in patchers:
                 p.stop()
 
-    def test_correction_disabled(self):
-        client, _, patchers = _build_app(cts_enabled=False)
+    def test_correction_disabled(self, db_engine):
+        client, _, patchers = _build_app(db_engine, cts_enabled=False)
         try:
             r = client.post(
                 "/api/v1/cts/identity/corrections",
@@ -83,7 +76,7 @@ class TestCTSDisabledGuard:
 
 
 class TestGlobalTracksProxy:
-    def test_forwards_to_orchestrator(self):
+    def test_forwards_to_orchestrator(self, db_engine):
         orchestrator = AsyncMock()
         orchestrator.get_global_tracks = AsyncMock(
             return_value=[
@@ -94,7 +87,7 @@ class TestGlobalTracksProxy:
                 }
             ]
         )
-        client, _, patchers = _build_app(cts_enabled=True, orchestrator=orchestrator)
+        client, _, patchers = _build_app(db_engine, cts_enabled=True, orchestrator=orchestrator)
         try:
             r = client.get("/api/v1/cts/identity/global_tracks")
             assert r.status_code == 200
@@ -107,7 +100,7 @@ class TestGlobalTracksProxy:
 
 
 class TestCorrectionProxy:
-    def test_apply_correction_calls_override(self):
+    def test_apply_correction_calls_override(self, db_engine):
         orchestrator = AsyncMock()
         orchestrator.manual_identity_override = AsyncMock(
             return_value={
@@ -118,7 +111,7 @@ class TestCorrectionProxy:
                 "applied_at": datetime.now(UTC).isoformat(),
             }
         )
-        client, _, patchers = _build_app(cts_enabled=True, orchestrator=orchestrator)
+        client, _, patchers = _build_app(db_engine, cts_enabled=True, orchestrator=orchestrator)
         try:
             r = client.post(
                 "/api/v1/cts/identity/corrections",
@@ -139,12 +132,12 @@ class TestCorrectionProxy:
             for p in patchers:
                 p.stop()
 
-    def test_merge_uses_override_with_merge_reason(self):
+    def test_merge_uses_override_with_merge_reason(self, db_engine):
         orchestrator = AsyncMock()
         orchestrator.manual_identity_override = AsyncMock(
             return_value={"revision_id": "rev-m", "applied_at": "x"}
         )
-        client, _, patchers = _build_app(cts_enabled=True, orchestrator=orchestrator)
+        client, _, patchers = _build_app(db_engine, cts_enabled=True, orchestrator=orchestrator)
         try:
             r = client.post(
                 "/api/v1/cts/identity/merges",
@@ -167,10 +160,10 @@ class TestCorrectionProxy:
 
 
 class TestRevisionsAuditLog:
-    def test_aggregates_rewritten_rows_by_revision(self):
+    def test_aggregates_rewritten_rows_by_revision(self, db_engine):
         orchestrator = AsyncMock()
         client, Session, patchers = _build_app(
-            cts_enabled=True, orchestrator=orchestrator
+            db_engine, cts_enabled=True, orchestrator=orchestrator
         )
         try:
             db = Session()

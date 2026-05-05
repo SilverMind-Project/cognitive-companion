@@ -203,6 +203,30 @@ async def lifespan(app: FastAPI):
     semantic_memory_client: SemanticMemoryClient | None = _smc if _smc.configured else None
     app.state.semantic_memory_client = semantic_memory_client
 
+    # -- Memory query service (Block 4) ------------------------------------
+    from backend.services.memory_query import MemoryQueryService
+
+    memory_query_config = settings.get("memory_query", {})
+    mq_cache_enabled = memory_query_config.get("cache.enabled", False)
+    mq_cache_ttl = memory_query_config.get("cache.ttl_seconds", 30)
+    mq_cache_maxsize = memory_query_config.get("cache.maxsize", 256)
+    memory_query_service = MemoryQueryService(
+        client=semantic_memory_client,
+        cache_enabled=mq_cache_enabled,
+        cache_ttl_seconds=mq_cache_ttl,
+        cache_maxsize=mq_cache_maxsize,
+    )
+    app.state.memory_query = memory_query_service
+
+    # -- Scene intel service (Block 4) -------------------------------------
+    from backend.services.scene_intel import SceneIntelService
+
+    scene_intel_service = SceneIntelService(
+        scene_client=scene_analysis_client,
+        memory_client=semantic_memory_client,
+    )
+    app.state.scene_intel = scene_intel_service
+
     # -- Person tracking service -------------------------------------------
     from backend.services.person_tracking import PersonTrackingService
 
@@ -268,6 +292,8 @@ async def lifespan(app: FastAPI):
         daily_report_service=daily_report_service,
         semantic_memory_client=semantic_memory_client,
         interactive_response_service=interactive_response_service,
+        memory_query=memory_query_service,
+        scene_intel=scene_intel_service,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor

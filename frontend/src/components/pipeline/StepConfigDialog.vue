@@ -521,15 +521,6 @@
 
                 <!-- semantic_memory_query -->
                 <template v-if="localStep.step_type === 'semantic_memory_query'">
-                  <v-select
-                    v-model="cfg.query_type"
-                    :items="['observations', 'movements', 'objects', 'trends']"
-                    label="Query Type"
-                    hint="What to retrieve from semantic memory."
-                    persistent-hint
-                    class="mb-4"
-                  />
-
                   <v-combobox
                     v-model="cfg.room_id"
                     :items="availableRooms"
@@ -540,12 +531,63 @@
                     class="mb-4"
                   />
 
+                  <v-switch
+                    v-model="cfg.use_trigger_room"
+                    label="Use trigger room"
+                    hint="When enabled, uses the trigger's room instead of the room ID above."
+                    persistent-hint
+                    class="mb-4"
+                  />
+
                   <v-text-field
                     v-model.number="cfg.since_minutes"
                     label="Lookback (minutes)"
                     type="number"
                     :min="1"
                     hint="How far back to search. Default: 60"
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <v-combobox
+                    v-model="cfg.objects_any"
+                    :items="[]"
+                    label="Objects (any)"
+                    multiple
+                    chips
+                    closable-chips
+                    hint="Only include observations containing any of these object labels. Supports {{template}} syntax."
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <v-combobox
+                    v-model="cfg.hazard_flags_any"
+                    :items="[]"
+                    label="Hazard flags (any)"
+                    multiple
+                    chips
+                    closable-chips
+                    hint="Only include observations containing any of these hazard flags."
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <v-text-field
+                    v-model="cfg.query_text"
+                    label="Text query (semantic search)"
+                    hint="Free-text query for semantic search. Supports {{template}} syntax."
+                    persistent-hint
+                    class="mb-4"
+                  />
+
+                  <v-text-field
+                    v-model.number="cfg.limit"
+                    label="Limit"
+                    type="number"
+                    :min="1"
+                    :max="50"
+                    hint="Maximum observations to return. Default: 5"
                     persistent-hint
                     class="mb-4"
                   />
@@ -648,6 +690,122 @@
                     hint="pipeline_data key for the closed session result. Default: closed_session"
                     persistent-hint
                   />
+                </template>
+
+                <!-- presence_query -->
+                <template v-if="localStep.step_type === 'presence_query'">
+                  <v-form ref="presenceQueryForm" v-model="presenceQueryValid">
+                    <v-combobox
+                      v-model="cfg.person_id"
+                      :items="availablePersons"
+                      label="Person"
+                      hint="Person to look up. Supports {{template}} syntax. Leave empty to use the first person found in pipeline_data.persons or pipeline_data.person_id."
+                      persistent-hint
+                      variant="outlined"
+                      density="compact"
+                      hide-details="auto"
+                      rounded="lg"
+                      clearable
+                      class="mb-4"
+                      aria-label="Person to look up"
+                    />
+
+                    <v-divider class="mb-4" />
+
+                    <div class="text-overline text-medium-emphasis mb-2">Recent dementia signal filter (optional)</div>
+
+                    <v-combobox
+                      v-model="cfg.signal_kind"
+                      :items="knownSignalKinds"
+                      label="Signal Kind"
+                      hint="Filter by a single dementia-signal kind. Leave empty to include all kinds."
+                      persistent-hint
+                      variant="outlined"
+                      density="compact"
+                      hide-details="auto"
+                      rounded="lg"
+                      clearable
+                      class="mb-4"
+                    />
+
+                    <v-row>
+                      <v-col cols="12" md="6">
+                        <v-select
+                          v-model="cfg.signal_severity_min"
+                          :items="severityItems"
+                          item-title="label"
+                          item-value="value"
+                          label="Minimum Severity"
+                          variant="outlined"
+                          density="compact"
+                          hide-details="auto"
+                          rounded="lg"
+                        />
+                      </v-col>
+                      <v-col cols="12" md="6">
+                        <v-text-field
+                          v-model.number="cfg.signal_window_minutes"
+                          label="Lookback (minutes)"
+                          type="number"
+                          :min="1"
+                          :max="1440"
+                          :rules="[v => (Number.isInteger(Number(v)) && v >= 1 && v <= 1440) || 'Must be 1..1440']"
+                          variant="outlined"
+                          density="compact"
+                          hide-details="auto"
+                          rounded="lg"
+                        />
+                      </v-col>
+                    </v-row>
+
+                    <v-text-field
+                      v-model="cfg.output_key"
+                      label="Output Key"
+                      :rules="[v => /^[a-z][a-z0-9_]*$/.test(v) || 'Lowercase letters, digits, underscores only; must start with a letter.']"
+                      hint="pipeline_data key for the result dict. Default: presence."
+                      persistent-hint
+                      variant="outlined"
+                      density="compact"
+                      hide-details="auto"
+                      rounded="lg"
+                      class="mt-4"
+                    />
+
+                    <v-alert type="info" variant="tonal" density="compact" class="mt-4">
+                      This step also writes flat keys at the top of pipeline_data: <code>presence_status</code>, <code>presence_room_name</code>, <code>presence_dwell_minutes</code>, <code>presence_at_home</code>, <code>presence_asleep</code>, <code>presence_away</code>. Use these directly in <code>condition</code> step expressions.
+                    </v-alert>
+                  </v-form>
+                </template>
+
+                <!-- home_state -->
+                <template v-if="localStep.step_type === 'home_state'">
+                  <v-form ref="homeStateForm" v-model="homeStateValid">
+                    <v-combobox
+                      v-model="cfg.person_id"
+                      :items="availablePersons"
+                      label="Person"
+                      hint="Person whose home-state to derive. Supports {{template}} syntax."
+                      persistent-hint
+                      variant="outlined"
+                      density="compact"
+                      hide-details="auto"
+                      rounded="lg"
+                      clearable
+                      class="mb-4"
+                    />
+
+                    <v-text-field
+                      v-model="cfg.output_key"
+                      label="Output Key"
+                      :rules="[v => /^[a-z][a-z0-9_]*$/.test(v) || 'Lowercase letters, digits, underscores only; must start with a letter.']"
+                      hint="pipeline_data key prefix. Emits <key>_at_home, <key>_asleep, <key>_away, <key>_state_unknown. Default: home."
+                      persistent-hint
+                      variant="outlined"
+                      density="compact"
+                      hide-details="auto"
+                      rounded="lg"
+                    />
+                  </v-form>
                 </template>
 
                 <!-- daily_report -->
@@ -1653,6 +1811,8 @@ const knownTypes = [
   "condition",
   "verification",
   "interactive_prompt",
+  "presence_query",
+  "home_state",
 ];
 
 const STEP_ICONS = {
@@ -1672,6 +1832,8 @@ const STEP_ICONS = {
   interactive_prompt: "mdi-message-question",
   semantic_memory_write: "mdi-database-plus-outline",
   semantic_memory_query: "mdi-database-search-outline",
+  presence_query: "mdi-map-marker-radius",
+  home_state: "mdi-home-variant",
 };
 
 const stepIcon = computed(() => STEP_ICONS[localStep.step_type] || "mdi-cog-outline");
@@ -1809,6 +1971,25 @@ const notificationImageTimeFilter = reactive({ since_minutes: null, time_start: 
 const sceneImageTimeFilter = reactive({ since_minutes: null, time_start: "", time_end: "" });
 const llmJsonSchemaError = ref("");
 const cameraSensorItems = ref([]);
+
+// presence_query form refs and constants
+const presenceQueryValid = ref(true);
+const presenceQueryForm = ref(null);
+const homeStateValid = ref(true);
+const homeStateForm = ref(null);
+const knownSignalKinds = [
+  "bathroom_dwell_anomaly",
+  "pacing",
+  "nighttime_movement",
+  "stillness_anomaly",
+  "absence",
+  "sundowning_index",
+];
+const severityItems = [
+  { label: "Info", value: "info" },
+  { label: "Warning", value: "warning" },
+  { label: "Emergency", value: "emergency" },
+];
 
 const activeTab = ref("general");
 const varSearch = ref("");
@@ -2395,6 +2576,23 @@ async function insertTemplateToken(key) {
 }
 
 function save() {
+  // Validate presence_query form
+  if (localStep.step_type === "presence_query") {
+    presenceQueryForm.value?.validate();
+    if (!presenceQueryValid.value) {
+      notify("Fix validation errors before saving.", "error");
+      return;
+    }
+  }
+  // Validate home_state form
+  if (localStep.step_type === "home_state") {
+    homeStateForm.value?.validate();
+    if (!homeStateValid.value) {
+      notify("Fix validation errors before saving.", "error");
+      return;
+    }
+  }
+
   let config;
 
   // For unknown/plugin types, parse JSON

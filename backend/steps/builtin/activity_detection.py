@@ -44,6 +44,8 @@ from backend.steps.base import (
 
 logger = get_logger(__name__)
 
+_activity_legacy_warned = False
+
 
 @StepRegistry.register
 class ActivityDetectionHandler(StepHandler):
@@ -217,7 +219,28 @@ class ActivityDetectionHandler(StepHandler):
 
         # -----------------------------------------------------------------------
 
-        if services.person_tracking:
+        global _activity_legacy_warned
+
+        if services.activity:
+            try:
+                await services.activity.record(
+                    person_id=person_id,
+                    activity_type=activity_type,
+                    room_name=room_name,
+                    confidence=confidence,
+                    source_event_id=execution.event_log_id,
+                    metadata=metadata or None,
+                )
+            except Exception:
+                logger.warning(
+                    "activity_record_failed",
+                    person_id=person_id,
+                    activity_type=activity_type,
+                )
+        elif services.person_tracking:
+            if not _activity_legacy_warned:
+                logger.warning("activity_step_legacy_path", step="activity_detection")
+                _activity_legacy_warned = True
             try:
                 await services.person_tracking.record_activity(
                     person_id=person_id,

@@ -85,6 +85,8 @@ permission_map:
     - "cts.signals.view"
     - "cts.keyframes.view"
     - "GET /api/v1/cts/presence/*"
+    - "GET /api/v1/cts/presence-config"
+    - "POST /api/v1/cts/presence-config/reload"
 
   caregiver_admin:
     - "GET /api/v1/*"

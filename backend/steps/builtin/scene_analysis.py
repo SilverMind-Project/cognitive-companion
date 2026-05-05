@@ -267,24 +267,23 @@ class SceneAnalysisHandler(StepHandler):
 
         # -- Optional: auto-write to semantic memory --------------------------
         scene_memory_observation_id: int | None = None
-        if config.get("write_to_memory", False) and services.semantic_memory_client:
-            from backend.integrations.semantic_memory_client import ObservationCreate
-
+        if config.get("write_to_memory", False) and services.scene_intel:
             room_name = trigger.room_name or "unknown"
-            obs = ObservationCreate(
+            intel_record = await services.scene_intel.persist(
+                SceneAnalyzeResult(
+                    detections=tuple(all_detections),
+                    description=description or None,
+                    hazard_alerts=tuple(all_hazards),
+                    embedding=embedding if isinstance(embedding, list) else [],
+                ),
                 room_id=room_name,
-                description=description,
-                object_list=[d.label for d in all_detections],
-                hazard_flags=[h.name for h in all_hazards],
-                embedding=embedding if isinstance(embedding, list) else [],
                 source="scene_intel",
             )
-            record = await services.semantic_memory_client.create_observation(obs)
-            if record:
-                scene_memory_observation_id = record.id
+            if intel_record.observation_id:
+                scene_memory_observation_id = intel_record.observation_id
                 logger.info(
                     "scene_analysis_memory_write",
-                    observation_id=record.id,
+                    observation_id=intel_record.observation_id,
                 )
             else:
                 logger.warning("scene_analysis_memory_write_failed")

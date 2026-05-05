@@ -260,6 +260,15 @@ async def lifespan(app: FastAPI):
     activity_session_service = ActivitySessionService(get_session)
     app.state.activity_session_service = activity_session_service
 
+    # -- Activity domain service (Block 5) ---------------------------------
+    from backend.services.activity import ActivityService
+
+    activity_service = ActivityService(
+        person_tracking=person_tracking,
+        activity_session=activity_session_service,
+    )
+    app.state.activity_service = activity_service
+
     # -- Daily report service ----------------------------------------------
     from backend.services.daily_report import DailyReportService
 
@@ -275,6 +284,12 @@ async def lifespan(app: FastAPI):
         scheduler=None,  # Injected later
     )
     app.state.interactive_response_service = interactive_response_service
+
+    # -- SignalsService (Block 10) -----------------------------------------
+    from backend.services.signals import SignalsService
+
+    signals_service = SignalsService(db_factory=get_session)
+    app.state.signals = signals_service
 
     # -- Pipeline executor -------------------------------------------------
     from backend.services.pipeline_executor import PipelineExecutor
@@ -294,6 +309,8 @@ async def lifespan(app: FastAPI):
         interactive_response_service=interactive_response_service,
         memory_query=memory_query_service,
         scene_intel=scene_intel_service,
+        activity=activity_service,
+        signals=signals_service,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor

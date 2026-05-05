@@ -16,6 +16,7 @@ from backend.integrations.semantic_memory_client import (
     SemanticMemoryClient,
     TrendSnapshot,
 )
+from backend.services.memory_query.types import RoomTrendContext
 from backend.steps.base import ServiceContainer, TriggerContext
 from backend.steps.builtin.object_trend_analysis import ObjectTrendAnalysisHandler
 
@@ -49,10 +50,10 @@ def _make_trigger(
     )
 
 
-def _make_services(semantic_memory_client=None) -> ServiceContainer:
+def _make_services(memory_query=None) -> ServiceContainer:
     return ServiceContainer(
         db_factory=MagicMock(),
-        semantic_memory_client=semantic_memory_client,
+        memory_query=memory_query,
     )
 
 
@@ -78,6 +79,51 @@ def _mock_trend_result(
         novel_objects=novel_objects or [],
         anomalies=anomalies or [],
     )
+
+
+def _mock_memory_query(
+    results: dict[str, RoomTrendResult] | None = None,
+    include_snapshots: int = 0,
+    severity_threshold: str = "info",
+) -> MagicMock:
+    """Create a mock MemoryQueryService that returns RoomTrendContext objects."""
+    if results is None:
+        results = {"Kitchen": _mock_trend_result(room_id="Kitchen")}
+
+    async def room_trends(
+        room_id: str,
+        *,
+        include_snapshots_hours: int = 0,
+        severity_threshold: str = "info",
+    ) -> RoomTrendContext | None:
+        raw = results.get(room_id)
+        if raw is None:
+            return None
+        # Apply severity threshold filtering (same logic as MemoryQueryService)
+        _SEVERITY_ORDER = {"ok": 0, "info": 1, "warning": 2, "critical": 3}
+        threshold_level = _SEVERITY_ORDER.get(severity_threshold, 1)
+        filtered_anomalies = [
+            a for a in raw.anomalies
+            if _SEVERITY_ORDER.get(a.get("severity", "ok"), 0) >= threshold_level
+        ]
+        # Build snapshots if requested
+        snapshots = None
+        if include_snapshots_hours > 0:
+            snapshots = ()
+        return RoomTrendContext(
+            room_id=room_id,
+            clutter_score=raw.clutter_score,
+            trend_direction=raw.trend_direction,
+            overall_severity=raw.overall_severity,
+            persistent_objects=raw.persistent_objects,
+            novel_objects=raw.novel_objects,
+            anomalies=tuple(filtered_anomalies),
+            snapshots=snapshots,
+        )
+
+    mock = MagicMock()
+    mock.room_trends = AsyncMock(side_effect=room_trends)
+    return mock
 
 
 def _mock_client(
@@ -121,7 +167,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        services = _make_services(semantic_memory_client=None)
+        services = _make_services(memory_query=None)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.success is True
         assert result.data["room_trends"] == {}
@@ -133,8 +179,8 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger(room_name=None)
-        client = _mock_client()
-        services = _make_services(semantic_memory_client=client)
+        mq = _mock_memory_query()
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.success is True
         assert result.data["room_trends"] == {}
@@ -143,8 +189,8 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger(room_name="Kitchen")
-        client = _mock_client()
-        services = _make_services(semantic_memory_client=client)
+        mq = _mock_memory_query()
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert len(result.data["room_trends"]) == 1
         assert "Kitchen" in result.data["room_trends"]
@@ -153,8 +199,8 @@ class TestExecute:
         step = _make_step(config={"room_ids": ["Bedroom"]})
         execution = _FakeExecution()
         trigger = _make_trigger(room_name="Kitchen")
-        client = _mock_client(results={"Bedroom": _mock_trend_result(room_id="Bedroom")})
-        services = _make_services(semantic_memory_client=client)
+        mq = _mock_memory_query(results={"Bedroom": _mock_trend_result(room_id="Bedroom")})
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert "Bedroom" in result.data["room_trends"]
         assert "Kitchen" not in result.data["room_trends"]
@@ -163,7 +209,7 @@ class TestExecute:
         step = _make_step(config={"severity_threshold": "warning"})
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -173,9 +219,10 @@ class TestExecute:
                         {"severity": "critical", "message": "high"},
                     ],
                 )
-            }
+            },
+            severity_threshold="warning",
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         kitchen = result.data["room_trends"]["Kitchen"]
         anomaly_severities = [a["severity"] for a in kitchen["anomalies"]]
@@ -187,7 +234,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -195,7 +242,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.data["room_trends_max_severity"] == "critical"
 
@@ -203,7 +250,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -211,7 +258,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.data["room_trends_max_severity"] == "warning"
 
@@ -219,7 +266,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -227,7 +274,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.data["room_trends_any_warning"] is True
 
@@ -235,7 +282,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -243,7 +290,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.data["room_trends_any_warning"] is False
 
@@ -251,8 +298,8 @@ class TestExecute:
         step = _make_step(config={"output_key": "custom_key"})
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client()
-        services = _make_services(semantic_memory_client=client)
+        mq = _mock_memory_query()
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert "custom_key" in result.data
         assert "room_trends" not in result.data
@@ -261,13 +308,13 @@ class TestExecute:
         step = _make_step(config={"room_ids": ["Kitchen", "Bedroom"]})
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(room_id="Kitchen"),
                 "Bedroom": _mock_trend_result(room_id="Bedroom"),
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert "Kitchen" in result.data["room_trends"]
         assert "Bedroom" in result.data["room_trends"]
@@ -276,19 +323,22 @@ class TestExecute:
         step = _make_step(config={"room_ids": ["Kitchen", "Missing"]})
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(results={"Kitchen": _mock_trend_result(room_id="Kitchen")})
-        services = _make_services(semantic_memory_client=client)
+        mq = _mock_memory_query(results={"Kitchen": _mock_trend_result(room_id="Kitchen")})
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert "Kitchen" in result.data["room_trends"]
         assert "Missing" not in result.data["room_trends"]
 
     async def test_client_error_returns_empty(self):
+        """MemoryQueryService catches exceptions internally; step sees None."""
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client()
-        client.get_room_trends = AsyncMock(side_effect=Exception("service unavailable"))
-        services = _make_services(semantic_memory_client=client)
+
+        mq = _mock_memory_query()
+        # Override room_trends to return None (simulating service error)
+        mq.room_trends = AsyncMock(return_value=None)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.data["room_trends"] == {}
 
@@ -296,7 +346,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -309,7 +359,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         summary = result.data["room_trends_summary"]
         assert "Kitchen" in summary
@@ -320,17 +370,33 @@ class TestExecute:
         step = _make_step(config={"include_snapshots_hours": 12})
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client()
-        snapshots = [
-            TrendSnapshot(
-                room_id="Kitchen",
-                period_start=datetime(2026, 4, 17, 2, tzinfo=UTC),
-                unique_object_count=5,
-                object_counts={"stove": 3},
+
+        async def room_trends_with_snapshots(room_id, *, include_snapshots_hours=0, severity_threshold="info"):
+            raw = {"Kitchen": _mock_trend_result(room_id="Kitchen")}.get(room_id)
+            if raw is None:
+                return None
+            snapshots = (
+                TrendSnapshot(
+                    room_id="Kitchen",
+                    period_start=datetime(2026, 4, 17, 2, tzinfo=UTC),
+                    unique_object_count=5,
+                    object_counts={"stove": 3},
+                ),
             )
-        ]
-        client.get_snapshots = AsyncMock(return_value=snapshots)
-        services = _make_services(semantic_memory_client=client)
+            return RoomTrendContext(
+                room_id=room_id,
+                clutter_score=raw.clutter_score,
+                trend_direction=raw.trend_direction,
+                overall_severity=raw.overall_severity,
+                persistent_objects=raw.persistent_objects,
+                novel_objects=raw.novel_objects,
+                anomalies=tuple(raw.anomalies),
+                snapshots=snapshots,
+            )
+
+        mq = MagicMock()
+        mq.room_trends = AsyncMock(side_effect=room_trends_with_snapshots)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         kitchen = result.data["room_trends"]["Kitchen"]
         assert "snapshots" in kitchen
@@ -340,8 +406,8 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client()
-        services = _make_services(semantic_memory_client=client)
+        mq = _mock_memory_query()
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         kitchen = result.data["room_trends"]["Kitchen"]
         assert "snapshots" not in kitchen
@@ -350,7 +416,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -359,7 +425,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         kitchen = result.data["room_trends"]["Kitchen"]
         assert kitchen["persistent_objects"] == ["stove", "fridge"]
@@ -370,7 +436,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -379,7 +445,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         kitchen = result.data["room_trends"]["Kitchen"]
         assert kitchen["clutter_score"] == 0.5
@@ -389,7 +455,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -398,7 +464,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         kitchen = result.data["room_trends"]["Kitchen"]
         assert kitchen["clutter_score"] == 2.3
@@ -408,7 +474,7 @@ class TestExecute:
         step = _make_step()
         execution = _FakeExecution()
         trigger = _make_trigger()
-        client = _mock_client(
+        mq = _mock_memory_query(
             results={
                 "Kitchen": _mock_trend_result(
                     room_id="Kitchen",
@@ -417,7 +483,7 @@ class TestExecute:
                 )
             }
         )
-        services = _make_services(semantic_memory_client=client)
+        services = _make_services(memory_query=mq)
         result = await _HANDLER.execute(step, execution, {}, trigger, services)
         assert result.data["room_trends_any_warning"] is False
         assert result.data["room_trends_max_severity"] == "ok"

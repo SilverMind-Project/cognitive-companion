@@ -586,8 +586,12 @@ class PersonTrackingService:
         confidence: float,
         source_event_id: int | None = None,
         metadata: dict | None = None,
-    ) -> None:
-        """Record a detected activity for a person."""
+    ) -> PersonActivity:
+        """Record a detected activity for a person.
+
+        Returns:
+            The created :class:`~backend.models.person.PersonActivity` instance.
+        """
         from backend.models.room import Room
 
         db: Session = self._db_factory()
@@ -597,17 +601,16 @@ class PersonTrackingService:
                 room = db.query(Room).filter(Room.name == room_name).first()
                 room_id = room.id if room else None
 
-            db.add(
-                PersonActivity(
-                    person_id=person_id,
-                    activity_type=activity_type,
-                    room_id=room_id,
-                    room_name=room_name,
-                    confidence=confidence,
-                    source_event_id=source_event_id,
-                    metadata_json=metadata,
-                )
+            activity = PersonActivity(
+                person_id=person_id,
+                activity_type=activity_type,
+                room_id=room_id,
+                room_name=room_name,
+                confidence=confidence,
+                source_event_id=source_event_id,
+                metadata_json=metadata,
             )
+            db.add(activity)
             db.commit()
             logger.info(
                 "activity_recorded",
@@ -615,9 +618,11 @@ class PersonTrackingService:
                 activity_type=activity_type,
                 room=room_name,
             )
+            return activity
         except Exception:
             db.rollback()
             logger.exception("record_activity_error", person_id=person_id)
+            raise
         finally:
             db.close()
 

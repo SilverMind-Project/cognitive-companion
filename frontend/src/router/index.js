@@ -138,6 +138,12 @@ const routes = [
         component: () =>
           import("../views/admin/CTSIdentityCorrectionsView.vue"),
       },
+      {
+        path: "cts/presence",
+        name: "cts-presence",
+        component: () => import("../views/admin/CTSPresenceView.vue"),
+        meta: { title: "Presence Fusion", icon: "mdi-map-marker-radius" },
+      },
     ],
   },
 ];

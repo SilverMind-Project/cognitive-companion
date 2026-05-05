@@ -66,11 +66,13 @@ def _make_mock_service(closed_result=None, raise_on_close=False) -> MagicMock:
 def _make_services(
     activity_session_service=None,
     person_tracking=None,
+    activity=None,
 ) -> ServiceContainer:
     return ServiceContainer(
         db_factory=MagicMock(),
         activity_session_service=activity_session_service,
         person_tracking=person_tracking,
+        activity=activity,
     )
 
 
@@ -245,3 +247,136 @@ class TestExecute:
         )
         assert result.success
         assert svc.close_session.call_args.kwargs["person_id"] == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Block 7: delegation to services.activity
+# ---------------------------------------------------------------------------
+
+
+class TestBlock7Delegation:
+    """Tests for B7.T3: activity_session_end delegates to services.activity."""
+
+    async def test_delegates_close_to_activity_service(self):
+        """Should call services.activity.close_session when available."""
+        mock_svc = MagicMock()
+        mock_svc.close_session = MagicMock(return_value=_make_mock_close_result())
+        mock_svc.record = AsyncMock()
+        step = _make_step({"activity_type": "sleep", "person_id": "grandma"})
+        result = await handler.execute(
+            step=step,
+            execution=_FakeExecution(),
+            pipeline_data={},
+            trigger=_make_trigger(),
+            services=_make_services(activity=mock_svc),
+        )
+        assert result.success
+        assert "closed_session" in result.data
+        mock_svc.close_session.assert_called_once()
+
+    async def test_delegates_record_to_activity_service(self):
+        """Should call services.activity.record for write_activity_record when using activity service."""
+        mock_svc = MagicMock()
+        mock_svc.close_session = MagicMock(return_value=_make_mock_close_result())
+        mock_svc.record = AsyncMock()
+        step = _make_step({
+            "activity_type": "sleep",
+            "person_id": "grandma",
+            "write_activity_record": True,
+        })
+        result = await handler.execute(
+            step=step,
+            execution=_FakeExecution(),
+            pipeline_data={},
+            trigger=_make_trigger(),
+            services=_make_services(activity=mock_svc),
+        )
+        assert result.success
+        mock_svc.record.assert_called_once()
+        call_kwargs = mock_svc.record.call_args.kwargs
+        assert call_kwargs["metadata"]["duration_minutes"] == 480
+
+    async def test_activity_takes_precedence_over_legacy(self):
+        """When both services.activity and legacy services are set, use activity."""
+        mock_svc = MagicMock()
+        mock_svc.close_session = MagicMock(return_value=_make_mock_close_result())
+        mock_svc.record = AsyncMock()
+        legacy_svc = MagicMock()
+        legacy_svc.close_session = MagicMock(return_value=_make_mock_close_result())
+        legacy_svc.person_tracking = MagicMock()
+        legacy_svc.person_tracking.record_activity = AsyncMock()
+        step = _make_step({
+            "activity_type": "sleep",
+            "person_id": "grandma",
+            "write_activity_record": True,
+        })
+        result = await handler.execute(
+            step=step,
+            execution=_FakeExecution(),
+            pipeline_data={},
+            trigger=_make_trigger(),
+            services=_make_services(
+                activity_session_service=legacy_svc,
+                person_tracking=legacy_svc.person_tracking,
+                activity=mock_svc,
+            ),
+        )
+        assert result.success
+        mock_svc.close_session.assert_called_once()
+        mock_svc.record.assert_called_once()
+        legacy_svc.close_session.assert_not_called()
+        legacy_svc.person_tracking.record_activity.assert_not_called()
+
+    async def test_fallback_to_legacy_when_no_activity_service(self):
+        """Should fall back to legacy services when services.activity is None."""
+        legacy_svc = MagicMock()
+        legacy_svc.close_session = MagicMock(return_value=_make_mock_close_result())
+        legacy_svc.person_tracking = MagicMock()
+        legacy_svc.person_tracking.record_activity = AsyncMock()
+        step = _make_step({
+            "activity_type": "sleep",
+            "person_id": "grandma",
+            "write_activity_record": True,
+        })
+        result = await handler.execute(
+            step=step,
+            execution=_FakeExecution(),
+            pipeline_data={},
+            trigger=_make_trigger(),
+            services=_make_services(
+                activity_session_service=legacy_svc,
+                person_tracking=legacy_svc.person_tracking,
+                activity=None,
+            ),
+        )
+        assert result.success
+        legacy_svc.close_session.assert_called_once()
+        legacy_svc.person_tracking.record_activity.assert_called_once()
+
+    async def test_no_service_returns_error(self):
+        """Should return error when neither services.activity nor legacy services are available."""
+        step = _make_step({"activity_type": "sleep"})
+        result = await handler.execute(
+            step=step,
+            execution=_FakeExecution(),
+            pipeline_data={},
+            trigger=_make_trigger(),
+            services=_make_services(activity=None, activity_session_service=None),
+        )
+        assert result.success
+        assert "error" in result.data["closed_session"]
+
+    async def test_no_open_session_error(self):
+        """Should return no_open_session error when close_session raises ValueError."""
+        mock_svc = MagicMock()
+        mock_svc.close_session = MagicMock(side_effect=ValueError("No open session found"))
+        step = _make_step({"activity_type": "sleep"})
+        result = await handler.execute(
+            step=step,
+            execution=_FakeExecution(),
+            pipeline_data={},
+            trigger=_make_trigger(),
+            services=_make_services(activity=mock_svc),
+        )
+        assert not result.success
+        assert result.data["closed_session"]["no_open_session"] is True

@@ -37,6 +37,7 @@
         <v-list-item rounded="lg" prepend-icon="mdi-account-edit-outline" title="Identity Corrections" to="/admin/cts/identity-corrections" />
         <v-list-item rounded="lg" prepend-icon="mdi-alert-circle-outline" title="Signals" to="/admin/cts/signals" />
         <v-list-item rounded="lg" prepend-icon="mdi-image-search-outline" title="Keyframes" to="/admin/cts/keyframes" />
+        <v-list-item rounded="lg" prepend-icon="mdi-map-marker-radius" title="Presence Fusion" to="/admin/cts/presence" />
 
         <v-list-subheader class="mt-2">People</v-list-subheader>
         <v-list-item rounded="lg" prepend-icon="mdi-account-group-outline" title="Members &amp; Enrollment" to="/admin/persons" />

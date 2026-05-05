@@ -163,15 +163,24 @@ class TestDailyReportGeneration:
     def test_generate_report_with_sleep_data(self, db_factory):
         """Should aggregate sleep sessions correctly."""
         service = DailyReportService(db_factory)
-        today = datetime.now(UTC).date().isoformat()
 
-        # Create a sleep session
+        # Use a fixed reference time safely in the middle of a day to avoid
+        # midnight-boundary flakiness when the wall clock crosses a day.
+        now = datetime.now(UTC)
+        ref_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if ref_time > now:
+            ref_time = ref_time - timedelta(days=1)
+        today = ref_time.date().isoformat()
+
+        # Create a sleep session that closed on "today" (ref_time's date).
+        # The session opened 8h before ref_time and closed 0.5h before ref_time,
+        # so closed_at falls within the target day.
         _make_activity_session(
             db_factory(),
             person_id="person123",
             activity_type=ActivityTypeEnum.sleep,
-            opened_at=datetime.now(UTC) - timedelta(hours=8),
-            closed_at=datetime.now(UTC) - timedelta(hours=0.5),
+            opened_at=ref_time - timedelta(hours=8),
+            closed_at=ref_time - timedelta(hours=0.5),
             duration_minutes=450,  # 7.5 hours
             status="closed",
         )

@@ -1,0 +1,39 @@
+# Presence service provider chain configuration.
+#
+# Each provider declares a ``name`` that maps to a concrete class.
+# The fusion rule iterates providers in priority-descending order and
+# returns the first non-None snapshot above the confidence floor.
+#
+# Block 2 providers: cts_location, ha_bed_sensor, ha_device_tracker.
+# Block 3 introduces: night_anchor, ha_bed_sensor (multi-person),
+#                     stale_fallback, unknown_sentinel.
+
+providers:
+  # CTS location provider (Block 1, still active in Block 2)
+  - name: cts_location
+    ttl_seconds: 120
+    confidence_floor: 0.0
+    priority: 50
+
+  # HA bed-occupancy sensor (Block 2)
+  - name: ha_bed_sensor
+    entity_id: binary_sensor.master_bedroom_bed_occupancy
+    person_id: mom
+    room_id: bedroom
+    room_name: Master Bedroom
+    confidence: 0.95
+    priority: 70
+
+  # HA device_tracker (Block 2)
+  - name: ha_device_tracker
+    entity_id_template: "device_tracker.{person_id}_phone"
+    confidence: 0.8
+    priority: 30
+    # person_id_map:
+    #   mom: mom_phone
+    #   dad: dad_watch
+
+# Fusion rule (Block 3 will add "weighted_average" etc.)
+fusion:
+  rule: highest_priority_above_floor
+  confidence_floor: 0.4

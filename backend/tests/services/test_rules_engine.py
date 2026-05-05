@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unittest.mock
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -120,11 +121,34 @@ class TestRulesEngineRateLimits:
     def test_max_daily_triggers_blocks_at_limit(self, db_session):
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session, max_daily_triggers=3)
+
+        # Use a fixed reference time safely in the middle of a day to avoid
+        # midnight-boundary flakiness when the wall clock crosses a day.
+        now = datetime.now(UTC)
+        ref_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if ref_time > now:
+            ref_time = ref_time - timedelta(days=1)
+
+        # Create 3 completed EventLogs at ref_time - 30 min (same day).
         for _ in range(3):
-            _log_completed(db_session, rule, minutes_ago=30)
+            ts = ref_time - timedelta(minutes=30)
+            log = EventLog(
+                rule_id=rule.id,
+                rule_name=rule.name,
+                sensor_id="cam1",
+                trigger_type="sensor_event",
+                status="completed",
+                timestamp=ts,
+            )
+            db_session.add(log)
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        # Patch datetime.now so the engine's internal "now" matches ref_time.
+        with unittest.mock.patch(
+            "backend.services.rules_engine.datetime"
+        ) as mock_dt:
+            mock_dt.now.return_value = ref_time
+            matched = _engine_utc().get_matching_rules(sensor, db_session)
         assert matched == []
 
     def test_max_daily_triggers_allows_below_limit(self, db_session):

@@ -10,10 +10,13 @@ Provides:
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+from httpx_ws import aconnect_ws
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
@@ -380,6 +383,71 @@ class HomeAssistantClient:
         except Exception:
             logger.exception("ha_call_service_error", domain=domain, service=service)
 
+    # ------------------------------------------------------------------
+    # WebSocket event subscription
+    # ------------------------------------------------------------------
+
+    async def open_event_subscription(
+        self,
+        entity_ids: Any,  # Iterable[str]
+        on_state_changed: Any,  # Callable[[HaStateEvent], Awaitable[None]]
+    ) -> HaEventSubscription:
+        """Open a WebSocket subscription for HA state-changed events.
+
+        Parameters
+        ----------
+        entity_ids:
+            Iterable of entity IDs to subscribe to.  Events for other
+            entities are silently dropped.
+        on_state_changed:
+            Async callback invoked for each matching state change.
+
+        Returns
+        -------
+        HaEventSubscription
+            An async context manager that starts the subscription on
+            ``__aenter__`` and cancels it on ``__aexit__``.
+        """
+        if not self.configured:
+            logger.warning("ha_websocket_not_configured")
+            raise RuntimeError(
+                "Home Assistant is not configured (url/token missing)"
+            )
+
+        entity_set = set(entity_ids)
+        session = _HaWsSession(
+            base_url=self.base_url,
+            token=self.token,
+            entity_ids=entity_set,
+            on_state_changed=on_state_changed,
+        )
+        return HaEventSubscription(session)
+
+
+class HaEventSubscription:
+    """Async context manager for a single HA WebSocket session.
+
+    Usage::
+
+        async with client.open_event_subscription(
+            entity_ids=["binary_sensor.bed_occupancy"],
+            on_state_changed=my_callback,
+        ):
+            # subscription is active here
+            pass
+        # subscription is cancelled here
+    """
+
+    def __init__(self, session: _HaWsSession) -> None:
+        self._session = session
+
+    async def __aenter__(self) -> HaEventSubscription:
+        await self._session.start()
+        return self
+
+    async def __aexit__(self, *exc_info: Any) -> None:
+        await self._session.stop()
+
 
 # -- Helpers ------------------------------------------------------------------
 
@@ -403,3 +471,220 @@ def _parse_ts(ts_str: str) -> datetime | None:
         return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
+
+
+# ---------------------------------------------------------------------------
+# WebSocket support
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class HaStateEvent:
+    """A state-changed event from Home Assistant via WebSocket."""
+
+    entity_id: str
+    state: str
+    attributes: dict[str, Any]
+    fired_at: datetime
+
+
+class _HaWsSession:
+    """Internal state for a single HA WebSocket session.
+
+    Manages the auth handshake, entity subscription, event dispatch,
+    and exponential-backoff reconnect loop.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        token: str,
+        entity_ids: set[str],
+        on_state_changed: Any,  # Callable[[HaStateEvent], Awaitable[None]]
+    ) -> None:
+        self._base_url = base_url
+        self._token = token
+        self._entity_ids = entity_ids
+        self._on_state_changed = on_state_changed
+        self._task: asyncio.Task[None] | None = None
+        self._stop = asyncio.Event()
+
+    async def start(self) -> None:
+        """Open the WebSocket and begin the event loop."""
+        self._stop.clear()
+        self._task = asyncio.create_task(self._run_loop())
+
+    async def stop(self, timeout: float = 5.0) -> None:
+        """Cancel the event loop and await with *timeout*."""
+        self._stop.set()
+        if self._task is not None:
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(self._task),
+                    timeout=timeout,
+                )
+            except TimeoutError:
+                logger.warning("ha_ws_stop_timeout", entity_count=len(self._entity_ids))
+                self._task.cancel()
+            self._task = None
+
+    # -- internal ----------------------------------------------------------
+
+    async def _run_loop(self) -> None:
+        """Reconnect loop with exponential back-off."""
+        delay = 1.0
+        max_delay = 30.0
+
+        while not self._stop.is_set():
+            try:
+                await self._connect_and_dispatch()
+                # Successful connection → reset back-off on next disconnect
+                delay = 1.0
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.warning(
+                    "ha_ws_reconnect",
+                    delay_seconds=delay,
+                    entity_count=len(self._entity_ids),
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, max_delay)
+
+    async def _connect_and_dispatch(self) -> None:
+        """Open a WS connection, subscribe, dispatch events until disconnect."""
+        ws_url = self._base_url.replace("http", "ws").rstrip("/") + "/api/websocket"
+        headers = {"Authorization": f"Bearer {self._token}"}
+
+        async with aconnect_ws(
+            ws_url,
+            httpx.AsyncClient(timeout=httpx.Timeout(30.0)),
+            headers=headers,
+        ) as _ws:
+            ws: Any = _ws
+            # Auth handshake
+            msg = await ws.receive_text()
+            auth_msg = _parse_ws_message(msg)
+            if auth_msg is None or auth_msg.get("type") != "auth_ok":
+                # Try receiving auth_required first, then send auth
+                msg2 = await ws.receive_text()
+                auth_req = _parse_ws_message(msg2)
+                if auth_req and auth_req.get("type") == "auth_required":
+                    await ws.send_text(
+                        _format_ws_message(
+                            type="auth", access_token=self._token
+                        )
+                    )
+                    msg3 = await ws.receive_text()
+                    auth_msg = _parse_ws_message(msg3)
+                    if auth_msg is None or auth_msg.get("type") != "auth_ok":
+                        raise RuntimeError(
+                            f"HA WebSocket auth failed: {auth_msg}"
+                        )
+
+            # Subscribe to state_changed events
+            sub_msg = _format_ws_message(
+                id=1,
+                type="subscribe_events",
+                event_type="state_changed",
+            )
+            await ws.send_text(sub_msg)
+
+            # Initial REST snapshot for registered entities
+            await self._fetch_initial_state()
+
+            # Event dispatch loop
+            while not self._stop.is_set():
+                try:
+                    msg = await asyncio.wait_for(
+                        ws.receive_text(), timeout=30.0
+                    )
+                    self._handle_message(msg)
+                except TimeoutError:
+                    # Keep-alive ping — do nothing, loop continues
+                    continue
+
+    async def _fetch_initial_state(self) -> None:
+        """Fetch current state for every registered entity via REST."""
+        if not self._entity_ids:
+            return
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                for entity_id in self._entity_ids:
+                    resp = await client.get(
+                        f"{self._base_url}/api/states/{entity_id}",
+                        headers={"Authorization": f"Bearer {self._token}"},
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        state_str = data.get("state", "unknown")
+                        attrs = data.get("attributes", {})
+                        last_changed = data.get("last_changed")
+                        fired_at = _parse_ts(last_changed) or datetime.now(UTC)
+                        event = HaStateEvent(
+                            entity_id=entity_id,
+                            state=state_str,
+                            attributes=attrs,
+                            fired_at=fired_at,
+                        )
+                        await self._on_state_changed(event)
+        except Exception:
+            logger.warning(
+                "ha_ws_initial_snapshot_error",
+                entity_count=len(self._entity_ids),
+            )
+
+    def _handle_message(self, raw: str) -> None:
+        """Parse and dispatch a single WS message."""
+        parsed = _parse_ws_message(raw)
+        if parsed is None:
+            return
+        if parsed.get("type") != "event":
+            return
+        event = parsed.get("event")
+        if event is None:
+            return
+        event_data = event.get("data", {})
+        if event.get("event_type") != "state_changed":
+            return
+
+        entity_id = event_data.get("entity_id", "")
+        if entity_id not in self._entity_ids:
+            return  # filtered out
+
+        new_state = event_data.get("new_state")
+        if new_state is None:
+            return
+
+        state_str = new_state.get("state", "unknown")
+        attrs = new_state.get("attributes", {})
+        last_changed = new_state.get("last_changed")
+        fired_at = _parse_ts(last_changed) or datetime.now(UTC)
+
+        ha_event = HaStateEvent(
+            entity_id=entity_id,
+            state=state_str,
+            attributes=attrs,
+            fired_at=fired_at,
+        )
+        # Fire-and-forget: the callback processes the event without
+        # blocking the WS read loop.  The task is tracked by the event
+        # loop; we do not need to await it.
+        asyncio.create_task(self._on_state_changed(ha_event))  # noqa: RUF006
+
+
+def _parse_ws_message(raw: str) -> dict[str, Any] | None:
+    """Parse a Home Assistant WebSocket JSON message."""
+    import json
+
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+
+
+def _format_ws_message(**kwargs: Any) -> str:
+    """Format keyword args into a HA WebSocket JSON message."""
+    import json
+
+    return json.dumps(kwargs)

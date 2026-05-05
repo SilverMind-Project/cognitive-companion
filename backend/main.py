@@ -103,6 +103,7 @@ async def lifespan(app: FastAPI):
     )
 
     # -- Integration clients -----------------------------------------------
+    from backend.integrations.ha_state_cache import HaStateCache
     from backend.integrations.homeassistant import HomeAssistantClient
     from backend.integrations.minio_client import get_minio_client
     from backend.integrations.telegram import TelegramClient
@@ -435,30 +436,44 @@ async def lifespan(app: FastAPI):
         app.state.identity_revision_subscriber = cts_runtime.identity_revision_subscriber
         await cts_runtime.start()
 
-        # -- PresenceService (Block 1: skeleton, CTS-only provider) --------
+        # -- PresenceService (Block 2: HaStateCache + HA providers) --------
+        from pathlib import Path
+
         from backend.services.cts.location_repository import (
             SqlAlchemyLocationRepository,
         )
         from backend.services.presence import PresenceService
-        from backend.services.presence.providers.cts_location import (
-            CtsLocationProvider,
+        from backend.services.presence.config import load_presence_config
+        from backend.services.presence.factory import (
+            build_providers,
+            collect_required_entities,
         )
+
+        presence_config = load_presence_config(Path("config/presence.yaml"))
+        ha_state_cache = HaStateCache(homeassistant_client=ha_client)
+        for entity in collect_required_entities(presence_config):
+            ha_state_cache.register(entity)
+        await ha_state_cache.start()
+        app.state.ha_state_cache = ha_state_cache
 
         location_repository = SqlAlchemyLocationRepository(
             cts_runtime.db_factory(),
         )
-        cts_provider = CtsLocationProvider(
+        providers = build_providers(
+            presence_config,
+            cache=ha_state_cache,
             location_repository=location_repository,
-            ttl_seconds=settings.get("presence.cts_ttl_seconds", 120),
-            priority=50,
         )
         presence_service = PresenceService(
-            providers=[cts_provider],
-            confidence_floor=0.0,
+            providers=providers,
+            confidence_floor=presence_config.fusion.confidence_floor,
         )
         app.state.presence = presence_service
         location_repository.close()
-        logger.info("presence_service_started")
+        logger.info(
+            "presence_service_started",
+            providers=[p.name for p in providers],
+        )
 
         # Now that the runtime exists, surface it to the MCP tool set.
         from backend.mcp.server import _svc as _mcp_svc
@@ -483,6 +498,8 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
     if cts_runtime is not None:
         await cts_runtime.stop()
+    if app.state.ha_state_cache is not None:
+        await app.state.ha_state_cache.stop()
     logger.info("Shutting down Cognitive Companion v2")
 
 

@@ -95,7 +95,7 @@ class CtsLocationProvider:
             return PresenceSnapshot(
                 person_id=person_id,
                 status=PresenceStatus.STALE,
-                room_id=state.current_room_id,
+                room_id=str(state.current_room_id) if state.current_room_id is not None else None,
                 room_name=state.current_room_name,
                 confidence=state.confidence,
                 last_seen_at=None,
@@ -110,7 +110,7 @@ class CtsLocationProvider:
             return PresenceSnapshot(
                 person_id=person_id,
                 status=PresenceStatus.STALE,
-                room_id=state.current_room_id,
+                room_id=str(state.current_room_id) if state.current_room_id is not None else None,
                 room_name=state.current_room_name,
                 confidence=state.confidence,
                 last_seen_at=state.last_seen_at,
@@ -130,7 +130,7 @@ class CtsLocationProvider:
         return PresenceSnapshot(
             person_id=person_id,
             status=PresenceStatus.PRESENT_ROOM,
-            room_id=state.current_room_id,
+            room_id=str(state.current_room_id) if state.current_room_id is not None else None,
             room_name=state.current_room_name,
             confidence=state.confidence,
             last_seen_at=state.last_seen_at,

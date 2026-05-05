@@ -469,21 +469,27 @@ class TestActivitySessionQueryHelpers:
     def test_get_sessions_for_day(self, db_factory):
         """Should return closed sessions for a specific date."""
         service = ActivitySessionService(db_factory)
-        now = datetime.now(UTC)
 
-        # Create a closed session from today
+        # Use a fixed reference time safely in the middle of a day to avoid
+        # midnight-boundary flakiness when the wall clock crosses a day.
+        now = datetime.now(UTC)
+        ref_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if ref_time > now:
+            ref_time = ref_time - timedelta(days=1)
+
+        # Create a closed session from "today" (ref_time's date)
         service.open_session(
             person_id="person123",
             activity_type="meal_eating",
             room_name="kitchen",
             confidence=0.90,
-            started_at=now - timedelta(hours=2),
+            started_at=ref_time - timedelta(hours=2),
             start_event_id=None,
         )
         service.close_session(
             person_id="person123",
             activity_type="meal_eating",
-            ended_at=now - timedelta(hours=1),
+            ended_at=ref_time - timedelta(hours=1),
             end_event_id=None,
             closed_via="explicit",
         )
@@ -494,18 +500,18 @@ class TestActivitySessionQueryHelpers:
             activity_type="sleep",
             room_name="bedroom",
             confidence=0.95,
-            started_at=now - timedelta(days=2),
+            started_at=ref_time - timedelta(days=2),
             start_event_id=None,
         )
         service.close_session(
             person_id="person123",
             activity_type="sleep",
-            ended_at=now - timedelta(days=1),
+            ended_at=ref_time - timedelta(days=1),
             end_event_id=None,
             closed_via="explicit",
         )
 
-        today_str = now.date().isoformat()
+        today_str = ref_time.date().isoformat()
         sessions = service.get_sessions_for_day("person123", today_str)
 
         # Should only have today's session

@@ -1,0 +1,47 @@
+# Test fixture for Block 9 night-mode integration test.
+# Canonical provider chain: night_anchor > ha_bed_sensor > cts_location >
+# ha_device_tracker > stale_fallback > unknown_sentinel.
+
+providers:
+  - name: night_anchor
+    light_entities:
+      - light.master_bedroom
+      - light.hallway
+    bed_sensor_entity: binary_sensor.master_bedroom_bed_occupancy
+    anchor_room_id: "1"
+    anchor_room_name: bedroom
+    require_last_room_in:
+      - bedroom
+      - hallway
+    release_predicates: []
+    confidence: 0.95
+    min_dark_minutes: 10
+    priority: 90
+
+  - name: ha_bed_sensor
+    entity_id: binary_sensor.master_bedroom_bed_occupancy
+    person_id: mom
+    room_id: "1"
+    room_name: bedroom
+    confidence: 0.95
+    priority: 70
+
+  - name: cts_location
+    confidence_floor: 0.0
+    ttl_seconds: 120
+    priority: 50
+
+  - name: ha_device_tracker
+    entity_id_template: device_tracker.{person_id}_phone
+    confidence: 0.8
+    priority: 30
+
+  - name: stale_fallback
+    ttl_seconds: 3600
+    priority: 10
+
+  - name: unknown_sentinel
+
+fusion:
+  rule: highest_priority_above_floor
+  confidence_floor: 0.4

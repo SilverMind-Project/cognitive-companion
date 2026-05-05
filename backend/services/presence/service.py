@@ -139,6 +139,48 @@ class PresenceService:
         else:
             self._fusion_config = FusionConfig()
 
+    @property
+    def providers(self) -> list[PresenceProvider]:
+        """Read-only access to the sorted provider list."""
+        return self._providers
+
+    @property
+    def fusion_rule(self) -> str:
+        """The active fusion rule name."""
+        return self._fusion_config.rule
+
+    @property
+    def confidence_floor(self) -> float:
+        """The active confidence floor."""
+        return self._fusion_config.confidence_floor
+
+    def reload(
+        self,
+        new_config: FusionConfig,
+        *,
+        providers: list[PresenceProvider],
+    ) -> None:
+        """Atomically swap the provider chain and fusion config.
+
+        Used by the ``/presence-config/reload`` endpoint to hot-reload
+        without restarting the process.
+
+        Parameters
+        ----------
+        new_config:
+            A ``FusionConfig`` (or ``PresenceConfig`` with a ``.fusion``
+            attribute) describing the new fusion settings.
+        providers:
+            New provider instances.
+        """
+        self._providers = sorted(providers, key=lambda p: p.priority, reverse=True)
+        # Accept either a FusionConfig directly or a PresenceConfig with a
+        # .fusion attribute (the reload endpoint passes the latter).
+        if hasattr(new_config, "fusion"):
+            self._fusion_config = new_config.fusion  # type: ignore[union-attr]
+        else:
+            self._fusion_config = new_config  # type: ignore[assignment]
+
     async def get(
         self,
         person_id: str,

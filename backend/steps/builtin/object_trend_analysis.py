@@ -19,14 +19,17 @@ Result keys written to ``pipeline_data``
 ``room_trends_summary``
     Compact single-line text ready for LLM prompt injection.
 
-Graceful degradation: if ``semantic_memory_client`` is ``None`` or the
+Graceful degradation: if ``memory_query`` is ``None`` or the
 service returns no data, the step writes empty results and continues.
 """
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from backend.core.logging import get_logger
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.services.memory_query.types import RoomTrendContext
 from backend.steps import StepRegistry
 from backend.steps.base import (
     ServiceContainer,
@@ -109,12 +112,12 @@ class ObjectTrendAnalysisHandler(StepHandler):
         trigger: TriggerContext,
         services: ServiceContainer,
     ) -> StepResult:
-        if not services.semantic_memory_client:
-            config = step.config_json or {}
-            output_key: str = config.get("output_key", "room_trends")
+        config = step.config_json or {}
+        output_key: str = config.get("output_key", "room_trends")
+
+        if not services.memory_query:
             return StepResult(data=_empty_output(output_key))
 
-        config = step.config_json or {}
         room_ids: list[str] = config.get("room_ids", [])
         include_snapshots: int = config.get("include_snapshots_hours", 0)
         severity_threshold: str = config.get("severity_threshold", "info")
@@ -132,67 +135,23 @@ class ObjectTrendAnalysisHandler(StepHandler):
         any_warning = False
 
         for room_id in room_ids:
-            try:
-                result = await services.semantic_memory_client.get_room_trends(room_id)
-            except Exception as exc:
-                logger.warning(
-                    "trend_fetch_failed",
-                    room_id=room_id,
-                    error=str(exc),
-                )
+            ctx = await services.memory_query.room_trends(
+                room_id,
+                include_snapshots_hours=include_snapshots,
+                severity_threshold=severity_threshold,
+            )
+            if ctx is None:
                 continue
 
-            if not result:
-                continue
-
-            # Apply severity threshold filtering
-            severity_level = _SEVERITY_ORDER.get(result.overall_severity, 0)
-            threshold_level = _SEVERITY_ORDER.get(severity_threshold, 1)
-
-            filtered_anomalies = [
-                a for a in result.anomalies
-                if _SEVERITY_ORDER.get(a.get("severity", "ok"), 0) >= threshold_level
-            ]
-
-            room_data = {
-                "clutter_score": result.clutter_score,
-                "trend_direction": result.trend_direction,
-                "overall_severity": result.overall_severity,
-                "persistent_objects": result.persistent_objects,
-                "novel_objects": result.novel_objects,
-                "anomalies": filtered_anomalies,
-            }
-
-            # Include snapshots if requested
-            if include_snapshots > 0:
-                try:
-                    snapshots = await services.semantic_memory_client.get_snapshots(
-                        room_id, since_hours=include_snapshots
-                    )
-                    room_data["snapshots"] = [
-                        {
-                            "period_start": s.period_start.isoformat() if s.period_start else None,
-                            "unique_object_count": s.unique_object_count,
-                            "object_counts": s.object_counts,
-                            "persistent_objects": s.persistent_objects,
-                            "novel_objects": s.novel_objects,
-                            "embedding_variance": s.embedding_variance,
-                        }
-                        for s in snapshots
-                    ]
-                except Exception as exc:
-                    logger.warning(
-                        "trend_snapshots_failed",
-                        room_id=room_id,
-                        error=str(exc),
-                    )
+            room_data = _format_trend_context(ctx)
 
             trends[room_id] = room_data
 
             # Track max severity
+            severity_level = _SEVERITY_ORDER.get(ctx.overall_severity, 0)
             if severity_level > _SEVERITY_ORDER.get(max_severity, 0):
-                max_severity = result.overall_severity
-            if result.overall_severity in ("warning", "critical"):
+                max_severity = ctx.overall_severity
+            if ctx.overall_severity in ("warning", "critical"):
                 any_warning = True
 
         summary = _build_summary(trends, max_severity)
@@ -226,6 +185,33 @@ def _empty_output(output_key: str = "room_trends") -> dict:
         "room_trends_max_severity": "ok",
         "room_trends_summary": "No trend data available.",
     }
+
+
+def _format_trend_context(ctx: RoomTrendContext) -> dict:
+    """Format a RoomTrendContext into the dict shape expected by pipeline_data."""
+    room_data: dict = {
+        "clutter_score": ctx.clutter_score,
+        "trend_direction": ctx.trend_direction,
+        "overall_severity": ctx.overall_severity,
+        "persistent_objects": ctx.persistent_objects,
+        "novel_objects": ctx.novel_objects,
+        "anomalies": list(ctx.anomalies),
+    }
+
+    if ctx.snapshots:
+        room_data["snapshots"] = [
+            {
+                "period_start": s.period_start.astimezone(UTC).isoformat() if s.period_start else None,
+                "unique_object_count": s.unique_object_count,
+                "object_counts": s.object_counts,
+                "persistent_objects": s.persistent_objects,
+                "novel_objects": s.novel_objects,
+                "embedding_variance": s.embedding_variance,
+            }
+            for s in ctx.snapshots
+        ]
+
+    return room_data
 
 
 def _build_summary(trends: dict, max_severity: str) -> str:

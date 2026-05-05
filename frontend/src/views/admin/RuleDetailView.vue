@@ -365,6 +365,135 @@
                 />
               </template>
 
+              <!-- Home State filter -->
+              <template v-else-if="ctxForm.context_type === 'home_state'">
+                <v-autocomplete
+                  v-model="ctxForm.config.person_id"
+                  :items="personIds"
+                  label="Person"
+                  variant="outlined"
+                  density="compact"
+                  hide-details="auto"
+                  rounded="lg"
+                  clearable
+                  class="mb-3"
+                  aria-label="Person whose home-state to evaluate"
+                />
+                <v-select
+                  v-model="ctxForm.config.state"
+                  :items="[
+                    { title: 'At home (any room or asleep)', value: 'at_home' },
+                    { title: 'Asleep (anchored)', value: 'asleep' },
+                    { title: 'Away from home', value: 'away' },
+                    { title: 'Unknown', value: 'unknown' },
+                  ]"
+                  item-title="title"
+                  item-value="value"
+                  label="Required state"
+                  :rules="[v => !!v || 'Choose a state.']"
+                  variant="outlined"
+                  density="compact"
+                  hide-details="auto"
+                  rounded="lg"
+                />
+              </template>
+
+              <!-- Presence Status filter -->
+              <template v-else-if="ctxForm.context_type === 'presence_status'">
+                <v-autocomplete
+                  v-model="ctxForm.config.person_id"
+                  :items="personIds"
+                  label="Person"
+                  variant="outlined"
+                  density="compact"
+                  hide-details="auto"
+                  rounded="lg"
+                  clearable
+                  class="mb-3"
+                  aria-label="Person whose presence status to evaluate"
+                />
+                <v-select
+                  v-model="ctxForm.config.status"
+                  :items="[
+                    { title: 'Present in a known room', value: 'present_room' },
+                    { title: 'Present at home (room unknown)', value: 'present_home' },
+                    { title: 'Asleep', value: 'asleep' },
+                    { title: 'Stale', value: 'stale' },
+                    { title: 'Away', value: 'away' },
+                    { title: 'Unknown', value: 'unknown' },
+                  ]"
+                  item-title="title"
+                  item-value="value"
+                  label="Required status"
+                  :rules="[v => !!v || 'Choose a status.']"
+                  variant="outlined"
+                  density="compact"
+                  hide-details="auto"
+                  rounded="lg"
+                  class="mb-3"
+                />
+                <v-autocomplete
+                  v-model="ctxForm.config.room_name"
+                  :items="roomNames"
+                  label="In room (optional)"
+                  variant="outlined"
+                  density="compact"
+                  hide-details="auto"
+                  rounded="lg"
+                  clearable
+                  hint="Required only when Status is 'Present in a known room'."
+                  persistent-hint
+                />
+              </template>
+
+              <!-- Presence Dwell filter -->
+              <template v-else-if="ctxForm.context_type === 'presence_dwell'">
+                <v-autocomplete
+                  v-model="ctxForm.config.person_id"
+                  :items="personIds"
+                  label="Person"
+                  variant="outlined"
+                  density="compact"
+                  hide-details="auto"
+                  rounded="lg"
+                  clearable
+                  class="mb-3"
+                />
+                <v-select
+                  v-model="ctxForm.config.status"
+                  :items="[
+                    { title: 'Any status', value: '' },
+                    { title: 'Present in room', value: 'present_room' },
+                    { title: 'Asleep', value: 'asleep' },
+                  ]"
+                  item-title="title"
+                  item-value="value"
+                  label="With status (optional)"
+                  variant="outlined"
+                  density="compact"
+                  hide-details="auto"
+                  rounded="lg"
+                  class="mb-3"
+                />
+                <v-text-field
+                  v-model.number="ctxForm.config.min_minutes"
+                  label="Minimum dwell (minutes)"
+                  type="number"
+                  :min="1"
+                  :max="1440"
+                  :rules="[v => (Number.isInteger(Number(v)) && v >= 1 && v <= 1440) || 'Must be 1..1440.']"
+                  variant="outlined"
+                  density="compact"
+                  hide-details="auto"
+                  rounded="lg"
+                  hint="Filter triggers only when the person has held the matching status this long."
+                  persistent-hint
+                />
+                <v-alert v-if="ctxForm.config.min_minutes >= 30" type="info" variant="tonal" density="compact" class="mt-2">
+                  Long-running filters require a recent presence_query step in the pipeline.
+                </v-alert>
+              </template>
+
               <!-- Scene Contains filter -->
               <template v-else-if="ctxForm.context_type === 'scene_contains'">
                 <v-combobox
@@ -762,6 +891,9 @@ const contextTypeItems = [
   { label: "Day of Week", value: "day_of_week" },
   { label: "Person Presence", value: "person_presence" },
   { label: "Person Activity", value: "person_activity" },
+  { label: "Home State", value: "home_state" },
+  { label: "Presence Dwell", value: "presence_dwell" },
+  { label: "Presence Status", value: "presence_status" },
   { label: "Scene Contains", value: "scene_contains" },
   { label: "Person Movement (Memory)", value: "person_movement_memory" },
 ];
@@ -945,6 +1077,9 @@ function ctxIcon(type) {
     day_of_week: { icon: "mdi-calendar-week", color: "purple" },
     person_presence: { icon: "mdi-account-check", color: "success" },
     person_activity: { icon: "mdi-run", color: "info" },
+    home_state: { icon: "mdi-home-variant", color: "indigo" },
+    presence_status: { icon: "mdi-map-marker-radius", color: "primary" },
+    presence_dwell: { icon: "mdi-timer-sand", color: "deep-purple" },
     scene_contains: { icon: "mdi-image-search", color: "teal" },
     person_movement_memory: { icon: "mdi-map-marker-distance", color: "deep-orange" },
   };
@@ -960,6 +1095,9 @@ function ctxSummary(ctx) {
     case "person_presence":
       return `${c.person_id || 'any person'} is ${c.status || '?'}${c.room_name ? ' in ' + c.room_name : ''}${c.use_semantic_memory ? ' (semantic)' : ''}`;
     case "person_activity": return `${c.person_id || 'any person'}: ${c.activity_type || '?'}`;
+    case "home_state": return `${c.person_id || 'any person'} state = ${c.state || '?'}`;
+    case "presence_status": return `${c.person_id || 'any person'}: ${c.status || '?'}` + (c.room_name ? ` in ${c.room_name}` : "");
+    case "presence_dwell": return `${c.person_id || 'any person'}: ${c.status || 'any status'} ≥ ${c.min_minutes || '?'} min`;
     case "scene_contains": {
       const parts = [];
       if (c.objects_any?.length) parts.push(`objects: ${c.objects_any.join(", ")}`);
@@ -981,6 +1119,15 @@ function openCtxDialog() {
   ctxForm.value = { context_type: "room", config: {}, negate: false };
   ctxConfigStr.value = "{}";
   ctxDialog.value = true;
+}
+
+function seedCtxConfig(type) {
+  switch (type) {
+    case "home_state":      return { state: "at_home" };
+    case "presence_status": return { status: "present_room" };
+    case "presence_dwell":  return { status: "", min_minutes: 5 };
+    default: return {};
+  }
 }
 
 async function loadRule() {
@@ -1165,6 +1312,18 @@ watch(telegramDefaultChatIds, (defaults) => {
       ...form.value.telegram_trigger_config,
       allowed_chat_ids: [...defaults],
     };
+  }
+});
+
+// Seed default config when context_type changes in the filter dialog.
+watch(() => ctxForm.value.context_type, (type) => {
+  const defaults = seedCtxConfig(type);
+  if (Object.keys(defaults).length > 0) {
+    for (const [key, value] of Object.entries(defaults)) {
+      if (ctxForm.value.config[key] === undefined || ctxForm.value.config[key] === null) {
+        ctxForm.value.config[key] = value;
+      }
+    }
   }
 });
 

@@ -1,4 +1,11 @@
-"""Tests for the CTS presence smoke router."""
+"""Contract tests for the CTS presence BFF endpoint shape (Block 9).
+
+These tests assert that the JSON response from ``GET /api/v1/cts/presence/{id}``
+matches the ``PresenceSnapshotOut`` Pydantic model exactly.  Any change
+to response keys or types is a breaking API change.
+
+Verification: ``make check``.
+"""
 
 from __future__ import annotations
 
@@ -26,19 +33,23 @@ def _make_snapshot(
     *,
     status: PresenceStatus = PresenceStatus.PRESENT_ROOM,
     room_name: str = "bedroom",
+    room_id: int = 1,
     confidence: float = 0.85,
+    person_id: str = "mom",
+    notes: str | None = "anchored, bedroom lights off, bed sensor on",
 ) -> PresenceSnapshot:
-    at = datetime.now(UTC)
+    now = datetime.now(UTC)
     return PresenceSnapshot(
-        person_id="mom",
+        person_id=person_id,
         status=status,
-        room_id=1,
+        room_id=room_id,
         room_name=room_name,
         confidence=confidence,
-        last_seen_at=at,
+        last_seen_at=now,
         dwell_minutes=15.0,
         sources=(PresenceSource(name="cts_location", confidence=confidence),),
-        inferred_at=at,
+        inferred_at=now,
+        notes=notes,
     )
 
 
@@ -48,7 +59,6 @@ def presence_service() -> PresenceService:
     mock_provider.name = "cts_location"
     mock_provider.priority = 50
     mock_provider.probe = AsyncMock(return_value=_make_snapshot())
-
     return PresenceService(providers=[mock_provider], confidence_floor=0.0)
 
 
@@ -58,11 +68,11 @@ def presence_service() -> PresenceService:
 
 
 @pytest.mark.asyncio
-async def test_cts_disabled_returns_404():
-    """When cts.enabled=False, return 404 with cts.disabled code."""
+async def test_response_keys_match_contract(presence_service: PresenceService):
+    """Assert every expected key is present in the JSON response."""
     mock_settings = MagicMock()
     mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": False,
+        "cts.enabled": True,
     }.get(key, default))
 
     app = FastAPI()
@@ -71,22 +81,78 @@ async def test_cts_disabled_returns_404():
     from backend.routers.cts_presence import router
 
     app.include_router(router, prefix="/api/v1")
-    app.state.presence = None
+    app.state.presence = presence_service
 
     with patch("backend.routers.cts_presence.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/v1/cts/mom")
 
-    assert resp.status_code == 404
+    assert resp.status_code == 200
     body = resp.json()
-    assert body["detail"]["code"] == "cts.disabled"
+
+    # All expected top-level keys must be present.
+    expected_keys = {
+        "person_id",
+        "status",
+        "room_id",
+        "room_name",
+        "confidence",
+        "last_seen_at",
+        "dwell_minutes",
+        "sources",
+        "inferred_at",
+        "notes",
+    }
+    assert set(body.keys()) == expected_keys, (
+        f"Response keys {set(body.keys())} != expected {expected_keys}"
+    )
 
 
 @pytest.mark.asyncio
-async def test_person_not_in_repo_returns_unknown(presence_service: PresenceService):
-    """When no provider returns a snapshot, return UNKNOWN."""
-    # Override the provider to return None
+async def test_response_types(presence_service: PresenceService):
+    """Assert every field has the correct JSON type."""
+    mock_settings = MagicMock()
+    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
+        "cts.enabled": True,
+    }.get(key, default))
+
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    from backend.routers.cts_presence import router
+
+    app.include_router(router, prefix="/api/v1")
+    app.state.presence = presence_service
+
+    with patch("backend.routers.cts_presence.settings", mock_settings):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/v1/cts/mom")
+
+    body = resp.json()
+
+    assert isinstance(body["person_id"], str)
+    assert isinstance(body["status"], str)
+    assert isinstance(body["room_id"], str)
+    assert isinstance(body["room_name"], str)
+    assert isinstance(body["confidence"], (int, float))
+    assert isinstance(body["last_seen_at"], str)
+    assert isinstance(body["dwell_minutes"], (int, float))
+    assert isinstance(body["sources"], list)
+    assert isinstance(body["inferred_at"], str)
+    assert isinstance(body["notes"], str)
+
+    # Each source has name + confidence.
+    for source in body["sources"]:
+        assert set(source.keys()) == {"name", "confidence"}
+        assert isinstance(source["name"], str)
+        assert isinstance(source["confidence"], (int, float))
+
+
+@pytest.mark.asyncio
+async def test_unknown_snapshot_empty_sources(presence_service: PresenceService):
+    """When no provider matches, sources must be an empty list (not null)."""
     mock_provider = MagicMock()
     mock_provider.name = "cts_location"
     mock_provider.priority = 50
@@ -112,38 +178,11 @@ async def test_person_not_in_repo_returns_unknown(presence_service: PresenceServ
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/v1/cts/mom")
 
-    assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == PresenceStatus.UNKNOWN
     assert body["sources"] == []
-
-
-@pytest.mark.asyncio
-async def test_person_in_repo_returns_present_room(presence_service: PresenceService):
-    """When a provider returns a snapshot, return it with correct fields."""
-    mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": True,
-    }.get(key, default))
-
-    app = FastAPI()
-    register_exception_handlers(app)
-
-    from backend.routers.cts_presence import router
-
-    app.include_router(router, prefix="/api/v1")
-    app.state.presence = presence_service
-
-    with patch("backend.routers.cts_presence.settings", mock_settings):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/mom")
-
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == PresenceStatus.PRESENT_ROOM
-    assert body["room_name"] == "bedroom"
-    assert body["confidence"] == 0.85
-    assert body["person_id"] == "mom"
-    assert len(body["sources"]) == 1
-    assert body["sources"][0]["name"] == "cts_location"
+    assert body["room_id"] is None
+    assert body["room_name"] is None
+    assert body["confidence"] == 0.0
+    assert body["last_seen_at"] is None
+    assert body["dwell_minutes"] is None

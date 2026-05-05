@@ -19,11 +19,10 @@ Result keys written to ``pipeline_data``
 from __future__ import annotations
 
 from backend.core.logging import get_logger
-from backend.integrations.semantic_memory_client import (
-    MovementCreate,
-    ObservationCreate,
-)
+from backend.integrations.scene_analysis_client import SceneAnalyzeResult
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.services.pipeline_data_manager import resolve_pipeline_value
+from backend.services.scene_intel.types import RoomTransition
 from backend.steps import StepRegistry
 from backend.steps.base import (
     ServiceContainer,
@@ -126,7 +125,7 @@ class SemanticMemoryWriteHandler(StepHandler):
         trigger: TriggerContext,
         services: ServiceContainer,
     ) -> StepResult:
-        if not services.semantic_memory_client:
+        if not services.scene_intel:
             return StepResult(data=_empty_output())
 
         config = step.config_json or {}
@@ -141,20 +140,20 @@ class SemanticMemoryWriteHandler(StepHandler):
 
         # Resolve room from trigger
         room_name = trigger.room_name or "unknown"
-        room_id = room_name  # simplified: use room_name as room_id
+        room_id = room_name
 
-        observation_id: int | None = None
-        movement_ids: list[int] = []
+        # -- Build observation data from pipeline_data ------------------------
+        description = ""
+        object_list: list[str] = []
+        hazard_flags: list[str] = []
+        embedding: list = []
 
-        # -- Observation write ------------------------------------------------
         if write_obs:
-            from backend.services.pipeline_data_manager import resolve_pipeline_value
             description = resolve_pipeline_value(pipeline_data, desc_key, default="")
             detections = resolve_pipeline_value(pipeline_data, det_key, default=[])
             embedding = resolve_pipeline_value(pipeline_data, emb_key, default=[])
             hazards = resolve_pipeline_value(pipeline_data, haz_key, default=[])
 
-            object_list: list[str] = []
             if isinstance(detections, list):
                 object_list = [
                     d.get("label", "") if isinstance(d, dict) else ""
@@ -162,7 +161,6 @@ class SemanticMemoryWriteHandler(StepHandler):
                 ]
                 object_list = [o for o in object_list if o]
 
-            hazard_flags: list[str] = []
             if isinstance(hazards, list):
                 hazard_flags = [
                     h.get("name", "") if isinstance(h, dict) else ""
@@ -170,68 +168,50 @@ class SemanticMemoryWriteHandler(StepHandler):
                 ]
                 hazard_flags = [h for h in hazard_flags if h]
 
-            if description or object_list or hazard_flags:
-                obs = ObservationCreate(
-                    room_id=room_id,
-                    description=description,
-                    object_list=object_list,
-                    hazard_flags=hazard_flags,
-                    embedding=embedding if isinstance(embedding, list) else [],
-                    source=source,
-                )
-                record = await services.semantic_memory_client.create_observation(obs)
-                if record:
-                    observation_id = record.id
-                    logger.info(
-                        "semantic_memory_observation_created",
-                        observation_id=observation_id,
-                        room_id=room_id,
-                    )
-                else:
-                    logger.warning(
-                        "semantic_memory_observation_write_failed",
-                        room_id=room_id,
-                    )
-
-        # -- Movement writes --------------------------------------------------
+        # -- Build movement transitions from pipeline_data --------------------
+        transitions: tuple[RoomTransition, ...] = ()
         if write_mov:
-            from backend.services.pipeline_data_manager import resolve_pipeline_value
-            transitions = resolve_pipeline_value(pipeline_data, mov_key, default=[])
-            if isinstance(transitions, list):
-                for transition in transitions:
+            raw_transitions = resolve_pipeline_value(pipeline_data, mov_key, default=[])
+            if isinstance(raw_transitions, list):
+                room_transitions: list[RoomTransition] = []
+                for transition in raw_transitions:
                     if not isinstance(transition, dict):
                         continue
-                    movement = MovementCreate(
-                        person_id=transition.get("person_id", "unknown"),
-                        from_room_id=transition.get("from_room_id", "unknown"),
-                        to_room_id=transition.get("to_room_id", "unknown"),
-                        direction_semantic=transition.get(
-                            "direction_semantic", "any"
-                        ),
-                        confidence=transition.get("confidence", 0.8),
-                        observation_id=observation_id,
-                    )
-                    record = await services.semantic_memory_client.create_movement(
-                        movement
-                    )
-                    if record:
-                        movement_ids.append(record.id)
-                    else:
-                        logger.warning(
-                            "semantic_memory_movement_write_failed",
-                            person_id=movement.person_id,
+                    room_transitions.append(
+                        RoomTransition(
+                            person_id=transition.get("person_id", "unknown"),
+                            from_room_id=transition.get("from_room_id", "unknown"),
+                            to_room_id=transition.get("to_room_id", "unknown"),
+                            direction_semantic=transition.get(
+                                "direction_semantic", "any"
+                            ),
+                            confidence=transition.get("confidence", 0.8),
                         )
+                    )
+                transitions = tuple(room_transitions)
+
+        # -- Persist via domain service ---------------------------------------
+        result = SceneAnalyzeResult(
+            description=description or None,
+            embedding=embedding if isinstance(embedding, list) else [],
+        )
+        intel_record = await services.scene_intel.persist(
+            result,
+            room_id=room_id,
+            source=source,
+            transitions=transitions,
+        )
 
         logger.info(
             "semantic_memory_write_done",
-            observation_id=observation_id,
-            movements=len(movement_ids),
+            observation_id=intel_record.observation_id,
+            movements=len(intel_record.movement_ids),
         )
 
         return StepResult(
             data={
-                "semantic_memory_observation_id": observation_id,
-                "semantic_memory_movement_ids": movement_ids,
+                "semantic_memory_observation_id": intel_record.observation_id,
+                "semantic_memory_movement_ids": intel_record.movement_ids,
                 "semantic_memory_write_available": True,
             }
         )

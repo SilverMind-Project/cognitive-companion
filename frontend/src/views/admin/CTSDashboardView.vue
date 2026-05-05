@@ -1,5 +1,22 @@
 <template>
   <div>
+    <!-- Current presence widgets -->
+    <div class="mb-6">
+      <div class="text-overline text-medium-emphasis mb-2 px-1">Current presence</div>
+      <v-row dense>
+        <v-col v-for="person in trackedPersons" :key="person.id" cols="12" sm="6" md="4">
+          <PresenceWidget :person-id="person.id" :person-label="person.display_name" :poll-seconds="10" />
+        </v-col>
+        <v-col v-if="!trackedPersons.length" cols="12">
+          <v-card class="glass-card">
+            <v-card-text class="text-center text-medium-emphasis py-6">
+              No persons configured for tracking. Add household members in <router-link to="/admin/persons">Persons</router-link>.
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+    </div>
+
     <!-- Person selector + date picker -->
     <v-row class="mb-2">
       <v-col cols="12" sm="4">
@@ -222,11 +239,14 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
+import { api } from "../../services/api.js";
+import PresenceWidget from "../../components/cts/PresenceWidget.vue";
 
 const selectedPerson = ref(null);
 const selectedDate = ref(null);
 const windowHours = ref(24);
 const loading = ref(false);
+const trackedPersons = ref([]);
 
 const signals = ref([]);
 const signalSummary = ref({});
@@ -264,7 +284,12 @@ function toSvgY(y) {
   return Math.max(20, Math.min(280, 280 - (y / 8) * 260));
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    trackedPersons.value = await api.getPersons();
+  } catch (e) {
+    console.error("Failed to load persons for presence widgets:", e);
+  }
   loadSignals();
   loadSummary();
 });

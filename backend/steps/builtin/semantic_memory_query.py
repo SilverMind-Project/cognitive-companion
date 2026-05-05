@@ -21,10 +21,9 @@ contains empty lists and a "No memory context available." summary.
 
 from __future__ import annotations
 
+from datetime import UTC
+
 from backend.core.logging import get_logger
-from backend.integrations.semantic_memory_client import (
-    ObservationSearchRequest,
-)
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
 from backend.steps.base import (
@@ -129,7 +128,7 @@ class SemanticMemoryQueryHandler(StepHandler):
     ) -> StepResult:
         output_key: str = step.config_json.get("output_key", "memory_context") if step.config_json else "memory_context"
 
-        if not services.semantic_memory_client:
+        if not services.memory_query:
             return StepResult(data=_empty_output(output_key))
 
         config = step.config_json or {}
@@ -139,88 +138,68 @@ class SemanticMemoryQueryHandler(StepHandler):
         if not room_id and config.get("use_trigger_room", True) and trigger.room_name:
             room_id = trigger.room_name
 
+        if not room_id:
+            return StepResult(data=_empty_output(output_key))
+
         since_minutes: int = config.get("since_minutes", 60)
         objects_any: list[str] = config.get("objects_any", [])
         hazard_flags_any: list[str] = config.get("hazard_flags_any", [])
         query_text: str = config.get("query_text", "")
         limit: int = config.get("limit", 5)
 
-        # -- Search observations -----------------------------------------------
-        req = ObservationSearchRequest(
-            room_id=room_id,
+        # Delegate to domain service
+        ctx = await services.memory_query.room_context(
+            room_id,
             since_minutes=since_minutes,
-            objects_any=objects_any,
-            hazard_flags_any=hazard_flags_any,
+            objects_any=tuple(objects_any),
+            hazard_flags_any=tuple(hazard_flags_any),
             query_text=query_text,
             limit=limit,
         )
-        observations = await services.semantic_memory_client.search_observations(req)
 
-        # -- Recent objects ----------------------------------------------------
-        recent_objects: list[dict] = []
-        if room_id:
-            obj_records = await services.semantic_memory_client.get_recent_objects(
-                room_id, since_minutes=since_minutes
-            )
-            recent_objects = [
-                {
-                    "label": r.label,
-                    "observation_count": r.observation_count,
-                    "last_seen_at": r.last_seen_at.isoformat(),
-                }
-                for r in obj_records
-            ]
+        # Format recent_objects for pipeline_data
+        recent_objects: list[dict] = [
+            {
+                "label": r.label,
+                "observation_count": r.observation_count,
+                "last_seen_at": r.last_seen_at.astimezone(UTC).isoformat(),
+            }
+            for r in ctx.recent_objects
+        ]
 
-        # -- Format hazards from observations ----------------------------------
-        recent_hazards: list[dict] = []
-        if hazard_flags_any:
-            recent_hazards = [
-                {
-                    "id": o.id,
-                    "room_id": o.room_id,
-                    "observed_at": o.observed_at.isoformat(),
-                    "hazard_flags": o.hazard_flags,
-                    "description": o.description,
-                }
-                for o in observations
-                if o.hazard_flags
-            ]
+        # Format hazards for pipeline_data
+        recent_hazards: list[dict] = [
+            {
+                "id": h.id,
+                "room_id": h.room_id,
+                "observed_at": h.observed_at.astimezone(UTC).isoformat(),
+                "hazard_flags": h.hazard_flags,
+                "description": h.description,
+            }
+            for h in ctx.recent_hazards
+        ]
 
-        # -- Build summary -----------------------------------------------------
-        if observations or recent_objects:
-            parts: list[str] = []
-            if room_id:
-                parts.append(f"In the past {since_minutes} min in {room_id}:")
-            if recent_objects:
-                obj_strs = [f"{r['label']} ({r['observation_count']}x)" for r in recent_objects]
-                parts.append(", ".join(obj_strs))
-            if recent_hazards:
-                hazard_names = set()
-                for h in recent_hazards:
-                    hazard_names.update(h["hazard_flags"])
-                parts.append(f"{len(hazard_names)} hazard(s): {', '.join(sorted(hazard_names))}.")
-            summary = " ".join(parts)
-        else:
-            summary = "No memory context available."
+        # Format observations for pipeline_data
+        observations: list[dict] = [
+            {
+                "id": o.id,
+                "room_id": o.room_id,
+                "observed_at": o.observed_at.astimezone(UTC).isoformat(),
+                "description": o.description,
+                "object_list": o.object_list,
+                "hazard_flags": o.hazard_flags,
+                "text_similarity": o.text_similarity,
+                "image_similarity": o.image_similarity,
+            }
+            for o in ctx.observations
+        ]
 
         output_data = {
             "recent_objects": recent_objects,
             "recent_hazards": recent_hazards,
-            "observations": [
-                {
-                    "id": o.id,
-                    "room_id": o.room_id,
-                    "observed_at": o.observed_at.isoformat(),
-                    "description": o.description,
-                    "object_list": o.object_list,
-                    "hazard_flags": o.hazard_flags,
-                    "text_similarity": o.text_similarity,
-                    "image_similarity": o.image_similarity,
-                }
-                for o in observations
-            ],
-            "summary": summary,
-            "observations_count": len(observations),
+            "observations": observations,
+            "summary": ctx.summary,
+            "observations_count": ctx.observations_count,
         }
 
         return StepResult(data={output_key: output_data})

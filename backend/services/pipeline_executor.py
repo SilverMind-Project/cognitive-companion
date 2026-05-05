@@ -119,6 +119,10 @@ class PipelineExecutor:
         daily_report_service=None,
         semantic_memory_client=None,
         interactive_response_service=None,
+        memory_query=None,
+        scene_intel=None,
+        activity=None,
+        signals=None,
     ) -> None:
         self._services = ServiceContainer(
             db_factory=db_session_factory,
@@ -135,6 +139,10 @@ class PipelineExecutor:
             daily_report_service=daily_report_service,
             semantic_memory_client=semantic_memory_client,
             interactive_response_service=interactive_response_service,
+            memory_query=memory_query,
+            scene_intel=scene_intel,
+            activity=activity,
+            signals=signals,
         )
 
     # Expose scheduler for injection after construction

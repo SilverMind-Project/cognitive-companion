@@ -21,6 +21,9 @@ from backend.integrations.semantic_memory_client import (
     ObservationSearchHit,
     SemanticMemoryClient,
 )
+from backend.services.memory_query.types import RoomContext
+from backend.services.scene_intel.types import SceneIntelRecord
+from backend.steps.base import ServiceContainer
 from backend.steps.builtin.semantic_memory_query import SemanticMemoryQueryHandler
 from backend.steps.builtin.semantic_memory_write import SemanticMemoryWriteHandler
 
@@ -75,12 +78,12 @@ def _make_transition(id_=1, person_id="p1", to_room="kitchen", semantic="enterin
     )
 
 
-def _make_services(semantic_memory_client=None):
-    from backend.steps.base import ServiceContainer
-
+def _make_services(semantic_memory_client=None, memory_query=None, scene_intel=None):
     return ServiceContainer(
         db_factory=MagicMock(),
         semantic_memory_client=semantic_memory_client,
+        memory_query=memory_query,
+        scene_intel=scene_intel,
     )
 
 
@@ -100,9 +103,14 @@ def _make_trigger(room_name="kitchen"):
 class TestSemanticMemoryWriteStep:
     async def test_write_observation(self):
         """Step creates an observation from pipeline_data and writes the ID."""
-        obs = _make_observation(id_=42)
-        client = _mock_semantic_client(create_observation=obs)
-        services = _make_services(semantic_memory_client=client)
+        intel = SceneIntelRecord(observation_id=42, movement_ids=[])
+
+        async def mock_persist(*args, **kwargs):
+            return intel
+
+        scene_intel = MagicMock()
+        scene_intel.persist = AsyncMock(side_effect=mock_persist)
+        services = _make_services(scene_intel=scene_intel)
 
         handler = SemanticMemoryWriteHandler()
         step = MagicMock(
@@ -119,13 +127,18 @@ class TestSemanticMemoryWriteStep:
 
         assert result.success is True
         assert result.data["semantic_memory_observation_id"] == 42
-        client.create_observation.assert_called_once()
+        scene_intel.persist.assert_called_once()
 
     async def test_write_movement(self):
         """Step creates movements from pipeline_data transitions."""
-        movement = _make_transition(id_=7, person_id="p1")
-        client = _mock_semantic_client(create_movement=movement)
-        services = _make_services(semantic_memory_client=client)
+        intel = SceneIntelRecord(observation_id=None, movement_ids=[7])
+
+        async def mock_persist(*args, **kwargs):
+            return intel
+
+        scene_intel = MagicMock()
+        scene_intel.persist = AsyncMock(side_effect=mock_persist)
+        services = _make_services(scene_intel=scene_intel)
 
         handler = SemanticMemoryWriteHandler()
         step = MagicMock(
@@ -152,14 +165,14 @@ class TestSemanticMemoryWriteStep:
 
         assert result.success is True
         assert result.data["semantic_memory_movement_ids"] == [7]
-        client.create_movement.assert_called_once()
+        scene_intel.persist.assert_called_once()
 
     async def test_no_client_returns_empty(self):
         handler = SemanticMemoryWriteHandler()
         step = MagicMock(config_json={})
         execution = MagicMock(id=1)
         trigger = _make_trigger()
-        services = _make_services(semantic_memory_client=None)
+        services = _make_services(scene_intel=None)
 
         result = await handler.execute(step, execution, {}, trigger, services)
 
@@ -177,8 +190,21 @@ class TestSemanticMemoryQueryStep:
     async def test_query_observations(self):
         """Step retrieves observations and writes to pipeline_data."""
         hits = [_make_hit(id_=1, objects=["cup"])]
-        client = _mock_semantic_client(search_observations=hits)
-        services = _make_services(semantic_memory_client=client)
+        ctx = RoomContext(
+            room_id="kitchen",
+            recent_objects=(),
+            recent_hazards=(),
+            observations=tuple(hits),
+            summary="In the past 60 min in kitchen: 1 observation.",
+            observations_count=1,
+        )
+
+        async def mock_room_context(*args, **kwargs):
+            return ctx
+
+        memory_query = MagicMock()
+        memory_query.room_context = AsyncMock(side_effect=mock_room_context)
+        services = _make_services(memory_query=memory_query)
 
         handler = SemanticMemoryQueryHandler()
         step = MagicMock(
@@ -199,8 +225,21 @@ class TestSemanticMemoryQueryStep:
     async def test_query_with_objects_filter(self):
         """Step filters observations by object labels."""
         hits = [_make_hit(objects=["person"])]
-        client = _mock_semantic_client(search_observations=hits)
-        services = _make_services(semantic_memory_client=client)
+        ctx = RoomContext(
+            room_id="kitchen",
+            recent_objects=(),
+            recent_hazards=(),
+            observations=tuple(hits),
+            summary="In the past 60 min in kitchen: 1 observation.",
+            observations_count=1,
+        )
+
+        async def mock_room_context(*args, **kwargs):
+            return ctx
+
+        memory_query = MagicMock()
+        memory_query.room_context = AsyncMock(side_effect=mock_room_context)
+        services = _make_services(memory_query=memory_query)
 
         handler = SemanticMemoryQueryHandler()
         step = MagicMock(
@@ -222,7 +261,7 @@ class TestSemanticMemoryQueryStep:
         step = MagicMock(config_json={})
         execution = MagicMock(id=1)
         trigger = _make_trigger()
-        services = _make_services(semantic_memory_client=None)
+        services = _make_services(memory_query=None)
 
         result = await handler.execute(step, execution, {}, trigger, services)
 

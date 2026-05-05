@@ -1,5 +1,11 @@
 """tracking_query pipeline step: inject CTS identity + location context.
 
+.. deprecated::
+    This step is superseded by :class:`~backend.steps.builtin.presence_query.PresenceQueryHandler`
+    which uses the fused :class:`~backend.services.presence.PresenceService`.
+    Use ``presence_query`` for new rules; this step remains for backwards
+    compatibility with existing rule definitions.
+
 Replaces the earlier Phase-4 ``cts_context_lookup`` with a broader, more
 structured query interface. The step reads ``PersonLocationState`` /
 ``PersonLocationHistory`` (written by :class:`LocationWriter` from CTS
@@ -30,12 +36,13 @@ Result keys written to ``pipeline_data``
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
+from backend.steps._helpers import resolve_person_id
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -49,7 +56,10 @@ logger = get_logger(__name__)
 
 @StepRegistry.register
 class TrackingQueryHandler(StepHandler):
-    """Read CTS identity + location context for rule evaluation."""
+    """Read CTS identity + location context for rule evaluation.
+
+    .. deprecated:: Use ``presence_query`` instead.
+    """
 
     @classmethod
     def metadata(cls) -> StepMetadata:
@@ -57,9 +67,10 @@ class TrackingQueryHandler(StepHandler):
             type_name="tracking_query",
             display_name="Tracking Query",
             category="perception",
-            icon="mdi-map-marker-radius",
+            icon="mdi-map-marker-radius-outline",
             description=(
-                "Query the CTS identity graph for the current or recent "
+                "DEPRECATED: Use the ``presence_query`` step instead. "
+                "Query the fused presence service for the current or recent "
                 "location of a person, plus any recent dementia signals."
             ),
             config_schema={
@@ -112,6 +123,7 @@ class TrackingQueryHandler(StepHandler):
                 "signal_severity_min": "info",
                 "signal_window_minutes": 30,
             },
+            deprecated=True,
         )
 
     async def execute(
@@ -123,7 +135,7 @@ class TrackingQueryHandler(StepHandler):
         services: ServiceContainer,
     ) -> StepResult:
         config = step.config_json or {}
-        person_id = self._resolve_person_id(config, pipeline_data)
+        person_id = resolve_person_id(config, pipeline_data)
 
         # Gracefully degrade when nothing is configured or resolvable.
         if not person_id:
@@ -140,21 +152,25 @@ class TrackingQueryHandler(StepHandler):
                 },
             )
 
-        db = services.db_factory()
-        try:
-            state = self._read_state(db, person_id)
-            dwell_minutes = self._compute_dwell(db, person_id, state)
-        finally:
-            db.close()
+        # Use the fused presence service instead of direct DB queries.
+        if services.presence is not None:
+            snapshot = await services.presence.get(person_id)
+            state = self._snapshot_to_state_dict(snapshot)
+            dwell_minutes = snapshot.dwell_minutes
+        else:
+            # Fallback: direct DB access for backwards compatibility.
+            db = services.db_factory()
+            try:
+                state = self._read_state(db, person_id)
+                dwell_minutes = self._compute_dwell(db, person_id, state)
+            finally:
+                db.close()
 
         signals: list[dict[str, Any]] = []
-        if services.semantic_memory_client is None:
-            # We don't depend on semantic memory for signals; use SignalStore
-            # if it's available via db_factory.
-            signals = await self._read_signals(
-                services.db_factory,
+        if services.signals is not None:
+            signals = await services.signals.list_recent(
                 person_id=person_id,
-                kind=config.get("signal_kind"),
+                signal_kind=config.get("signal_kind"),
                 severity_min=config.get("signal_severity_min", "info"),
                 window_minutes=int(config.get("signal_window_minutes", 30)),
             )
@@ -183,21 +199,22 @@ class TrackingQueryHandler(StepHandler):
     # -- internals ----------------------------------------------------------
 
     @staticmethod
-    def _resolve_person_id(config: dict, pipeline_data: dict) -> str | None:
-        person_id = (config.get("person_id") or "").strip() or None
-        if person_id:
-            return person_id
+    def _snapshot_to_state_dict(snapshot) -> dict[str, Any] | None:
+        """Convert a PresenceSnapshot to the legacy state dict shape."""
+        from backend.services.presence import PresenceStatus
 
-        # Try upstream step output shape {"persons": [{id: ...}]}
-        persons = pipeline_data.get("persons")
-        if isinstance(persons, list) and persons:
-            first = persons[0]
-            if isinstance(first, dict):
-                return (first.get("id") or first.get("person_id") or None)
-
-        # Try a plain scalar
-        candidate = pipeline_data.get("person_id")
-        return candidate if isinstance(candidate, str) and candidate else None
+        if snapshot.status in (PresenceStatus.UNKNOWN, PresenceStatus.STALE):
+            return None
+        return {
+            "person_id": snapshot.person_id,
+            "current_room_id": snapshot.room_id,
+            "current_room_name": snapshot.room_name,
+            "last_seen_at": (
+                snapshot.last_seen_at.isoformat() if snapshot.last_seen_at else None
+            ),
+            "status": snapshot.status.value,
+            "confidence": snapshot.confidence,
+        }
 
     @staticmethod
     def _read_state(db: Any, person_id: str) -> dict[str, Any] | None:
@@ -247,62 +264,6 @@ class TrackingQueryHandler(StepHandler):
             entered = entered.replace(tzinfo=UTC)
         delta = datetime.now(UTC) - entered
         return round(delta.total_seconds() / 60.0, 2)
-
-    @staticmethod
-    async def _read_signals(
-        db_factory,
-        *,
-        person_id: str,
-        kind: str | None,
-        severity_min: str,
-        window_minutes: int,
-    ) -> list[dict[str, Any]]:
-        from backend.services.cts.signal_store import SignalStore
-
-        # Map severity_min to list of severities to accept.
-        order = ["info", "warning", "emergency"]
-        try:
-            idx = order.index(severity_min)
-        except ValueError:
-            idx = 0
-        accept = order[idx:]
-
-        store = SignalStore(db_factory=db_factory)
-        results: list[dict[str, Any]] = []
-        for sev in accept:
-            part = await store.list_recent(
-                person_id=person_id,
-                signal_type=kind,
-                severity=sev,
-                window_hours=max(1, (window_minutes + 59) // 60),
-                limit=25,
-            )
-            # SignalStore returns `received_at` timestamps; filter to the window.
-            cutoff = datetime.now(UTC) - timedelta(minutes=window_minutes)
-            for sig in part:
-                raw = sig.get("received_at")
-                if raw is None:
-                    results.append(sig)
-                    continue
-                try:
-                    ts = datetime.fromisoformat(raw)
-                    if ts.tzinfo is None:
-                        ts = ts.replace(tzinfo=UTC)
-                    if ts >= cutoff:
-                        results.append(sig)
-                except ValueError:
-                    continue
-        # Deduplicate by id, preserve recent-first order.
-        seen: set[int] = set()
-        deduped: list[dict[str, Any]] = []
-        for sig in results:
-            sid = sig.get("id")
-            if isinstance(sid, int) and sid in seen:
-                continue
-            if isinstance(sid, int):
-                seen.add(sid)
-            deduped.append(sig)
-        return deduped
 
     @staticmethod
     def _evaluate_conditions(

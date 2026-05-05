@@ -180,4 +180,43 @@ export const cts = {
     };
     return ws;
   },
+
+  // ── Presence (Block 9) ────────────────────────────────────────────────────
+  /**
+   * Fetch the fused presence snapshot for one person.
+   * @param {string} personId
+   * @returns {Promise<{
+   *   person_id: string,
+   *   status: "present_room"|"present_home"|"asleep"|"away"|"stale"|"unknown",
+   *   room_id: string|null,
+   *   room_name: string|null,
+   *   confidence: number,
+   *   last_seen_at: string|null,
+   *   dwell_minutes: number|null,
+   *   sources: Array<{name: string, confidence: number}>,
+   *   inferred_at: string,
+   *   notes: string|null,
+   * }>}
+   * Endpoint: GET /api/v1/cts/presence/{personId}
+   * Throws on non-2xx with `error.message` set from the JSON body.
+   */
+  getPresence(personId) {
+    return req(`/presence/${encodeURIComponent(personId)}`);
+  },
+
+  /**
+   * Read the in-memory presence fuser config (sanitized).
+   * Endpoint: GET /api/v1/cts/presence-config
+   */
+  getPresenceConfig() {
+    return req("/presence-config");
+  },
+
+  /**
+   * Reload presence.yaml from disk into the running fuser.
+   * Endpoint: POST /api/v1/cts/presence-config/reload
+   */
+  reloadPresenceConfig() {
+    return req("/presence-config/reload", { method: "POST" });
+  },
 };

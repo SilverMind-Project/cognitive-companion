@@ -11,6 +11,7 @@ from typing import Any
 from backend.core.logging import get_logger
 from backend.integrations.ha_state_cache import HaStateCache
 from backend.services.cts.location_repository import LocationRepository
+from backend.services.presence.anchor_rules import compile_predicate
 from backend.services.presence.config import PresenceConfig
 from backend.services.presence.providers.cts_location import (
     CtsLocationProvider,
@@ -20,6 +21,15 @@ from backend.services.presence.providers.ha_bed_sensor import (
 )
 from backend.services.presence.providers.ha_device_tracker import (
     HaDeviceTrackerProvider,
+)
+from backend.services.presence.providers.night_anchor import (
+    NightAnchorProvider,
+)
+from backend.services.presence.providers.stale_fallback import (
+    StaleFallbackProvider,
+)
+from backend.services.presence.providers.unknown import (
+    UnknownProvider,
 )
 
 logger = get_logger(__name__)
@@ -47,6 +57,27 @@ _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
         person_id_map=cfg.person_id_map,
         priority=cfg.priority,
     ),
+    "night_anchor": lambda cfg, **kw: NightAnchorProvider(
+        cache=kw["cache"],
+        location_repository=kw["location_repository"],
+        light_entities=cfg.light_entities,
+        bed_sensor_entity=cfg.bed_sensor_entity,
+        anchor_room_id=cfg.anchor_room_id,
+        anchor_room_name=cfg.anchor_room_name,
+        require_last_room_in=cfg.require_last_room_in,
+        release_predicates=[
+            compile_predicate(expr) for expr in cfg.release_predicates
+        ],
+        confidence=cfg.confidence,
+        min_dark_minutes=cfg.min_dark_minutes,
+        priority=cfg.priority,
+    ),
+    "stale_fallback": lambda cfg, **kw: StaleFallbackProvider(
+        location_repository=kw["location_repository"],
+        ttl_seconds=cfg.ttl_seconds,
+        priority=cfg.priority,
+    ),
+    "unknown_sentinel": lambda cfg, **kw: UnknownProvider(),
 }
 
 
@@ -96,6 +127,8 @@ def build_providers(
             # Device tracker entities are registered per-person at
             # runtime; nothing to do here.
             pass
+        elif isinstance(provider, NightAnchorProvider):
+            provider.register()
 
     providers.sort(key=lambda p: p.priority, reverse=True)
     logger.info(
@@ -110,22 +143,22 @@ def build_providers(
 def collect_required_entities(config: PresenceConfig) -> list[str]:
     """Walk *config* and return all HA entity IDs the cache must subscribe to.
 
-    Returns entity IDs for ``ha_bed_sensor`` and ``ha_device_tracker``
-    (resolved via a sample person_id).  CTS provider has no HA entities.
+    Returns entity IDs for ``ha_bed_sensor``, ``night_anchor``, and
+    ``ha_device_tracker`` (resolved via a sample person_id).  CTS and
+    stale providers have no HA entities.
     """
     entities: list[str] = []
 
     for provider_cfg in config.providers:
         if provider_cfg.name == "ha_bed_sensor":
             entities.append(provider_cfg.entity_id)
+        elif provider_cfg.name == "night_anchor":
+            entities.extend(provider_cfg.light_entities)
+            if provider_cfg.bed_sensor_entity:
+                entities.append(provider_cfg.bed_sensor_entity)
         elif provider_cfg.name == "ha_device_tracker":
-            # We need at least one person_id to resolve the template.
-            # The actual per-person registration happens at startup in
-            # main.py after we know all enrolled persons.  Here we
-            # return the template string itself as a placeholder;
-            # callers should expand it.
-            # For now, skip device_tracker entities here -- they are
-            # registered dynamically in main.py.
+            # Device tracker entities are registered per-person at
+            # startup in main.py.  Here we skip them.
             pass
 
     return entities

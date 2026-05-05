@@ -466,7 +466,7 @@ async def lifespan(app: FastAPI):
         )
         presence_service = PresenceService(
             providers=providers,
-            confidence_floor=presence_config.fusion.confidence_floor,
+            fusion_config=presence_config.fusion,
         )
         app.state.presence = presence_service
         location_repository.close()

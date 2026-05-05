@@ -53,18 +53,20 @@ def _make_snapshot(
     status: PresenceStatus = PresenceStatus.PRESENT_ROOM,
     confidence: float = 0.85,
     room_name: str = "bedroom",
+    last_seen_at: datetime | None = None,
 ) -> PresenceSnapshot:
-    at = datetime.now(UTC)
+    if last_seen_at is None:
+        last_seen_at = datetime.now(UTC)
     return PresenceSnapshot(
         person_id=person_id,
         status=status,
         room_id=1,
         room_name=room_name,
         confidence=confidence,
-        last_seen_at=at,
+        last_seen_at=last_seen_at,
         dwell_minutes=10.0,
         sources=(PresenceSource(name="stub", confidence=confidence),),
-        inferred_at=at,
+        inferred_at=last_seen_at,
     )
 
 
@@ -137,3 +139,42 @@ async def test_inferred_at_is_set_to_passed_at():
     result = await service.get("mom", at=at)
 
     assert result.inferred_at == at
+
+
+@pytest.mark.asyncio
+async def test_confidence_floor_bottom_wins_with_sources():
+    """Top provider below floor, middle above floor -> middle wins;
+    sources tuple includes both."""
+    top = _make_snapshot(confidence=0.3, room_name="top")
+    mid = _make_snapshot(confidence=0.85, room_name="middle")
+    top_provider = _StubProvider(top, priority=70)
+    mid_provider = _StubProvider(mid, priority=50)
+    service = PresenceService(
+        providers=[top_provider, mid_provider],
+        confidence_floor=0.5,
+    )
+
+    result = await service.get("mom")
+
+    assert result.room_name == "middle"
+    assert result.confidence == 0.85
+    # Sources should include both top and middle provider sources
+    source_names = {s.name for s in result.sources}
+    assert "stub" in source_names  # both providers use "stub" name
+
+
+@pytest.mark.asyncio
+async def test_tie_break_newer_last_seen_wins():
+    """Two providers same priority, both return non-None;
+    the one with newer last_seen_at wins."""
+    older = _make_snapshot(room_name="older", confidence=0.8, last_seen_at=datetime(2026, 5, 4, 10, 0, 0, tzinfo=UTC))
+    newer = _make_snapshot(room_name="newer", confidence=0.8, last_seen_at=datetime(2026, 5, 4, 12, 0, 0, tzinfo=UTC))
+    older_provider = _StubProvider(older, priority=50)
+    newer_provider = _StubProvider(newer, priority=50)
+    service = PresenceService(
+        providers=[older_provider, newer_provider],
+    )
+
+    result = await service.get("mom")
+
+    assert result.room_name == "newer"

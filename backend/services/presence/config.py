@@ -46,10 +46,42 @@ class HaDeviceTrackerProviderConfig(BaseModel):
     priority: int = 30
 
 
+class NightAnchorProviderConfig(BaseModel):
+    """Night-anchor provider config (Block 3)."""
+
+    name: Literal["night_anchor"] = "night_anchor"
+    light_entities: list[str]
+    bed_sensor_entity: str
+    anchor_room_id: str
+    anchor_room_name: str
+    require_last_room_in: list[str]
+    release_predicates: list[str] = Field(default_factory=list)
+    confidence: float = 0.95
+    min_dark_minutes: int = 10
+    priority: int = 90
+
+
+class StaleFallbackProviderConfig(BaseModel):
+    """Stale-fallback provider config (Block 3)."""
+
+    name: Literal["stale_fallback"] = "stale_fallback"
+    ttl_seconds: int = 3600
+    priority: int = 10
+
+
+class UnknownSentinelProviderConfig(BaseModel):
+    """Unknown-sentinel provider config (Block 3)."""
+
+    name: Literal["unknown_sentinel"] = "unknown_sentinel"
+
+
 Provider = Annotated[
     CtsLocationProviderConfig
     | HaBedSensorProviderConfig
-    | HaDeviceTrackerProviderConfig,
+    | HaDeviceTrackerProviderConfig
+    | NightAnchorProviderConfig
+    | StaleFallbackProviderConfig
+    | UnknownSentinelProviderConfig,
     Field(discriminator="name"),
 ]
 

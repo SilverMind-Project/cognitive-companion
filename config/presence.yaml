@@ -5,15 +5,24 @@
 # returns the first non-None snapshot above the confidence floor.
 #
 # Block 2 providers: cts_location, ha_bed_sensor, ha_device_tracker.
-# Block 3 introduces: night_anchor, ha_bed_sensor (multi-person),
-#                     stale_fallback, unknown_sentinel.
+# Block 3 introduces: night_anchor, stale_fallback, unknown_sentinel.
 
 providers:
-  # CTS location provider (Block 1, still active in Block 2)
-  - name: cts_location
-    ttl_seconds: 120
-    confidence_floor: 0.0
-    priority: 50
+  # Night anchor (Block 3, highest priority)
+  - name: night_anchor
+    light_entities:
+      - light.master_bedroom
+      - light.hallway
+    bed_sensor_entity: binary_sensor.master_bedroom_bed_occupancy
+    anchor_room_id: bedroom
+    anchor_room_name: Master Bedroom
+    require_last_room_in:
+      - bedroom
+      - hallway
+    release_predicates:
+      - "motion outside bedroom in last 5m"
+    confidence: 0.95
+    priority: 90
 
   # HA bed-occupancy sensor (Block 2)
   - name: ha_bed_sensor
@@ -24,6 +33,12 @@ providers:
     confidence: 0.95
     priority: 70
 
+  # CTS location provider (Block 1, still active in Block 2)
+  - name: cts_location
+    ttl_seconds: 120
+    confidence_floor: 0.0
+    priority: 50
+
   # HA device_tracker (Block 2)
   - name: ha_device_tracker
     entity_id_template: "device_tracker.{person_id}_phone"
@@ -33,7 +48,12 @@ providers:
     #   mom: mom_phone
     #   dad: dad_watch
 
-# Fusion rule (Block 3 will add "weighted_average" etc.)
+  # Stale fallback (Block 3)
+  - name: stale_fallback
+    ttl_seconds: 3600
+    priority: 10
+
+# Fusion rule (Block 3: replaces placeholder with configurable engine)
 fusion:
   rule: highest_priority_above_floor
   confidence_floor: 0.4

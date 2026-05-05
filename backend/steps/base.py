@@ -82,6 +82,8 @@ class ServiceContainer:
     daily_report_service: Any = None
     semantic_memory_client: Any = None
     interactive_response_service: Any = None
+    memory_query: Any = None  # MemoryQueryService (Block 4)
+    scene_intel: Any = None  # SceneIntelService (Block 4)
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,14 @@
 """PresenceService: fused presence query over multiple providers.
 
-For Block 1 the fusion rule is simple: iterate providers sorted by
-priority descending, return the first non-None snapshot whose confidence
-meets the floor.  Block 3 will replace this with the configurable engine.
+Iterates providers sorted by priority descending.  The first
+non-None snapshot whose confidence meets the configured floor wins.
+Tie-break is by ``last_seen_at`` descending when two providers have
+the same priority.
+
+The winning snapshot's ``sources`` tuple is rebuilt to include the
+winner's source first, followed by any non-None lower-priority
+snapshots' sources.  This gives the UI the "all providers that had
+something to say" view.
 """
 
 from __future__ import annotations
@@ -11,6 +17,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from backend.core.logging import get_logger
+from backend.services.presence.config import FusionConfig
 from backend.services.presence.types import (
     PresenceProvider,
     PresenceSnapshot,
@@ -20,39 +27,40 @@ from backend.services.presence.types import (
 logger = get_logger(__name__)
 
 
-class PresenceService:
-    """Orchestrates presence providers and fuses their results."""
+async def _fuse_highest_priority_above_floor(
+    providers: list[PresenceProvider],
+    confidence_floor: float,
+    person_id: str,
+    at: datetime,
+) -> PresenceSnapshot:
+    """Fusion rule: first non-None snapshot above the confidence floor wins.
 
-    def __init__(
-        self,
-        providers: list[PresenceProvider],
-        *,
-        confidence_floor: float = 0.0,
-    ) -> None:
-        self._providers = sorted(providers, key=lambda p: p.priority, reverse=True)
-        self._confidence_floor = confidence_floor
+    Parameters
+    ----------
+    providers:
+        Provider instances sorted by priority descending.
+    confidence_floor:
+        Minimum confidence for a snapshot to qualify.
+    person_id:
+        The person to query.
+    at:
+        The point in time for the snapshot.
 
-    async def get(
-        self,
-        person_id: str,
-        at: datetime | None = None,
-    ) -> PresenceSnapshot:
-        """Return the fused presence snapshot for *person_id*.
+    Returns
+    -------
+    PresenceSnapshot
+        The fused snapshot, or a sentinel UNKNOWN snapshot.
+    """
+    candidates: list[tuple[PresenceProvider, PresenceSnapshot]] = []
 
-        Iterates providers sorted by priority descending.  The first
-        non-None snapshot whose ``confidence >= confidence_floor`` wins.
-        If none qualifies, returns a sentinel ``UNKNOWN`` snapshot.
-        """
-        if at is None:
-            at = datetime.now(UTC)
+    for provider in providers:
+        snapshot = await provider.probe(person_id, at)
+        if snapshot is None:
+            continue
+        if snapshot.confidence >= confidence_floor:
+            candidates.append((provider, snapshot))
 
-        for provider in self._providers:
-            snapshot = await provider.probe(person_id, at)
-            if snapshot is None:
-                continue
-            if snapshot.confidence >= self._confidence_floor:
-                return replace(snapshot, inferred_at=at)
-
+    if not candidates:
         return PresenceSnapshot(
             person_id=person_id,
             status=PresenceStatus.UNKNOWN,
@@ -64,6 +72,99 @@ class PresenceService:
             sources=(),
             inferred_at=at,
             notes="no provider matched",
+        )
+
+    # Sort candidates: primary key is priority (desc), tie-break is
+    # last_seen_at (desc, treating None as earliest).
+    candidates.sort(
+        key=lambda c: (
+            c[0].priority,
+            c[1].last_seen_at or datetime.min.replace(tzinfo=UTC),
+        ),
+        reverse=True,
+    )
+
+    _winner_provider, winner = candidates[0]
+
+    # Rebuild sources: winner's source first, then any non-None
+    # lower-priority snapshots' sources.
+    all_sources = list(winner.sources)
+    for _provider, snapshot in candidates[1:]:
+        all_sources.extend(snapshot.sources)
+
+    return replace(
+        winner,
+        inferred_at=at,
+        sources=tuple(all_sources),
+    )
+
+
+# Map from FusionConfig.rule to the fusion function.
+_FUSION_RULES: dict[str, ...] = {
+    "highest_priority_above_floor": _fuse_highest_priority_above_floor,
+}
+
+
+class PresenceService:
+    """Orchestrates presence providers and fuses their results."""
+
+    def __init__(
+        self,
+        providers: list[PresenceProvider],
+        *,
+        fusion_config: FusionConfig | None = None,
+        confidence_floor: float | None = None,
+    ) -> None:
+        """Initialise the service.
+
+        Parameters
+        ----------
+        providers:
+            Provider instances.
+        fusion_config:
+            Fusion rule configuration.  When provided, *confidence_floor*
+            is ignored.
+        confidence_floor:
+            Deprecated.  When provided without *fusion_config*, a
+            ``FusionConfig`` is created with this value.  Kept for
+            backward compatibility with existing callers.
+        """
+        self._providers = sorted(providers, key=lambda p: p.priority, reverse=True)
+        if fusion_config is not None:
+            self._fusion_config = fusion_config
+        elif confidence_floor is not None:
+            self._fusion_config = FusionConfig(
+                confidence_floor=confidence_floor,
+            )
+        else:
+            self._fusion_config = FusionConfig()
+
+    async def get(
+        self,
+        person_id: str,
+        at: datetime | None = None,
+    ) -> PresenceSnapshot:
+        """Return the fused presence snapshot for *person_id*.
+
+        Iterates providers sorted by priority descending.  The first
+        non-None snapshot whose confidence meets the configured floor
+        wins.  If none qualifies, returns a sentinel UNKNOWN snapshot.
+        """
+        if at is None:
+            at = datetime.now(UTC)
+
+        rule_fn = _FUSION_RULES.get(self._fusion_config.rule)
+        if rule_fn is None:
+            raise ValueError(
+                f"Unknown fusion rule {self._fusion_config.rule!r}. "
+                f"Known: {sorted(_FUSION_RULES)}"
+            )
+
+        return await rule_fn(
+            self._providers,
+            self._fusion_config.confidence_floor,
+            person_id,
+            at,
         )
 
     async def history(

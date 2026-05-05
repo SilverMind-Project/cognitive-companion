@@ -118,15 +118,72 @@ def test_collect_required_entities():
 
 def test_build_providers_with_unknown_provider():
     """Unknown provider name raises ValueError."""
-    # We can't easily inject an unknown provider through the typed config,
-    # so test the ValueError path differently.
+    import pytest
+
     from backend.services.presence import factory
 
     original = dict(factory._PROVIDER_BUILDERS)
-    factory._PROVIDER_BUILDERS["fake_provider"] = original.pop("ha_bed_sensor")
     try:
-        # This would raise if we tried to build with "fake_provider"
-        pass
+        # Remove ha_bed_sensor to test the unknown-provider path.
+        factory._PROVIDER_BUILDERS.pop("ha_bed_sensor")
+        config = PresenceConfig(
+            providers=[{"name": "ha_bed_sensor", "entity_id": "x", "person_id": "y", "room_id": "z"}],
+        )
+        with pytest.raises(ValueError, match="ha_bed_sensor"):
+            build_providers(
+                config,
+                cache=_StubHaStateCache(),
+                location_repository=_StubLocationRepository(),
+            )
     finally:
         factory._PROVIDER_BUILDERS.clear()
         factory._PROVIDER_BUILDERS.update(original)
+
+
+def test_build_all_provider_types():
+    """Every provider type can be instantiated from a representative config."""
+    config = PresenceConfig(
+        providers=[
+            {"name": "cts_location", "ttl_seconds": 120, "priority": 50},
+            {
+                "name": "ha_bed_sensor",
+                "entity_id": "binary_sensor.bed",
+                "person_id": "mom",
+                "room_id": "bedroom",
+                "room_name": "Master Bedroom",
+                "priority": 70,
+            },
+            {
+                "name": "ha_device_tracker",
+                "entity_id_template": "device_tracker.{person_id}_phone",
+                "priority": 30,
+            },
+            {
+                "name": "night_anchor",
+                "light_entities": ["light.bedroom"],
+                "bed_sensor_entity": "binary_sensor.bed_occupancy",
+                "anchor_room_id": "bedroom",
+                "anchor_room_name": "Master Bedroom",
+                "require_last_room_in": ["bedroom"],
+                "release_predicates": ["motion outside bedroom in last 5m"],
+                "priority": 90,
+            },
+            {"name": "stale_fallback", "ttl_seconds": 3600, "priority": 10},
+            {"name": "unknown_sentinel"},
+        ],
+        fusion={"rule": "highest_priority_above_floor", "confidence_floor": 0.4},
+    )
+    cache = _StubHaStateCache()
+    repo = _StubLocationRepository()
+
+    providers = build_providers(config, cache=cache, location_repository=repo)
+
+    assert len(providers) == 6
+    names = [p.name for p in providers]
+    assert "night_anchor" in names
+    assert "ha_bed_sensor" in names
+    assert "cts_location" in names
+    assert "ha_device_tracker" in names
+    assert "stale_fallback" in names
+    assert "unknown_sentinel" in names
+    assert names[0] == "night_anchor"  # highest priority

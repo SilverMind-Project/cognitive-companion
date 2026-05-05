@@ -8,7 +8,7 @@ Cognitive Companion v2 is a privacy-first AI system for senior care. It processe
 
 **Backend**: Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic 2.0, APScheduler, stdlib logging
 **Frontend**: Vue 3, Vuetify 3, Vite, Pinia
-**Database**: SQLite (WAL mode via SQLAlchemy)
+**Database**: PostgreSQL 17 (via SQLAlchemy 2.0)
 **LLM Providers**: vLLM (vision/translation, OpenAI-compatible), llama.cpp llama-server (OpenAI-compatible, e.g. Gemma 4 26B at 192.168.1.31:8100), Ollama (logic, gemma3:4b), Google Gemini (realtime voice)
 **Object Storage**: MinIO (S3-compatible, via boto3)
 
@@ -335,14 +335,15 @@ finally:
     db.close()
 ```
 
-For schema changes: **delete `data/cognitive_companion.db` and restart**. Tables
-are auto-created from the ORM models. There are no migrations.
+For schema changes: **Use Alembic migrations (`make migrate`)**. Do NOT rely on
+`create_all` in production. Tables are auto-created from the ORM models only
+during initial setup or in development environments.
 
 In tests, construct an isolated `Database` directly — no global reset needed:
 
 ```python
 from backend.core.database import Database
-db = Database("sqlite:///:memory:")
+db = Database("postgresql+psycopg://user:pass@localhost/test_db")
 sess = db.session()
 ```
 
@@ -518,7 +519,7 @@ class YourFilter(ContextFilter):
 
 1. Define the model in `backend/models/` (inherit from `Base`)
 2. Import it in `backend/models/__init__.py` and add to `__all__`
-3. Delete `data/cognitive_companion.db` -- tables are auto-created on restart
+3. Generate and run an Alembic migration via `make migrate`
 
 ### Adding a New Service
 
@@ -653,11 +654,11 @@ One row per eink display device. Links a sensor to its current rendered state an
 
 - Backend: `pytest` + `pytest-asyncio` + `pytest-cov` (configured in `pyproject.toml`)
 - Place tests in `backend/tests/` mirroring the `backend/` structure (e.g., `tests/services/test_rules_engine.py`)
-- `backend/tests/conftest.py` provides `db_engine`, `db_session`, and `db_factory` fixtures backed by an in-memory SQLite instance
+- `backend/tests/conftest.py` provides `db_engine`, `db_session`, and `db_factory` fixtures backed by a PostgreSQL testcontainer
 - `backend/tests/core/` holds the `backend.core` test suite (113+ tests, ~98% branch coverage) — the primary reference for how the core layer expects to be consumed
 - `backend/tests/routers/` holds router tests. Each test module creates its own `FastAPI()` + calls `register_exception_handlers()` + sets `app.dependency_overrides[get_auth_context]`. See `test_cts.py`, `test_cts_cameras.py`, `test_cts_calibration.py` for the pattern with `StaticPool`.
 - Full suite: 600+ tests (`make test`)
-- Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone-mismatch when comparing timestamps stored as UTC strings in SQLite
+- Use `RulesEngine(tz_name="UTC")` in tests to avoid timezone-mismatch when comparing timestamps stored as UTC in PostgreSQL
 - Run with: `uv run pytest` or, from the repo root, any of the Makefile targets:
   - `make test` -- full backend suite
   - `make test-core` -- only `backend.core`
@@ -736,7 +737,7 @@ mock external dependencies (ffmpeg, channel registry) via `monkeypatch`.
 
 ## Do NOT
 
-- **Run structural migrations** -- for new tables or dropped columns, delete `data/cognitive_companion.db` and restart. For adding new nullable columns to existing tables, append an `ALTER TABLE ... ADD COLUMN` statement to `_COLUMN_MIGRATIONS` in `backend/core/database.py` instead; `Database.create_all()` runs these automatically at startup.
+- **Avoid manual structural migrations in production** -- for new tables or dropped columns, use `make migrate` via Alembic. `Database.create_all()` should only be used in development or tests.
 - **Use `print()`** -- use `structlog` via `get_logger()`
 - **Instantiate services in routers** -- access them from `request.app.state`
 - **Add dependencies without updating `pyproject.toml` and running `uv lock`** (backend) or `package.json` (frontend)
@@ -758,12 +759,12 @@ The operator timezone is set once in `config/settings.yaml` under `app.timezone`
 
 | Concern | Rule |
 | ------- | ---- |
-| Database storage | All timestamps stored as naive UTC (SQLite has no real tz support). Use `datetime.now(UTC)` for current time. |
+| Database storage | All timestamps stored as UTC-aware datetimes using PostgreSQL's `TIMESTAMPTZ`. Use `datetime.now(UTC)` for current time. |
 | Timezone source | Always read from `settings.get("app.timezone", "UTC")`. Never hardcode a timezone. |
 | ZoneInfo | Use `from zoneinfo import ZoneInfo` (stdlib, Python 3.9+). Never use `pytz`. |
 | Local time for display | `datetime.now(ZoneInfo(tz_name))` when local wall-clock time is needed (pipeline context, MCP `get_local_datetime`). |
-| UTC comparison from local | `local_dt.astimezone(UTC).replace(tzinfo=None)` to produce a naive UTC value for SQLite queries. |
-| Daily rate-limit window | Use local midnight: `now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC).replace(tzinfo=None)`. |
+| UTC comparison from local | `local_dt.astimezone(UTC)` to produce a UTC-aware value for PostgreSQL queries. |
+| Daily rate-limit window | Use local midnight: `now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)`. |
 | Cron scheduling (APScheduler) | Pass `timezone=ZoneInfo(settings.get("app.timezone", "UTC"))` to every `CronTrigger.from_crontab()` call. APScheduler handles DST transitions automatically. |
 | Context filters (`time_range`, `day_of_week`) | The `now` datetime passed into `evaluate()` must be in the app timezone; `RulesEngine` ensures this. |
 
@@ -780,6 +781,6 @@ The operator timezone is set once in `config/settings.yaml` under `app.timezone`
 
 ### Timezone testing
 
-- Use `RulesEngine(tz_name="UTC")` in unit tests so timestamp comparisons are consistent with the naive-UTC values in the in-memory SQLite test DB.
+- Use `RulesEngine(tz_name="UTC")` in unit tests so timestamp comparisons are consistent with the UTC values in the database.
 - Write dedicated tests for non-UTC timezones (e.g. `"America/New_York"`) to cover DST edge cases. See `TestTimezoneAwareLimits` and `TestTimeRangeContextFilter` in `backend/tests/services/test_rules_engine.py`.
 - Scheduler timezone tests should patch `backend.services.scheduler.settings.get` and assert that the resulting `CronTrigger.timezone` matches the configured value.

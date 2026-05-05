@@ -1,17 +1,19 @@
 """Shared Pydantic type aliases used across all API schemas.
 
-Why UTCDatetime?
-----------------
-SQLite has no native datetime type, and legacy values or non-ORM code paths may
-still surface naive ``datetime`` objects. Pydantic serialises those the same
-way: no ``Z``, no ``+00:00``.
+PostgreSQL UTC datetime contract
+---------------------------------
+All timestamp columns in the database use ``TIMESTAMPTZ``, which PostgreSQL
+stores as UTC internally.  The ORM ``UTCDateTime`` type ensures that every
+``datetime`` object read from the database is UTC-aware.
 
-JavaScript's ``new Date()`` treats timezone-naive ISO strings as *local* browser
-time (ECMAScript 2015+), not UTC.  When the browser timezone differs from UTC
-the resulting instant is wrong and the frontend displays the incorrect time.
+``UTCDatetime`` is an annotated ``AwareDatetime`` that always serialises with a
+trailing ``Z`` in JSON (e.g. ``"2026-05-05T13:00:00Z"``), unambiguously
+signalling UTC to every consumer of the API.
 
-``UTCDatetime`` is an annotated ``datetime`` that always serialises with a
-trailing ``Z`` in JSON, signalling unambiguous UTC to every consumer of the API.
+JavaScript's ``new Date()`` and ``Intl.DateTimeFormat`` handle ``Z``-suffixed
+strings correctly regardless of browser timezone, so the frontend can safely
+convert to the configured application timezone using ``Intl.DateTimeFormat``
+with the ``timeZone`` option.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import PlainSerializer
+from pydantic import AwareDatetime, PlainSerializer
 
 from backend.core.time import normalize_utc_datetime
 
@@ -35,8 +37,8 @@ def _to_utc_iso(v: datetime | None) -> str | None:
 
 
 #: Drop-in replacement for ``datetime`` in Pydantic output schemas.
-#: Validates identically to ``datetime``; serialises to JSON with "Z" suffix.
-UTCDatetime = Annotated[datetime, PlainSerializer(_to_utc_iso, when_used="json")]
+#: Validates identically to ``AwareDatetime``; serialises to JSON with "Z" suffix.
+UTCDatetime = Annotated[AwareDatetime, PlainSerializer(_to_utc_iso, when_used="json")]
 
 #: Nullable variant of UTCDatetime.
-OptionalUTCDatetime = Annotated[datetime | None, PlainSerializer(_to_utc_iso, when_used="json")]
+OptionalUTCDatetime = Annotated[AwareDatetime | None, PlainSerializer(_to_utc_iso, when_used="json")]

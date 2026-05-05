@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -12,7 +10,6 @@ from backend.core import database as db_module
 from backend.core.database import (
     Base,
     Database,
-    _apply_column_migrations,
     get_db,
     get_session,
     init_db,
@@ -24,8 +21,8 @@ class _Widget(Base):
     """Throwaway ORM model used by these tests only.
 
     Lives under the shared ``Base`` so ``Base.metadata.create_all`` will pick
-    it up in the in-memory DB, but it's defined inside the test module to
-    avoid polluting ``backend.models``.
+    it up, but it's defined inside the test module to avoid polluting
+    ``backend.models``.
     """
 
     __tablename__ = "_test_widgets"
@@ -35,7 +32,12 @@ class _Widget(Base):
 
 @pytest.fixture
 def mem_db() -> Database:
-    """In-memory Database with the _Widget table created."""
+    """In-memory PostgreSQL-dialect Database with the _Widget table created.
+
+    Uses ``sqlite:///:memory:`` only for the narrow unit tests that verify
+    session mechanics (open, commit, close) without touching the real schema.
+    These tests never exercise type decorators or SQL server defaults.
+    """
     d = Database("sqlite:///:memory:")
     Base.metadata.create_all(bind=d.engine, tables=[_Widget.__table__])
     yield d
@@ -67,7 +69,6 @@ class TestDatabaseClass:
         sess = next(gen)
         sess.add(_Widget(name="beta"))
         sess.commit()
-        # Exhaust the generator to trigger cleanup.
         with pytest.raises(StopIteration):
             next(gen)
 
@@ -76,112 +77,23 @@ class TestDatabaseClass:
         mem_db.dispose()  # second call must not raise
 
 
-class TestDatabaseDialectBehavior:
-    def test_foreign_keys_enabled_on_sqlite(self) -> None:
-        """SQLite requires explicit foreign key enforcement via pragma."""
-        d = Database("sqlite:///:memory:")
-        try:
-            with d.engine.connect() as conn:
-                # Note: Foreign key enforcement was removed as part of PostgreSQL migration
-                # SQLite still works but without automatic pragma installation
-                val = conn.execute(text("PRAGMA foreign_keys")).scalar()
-                # This will be 0 now since we removed pragma installation
-                assert val == 0
-        finally:
-            d.dispose()
-
-    def test_postgresql_foreign_keys_always_enabled(self) -> None:
-        """PostgreSQL enforces foreign keys by default, no configuration needed."""
-        # This is a documentation test - PostgreSQL doesn't need pragma-like configuration
-        # Foreign keys are always enforced at the database level
-        # We verify this by checking that the dialect is recognized
+class TestPostgreSQLDialect:
+    def test_postgresql_engine_dialect(self) -> None:
+        """PostgreSQL enforces foreign keys by default; no pragma needed."""
         d = Database("postgresql+psycopg://user:pass@localhost/db")
         try:
             assert d.engine.dialect.name == "postgresql"
-            # PostgreSQL enforces foreign keys by default - no pragma needed
-        finally:
-            d.dispose()
-
-    def test_journal_mode_is_wal_like(self) -> None:
-        # WAL isn't supported on :memory: DBs (it falls back to 'memory'),
-        # but the PRAGMA call must not raise and must return *some* value.
-        d = Database("sqlite:///:memory:")
-        try:
-            with d.engine.connect() as conn:
-                mode = conn.execute(text("PRAGMA journal_mode")).scalar()
-                assert mode is not None
-        finally:
-            d.dispose()
-
-    def test_parent_dir_created_for_file_sqlite(self, tmp_path: Path) -> None:
-        """SQLite file directory creation was removed as part of PostgreSQL migration."""
-        nested = tmp_path / "nested" / "deeper" / "test.db"
-        assert not nested.parent.exists()
-        # Note: Directory creation was removed in the PostgreSQL migration
-        # SQLite databases will now fail if the directory doesn't exist
-        # This is acceptable since we're migrating to PostgreSQL
-        d = Database(f"sqlite:///{nested}")
-        try:
-            # Directory is no longer auto-created
-            assert not nested.parent.exists()
         finally:
             d.dispose()
 
 
-class TestApplyColumnMigrations:
-    """``_apply_column_migrations`` adds nullable columns to existing tables."""
-
-    def test_idempotent_when_columns_already_exist(self) -> None:
-        """Running migrations on a schema that already has all columns must not raise."""
-        import backend.models  # noqa: F401 -- registers ActiveImageState with Base
-
-        d = Database("sqlite:///:memory:")
-        try:
-            Base.metadata.create_all(bind=d.engine)
-            # Columns were created by create_all; second call must succeed silently.
-            _apply_column_migrations(d.engine)
-        finally:
-            d.dispose()
-
-    def test_adds_missing_columns(self, tmp_path: Path) -> None:
-        """Columns absent from an older schema are added by the migration."""
-        db_path = tmp_path / "old_schema.db"
-        d = Database(f"sqlite:///{db_path}")
-        try:
-            # Create a minimal active_image_state table without the new columns,
-            # simulating a database that pre-dates the refresh-suppression feature.
-            with d.engine.connect() as conn:
-                conn.execute(
-                    text(
-                        "CREATE TABLE active_image_state ("
-                        "  id INTEGER PRIMARY KEY,"
-                        "  sensor_id VARCHAR(128) UNIQUE"
-                        ")"
-                    )
-                )
-                conn.commit()
-
-            _apply_column_migrations(d.engine)
-
-            with d.engine.connect() as conn:
-                col_names = {
-                    row[1] for row in conn.execute(text("PRAGMA table_info(active_image_state)"))
-                }
-
-            assert "last_served_hash" in col_names
-            assert "last_served_at" in col_names
-        finally:
-            d.dispose()
-
-    def test_skips_gracefully_when_table_absent(self) -> None:
-        """OperationalError from a missing table is caught; no exception propagates."""
-        d = Database("sqlite:///:memory:")
-        try:
-            # No tables created -- the migration statements will hit
-            # "no such table: active_image_state", which is an OperationalError.
-            _apply_column_migrations(d.engine)
-        finally:
-            d.dispose()
+class TestResolveUrl:
+    def test_raises_when_url_not_configured(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_resolve_url raises RuntimeError when database.url is absent."""
+        from backend.core.config import Settings
+        monkeypatch.setattr(db_module, "settings", Settings.from_dict({}))
+        with pytest.raises(RuntimeError, match=r"database\.url is not configured"):
+            db_module._resolve_url(None)
 
 
 class TestModuleFacade:
@@ -212,18 +124,14 @@ class TestModuleFacade:
         gen = get_db()
         sess = next(gen)
         assert sess is not None
-        # Exhaust generator to run `finally` branch.
         with pytest.raises(StopIteration):
             next(gen)
         reset_default_database()
 
     def test_init_db_with_explicit_url_replaces_default(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         reset_default_database()
-        # Ensure init_db can do a full create_all(): stub out backend.models
-        # so the import inside Database.create_all() is a no-op rather than
-        # dragging in the full ORM for this micro-test.
         import sys
         import types
 

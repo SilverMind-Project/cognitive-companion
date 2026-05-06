@@ -53,6 +53,7 @@
         <span class="text-h6 font-weight-bold">Caregiver Console</span>
       </v-app-bar-title>
       <v-spacer />
+      <v-btn icon="mdi-theme-light-dark" variant="text" :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="toggleTheme" />
       <v-btn icon="mdi-refresh" variant="text" title="Reload config" @click="reloadConfig" />
       <v-btn size="small" variant="tonal" class="mx-2" @click="showKeyDialog = true">
         <v-icon start>mdi-key-variant</v-icon>
@@ -61,8 +62,12 @@
     </v-app-bar>
 
     <v-main>
-      <v-container fluid class="px-6 py-6">
-        <router-view />
+      <v-container fluid class="px-6 py-6 cc-main-container">
+        <router-view v-slot="{ Component }">
+          <transition name="fade-slide" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </v-container>
     </v-main>
 
@@ -95,8 +100,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
+import { useTheme } from "vuetify";
 import { api } from "../services/api.js";
+
+const theme = useTheme();
+const isDark = computed(() => theme.global.name.value === "ccDark");
+
+function toggleTheme() {
+  const newTheme = isDark.value ? "ccLight" : "ccDark";
+  theme.global.name.value = newTheme;
+  localStorage.setItem("cc_theme", newTheme);
+}
 
 const showKeyDialog = ref(false);
 const showKey = ref(false);

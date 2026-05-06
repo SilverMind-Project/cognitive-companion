@@ -24,22 +24,6 @@
   --cc-warning: #ff9f0a;
   --cc-error: #ff453a;
 
-  /* Surfaces (dark: primary mode) */
-  --cc-bg: #000000;
-  --cc-bg-elevated: #0b0b0f;
-  --cc-surface: #1c1c1e;
-  --cc-surface-2: #2c2c2e;
-  --cc-surface-glass: rgba(28, 28, 30, 0.72);
-
-  /* Text */
-  --cc-text-1: #f5f5f7;
-  --cc-text-2: #a1a1a6;
-  --cc-text-3: #6e6e73;
-
-  /* Borders & dividers */
-  --cc-divider: rgba(255, 255, 255, 0.10);
-  --cc-divider-strong: rgba(255, 255, 255, 0.18);
-
   /* Geometry */
   --cc-radius-sm: 8px;
   --cc-radius-md: 12px;
@@ -47,17 +31,79 @@
   --cc-radius-xl: 24px;
   --cc-radius-pill: 980px;
 
-  /* Shadows */
-  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
-  --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.35);
-
   /* Typography */
   --cc-font:
     "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     "Helvetica Neue", Helvetica, Arial, sans-serif;
   --cc-font-mono:
     ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.v-theme--ccDark {
+  /* Surfaces (dark: primary mode) */
+  --cc-bg: #000000;
+  --cc-bg-elevated: #0b0b0f;
+  --cc-surface: rgba(28, 28, 30, 0.70);
+  --cc-surface-2: rgba(44, 44, 46, 0.70);
+  --cc-app-bar-glass: rgba(11, 11, 15, 0.72);
+  --cc-drawer-glass: rgba(11, 11, 15, 0.80);
+
+  /* Text */
+  --cc-text-1: #ffffff;
+  --cc-text-2: #a1a1a6;
+  --cc-text-3: #6e6e73;
+
+  /* Borders & dividers */
+  --cc-divider: rgba(255, 255, 255, 0.10);
+  --cc-divider-strong: rgba(255, 255, 255, 0.18);
+  --cc-glass-border: rgba(255, 255, 255, 0.08);
+
+  /* Shadows */
+  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.35);
+  --cc-shadow-glass: 0 4px 24px -8px rgba(0, 0, 0, 0.40);
+  --cc-shadow-glass-hover: 0 8px 32px -8px rgba(0, 0, 0, 0.55);
+}
+
+.v-theme--ccLight {
+  /* Brand */
+  --cc-brand: #007aff;
+  --cc-brand-strong: #0062cc;
+  --cc-brand-soft: rgba(0, 122, 255, 0.12);
+  --cc-brand-softer: rgba(0, 122, 255, 0.06);
+  --cc-indigo: #5856d6;
+  --cc-purple: #af52de;
+  --cc-teal: #5ac8fa;
+  --cc-success: #34c759;
+  --cc-warning: #ff9500;
+  --cc-error: #ff3b30;
+  --cc-brand-gradient: linear-gradient(120deg, #007aff 0%, #5856d6 60%, #af52de 100%);
+
+  /* Surfaces (light mode) */
+  --cc-bg: #f2f2f7;
+  --cc-bg-elevated: #ffffff;
+  --cc-surface: rgba(255, 255, 255, 0.75);
+  --cc-surface-2: rgba(229, 229, 234, 0.75);
+  --cc-app-bar-glass: rgba(255, 255, 255, 0.72);
+  --cc-drawer-glass: rgba(255, 255, 255, 0.80);
+
+  /* Text */
+  --cc-text-1: #000000;
+  --cc-text-2: #3a3a3c;
+  --cc-text-3: #8e8e93;
+
+  /* Borders & dividers */
+  --cc-divider: rgba(0, 0, 0, 0.08);
+  --cc-divider-strong: rgba(0, 0, 0, 0.15);
+  --cc-glass-border: rgba(255, 255, 255, 0.60);
+
+  /* Shadows */
+  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.1);
+  --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.25);
+  --cc-shadow-glass: 0 4px 24px -8px rgba(0, 0, 0, 0.10);
+  --cc-shadow-glass-hover: 0 8px 32px -8px rgba(0, 0, 0, 0.15);
 }
 
 /* ----- Global resets / typographic polish ----- */
@@ -88,25 +134,31 @@ kbd {
   background-color: var(--cc-bg) !important;
 }
 
+/* Unify frosted-glass blur across layout and cards */
+.v-app-bar.v-toolbar,
+.v-navigation-drawer,
+.v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal) {
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+}
+
 .v-app-bar.v-toolbar {
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  background-color: rgba(11, 11, 15, 0.72) !important;
+  background-color: var(--cc-app-bar-glass) !important;
+  color: var(--cc-text-1) !important;
   border-bottom: 1px solid var(--cc-divider);
 }
 
 .v-navigation-drawer {
-  backdrop-filter: saturate(180%) blur(16px);
-  -webkit-backdrop-filter: saturate(180%) blur(16px);
-  background-color: rgba(11, 11, 15, 0.80) !important;
+  background-color: var(--cc-drawer-glass) !important;
+  color: var(--cc-text-1) !important;
   border-right: 1px solid var(--cc-divider) !important;
 }
 
-.v-card {
+.v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal) {
   background-color: var(--cc-surface) !important;
   background-image: none !important;
-  border: 1px solid var(--cc-divider);
-  box-shadow: var(--cc-shadow-sm);
+  border: 1px solid var(--cc-glass-border) !important;
+  box-shadow: var(--cc-shadow-glass);
 }
 
 .v-card.v-card--variant-outlined {
@@ -247,14 +299,6 @@ kbd {
   }
 }
 
-/* Subtle frosted-glass card variant for hero/stat cards. */
-.cc-glass {
-  background-color: var(--cc-surface-glass) !important;
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
-  border: 1px solid var(--cc-divider);
-}
-
 /* Inline code style used in templating hint chips. */
 .cc-code {
   font-family: var(--cc-font-mono);
@@ -268,42 +312,35 @@ kbd {
 
 /* ----- Admin UI utility classes ----- */
 
-/* Glass surface for filter panel cards. */
-.glass-filter-panel {
-  background-color: var(--cc-surface-glass) !important;
-  backdrop-filter: saturate(180%) blur(12px);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
-  border: 1px solid var(--cc-divider-strong) !important;
-  border-radius: var(--cc-radius-md) !important;
-  box-shadow: var(--cc-shadow-sm);
-}
-
-/* Glass surface for primary content cards (dark-mode default). */
-.glass-card {
-  background-color: rgba(28, 28, 30, 0.60) !important;
-  backdrop-filter: saturate(180%) blur(12px);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: var(--cc-radius-md) !important;
-  box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.40);
-}
-
-/* Light mode override for .glass-card */
-@media (prefers-color-scheme: light) {
-  .glass-card {
-    background-color: rgba(255, 255, 255, 0.72) !important;
-    border: 1px solid rgba(255, 255, 255, 0.60) !important;
-    box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.10);
-  }
-}
-
+/* Hover animation for interactive cards (e.g. Dashboard stat cards, Step Palette cards) */
 .glass-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--cc-shadow-glass-hover);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 /* Global tracking-tight utility (replaces scoped rules in individual views). */
 .tracking-tight {
   letter-spacing: -0.018em;
+}
+
+/* Page transitions and Container Constraints */
+.cc-main-container {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }

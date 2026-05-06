@@ -32,6 +32,12 @@ api_keys:
     permissions:
       - "caregiver_admin"
 
+  # rtsp-ingress service key: read camera roster for reconciliation only.
+  - key: "${CC_INGRESS_API_KEY}"
+    name: "RTSP Ingress Service"
+    permissions:
+      - "cts_ingress"
+
 device_keys:
   - key: "RCAM0001"
     name: "Kitchen reCamera"
@@ -126,6 +132,9 @@ permission_map:
     - "GET /api/v1/image/*"
     - "GET /api/v1/ha/media-players"
     - "GET /api/v1/ha/entities"
+
+  cts_ingress:
+    - "GET /api/v1/cts/cameras"
 
   "device:recamera":
     - "POST /api/v1/device/recamera"

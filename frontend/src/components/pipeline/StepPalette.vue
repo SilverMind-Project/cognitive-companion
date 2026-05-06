@@ -1,7 +1,7 @@
 <template>
-  <v-dialog :model-value="modelValue" max-width="600" @update:model-value="$emit('update:modelValue', $event)">
-    <v-card>
-      <v-card-title class="d-flex align-center">
+  <v-dialog :model-value="modelValue" max-width="1000" @update:model-value="$emit('update:modelValue', $event)">
+    <v-card class="cc-glass">
+      <v-card-title class="d-flex align-center px-6 py-4">
         <v-icon class="mr-2">mdi-puzzle-plus</v-icon>
         Add Pipeline Step
       </v-card-title>
@@ -11,23 +11,22 @@
           <v-progress-circular indeterminate color="primary" />
         </div>
         <div v-else v-for="group in groups" :key="group.name" class="mb-4">
-          <div class="text-overline text-grey mb-2">{{ group.name }}</div>
-          <v-row dense>
-            <v-col v-for="st in group.types" :key="st.type" cols="6" sm="4">
+          <div class="text-overline text-medium-emphasis mb-3">{{ group.name }}</div>
+          <div class="step-grid">
+            <div v-for="st in group.types" :key="st.type" class="step-grid-item">
               <v-card
-                variant="outlined"
-                class="pa-3 text-center cursor-pointer step-palette-card"
+                class="glass-card pa-4 text-center cursor-pointer step-palette-card d-flex flex-column align-center justify-center"
                 rounded="lg"
                 hover
                 :class="st.deprecated ? 'text-grey' : ''"
                 @click="select(st.type)"
               >
-                <v-icon size="28" :class="st.deprecated ? 'text-grey' : 'text-primary'" class="mb-1">{{ st.icon }}</v-icon>
+                <v-icon size="32" :class="st.deprecated ? 'text-grey' : 'text-primary'" class="mb-2">{{ st.icon }}</v-icon>
                 <div class="text-body-2 font-weight-medium" :class="st.deprecated ? 'text-decoration-line-through' : ''">{{ st.label }}</div>
-                <v-chip v-if="st.deprecated" size="x-small" color="warning" variant="plain">deprecated</v-chip>
+                <v-chip v-if="st.deprecated" size="x-small" color="warning" variant="plain" class="mt-1">deprecated</v-chip>
               </v-card>
-            </v-col>
-          </v-row>
+            </div>
+          </div>
         </div>
       </v-card-text>
 
@@ -120,11 +119,22 @@ function select(type) {
 </script>
 
 <style scoped>
+.step-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+}
+.step-grid-item {
+  display: flex;
+  flex-direction: column;
+}
 .step-palette-card {
-  transition: border-color 0.15s, box-shadow 0.15s;
+  height: 100%;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s !important;
 }
 .step-palette-card:hover {
-  border-color: rgb(var(--v-theme-primary));
+  transform: scale(1.03) translateY(-2px);
+  border-color: rgb(var(--v-theme-primary)) !important;
 }
 .cursor-pointer {
   cursor: pointer;

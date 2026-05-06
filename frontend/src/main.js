@@ -29,7 +29,7 @@ const vuetify = createVuetify({
     VCombobox: { variant: "outlined", density: "comfortable" },
   },
   theme: {
-    defaultTheme: "ccDark",
+    defaultTheme: localStorage.getItem("cc_theme") || "ccDark",
     themes: {
       ccDark: {
         dark: true,
@@ -46,6 +46,23 @@ const vuetify = createVuetify({
           background: "#000000",
           "on-surface": "#f5f5f7",
           "on-background": "#f5f5f7",
+        },
+      },
+      ccLight: {
+        dark: false,
+        colors: {
+          primary: "#007aff",
+          secondary: "#5856d6",
+          accent: "#af52de",
+          error: "#ff3b30",
+          warning: "#ff9500",
+          info: "#5ac8fa",
+          success: "#34c759",
+          surface: "#ffffff",
+          "surface-bright": "#f2f2f7",
+          background: "#f5f5f7",
+          "on-surface": "#1d1d1f",
+          "on-background": "#1d1d1f",
         },
       },
     },

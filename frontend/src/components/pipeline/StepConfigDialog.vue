@@ -7,7 +7,7 @@
     scrollable
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <v-card class="step-config-card d-flex flex-column">
+    <v-card class="cc-glass step-config-card d-flex flex-column">
       <!-- Header -->
       <div class="step-config-header px-6 py-4 d-flex align-center">
         <v-avatar size="40" class="step-config-icon mr-3">

@@ -11,6 +11,7 @@ This is the thin domain surface that pipeline steps call.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from backend.core.logging import get_logger
 from backend.models.person import PersonActivity
@@ -30,8 +31,8 @@ class ActivityService:
 
     def __init__(
         self,
-        person_tracking: object,
-        activity_session: object,
+        person_tracking: Any,
+        activity_session: Any,
     ) -> None:
         self._person_tracking = person_tracking
         self._activity_session = activity_session

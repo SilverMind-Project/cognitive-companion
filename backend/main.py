@@ -500,7 +500,7 @@ async def lifespan(app: FastAPI):
         app.state.ha_state_cache = ha_state_cache
 
         location_repository = SqlAlchemyLocationRepository(
-            cts_runtime.db_factory(),
+            cts_runtime._db_factory(),
         )
         providers = build_providers(
             presence_config,

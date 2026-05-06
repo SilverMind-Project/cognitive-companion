@@ -247,7 +247,7 @@ async def reload_presence_config(request: Request) -> PresenceConfigOut:
         # Build new provider chain.
         new_providers = build_providers(
             new_config,
-            cache=ha_cache,  # type: ignore[arg-type]
+            cache=ha_cache,
             location_repository=SqlAlchemyLocationRepository(
                 request.app.state.db_factory()
                 if hasattr(request.app.state, "db_factory")

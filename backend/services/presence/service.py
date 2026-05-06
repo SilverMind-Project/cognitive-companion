@@ -15,9 +15,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime
+from typing import Any
 
 from backend.core.logging import get_logger
-from backend.services.presence.config import FusionConfig
+from backend.services.presence.config import FusionConfig, PresenceConfig
 from backend.services.presence.types import (
     PresenceProvider,
     PresenceSnapshot,
@@ -100,7 +101,7 @@ async def _fuse_highest_priority_above_floor(
 
 
 # Map from FusionConfig.rule to the fusion function.
-_FUSION_RULES: dict[str, ...] = {
+_FUSION_RULES: dict[str, Any] = {
     "highest_priority_above_floor": _fuse_highest_priority_above_floor,
 }
 
@@ -156,7 +157,7 @@ class PresenceService:
 
     def reload(
         self,
-        new_config: FusionConfig,
+        new_config: FusionConfig | PresenceConfig,
         *,
         providers: list[PresenceProvider],
     ) -> None:
@@ -177,9 +178,9 @@ class PresenceService:
         # Accept either a FusionConfig directly or a PresenceConfig with a
         # .fusion attribute (the reload endpoint passes the latter).
         if hasattr(new_config, "fusion"):
-            self._fusion_config = new_config.fusion  # type: ignore[union-attr]
+            self._fusion_config = new_config.fusion
         else:
-            self._fusion_config = new_config  # type: ignore[assignment]
+            self._fusion_config = new_config
 
     async def get(
         self,

@@ -271,9 +271,9 @@ class SceneAnalysisHandler(StepHandler):
             room_name = trigger.room_name or "unknown"
             intel_record = await services.scene_intel.persist(
                 SceneAnalyzeResult(
-                    detections=tuple(all_detections),
-                    description=description or None,
-                    hazard_alerts=tuple(all_hazards),
+                    detections=list(all_detections),
+                    description=description or "",
+                    hazards=list(all_hazards),
                     embedding=embedding if isinstance(embedding, list) else [],
                 ),
                 room_id=room_name,

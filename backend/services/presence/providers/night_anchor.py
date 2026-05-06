@@ -164,14 +164,14 @@ class NightAnchorProvider:
                 return None
 
         # Step 3: Last known room must be in the require list.
-        state = self._repo.get_state(person_id)
-        if state is None or state.current_room_name is None:
+        location_state = self._repo.get_state(person_id)
+        if location_state is None or location_state.current_room_name is None:
             return None
-        if state.current_room_name.lower() not in self._require_last_room_in:
+        if location_state.current_room_name.lower() not in self._require_last_room_in:
             logger.debug(
                 "night_anchor_wrong_room",
                 person_id=person_id,
-                last_room=state.current_room_name,
+                last_room=location_state.current_room_name,
             )
             return None
 
@@ -188,9 +188,9 @@ class NightAnchorProvider:
 
         # All conditions met → ASLEEP.
         dwell_minutes: float | None = None
-        if state.last_seen_at is not None:
+        if location_state.last_seen_at is not None:
             dwell_minutes = (
-                (at - state.last_seen_at).total_seconds() / 60.0
+                (at - location_state.last_seen_at).total_seconds() / 60.0
             )
 
         sources_parts = [
@@ -210,7 +210,7 @@ class NightAnchorProvider:
             room_id=self._anchor_room_id,
             room_name=self._anchor_room_name,
             confidence=self._confidence,
-            last_seen_at=state.last_seen_at,
+            last_seen_at=location_state.last_seen_at,
             dwell_minutes=dwell_minutes,
             sources=tuple(sources_parts),
             inferred_at=at,

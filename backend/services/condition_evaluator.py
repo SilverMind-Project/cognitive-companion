@@ -46,7 +46,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-import jmespath
+import jmespath  # type: ignore[import-untyped]
 from jmespath import functions as _jmespath_fn
 
 from backend.core.logging import get_logger

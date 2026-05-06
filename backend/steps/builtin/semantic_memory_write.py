@@ -192,7 +192,7 @@ class SemanticMemoryWriteHandler(StepHandler):
 
         # -- Persist via domain service ---------------------------------------
         result = SceneAnalyzeResult(
-            description=description or None,
+            description=description or "",
             embedding=embedding if isinstance(embedding, list) else [],
         )
         intel_record = await services.scene_intel.persist(

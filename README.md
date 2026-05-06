@@ -2,853 +2,239 @@
 
 A privacy-first, on-premise AI system for senior care in multigenerational households.
 
-Cognitive decline doesn't have to mean loss of independence. Cognitive Companion watches for situations where a gentle reminder might help -- without automating away the daily routines that give seniors agency. Rules are written in natural language and evaluated by vision and language models running entirely on-premise, so the system understands *context* rather than triggering on rigid conditions.
+Cognitive decline doesn't have to mean loss of independence. Cognitive Companion watches for moments where a gentle reminder might help, without automating away the daily routines that give seniors agency. Caregivers compose rules out of vision, language, and tracking primitives that run entirely on local hardware. The system understands *context*, not just motion: a person standing in the kitchen at noon means something different than at 3 AM.
 
-## Architecture
+> Looking for the deep technical reference? See [AGENTS.md](AGENTS.md). Working in the IDE with an AI assistant? Start with [CLAUDE.md](CLAUDE.md). For the user-facing documentation portal, see [silvermind-project.github.io](https://silvermind-project.github.io).
+
+---
+
+## Goals
+
+1. **Context-aware monitoring**, not motion alerts. Frames are interpreted by vision and language models, then evaluated against caregiver rules that compose perception, reasoning, and action steps.
+2. **Privacy by architecture.** All inference runs on-premise via vLLM, llama.cpp, and the sibling AI services. Camera frames are stored in your own MinIO and never leave your network unless you configure an outbound channel.
+3. **Senior agency first.** The system suggests and reminds rather than acting. A lunch reminder is a reminder, not a robot.
+4. **Multigenerational by default.** Built for a household where a senior lives with family who want to help but cannot watch all day. Caregiver alerts go out by Telegram or webhook; the senior interacts via voice, popup, e-ink display, and TTS.
+5. **Extensible by drop-in.** Pipeline steps, notification channels, and context filters are auto-discovered Python files. Adding one is a single module, not a fork.
+
+---
+
+## Architecture at a glance
 
 ```text
- Edge Devices                         AI Pipeline                                        Outputs
- ───────────                         ───────────                                          ───────
+            ┌─────────── Edge devices ───────────┐
+            │  reCamera (HTTP push)              │
+            │  reTerminal (e-ink + button)       │
+            │  Home Assistant sensors (poll)     │
+            │  RTSP cameras → continuous-tracking│
+            └──────────────────┬─────────────────┘
+                               │
+                               ▼
+              ┌──────────────────────────────────┐
+              │   Cognitive Companion (FastAPI)  │
+              │                                  │
+              │  EventAggregator → RulesEngine   │
+              │              ↓ matched rules     │
+              │       PipelineExecutor           │
+              │   (19 step types, plugin-based)  │
+              │              ↓                   │
+              │       NotificationDispatcher     │
+              │   (7 channels, plugin-based)     │
+              │                                  │
+              │  CTSRuntime (Redis Streams)      │
+              │  PresenceService (fused)         │
+              │  MCP server (FastMCP, /mcp)      │
+              │  WebSocket audio (Gemini Live)   │
+              └────┬──────────┬──────────┬───────┘
+                   │          │          │
+                   ▼          ▼          ▼
+            person-id    scene-analysis  semantic-memory
+            service       service          service
+            (ArcFace)    (YOLO+Florence-2 (pgvector
+                          +CLIP)            observations,
+                                            movements,
+                                            trends)
+                   │
+                   ▼
+            tts-service (svara / fish_speech / edge_tts)
 
- reCamera ──┐                    ┌─► Person ID Service   ──┐
-            │    ┌────────────┐  │   (InsightFace/ArcFace) │
- WebSocket ─┼──► │   Event    │──┤                         ├───────────────────────────► Rules Engine
-            │    │ Aggregator │  │   ┌──────────────────┐  │                        (context/deps/rate-limit)
- HA Sensors─┘    └────────────┘  ├─► │ llm_call step    │  │                               │
-                   MinIO ◄───────┘   │ (model registry) │──┘                               ▼
-                  (media)            └──────────────────┘                          ┌────────────────┐
-                                                           Models per step:        │  llm_call step │
-                                                           Cosmos Reason2 (vision) │ (logic/transl) │
-                                                           Gemma 4 26B (general)   └───────┬────────┘
-                                                                                           │
-                                                                                           │
-                                                                 ┌─────────────────────────┘
-                                                                 │
-                                                                 │
-                                      ┌──────────────────────────┼──────────────────────────┐
-                                      ▼              ▼           ▼           ▼              ▼
-                                 WebSocket      Telegram     eInk Display   TTS      Home Assistant
-                                 (frontend)     (caregiver)  (reTerminal)  (speaker) (actions + announce)
-
- ┌──────────────────────────────────────────────────────────────────────────────┐
- │  Admin Console (Vue 3 + Vuetify)       MCP Tool Server (AI agent access)     │
- │  Companion Voice UI (Gemini Live)      APScheduler (cron rules, polling)     │
- └──────────────────────────────────────────────────────────────────────────────┘
+            continuous-tracking/  (separate monorepo path)
+            ├── rtsp-ingress (Go)        ─► go2rtc + motion gate + MinIO
+            ├── tracking-orchestrator    ─► YOLO26L + SOLIDER-REID + RTMPose
+            │                               + BoT-SORT + Bayesian identity
+            │                               + dementia signal worker
+            └── Redis Streams ──► CC subscribers
+                tracking.events / tracking.revisions / tracking.signals
 ```
 
-Each rule defines a **composable pipeline** -- an ordered sequence of steps executed by the `PipelineExecutor`. Rather than a fixed linear chain, administrators configure exactly which steps run and in what order, including conditional branching and wait/resume for multi-stage workflows. Sensor events are batched by the **Event Aggregator** (configurable window, batch size, cooldown), then matched against rules whose context filters, dependencies, and rate limits all pass. Each matched rule's pipeline executes independently, with every step logged for auditability.
+Camera and sensor frames are batched by the **EventAggregator** (configurable window, batch size, per-sensor cooldown) and matched against rules whose context filters, dependencies, and rate limits pass. Each matching rule's pipeline executes independently, with every step logged to `EventLog` and `WorkflowExecution` for audit. Notifications fan out to whichever channels `notifications.yaml` and the rule's `notification` step request.
 
-## Key Features
+When `cts.enabled` is true, the **continuous-tracking-service** runs alongside CC. It pulls RTSP streams, tracks individuals with BoT-SORT and a Bayesian identity resolver, and publishes high-level dementia signals (pacing, sundowning, bathroom anomalies, nighttime movement, prolonged stillness, unexplained absence) to Redis Streams. CC subscribes via `CTSRuntime`, persists the signals, fuses location into `PresenceService`, and exposes everything through admin views, MCP tools, and a `dementia_signal` rule filter.
 
-- **Natural-language rules** with context filters (room, time-of-day, day-of-week, person presence with room-level granularity, person activity)  -  each filter supports **negation** (e.g., "NOT in Kitchen", "person is NOT home")  -  plus inter-rule dependencies
-- **Six trigger types**: `sensor_event` (camera/button/HA sensor), `cron` (scheduled), `manual` (API), `webhook` (external HTTP with HMAC), `occupancy_duration` (presence sensor occupied ≥ N minutes), `telegram` (inbound Telegram command) -- each with per-rule threshold and cool-off
-- **Composable pipeline steps** -- 14 built-in step types via a **plugin registry**, extensible by dropping a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`:
-  `llm_call`, `person_identification`, `scene_analysis`, `notification`, `ha_action`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report`, `object_trend_analysis`, `wait`, `condition`, `verification`, `interactive_prompt`
-  (`llm_call` is the unified LLM step covering the use cases of legacy `vision_analysis`, `logic_reasoning`, and `translation` types)
-- **Unified LLM step** (`llm_call`) -- single step replaces separate vision, logic, and translation steps. Model selected per step from a named registry in `settings.yaml`; supports text, vision, and translation in one interface with configurable output key.
-- **Named model registry** -- configure any number of OpenAI-compatible or Ollama endpoints in `llm.models`. Each entry declares its `api_type`, `capabilities`, and whether it supports `guided_decoding` (vLLM `guided_json`).
-- **Structured output** via native LLM guided decoding -- enforce custom JSON schema output guarantees. For vLLM servers, schemas are sent as `guided_json`; for llama.cpp and others, the schema is injected as a prompt instruction.
-- **Inter-frame temporal analysis** -- sensor-ordered image assembly groups frames by camera (in configured order) then sorts chronologically within each camera, giving vision reasoning models a coherent sequence for motion and activity analysis.
-- **Cross-sensor image acquisition** -- configure the `llm_call` step to request recent images from alternative cameras and rooms to assemble multi-angle context.
-- **Person identification** via ArcFace embeddings -- GPU-accelerated, no fine-tuning required, with in-app enrollment via photo upload
-- **Annotated person identification images** with bounding boxes and name labels returned inline
-- **Activity tracking** -- detect and record person activities as pipeline outputs for use as context filters in downstream rules. **Scene description capture** (`capture_scene_description`) saves the upstream VLM analysis alongside each activity record for full auditability. **Extensible activity type list** with 30+ pre-programmed suggestions and free-form entry
-- **Motion direction detection** at doorways (left/right, towards/away from camera)
-- **Camera topology** -- configure a per-sensor `movement_map` in `Sensor.config_json` to translate raw motion directions into semantic room transitions (entering, exiting, approaching, stationary). The `room_transition` context filter lets rules fire only on specific transition types.
-- **Scene analysis** -- the `scene_analysis` pipeline step calls the standalone `scene-analysis-service` microservice for YOLO11x object detection, Florence-2-large structured scene description, and CLIP ViT-L/14 image embeddings. Returns detections, captions, dense embeddings, and YAML-configured hazard alerts (`scene_detections`, `scene_description`, `scene_embedding`, `scene_hazards`).
-- **Whole-house location tracking** fusing camera detections with Home Assistant presence sensors, with room-level person presence rules
-- **Prompt templates** -- use `{{variable}}` syntax in LLM step prompts to inline pipeline data (e.g. `{{person_detections.0.name}}`, `{{system.local_time}}`, ``{{vision_response}}`)
-- **Home Assistant actions** as first-class pipeline steps (call any HA service from a rule)
-- **Wait/resume for multi-stage workflows** -- pause a pipeline, resume on a timer or external trigger
-- **Conditional branching** -- evaluate expressions against pipeline data to fork execution paths
-- **Visual pipeline builder** in the admin UI for drag-and-drop step assembly
-- **Real-time voice** conversations via Google Gemini Live with WebSocket audio streaming
-- **TTS via Home Assistant media players** -- the `ha_speaker_tts` channel generates MP3 audio from the TTS service, uploads to MinIO, and calls `media_player.play_media` on the configured HA entity. The target media player is selectable per-rule via the `ha_media_player` field in the notification step config
-- **HA media player and entity discovery** -- `GET /api/v1/ha/media-players` and `GET /api/v1/ha/entities?domain=<domain>` expose HA state objects for use in the pipeline step config UI
-- **Automatic hardware device registration** -- sensors defined in `config/auth.yaml` under `device_keys` are upserted into the database at startup, so reCamera and reTerminal devices are immediately visible without a manual create step
-- **Multi-channel notifications** via a **channel plugin registry**: `pwa_popup_text`, `telegram`, `eink`, `ha_speaker_tts`, `pwa_tts_announcement`, `pwa_realtime_ai`, and `webhook`. Each channel supports a dedicated template field (`pwa_popup_text_template`, `telegram_template`, `eink_template`, `ha_speaker_tts_template`, `pwa_realtime_ai_template`, `webhook_template`) that degrades to the base `message_template` when omitted. The `pwa_tts_announcement` channel reuses `ha_speaker_tts_template`. Orchestrator prompts sent to the voice agent are hidden from the senior's transcript to maintain a natural conversation experience. E-ink notifications support per-rule template selection (`eink_template_id`) and configurable expiry duration (`eink_expiry_minutes`)
-- **Webhook triggers** for external systems (Home Assistant automations, IFTTT, n8n) with per-rule HMAC secrets
-- **Telegram command triggers** -- map bot commands (e.g. `/medication`) to rule executions; per-rule chat ID whitelist (fail-closed: no whitelist = blocked) with system-wide fallback, and optional acknowledgment reply. Uses identical dispatch path as webhooks; payload available as `{{trigger_input.command}}` in prompts
-- **Outbound Webhooks** via the `webhook` notification channel plugin for triggering external systems.
-- **LLM provider chains and pools** -- automatic failover and round-robin load balancing across multiple GPU nodes
-- **Context filter plugins** -- extensible rule filtering (room, time, day, person presence, person activity)
-- **MCP tool server** (via the official MCP Python SDK) exposing 19 read-only tools (plus rule triggering) for AI agent integration over the standard MCP protocol (streamable HTTP)
-- **Voice tool calling** via Gemini Live function calling, sharing a configurable subset of MCP tools so the voice companion can answer queries like "what's the weather?" or "where is everyone?" using real data
-- **Role-based authentication** with API keys, device keys, and fnmatch permission patterns
-- **Event aggregation** with configurable batching, windowing, and per-sensor cooldown
-- **Camera Media admin view** -- live-browsable image grid per camera with lightbox, sort order, per-sensor pending-flush counter, cooldown indicator, and configurable auto-refresh
-- **Multi-language support** for feedback delivery and voice interaction via the `translation` pipeline step
-- **Continuous Tracking System (CTS) gateway**: BFF proxy layer for a dedicated multi-camera tracking microservice. Feature-flag gated (`cts.enabled`). Admin views for camera management, homography calibration (OpenCV RANSAC), privacy-zone configuration, and camera adjacency graph. Dementia signal ingestion from the tracking-orchestrator via Redis Streams, with persistence, rule-engine integration (`dementia_signal` context filter), and caregiver-facing signal and keyframe query endpoints. All browser traffic reaches CTS microservices only through the CC backend; no direct exposure of internal services.
+---
+
+## Key features
+
+- **Composable per-rule pipelines.** Each rule defines its own ordered `PipelineStep` rows. 19 built-in step types: `llm_call`, `person_identification`, `scene_analysis`, `semantic_memory_query`, `semantic_memory_write`, `object_trend_analysis`, `presence_query`, `home_state`, `tracking_query` (deprecated), `notification`, `ha_action`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report`, `verification`, `condition`, `wait`, `interactive_prompt`. Add new types by dropping a file under `backend/steps/builtin/` or `backend/steps/contrib/`.
+- **Six trigger types.** `sensor_event` (camera or HA sensor), `cron`, `manual`, `webhook` (HMAC-validated), `telegram` (bot command, fail-closed chat-ID whitelist), `occupancy_duration` (presence sensor occupied >= N minutes).
+- **Unified LLM step (`llm_call`).** Picks a model from `llm.models` in `settings.yaml` by `model_id`. Supports vision (image attachment), structured JSON via `guided_json` (vLLM) or prompt injection (llama.cpp), sensor-ordered image assembly for inter-frame analysis, and hallucination retry. Replaces the legacy `vision_analysis`, `logic_reasoning`, and `translation` steps.
+- **Multi-camera continuous tracking.** Optional integration with `continuous-tracking/`. Multi-camera person re-identification, room-level dwell, dementia-relevant signal detection, soft-revisable identity assignments, and a CTS BFF surface (cameras, calibration, privacy zones, adjacency, signals, keyframes, identity corrections, presence) under `/api/v1/cts/*`.
+- **Whole-house presence fusion.** `PresenceService` reads a priority chain in `config/presence.yaml`: night anchor (bed sensor + light state) → HA bed sensor → CTS location → HA device tracker → stale fallback → unknown sentinel. Drives the `presence_query` and `home_state` steps and the `presence_status` / `presence_dwell` / `home_state` filters.
+- **Person identification + camera topology.** Face recognition via the `person-identification-service` (InsightFace, ArcFace 512-d). Per-camera `movement_map` config translates raw motion direction into semantic transitions (entering / exiting / approaching / stationary). The `room_transition` filter gates rules on doorway behaviour.
+- **Scene analysis + semantic memory.** The `scene_analysis` step calls the `scene-analysis-service` (YOLO11x + Florence-2-large + CLIP ViT-L/14). The `semantic_memory_write` and `semantic_memory_query` steps persist and recall observations and movements via the `semantic-memory-service` (PostgreSQL + pgvector). The `scene_contains` filter gates rules on "object or hazard observed in this room within N minutes".
+- **Activity tracking.** `activity_detection`, `activity_session_start`/`end` (duration-aware), `verification` (database query), `daily_report` (end-of-day wellness rollup with optional LLM summary). All values support `{{template}}` syntax. `capture_scene_description: true` saves the upstream VLM output alongside the activity for full audit.
+- **Multi-channel notifications.** 7 channels: `pwa_popup_text`, `pwa_realtime_ai`, `pwa_tts_announcement`, `telegram`, `eink`, `ha_speaker_tts`, `webhook`. Each supports per-step template overrides; e-ink notifications support per-rule template selection and expiry.
+- **E-ink display pipeline.** Per-device active image with template editor (background image + text regions), automatic expiry, and SHA-256 hash-based refresh suppression to avoid disruptive pixel cycles when content is unchanged.
+- **Realtime voice companion.** WebSocket audio streaming with Google Gemini Live, voice tool calling via the MCP registry, transcript actor delineation (orchestrator prompts hidden from the senior's UI), background-noise high-pass filtering on the frontend.
+- **MCP tool server.** FastMCP at `/mcp` with 24 tools including 5 semantic-memory read tools (`get_recent_scene_objects`, `get_scene_observations`, `get_person_movements`, `get_room_trend`, `search_similar_scenes`). A subset is mirrored to Gemini Live for voice tool calling.
+- **Plugin systems.** Three auto-discovered registries (steps, channels, filters). Each plugin is one file with a class decorated by `@*Registry.register`.
+- **Visual pipeline builder** in the admin UI: drag-and-drop step ordering, step type palette loaded dynamically from `GET /api/v1/pipeline/step-types`, per-step config dialog, structured filter dialogs in `RuleDetailView`.
+- **Role-based auth.** API keys, hardware device keys (8-char alphanumeric), and `fnmatch` permission patterns under `config/auth.yaml`. Hardware sensors defined under `auth.device_keys` are auto-upserted at startup.
+- **Outbound webhooks** for triggering external systems from a `notification` step, plus per-rule **inbound webhooks** with HMAC-validated secrets.
+
+---
 
 ## Prerequisites
 
 | Component | Purpose | Notes |
-| --------- | ------- | ----- |
-| **NVIDIA GPUs** | Person-ID service + vLLM serving | DGX Spark |
-| **Docker** + NVIDIA Container Toolkit | Container runtime | For person-ID service |
-| **Home Assistant** | Sensor integration, audio playback, actions | REST API + long-lived token |
-| **MinIO** (or S3-compatible) | Media object storage | Pre-signed URL support required |
-| **vLLM** | Vision model serving | Cosmos-Reason2-8B |
-| **llama.cpp llama-server** | General-purpose model serving | Gemma 4 26B (text, vision, translation) |
-| **Python 3.11+** | Backend runtime | 3.12 recommended |
-| **Node.js 18+** | Frontend build | For admin console |
+| --- | --- | --- |
+| NVIDIA GPU(s) | Person ID + vLLM serving | DGX Spark works well; one GPU minimum for face recognition. |
+| Docker + NVIDIA Container Toolkit | Container runtime | Required for the person-ID service container. |
+| PostgreSQL 17 | Application database | Docker Compose ships one; or point at an external server. |
+| Home Assistant | Sensor integration, area discovery, media-player playback | REST API + long-lived token. |
+| MinIO (or S3-compatible) | Media object storage | Pre-signed URL support required. |
+| vLLM | Vision model serving | Cosmos-Reason2-8B via OpenAI-compatible API. |
+| llama.cpp `llama-server` | General-purpose model serving | Gemma 4 26B (text + vision + translation). |
+| Python 3.12, Node 18+ | Runtimes | Backend and frontend. |
 
-Optional:
+Optional but recommended:
 
 | Component | Purpose |
-| --------- | ------- |
-| Telegram Bot | Caregiver alert notifications |
-| Google Gemini API | Real-time voice conversations |
-| TTS service | Text-to-speech announcements |
-| Scene Analysis Service | YOLO11x object detection, Florence-2 scene description, CLIP embeddings (see `../scene-analysis-service/`) |
+| --- | --- |
+| `tts-service` | TTS announcements via PWA stream or HA media players. |
+| `scene-analysis-service` | YOLO + Florence-2 + CLIP for richer scene context. |
+| `semantic-memory-service` | Observation, movement, and trend memory; powers `scene_contains` and the memory steps. |
+| `continuous-tracking/` | Multi-camera tracking and dementia-signal generation. |
+| Telegram bot | Caregiver alerts and command triggers. |
+| Google Gemini API | Realtime voice companion. |
 
-## Quick Start
+---
+
+## Quick start
 
 ### 1. Configure
 
 ```bash
 cp .env.example .env
-# Edit .env with your service URLs and API keys
+# Edit .env with service URLs and API keys
 ```
 
-Review `config/settings.yaml` for application behavior (event aggregation, LLM models, polling intervals). See [Configuration](#configuration) for details.
+Review `config/settings.yaml` for application behaviour (event aggregation, LLM models, polling intervals, CTS feature flag). The single source of truth for the operator timezone is `app.timezone`.
 
-### 2. Set Up PostgreSQL
-
-Cognitive Companion uses PostgreSQL 17 as its database backend. You have two options:
-
-**Option A: Docker Compose (Recommended for Development)**
-
-The included `docker-compose.yml` automatically starts a PostgreSQL 17 container:
+### 2. Start PostgreSQL
 
 ```bash
 docker compose up -d postgres
+make init-db                         # create DB, run migrations, seed
 ```
 
-**Option B: External PostgreSQL Server**
+Or point at an external Postgres by setting the `POSTGRES_*` env vars in `.env`.
 
-Configure connection parameters in `.env`:
-
-```bash
-POSTGRES_HOST=your-postgres-host
-POSTGRES_PORT=5432
-POSTGRES_USER=your-username
-POSTGRES_PASSWORD=your-password
-POSTGRES_DB=cognitive-companion
-```
-
-**Initialize the Database**
-
-Run migrations and seed initial data:
-
-```bash
-make init-db
-```
-
-This command:
-- Creates the database if it doesn't exist
-- Runs Alembic migrations to create all tables
-- Seeds rooms and sensors from `config/auth.yaml`
-
-**Database Management Commands**
-
-```bash
-make migrate              # Run pending migrations
-make migration            # Generate new migration (after model changes)
-make migration-history    # View migration history
-```
-
-### 3. Start the Person Identification Service
-
-The face recognition service runs as a standalone GPU-accelerated container. See [`../person-identification-service/README.md`](../person-identification-service/README.md) for full setup and enrollment instructions.
+### 3. Start the person identification service
 
 ```bash
 cd ../person-identification-service
 docker compose up -d
 ```
 
-### 4. Start with Docker Compose
+### 4. Bring up the rest
 
 ```bash
-cp .env.example .env
-# Edit .env with your service URLs and API keys
 docker compose up -d
 ```
 
-This starts the backend (port 8000) and frontend (port 80).
+This starts the backend on port 8000 and the frontend on port 80. Open the admin UI at `http://<host>/admin` and:
 
-### 5. Local Development (without Docker)
+1. Set your admin API key.
+2. Sync rooms and sensors from Home Assistant (or create them manually).
+3. Register household members under **Members and Enrollment**, then enroll faces by uploading 5-10 reference photos per person directly from the UI.
+4. Build rules using the visual pipeline builder.
 
-**Backend:**
+### 5. Enable continuous tracking (optional)
+
+```yaml
+# cognitive-companion/config/settings.yaml
+cts:
+  enabled: true
+```
+
+Then bring up the CTS services per [continuous-tracking/README.md](../continuous-tracking/README.md). The CC backend will start the three Redis Streams subscribers and expose CTS admin views (`/admin/cts/*`).
+
+### 6. Local development without Docker
 
 ```bash
-# Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies (creates .venv automatically)
+# Backend
 cd backend
 uv sync --extra gemini
-
-# Run
 cd ..
 uv run --directory backend uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
-```
 
-**Frontend:**
-
-```bash
+# Frontend
 cd frontend
 npm install
-npm run dev          # Development server at http://localhost:5173
-npm run build        # Production build
+npm run dev
 ```
 
-### 5. Initial Setup
+---
 
-1. Open the admin console at `http://localhost:5173/admin`
-2. Set your admin API key
-3. Create rooms and register sensors
-4. Register members in the admin console under **Members & Enrollment**
-5. Enroll faces for each member by uploading reference photos (5-10 per person) directly from the admin UI
-6. Create rules and assemble their pipeline steps using the visual builder
+## Project structure
 
-## Project Structure
+See [AGENTS.md section 3](AGENTS.md#3-repository-layout) for the deep view. Top-level shape:
 
 ```text
 cognitive-companion/
-├── backend/
-│   ├── core/                   # Foundational layer: Settings, Database, KeyStore, exceptions, logging, template
-│   │   ├── __init__.py         # Public surface re-exports
-│   │   ├── config.py           # Settings class + YAML loader (``${ENV_VAR}`` interpolated)
-│   │   ├── database.py         # Database class (engine + sessionmaker) + ``get_db`` / ``get_session``
-│   │   ├── auth.py             # KeyStore + ``get_auth_context`` / ``require_permission`` FastAPI deps
-│   │   ├── exceptions.py       # AppError hierarchy + ``register_exception_handlers``
-│   │   ├── logging.py          # BoundLogger + ``setup_logging`` / ``get_logger``
-│   │   └── template.py         # ``{{dotted.path}}`` renderer used by pipeline prompts
-│   ├── models/
-│   │   ├── rule.py             # Rule, RuleContext, RuleDependency
-│   │   ├── pipeline.py         # PipelineStep, WorkflowExecution
-│   │   ├── person.py           # HouseholdMember, PersonSighting, PersonActivity
-│   │   ├── event.py            # EventLog
-│   │   ├── alert.py            # Alert
-│   │   ├── cts_camera.py       # CtsCamera (id, name, rtsp_url, location, enabled, homography, privacy zones)
-│   │   └── ...                 # Room, Sensor, Conversation, etc.
-│   ├── schemas/
-│   │   ├── rule.py             # Rule + PipelineStep request/response schemas
-│   │   ├── workflow.py         # WorkflowExecution schemas
-│   │   ├── activity.py         # PersonActivity schemas
-│   │   ├── cts.py              # CtsCamera, homography, privacy zone, adjacency schemas
-│   │   └── ...                 # Alert, Event, Person, Room, Sensor schemas
-│   ├── steps/                     # Step plugin system (E1)
-│   │   ├── base.py                # StepHandler ABC, StepMetadata, ServiceContainer
-│   │   ├── __init__.py            # StepRegistry singleton + auto-discovery
-│   │   └── builtin/               # 13 built-in step handlers
-│   │       ├── llm_call.py
-│   │       ├── person_identification.py
-│   │       ├── scene_analysis.py
-│   │       ├── notification.py
-│   │       ├── ha_action.py
-│   │       ├── activity_detection.py
-│   │       ├── verification.py
-│   │       ├── condition.py
-│   │       └── wait.py
-│   ├── channels/                  # Notification channel plugin system (E2)
-│   │   ├── base.py                # NotificationChannel ABC
-│   │   ├── __init__.py            # ChannelRegistry singleton
-│   │   └── builtin/               # WebSocket, Telegram, eInk, TTS channels
-│   ├── filters/                   # Context filter plugin system (E4)
-│   │   ├── base.py                # ContextFilter ABC
-│   │   ├── __init__.py            # FilterRegistry singleton
-│   │   └── builtin/               # room, time_range, day_of_week, person_presence, person_activity, room_transition
-│   ├── services/
-│   │   ├── pipeline_executor.py    # Step orchestrator (dispatches via StepRegistry)
-│   │   ├── condition_evaluator.py  # Safe expression parser for condition steps
-│   │   ├── rules_engine.py         # Context matching via FilterRegistry, dependency checks, rate limits
-│   │   ├── event_aggregator.py     # Frame batching and cooldown
-│   │   ├── person_tracking.py      # Location fusion (camera + HA sensors)
-│   │   ├── notification_dispatcher.py  # Multi-channel alert routing via ChannelRegistry
-│   │   ├── workflow.py             # Workflow orchestration
-│   │   └── ...                     # Scheduler, sensor polling, media, RAG
-│   ├── integrations/           # External clients (HA, MinIO, Telegram, TTS, LLMs, scene analysis)
-│   │   ├── scene_analysis_client.py  # HTTP client for scene-analysis-service
-│   │   ├── cts_ingress.py      # IngressAdminClient: RTSP test, snapshot, health, reload via ingress
-│   │   ├── cts_orchestrator.py # OrchestratorClient: homography, privacy zones, adjacency, status
-│   │   └── llm/                # LLM providers (vLLM, Ollama, Gemini) + chain/pool support
-│   ├── routers/
-│   │   ├── rules.py            # Rule CRUD + pipeline step endpoints
-│   │   ├── pipeline.py         # Step type, channel, and filter metadata endpoints
-│   │   ├── webhooks.py         # Webhook trigger endpoint with HMAC validation
-│   │   ├── workflows.py        # Workflow execution list/detail/cancel
-│   │   ├── activities.py       # Person activity log
-│   │   ├── media.py            # GET /media/buffer -- per-camera aggregator + MediaCache state
-│   │   ├── cts.py              # CTS feature-flag router: GET /cts/status, /cts/features
-│   │   ├── cts_cameras.py      # Camera CRUD + RTSP test + snapshot + health + reload
-│   │   ├── cts_calibration.py  # Homography fit (OpenCV RANSAC), privacy zones, adjacency graph
-│   │   └── ...                 # Alerts, events, persons, sensors, rooms, etc.
-│   ├── mcp/                    # MCP server (official SDK), Gemini tool adapter, auth middleware
-│   ├── websocket/              # WebSocket connection manager and audio handler
-│   ├── assets/                 # Fonts and eInk display templates
-│   └── main.py                 # App factory, lifespan, service wiring
-├── frontend/
-│   └── src/
-│       ├── views/
-│       │   ├── admin/
-│       │   │   ├── DashboardView.vue
-│       │   │   ├── RulesView.vue
-│       │   │   ├── RuleDetailView.vue    # Per-rule pipeline builder + config
-│       │   │   ├── ActivitiesView.vue    # Person activity log
-│       │   │   ├── WorkflowsView.vue     # Workflow execution monitor
-│       │   │   ├── PersonsView.vue
-│       │   │   ├── SensorsView.vue
-│       │   │   ├── RoomsView.vue
-│       │   │   ├── CameraMediaView.vue   # Per-camera media buffer: image grid, lightbox, auto-refresh
-│       │   │   ├── EventsView.vue
-│       │   │   ├── AlertsView.vue
-│       │   │   ├── CTSCamerasView.vue    # CTS camera roster, RTSP test, snapshot preview
-│       │   │   ├── CTSCalibrationView.vue # Click-to-place homography calibration, residual table
-│       │   │   ├── CTSPrivacyView.vue    # Per-camera privacy zone editor with SVG polygon preview
-│       │   │   └── CTSAdjacencyView.vue  # Camera adjacency graph (from/to edges, transit window)
-│       │   └── CompanionView.vue
-│       ├── components/
-│       │   ├── pipeline/
-│       │   │   ├── PipelineBuilder.vue    # Visual drag-and-drop step editor
-│       │   │   ├── StepCard.vue           # Individual step display
-│       │   │   ├── StepConfigDialog.vue   # Step-type-specific config form (+ generic JSON for plugins)
-│       │   │   └── StepPalette.vue        # Dynamic step types loaded from API
-│       │   └── companion/             # Widget system for CompanionView (E6)
-│       │       ├── WidgetRegistry.js  # Widget registration and lookup
-│       │       ├── VoiceWidget.vue    # Audio recording and visualizer
-│       │       ├── TranscriptWidget.vue # Conversation transcript display
-│       │       ├── AlertWidget.vue    # Emergency alert overlay
-│       │       └── index.js           # Built-in widget registration
-│       ├── services/
-│       │   ├── api.js              # API client with auth header injection
-│       │   ├── WebSocketClient.js  # WebSocket client
-│       │   └── cts.js              # Dedicated CTS API client (cameras, calibration, adjacency)
-│       ├── router/             # Vue Router configuration
-│       └── stores/             # Pinia state management
-├── config/
-│   ├── settings.yaml           # Application settings
-│   ├── auth.yaml               # API keys, device keys, permissions
-│   └── notifications.yaml      # Alert routing and escalation
-├── data/                       # Runtime data (media cache)
-├── docker-compose.yml          # Compose file (backend + frontend)
-├── backend/pyproject.toml      # Python dependencies and tooling
-├── backend/uv.lock             # Locked dependency versions (uv)
-└── .env.example                # Environment variable template
+├── backend/         FastAPI app (core, models, schemas, services, integrations,
+│                    steps, channels, filters, routers, mcp, websocket, alembic, tests)
+├── frontend/        Vue 3 + Vuetify admin console + senior-facing companion UI
+├── config/          settings.yaml, auth.yaml, notifications.yaml, presence.yaml
+├── data/            Runtime media cache
+├── docker-compose.yml, kubernetes/, Makefile
+└── AGENTS.md, CLAUDE.md, README.md
 ```
+
+---
 
 ## Configuration
 
-### Environment Variables
+YAML files in `config/` with `${ENV_VAR}` interpolation:
 
-| Variable | Description |
-|----------|-------------|
-| `VISION_MODEL_URL` | Vision model endpoint  -  Cosmos Reason2 (OpenAI-compatible) |
-| `TRANSLATE_MODEL_URL` | Translation model endpoint  -  TranslateGemma (OpenAI-compatible) |
-| `LOGIC_MODEL_URL` | Logic/reasoning model endpoint  -  Gemma3 (OpenAI-compatible) |
-| `GEMINI_API_KEY` | Google Gemini API key (real-time voice) |
-| `TTS_API_URL` | Text-to-speech service endpoint |
-| `HOME_ASSISTANT_URL` | Home Assistant base URL |
-| `HOME_ASSISTANT_TOKEN` | HA long-lived access token |
-| `MINIO_ENDPOINT` | MinIO / S3-compatible endpoint |
-| `MINIO_ACCESS_KEY` | MinIO access key |
-| `MINIO_SECRET_KEY` | MinIO secret key |
-| `PERSON_ID_SERVICE_URL` | Person identification service URL |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token |
-| `TELEGRAM_CAREGIVER_CHAT_ID` | Caregiver Telegram chat ID |
-| `CC_ADMIN_API_KEY` | Admin API key |
-| `CC_CAREGIVER_API_KEY` | Caregiver API key (read-only + alerts) |
-| `CC_MCP_API_KEY` | MCP/AI agent API key (read-only) |
-| `CC_OPERATOR_API_KEY` | Operator API key (full access, for CTS admin) |
-| `CC_CAREGIVER_ADMIN_API_KEY` | Caregiver admin key (cameras, calibration, identity corrections) |
-| `CTS_JWT_PRIVATE_KEY_PEM` | EdDSA private key for service-to-service JWT auth (CTS upstream) |
+- `settings.yaml`: application settings (LLM models, polling intervals, MinIO, MCP tools, scene-analysis, semantic-memory, CTS, presence, image, logging).
+- `auth.yaml`: API keys, device keys, fnmatch permission map.
+- `notifications.yaml`: alert-level to channel routing.
+- `presence.yaml`: PresenceService provider chain (priority-ordered).
 
-All variables are interpolated into YAML config files using `${ENV_VAR}` syntax.
+Frontend timezone is fetched at startup from `GET /api/v1/admin/app-info`. Admin UI timestamps, cron schedules, time-range filters, day-of-week filters, and daily-trigger counters all interpret `app.timezone`. DB always stores UTC.
 
-### settings.yaml
+For the full configuration surface, see [docs/guide/configuration](https://silvermind-project.github.io/guide/configuration) on the documentation portal.
 
-| Section | Controls |
-|---------|----------|
-| `app` | Name, version, timezone, debug mode |
-| `server` | Host and port binding |
-| `cors` | Allowed origins |
-| `database` | PostgreSQL database URL |
-| `llm` | Vision, logic, translation, and realtime LLM provider configs |
-| `tts` | TTS voice and speed |
-| `homeassistant` | HA URL, token, polling interval, bathroom time limit |
-| `minio` | Object storage credentials and presigned URL expiry |
-| `event_aggregator` | Batch size, window, cooldown, media retention |
-| `conversation` | History TTL and max turns per session |
-| `websocket` | Max connections, audio backend, lazy connect |
-| `mcp` | Enabled tools list |
-| `person_id` | Person-ID service URL, confidence threshold, motion detection |
-| `person_tracking` | Location stale timeout, HA propagation toggle |
-| `rag` | Optional RAG index configuration |
-| `image` | eInk template and font paths |
-| `logging` | Log level |
-| `cts` | Feature flag (`enabled`), consumer ID, stream names, JWT config, Redis URL |
-| `cts_ui` | Per-feature UI flags: `calibration_enabled`, `dashboard_enabled`, `live_view_enabled` |
+---
 
-### Timezone
+## Real-world examples
 
-The `app.timezone` field in `settings.yaml` is the single source of truth for time throughout the entire stack. Set it to any valid IANA timezone string:
+The pipeline builder is most useful when you can see what a complete rule looks like. The documentation portal hosts worked examples for each of the scenarios below; this section sketches the shape so you know they exist.
 
-```yaml
-app:
-  timezone: "America/New_York"   # default; change to match your deployment location
-```
+| Scenario | Trigger | Filters | Pipeline shape |
+| --- | --- | --- | --- |
+| Stove-caution reminder when only grandma is home | `sensor_event` (kitchen camera) | `room: Kitchen` + `person_presence: grandma` + `person_presence: NOT others` | `scene_analysis` → `condition` (stove on) → `notification` (`pwa_tts_announcement`) |
+| Lunch eaten + send images to caretaker | `cron` (every 10 min, 12:00-14:00) | `time_range` + `person_presence: grandma in Kitchen` | `llm_call` (vision, image_source=both, since_minutes=30) → `condition` (lunch_observed) → `activity_detection` (`meal_lunch`) → `notification` (`telegram`) |
+| Lunch reminder if missed by 14:00 | `cron` (14:00 daily) | none | `verification` (no `meal_lunch` since 11:00) → `notification` (`telegram` to caregivers + `pwa_tts_announcement` and `eink` to grandma) |
+| Unknown person enters when grandma is alone | `sensor_event` (entry camera) | `home_state: grandma at home` + `person_presence: NOT others` | `person_identification` → `condition` (unknown identity present) → `notification` (`telegram` emergency) |
+| Pacing detection (CTS) | `dementia_signal` (kind=pacing) | `time_range`, `person_presence: grandma at home` | `presence_query` → `condition` (sustained signal) → `notification` (`telegram` + `pwa_tts_announcement`) |
+| Sundowning escalation (CTS) | `dementia_signal` (kind=sundowning_index) | `time_range: 17:00-22:00` | `notification` (`pwa_realtime_ai` to gently engage) → `wait 10 min` → `verification` → `notification` (`telegram` if persists) |
+| Bathroom anomaly with caregiver suppression | `dementia_signal` (kind=bathroom_dwell_anomaly) | `dementia_signal: not acknowledged within 30m` | `notification` (`telegram`) |
 
-**What it controls:**
+The full worked examples (with config JSON and screenshots) are in the [Real-world examples](https://silvermind-project.github.io/features/pipeline#real-world-examples) section of the docs portal, plus a dedicated [Continuous tracking](https://silvermind-project.github.io/features/continuous-tracking) page.
 
-- **Admin UI timestamps.** Every timestamp in the admin interface (events, workflows, activities, alerts, executions, camera media) is displayed in this timezone. DST transitions are handled automatically by the browser's `Intl.DateTimeFormat` API.
-- **Cron rule schedules.** A cron expression like `0 8 * * *` fires at 08:00 local time in the configured timezone. APScheduler applies the timezone when scheduling, so "8 AM" always means 8 AM local time even across DST boundaries.
-- **Time range context filters.** When a rule has a `time_range` context filter (e.g. 09:00 to 17:00), those times are evaluated in the configured timezone.
-- **Day-of-week context filters.** "Monday" means Monday in the configured timezone, not UTC.
-- **Daily trigger limits.** The `max_daily_triggers` counter resets at local midnight in the configured timezone, not UTC midnight.
-- **Pipeline system context.** `system.local_time`, `system.local_date`, and `system.timezone` in pipeline data are derived from this setting and available to LLM prompts via `{{system.local_time}}`.
-
-**Storage.** All timestamps are stored in the database as UTC. The timezone setting affects only display and scheduling interpretation, never the underlying data.
-
-**Changing the timezone.** Edit `app.timezone` in `settings.yaml` and restart the server. The frontend fetches the timezone at startup via `GET /api/v1/admin/app-info` and applies it to all subsequent date formatting without a page reload.
-
-### auth.yaml
-
-Authentication uses a role-based model:
-
-1. **API keys** are defined with a name and one or more permission roles
-2. **Device keys** are 8-character uppercase alphanumeric strings for hardware that can't set HTTP headers
-3. **Permission map** translates role names to endpoint patterns using `fnmatch` syntax
-
-```yaml
-# Example: caregiver can read everything and take alert actions
-caregiver:
-  - "GET /api/v1/*"
-  - "POST /api/v1/alerts/*/action"
-```
-
-Keys are resolved from: `X-API-Key` header, `?api_key` query param, or `device_key` in JSON body.
-
-### notifications.yaml
-
-Maps alert levels to notification channels with escalation:
-
-| Level | Default Channels | Escalation |
-|-------|-----------------|------------|
-| `emergency` | WebSocket, Telegram, eInk, TTS, HA | Every 5 min, 3x repeat |
-| `warning` | WebSocket, Telegram, eInk | Every 10 min |
-| `info` | WebSocket only | None |
-| `reminder` | WebSocket, TTS, eInk | None |
-
-## LLM Pipeline
-
-Rules no longer use a fixed linear pipeline. Instead, each rule defines a **composable sequence of pipeline steps** stored in the database and executed by the `PipelineExecutor`. Steps share a `pipeline_data` dictionary that accumulates results as execution progresses.
-
-### Pipeline Step Types
-
-| Step Type | Purpose |
-|-----------|---------|
-| `llm_call` | Unified LLM step: vision analysis, reasoning, and translation via any named model in the registry. Supports structured JSON output, sensor-ordered image assembly for inter-frame analysis, and hallucination retry. |
-| `person_identification` | Run face recognition on media frames; record sightings, update location, and emit room transitions based on per-camera topology config. |
-| `scene_analysis` | Run YOLO11x object detection, Florence-2-large scene description, and CLIP ViT-L/14 embeddings via the standalone scene-analysis-service microservice. Returns detections, captions, embeddings, and hazard alerts. |
-| `notification` | Dispatch an alert across channels with customizable text templates per-channel (`telegram_template`, etc). Can explicitly trigger rate-limit cool-off. |
-| `ha_action` | Call a Home Assistant service (turn on lights, lock doors, etc.). Can explicitly trigger rate-limit cool-off. |
-| `activity_detection` | Record activities from pipeline data to the PersonActivity table. Can explicitly trigger rate-limit cool-off. |
-| `wait` | Pause execution for a configured duration; resume automatically via scheduler. |
-| `condition` | Evaluate an expression against pipeline data; branch to different steps. Can conditionally trigger rate-limit cool-off. |
-| `verification` | Query the PersonActivity database to verify whether household members completed (or did not complete) specific activities within a time window. |
-
-### Condition Expressions
-
-Condition steps use a safe expression evaluator (no `eval()`) that supports path access, comparisons, boolean operators, and built-in functions:
-
-```text
-person_detections.count > 0
-logic_response.is_notification_needed == true
-exists(translation) and not contains(vision_response, "empty")
-```
-
-### Example Pipeline Configurations
-
-**Camera monitoring rule** -- the classic detect-analyze-notify chain:
-
-```text
-person_identification --> llm_call (model=cosmos_reason2, image_source=trigger, output_key=vision) --> llm_call (model=gemma4_26b, output_key=logic) --> llm_call (model=gemma4_26b, output_key=translation) --> notification
-```
-
-**Lunch reminder** -- detect the person, analyze activity with LLM, record it, wait, then verify and remind:
-
-```text
-llm_call (model=cosmos_reason2, image_source=trigger, output_key=vision) --> llm_call (model=gemma4_26b, output_key=activity, response_format=activity_detection) --> activity_detection --> wait (30 min) --> verification --> notification
-```
-
-**Light monitor** -- analyze, decide, notify caregiver, wait for response, then verify and act:
-
-```text
-llm_call (model=cosmos_reason2, image_source=trigger, output_key=vision) --> llm_call (model=gemma4_26b, output_key=logic) --> notification --> wait (5 min) --> verification --> ha_action
-```
-
-Each step stores its configuration (prompts, HA service calls, wait durations, condition expressions) in a per-step `config_json` field, so the same step type can behave differently across rules.
-
-### Workflow Execution
-
-When a rule's pipeline is triggered, a `WorkflowExecution` record tracks progress:
-
-- **Status**: `running`, `waiting`, `completed`, `failed`, `cancelled`
-- **Current step**: which step the executor is on (or paused at)
-- **Pipeline data**: the accumulated output dictionary from all completed steps
-- **Resume**: `wait` steps set a `resume_at` timestamp; the scheduler picks them back up
-
-All intermediate results are persisted in `pipeline_data_json` on both the `WorkflowExecution` and the `EventLog` for debugging and auditability.
-
-## API Reference
-
-All endpoints are under `/api/v1/` and require authentication.
-
-### Rooms
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/rooms` | List all rooms |
-| `POST` | `/rooms` | Create a room |
-| `PUT` | `/rooms/{id}` | Update a room |
-| `DELETE` | `/rooms/{id}` | Delete a room |
-
-### Sensors
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/sensors` | List sensors (filter by `room_id`, `sensor_type`, `source`) |
-| `POST` | `/sensors` | Register a sensor |
-| `PUT` | `/sensors/{id}` | Update a sensor |
-| `DELETE` | `/sensors/{id}` | Delete a sensor |
-
-### Rules
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/rules` | List all rules |
-| `POST` | `/rules` | Create a rule |
-| `GET` | `/rules/{id}` | Get a rule with its pipeline steps, contexts, and dependencies |
-| `PUT` | `/rules/{id}` | Update a rule |
-| `DELETE` | `/rules/{id}` | Delete a rule and its pipeline steps |
-| `POST` | `/rules/{id}/execute` | Manually trigger a rule's pipeline (returns execution ID) |
-
-Rule fields: `name`, `description`, `enabled`, `trigger_type` (sensor_event / cron / manual / webhook), `primary_sensor_id`, `schedule_cron`, `cool_off_minutes`, `max_daily_triggers`, `webhook_config`.
-
-#### Pipeline Steps
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/rules/{id}/steps` | List pipeline steps for a rule (ordered) |
-| `POST` | `/rules/{id}/steps` | Add a step (auto-assigned to end of sequence) |
-| `PUT` | `/rules/{id}/steps/{step_id}` | Update a step's type, config, label, or enabled flag |
-| `DELETE` | `/rules/{id}/steps/{step_id}` | Remove a step (remaining steps re-ordered) |
-| `PUT` | `/rules/{id}/steps/reorder` | Bulk reorder steps by passing `[{id, order}, ...]` |
-
-#### Contexts and Dependencies
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/rules/{id}/contexts` | List context filters |
-| `POST` | `/rules/{id}/contexts` | Add a context filter (room, time_range, day_of_week, person_presence, person_activity) with optional `negate` flag |
-| `DELETE` | `/rules/{id}/contexts/{ctx_id}` | Remove a context filter |
-| `GET` | `/rules/{id}/dependencies` | List rule dependencies |
-| `POST` | `/rules/{id}/dependencies` | Add a dependency on another rule |
-| `DELETE` | `/rules/{id}/dependencies/{dep_id}` | Remove a dependency |
-
-### Workflows
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/workflows` | List workflow executions (filter by `rule_id`, `status`, `limit`) |
-| `GET` | `/workflows/{id}` | Get execution detail with full pipeline data |
-| `POST` | `/workflows/{id}/cancel` | Cancel a running or waiting execution |
-
-### Activities
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/activities` | List detected person activities (filter by `person_id`, `activity_type`, `room_name`) |
-
-### Alerts
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/alerts` | List alerts (filter by `resolved`, `room_name`, `alert_type`) |
-| `GET` | `/alerts/{id}` | Get a single alert |
-| `POST` | `/alerts/{id}/action` | Dismiss or request assistance for an alert |
-
-### Events
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/events` | List event logs (filter by `rule_name`, `status`, `limit`) |
-
-### Persons
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/persons` | List all household members |
-| `POST` | `/persons` | Register a new member |
-| `GET` | `/persons/enrolled` | List face enrollment status from person-ID service |
-| `GET` | `/persons/locations` | Current location of all tracked members |
-| `GET` | `/persons/{id}` | Get member details |
-| `PATCH` | `/persons/{id}` | Update a member |
-| `DELETE` | `/persons/{id}` | Remove a member and their data |
-| `POST` | `/persons/{id}/enroll` | Upload reference photos to enroll a face (multipart) |
-| `GET` | `/persons/{id}/enrollment` | Get face enrollment details (embedding count) |
-| `DELETE` | `/persons/{id}/enrollment` | Remove face enrollment data |
-| `GET` | `/persons/{id}/location` | Current location of a specific member |
-| `GET` | `/persons/{id}/history` | Location timeline (`?hours=24`) |
-| `GET` | `/persons/{id}/sightings` | Recent camera sightings (`?limit=20`) |
-
-### Device
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/device/recamera` | Upload image from reCamera (device key auth) |
-| `POST` | `/device/reterminal` | reTerminal button/command endpoint |
-
-### Image (eInk Display)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/image/active` | Get the currently active eInk image |
-| `POST` | `/image/render` | Render a new notification image |
-| `POST` | `/image/reset` | Reset to default template |
-
-### Occupancy
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/occupancy` | Room occupancy from presence sensors |
-
-### MCP
-
-| Method | Path   | Description                                      |
-|--------|--------|--------------------------------------------------|
-| `POST` | `/mcp` | MCP protocol endpoint (streamable HTTP, JSON-RPC) |
-
-### Home Assistant Sync
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/ha/sync/rooms` | Import rooms (areas) from Home Assistant |
-| `POST` | `/ha/sync/sensors` | Import sensors from Home Assistant areas |
-
-### Pipeline Metadata
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/pipeline/step-types` | List all registered step types with metadata, config schema, and defaults |
-| `GET` | `/pipeline/channel-types` | List all registered notification channel types |
-| `GET` | `/pipeline/filter-types` | List all registered context filter types |
-
-### Webhooks
-
-| Method | Path                                  | Description                                                         |
-|--------|---------------------------------------|---------------------------------------------------------------------|
-| `POST` | `/webhooks/{rule_id}`                 | Trigger a webhook-enabled rule (requires `X-Webhook-Secret` header) |
-| `POST` | `/webhooks/{rule_id}/generate-secret` | Generate or regenerate the webhook secret for a rule                |
-
-### CTS (Continuous Tracking System)
-
-All CTS endpoints require `cts.enabled: true` in `settings.yaml`. When disabled, every handler returns `404` with `{"code": "cts.disabled"}`.
-
-**Feature flags and status:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/cts/status` | Returns `{enabled, calibration_enabled, dashboard_enabled}` |
-| `GET` | `/cts/features` | Returns per-feature UI flag map |
-
-**Camera management:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/cts/cameras` | List all CTS cameras |
-| `POST` | `/cts/cameras` | Register a new camera (id, name, rtsp_url, location, enabled) |
-| `GET` | `/cts/cameras/{id}` | Get camera detail with calibration and privacy zone counts |
-| `PATCH` | `/cts/cameras/{id}` | Update camera fields |
-| `DELETE` | `/cts/cameras/{id}` | Delete a camera |
-| `POST` | `/cts/cameras/test-connect` | Test an RTSP URL without persisting anything |
-| `GET` | `/cts/cameras/{id}/snapshot` | Fetch a JPEG snapshot via the ingress proxy |
-| `GET` | `/cts/cameras/{id}/health` | Fetch stream health; falls back to cached data when ingress is unreachable |
-| `POST` | `/cts/cameras/{id}/reload` | Hot-reload the camera stream in the ingress service |
-
-**Calibration:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/cts/calibration/homography` | Fit a 3x3 homography (OpenCV RANSAC), validate residuals, push to orchestrator |
-| `GET` | `/cts/calibration/homography/{camera_id}` | Retrieve stored homography matrix and residuals |
-| `POST` | `/cts/calibration/privacy_zones` | Replace all privacy zones for a camera, push to orchestrator |
-| `GET` | `/cts/calibration/privacy_zones/{camera_id}` | Get current privacy zones for a camera |
-| `POST` | `/cts/calibration/adjacency` | Replace the full camera adjacency graph, push to orchestrator |
-| `GET` | `/cts/calibration/adjacency` | Get edge count from the orchestrator's calibration status |
-
-**Dementia signals:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/cts/signals` | List recent signals (filter by person_id, signal_type, severity, window_hours) |
-| `POST` | `/cts/signals/{id}/ack` | Acknowledge a signal as reviewed by a caregiver |
-| `GET` | `/cts/signals/unacknowledged` | Unacknowledged signals for alerting and dashboard |
-| `GET` | `/cts/signals/summary` | 24-hour signal summary grouped by type and max severity |
-| `GET` | `/cts/signals/trend/{person_id}` | Per-day signal counts for trend charts |
-
-**Keyframes:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/cts/keyframes` | List tagged keyframes (filter by person_id, signal_type, after, limit) |
-| `GET` | `/cts/keyframes/{sample_id}` | Get a single tagged keyframe by sample ID |
-| `POST` | `/cts/keyframes/{sample_id}/retain` | Retain a keyframe past the normal retention window |
-
-### Other
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check (no auth required) |
-| `WS` | `/ws` | WebSocket for audio streaming and notifications |
-| `GET` | `/admin/config` | Inspect active configuration |
-
-## Person Identification and Tracking
-
-Person identification runs as a [companion microservice](../person-identification-service/) using InsightFace (buffalo_l model pack) with ArcFace 512-dimensional embeddings.
-
-**Enrollment**: Upload 5-10 reference photos per person through the admin UI (Members & Enrollment page) or directly via the person-ID service API. No model fine-tuning is needed. ArcFace generalizes from pretrained weights. The backend proxies enrollment requests to the person-ID service, so there is no need to interact with the face recognition service directly.
-
-**Identification**: The backend sends batched frames to `POST /api/v1/identify-batch`. The service returns per-frame face detections with identity, confidence, and bounding boxes.
-
-**Annotated images**: When the `include_annotated_image` flag is set in a `person_identification` pipeline step's config, the person-ID service returns a copy of each frame with bounding boxes and name labels drawn over detected faces. These annotated images are stored in pipeline data and can be forwarded to downstream notification steps for visual confirmation.
-
-**Motion Detection**: Cross-frame centroid tracking classifies movement direction (left-to-right, right-to-left, towards-camera, away-from-camera, stationary).
-
-**Camera Topology**: Each camera sensor accepts a `movement_map` in its `config_json` that maps raw motion directions to semantic transitions: `entering`, `exiting`, `approaching_exit`, `entering_depth`, or `stationary`. The `person_identification` step calls `infer_room_transition()` to compute these transitions and writes them to `PersonLocationHistory`. The `room_transition` context filter lets rules fire only when a person makes a specific type of transition at a doorway.
-
-**Location Tracking**: The `PersonTrackingService` fuses camera detections with Home Assistant presence sensors to maintain per-person location state. When a person's room changes, a history entry is created. For rooms without cameras (e.g., bathrooms), HA presence sensor activations are correlated with the most recent camera sighting to infer who is present.
-
-**Home Assistant Propagation**: Person locations are pushed to HA `input_text` helpers (`input_text.cc_{person_id}_location`) for use in automations and dashboards.
-
-## E-Ink Display Pipeline
-
-The system renders notification images for color e-ink displays (800x480 reTerminal). Each device gets its own active image. ESPHome-based devices poll a static URL to fetch their current image.
-
-### Per-Device Image Serving
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/image/active` | Serve the active image for the authenticated device (`sensor_id` derived from device key) |
-| `GET` | `/image/active/{sensor_id}` | Serve the active image for a specific sensor (admin use) |
-
-Images fall back to a default template when the active image is expired or missing.
-
-### Image Templates
-
-Templates define background images with configurable text regions (bounding boxes). Regions specify where rendered text is placed on the background.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/image/templates` | List all templates |
-| `POST` | `/image/templates` | Create a template (multipart upload with image + metadata) |
-| `PUT` | `/image/templates/{id}` | Update regions or metadata |
-| `DELETE` | `/image/templates/{id}` | Remove a template |
-
-### Rendering
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/image/render` | Render text onto a template for target devices |
-| `POST` | `/image/preview` | Preview a render without saving (returns PNG) |
-| `POST` | `/image/reset` | Reset a device's display to the default template |
-
-### Pipeline Integration
-
-The `notification` step in composable pipelines supports an `eink_targets` config field to target specific displays. When `eink` is included in the notification channels, the `NotificationDispatcher` renders alert images automatically for the specified targets.
-
-### Frontend Template Editor
-
-Available at `/admin/eink-templates`. Upload background images, draw text regions with bounding boxes, select fonts, and preview renders before saving.
-
-## MCP Integration
-
-The [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server, built on the official MCP Python SDK, exposes tools that AI agents can discover and call to query system state and trigger actions. It serves the standard MCP protocol via streamable HTTP at `/mcp`.
-
-**Available tools (19):**
-
-| Tool                     | Description                                                          |
-|--------------------------|----------------------------------------------------------------------|
-| `get_rooms`              | List all configured rooms                                            |
-| `get_sensors`            | List sensors (filter by room, type)                                  |
-| `get_room_occupancy`     | Current occupancy from presence sensors                              |
-| `get_recent_images`      | Recent camera images for a sensor                                    |
-| `get_light_level`        | Illuminance from a HA sensor                                         |
-| `get_alerts`             | Recent emergency alerts                                              |
-| `get_event_logs`         | Rule execution event logs                                            |
-| `get_rules`              | Configured automation rules                                          |
-| `get_conversation_history`  | Recent conversation turns                                         |
-| `get_person_locations`   | Current location of all tracked members                              |
-| `get_enrolled_persons`   | Persons with face identification enrollment data                     |
-| `get_person_sightings`   | Camera sighting history for a person                                 |
-| `get_person_activities`  | Recent detected activities (eating, sleeping, etc.)                  |
-| `get_workflow_executions` | Recent pipeline workflow executions (filter by rule, status)        |
-| `get_rule_pipeline`      | Pipeline step definitions for a specific rule                        |
-| `trigger_rule`           | Manually trigger a rule's pipeline execution                         |
-| `get_eink_display_status` | Active e-ink image state for one or all displays                    |
-| `get_local_datetime`     | Current local date and time for the household's timezone             |
-| `get_weather`            | Current weather from Home Assistant                                  |
-
-Agents authenticate with the MCP API key via the `X-API-Key` header. A configurable subset of these tools is also available to the Gemini Live voice companion via function calling (see `mcp.gemini_tools` in settings).
-
-## Frontend
-
-The admin console is a Vue 3 + Vuetify 3 single-page application with Material Design components.
-
-**Admin views** (`/admin`):
-
-| View | Purpose |
-|------|---------|
-| Dashboard | System stats, person locations, room occupancy, recent alerts |
-| Rules | CRUD rules with trigger type, sensor binding, and rate-limit settings |
-| Rule Detail | Per-rule pipeline builder with drag-and-drop step assembly, step config dialogs, and reordering |
-| Sensors | Manage camera and presence sensors |
-| Rooms | Manage rooms and HA area mappings |
-| Events | Browse rule execution logs with pipeline data inspection |
-| Alerts | View and resolve emergency alerts |
-| Members & Enrollment | Manage household members, enroll faces with photo upload, view locations, history, and sightings |
-| Activities | Browse detected person activities with filters by person, type, and room |
-| Workflows | Monitor workflow executions, inspect pipeline state, cancel running/waiting workflows |
-
-**Pipeline builder components** (`frontend/src/components/pipeline/`):
-
-| Component | Purpose |
-|-----------|---------|
-| `PipelineBuilder.vue` | Visual editor showing the ordered step list with drag-to-reorder |
-| `StepCard.vue` | Displays a single step's type, label, and enabled state |
-| `StepConfigDialog.vue` | Step-type-specific configuration form (prompts, HA services, wait durations, conditions) |
-| `StepPalette.vue` | Sidebar listing available step types for adding to the pipeline |
-
-**Companion view** (`/`): Voice interaction interface using WebSocket audio streaming with Google Gemini Live.
-
-## Hardware Integration
-
-### Seeed reCamera
-
-Compact Linux camera that captures images and uploads via `POST /api/v1/device/recamera`. Authenticates with an 8-character device key in the JSON body. Images are passed to the event aggregator for batching.
-
-### Seeed reTerminal
-
-Linux SBC with a 5" touchscreen and built-in eInk display. Fetches rendered notification images from `GET /api/v1/image/{id}`. Reports button presses via `POST /api/v1/device/reterminal`.
-
-### Home Assistant Sensors
-
-The backend polls Home Assistant entities at a configurable interval (default: 30s). Supported sensor types:
-
-- **Presence** sensors (binary PIR/mmWave) for room occupancy
-- **Light** sensors (illuminance) for context-aware rules
-- **Media players** for TTS announcements
+---
 
 ## Development
 
@@ -858,209 +244,115 @@ The backend polls Home Assistant entities at a configurable interval (default: 3
 cd backend
 uv sync --extra dev --extra gemini
 
-# Lint, type-check, and format (all-in-one)
-./scripts/lint.sh               # Check only
-./scripts/lint.sh --fix         # Auto-fix ruff issues
+# Lint, format, types, tests
+make lint
+make format
+make typecheck-core    # strict mypy on backend.core
+make typecheck         # full backend tree
+make test              # full backend test suite
+make test-core         # backend.core only (~113 tests)
+make test-services     # backend.services only
 
-# Or run individually
-uv run ruff check .             # Lint
-uv run ruff format .            # Format
-cd .. && backend/.venv/bin/mypy backend/ --config-file backend/pyproject.toml  # Type check
+# Coverage
+make coverage          # core, terminal output
+make coverage-services
+make coverage-html     # HTML report under ./htmlcov
 
-# Tests
-uv run pytest                   # Full backend test suite (852 tests)
-uv run pytest backend/tests/core -v                                 # backend.core only (113 tests)
-uv run pytest backend/tests/core --cov=backend/core --cov-report=term-missing  # with branch coverage
+# Pre-commit gates
+make check             # lint + typecheck-core + test-core (fast)
+make check-all         # adds test-services
 ```
 
-Or, from the repo root, the `Makefile` wraps the common developer gates:
+`make check` is the gate every PR must pass. `make check-all` is required for any change that touches `backend/services/` or shared infrastructure.
 
-```bash
-make test              # full backend suite
-make test-core         # backend.core only (113 tests)
-make test-services     # backend.services only (177 tests)
-make coverage          # backend.core with branch coverage (terminal)
-make coverage-services # backend.services with branch coverage
-make coverage-html     # + HTML report under ./htmlcov
-make lint              # ruff (no fixes)
-make typecheck-core    # strict mypy over backend.core only
-make check             # lint + typecheck-core + test-core  (pre-commit gate)
-make check-all         # lint + typecheck-core + test-core + test-services
-```
-
-**Core layer quality bar.** `backend/core/` is the foundation every other
-backend package depends on, so it is held to a stricter standard than the
-gradual-adoption settings used by the rest of the tree:
-
-- **113 tests, ~98 % branch coverage.** The core test suite doubles as the
-  reference for how `Settings`, `Database`, `KeyStore`, `BoundLogger`, and
-  the template renderer are meant to be consumed.
-- **Strict typing.** A dedicated `[[tool.mypy.overrides]]` block for
-  `backend.core.*` sets `disallow_untyped_defs = true` and
-  `disallow_incomplete_defs = true`.
-
-### Database
-
-**PostgreSQL 17** is the production database. Tests use **testcontainers** to spin up isolated PostgreSQL instances.
-
-**Schema Migrations**
-
-Alembic manages schema changes:
-
-```bash
-make migrate              # Apply pending migrations
-make migration            # Generate new migration after model changes
-make migration-history    # View migration history
-```
-
-**Connection Pool Tuning**
-
-Configure in `config/settings.yaml`:
-
-```yaml
-database:
-  pool_size: 5              # Base connection pool size
-  max_overflow: 10          # Additional connections under load
-  pool_timeout: 30          # Seconds to wait for connection
-  pool_recycle: 3600        # Recycle connections after 1 hour
-  pool_pre_ping: true       # Test connections before use
-```
-
-**Timezone Handling**
-
-All datetime columns use the `UTCDateTime` custom type, which:
-- Stores timestamps as `TIMESTAMP WITH TIME ZONE` in PostgreSQL
-- Enforces timezone-aware datetimes (rejects naive datetimes)
-- Normalizes all values to UTC for storage
-- Returns timezone-aware UTC datetimes on retrieval
-
-**Concurrency Protection**
-
-The `WorkflowExecution` model uses optimistic locking with a `version` column to prevent race conditions during concurrent updates. The `PipelineExecutor` automatically retries on version conflicts with exponential backoff.
-- **No upward dependencies.** Modules in `backend.core` must not import from
-  `backend.services`, `backend.routers`, `backend.channels`, etc., and only
-  the FastAPI-facing leaves (`auth`, `exceptions.register_exception_handlers`)
-  may touch FastAPI types.
-- **Testability by construction.** Every stateful module-level singleton is a
-  thin facade over a class (`Settings`, `Database`, `KeyStore`, `BoundLogger`)
-  that can be instantiated directly in a test without touching process globals.
-
-**Services layer quality bar.** `backend/services/` has a dedicated test suite
-of 177 tests covering 7 modules at 89-100% branch coverage. The `scheduler.py`
-module was refactored to lift module-level globals into a `Scheduler` class
-for testability. Run `make test-services` or `make coverage-services` to
-exercise the suite.
-
-### Frontend Dev Server
+### Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev                     # Dev server with HMR
-npm run build                   # Production build
+npm run dev            # Vite dev server with HMR
+npm run build          # production build
+npm run test           # spec suite under src/views/admin/__tests__
 ```
+
+### Quality bar by layer
+
+| Layer | What it owns | Standard |
+| --- | --- | --- |
+| `backend/core/` | Settings, Database, KeyStore, BoundLogger, exceptions, template, time helpers | Strict mypy (`disallow_untyped_defs=true`), ~98% branch coverage, ~113 tests, no upward imports. |
+| `backend/services/` | Business logic | Gradual mypy, dedicated test suites for `condition_evaluator`, `notification_dispatcher`, `media_processor`, `rag`, `scheduler`, `workflow`, `daily_report`, `activity_session`, `activity_timeline`, `conversation_manager`. |
+| `backend/integrations/` | External clients | Typed dataclasses for results, `configured` property gates network I/O, graceful degradation on every method. |
+| `backend/steps/` and friends | Plugins | Each plugin has a unit test with success path, missing-service path, and one config edge case. |
 
 ### Database
 
-PostgreSQL with SQLAlchemy 2.0. Tables are auto-created during init. For schema changes, use Alembic migrations via `make migrate`.
+PostgreSQL 17 with SQLAlchemy 2.0 ORM. Schema changes go through Alembic.
 
-### Extending the Pipeline (Plugin System)
+```bash
+make migration         # autogenerate after model edits
+make migrate           # apply pending migrations
+```
 
-Adding a new pipeline step type requires **only one file** -- a Python module in `backend/steps/builtin/` or `backend/steps/contrib/`. The plugin system auto-discovers and registers handlers at startup.
+Tests use a PostgreSQL testcontainer; the shared fixtures live in `backend/tests/conftest.py`.
 
-1. **Create a step handler** in `backend/steps/builtin/my_step.py`:
+### Plugin system in 60 seconds
+
+Add a step:
 
 ```python
+# backend/steps/builtin/your_step.py
 from backend.steps import StepRegistry
 from backend.steps.base import StepHandler, StepMetadata, StepResult
 
 @StepRegistry.register
-class MyStepHandler(StepHandler):
+class YourStep(StepHandler):
     @classmethod
     def metadata(cls) -> StepMetadata:
         return StepMetadata(
-            type_name="my_step",
-            display_name="My Step",
+            type_name="your_step",
+            display_name="Your Step",
             category="action",
             icon="mdi-star",
-            description="Does something useful.",
-            config_schema={"type": "object", "properties": {...}},
-            default_config={...},
+            description="Does the thing.",
+            config_schema={"type": "object", "properties": {}},
+            default_config={},
         )
 
     async def execute(self, step, execution, pipeline_data, trigger, services):
-        # Your logic here
-        return StepResult(data={"my_output": "value"})
+        return StepResult(data={"your_key": "value"})
 ```
 
-1. **That's it.** The step appears automatically in:
-   - `GET /api/v1/pipeline/step-types` (served to frontend)
-   - The StepPalette in the admin UI
-   - The StepConfigDialog (with a generic JSON editor for plugin types)
+The step shows up in the StepPalette automatically. For a custom config form, add a `<template v-if="localStep.step_type === 'your_step'">` block in `frontend/src/components/pipeline/StepConfigDialog.vue`. Add a unit test under `backend/tests/steps/test_your_step.py`.
 
-The same pattern applies for **notification channels** (`backend/channels/builtin/`) and **context filters** (`backend/filters/builtin/`).
+The same pattern works for notification channels (`backend/channels/builtin/`) and context filters (`backend/filters/builtin/`).
 
-See the full guide with code examples in [AGENTS.md](AGENTS.md#adding-a-new-pipeline-step-type).
+---
 
-### Adding a Notification Channel
+## Testing patterns to know
 
-Create a file in `backend/channels/builtin/`:
+- `RulesEngine(tz_name="UTC")` in tests; the testcontainer stores UTC.
+- Step handler tests use `@dataclass class _FakeStep` instead of `PipelineStep` (SQLAlchemy instrumentation breaks on `__new__`-constructed mapped objects).
+- Pass only the `ServiceContainer` fields the step uses; the rest default to `None`.
+- For routers: new `FastAPI()` + `register_exception_handlers(app)` + `app.dependency_overrides[get_auth_context]`. Use `StaticPool` so tables persist across the test connections.
+- HTTP is patched via `unittest.mock.patch("backend.integrations.<module>.httpx.AsyncClient")`. No real network.
+- Do not mock the database. Use the testcontainer fixtures.
 
-```python
-from backend.channels import ChannelRegistry
-from backend.channels.base import NotificationChannel, ChannelMetadata
+---
 
-@ChannelRegistry.register
-class SlackChannel(NotificationChannel):
-    @classmethod
-    def metadata(cls) -> ChannelMetadata:
-        return ChannelMetadata(channel_name="slack", ...)
+## API reference
 
-    async def send(self, message, alert_level, room_name, **kwargs) -> bool:
-        # Send to Slack
-        return True
-```
+The full REST and MCP surface lives at [silvermind-project.github.io/api/reference](https://silvermind-project.github.io/api/reference). Highlights:
 
-### Adding a Context Filter
+- `GET /api/v1/health`: unauthenticated liveness probe.
+- `GET /api/v1/pipeline/step-types`, `/channel-types`, `/filter-types`, `/llm-models`: dynamic metadata for the visual pipeline builder.
+- `POST /api/v1/rules`, `/rules/{id}/steps`, `/rules/{id}/contexts`, `/rules/{id}/dependencies`: rule and pipeline CRUD.
+- `POST /api/v1/webhooks/{rule_id}`: trigger a webhook-enabled rule (HMAC required).
+- `POST /api/v1/device/recamera`, `/device/reterminal`: hardware device endpoints (device-key auth).
+- `GET /api/v1/image/active`: per-device e-ink image with refresh suppression.
+- `GET /api/v1/cts/*`: BFF surface for cameras, calibration, signals, keyframes, identity corrections, presence (gated by `cts.enabled`).
+- `POST /mcp`: streamable-HTTP MCP transport.
 
-Create a file in `backend/filters/builtin/`:
-
-```python
-from backend.filters import FilterRegistry
-from backend.filters.base import ContextFilter, FilterMetadata
-
-@FilterRegistry.register
-class WeatherFilter(ContextFilter):
-    @classmethod
-    def metadata(cls) -> FilterMetadata:
-        return FilterMetadata(filter_type="weather", ...)
-
-    def evaluate(self, config, sensor, now, db=None) -> bool:
-        # Check weather conditions
-        return True
-```
-
-Every context filter supports negation out of the box via the `negate` flag on `RuleContext`. When `negate=True`, the rules engine inverts the filter result  -  e.g., a room filter with `negate=True` means "NOT in this room". Individual filter implementations don't need to handle negation.
-
-## Roadmap
-
-Proposed features and integration pathways for future development.
-
-### ~~Gemini Live Tool Calling~~ (Implemented)
-
-The voice companion now supports function calling via Gemini Live. A configurable subset of MCP tools (`mcp.gemini_tools` in settings) is exposed as Gemini function declarations. When the user asks a question like "what's the weather?" or "where is everyone?", Gemini pauses audio generation, calls the tool, and incorporates the result into its spoken response. Tool calls are logged in the conversation history with metadata. See `backend/mcp/gemini_adapter.py` for the bridging layer.
-
-### Pipeline Templates / Presets
-
-**Problem**: Creating pipelines from scratch is complex for new users.
-
-**Design**: JSON fixtures file with preset pipeline definitions (Camera Alert, Periodic Check, Medication Reminder). A `GET /rules/templates` endpoint lists presets, and `POST /rules/from-template` creates a rule from one. "Use Template" button in the rule creation dialog.
-
-### Activity Timeline
-
-**Problem**: `PersonActivity` records exist but there is no timeline visualization.
-
-**Design**: A `GET /persons/{id}/timeline?date=YYYY-MM-DD` endpoint merging activities, sightings, and alerts into a unified chronological view. Frontend `v-timeline` component in the person detail drawer.
+---
 
 ## License
 

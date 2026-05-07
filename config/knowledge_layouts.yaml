@@ -1,0 +1,125 @@
+# Cognitive Companion - Knowledge Layout Registry
+#
+# Layouts define how info cards and quiz questions compose title, body, and
+# image slots. Each layout declares which surfaces it targets and exactly
+# which resized variants must exist for each delivery surface.
+#
+# The schema is type-checked at load: unknown enum values raise at startup.
+# Caregivers see only layouts whose applies_to matches the resource being
+# edited.
+
+layouts:
+  - id: text_only
+    display_name: "Text only"
+    applies_to: [info_card]
+    surfaces: [pwa, eink]
+    min_images: 0
+    max_images: 0
+    image_slots: []
+
+  - id: single_hero
+    display_name: "Single hero image"
+    applies_to: [info_card]
+    surfaces: [pwa, eink]
+    min_images: 1
+    max_images: 1
+    image_slots:
+      - slot_id: hero
+        variants:
+          pwa:
+            target_width: 1280
+            target_height: 720
+            fit_mode: cover
+            color_mode: rgb
+            format: webp
+            quality: 85
+          eink:
+            target_width: 800
+            target_height: 480
+            fit_mode: contain
+            color_mode: bw_dither
+            format: png
+
+  - id: side_by_side
+    display_name: "Image left, text right"
+    applies_to: [info_card]
+    surfaces: [pwa, eink]
+    min_images: 1
+    max_images: 1
+    image_slots:
+      - slot_id: side
+        variants:
+          pwa:
+            target_width: 720
+            target_height: 720
+            fit_mode: cover
+            color_mode: rgb
+            format: webp
+            quality: 85
+          eink:
+            target_width: 400
+            target_height: 480
+            fit_mode: contain
+            color_mode: bw_dither
+            format: png
+
+  - id: gallery_grid_2x2
+    display_name: "Gallery (up to 4 images)"
+    applies_to: [info_card]
+    surfaces: [pwa]
+    min_images: 2
+    max_images: 4
+    image_slots:
+      - slot_id: tile_a
+        variants:
+          pwa:
+            target_width: 600
+            target_height: 600
+            fit_mode: cover
+            color_mode: rgb
+            format: webp
+            quality: 80
+      - slot_id: tile_b
+        variants:
+          pwa:
+            target_width: 600
+            target_height: 600
+            fit_mode: cover
+            color_mode: rgb
+            format: webp
+            quality: 80
+      - slot_id: tile_c
+        variants:
+          pwa:
+            target_width: 600
+            target_height: 600
+            fit_mode: cover
+            color_mode: rgb
+            format: webp
+            quality: 80
+      - slot_id: tile_d
+        variants:
+          pwa:
+            target_width: 600
+            target_height: 600
+            fit_mode: cover
+            color_mode: rgb
+            format: webp
+            quality: 80
+
+  - id: quiz_with_optional_image
+    display_name: "Quiz question with optional image"
+    applies_to: [quiz_question]
+    surfaces: [pwa]
+    min_images: 0
+    max_images: 1
+    image_slots:
+      - slot_id: question_image
+        variants:
+          pwa:
+            target_width: 960
+            target_height: 540
+            fit_mode: contain
+            color_mode: rgb
+            format: webp
+            quality: 85

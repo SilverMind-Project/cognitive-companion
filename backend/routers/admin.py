@@ -11,6 +11,7 @@ import re
 import httpx
 from fastapi import APIRouter, Depends, Request
 
+from backend._version import __version__
 from backend.core.auth import AuthContext, require_permission
 from backend.core.config import settings
 from backend.core.logging import get_logger
@@ -41,7 +42,7 @@ def _sanitize(obj: dict) -> dict:
 @router.get("/health")
 async def health():
     """Health check endpoint (no auth required)."""
-    return {"status": "ok", "version": "2.0.0"}
+    return {"status": "ok", "version": __version__}
 
 
 @router.get("/app-info")
@@ -57,7 +58,7 @@ async def app_info():
     """
     return {
         "name": settings.get("app.name", "Cognitive Companion"),
-        "version": settings.get("app.version", "2.0.0"),
+        "version": settings.get("app.version", __version__),
         "timezone": settings.get("app.timezone", "UTC"),
         "services": {
             "person_id": {

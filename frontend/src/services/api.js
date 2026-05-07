@@ -332,4 +332,133 @@ export const api = {
    * @returns {Promise<{name: string, version: string, timezone: string}>}
    */
   getAppInfo: () => fetch(`${BASE}/admin/app-info`).then((r) => r.json()),
+
+  // -- Knowledge Documents -------------------------------------------------
+
+  getKnowledgeDocuments: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/knowledge/documents${qs ? "?" + qs : ""}`);
+  },
+  getKnowledgeDocument: (id) => request(`/knowledge/documents/${id}`),
+  createKnowledgeDocument: (formData) =>
+    requestForm("/knowledge/documents", "POST", formData),
+  updateKnowledgeDocument: (id, data) =>
+    request(`/knowledge/documents/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteKnowledgeDocument: (id) =>
+    request(`/knowledge/documents/${id}`, { method: "DELETE" }),
+  approveKnowledgeDocument: (id) =>
+    request(`/knowledge/documents/${id}/approve`, { method: "POST" }),
+  archiveKnowledgeDocument: (id) =>
+    request(`/knowledge/documents/${id}/archive`, { method: "POST" }),
+  restoreKnowledgeDocument: (id) =>
+    request(`/knowledge/documents/${id}/restore`, { method: "POST" }),
+  reembedKnowledgeDocument: (id) =>
+    request(`/knowledge/documents/${id}/reembed`, { method: "POST" }),
+  addKnowledgeDocumentImage: (docId, formData) =>
+    requestForm(`/knowledge/documents/${docId}/images`, "POST", formData),
+  updateKnowledgeDocumentImage: (docId, imgId, data) =>
+    request(`/knowledge/documents/${docId}/images/${imgId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteKnowledgeDocumentImage: (docId, imgId) =>
+    request(`/knowledge/documents/${docId}/images/${imgId}`, { method: "DELETE" }),
+
+  // -- Info Cards ----------------------------------------------------------
+
+  getInfoCards: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/info-cards${qs ? "?" + qs : ""}`);
+  },
+  getInfoCard: (id) => request(`/info-cards/${id}`),
+  createInfoCard: (data) =>
+    request("/info-cards", { method: "POST", body: JSON.stringify(data) }),
+  updateInfoCard: (id, data) =>
+    request(`/info-cards/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteInfoCard: (id) => request(`/info-cards/${id}`, { method: "DELETE" }),
+  approveInfoCard: (id) =>
+    request(`/info-cards/${id}/approve`, { method: "POST" }),
+  archiveInfoCard: (id) =>
+    request(`/info-cards/${id}/archive`, { method: "POST" }),
+  restoreInfoCard: (id) =>
+    request(`/info-cards/${id}/restore`, { method: "POST" }),
+  previewInfoCard: (id, surface) =>
+    request(`/info-cards/${id}/preview`, {
+      method: "POST",
+      body: JSON.stringify({ surface: surface || "pwa" }),
+    }),
+  setInfoCardSlot: (cardId, slotIndex, formData) =>
+    requestForm(`/info-cards/${cardId}/slots/${slotIndex}`, "PUT", formData),
+  patchInfoCardSlot: (cardId, slotIndex, data) =>
+    request(`/info-cards/${cardId}/slots/${slotIndex}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteInfoCardSlot: (cardId, slotIndex) =>
+    request(`/info-cards/${cardId}/slots/${slotIndex}`, { method: "DELETE" }),
+  rerenderInfoCard: (id) =>
+    request(`/info-cards/${id}/rerender`, { method: "POST" }),
+
+  // -- Quizzes -------------------------------------------------------------
+
+  getQuizzes: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/quizzes${qs ? "?" + qs : ""}`);
+  },
+  getQuiz: (id) => request(`/quizzes/${id}`),
+  createQuiz: (data) =>
+    request("/quizzes", { method: "POST", body: JSON.stringify(data) }),
+  updateQuiz: (id, data) =>
+    request(`/quizzes/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteQuiz: (id) => request(`/quizzes/${id}`, { method: "DELETE" }),
+  approveQuiz: (id) =>
+    request(`/quizzes/${id}/approve`, { method: "POST" }),
+  archiveQuiz: (id) =>
+    request(`/quizzes/${id}/archive`, { method: "POST" }),
+  restoreQuiz: (id) =>
+    request(`/quizzes/${id}/restore`, { method: "POST" }),
+  previewQuiz: (id) =>
+    request(`/quizzes/${id}/preview`, { method: "POST", body: JSON.stringify({}) }),
+  createQuizQuestion: (quizId, data) =>
+    request(`/quizzes/${quizId}/questions`, { method: "POST", body: JSON.stringify(data) }),
+  updateQuizQuestion: (quizId, qid, data) =>
+    request(`/quizzes/${quizId}/questions/${qid}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  deleteQuizQuestion: (quizId, qid) =>
+    request(`/quizzes/${quizId}/questions/${qid}`, { method: "DELETE" }),
+  reorderQuizQuestions: (quizId, items) =>
+    request(`/quizzes/${quizId}/questions/reorder`, {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    }),
+  setQuizQuestionImage: (quizId, qid, formData) =>
+    requestForm(`/quizzes/${quizId}/questions/${qid}/image`, "PUT", formData),
+  deleteQuizQuestionImage: (quizId, qid) =>
+    request(`/quizzes/${quizId}/questions/${qid}/image`, { method: "DELETE" }),
+
+  // -- Layouts -------------------------------------------------------------
+
+  getKnowledgeLayouts: (appliesTo) => {
+    const qs = appliesTo ? `?applies_to=${appliesTo}` : "";
+    return request(`/knowledge/layouts${qs}`);
+  },
+  getKnowledgeLayout: (id) => request(`/knowledge/layouts/${id}`),
+
+  // -- Interactions --------------------------------------------------------
+
+  getSeniorKnowledgeQueries: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/knowledge-interactions/queries${qs ? "?" + qs : ""}`);
+  },
+  getQuizSessions: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/knowledge-interactions/quiz-sessions${qs ? "?" + qs : ""}`);
+  },
+  getQuizSession: (id) => request(`/knowledge-interactions/quiz-sessions/${id}`),
+  getInfoCardDeliveries: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/knowledge-interactions/info-card-deliveries${qs ? "?" + qs : ""}`);
+  },
 };

@@ -19,7 +19,9 @@
 # which is included below.  That single instance hosts all three databases.
 
 include:
-  - ../docker-compose.db.yml
+  - path: ../db/docker-compose.db.yml
+    env_file:
+      - ../db/.env
 
 services:
   # ─── Backend API ───────────────────────────────────────────────
@@ -62,6 +64,8 @@ services:
     restart: unless-stopped
     ports:
       - "8081:80"
+    networks:
+      - nanai
     depends_on:
       backend:
         condition: service_healthy

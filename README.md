@@ -1,8 +1,8 @@
 # Cognitive Companion
 
-On-premise AI for senior care. Camera frames, sensor events, and RTSP streams are evaluated against caregiver-authored rules that compose perception, reasoning, and action steps. All inference runs locally.
+On-premise AI for senior care. Safety monitoring and cognitive care, working together. Computer vision tracks safety and activity across the home. A personal knowledge repository keeps memories alive through narrated info cards, review-gated quizzes, and a voice Q&A interface. A natural voice companion connects everything. All inference runs locally.
 
-> Technical reference: [AGENTS.md](AGENTS.md). AI assistant guidance: [CLAUDE.md](CLAUDE.md). User-facing docs: [silvermind-project.github.io](https://silvermind-project.github.io).
+> Technical reference: [AGENTS.md](AGENTS.md). AI assistant guidance: [CLAUDE.md](CLAUDE.md). Design: [cc-rag.md](cc-rag.md). User-facing docs: [silvermind-project.github.io](https://silvermind-project.github.io).
 
 ---
 
@@ -23,7 +23,7 @@ On-premise AI for senior care. Camera frames, sensor events, and RTSP streams ar
               │  EventAggregator → RulesEngine   │
               │              ↓ matched rules     │
               │       PipelineExecutor           │
-              │   (19 step types, plugin-based)  │
+              │   (20 step types, plugin-based)  │
               │              ↓                   │
               │       NotificationDispatcher     │
               │   (7 channels, plugin-based)     │
@@ -62,16 +62,17 @@ When `cts.enabled` is true, the **continuous-tracking-service** runs alongside C
 
 ## Key features
 
-- **Composable per-rule pipelines.** 18 step types; add new ones as single files under `backend/steps/builtin/`.
+- **Composable per-rule pipelines.** 20 step types; add new ones as single files under `backend/steps/builtin/`.
 - **Plugin architecture.** Steps, notification channels, and context filters are auto-discovered via `@StepRegistry.register` and equivalents.
+- **Knowledge repository.** Caregiver-curated facts, paraphrased info cards, review-gated quizzes, and a senior-facing voice Q&A path backed by RAG (Triton embeddings + pgvector + LLM synthesis). See [cc-rag.md](cc-rag.md) for the design.
 - **Multi-camera continuous tracking.** BoT-SORT + Bayesian identity resolution + dementia signal detection via `continuous-tracking/`.
 - **Presence fusion.** Priority-ordered chain from bed sensor → CTS → HA device tracker → fallback. Configured in `config/presence.yaml`.
 - **Person identification.** InsightFace ArcFace 512-d via `person-identification-service`.
 - **Scene analysis + semantic memory.** YOLO + Florence-2 + CLIP scene understanding; pgvectorscale-backed vector search via `semantic-memory-service`.
 - **Activity tracking.** Session-aware activity detection with configurable durations and `{{template}}` value substitution.
 - **7 notification channels.** PWA, Telegram, e-ink, TTS, Home Assistant, webhook. Escalation and repeat policies per alert level.
-- **Realtime voice.** WebSocket audio with Google Gemini Live and MCP tool calling.
-- **MCP server.** 24 tools at `/mcp`; subset mirrored to Gemini Live for voice interaction.
+- **Realtime voice.** WebSocket audio with Google Gemini Live and MCP tool calling. Voice instruction composition for per-delivery behavioural guardrails.
+- **MCP server.** 27 tools at `/mcp`; subset mirrored to Gemini Live for voice interaction.
 - **Visual pipeline builder.** Drag-and-drop step ordering, dynamic step palette, per-step config dialogs.
 - **Role-based auth.** API keys, device keys, `fnmatch` permission patterns in `config/auth.yaml`.
 
@@ -83,11 +84,12 @@ When `cts.enabled` is true, the **continuous-tracking-service** runs alongside C
 | --- | --- | --- |
 | NVIDIA GPU(s) | Person ID + vLLM serving | DGX Spark works well; one GPU minimum for face recognition. |
 | Docker + NVIDIA Container Toolkit | Container runtime | Required for the person-ID service container. |
-| PostgreSQL 18 (TimescaleDB + pgvectorscale) | Application database | Shared instance via `docker-compose.db.yml`; hosts `cognitive_companion`, `continuous_tracking`, and `semantic_memory` databases. |
+| PostgreSQL 18 (TimescaleDB + pgvectorscale) | Application database | Shared instance via `docker-compose.db.yml`; hosts `cognitive_companion`, `continuous_tracking`, and `semantic_memory` databases. Requires pgvector extension for knowledge embeddings. |
+| Triton Inference Server | Embedding model serving | embeddinggemma-300m for knowledge repository RAG. |
 | Home Assistant | Sensor integration, area discovery, media-player playback | REST API + long-lived token. |
 | MinIO (or S3-compatible) | Media object storage | Pre-signed URL support required. |
 | vLLM | Vision model serving | Cosmos-Reason2-8B via OpenAI-compatible API. |
-| llama.cpp `llama-server` | General-purpose model serving | Gemma 4 26B (text + vision + translation). |
+| llama.cpp `llama-server` | General-purpose model serving | Gemma 4 26B (text + vision + translation). Also powers knowledge content generation and RAG answer synthesis. |
 | Python 3.12, Node 18+ | Runtimes | Backend and frontend. |
 
 Optional but recommended:
@@ -183,10 +185,11 @@ cognitive-companion/
 ├── backend/         FastAPI app (core, models, schemas, services, integrations,
 │                    steps, channels, filters, routers, mcp, websocket, alembic, tests)
 ├── frontend/        Vue 3 + Vuetify admin console + senior-facing companion UI
-├── config/          settings.yaml, auth.yaml, notifications.yaml, presence.yaml
+├── config/          settings.yaml, auth.yaml, notifications.yaml, presence.yaml,
+│                    knowledge_layouts.yaml, knowledge_voice.yaml
 ├── data/            Runtime media cache
 ├── docker-compose.yml, kubernetes/, Makefile
-└── AGENTS.md, CLAUDE.md, README.md
+└── AGENTS.md, CLAUDE.md, README.md, cc-rag.md
 ```
 
 ---
@@ -195,10 +198,12 @@ cognitive-companion/
 
 YAML files in `config/` with `${ENV_VAR}` interpolation:
 
-- `settings.yaml`: application settings (LLM models, polling intervals, MinIO, MCP tools, scene-analysis, semantic-memory, CTS, presence, image, logging).
+- `settings.yaml`: application settings (LLM models, polling intervals, MinIO, MCP tools, embedding config, knowledge repository, scene-analysis, semantic-memory, CTS, presence, image, logging).
 - `auth.yaml`: API keys, device keys, fnmatch permission map.
 - `notifications.yaml`: alert-level to channel routing.
 - `presence.yaml`: PresenceService provider chain (priority-ordered).
+- `knowledge_layouts.yaml`: info card and quiz question image layout definitions.
+- `knowledge_voice.yaml`: default Gemini Live voice instructions for interactive prompts, info cards, and quizzes.
 
 Frontend timezone is fetched at startup from `GET /api/v1/admin/app-info`. Admin UI timestamps, cron schedules, time-range filters, day-of-week filters, and daily-trigger counters all interpret `app.timezone`. DB always stores UTC.
 
@@ -250,7 +255,7 @@ npm run test           # spec suite under src/views/admin/__tests__
 | Layer | What it owns | Standard |
 | --- | --- | --- |
 | `backend/core/` | Settings, Database, KeyStore, BoundLogger, exceptions, template, time helpers | Strict mypy (`disallow_untyped_defs=true`), ~98% branch coverage, ~113 tests, no upward imports. |
-| `backend/services/` | Business logic | Gradual mypy, dedicated test suites for `condition_evaluator`, `notification_dispatcher`, `media_processor`, `rag`, `scheduler`, `workflow`, `daily_report`, `activity_session`, `activity_timeline`, `conversation_manager`. |
+| `backend/services/` | Business logic | Gradual mypy, dedicated test suites for `condition_evaluator`, `notification_dispatcher`, `media_processor`, `scheduler`, `workflow`, `daily_report`, `activity_session`, `activity_timeline`, `conversation_manager`, and `knowledge/` (ingestion, query, delivery, content generation, image pipeline, layout registry, voice instructions). |
 | `backend/integrations/` | External clients | Typed dataclasses for results, `configured` property gates network I/O, graceful degradation on every method. |
 | `backend/steps/` and friends | Plugins | Each plugin has a unit test with success path, missing-service path, and one config edge case. |
 

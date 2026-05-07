@@ -184,6 +184,9 @@ mcp:
     - "get_person_activities"
     - "get_enrolled_persons"
     - "submit_user_response"
+    - "query_knowledge_base"
+    - "submit_quiz_answer"
+    - "complete_quiz_session"
 
 # Person Identification Service
 person_id:
@@ -218,12 +221,28 @@ semantic_memory:
   enabled: false
   timeout: 10
 
-# RAG / contextual lookup
-rag:
-  enabled: false
-  index_path: "data/rag_index"
-  threshold: 0.7
-  max_results: 5
+# Embedding inference (Triton)
+embedding:
+  triton_url: "triton.nanai.khoofia.com:8001"
+  model_name: "embeddinggemma-300m"
+  tokenizer_path: "/opt/models/embeddinggemma/tokenizer.json"
+  dim: 768
+  max_seq_len: 2048
+  batch_size: 16
+
+# Knowledge repository
+knowledge:
+  chunk_size_tokens: 400
+  chunk_overlap_tokens: 60
+  retrieval_top_k: 8
+  min_similarity: 0.55
+  answer_model: "gemma4_26b"
+  paraphrase_model: "gemma4_26b"
+  quiz_generation_model: "gemma4_26b"
+  max_upload_bytes: 15728640
+  max_pixels: 40000000
+  allowed_mime_types: ["image/jpeg", "image/png", "image/webp", "image/heic"]
+  layouts_file: "config/knowledge_layouts.yaml"
 
 # Image rendering for eInk display
 image:

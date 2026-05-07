@@ -90,6 +90,9 @@ class AudioSessionHandler:
         # Active session reference (for tool response sending)
         self._current_session: RealtimeSession | None = None
 
+        # Current voice instruction (tracked to detect changes across prompts)
+        self._current_voice_instruction: str | None = None
+
     async def run(self) -> None:
         """Main entry point - run until the client disconnects."""
         # Create conversation session
@@ -165,8 +168,17 @@ class AudioSessionHandler:
         # _wait_for_activity() even before a session is open.
         async def _bridge_prompts() -> None:
             while True:
-                prompt, callback, exp = await self.manager.prompt_queue.get()
-                await self._client_to_backend.put(("prompt", (prompt, callback, exp)))
+                item = await self.manager.prompt_queue.get()
+                # Backwards-compatible unpack: 3-tuple (old) or 5-tuple (new)
+                if len(item) == 3:
+                    prompt, callback, exp = item
+                    voice_instruction = None
+                    metadata = {}
+                else:
+                    prompt, callback, exp, voice_instruction, metadata = item
+                await self._client_to_backend.put(
+                    ("prompt", (prompt, callback, exp, voice_instruction, metadata))
+                )
                 self.manager.prompt_queue.task_done()
 
         bridge = asyncio.create_task(_bridge_prompts(), name="prompt-bridge")
@@ -182,6 +194,7 @@ class AudioSessionHandler:
                     if self.tool_adapter:
                         gemini_tools = self.tool_adapter.get_declarations()
                     config = self.provider.build_config(
+                        system_instruction=self._current_voice_instruction or "",
                         conversation_history=self._get_history_text(),
                         tools=gemini_tools,
                     )
@@ -205,10 +218,30 @@ class AudioSessionHandler:
                             elif kind == "text":
                                 await provider.send_text(session, payload)
                             elif kind == "prompt":
-                                text, callback, exp = payload
+                                text, callback, exp, voice_instruction, metadata = payload
                                 if time.time() > exp:
                                     logger.debug("ws_backend_prompt_expired")
                                     continue
+
+                                # Detect voice_instruction change: reconnect inline
+                                if voice_instruction and voice_instruction != self._current_voice_instruction:
+                                    self._current_voice_instruction = voice_instruction
+                                    logger.info("ws_voice_instruction_changed")
+                                    try:
+                                        await self.provider.disconnect(session)
+                                    except Exception:
+                                        pass
+                                    gemini_tools = None
+                                    if self.tool_adapter:
+                                        gemini_tools = self.tool_adapter.get_declarations()
+                                    config = self.provider.build_config(
+                                        system_instruction=voice_instruction,
+                                        conversation_history=self._get_history_text(),
+                                        tools=gemini_tools,
+                                    )
+                                    session = await self.provider.connect(config)
+                                    self._current_session = session
+                                    logger.info("ws_backend_reconnected_with_voice_instruction")
                                 self._current_callback = callback
                                 self._is_orchestrator_turn = True
                                 self._pending_prompt_text.append(text)

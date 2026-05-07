@@ -104,7 +104,7 @@ def _postgres_container():
     from testcontainers.core.config import testcontainers_config
     testcontainers_config.ryuk_disabled = True
 
-    container = PostgresContainer("postgres:17").with_name(_CONTAINER_NAME)
+    container = PostgresContainer("pgvector/pgvector:pg17").with_name(_CONTAINER_NAME)
     try:
         container.start()
         _container_ref = container
@@ -153,6 +153,11 @@ def db_engine(postgres_url):
         max_overflow=10,
         pool_pre_ping=True,
     )
+
+    # Ensure pgvector extension is available for knowledge_document_chunks
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
 
     Base.metadata.create_all(bind=engine)
     yield engine

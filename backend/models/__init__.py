@@ -19,6 +19,19 @@ from backend.models.person import (
     PersonLocationState,
     PersonSighting,
 )
+from backend.models.knowledge import (
+    InfoCard,
+    InfoCardDelivery,
+    InfoCardImageSlot,
+    KnowledgeDocument,
+    KnowledgeDocumentChunk,
+    KnowledgeDocumentImage,
+    Quiz,
+    QuizQuestion,
+    QuizResponse,
+    QuizSession,
+    SeniorKnowledgeQuery,
+)
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.models.room import Room
 from backend.models.rule import Rule, RuleContext, RuleDependency
@@ -37,17 +50,28 @@ __all__ = [
     "EventLog",
     "HouseholdMember",
     "ImageTemplate",
+    "InfoCard",
+    "InfoCardDelivery",
+    "InfoCardImageSlot",
     "InteractiveResponse",
+    "KnowledgeDocument",
+    "KnowledgeDocumentChunk",
+    "KnowledgeDocumentImage",
     "MediaCache",
     "PersonActivity",
     "PersonLocationHistory",
     "PersonLocationState",
     "PersonSighting",
     "PipelineStep",
+    "Quiz",
+    "QuizQuestion",
+    "QuizResponse",
+    "QuizSession",
     "Room",
     "Rule",
     "RuleContext",
     "RuleDependency",
+    "SeniorKnowledgeQuery",
     "Sensor",
     "WorkflowExecution",
 ]

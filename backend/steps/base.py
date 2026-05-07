@@ -73,7 +73,6 @@ class ServiceContainer:
     ha_client: Any = None
     event_aggregator: Any = None
     scheduler: Any = None
-    rag_service: Any = None
     llm_model_registry: Any = None  # LLMModelRegistry for the unified llm_call step
     ha_state_cache: Any = None  # HaStateCache (Block 2)
     presence: Any = None  # PresenceService (Block 1)

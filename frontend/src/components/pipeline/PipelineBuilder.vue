@@ -9,16 +9,27 @@
         size="small"
         fill-dot
       >
-        <StepCard
-          :step="step"
-          :index="index"
-          :total="steps.length"
-          @edit="openConfig(step)"
-          @delete="removeStep(step.id)"
-          @toggle="toggleStep(step)"
-          @moveup="moveStep(index, index - 1)"
-          @movedown="moveStep(index, index + 1)"
-        />
+        <div
+          class="cc-step-drop-zone"
+          :class="{
+            'cc-step-dragging': dragSourceIndex === index,
+          }"
+          @dragover="onDragOver($event, index)"
+          @drop="onDrop($event)"
+          @dragend="onDragEnd"
+        >
+          <StepCard
+            :step="step"
+            :index="index"
+            :total="steps.length"
+            @edit="openConfig(step)"
+            @delete="removeStep(step.id)"
+            @toggle="toggleStep(step)"
+            @moveup="moveStep(index, index - 1)"
+            @movedown="moveStep(index, index + 1)"
+            @dragstart="onDragStart($event)"
+          />
+        </div>
       </v-timeline-item>
     </v-timeline>
 
@@ -56,6 +67,8 @@ const steps = ref([]);
 const paletteOpen = ref(false);
 const configOpen = ref(false);
 const editingStep = ref(null);
+const dragSourceIndex = ref(null);
+let dragOriginalOrder = null;
 
 const STEP_META = {
   person_identification:  { icon: "mdi-face-recognition",          color: "indigo" },
@@ -131,23 +144,57 @@ async function toggleStep(step) {
   }
 }
 
-async function moveStep(fromIndex, toIndex) {
-  if (toIndex < 0 || toIndex >= steps.value.length) return;
-
+function reorderLocal(fromIndex, toIndex) {
+  if (toIndex < 0 || toIndex >= steps.value.length || fromIndex === toIndex) return;
   const reordered = [...steps.value];
   const [moved] = reordered.splice(fromIndex, 1);
   reordered.splice(toIndex, 0, moved);
-
-  // Optimistically update UI before the API call
   steps.value = reordered;
+}
 
+async function persistOrder() {
   try {
-    await api.reorderRuleSteps(props.ruleId, reordered.map((s) => s.id));
+    await api.reorderRuleSteps(props.ruleId, steps.value.map((s) => s.id));
     emit("updated");
   } catch (e) {
     console.error("Failed to reorder steps:", e);
     await loadSteps();
   }
+}
+
+async function moveStep(fromIndex, toIndex) {
+  if (toIndex < 0 || toIndex >= steps.value.length) return;
+  reorderLocal(fromIndex, toIndex);
+  await persistOrder();
+}
+
+function onDragStart(index) {
+  dragSourceIndex.value = index;
+  dragOriginalOrder = [...steps.value];
+}
+
+function onDragOver(event, index) {
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  const src = dragSourceIndex.value;
+  if (src === null || src === index) return;
+  dragSourceIndex.value = index;
+  requestAnimationFrame(() => reorderLocal(src, index));
+}
+
+function onDrop(event) {
+  event.preventDefault();
+  dragSourceIndex.value = null;
+  dragOriginalOrder = null;
+  persistOrder();
+}
+
+function onDragEnd() {
+  if (dragSourceIndex.value !== null && dragOriginalOrder) {
+    steps.value = dragOriginalOrder;
+  }
+  dragSourceIndex.value = null;
+  dragOriginalOrder = null;
 }
 
 function openConfig(step) {
@@ -182,5 +229,12 @@ onMounted(loadSteps);
   padding-bottom: 12px;
   width: 100%;
   min-width: 0;
+}
+.cc-step-drop-zone {
+  border-radius: var(--cc-radius-lg);
+  outline: none;
+}
+.cc-step-dragging {
+  opacity: 0.4;
 }
 </style>

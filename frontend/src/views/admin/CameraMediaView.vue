@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Header -->
-    <div class="d-flex align-center mb-6">
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Camera Media</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
@@ -10,6 +10,54 @@
         </div>
       </div>
       <v-spacer />
+      <v-select
+        v-model="filterSensorId"
+        :items="sensorOptions"
+        item-title="label"
+        item-value="value"
+        label="Camera"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="max-width: 260px"
+        @update:model-value="loadData"
+      />
+      <v-select
+        v-model="sortOrder"
+        :items="sortOptions"
+        label="Sort images by"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 200px"
+      />
+      <v-select
+        v-model="limitPerSensor"
+        :items="[5, 10, 20, 50]"
+        label="Images per camera"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 180px"
+        @update:model-value="loadData"
+      />
+      <v-switch
+        v-model="autoRefresh"
+        label="Auto-refresh"
+        color="primary"
+        density="compact"
+        hide-details
+      />
+      <v-chip
+        v-if="autoRefresh"
+        size="small"
+        color="primary"
+        variant="tonal"
+        prepend-icon="mdi-timer-outline"
+      >
+        {{ AUTO_REFRESH_SECONDS }}s
+      </v-chip>
       <v-btn
         variant="tonal"
         prepend-icon="mdi-refresh"
@@ -19,68 +67,6 @@
         Refresh
       </v-btn>
     </div>
-
-    <!-- Filters toolbar -->
-    <v-card class="mb-4" variant="outlined">
-      <v-card-text class="py-3">
-        <v-row align="center" dense>
-          <v-col cols="12" sm="4" md="3">
-            <v-select
-              v-model="filterSensorId"
-              :items="sensorOptions"
-              item-title="label"
-              item-value="value"
-              label="Camera"
-              variant="outlined"
-              density="compact"
-              clearable
-              hide-details
-              @update:model-value="loadData"
-            />
-          </v-col>
-          <v-col cols="12" sm="4" md="3">
-            <v-select
-              v-model="sortOrder"
-              :items="sortOptions"
-              label="Sort images by"
-              variant="outlined"
-              density="compact"
-              hide-details
-            />
-          </v-col>
-          <v-col cols="12" sm="4" md="3">
-            <v-select
-              v-model="limitPerSensor"
-              :items="[5, 10, 20, 50]"
-              label="Images per camera"
-              variant="outlined"
-              density="compact"
-              hide-details
-              @update:model-value="loadData"
-            />
-          </v-col>
-          <v-col cols="12" sm="12" md="3" class="d-flex align-center gap-2">
-            <v-switch
-              v-model="autoRefresh"
-              label="Auto-refresh"
-              color="primary"
-              density="compact"
-              hide-details
-              class="mr-4"
-            />
-            <v-chip
-              v-if="autoRefresh"
-              size="small"
-              color="primary"
-              variant="tonal"
-              prepend-icon="mdi-timer-outline"
-            >
-              {{ AUTO_REFRESH_SECONDS }}s
-            </v-chip>
-          </v-col>
-        </v-row>
-      </v-card-text>
-    </v-card>
 
     <!-- No cameras -->
     <v-alert v-if="!loading && cameras.length === 0" type="info" variant="tonal">

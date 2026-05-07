@@ -18,7 +18,7 @@
     <!-- Members Tab -->
     <v-window v-model="activeTab">
       <v-window-item value="members">
-        <v-card>
+        <v-card class="glass-card">
           <v-data-table
             :headers="memberHeaders"
             :items="members"

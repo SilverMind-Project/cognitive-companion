@@ -1,19 +1,27 @@
 <template>
   <div>
-    <div class="mb-6">
-      <h2 class="text-h4 font-weight-bold tracking-tight">Emergency Alerts</h2>
-      <div class="text-body-2 text-medium-emphasis mt-1">Active and resolved alerts raised by the system.</div>
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Emergency Alerts</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">Active and resolved alerts raised by the system.</div>
+      </div>
+      <v-spacer />
+      <v-select
+        v-model="filter.resolved"
+        :items="[{title:'All', value:''},{title:'Active', value:'false'},{title:'Resolved', value:'true'}]"
+        label="Status"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 180px"
+        @update:model-value="loadAlerts"
+      />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadAlerts" :loading="loading">
+        Refresh
+      </v-btn>
     </div>
 
-    <v-card>
-      <v-card-text>
-        <v-row>
-          <v-col cols="12" sm="4">
-            <v-select v-model="filter.resolved" :items="[{title:'All', value:''},{title:'Active', value:'false'},{title:'Resolved', value:'true'}]" label="Status" variant="outlined" @update:model-value="loadAlerts" />
-          </v-col>
-        </v-row>
-      </v-card-text>
-
+    <v-card class="glass-card">
       <v-data-table :headers="headers" :items="alerts" :loading="loading" item-value="id">
         <template #item.resolved="{ item }">
           <v-chip :color="item.resolved ? 'success' : 'error'" size="small">
@@ -21,7 +29,7 @@
           </v-chip>
         </template>
         <template #item.timestamp="{ item }">
-          {{ formatDate(item.timestamp) }}
+          {{ formatDateTime(item.timestamp) }}
         </template>
         <template #item.actions="{ item }">
           <v-btn v-if="!item.resolved" size="small" variant="tonal" color="success" @click="dismiss(item.id)">
@@ -33,12 +41,6 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
   </div>
 </template>
-
-<style scoped>
-.tracking-tight {
-  letter-spacing: -0.018em;
-}
-</style>
 
 <script setup>
 import { ref, onMounted } from "vue";
@@ -60,8 +62,6 @@ const headers = [
   { title: "Status", key: "resolved" },
   { title: "Actions", key: "actions", sortable: false },
 ];
-
-const formatDate = formatDateTime;
 
 async function loadAlerts() {
   loading.value = true;

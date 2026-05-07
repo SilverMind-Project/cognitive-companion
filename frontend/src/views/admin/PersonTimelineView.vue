@@ -1,59 +1,54 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-6">
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Activity Timeline</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">Unified chronological feed of activities, sessions, and detections.</div>
       </div>
       <v-spacer />
+      <v-select
+        v-model="selectedPerson"
+        :items="persons"
+        item-value="id"
+        item-title="name"
+        label="Person"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="max-width: 240px"
+        @update:model-value="onPersonChange"
+      />
+      <v-select
+        v-model="hours"
+        :items="timeWindows"
+        label="Time Window"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 160px"
+        @update:model-value="load"
+      />
+      <v-chip-group column>
+        <v-chip @click="toggleSource('activity')" :color="activeSources.includes('activity') ? 'primary' : ''" :variant="activeSources.includes('activity') ? 'flat' : 'tonal'" size="small" rounded="pill">
+          <v-icon start size="14">mdi-check-circle</v-icon> Activity
+        </v-chip>
+        <v-chip @click="toggleSource('session')" :color="activeSources.includes('session') ? 'success' : ''" :variant="activeSources.includes('session') ? 'flat' : 'tonal'" size="small" rounded="pill">
+          <v-icon start size="14">mdi-play-circle</v-icon> Session
+        </v-chip>
+        <v-chip @click="toggleSource('location')" :color="activeSources.includes('location') ? 'info' : ''" :variant="activeSources.includes('location') ? 'flat' : 'tonal'" size="small" rounded="pill">
+          <v-icon start size="14">mdi-door</v-icon> Location
+        </v-chip>
+        <v-chip @click="toggleSource('sighting')" :color="activeSources.includes('sighting') ? 'warning' : ''" :variant="activeSources.includes('sighting') ? 'flat' : 'tonal'" size="small" rounded="pill">
+          <v-icon start size="14">mdi-camera</v-icon> Sighting
+        </v-chip>
+      </v-chip-group>
       <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="load" :loading="loading">
         Refresh
       </v-btn>
     </div>
 
     <v-card class="glass-card">
-      <v-card-text class="d-flex ga-4 flex-wrap align-center pa-4">
-        <v-select
-          v-model="selectedPerson"
-          :items="persons"
-          item-value="id"
-          item-title="name"
-          label="Person"
-          variant="outlined"
-          density="compact"
-          clearable
-          hide-details
-          rounded="lg"
-          style="max-width: 240px"
-          @update:model-value="onPersonChange"
-        />
-        <v-select
-          v-model="hours"
-          :items="timeWindows"
-          label="Time Window"
-          variant="outlined"
-          density="compact"
-          hide-details
-          rounded="lg"
-          style="max-width: 160px"
-          @update:model-value="load"
-        />
-        <v-chip-group column>
-          <v-chip @click="toggleSource('activity')" :color="activeSources.includes('activity') ? 'primary' : ''" :variant="activeSources.includes('activity') ? 'flat' : 'tonal'" size="small" rounded="pill">
-            <v-icon start size="14">mdi-check-circle</v-icon> Activity
-          </v-chip>
-          <v-chip @click="toggleSource('session')" :color="activeSources.includes('session') ? 'success' : ''" :variant="activeSources.includes('session') ? 'flat' : 'tonal'" size="small" rounded="pill">
-            <v-icon start size="14">mdi-play-circle</v-icon> Session
-          </v-chip>
-          <v-chip @click="toggleSource('location')" :color="activeSources.includes('location') ? 'info' : ''" :variant="activeSources.includes('location') ? 'flat' : 'tonal'" size="small" rounded="pill">
-            <v-icon start size="14">mdi-door</v-icon> Location
-          </v-chip>
-          <v-chip @click="toggleSource('sighting')" :color="activeSources.includes('sighting') ? 'warning' : ''" :variant="activeSources.includes('sighting') ? 'flat' : 'tonal'" size="small" rounded="pill">
-            <v-icon start size="14">mdi-camera</v-icon> Sighting
-          </v-chip>
-        </v-chip-group>
-      </v-card-text>
-      <v-divider />
       <template v-if="selectedPerson">
         <PersonTimeline
           ref="timelineRef"

@@ -35,7 +35,7 @@
     </v-card>
 
     <!-- ── Templates Table ─────────────────────────────────────────────── -->
-    <v-card>
+    <v-card class="glass-card">
       <v-data-table
         :headers="headers"
         :items="templates"

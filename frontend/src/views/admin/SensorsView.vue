@@ -12,7 +12,7 @@
       <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Add Sensor</v-btn>
     </div>
 
-    <v-card>
+    <v-card class="glass-card">
       <v-data-table :headers="headers" :items="sensors" :loading="loading" item-value="id">
         <template #item.enabled="{ item }">
           <v-chip :color="item.enabled ? 'success' : 'grey'" size="small">

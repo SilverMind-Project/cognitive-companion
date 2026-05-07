@@ -1,54 +1,59 @@
 <template>
   <div>
-    <div class="mb-6">
-      <h2 class="text-h4 font-weight-bold tracking-tight">Interactive Responses</h2>
-      <div class="text-body-2 text-medium-emphasis mt-1">
-        Audit trail of user responses to interactive prompts in pipeline executions.
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Interactive Responses</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          Audit trail of user responses to interactive prompts in pipeline executions.
+        </div>
       </div>
+      <v-spacer />
+      <v-select
+        v-model="filter.channel"
+        :items="channelOptions"
+        label="Channel"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 180px"
+        @update:model-value="loadResponses"
+      />
+      <v-select
+        v-model="filter.action"
+        :items="actionOptions"
+        label="Action"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 180px"
+        @update:model-value="loadResponses"
+      />
+      <v-text-field
+        v-model="filter.date_from"
+        label="From Date"
+        type="date"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 160px"
+        @update:model-value="loadResponses"
+      />
+      <v-text-field
+        v-model="filter.date_to"
+        label="To Date"
+        type="date"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="max-width: 160px"
+        @update:model-value="loadResponses"
+      />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadResponses" :loading="loading">
+        Refresh
+      </v-btn>
     </div>
 
-    <v-card>
-      <v-card-text>
-        <v-row>
-          <v-col cols="12" sm="3">
-            <v-select
-              v-model="filter.channel"
-              :items="channelOptions"
-              label="Channel"
-              variant="outlined"
-              @update:model-value="loadResponses"
-            />
-          </v-col>
-          <v-col cols="12" sm="3">
-            <v-select
-              v-model="filter.action"
-              :items="actionOptions"
-              label="Action"
-              variant="outlined"
-              @update:model-value="loadResponses"
-            />
-          </v-col>
-          <v-col cols="12" sm="3">
-            <v-text-field
-              v-model="filter.date_from"
-              label="From Date"
-              type="date"
-              variant="outlined"
-              @update:model-value="loadResponses"
-            />
-          </v-col>
-          <v-col cols="12" sm="3">
-            <v-text-field
-              v-model="filter.date_to"
-              label="To Date"
-              type="date"
-              variant="outlined"
-              @update:model-value="loadResponses"
-            />
-          </v-col>
-        </v-row>
-      </v-card-text>
-
+    <v-card class="glass-card">
       <v-data-table
         :headers="headers"
         :items="responses"
@@ -57,7 +62,7 @@
         item-value="id"
       >
         <template #item.timestamp="{ item }">
-          {{ formatDate(item.timestamp) }}
+          {{ formatDateTime(item.timestamp) }}
         </template>
         <template #item.channel="{ item }">
           <v-chip :color="getChannelColor(item.channel)" size="small" variant="tonal">
@@ -96,12 +101,6 @@
     </v-snackbar>
   </div>
 </template>
-
-<style scoped>
-.tracking-tight {
-  letter-spacing: -0.018em;
-}
-</style>
 
 <script setup>
 import { ref, onMounted } from "vue";
@@ -144,8 +143,6 @@ const headers = [
   { title: "Latency", key: "latency_ms", width: 100 },
   { title: "User Statement", key: "user_statement" },
 ];
-
-const formatDate = formatDateTime;
 
 function formatLatency(ms) {
   if (ms < 1000) return `${ms}ms`;

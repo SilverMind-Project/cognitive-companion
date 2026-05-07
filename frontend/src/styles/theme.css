@@ -45,6 +45,7 @@
   --cc-bg-elevated: #0b0b0f;
   --cc-surface: rgba(28, 28, 30, 0.70);
   --cc-surface-2: rgba(44, 44, 46, 0.70);
+  --cc-surface-3: rgba(58, 58, 60, 0.55);
   --cc-app-bar-glass: rgba(11, 11, 15, 0.72);
   --cc-drawer-glass: rgba(11, 11, 15, 0.80);
 
@@ -54,16 +55,17 @@
   --cc-text-3: #6e6e73;
 
   /* Borders & dividers */
-  --cc-divider: rgba(255, 255, 255, 0.10);
-  --cc-divider-strong: rgba(255, 255, 255, 0.18);
+  --cc-divider: rgba(255, 255, 255, 0.08);
+  --cc-divider-strong: rgba(255, 255, 255, 0.14);
   --cc-glass-border: rgba(255, 255, 255, 0.08);
+  --cc-glass-border-strong: rgba(255, 255, 255, 0.12);
 
   /* Shadows */
   --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
   --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.35);
-  --cc-shadow-glass: 0 4px 24px -8px rgba(0, 0, 0, 0.40);
-  --cc-shadow-glass-hover: 0 8px 32px -8px rgba(0, 0, 0, 0.55);
+  --cc-shadow-glass: 0 2px 16px -4px rgba(0, 0, 0, 0.35);
+  --cc-shadow-glass-hover: 0 6px 28px -6px rgba(0, 0, 0, 0.50);
 }
 
 .v-theme--ccLight {
@@ -83,10 +85,11 @@
   /* Surfaces (light mode) */
   --cc-bg: #f2f2f7;
   --cc-bg-elevated: #ffffff;
-  --cc-surface: rgba(255, 255, 255, 0.75);
-  --cc-surface-2: rgba(229, 229, 234, 0.75);
-  --cc-app-bar-glass: rgba(255, 255, 255, 0.72);
-  --cc-drawer-glass: rgba(255, 255, 255, 0.80);
+  --cc-surface: rgba(255, 255, 255, 0.68);
+  --cc-surface-2: rgba(242, 242, 247, 0.72);
+  --cc-surface-3: rgba(229, 229, 234, 0.65);
+  --cc-app-bar-glass: rgba(255, 255, 255, 0.68);
+  --cc-drawer-glass: rgba(255, 255, 255, 0.76);
 
   /* Text */
   --cc-text-1: #000000;
@@ -94,16 +97,17 @@
   --cc-text-3: #8e8e93;
 
   /* Borders & dividers */
-  --cc-divider: rgba(0, 0, 0, 0.08);
-  --cc-divider-strong: rgba(0, 0, 0, 0.15);
-  --cc-glass-border: rgba(255, 255, 255, 0.60);
+  --cc-divider: rgba(0, 0, 0, 0.06);
+  --cc-divider-strong: rgba(0, 0, 0, 0.12);
+  --cc-glass-border: rgba(255, 255, 255, 0.50);
+  --cc-glass-border-strong: rgba(255, 255, 255, 0.70);
 
   /* Shadows */
-  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.1);
-  --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.25);
-  --cc-shadow-glass: 0 4px 24px -8px rgba(0, 0, 0, 0.10);
-  --cc-shadow-glass-hover: 0 8px 32px -8px rgba(0, 0, 0, 0.15);
+  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.08);
+  --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.20);
+  --cc-shadow-glass: 0 2px 12px -4px rgba(0, 0, 0, 0.08);
+  --cc-shadow-glass-hover: 0 6px 24px -6px rgba(0, 0, 0, 0.12);
 }
 
 /* ----- Global resets / typographic polish ----- */
@@ -121,6 +125,19 @@ body {
   color: var(--cc-text-1);
 }
 
+/* Subtle noise texture for depth (dark mode only) */
+.v-theme--ccDark body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
 code,
 pre,
 kbd {
@@ -134,12 +151,12 @@ kbd {
   background-color: var(--cc-bg) !important;
 }
 
-/* Unify frosted-glass blur across layout and cards */
+/* Unified frosted-glass: stronger blur, richer saturation */
 .v-app-bar.v-toolbar,
 .v-navigation-drawer,
 .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal) {
-  backdrop-filter: saturate(180%) blur(16px);
-  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(200%) blur(20px);
+  -webkit-backdrop-filter: saturate(200%) blur(20px);
 }
 
 .v-app-bar.v-toolbar {
@@ -154,11 +171,13 @@ kbd {
   border-right: 1px solid var(--cc-divider) !important;
 }
 
+/* All default (elevated) cards get glass treatment */
 .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal) {
   background-color: var(--cc-surface) !important;
   background-image: none !important;
   border: 1px solid var(--cc-glass-border) !important;
   box-shadow: var(--cc-shadow-glass);
+  transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
 }
 
 .v-card.v-card--variant-outlined {
@@ -181,6 +200,7 @@ kbd {
   letter-spacing: -0.005em;
   font-weight: 500;
   border-radius: var(--cc-radius-pill);
+  transition: all 0.2s ease;
 }
 
 .v-btn--icon {
@@ -195,6 +215,12 @@ kbd {
 .v-btn--variant-flat:hover,
 .v-btn--variant-elevated:hover {
   box-shadow: var(--cc-shadow-md);
+}
+
+.v-btn--variant-tonal {
+  backdrop-filter: saturate(160%) blur(8px);
+  -webkit-backdrop-filter: saturate(160%) blur(8px);
+  background-color: var(--cc-surface-3) !important;
 }
 
 .v-list-item--active .v-list-item-title {
@@ -241,6 +267,13 @@ kbd {
   font-family: var(--cc-font) !important;
 }
 
+/* Input fields: subtle glass background */
+.v-field--variant-outlined {
+  background-color: var(--cc-surface-3) !important;
+  backdrop-filter: saturate(140%) blur(6px);
+  -webkit-backdrop-filter: saturate(140%) blur(6px);
+}
+
 .v-field--variant-outlined .v-field__outline__start,
 .v-field--variant-outlined .v-field__outline__end,
 .v-field--variant-outlined .v-field__outline__notch::before,
@@ -257,16 +290,36 @@ kbd {
 
 .v-snackbar__wrapper {
   border-radius: var(--cc-radius-md) !important;
+  backdrop-filter: saturate(200%) blur(24px);
+  -webkit-backdrop-filter: saturate(200%) blur(24px);
+  background-color: var(--cc-surface) !important;
+  border: 1px solid var(--cc-glass-border) !important;
+  box-shadow: var(--cc-shadow-glass) !important;
 }
 
+/* Dialogs: glass card with deeper shadow */
 .v-dialog > .v-overlay__content > .v-card {
   border-radius: var(--cc-radius-xl) !important;
   background-color: var(--cc-bg-elevated) !important;
+  backdrop-filter: saturate(200%) blur(28px);
+  -webkit-backdrop-filter: saturate(200%) blur(28px);
   box-shadow: var(--cc-shadow-lg);
-  border: 1px solid var(--cc-divider);
+  border: 1px solid var(--cc-glass-border-strong);
 }
 
-/* Gradient text used in headers and hero spots. */
+/* Dialog overlay: subtle darkening */
+.v-overlay__scrim {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Tabs: glass pill indicator */
+.v-tabs .v-tab--selected {
+  color: var(--cc-brand) !important;
+}
+
+/* ----- Animated gradient text ----- */
+
 .cc-gradient-text {
   background: var(--cc-brand-gradient);
   background-size: var(--cc-brand-gradient-size);
@@ -312,11 +365,32 @@ kbd {
 
 /* ----- Admin UI utility classes ----- */
 
+/* Glass card: explicit glass-surface panels for depth layering */
+.glass-card {
+  background-color: var(--cc-surface) !important;
+  backdrop-filter: saturate(200%) blur(20px);
+  -webkit-backdrop-filter: saturate(200%) blur(20px);
+  border: 1px solid var(--cc-glass-border) !important;
+  box-shadow: var(--cc-shadow-glass);
+  border-radius: var(--cc-radius-lg);
+}
+
 /* Hover animation for interactive cards (e.g. Dashboard stat cards, Step Palette cards) */
 .glass-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--cc-shadow-glass-hover);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  border-color: var(--cc-glass-border-strong);
+}
+
+/* Page header pattern used across admin views */
+.cc-page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.cc-page-header h2 {
+  letter-spacing: -0.018em;
 }
 
 /* Global tracking-tight utility (replaces scoped rules in individual views). */
@@ -343,4 +417,15 @@ kbd {
 .fade-slide-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+/* Stat card: elevated dashboard metric panels */
+.stat-card {
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--cc-brand-soft);
+  box-shadow: var(--cc-shadow-glass-hover);
 }

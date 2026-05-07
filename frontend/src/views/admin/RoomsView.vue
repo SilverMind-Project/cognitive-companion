@@ -12,7 +12,7 @@
       <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Add Room</v-btn>
     </div>
 
-    <v-card>
+    <v-card class="glass-card">
       <v-data-table :headers="headers" :items="rooms" :loading="loading" item-value="id">
         <template #item.actions="{ item }">
           <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(item)" />

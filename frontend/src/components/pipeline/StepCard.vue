@@ -6,14 +6,12 @@
   >
     <v-card-text class="pa-4">
       <!-- Header row -->
-      <div class="d-flex align-center gap-2">
+      <div class="d-flex align-center gap-3">
         <v-chip size="x-small" variant="tonal" color="primary" class="flex-shrink-0 font-weight-bold step-num-chip">
           {{ index + 1 }}
         </v-chip>
 
-        <v-icon size="18" :color="stepColor" class="flex-shrink-0">{{ stepIcon }}</v-icon>
-
-        <div class="flex-grow-1 min-width-0">
+        <div class="flex-grow-1 min-width-0 ml-2">
           <div class="d-flex align-center gap-1 flex-wrap">
             <span class="text-subtitle-2 font-weight-bold">{{ stepDisplayName }}</span>
             <v-tooltip v-if="templateTokens.length" location="top">
@@ -38,6 +36,13 @@
 
         <!-- Reorder + actions -->
         <div class="d-flex align-center flex-shrink-0">
+          <v-icon
+            class="cc-drag-handle flex-shrink-0 mr-1"
+            size="16"
+            color="grey"
+            draggable="true"
+            @dragstart="onDragStart"
+          >mdi-drag-vertical</v-icon>
           <div class="d-flex flex-column" style="gap:0">
             <v-btn
               icon="mdi-chevron-up"
@@ -56,7 +61,7 @@
               @click.stop="$emit('movedown')"
             />
           </div>
-          <v-divider vertical class="mx-1" />
+          <v-divider vertical class="mx-2" />
           <v-btn icon="mdi-pencil" size="x-small" variant="text" @click.stop="$emit('edit')" />
           <v-btn
             :icon="step.enabled ? 'mdi-eye' : 'mdi-eye-off'"
@@ -116,7 +121,13 @@ const props = defineProps({
   total: { type: Number, required: true },
 });
 
-defineEmits(["edit", "delete", "toggle", "moveup", "movedown"]);
+const emit = defineEmits(["edit", "delete", "toggle", "moveup", "movedown", "dragstart"]);
+
+function onDragStart(event) {
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", props.index);
+  emit("dragstart", props.index);
+}
 
 // ── Display names ────────────────────────────────────────────────────────────
 
@@ -150,31 +161,6 @@ function humanize(type) {
 }
 
 const stepDisplayName = computed(() => humanize(props.step.step_type));
-
-// ── Icons + colors ────────────────────────────────────────────────────────────
-
-const STEP_META = {
-  person_identification: { icon: "mdi-face-recognition", color: "indigo" },
-  scene_analysis:        { icon: "mdi-image-search", color: "teal" },
-  object_trend_analysis: { icon: "mdi-chart-line", color: "teal" },
-  semantic_memory_query: { icon: "mdi-database-search-outline", color: "teal" },
-  semantic_memory_write: { icon: "mdi-database-plus-outline", color: "indigo" },
-  llm_call:              { icon: "mdi-brain", color: "purple" },
-  condition:             { icon: "mdi-help-circle-outline", color: "blue-grey" },
-  verification:          { icon: "mdi-check-decagram", color: "green" },
-  tracking_query:        { icon: "mdi-map-marker-path", color: "teal" },
-  activity_detection:    { icon: "mdi-database-plus", color: "indigo" },
-  activity_session_start:{ icon: "mdi-play-circle-outline", color: "green" },
-  activity_session_end:  { icon: "mdi-stop-circle-outline", color: "red" },
-  notification:          { icon: "mdi-bell-outline", color: "orange" },
-  ha_action:             { icon: "mdi-home-automation", color: "blue" },
-  daily_report:          { icon: "mdi-file-chart-outline", color: "indigo" },
-  interactive_prompt:    { icon: "mdi-forum-outline", color: "cyan" },
-  wait:                  { icon: "mdi-timer-sand", color: "amber" },
-};
-
-const stepIcon = computed(() => STEP_META[props.step.step_type]?.icon || "mdi-circle-outline");
-const stepColor = computed(() => STEP_META[props.step.step_type]?.color || "grey");
 
 // ── Template tokens ───────────────────────────────────────────────────────────
 
@@ -342,6 +328,17 @@ const textPreview = computed(() => {
 </script>
 
 <style scoped>
+.cc-drag-handle {
+  cursor: grab;
+  opacity: 0.45;
+  transition: opacity 0.15s;
+}
+.cc-drag-handle:hover {
+  opacity: 0.85;
+}
+.cc-drag-handle:active {
+  cursor: grabbing;
+}
 .cc-token-chip {
   font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }

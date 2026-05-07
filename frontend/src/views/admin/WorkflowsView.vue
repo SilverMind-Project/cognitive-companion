@@ -1,30 +1,26 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-6">
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Workflow Executions</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">Every pipeline run, in flight or finished.</div>
       </div>
       <v-spacer />
+      <v-select
+        v-model="filter.status"
+        :items="['', 'running', 'waiting', 'completed', 'failed', 'cancelled']"
+        label="Status"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="max-width: 200px"
+        @update:model-value="load"
+      />
       <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="load">Refresh</v-btn>
     </div>
 
-    <v-card class="mb-4">
-      <v-card-text class="d-flex ga-3">
-        <v-select
-          v-model="filter.status"
-          :items="['', 'running', 'waiting', 'completed', 'failed', 'cancelled']"
-          label="Status"
-          variant="outlined"
-          density="compact"
-          clearable
-          style="max-width: 200px"
-          @update:model-value="load"
-        />
-      </v-card-text>
-    </v-card>
-
-    <v-card>
+    <v-card class="glass-card">
       <v-data-table
         :headers="headers"
         :items="items"
@@ -37,7 +33,7 @@
           <v-chip :color="statusColor(item.status)" size="small">{{ item.status }}</v-chip>
         </template>
         <template #item.started_at="{ item }">
-          {{ formatDate(item.started_at) }}
+          {{ formatDateTime(item.started_at) }}
         </template>
         <template #item.actions="{ item }">
           <v-btn
@@ -136,8 +132,6 @@ function statusColor(status) {
   const map = { completed: "success", failed: "error", running: "info", waiting: "warning", cancelled: "grey" };
   return map[status] || "grey";
 }
-
-const formatDate = formatDateTime;
 
 onMounted(load);
 </script>

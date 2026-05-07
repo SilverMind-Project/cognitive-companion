@@ -1,56 +1,47 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-6">
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Keyframes</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">Captured keyframes from CTS signals, filterable by person and signal type.</div>
       </div>
       <v-spacer />
+      <v-select
+        v-model="filters.person_id"
+        :items="persons"
+        label="Person"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="width: 200px"
+        @update:modelValue="loadKeyframes"
+      />
+      <v-select
+        v-model="filters.signal_type"
+        :items="signalTypes"
+        label="Signal Type"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="width: 220px"
+        @update:modelValue="loadKeyframes"
+      />
+      <v-select
+        v-model="filters.limit"
+        :items="[20, 50, 100]"
+        label="Limit"
+        variant="outlined"
+        density="compact"
+        hide-details
+        style="width: 100px"
+        @update:modelValue="loadKeyframes"
+      />
       <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadKeyframes" :loading="loading">Refresh</v-btn>
     </div>
 
     <v-card class="glass-card">
-      <!-- Filters -->
-      <v-card-text class="d-flex ga-4 flex-wrap align-center pa-4">
-        <v-select
-          v-model="filters.person_id"
-          :items="persons"
-          label="Person"
-          variant="outlined"
-          density="compact"
-          clearable
-          hide-details
-          rounded="lg"
-          style="flex: 0 0 auto; width: 200px"
-          @update:modelValue="loadKeyframes"
-        />
-        <v-select
-          v-model="filters.signal_type"
-          :items="signalTypes"
-          label="Signal Type"
-          variant="outlined"
-          density="compact"
-          clearable
-          hide-details
-          rounded="lg"
-          style="flex: 0 0 auto; width: 220px"
-          @update:modelValue="loadKeyframes"
-        />
-        <v-select
-          v-model="filters.limit"
-          :items="[20, 50, 100]"
-          label="Limit"
-          variant="outlined"
-          density="compact"
-          hide-details
-          rounded="lg"
-          style="flex: 0 0 auto; width: 100px"
-          @update:modelValue="loadKeyframes"
-        />
-      </v-card-text>
-
-      <v-divider />
-
       <!-- Empty state -->
       <div v-if="keyframes.length === 0 && !loading" class="text-center text-medium-emphasis py-12">
         <v-icon size="64">mdi-image-off</v-icon>

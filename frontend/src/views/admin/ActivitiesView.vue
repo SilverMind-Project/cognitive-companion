@@ -1,51 +1,45 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-6">
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Person Activities</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">A timeline of detected activities, by person and room.</div>
       </div>
       <v-spacer />
+      <v-text-field
+        v-model="filter.person_id"
+        label="Person ID"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="max-width: 180px"
+        @update:model-value="load"
+      />
+      <v-text-field
+        v-model="filter.activity_type"
+        label="Activity Type"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="max-width: 180px"
+        @update:model-value="load"
+      />
+      <v-text-field
+        v-model="filter.room_name"
+        label="Room"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="max-width: 150px"
+        @update:model-value="load"
+      />
       <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="load">Refresh</v-btn>
     </div>
 
     <v-card class="glass-card">
-      <v-card-text class="d-flex ga-4 flex-wrap align-center pa-4">
-        <v-text-field
-          v-model="filter.person_id"
-          label="Person ID"
-          variant="outlined"
-          density="compact"
-          clearable
-          hide-details
-          class="flex-1-1-0"
-          rounded="lg"
-          @update:model-value="load"
-        />
-        <v-text-field
-          v-model="filter.activity_type"
-          label="Activity Type"
-          variant="outlined"
-          density="compact"
-          clearable
-          hide-details
-          class="flex-1-1-0"
-          rounded="lg"
-          @update:model-value="load"
-        />
-        <v-text-field
-          v-model="filter.room_name"
-          label="Room"
-          variant="outlined"
-          density="compact"
-          clearable
-          hide-details
-          class="flex-1-1-0"
-          rounded="lg"
-          @update:model-value="load"
-        />
-      </v-card-text>
-      <v-divider />
       <v-data-table
         :headers="headers"
         :items="items"
@@ -53,7 +47,7 @@
         item-value="id"
       >
         <template #item.detected_at="{ item }">
-          {{ formatDate(item.detected_at) }}
+          {{ formatDateTime(item.detected_at) }}
         </template>
         <template #item.confidence="{ item }">
           {{ (item.confidence * 100).toFixed(0) }}%
@@ -98,8 +92,6 @@ async function load() {
   }
   loading.value = false;
 }
-
-const formatDate = formatDateTime;
 
 onMounted(load);
 </script>

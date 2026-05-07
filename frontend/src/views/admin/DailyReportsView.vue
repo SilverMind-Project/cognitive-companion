@@ -1,37 +1,32 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-6">
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Daily Reports</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">Wellness summaries and activity breakdowns by person and date.</div>
       </div>
       <v-spacer />
+      <v-select
+        v-model="selectedPerson"
+        :items="persons"
+        item-value="id"
+        item-title="name"
+        label="Person"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="width: 260px"
+      />
+      <v-checkbox
+        v-model="includeRoomTrends"
+        label="Include Room Trends"
+        density="compact"
+        hide-details
+      />
     </div>
 
     <v-card class="glass-card">
-      <v-card-text class="d-flex ga-4 flex-wrap align-center pa-4">
-        <v-select
-          v-model="selectedPerson"
-          :items="persons"
-          item-value="id"
-          item-title="name"
-          label="Person"
-          variant="outlined"
-          density="compact"
-          clearable
-          hide-details
-          rounded="lg"
-          style="flex: 0 0 auto; width: 260px"
-        />
-        <v-checkbox
-          v-model="includeRoomTrends"
-          label="Include Room Trends"
-          density="compact"
-          hide-details
-          class="ml-2 flex-grow-0"
-        />
-      </v-card-text>
-      <v-divider />
       <template v-if="selectedPerson">
         <v-card-text class="pa-6">
           <DailyReportCard

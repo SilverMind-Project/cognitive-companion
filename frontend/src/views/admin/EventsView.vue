@@ -1,42 +1,49 @@
 <template>
   <div>
-    <div class="mb-6">
-      <h2 class="text-h4 font-weight-bold tracking-tight">Event Logs</h2>
-      <div class="text-body-2 text-medium-emphasis mt-1">A history of every trigger the system has processed.</div>
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Event Logs</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">A history of every trigger the system has processed.</div>
+      </div>
+      <v-spacer />
+      <v-select
+        v-model="filter.status"
+        :items="['', 'completed', 'failed', 'ignored', 'processing']"
+        label="Status"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="max-width: 180px"
+        @update:model-value="loadEvents"
+      />
+      <v-text-field
+        v-model="filter.rule_name"
+        label="Rule Name"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="max-width: 200px"
+        @keyup.enter="loadEvents"
+      />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadEvents" :loading="loading">
+        Refresh
+      </v-btn>
     </div>
 
-    <v-card>
-      <v-card-text>
-        <v-row>
-          <v-col cols="12" sm="4">
-            <v-select v-model="filter.status" :items="['', 'completed', 'failed', 'ignored', 'processing']" label="Status" variant="outlined" clearable @update:model-value="loadEvents" />
-          </v-col>
-          <v-col cols="12" sm="4">
-            <v-text-field v-model="filter.rule_name" label="Rule Name" variant="outlined" clearable @keyup.enter="loadEvents" />
-          </v-col>
-          <v-col cols="12" sm="4" class="d-flex align-center">
-            <v-btn color="primary" @click="loadEvents">Filter</v-btn>
-          </v-col>
-        </v-row>
-      </v-card-text>
-
+    <v-card class="glass-card">
       <v-data-table :headers="headers" :items="events" :loading="loading" item-value="id">
         <template #item.status="{ item }">
           <v-chip :color="statusColor(item.status)" size="small">{{ item.status }}</v-chip>
         </template>
         <template #item.timestamp="{ item }">
-          {{ formatDate(item.timestamp) }}
+          {{ formatDateTime(item.timestamp) }}
         </template>
       </v-data-table>
     </v-card>
   </div>
 </template>
-
-<style scoped>
-.tracking-tight {
-  letter-spacing: -0.018em;
-}
-</style>
 
 <script setup>
 import { ref, onMounted } from "vue";
@@ -58,8 +65,6 @@ const headers = [
 function statusColor(s) {
   return { completed: "success", failed: "error", ignored: "grey", processing: "info" }[s] || "grey";
 }
-
-const formatDate = formatDateTime;
 
 async function loadEvents() {
   loading.value = true;

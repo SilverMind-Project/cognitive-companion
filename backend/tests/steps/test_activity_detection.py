@@ -137,26 +137,8 @@ class TestExecute:
         assert result.data["detected_activities"][0]["activity_type"] == "meal_eating"
         svc.record.assert_called_once()
 
-    async def test_fallback_to_person_tracking(self):
-        """Should fall back to person_tracking when services.activity is None."""
-        pt = _make_mock_person_tracking()
-        step = _make_step({
-            "activity_type": "meal_eating",
-            "person_id": "grandma",
-        })
-        result = await handler.execute(
-            step=step,
-            execution=_FakeExecution(),
-            pipeline_data={},
-            trigger=_make_trigger(),
-            services=_make_services(activity=None, person_tracking=pt),
-        )
-        assert result.success
-        assert "detected_activities" in result.data
-        pt.record_activity.assert_called_once()
-
-    async def test_activity_takes_precedence_over_person_tracking(self):
-        """When both are available, use services.activity."""
+    async def test_activity_records_via_activity_service(self):
+        """When services.activity is available, use it."""
         svc = _make_mock_activity_service()
         pt = _make_mock_person_tracking()
         step = _make_step({"activity_type": "meal_eating"})

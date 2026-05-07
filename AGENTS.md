@@ -14,7 +14,7 @@ Three things make this codebase non-trivial:
 
 1. **Plugin registries.** Pipeline steps, notification channels, and context filters are auto-discovered classes. Adding a new one is a single file in the right directory.
 2. **Composable per-rule pipelines.** Each rule defines its own ordered sequence of `PipelineStep` rows. The same step type can behave very differently across rules via per-step `config_json`.
-3. **Multi-service architecture.** The backend depends on five sibling services in this monorepo: `person-identification-service` (face ID), `scene-analysis-service` (YOLO + Florence-2 + CLIP), `semantic-memory-service` (pgvector observations and movements), `tts-service` (TTS), and the `continuous-tracking/` family (multi-camera tracking + dementia signals via Redis Streams). Cognitive Companion is the BFF gateway for all browser and MCP traffic into those services.
+3. **Multi-service architecture.** The backend depends on five sibling services in this monorepo: `person-identification-service` (face ID), `scene-analysis-service` (YOLO + Florence-2 + CLIP), `semantic-memory-service` (pgvectorscale observations and movements), `tts-service` (TTS), and the `continuous-tracking/` family (multi-camera tracking + dementia signals via Redis Streams). Cognitive Companion is the BFF gateway for all browser and MCP traffic into those services.
 
 ---
 
@@ -23,7 +23,7 @@ Three things make this codebase non-trivial:
 | Layer | Choice |
 | --- | --- |
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic 2, APScheduler, stdlib logging via `BoundLogger` |
-| Database | PostgreSQL 17 (via `psycopg`); Alembic migrations; tests use a PostgreSQL testcontainer |
+| Database | PostgreSQL 18 via `timescale/timescaledb-ha:pg18` (shared instance with `continuous_tracking`, `semantic_memory`); Alembic migrations; DB `cognitive_companion` owns all tables |
 | Frontend | Vue 3 (Composition API, `<script setup>`), Vuetify 3, Vite, vue-router |
 | Object storage | MinIO (S3-compatible) via `boto3` |
 | LLM serving | vLLM and llama.cpp `llama-server` (OpenAI-compatible `/v1/chat/completions`); Ollama; Google Gemini Live for realtime audio |
@@ -75,7 +75,7 @@ cognitive-companion/
 │   │   ├── presence/                    PresenceService (Block 1-3 provider chain: night anchor + HA bed sensor + CTS location + HA device tracker + stale fallback)
 │   │   ├── signals/                     SignalsService (CTS dementia signal reads)
 │   │   ├── telegram_trigger.py          Telegram command-to-rule polling
-│   │   └── cts/                         CTS subscribers + writers (runtime, signal_store, location_writer, identity_rewriter, source_authority, stream_consumer, tracking_event_subscriber, identity_revision_subscriber)
+│   │   └── cts/                         CTS subscribers + writers (runtime, signal_store, location_writer, identity_rewriter, source_authority, stream_consumer, tracking_event_subscriber, identity_revision_subscriber, scene_sample_subscriber)
 │   ├── integrations/           External clients
 │   │   ├── homeassistant.py, ha_state_cache.py, telegram.py, tts.py, minio_client.py
 │   │   ├── eink_renderer.py            Internal PIL-based eink renderer
@@ -113,7 +113,7 @@ cognitive-companion/
 │   ├── notifications.yaml      Alert-level to channel routing
 │   └── presence.yaml           PresenceService provider chain (priority-ordered)
 ├── data/                       Runtime media cache
-├── kubernetes/, docker-compose.yml
+├── docker-compose.yml (includes ../docker-compose.db.yml for shared Postgres)
 └── Makefile                    See section 4
 ```
 
@@ -159,6 +159,7 @@ make migration                      # autogenerate new migration after model edi
 make migration-history
 
 # Docker
+docker compose -f ../docker-compose.db.yml -p nanai up -d  # shared DB first
 docker compose up -d                # backend (8000) + frontend (80)
 docker compose build --no-cache
 ```
@@ -273,7 +274,7 @@ class YourStepHandler(StepHandler):
 
 ### 5.7 Database
 
-PostgreSQL 17. `Database` class in `backend/core/database.py` owns the engine and session factory.
+PostgreSQL 18 via `timescale/timescaledb-ha:pg18` (shared instance with `continuous_tracking`, `semantic_memory`). The shared database host, port, user, password, and name come from `CC_DB_USER`, `CC_DB_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB` env vars. `Database` class in `backend/core/database.py` owns the engine and session factory.
 
 ```python
 from backend.core.database import get_session
@@ -290,7 +291,7 @@ In tests, construct `Database` directly:
 
 ```python
 from backend.core.database import Database
-db = Database("postgresql+psycopg://user:pass@localhost/test_db")
+db = Database("postgresql+psycopg://cc_user:pass@localhost:5432/cognitive_companion")
 sess = db.session()
 ```
 
@@ -379,18 +380,18 @@ In tests, use `RulesEngine(tz_name="UTC")` to keep timestamp comparisons aligned
 
 ## 6. Built-in pipeline step types
 
-19 step files under `backend/steps/builtin/`. Categories drive the StepPalette grouping in the admin UI.
+18 step files under `backend/steps/builtin/`. Categories drive the StepPalette grouping in the admin UI.
 
 | Type name | File | Category | Notes |
 | --- | --- | --- | --- |
 | `llm_call` | `llm_call.py` | reasoning | Unified LLM step. Selects a model from `LLMModelRegistry` by `model_id`. Supports `image_source` (`none`, `trigger`, `additional`, `both`), `additional_sensor_ids`, `sort_by_sensor_then_time`, `images_per_sensor`, `max_images`, `image_time_filter`, JSON output (`response_format` text or json_schema, `response_json_schema`), hallucination retry, `output_key` (default `llm_response`). |
 | `person_identification` | `person_identification.py` | perception | Calls `person_id_client`. Records sightings. With `write_movements_to_memory: true`, also persists camera-topology room transitions to semantic memory. |
 | `scene_analysis` | `scene_analysis.py` | perception | Calls `scene_analysis_client`. Returns YOLO detections, Florence-2 description, CLIP embedding, hazard alerts. With `write_to_memory: true`, also persists an observation to semantic memory and emits `scene_memory_observation_id`. |
-| `object_trend_analysis` | `object_trend_analysis.py` | perception | Internal name retained for backwards compatibility; queries `semantic_memory_client` for room-level trend state. |
+| `object_trend_analysis` | `object_trend_analysis.py` | perception | Displayed as "Room Trend Query". Queries `semantic_memory_client` for room-level trend state (clutter score, persistent/novel objects, anomaly severity). |
 | `semantic_memory_query` | `semantic_memory_query.py` | perception | Composes a compact LLM-ready summary of recent observations and object presence in a room. Output key default `memory_context`. |
 | `semantic_memory_write` | `semantic_memory_write.py` | state | Persists scene observations and movements (typically produced upstream by `scene_analysis` or `person_identification`) to semantic memory. |
 | `presence_query` | `presence_query.py` | perception | Reads the fused `PresenceService`. Emits a structured snapshot under `output_key` and flat keys (`presence_status`, `presence_room_name`, `presence_dwell_minutes`, `presence_at_home`, `presence_asleep`, `presence_away`). Also fetches recent dementia signals when `services.signals` is wired. |
-| `tracking_query` | `tracking_query.py` | perception | DEPRECATED. Reads CTS-derived `PersonLocationState` and `SignalStore` directly. Use `presence_query` for new rules; this is kept to avoid breaking existing rule definitions. |
+
 | `home_state` | `home_state.py` | perception | Thin wrapper around `presence_query` that emits four boolean flags only: `<key>_at_home`, `<key>_asleep`, `<key>_away`, `<key>_state_unknown`. |
 | `notification` | `notification.py` | action | Formats and dispatches across channels using `notifications.yaml` mappings, with per-channel template overrides (`telegram_template`, `ha_speaker_tts_template`, `eink_template`, `webhook_template`, `pwa_popup_text_template`, `pwa_realtime_ai_template`). The `pwa_tts_announcement` channel reuses `ha_speaker_tts_template`. Selects an eink template via `eink_template_id` and expiry via `eink_expiry_minutes`. |
 | `ha_action` | `ha_action.py` | action | Calls a Home Assistant service. |
@@ -506,13 +507,14 @@ All handlers begin with `_cts_enabled()` and return 404 + `{"code": "cts.disable
 
 ### 10.3 CTS runtime
 
-`backend/services/cts/runtime.py` is `CTSRuntime`, started in the lifespan when `cts.enabled` is `true`. It owns three subscribers (Redis Streams consumer groups against `tracking.signals`, `tracking.events`, `tracking.revisions`) and a `LocationWriter`:
+`backend/services/cts/runtime.py` is `CTSRuntime`, started in the lifespan when `cts.enabled` is `true`. It owns four subscribers (Redis Streams consumer groups) and a `LocationWriter`:
 
 | Subscriber | Stream | Effect |
 | --- | --- | --- |
 | `DementiaSignalSubscriber` | `tracking.signals` | Persists `DementiaSignal` rows via `SignalStore`; fires pipeline events for rules with the `dementia_signal` filter. |
 | `TrackingEventSubscriber` | `tracking.events` | Updates `PersonLocationState` and writes `PersonLocationHistory` via `LocationWriter` and `SourceAuthority` (CTS-precedence lock for `cts.lock_seconds`). |
 | `IdentityRevisionSubscriber` | `tracking.revisions` | Soft-deletes superseded `PersonLocationHistory` rows via `IdentityRewriter` and inserts the corrected entries. |
+| `SceneSampleSubscriber` | `scene.samples` | Decodes tagged keyframe `SceneSample` messages, pulls JPEG from MinIO, runs scene analysis (YOLO + Florence-2 + CLIP + hazards), and persists observations to semantic memory. |
 
 `StreamConsumer` (in `stream_consumer.py`) is the shared base class: consumer-group creation, `XAUTOCLAIM` reclaim, bounded semaphore, graceful shutdown.
 
@@ -797,7 +799,7 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 | Add a step type | `backend/steps/base.py`, an existing builtin like `backend/steps/builtin/scene_analysis.py` |
 | Trace a rule firing | `backend/services/workflow.py` then `rules_engine.py` then `pipeline_executor.py` |
 | Debug a condition expression | `backend/services/condition_evaluator.py` and its tests |
-| Understand CTS data flow | `backend/services/cts/runtime.py`, then the three subscribers, then `services/cts/location_writer.py` |
+| Understand CTS data flow | `backend/services/cts/runtime.py`, then the four subscribers, then `services/cts/location_writer.py` |
 | Understand presence fusion | `backend/services/presence/factory.py`, `service.py`, `anchor_rules.py`, plus `config/presence.yaml` |
 | Add an external HTTP client | `backend/integrations/_http_base.py` (LAN) or `_upstream_base.py` (CTS only) |
 | Find the canonical config | `config/settings.yaml` (loaded fresh on every lifespan) |

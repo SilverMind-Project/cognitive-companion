@@ -56,7 +56,6 @@ def test_service_container_has_all_required_fields():
         'rag_service',
         'llm_model_registry',
         'scene_analysis_client',
-        'activity_session_service',
         'daily_report_service',
         'semantic_memory_client',
         'interactive_response_service',

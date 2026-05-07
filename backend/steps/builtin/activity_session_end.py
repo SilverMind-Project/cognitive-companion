@@ -24,7 +24,6 @@ from backend.steps.base import (
 
 logger = get_logger(__name__)
 
-_session_end_legacy_warned = False
 
 
 @StepRegistry.register
@@ -115,8 +114,6 @@ class ActivitySessionEndHandler(StepHandler):
         write_activity = config.get("write_activity_record", True)
         output_key = (config.get("output_key", "closed_session") or "closed_session").strip() or "closed_session"
 
-        global _session_end_legacy_warned
-
         if services.activity:
             try:
                 result = services.activity.close_session(
@@ -164,86 +161,6 @@ class ActivitySessionEndHandler(StepHandler):
             if write_activity:
                 try:
                     await services.activity.record(
-                        person_id=result.person_id,
-                        activity_type=result.activity_type,
-                        room_name=result.room_name,
-                        confidence=0.9,
-                        source_event_id=execution.event_log_id,
-                        metadata={
-                            "session_id": result.session_id,
-                            "duration_minutes": result.duration_minutes,
-                            "closed_via": result.closed_via,
-                        },
-                    )
-                    logger.info(
-                        "session_end_activity_recorded",
-                        session_id=result.session_id,
-                        duration_minutes=result.duration_minutes,
-                    )
-                except Exception:
-                    logger.exception(
-                        "session_end_activity_record_failed",
-                        session_id=result.session_id,
-                    )
-
-            logger.info(
-                "session_end_result",
-                session_id=result.session_id,
-                duration_minutes=result.duration_minutes,
-                closed_via=result.closed_via,
-            )
-
-            return StepResult(data={output_key: closed_session_data})
-
-        elif services.activity_session_service:
-            if not _session_end_legacy_warned:
-                logger.warning("activity_step_legacy_path", step="activity_session_end")
-                _session_end_legacy_warned = True
-            try:
-                result = services.activity_session_service.close_session(
-                    person_id=person_id,
-                    activity_type=activity_type,
-                    ended_at=datetime.now(UTC),
-                    end_event_id=execution.event_log_id,
-                    closed_via="explicit",
-                )
-            except ValueError as e:
-                logger.warning(
-                    "session_end_no_open_session",
-                    person_id=person_id,
-                    activity_type=activity_type,
-                )
-                return StepResult(
-                    success=False,
-                    data={output_key: {"error": str(e), "no_open_session": True}},
-                )
-            except Exception:
-                logger.exception(
-                    "session_end_error",
-                    person_id=person_id,
-                    activity_type=activity_type,
-                )
-                return StepResult(
-                    success=False,
-                    data={output_key: {"error": "failed to close activity session"}},
-                )
-
-            closed_session_data = {
-                "session_id": result.session_id,
-                "person_id": result.person_id,
-                "activity_type": result.activity_type,
-                "room_name": result.room_name,
-                "started_at": result.opened_at.isoformat() if result.opened_at else None,
-                "closed_at": result.closed_at.isoformat() if result.closed_at else None,
-                "duration_minutes": result.duration_minutes,
-                "status": result.status,
-                "closed_via": result.closed_via,
-            }
-
-            # Optionally record a PersonActivity with duration
-            if write_activity and services.person_tracking:
-                try:
-                    await services.person_tracking.record_activity(
                         person_id=result.person_id,
                         activity_type=result.activity_type,
                         room_name=result.room_name,

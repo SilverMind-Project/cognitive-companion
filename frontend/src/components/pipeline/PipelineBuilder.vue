@@ -79,7 +79,6 @@ const STEP_META = {
   llm_call:               { icon: "mdi-brain",                      color: "purple" },
   condition:              { icon: "mdi-help-circle-outline",        color: "blue-grey" },
   verification:           { icon: "mdi-check-decagram",             color: "green" },
-  tracking_query:         { icon: "mdi-map-marker-path",            color: "teal" },
   activity_detection:     { icon: "mdi-database-plus",              color: "indigo" },
   activity_session_start: { icon: "mdi-play-circle-outline",        color: "green" },
   activity_session_end:   { icon: "mdi-stop-circle-outline",        color: "red" },

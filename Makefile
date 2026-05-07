@@ -83,11 +83,19 @@ typecheck:
 typecheck-core:
 	$(MYPY) -p backend.core
 
+.PHONY: frontend-build
+frontend-build:
+	cd frontend && npm install --no-audit --no-fund && npm run build
+
+.PHONY: frontend-test
+frontend-test:
+	cd frontend && npm run test --silent
+
 .PHONY: check
 check: lint typecheck-core test-core
 
 .PHONY: check-all
-check-all: lint typecheck-core test-core test-services
+check-all: lint typecheck-core test-core test-services frontend-test
 
 .PHONY: migrate
 migrate:

@@ -1,7 +1,6 @@
 """Shared helpers for pipeline step handlers.
 
-Extracted from ``tracking_query.py`` so that ``presence_query.py`` can
-reuse the same person-resolution logic.
+Used by ``presence_query.py`` and ``home_state.py`` for person-resolution logic.
 """
 
 from __future__ import annotations

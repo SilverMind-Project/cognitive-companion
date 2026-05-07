@@ -203,6 +203,24 @@ async def lifespan(app: FastAPI):
     semantic_memory_client: SemanticMemoryClient | None = _smc if _smc.configured else None
     app.state.semantic_memory_client = semantic_memory_client
 
+    # Startup health check: warn if semantic_memory is enabled but unreachable.
+    if semantic_memory_client is not None:
+        try:
+            healthy = await semantic_memory_client.health_check()
+            if healthy is None:
+                logger.warning(
+                    "semantic_memory_startup_unreachable",
+                    hint="Semantic Memory is configured in settings but unreachable. "
+                         "Memory queries, scene_contains filters, and semantic_memory_write "
+                         "steps will return empty results.",
+                )
+        except Exception:
+            logger.warning(
+                "semantic_memory_startup_unreachable",
+                hint="Semantic Memory health check failed. "
+                     "Memory-dependent features will degrade gracefully.",
+            )
+
     # -- Memory query service (Block 4) ------------------------------------
     from backend.services.memory_query import MemoryQueryService
 
@@ -303,7 +321,6 @@ async def lifespan(app: FastAPI):
         event_aggregator=event_aggregator,
         llm_model_registry=llm_model_registry,
         scene_analysis_client=scene_analysis_client,
-        activity_session_service=activity_session_service,
         daily_report_service=daily_report_service,
         semantic_memory_client=semantic_memory_client,
         interactive_response_service=interactive_response_service,
@@ -471,12 +488,16 @@ async def lifespan(app: FastAPI):
             db_factory=get_session,
             ws_manager=ws_manager,
             pipeline=pipeline_executor,
+            minio_client=minio_client,
+            scene_analysis_client=scene_analysis_client,
+            semantic_memory_client=semantic_memory_client,
         )
         app.state.cts_runtime = cts_runtime
         # Expose individual subscribers for tests / diagnostics.
         app.state.dementia_signal_subscriber = cts_runtime.dementia_signal_subscriber
         app.state.tracking_event_subscriber = cts_runtime.tracking_event_subscriber
         app.state.identity_revision_subscriber = cts_runtime.identity_revision_subscriber
+        app.state.scene_sample_subscriber = cts_runtime.scene_sample_subscriber
         await cts_runtime.start()
 
         # -- PresenceService (Block 2: HaStateCache + HA providers) --------
@@ -572,6 +593,7 @@ def create_app() -> FastAPI:
     from backend.routers import (
         activities,
         admin,
+        admin_metrics,
         alerts,
         conversations,
         cts,
@@ -632,6 +654,9 @@ def create_app() -> FastAPI:
     # WebSocket routers (no /api/v1 prefix).
     app.include_router(ws.router)
     app.include_router(cts_live.router)
+
+    # Prometheus metrics (no auth)
+    app.include_router(admin_metrics.router)
 
     # Health check (no auth required)
     @app.get("/api/v1/health")

@@ -20,6 +20,7 @@ from backend.services.cts.identity_revision_subscriber import IdentityRevisionSu
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.location_repository import SqlAlchemyLocationRepository
 from backend.services.cts.location_writer import LocationWriter
+from backend.services.cts.scene_sample_subscriber import SceneSampleSubscriber
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.subscriber import DementiaSignalSubscriber
@@ -59,6 +60,9 @@ class CTSRuntime:
         db_factory,
         ws_manager: Any = None,
         pipeline: Any = None,
+        minio_client: Any = None,
+        scene_analysis_client: Any = None,
+        semantic_memory_client: Any = None,
     ) -> None:
         self._cfg = config
         self._db_factory = db_factory
@@ -95,11 +99,20 @@ class CTSRuntime:
             store=self.signal_store,
             pipeline=pipeline,
         )
+        self.scene_sample_subscriber = SceneSampleSubscriber(
+            redis_url=config.redis_url,
+            consumer_id=config.consumer_id,
+            minio_client=minio_client,
+            scene_analysis_client=scene_analysis_client,
+            semantic_memory_client=semantic_memory_client,
+            db_factory=db_factory,
+        )
 
         self._bundles: list[_SubscriberBundle] = [
             _SubscriberBundle(name="tracking_events", subscriber=self.tracking_event_subscriber),
             _SubscriberBundle(name="identity_revisions", subscriber=self.identity_revision_subscriber),
             _SubscriberBundle(name="dementia_signals", subscriber=self.dementia_signal_subscriber),
+            _SubscriberBundle(name="scene_samples", subscriber=self.scene_sample_subscriber),
         ]
 
     # -- lifecycle ----------------------------------------------------------

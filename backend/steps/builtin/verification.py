@@ -179,8 +179,8 @@ class VerificationHandler(StepHandler):
                 )
 
             activities: list[dict] = []
-            if services.person_tracking:
-                activities = await services.person_tracking.query_activities_in_window(
+            if services.activity:
+                activities = await services.activity.query_in_window(
                     person_id=person_id or None,
                     activity_type=activity_type,
                     within_minutes=within_minutes,

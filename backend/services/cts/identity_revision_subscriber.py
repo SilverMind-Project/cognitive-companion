@@ -13,6 +13,7 @@ from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
+from backend.services.cts import metrics
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -60,6 +61,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
             message = tracking_pb2.IdentityRevision.FromString(payload)
         except Exception:
             logger.exception("revision_proto_decode_error", message_id=message_id)
+            metrics.cts_revisions_decode_errors.inc()
             return None
 
         if not message.revision_id or not message.global_track_id:
@@ -93,11 +95,15 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         }
 
     async def handle(self, revision: dict[str, Any]) -> bool:
+        metrics.cts_revisions_received.inc()
         try:
             result = await self._rewriter.apply(revision)
         except Exception:
             logger.exception("identity_revision_apply_error", revision=revision)
+            metrics.cts_revisions_dropped.inc()
             return False
+
+        metrics.cts_revisions_persisted.inc()
 
         if self._pipeline is not None:
             try:

@@ -19,6 +19,7 @@ from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
+from backend.services.cts import metrics
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -70,6 +71,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             message = tracking_pb2.TrackingEvent.FromString(payload)
         except Exception:
             logger.exception("tracking_event_proto_decode_error", message_id=message_id)
+            metrics.cts_events_decode_errors.inc()
             return None
 
         # MAP identities live on IdentityRevision sub-messages; the top
@@ -130,11 +132,17 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
     async def handle(self, event: dict[str, Any]) -> bool:
         """Apply the event to CC location state."""
+        camera_id = event.get("camera_id", "unknown")
+        metrics.cts_events_received.labels(event_type=camera_id).inc()
+
         try:
             touched = await self._writer.apply(event)
         except Exception:
             logger.exception("tracking_event_apply_error", camera=event.get("camera_id"))
+            metrics.cts_events_dropped.labels(event_type=camera_id).inc()
             return False
+
+        metrics.cts_events_persisted.labels(event_type=camera_id).inc()
 
         if self._ws_manager is not None and event.get("detections"):
             try:

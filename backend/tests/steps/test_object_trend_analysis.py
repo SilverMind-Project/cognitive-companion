@@ -152,7 +152,7 @@ class TestMetadata:
     def test_metadata(self):
         meta = _HANDLER.metadata()
         assert meta.type_name == "object_trend_analysis"
-        assert meta.display_name == "Object Trend Analysis"
+        assert meta.display_name == "Room Trend Query"
         assert meta.category == "perception"
         assert meta.icon == "mdi-chart-line"
 

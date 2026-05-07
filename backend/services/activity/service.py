@@ -160,6 +160,31 @@ class ActivityService:
     # Query helpers
     # ------------------------------------------------------------------
 
+    async def query_in_window(
+        self,
+        *,
+        person_id: str | None = None,
+        activity_type: str,
+        window_start: datetime | None = None,
+        window_end: datetime | None = None,
+        within_minutes: float | None = None,
+        min_confidence: float = 0.0,
+        room_name: str | None = None,
+    ) -> list[dict]:
+        """Query activities within a time window.
+
+        Delegates to :meth:`PersonTrackingService.query_activities_in_window`.
+        """
+        return await self._person_tracking.query_activities_in_window(
+            person_id=person_id,
+            activity_type=activity_type,
+            window_start=window_start,
+            window_end=window_end,
+            within_minutes=within_minutes,
+            min_confidence=min_confidence,
+            room_name=room_name,
+        )
+
     async def query_recent(
         self,
         *,

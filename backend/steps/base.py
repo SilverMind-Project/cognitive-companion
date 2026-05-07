@@ -67,7 +67,7 @@ class ServiceContainer:
     """
 
     db_factory: Callable
-    person_tracking: Any = None  # DEPRECATED, use services.activity; removed in next minor release
+    person_tracking: Any = None  # Used by person_identification; for activity ops use services.activity
     person_id_client: Any = None
     notification_dispatcher: Any = None
     ha_client: Any = None
@@ -78,7 +78,6 @@ class ServiceContainer:
     ha_state_cache: Any = None  # HaStateCache (Block 2)
     presence: Any = None  # PresenceService (Block 1)
     scene_analysis_client: Any = None
-    activity_session_service: Any = None  # DEPRECATED, use services.activity; removed in next minor release
     daily_report_service: Any = None
     semantic_memory_client: Any = None
     interactive_response_service: Any = None

@@ -164,16 +164,24 @@ def infer_room_transition(
     if not sensor_config:
         return None
 
-    movement_map: dict[str, Any] = sensor_config.get("movement_map") or {}
-    if not movement_map:
+    movement_map_raw = sensor_config.get("movement_map") or {}
+    if not movement_map_raw:
         return None
 
-    mapping = movement_map.get(direction_raw)
-    if not mapping or not isinstance(mapping, dict):
+    from backend.schemas.sensor_config import validate_movement_map
+
+    parsed = validate_movement_map(movement_map_raw)
+    if parsed is None:
         return None
 
-    semantic: str = mapping.get("semantic", "")
-    if semantic not in _VALID_SEMANTICS:
+    # Look up the mapping for this direction using the alias.
+    entry = None
+    for field_name, field_info in type(parsed).model_fields.items():
+        if field_info.alias == direction_raw:
+            entry = getattr(parsed, field_name)
+            break
+
+    if entry is None:
         return None
 
     return RoomTransition(
@@ -181,10 +189,10 @@ def infer_room_transition(
         person_name=person_name,
         sensor_id=sensor_id,
         direction_raw=direction_raw,
-        semantic=semantic,
-        from_room_id=mapping.get("from_room_id"),
-        from_room_name=mapping.get("from_room_name"),
-        to_room_id=mapping.get("to_room_id"),
-        to_room_name=mapping.get("to_room_name"),
+        semantic=entry.semantic,
+        from_room_id=entry.from_room_id,
+        from_room_name=entry.from_room_name,
+        to_room_id=entry.to_room_id,
+        to_room_name=entry.to_room_name,
         confidence=confidence,
     )

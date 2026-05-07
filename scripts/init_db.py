@@ -37,7 +37,7 @@ def get_db_params() -> dict[str, str]:
         "port": os.getenv("POSTGRES_PORT", "5432"),
         "user": os.getenv("POSTGRES_USER"),
         "password": os.getenv("POSTGRES_PASSWORD"),
-        "dbname": os.getenv("POSTGRES_DB", "cognitive-companion"),
+        "dbname": os.getenv("POSTGRES_DB", "cognitive_companion"),
     }
     
     if not params["user"]:

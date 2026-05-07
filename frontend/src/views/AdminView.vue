@@ -39,6 +39,12 @@
         <v-list-item rounded="lg" prepend-icon="mdi-image-search-outline" title="Keyframes" to="/admin/cts/keyframes" />
         <v-list-item rounded="lg" prepend-icon="mdi-map-marker-radius" title="Presence Fusion" to="/admin/cts/presence" />
 
+        <v-list-subheader class="mt-2">Knowledge</v-list-subheader>
+        <v-list-item rounded="lg" prepend-icon="mdi-file-document-outline" title="Documents" to="/admin/knowledge/documents" />
+        <v-list-item rounded="lg" prepend-icon="mdi-card-text-outline" title="Info Cards" to="/admin/knowledge/info-cards" />
+        <v-list-item rounded="lg" prepend-icon="mdi-help-box-outline" title="Quizzes" to="/admin/knowledge/quizzes" />
+        <v-list-item rounded="lg" prepend-icon="mdi-chart-bar" title="Interactions" to="/admin/knowledge/interactions" />
+
         <v-list-subheader class="mt-2">People</v-list-subheader>
         <v-list-item rounded="lg" prepend-icon="mdi-account-group-outline" title="Members &amp; Enrollment" to="/admin/persons" />
         <v-list-item rounded="lg" prepend-icon="mdi-run" title="Activities" to="/admin/activities" />

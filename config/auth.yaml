@@ -93,6 +93,21 @@ permission_map:
     - "GET /api/v1/cts/presence/*"
     - "GET /api/v1/cts/presence-config"
     - "POST /api/v1/cts/presence-config/reload"
+    # Knowledge repository endpoints
+    - "GET /api/v1/knowledge/documents*"
+    - "POST /api/v1/knowledge/documents*"
+    - "PATCH /api/v1/knowledge/documents*"
+    - "DELETE /api/v1/knowledge/documents*"
+    - "GET /api/v1/knowledge/layouts*"
+    - "GET /api/v1/info-cards*"
+    - "POST /api/v1/info-cards*"
+    - "PATCH /api/v1/info-cards*"
+    - "DELETE /api/v1/info-cards*"
+    - "GET /api/v1/quizzes*"
+    - "POST /api/v1/quizzes*"
+    - "PATCH /api/v1/quizzes*"
+    - "DELETE /api/v1/quizzes*"
+    - "GET /api/v1/knowledge-interactions*"
 
   caregiver_admin:
     - "GET /api/v1/*"

@@ -152,19 +152,61 @@ async def lifespan(app: FastAPI):
     conversation_manager = ConversationManager(get_session)
     app.state.conversation_manager = conversation_manager
 
-    # -- RAG service -------------------------------------------------------
-    from backend.services.rag import RAGService
-
-    rag_service = RAGService()
-    rag_service.load()
-    app.state.rag_service = rag_service
-    app.state.rag_lookup = rag_service.lookup if rag_service.enabled else None
-
     # -- E-Ink renderer (internal integration) --------------------------------
     from backend.integrations.eink_renderer import EInkRenderer
 
     eink_renderer = EInkRenderer(db_session_factory=get_session)
     app.state.eink_renderer = eink_renderer
+
+    # -- Knowledge services -------------------------------------------------
+    from backend.services.knowledge.layout_registry import LayoutRegistry
+    from backend.services.knowledge.image_pipeline import ImagePipeline
+    from backend.services.knowledge.ingestion_service import KnowledgeIngestionService
+    from backend.services.knowledge.query_service import KnowledgeQueryService
+    from backend.services.knowledge.content_generation import ContentGenerationService
+    from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
+    from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
+
+    layouts_file = settings.get("knowledge.layouts_file", "config/knowledge_layouts.yaml")
+    layout_registry = LayoutRegistry.load(layouts_file)
+    app.state.layout_registry = layout_registry
+
+    voice_config_file = settings.get("knowledge.voice_config_file", "config/knowledge_voice.yaml")
+    voice_instructions = VoiceInstructionConfig.load(voice_config_file)
+    app.state.voice_instructions = voice_instructions
+
+    image_pipeline = ImagePipeline(minio_client=minio_client, layouts=layout_registry)
+    app.state.image_pipeline = image_pipeline
+
+    knowledge_ingestion = KnowledgeIngestionService(
+        db_factory=get_session,
+        minio_client=minio_client,
+        image_pipeline=image_pipeline,
+    )
+    app.state.knowledge_ingestion = knowledge_ingestion
+
+    knowledge_query = KnowledgeQueryService(db_factory=get_session)
+    app.state.knowledge_query = knowledge_query
+
+    knowledge_content_gen = ContentGenerationService(
+        db_factory=get_session,
+        llm_model_registry=llm_model_registry,
+    )
+    app.state.knowledge_content_gen = knowledge_content_gen
+
+    knowledge_delivery = KnowledgeDeliveryService(
+        db_factory=get_session,
+        ws_manager=ws_manager,
+        eink_renderer=eink_renderer,
+        voice_instructions=voice_instructions,
+        content_generation=knowledge_content_gen,
+    )
+    app.state.knowledge_delivery = knowledge_delivery
+
+    logger.info(
+        "knowledge_services_initialized",
+        layouts=[l.id for l in layout_registry.all_layouts()],
+    )
 
     # -- Notification dispatcher -------------------------------------------
     from backend.services.notification_dispatcher import NotificationDispatcher
@@ -386,6 +428,8 @@ async def lifespan(app: FastAPI):
         semantic_memory_client=semantic_memory_client,
         cts_runtime=None,  # Populated below after CTS bootstrapping.
         ws_manager=ws_manager,
+        knowledge_query=knowledge_query,
+        knowledge_delivery=knowledge_delivery,
     )
 
     # Build the Gemini tool adapter for voice tool calling
@@ -461,6 +505,16 @@ async def lifespan(app: FastAPI):
             replace_existing=True,
         )
         logger.info("telegram_trigger_service_started", poll_interval_seconds=tg_poll_interval)
+
+    # -- Knowledge re-embed retry job (Phase 5) --------------------------
+    scheduler.add_job(
+        knowledge_ingestion.reembed_stuck_documents,
+        trigger=IntervalTrigger(minutes=10),
+        id="knowledge_reembed_retry",
+        name="Retry embedding for documents stuck in uploaded status",
+        replace_existing=True,
+    )
+    logger.info("knowledge_reembed_job_scheduled", interval_minutes=10)
 
     scheduler.start()
     logger.info("Scheduler started")
@@ -569,9 +623,11 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """Build and configure the FastAPI application."""
+    from backend._version import __version__
+
     app = FastAPI(
         title="Cognitive Companion",
-        version="2.0.0",
+        version=__version__,
         description="Privacy-first AI companion for senior care",
         lifespan=lifespan,
     )
@@ -609,11 +665,16 @@ def create_app() -> FastAPI:
         events,
         ha_sync,
         image,
+        info_cards,
         interactive_responses,
+        knowledge,
+        knowledge_interactions,
+        knowledge_layouts,
         media,
         occupancy,
         persons,
         pipeline,
+        quizzes,
         rooms,
         rules,
         sensors,
@@ -641,6 +702,14 @@ def create_app() -> FastAPI:
     app.include_router(activities.router, prefix=api)
     app.include_router(webhooks.router, prefix=api)
     app.include_router(pipeline.router, prefix=api)
+    # Knowledge repository routers
+    app.include_router(knowledge.router, prefix=api)
+    app.include_router(info_cards.router, prefix=api)
+    app.include_router(quizzes.router, prefix=api)
+    app.include_router(knowledge_interactions.router, prefix=api)
+    app.include_router(knowledge_interactions.analytics_router, prefix=api)
+    app.include_router(knowledge_layouts.router, prefix=api)
+    app.include_router(knowledge_layouts.voice_defaults_router, prefix=api)
     # CTS routers: handlers return 404 when cts.enabled=false
     app.include_router(cts.router, prefix=api)
     app.include_router(cts_cameras.router, prefix=api)
@@ -661,7 +730,8 @@ def create_app() -> FastAPI:
     # Health check (no auth required)
     @app.get("/api/v1/health")
     async def health():
-        return {"status": "ok", "version": "2.0.0"}
+        from backend._version import __version__
+        return {"status": "ok", "version": __version__}
 
     # Mount the MCP protocol server (streamable HTTP transport)
     from backend.mcp.middleware import MCPAuthMiddleware

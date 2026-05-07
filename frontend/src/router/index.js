@@ -87,6 +87,32 @@ const routes = [
         component: () => import("../views/admin/EInkTemplatesView.vue"),
       },
       {
+        path: "knowledge/documents",
+        name: "admin-knowledge-documents",
+        component: () => import("../views/admin/KnowledgeDocumentsView.vue"),
+      },
+      {
+        path: "knowledge/documents/:id",
+        name: "admin-knowledge-document-edit",
+        component: () => import("../views/admin/KnowledgeDocumentEditView.vue"),
+        props: true,
+      },
+      {
+        path: "knowledge/info-cards",
+        name: "admin-info-cards",
+        component: () => import("../views/admin/InfoCardsView.vue"),
+      },
+      {
+        path: "knowledge/quizzes",
+        name: "admin-quizzes",
+        component: () => import("../views/admin/QuizzesView.vue"),
+      },
+      {
+        path: "knowledge/interactions",
+        name: "admin-knowledge-interactions",
+        component: () => import("../views/admin/KnowledgeInteractionsView.vue"),
+      },
+      {
         path: "camera-media",
         name: "admin-camera-media",
         component: () => import("../views/admin/CameraMediaView.vue"),

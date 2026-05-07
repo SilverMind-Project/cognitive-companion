@@ -112,6 +112,60 @@ class MinioClient:
         self._client.delete_object(Bucket=self.bucket, Key=object_name)
         logger.info("object_deleted", object_name=object_name)
 
+    # -- list / batch delete ---------------------------------------------------
+
+    def list_objects(self, prefix: str) -> list[str]:
+        """List all object keys under the given prefix.
+
+        Pages through truncated responses automatically. Returns an empty
+        list when the prefix does not exist or contains no objects.
+        """
+        keys: list[str] = []
+        continuation_token: str | None = None
+        while True:
+            kwargs: dict = {"Bucket": self.bucket, "Prefix": prefix}
+            if continuation_token:
+                kwargs["ContinuationToken"] = continuation_token
+            resp = self._client.list_objects_v2(**kwargs)
+            for obj in resp.get("Contents", []):
+                keys.append(obj["Key"])
+            if not resp.get("IsTruncated"):
+                break
+            continuation_token = resp.get("NextContinuationToken")
+        return keys
+
+    def delete_objects(self, object_names: list[str]) -> list[str]:
+        """Batch-delete objects. Returns names that failed to delete.
+
+        Uses S3 DeleteObjects (max 1000 per call). Idempotent -- passing
+        an empty list returns an empty failure list.
+        """
+        if not object_names:
+            return []
+        failed: list[str] = []
+        chunk_size = 1000
+        for i in range(0, len(object_names), chunk_size):
+            chunk = object_names[i : i + chunk_size]
+            delete_entries = [{"Key": name} for name in chunk]
+            resp = self._client.delete_objects(
+                Bucket=self.bucket,
+                Delete={"Objects": delete_entries, "Quiet": False},
+            )
+            for err in resp.get("Errors", []):
+                failed.append(err["Key"])
+                logger.warning(
+                    "minio_delete_object_error",
+                    key=err["Key"],
+                    code=err.get("Code", ""),
+                    message=err.get("Message", ""),
+                )
+        logger.info(
+            "minio_batch_delete",
+            requested=len(object_names),
+            failed=len(failed),
+        )
+        return failed
+
     # -- helpers --------------------------------------------------------------
 
     def extract_object_name(self, presigned_url: str) -> str:

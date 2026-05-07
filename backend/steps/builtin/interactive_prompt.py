@@ -103,6 +103,11 @@ class InteractivePromptHandler(StepHandler):
                         "default": "interactive_response",
                         "description": "Key for storing response in pipeline_data",
                     },
+                    "voice_instruction": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Prepended to the Gemini Live system instruction for this prompt. Falls back to knowledge_voice.yaml interactive_prompt_default when empty.",
+                    },
                 },
                 "anyOf": [
                     {"required": ["voice_prompt_template"]},
@@ -143,6 +148,7 @@ class InteractivePromptHandler(StepHandler):
         # Extract configuration
         voice_prompt_template = config.get("voice_prompt_template")
         popup_message_template = config.get("popup_message_template")
+        voice_instruction = config.get("voice_instruction", "")
         countdown_seconds = config.get("countdown_seconds", 30)
         timeout_action = config.get("timeout_action", "escalate")
         output_key = config.get("output_key", "interactive_response")
@@ -281,14 +287,15 @@ class InteractivePromptHandler(StepHandler):
 
             if ws_manager:
                 try:
-                    # Send voice prompt with execution context for MCP tool correlation
-                    prompt_with_context = (
-                        f"{rendered_voice_prompt}\n\n"
-                        f"[System context: execution_id={execution.id}, step_id={step.id}]"
-                    )
                     await ws_manager.send_backend_task(
-                        prompt=prompt_with_context,
+                        prompt=rendered_voice_prompt,
                         callback=None,
+                        voice_instruction=voice_instruction or None,
+                        metadata={
+                            "execution_id": execution.id,
+                            "step_id": step.id,
+                            "step_type": "interactive_prompt",
+                        },
                     )
                     voice_sent = True
                     logger.info(

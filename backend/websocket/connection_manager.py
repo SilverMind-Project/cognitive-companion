@@ -123,14 +123,29 @@ class ConnectionManager:
         prompt: str,
         callback: Callable | None = None,
         ttl_seconds: int = 300,
+        *,
+        voice_instruction: str | None = None,
+        metadata: dict | None = None,
     ) -> None:
         """Enqueue a prompt for the realtime AI backend.
 
         The prompt will be picked up by the first active audio session.
         Expires after ``ttl_seconds`` if not consumed.
+
+        Args:
+            prompt: The text to send to Gemini Live.
+            callback: Optional callback invoked on turn completion.
+            ttl_seconds: Expiry for unconsumed prompts.
+            voice_instruction: When non-empty, composed into the Gemini
+                system instruction before sending. See the unified
+                composition rule in VoiceInstructionConfig.compose().
+            metadata: Structured dict with execution_id, step_id, etc.
+                Replaces the ad-hoc [System context: ...] text annotation.
         """
         expiration = time.time() + ttl_seconds
-        await self.prompt_queue.put((prompt, callback, expiration))
+        await self.prompt_queue.put(
+            (prompt, callback, expiration, voice_instruction, metadata or {})
+        )
         logger.info("ws_backend_task_queued", queue_size=self.prompt_queue.qsize())
 
     @property

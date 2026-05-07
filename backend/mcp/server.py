@@ -62,6 +62,8 @@ class MCPServices:
     semantic_memory_client: Any = None
     cts_runtime: Any = None
     ws_manager: Any = None
+    knowledge_query: Any = None
+    knowledge_delivery: Any = None
 
 
 _svc = MCPServices()
@@ -80,6 +82,8 @@ def init_services(
     semantic_memory_client=None,
     cts_runtime=None,
     ws_manager=None,
+    knowledge_query=None,
+    knowledge_delivery=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -94,6 +98,8 @@ def init_services(
     _svc.semantic_memory_client = semantic_memory_client
     _svc.cts_runtime = cts_runtime
     _svc.ws_manager = ws_manager
+    _svc.knowledge_query = knowledge_query
+    _svc.knowledge_delivery = knowledge_delivery
 
 
 # ---------------------------------------------------------------------------
@@ -1075,3 +1081,106 @@ async def get_recent_dementia_signals(
         "person_id": person_id,
         "signals": deduped[:limit],
     }
+
+
+@_register
+async def query_knowledge_base(query: str) -> dict:
+    """Answer factual questions about the senior's life, family, biography,
+    medications, preferences, routines, and other STABLE facts that the
+    caregiver has documented.
+
+    Use this for: "How many grandchildren do I have?", "What is my
+    daughter's name?", "What medication do I take in the morning?".
+
+    Do NOT use for: today's events, current location, recent activity,
+    weather, or sensor observations. Use get_person_timeline,
+    get_daily_report, get_recent_scene_objects, or get_weather for those.
+
+    Returns {answer, source_documents, found}. When found=False, the
+    knowledge base does not have the answer; respond from another tool
+    or tell the senior you don't know.
+    """
+    import time
+    t0 = time.monotonic()
+
+    if _svc.knowledge_query is None:
+        return {"answer": "", "source_documents": [], "found": False}
+
+    result = await _svc.knowledge_query.answer(query)
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    # Log the query
+    _svc.knowledge_query.log_query(
+        result,
+        channel="voice",
+        latency_ms=latency_ms,
+    )
+
+    # Broadcast popup to companion PWA
+    if _svc.ws_manager and result.answered_via == "rag":
+        await _svc.ws_manager.broadcast({
+            "type": "knowledge_answer",
+            "query_id": -1,  # filled by log_query return; -1 is ok for ws
+            "query_text": result.query_text,
+            "answer_text": result.answer_text,
+            "source_document_ids": list(result.source_document_ids),
+            "server_timestamp": datetime.now(UTC).isoformat(),
+        })
+
+    return {
+        "answer": result.answer_text,
+        "source_documents": list(result.source_document_ids),
+        "found": result.answered_via == "rag",
+    }
+
+
+@_register
+async def submit_quiz_answer(
+    session_id: int,
+    question_ord: int,
+    choice_id: str | None = None,
+    open_ended_text: str | None = None,
+) -> dict:
+    """Record the senior's answer to the current quiz question. Use exactly
+    one of choice_id (multiple choice) or open_ended_text (free-form).
+    Always call this after the senior responds; do not skip ahead.
+    """
+    import time
+    t0 = time.monotonic()
+
+    if _svc.knowledge_delivery is None:
+        return {"error": "Delivery service not available"}
+
+    latency_ms = int((time.monotonic() - t0) * 1000)
+    result = await _svc.knowledge_delivery.submit_quiz_answer(
+        session_id=session_id,
+        question_ord=question_ord,
+        choice_id=choice_id,
+        open_ended_text=open_ended_text,
+        channel="voice",
+        latency_ms=latency_ms,
+    )
+
+    # Broadcast answer recorded to PWA
+    if _svc.ws_manager and "error" not in result:
+        await _svc.ws_manager.broadcast({
+            "type": "quiz_answer_recorded",
+            "session_id": session_id,
+            "question_ord": question_ord,
+            "is_correct": result.get("is_correct"),
+            "advance": result.get("advance", False),
+        })
+
+    return result
+
+
+@_register
+async def complete_quiz_session(session_id: int) -> dict:
+    """Finalize a quiz session when the senior says they are done or after
+    the last question is answered.
+    """
+    if _svc.knowledge_delivery is None:
+        return {"error": "Delivery service not available"}
+
+    result = _svc.knowledge_delivery.complete_quiz_session(session_id)
+    return result

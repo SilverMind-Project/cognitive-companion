@@ -802,4 +802,110 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 | Understand CTS data flow | `backend/services/cts/runtime.py`, then the four subscribers, then `services/cts/location_writer.py` |
 | Understand presence fusion | `backend/services/presence/factory.py`, `service.py`, `anchor_rules.py`, plus `config/presence.yaml` |
 | Add an external HTTP client | `backend/integrations/_http_base.py` (LAN) or `_upstream_base.py` (CTS only) |
+| Understand knowledge surface | `cc-rag.md` (design), `backend/services/knowledge/` (services), `backend/routers/knowledge*.py` (REST) |
+| Understand voice delivery | `backend/websocket/audio_handler.py`, `backend/services/knowledge/delivery_service.py` |
+| Debug embedding issues | `backend/integrations/triton_embedding_client.py`, `triton-shared/triton_shared/models/embedder.py` |
+
+---
+
+## 20. Knowledge repository operator runbook
+
+### 20.1. Triton embedding model rollover
+
+The embedding model (`embeddinggemma-300m`) runs on Triton Inference Server.
+To upgrade or replace it:
+
+1. **Deploy the new model** to the Triton model repository at the path
+   configured in `settings.yaml` (`embedding.tokenizer_path`). The model
+   directory must contain:
+   ```
+   embeddinggemma-300m/
+       config.pbtxt
+       1/model.onnx
+       1/tokenizer.json
+   ```
+
+2. **Verify the embedding dimension.** If the new model outputs a different
+   dimension (e.g. 512 instead of 768):
+   - Update `settings.yaml` → `embedding.dim` to the new value.
+   - Create a new Alembic migration that runs:
+     ```sql
+     ALTER TABLE knowledge_document_chunks ALTER COLUMN embedding TYPE VECTOR(N);
+     ```
+     where N is the new dimension.
+   - Drop and recreate the DiskANN index:
+     ```sql
+     DROP INDEX IF EXISTS knowledge_chunks_embedding_diskann;
+     CREATE INDEX knowledge_chunks_embedding_diskann
+         ON knowledge_document_chunks
+         USING diskann (embedding vector_cosine_ops);
+     ```
+   - Re-embed all documents: call `POST /api/v1/knowledge/documents/{id}/reembed`
+     for every document in `approved` or `chunked` status. A script at
+     `scripts/reembed_all.py` can batch this.
+
+3. **Verify the model is ready** before restarting CC:
+   ```bash
+   curl http://triton.nanai.khoofia.com:8001/v2/models/embeddinggemma-300m/ready
+   ```
+   Expected response: `200 OK`.
+
+4. **Monitor the re-embed job.** CC has a scheduler job
+   (`knowledge_reembed_retry`) that retries documents stuck in `uploaded`
+   status every 10 minutes. Check logs for `chunk_embed_complete` and
+   `reembed_stuck_complete` events.
+
+### 20.2. Embedding similarity threshold calibration
+
+The `knowledge.min_similarity` setting (default 0.55) controls the cosine
+similarity floor for RAG answers. If seniors are getting too many "I don't
+know" responses, lower it. If answers are inaccurate, raise it.
+
+A calibration notebook at `scripts/calibrate_similarity.py` embeds a set
+of test queries against known documents and reports the similarity
+distribution. Run it after model changes:
+```bash
+uv run python scripts/calibrate_similarity.py
+```
+
+### 20.3. Voice instruction debugging
+
+Voice instructions follow the 3-layer composition rule (section 6.5 of
+`cc-rag.md`): step override → resource column → yaml default → base only.
+
+To debug what instruction is active:
+- Check the `voice_instruction` column on `info_cards` or `quizzes`.
+- Check the step's `config_json.voice_instruction` in `pipeline_steps`.
+- Check `config/knowledge_voice.yaml` for the per-type default.
+- Check `config/settings.yaml` → `llm.realtime.system_instruction` for
+  the base instruction.
+- Structured logs emit `ws_voice_instruction_changed` when the handler
+  reconnects with a new instruction.
+
+### 20.4. pgvector index maintenance
+
+The DiskANN index on `knowledge_document_chunks.embedding` requires
+periodic reindexing after large bulk inserts. The `pgvectorscale`
+extension handles this automatically for incremental inserts, but
+after importing >1000 documents:
+
+```sql
+REINDEX INDEX CONCURRENTLY knowledge_chunks_embedding_diskann;
+```
+
+This is non-blocking and can run during normal operation.
+
+### 20.5. MinIO orphan reconciliation
+
+Image cleanup follows the DB-first, MinIO-second contract (section 6.5.5
+of `cc-rag.md`). A nightly reconciler script compares MinIO prefixes
+against DB rows:
+
+```bash
+uv run python scripts/scrub_minio_orphans.py
+```
+
+Run this after any incident where MinIO cleanup partially failed (check
+logs for `image_purge_partial` events). The `pending_image_purges` gauge
+on the admin metrics surface shows unreconciled prefixes.
 | Find the canonical config | `config/settings.yaml` (loaded fresh on every lifespan) |

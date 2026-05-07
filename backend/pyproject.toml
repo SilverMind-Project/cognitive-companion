@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "2.0.0"
+version = "0.6.83"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.11"
 license = "AGPL-3.0"
@@ -30,6 +30,9 @@ dependencies = [
     "psycopg[pool]>=3.0",
     "alembic>=1.13",
     "jmespath>=1.0",
+    "langchain-text-splitters>=0.3",
+    "pillow-heif>=0.20",
+    "pgvector>=0.3",
 ]
 
 [project.optional-dependencies]

@@ -58,19 +58,16 @@ def _make_mock_service(closed_result=None, raise_on_close=False) -> MagicMock:
         svc.close_session = MagicMock(side_effect=ValueError("No open session found"))
     else:
         svc.close_session = MagicMock(return_value=closed_result or _make_mock_close_result())
-    svc.person_tracking = MagicMock()
-    svc.person_tracking.record_activity = AsyncMock()
+    svc.record = AsyncMock()
     return svc
 
 
 def _make_services(
-    activity_session_service=None,
     person_tracking=None,
     activity=None,
 ) -> ServiceContainer:
     return ServiceContainer(
         db_factory=MagicMock(),
-        activity_session_service=activity_session_service,
         person_tracking=person_tracking,
         activity=activity,
     )
@@ -106,7 +103,7 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(svc),
+            services=_make_services(activity=svc),
         )
         assert result.success
         assert "closed_session" in result.data
@@ -122,7 +119,7 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(svc),
+            services=_make_services(activity=svc),
         )
         assert not result.success
         assert "error" in result.data["closed_session"]
@@ -148,7 +145,7 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={"logic_response": {"activity": "bathroom"}},
             trigger=_make_trigger(),
-            services=_make_services(svc),
+            services=_make_services(activity=svc),
         )
         assert result.success
         assert svc.close_session.call_args.kwargs["activity_type"] == "bathroom"
@@ -164,7 +161,7 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(svc),
+            services=_make_services(activity=svc),
         )
         assert result.success
         assert "sleep_result" in result.data
@@ -172,8 +169,6 @@ class TestExecute:
 
     async def test_writes_person_activity(self):
         svc = _make_mock_service()
-        pt = MagicMock()
-        pt.record_activity = AsyncMock()
         step = _make_step({
             "activity_type": "sleep",
             "person_id": "grandma",
@@ -184,16 +179,15 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(svc, person_tracking=pt),
+            services=_make_services(activity=svc),
         )
         assert result.success
-        pt.record_activity.assert_called_once()
-        call_kwargs = pt.record_activity.call_args.kwargs
+        svc.record.assert_called_once()
+        call_kwargs = svc.record.call_args.kwargs
         assert call_kwargs["metadata"]["duration_minutes"] == 480
 
     async def test_skips_person_activity_when_disabled(self):
         svc = _make_mock_service()
-        svc.person_tracking = MagicMock()
         step = _make_step({
             "activity_type": "sleep",
             "write_activity_record": False,
@@ -203,10 +197,10 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(svc),
+            services=_make_services(activity=svc),
         )
         assert result.success
-        svc.person_tracking.record_activity.assert_not_called()
+        svc.record.assert_not_called()
 
     async def test_result_contains_duration(self):
         svc = _make_mock_service()
@@ -216,7 +210,7 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(svc),
+            services=_make_services(activity=svc),
         )
         assert result.success
         assert result.data["closed_session"]["duration_minutes"] == 480
@@ -230,7 +224,7 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={"person_detections": [{"person_id": "grandma"}]},
             trigger=_make_trigger(),
-            services=_make_services(svc),
+            services=_make_services(activity=svc),
         )
         assert result.success
         assert svc.close_session.call_args.kwargs["person_id"] == "grandma"
@@ -243,7 +237,7 @@ class TestExecute:
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(svc),
+            services=_make_services(activity=svc),
         )
         assert result.success
         assert svc.close_session.call_args.kwargs["person_id"] == "unknown"
@@ -316,52 +310,22 @@ class TestBlock7Delegation:
             pipeline_data={},
             trigger=_make_trigger(),
             services=_make_services(
-                activity_session_service=legacy_svc,
-                person_tracking=legacy_svc.person_tracking,
                 activity=mock_svc,
             ),
         )
         assert result.success
         mock_svc.close_session.assert_called_once()
         mock_svc.record.assert_called_once()
-        legacy_svc.close_session.assert_not_called()
-        legacy_svc.person_tracking.record_activity.assert_not_called()
-
-    async def test_fallback_to_legacy_when_no_activity_service(self):
-        """Should fall back to legacy services when services.activity is None."""
-        legacy_svc = MagicMock()
-        legacy_svc.close_session = MagicMock(return_value=_make_mock_close_result())
-        legacy_svc.person_tracking = MagicMock()
-        legacy_svc.person_tracking.record_activity = AsyncMock()
-        step = _make_step({
-            "activity_type": "sleep",
-            "person_id": "grandma",
-            "write_activity_record": True,
-        })
-        result = await handler.execute(
-            step=step,
-            execution=_FakeExecution(),
-            pipeline_data={},
-            trigger=_make_trigger(),
-            services=_make_services(
-                activity_session_service=legacy_svc,
-                person_tracking=legacy_svc.person_tracking,
-                activity=None,
-            ),
-        )
-        assert result.success
-        legacy_svc.close_session.assert_called_once()
-        legacy_svc.person_tracking.record_activity.assert_called_once()
 
     async def test_no_service_returns_error(self):
-        """Should return error when neither services.activity nor legacy services are available."""
+        """Should return error when services.activity is None."""
         step = _make_step({"activity_type": "sleep"})
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(activity=None, activity_session_service=None),
+            services=_make_services(activity=None),
         )
         assert result.success
         assert "error" in result.data["closed_session"]

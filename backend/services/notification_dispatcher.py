@@ -14,6 +14,10 @@ from backend.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+class UnknownChannelError(ValueError):
+    """Raised when a rule references a channel name not in the registry."""
+
+
 @dataclass
 class DispatchServices:
     """Bag of services passed to channel plugins during dispatch."""

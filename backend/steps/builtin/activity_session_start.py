@@ -25,8 +25,6 @@ from backend.steps.base import (
 
 logger = get_logger(__name__)
 
-_session_legacy_warned = False
-
 
 @StepRegistry.register
 class ActivitySessionStartHandler(StepHandler):
@@ -185,36 +183,9 @@ class ActivitySessionStartHandler(StepHandler):
 
         output_key = (config.get("output_key", "session") or "session").strip() or "session"
 
-        global _session_legacy_warned
-
         if services.activity:
             try:
                 result = services.activity.open_session(
-                    person_id=person_id,
-                    activity_type=activity_type,
-                    room_name=room_name,
-                    confidence=confidence,
-                    started_at=datetime.now(UTC),
-                    start_event_id=execution.event_log_id,
-                    timeout_minutes=timeout_minutes,
-                    metadata=metadata or None,
-                )
-            except Exception:
-                logger.exception(
-                    "session_start_error",
-                    person_id=person_id,
-                    activity_type=activity_type,
-                )
-                return StepResult(
-                    success=False,
-                    data={output_key: {"error": "failed to open activity session"}},
-                )
-        elif services.activity_session_service:
-            if not _session_legacy_warned:
-                logger.warning("activity_step_legacy_path", step="activity_session_start")
-                _session_legacy_warned = True
-            try:
-                result = services.activity_session_service.open_session(
                     person_id=person_id,
                     activity_type=activity_type,
                     room_name=room_name,

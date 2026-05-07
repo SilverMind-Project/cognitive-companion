@@ -6,7 +6,7 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 
 ## What this is
 
-Privacy-first, on-premise AI for senior care. Python 3.12 FastAPI backend, Vue 3 + Vuetify frontend, PostgreSQL 17, plugin-based per-rule pipelines. The backend is also the BFF gateway for sibling services in the monorepo: `person-identification-service`, `scene-analysis-service`, `semantic-memory-service`, `tts-service`, and the `continuous-tracking/` family.
+Privacy-first, on-premise AI for senior care. Python 3.12 FastAPI backend, Vue 3 + Vuetify frontend, PostgreSQL 18 (shared `timescale/timescaledb-ha:pg18` instance), plugin-based per-rule pipelines. The backend is also the BFF gateway for sibling services in the monorepo: `person-identification-service`, `scene-analysis-service`, `semantic-memory-service`, `tts-service`, and the `continuous-tracking/` family.
 
 ---
 
@@ -60,7 +60,8 @@ docker compose up -d
 - **Schema changes go through Alembic.** `make migration` then `make migrate`. `Database.create_all()` is for tests and dev only.
 - **Permissions are mandatory.** Every endpoint needs an `auth.yaml` entry. Tests override `get_auth_context`, not `require_permission`.
 - **Datetimes are timezone-aware.** Use `datetime.now(UTC)`. External datetimes pass through `backend.core.time.normalize_utc_datetime()`.
-- **CTS surface is isolated.** Don't write CTS tables outside `services/cts/`. Don't import `_upstream_base` from non-CTS code. Don't subscribe to `tracking.*` streams outside `CTSRuntime`.
+- **Shared PostgreSQL.** The database host, port, user, password, and name come from `CC_DB_*` env vars (not `POSTGRES_*`). The shared `timescale/timescaledb-ha:pg18` instance hosts three databases: `cognitive_companion`, `continuous_tracking`, `semantic_memory`. The init script is at `scripts/db/init-databases.sh`. Dev: `docker compose --profile standalone up -d` for a self-contained Postgres, or use the shared `docker-compose.db.yml` via `include`.
+- **CTS surface is isolated.** Don't write CTS tables outside `services/cts/`. Don't import `_upstream_base` from non-CTS code. Don't subscribe to `tracking.*` or `scene.*` streams outside `CTSRuntime`.
 - **No em-dashes in `.md` files.** Use colons, commas, semicolons.
 
 ---
@@ -90,9 +91,9 @@ class YourStepHandler(StepHandler):
 
 ---
 
-## Step types currently registered (19)
+## Step types currently registered (18)
 
-`llm_call`, `person_identification`, `scene_analysis`, `object_trend_analysis`, `semantic_memory_query`, `semantic_memory_write`, `presence_query`, `tracking_query` (deprecated), `home_state`, `notification`, `ha_action`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report`, `verification`, `condition`, `wait`, `interactive_prompt`. Full descriptions in AGENTS.md section 6.
+`llm_call`, `person_identification`, `scene_analysis`, `object_trend_analysis`, `semantic_memory_query`, `semantic_memory_write`, `presence_query`, `home_state`, `notification`, `ha_action`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report`, `verification`, `condition`, `wait`, `interactive_prompt`. Full descriptions in AGENTS.md section 6.
 
 ## Channels (7)
 
@@ -146,6 +147,7 @@ Full do-not list: AGENTS.md section 19.
 
 | Service | Env var | Required |
 | --- | --- | --- |
+| PostgreSQL (shared) | `POSTGRES_HOST`, `POSTGRES_PORT`, `CC_DB_USER`, `CC_DB_PASSWORD`, `POSTGRES_DB` | Required |
 | Person Identification | `PERSON_ID_SERVICE_URL` | Face recognition |
 | Scene Analysis | `SCENE_ANALYSIS_URL` | Optional |
 | Semantic Memory | `SEMANTIC_MEMORY_URL` | Optional |

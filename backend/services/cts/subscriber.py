@@ -18,6 +18,7 @@ from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import signals_pb2
+from backend.services.cts import metrics
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -85,6 +86,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
             message = signals_pb2.DementiaSignal.FromString(payload)
         except Exception:
             logger.warning("dementia_signal_proto_decode_error", message_id=message_id)
+            metrics.cts_signals_decode_errors.inc()
             return None
 
         kind = _PROTO_KIND_TO_STR.get(message.kind)
@@ -121,15 +123,19 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
         }
 
     async def handle(self, signal: dict[str, Any]) -> bool:
+        kind = signal.get("signal_type", "unknown")
+        metrics.cts_signals_received.labels(signal_kind=kind).inc()
+
         try:
             signal_id = await self._store.insert(signal)
             logger.info(
                 "dementia_signal_stored",
                 signal_id=signal_id,
-                signal_type=signal["signal_type"],
+                signal_type=kind,
                 person_id=signal["person_id"],
                 severity=signal["severity"],
             )
+            metrics.cts_signals_persisted.labels(signal_kind=kind).inc()
 
             if self._pipeline is not None:
                 try:
@@ -138,7 +144,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
                         kind="dementia_signal",
                         payload={
                             "signal_id": signal_id,
-                            "signal_kind": signal["signal_type"],
+                            "signal_kind": kind,
                             "person_id": signal["person_id"],
                             "severity": signal["severity"],
                             "window_start": signal["window_start"],
@@ -150,6 +156,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
                     logger.exception("dementia_signal_pipeline_fire_error")
         except Exception:
             logger.exception("dementia_signal_handle_error")
+            metrics.cts_signals_dropped.labels(signal_kind=kind).inc()
             return False
 
         return True

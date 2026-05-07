@@ -2525,7 +2525,7 @@ const STEP_LABELS = {
   activity_session_start: "Start Activity Session",
   activity_session_end: "End Activity Session",
   daily_report: "Generate Daily Report",
-  object_trend_analysis: "Object Trend Analysis",
+  object_trend_analysis: "Room Trend Query",
   scene_analysis: "Scene Analysis",
 };
 

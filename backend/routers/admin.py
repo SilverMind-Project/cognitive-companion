@@ -9,7 +9,7 @@ import copy
 import re
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.config import settings
@@ -53,16 +53,33 @@ async def app_info():
     timezone field to format all displayed timestamps in the operator-configured
     local timezone rather than the browser's timezone.
 
-    Also exposes health-check URLs for Scene Analysis and Semantic Memory
-    services so the dashboard can render status tiles.
+    Includes service status information for the admin dashboard tiles.
     """
     return {
         "name": settings.get("app.name", "Cognitive Companion"),
         "version": settings.get("app.version", "2.0.0"),
         "timezone": settings.get("app.timezone", "UTC"),
-        "health_urls": {
-            "scene_analysis": "/admin/health/scene-analysis",
-            "semantic_memory": "/admin/health/semantic-memory",
+        "services": {
+            "person_id": {
+                "enabled": bool(settings.get("person_id.url")),
+                "health_url": "/admin/health/person-id",
+            },
+            "scene_analysis": {
+                "enabled": bool(settings.get("scene_analysis.url")),
+                "health_url": "/admin/health/scene-analysis",
+            },
+            "semantic_memory": {
+                "enabled": bool(settings.get("semantic_memory.url")),
+                "health_url": "/admin/health/semantic-memory",
+            },
+            "tts": {
+                "enabled": bool(settings.get("tts.url")),
+                "health_url": "/admin/health/tts",
+            },
+            "tracking_orchestrator": {
+                "enabled": bool(settings.get("tracking_orchestrator.url")),
+                "health_url": "/admin/health/tracking-orchestrator",
+            },
         },
     }
 
@@ -210,3 +227,45 @@ def telegram_trigger_defaults(
     return {
         "allowed_chat_ids": [str(c) for c in raw_ids if c],
     }
+
+
+@router.get("/notification-channels/audit")
+async def channel_audit(
+    request: Request,
+    _auth: AuthContext = Depends(require_permission("admin")),
+):
+    """Audit pipeline steps for unknown notification channel names.
+
+    Scans every PipelineStep.config_json for a ``channels`` array
+    and reports entries not in the current ChannelRegistry.
+    """
+    from backend.channels import ChannelRegistry
+    from backend.models.pipeline import PipelineStep
+
+    db = request.app.state.db_factory()
+    try:
+        registered = {m.channel_name for m in ChannelRegistry.all_metadata()}
+        rows = db.query(PipelineStep).all()
+        issues: list[dict] = []
+
+        for row in rows:
+            config = row.config_json or {}
+            step_channels = config.get("channels") or []
+            if isinstance(step_channels, str):
+                step_channels = [step_channels]
+            unknown = [ch for ch in step_channels if ch not in registered]
+            if unknown:
+                issues.append({
+                    "step_id": row.id,
+                    "step_type": row.step_type,
+                    "rule_id": row.rule_id,
+                    "unknown_channels": unknown,
+                })
+
+        return {
+            "registered_channels": sorted(registered),
+            "issues": issues,
+            "issue_count": len(issues),
+        }
+    finally:
+        db.close()

@@ -52,13 +52,14 @@ class ObjectTrendAnalysisHandler(StepHandler):
     def metadata(cls) -> StepMetadata:
         return StepMetadata(
             type_name="object_trend_analysis",
-            display_name="Object Trend Analysis",
+            display_name="Room Trend Query",
             category="perception",
             icon="mdi-chart-line",
             description=(
-                "Query the semantic-memory-service for room-level object "
-                "trend state: clutter scores, persistent/novel objects, "
-                "and anomaly severity."
+                "Query the semantic-memory-service for room-level trend state "
+                "(clutter score, persistent objects, novel objects, anomaly "
+                "severity). Use Semantic Memory Query if you also need recent "
+                "observations or hazard flags."
             ),
             config_schema={
                 "type": "object",

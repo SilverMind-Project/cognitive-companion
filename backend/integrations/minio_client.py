@@ -94,6 +94,17 @@ class MinioClient:
         )
         return url
 
+    # -- download --------------------------------------------------------------
+
+    def get_object(self, object_name: str) -> bytes | None:
+        """Download an object's body as raw bytes, or None on failure."""
+        try:
+            resp = self._client.get_object(Bucket=self.bucket, Key=object_name)
+            return resp["Body"].read()
+        except (ClientError, KeyError) as exc:
+            logger.warning("minio_get_object_error", object_name=object_name, error=str(exc))
+            return None
+
     # -- delete ---------------------------------------------------------------
 
     def delete_object(self, object_name: str) -> None:

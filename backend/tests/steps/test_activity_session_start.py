@@ -57,10 +57,9 @@ def _make_mock_service() -> MagicMock:
     return svc
 
 
-def _make_services(activity_session_service=None, activity=None) -> ServiceContainer:
+def _make_services(activity=None) -> ServiceContainer:
     return ServiceContainer(
         db_factory=MagicMock(),
-        activity_session_service=activity_session_service,
         activity=activity,
     )
 
@@ -355,69 +354,18 @@ class TestBlock7Delegation:
         assert result.data["session"]["session_id"] == "grandma_sleep_2026-05-05T01:00:00"
         mock_svc.open_session.assert_called_once()
 
-    async def test_activity_takes_precedence_over_legacy(self):
-        """When both services.activity and activity_session_service are set, use activity."""
-        mock_svc = MagicMock()
-        mock_svc.open_session = MagicMock(
-            return_value=MagicMock(
-                session_id="activity_svc_result",
-                person_id="grandma",
-                activity_type="sleep",
-                room_name="Bedroom",
-                opened_at=datetime.now(UTC),
-                timeout_minutes=720,
-                was_existing=False,
-            )
-        )
-        legacy_svc = MagicMock()
-        legacy_svc.open_session = MagicMock(
-            return_value=MagicMock(
-                session_id="legacy_result",
-                person_id="grandma",
-                activity_type="sleep",
-                room_name="Bedroom",
-                opened_at=datetime.now(UTC),
-                timeout_minutes=720,
-                was_existing=False,
-            )
-        )
+    async def test_no_activity_service_returns_error(self):
+        """Should return error when services.activity is None."""
         step = _make_step({"activity_type": "sleep"})
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
             pipeline_data={},
             trigger=_make_trigger(),
-            services=_make_services(activity_session_service=legacy_svc, activity=mock_svc),
+            services=_make_services(activity=None),
         )
         assert result.success
-        assert result.data["session"]["session_id"] == "activity_svc_result"
-        legacy_svc.open_session.assert_not_called()
-
-    async def test_fallback_to_legacy_when_no_activity_service(self):
-        """Should fall back to activity_session_service when services.activity is None."""
-        legacy_svc = MagicMock()
-        legacy_svc.open_session = MagicMock(
-            return_value=MagicMock(
-                session_id="legacy_result",
-                person_id="grandma",
-                activity_type="sleep",
-                room_name="Bedroom",
-                opened_at=datetime.now(UTC),
-                timeout_minutes=720,
-                was_existing=False,
-            )
-        )
-        step = _make_step({"activity_type": "sleep"})
-        result = await handler.execute(
-            step=step,
-            execution=_FakeExecution(),
-            pipeline_data={},
-            trigger=_make_trigger(),
-            services=_make_services(activity_session_service=legacy_svc, activity=None),
-        )
-        assert result.success
-        assert result.data["session"]["session_id"] == "legacy_result"
-        legacy_svc.open_session.assert_called_once()
+        assert "error" in result.data.get("session", {})
 
     async def test_error_returns_failure(self):
         """Should return failure when services.activity raises."""

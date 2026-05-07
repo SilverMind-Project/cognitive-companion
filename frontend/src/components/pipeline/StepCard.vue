@@ -141,12 +141,11 @@ const STEP_LABELS = {
   interactive_prompt: "Interactive Prompt",
   llm_call: "LLM Call",
   notification: "Notification",
-  object_trend_analysis: "Object Trend Analysis",
+  object_trend_analysis: "Room Trend Query",
   person_identification: "Person Identification",
   scene_analysis: "Scene Analysis",
   semantic_memory_query: "Memory Query",
   semantic_memory_write: "Memory Write",
-  tracking_query: "Tracking Query",
   verification: "Verify Activity",
   wait: "Wait",
 };

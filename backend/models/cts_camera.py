@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, String, func
+from sqlalchemy import JSON, Boolean, Float, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -25,6 +25,11 @@ class CtsCamera(Base):
     rtsp_url: Mapped[str] = mapped_column(String(1024), default="")
     location: Mapped[str] = mapped_column(String(256), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Face identification: set to false for top-down cameras where faces
+    # are never visible.  min_confidence overrides the orchestrator default.
+    face_id_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    face_id_min_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # MinIO object key for the floor-plan image (optional).
     floor_plan_key: Mapped[str | None] = mapped_column(String(512), nullable=True)

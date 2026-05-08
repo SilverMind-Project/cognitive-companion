@@ -158,6 +158,11 @@ async def lifespan(app: FastAPI):
     eink_renderer = EInkRenderer(db_session_factory=get_session)
     app.state.eink_renderer = eink_renderer
 
+    # -- Embedding client ---------------------------------------------------
+    from backend.integrations.triton_embedding_client import TritonEmbeddingClient
+
+    embedding_client = TritonEmbeddingClient()
+
     # -- Knowledge services -------------------------------------------------
     from backend.services.knowledge.content_generation import ContentGenerationService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
@@ -182,10 +187,15 @@ async def lifespan(app: FastAPI):
         db_factory=get_session,
         minio_client=minio_client,
         image_pipeline=image_pipeline,
+        embedding_client=embedding_client,
     )
     app.state.knowledge_ingestion = knowledge_ingestion
 
-    knowledge_query = KnowledgeQueryService(db_factory=get_session)
+    knowledge_query = KnowledgeQueryService(
+        db_factory=get_session,
+        embedding_client=embedding_client,
+        llm_model_registry=llm_model_registry,
+    )
     app.state.knowledge_query = knowledge_query
 
     knowledge_content_gen = ContentGenerationService(
@@ -531,13 +541,13 @@ async def lifespan(app: FastAPI):
         app.state.ingress_admin_client = IngressAdminClient()
         app.state.orchestrator_client = OrchestratorClient()
 
-        redis_url = settings.get("redis.url", "redis://localhost:6379")
+        redis_url = settings.get("redis.url")
         consumer_id = settings.get("cts.consumer_id", socket.gethostname())
         cts_runtime = CTSRuntime(
             config=CTSRuntimeConfig(
                 redis_url=redis_url,
                 consumer_id=consumer_id,
-                cts_lock_s=float(settings.get("cts.lock_seconds", 60)),
+                cts_lock_s=float(settings.get("cts.lock_seconds")),
             ),
             db_factory=get_session,
             ws_manager=ws_manager,

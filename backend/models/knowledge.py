@@ -80,6 +80,7 @@ class KnowledgeDocument(Base):
             "status IN ('uploaded','chunked','approved','archived')",
             name="ck_knowledge_documents_status",
         ),
+        Index("idx_knowledge_documents_status", "status"),
     )
 
 
@@ -409,3 +410,11 @@ class SeniorKnowledgeQuery(Base):
 # tables that only need indexes, not constraints).
 Index("idx_quiz_sessions_started_at", QuizSession.started_at.desc())
 Index("idx_info_deliveries_at", InfoCardDelivery.delivered_at.desc())
+
+# StreamingDiskANN (pgvectorscale) cosine-distance index for RAG search.
+Index(
+    "idx_kdc_embedding",
+    KnowledgeDocumentChunk.embedding,
+    postgresql_using="diskann",
+    postgresql_ops={"embedding": "vector_cosine_ops"},
+)

@@ -7,13 +7,11 @@ ingestion service and surfaced as 503 to the caller.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from triton_shared.client.grpc import TritonGrpcClient
+from triton_shared.models.embedder import TextEmbedder
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
-
-if TYPE_CHECKING:
-    from triton_shared.models.embedder import TextEmbedder
 
 logger = get_logger(__name__)
 
@@ -26,13 +24,18 @@ class TritonEmbeddingClient:
     """Constructs a triton-shared TextEmbedder from settings and exposes
     typed embedding helpers.
 
-    The underlying client is lazy-initialized on first use so that the
-    app can start even when Triton is temporarily unreachable.
+    Settings are validated eagerly in ``__init__`` so that configuration
+    errors surface immediately at startup. The gRPC connection to Triton
+    is created on first use because ``__init__`` cannot be async.
     """
 
     def __init__(self) -> None:
+        self._dim: int = settings.get_required("embedding.dim")
+        self._triton_url: str = settings.get_required("embedding.triton_url")
+        self._model_name: str = settings.get_required("embedding.model_name")
+        self._tokenizer_path: str = settings.get_required("embedding.tokenizer_path")
+        self._max_seq_len: int = settings.get_required("embedding.max_seq_len")
         self._embedder: TextEmbedder | None = None
-        self._dim: int = settings.get("embedding.dim", 768)
 
     @property
     def dim(self) -> int:
@@ -42,26 +45,18 @@ class TritonEmbeddingClient:
         if self._embedder is not None:
             return self._embedder
 
-        from triton_shared.client.grpc import TritonGrpcClient
-        from triton_shared.models.embedder import TextEmbedder
-
-        triton_url = settings.get("embedding.triton_url", "") or "triton.nanai.khoofia.com:8701"
-        model_name = settings.get("embedding.model_name", "embeddinggemma-300m")
-        tokenizer_path = settings.get("embedding.tokenizer_path", "/opt/models/embeddinggemma/tokenizer.json")
-        max_seq_len = settings.get("embedding.max_seq_len", 2048)
-
-        client = TritonGrpcClient(url=triton_url)
+        client = TritonGrpcClient(url=self._triton_url)
         await client.__aenter__()
         self._embedder = TextEmbedder(
             client=client,
-            model_name=model_name,
-            tokenizer_path=tokenizer_path,
-            max_seq_len=max_seq_len,
+            model_name=self._model_name,
+            tokenizer_path=self._tokenizer_path,
+            max_seq_len=self._max_seq_len,
         )
         logger.info(
             "triton_embedding_client_initialized",
-            url=triton_url,
-            model=model_name,
+            url=self._triton_url,
+            model=self._model_name,
             dim=self._dim,
         )
         return self._embedder
@@ -79,7 +74,7 @@ class TritonEmbeddingClient:
         """Embed a batch of text chunks, respecting ``embedding.batch_size``."""
         if not texts:
             return []
-        batch_size = settings.get("embedding.batch_size", 16)
+        batch_size: int = settings.get_required("embedding.batch_size")
         all_embeddings: list[list[float]] = []
         try:
             embedder = await self._ensure_embedder()

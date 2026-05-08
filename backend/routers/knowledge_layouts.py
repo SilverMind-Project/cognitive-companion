@@ -32,15 +32,15 @@ def _slot_out(s) -> dict[str, Any]:
     }
 
 
-def _layout_out(l) -> dict[str, Any]:
+def _layout_out(lo) -> dict[str, Any]:
     return {
-        "id": l.id,
-        "display_name": l.display_name,
-        "applies_to": list(l.applies_to),
-        "surfaces": list(l.surfaces),
-        "min_images": l.min_images,
-        "max_images": l.max_images,
-        "image_slots": [_slot_out(s) for s in l.image_slots],
+        "id": lo.id,
+        "display_name": lo.display_name,
+        "applies_to": list(lo.applies_to),
+        "surfaces": list(lo.surfaces),
+        "min_images": lo.min_images,
+        "max_images": lo.max_images,
+        "image_slots": [_slot_out(s) for s in lo.image_slots],
     }
 
 
@@ -52,7 +52,7 @@ async def list_layouts(
 ):
     registry = request.app.state.layout_registry
     layouts = registry.get_for(applies_to) if applies_to else registry.all_layouts()
-    return {"layouts": [_layout_out(l) for l in layouts]}
+    return {"layouts": [_layout_out(lo) for lo in layouts]}
 
 
 @router.get("/{layout_id}")
@@ -64,7 +64,7 @@ async def get_layout(
     registry = request.app.state.layout_registry
     layout = registry.get(layout_id)
     if layout is None:
-        raise NotFoundError(f"Layout '{layout_id}' not found")
+        raise NotFoundError("Layout", layout_id)
     return _layout_out(layout)
 
 

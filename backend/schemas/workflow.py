@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
-
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 
-class WorkflowExecutionOut(BaseModel):
+class WorkflowExecutionOut(OutSchema):
     id: int
     rule_id: int
     rule_name: str | None = None
@@ -23,10 +21,8 @@ class WorkflowExecutionOut(BaseModel):
     resume_at: OptionalUTCDatetime
     error: str | None
 
-    model_config = {"from_attributes": True}
 
-
-class WorkflowExecutionListOut(BaseModel):
+class WorkflowExecutionListOut(OutSchema):
     """Lightweight version for list endpoints."""
 
     id: int
@@ -36,5 +32,3 @@ class WorkflowExecutionListOut(BaseModel):
     started_at: UTCDatetime
     completed_at: OptionalUTCDatetime = None
     updated_at: UTCDatetime
-
-    model_config = {"from_attributes": True}

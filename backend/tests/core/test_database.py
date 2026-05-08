@@ -129,18 +129,13 @@ class TestModuleFacade:
         reset_default_database()
 
     def test_init_db_with_explicit_url_replaces_default(
-        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+        self, postgres_url: str
     ) -> None:
         reset_default_database()
-        import sys
-        import types
 
-        monkeypatch.setitem(sys.modules, "backend.models", types.ModuleType("backend.models"))
-
-        db_path = tmp_path / "explicit.db"
-        init_db(f"sqlite:///{db_path}")
+        init_db(postgres_url)
         try:
             assert db_module._default_database is not None
-            assert db_module._default_database.url == f"sqlite:///{db_path}"
+            assert db_module._default_database.url == postgres_url
         finally:
             reset_default_database()

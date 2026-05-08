@@ -228,6 +228,19 @@ async function loadData() {
   }
 
   try {
+    const th = await api.tritonHealth();
+    if (!th.configured) {
+      services.push({ name: "Triton Inference Server", ok: false, detail: "Not configured" });
+    } else if (th.status === "unreachable") {
+      services.push({ name: "Triton Inference Server", ok: false, detail: "Unreachable" });
+    } else {
+      services.push({ name: "Triton Inference Server", ok: th.status === "ready", detail: th.status === "ready" ? "Ready" : "Not ready" });
+    }
+  } catch {
+    services.push({ name: "Triton Inference Server", ok: false, detail: "Unreachable" });
+  }
+
+  try {
     const sa = await api.sceneAnalysisHealth();
     if (!sa.configured) {
       services.push({ name: "Scene Analysis", ok: false, detail: "Not configured" });

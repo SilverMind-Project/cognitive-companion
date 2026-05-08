@@ -3,8 +3,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
 from backend.core.auth import AuthContext
 from backend.core.database import Base, get_db
 from backend.core.exceptions import register_exception_handlers

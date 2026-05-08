@@ -5,6 +5,16 @@ Used by ``presence_query.py`` and ``home_state.py`` for person-resolution logic.
 
 from __future__ import annotations
 
+from backend.steps.base import TriggerContext
+
+
+def make_trigger_vars(trigger: TriggerContext) -> dict[str, str]:
+    """Build the standard ``trigger_vars`` dict for template rendering."""
+    return {
+        "room_name": trigger.room_name or "",
+        "sensor_id": trigger.sensor_id or "",
+    }
+
 
 def resolve_person_id(config: dict, pipeline_data: dict) -> str | None:
     """Resolve a person_id from step config or upstream pipeline data.

@@ -8,17 +8,6 @@ from backend.models.event import EventLog
 from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
 from backend.models.interactive_response import InteractiveResponse
-from backend.models.media_cache import MediaCache
-from backend.models.person import (
-    ActivitySession,
-    ActivityTypeEnum,
-    DailyReport,
-    HouseholdMember,
-    PersonActivity,
-    PersonLocationHistory,
-    PersonLocationState,
-    PersonSighting,
-)
 from backend.models.knowledge import (
     InfoCard,
     InfoCardDelivery,
@@ -31,6 +20,17 @@ from backend.models.knowledge import (
     QuizResponse,
     QuizSession,
     SeniorKnowledgeQuery,
+)
+from backend.models.media_cache import MediaCache
+from backend.models.person import (
+    ActivitySession,
+    ActivityTypeEnum,
+    DailyReport,
+    HouseholdMember,
+    PersonActivity,
+    PersonLocationHistory,
+    PersonLocationState,
+    PersonSighting,
 )
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.models.room import Room

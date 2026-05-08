@@ -17,7 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.core.database import Base
+from backend.core.database import Base, TimestampMixin
 from backend.core.time import UTCDateTime
 
 
@@ -46,8 +46,7 @@ class DailyReportStatus(StrEnum):
     failed = "failed"
 
 
-class HouseholdMember(Base):
-    """A registered member of the household."""
+class HouseholdMember(Base, TimestampMixin):
 
     __tablename__ = "household_members"
 
@@ -56,10 +55,6 @@ class HouseholdMember(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        UTCDateTime(), onupdate=func.now(), nullable=True
-    )
 
     sightings: Mapped[list[PersonSighting]] = relationship(back_populates="person")
     location_state: Mapped[PersonLocationState | None] = relationship(

@@ -6,10 +6,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 
-class PersonActivityOut(BaseModel):
+class PersonActivityOut(OutSchema):
     id: int
     person_id: str
     activity_type: str
@@ -17,13 +17,11 @@ class PersonActivityOut(BaseModel):
     detected_at: UTCDatetime
     confidence: float
 
-    model_config = {"from_attributes": True}
-
 
 # -- Activity Session Schemas -------------------------------------------------
 
 
-class ActivitySessionOut(BaseModel):
+class ActivitySessionOut(OutSchema):
     """Output schema for activity session."""
 
     session_id: str
@@ -36,8 +34,6 @@ class ActivitySessionOut(BaseModel):
     timeout_minutes: int | None
     duration_minutes: int | None
     observation_id: int | None
-
-    model_config = {"from_attributes": True}
 
 
 class ActivitySessionOpenResult(BaseModel):

@@ -8,6 +8,7 @@ from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
+from backend.steps._helpers import make_trigger_vars
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -33,10 +34,7 @@ def _format_channel_message(
     """
     if not template:
         return base_message
-    trigger_vars = {
-        "room_name": trigger.room_name or "",
-        "sensor_id": trigger.sensor_id or "",
-    }
+    trigger_vars = make_trigger_vars(trigger)
     # Inject base_message under the 'message' key for convenience
     extra: dict = {"message": base_message}
     merged = {**pipeline_data, **extra}

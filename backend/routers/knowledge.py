@@ -7,17 +7,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
-from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
-from backend.core.database import get_db
-from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
+from backend.core.exceptions import NotFoundError
 from backend.schemas.knowledge import (
-    KnowledgeDocumentCreate,
-    KnowledgeDocumentImageOut,
     KnowledgeDocumentImageUpdate,
     KnowledgeDocumentListOut,
-    KnowledgeDocumentOut,
     KnowledgeDocumentUpdate,
 )
 from backend.services.knowledge.ingestion_service import KnowledgeIngestionService
@@ -102,7 +97,7 @@ async def get_document(
     ingestion = _get_ingestion(request)
     doc = ingestion.get_document(doc_id)
     if doc is None:
-        raise NotFoundError(f"Knowledge document {doc_id} not found")
+        raise NotFoundError("Knowledge document", doc_id)
     return _doc_out(doc, request.app.state.minio_client)
 
 
@@ -161,13 +156,12 @@ async def delete_document(
     _auth: None = Depends(require_permission("DELETE /api/v1/knowledge/documents")),
 ):
     ingestion = _get_ingestion(request)
-    minio = request.app.state.minio_client
+    _ = request.app.state.minio_client  # ensure MinIO is available
     try:
         ingestion.delete_document(doc_id)
     except NotFoundError as e:
         raise e
     # Purge MinIO prefix after successful DB delete
-    from backend.services.knowledge.image_pipeline import ImagePipeline  # local to avoid circular import
     pipeline = request.app.state.image_pipeline
     await pipeline.purge_prefix(f"knowledge/{doc_id}/")
 
@@ -182,7 +176,7 @@ async def reembed_document(
     ingestion = _get_ingestion(request)
     doc = ingestion.get_document(doc_id)
     if doc is None:
-        raise NotFoundError(f"Knowledge document {doc_id} not found")
+        raise NotFoundError("Knowledge document", doc_id)
 
     # Reset to uploaded and re-chunk (update_document handles _chunk_and_embed internally)
     updated = await ingestion.update_document(doc_id, source_text=doc.source_text)

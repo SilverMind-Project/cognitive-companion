@@ -4,14 +4,20 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from backend.schemas.common import UTCDatetime
+from backend.schemas.common import OutSchema, UTCDatetime
 
 
-class RoomCreate(BaseModel):
+class RoomFields(BaseModel):
+    """Shared editable fields for Room create / update / output."""
+
     name: str
     ha_area_id: str | None = None
     floor: str | None = None
     metadata_json: dict[str, Any] | None = None
+
+
+class RoomCreate(RoomFields):
+    pass
 
 
 class RoomUpdate(BaseModel):
@@ -21,12 +27,6 @@ class RoomUpdate(BaseModel):
     metadata_json: dict[str, Any] | None = None
 
 
-class RoomOut(BaseModel):
+class RoomOut(RoomFields, OutSchema):
     id: int
-    name: str
-    ha_area_id: str | None
-    floor: str | None
-    metadata_json: dict[str, Any] | None
     created_at: UTCDatetime
-
-    model_config = {"from_attributes": True}

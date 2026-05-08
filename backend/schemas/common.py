@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import AwareDatetime, PlainSerializer
+from pydantic import AwareDatetime, BaseModel, ConfigDict, PlainSerializer
 
 from backend.core.time import normalize_utc_datetime
 
@@ -42,3 +42,24 @@ UTCDatetime = Annotated[AwareDatetime, PlainSerializer(_to_utc_iso, when_used="j
 
 #: Nullable variant of UTCDatetime.
 OptionalUTCDatetime = Annotated[AwareDatetime | None, PlainSerializer(_to_utc_iso, when_used="json")]
+
+
+# ── Shared base classes ──────────────────────────────────────────────────
+
+
+class OutSchema(BaseModel):
+    """Base for API output schemas: enables ORM-mode validation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CreateSchema(BaseModel):
+    """Base for API create schemas: forbids extra fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class UpdateSchema(BaseModel):
+    """Base for API update schemas: all fields optional, extra fields forbidden."""
+
+    model_config = ConfigDict(extra="forbid")

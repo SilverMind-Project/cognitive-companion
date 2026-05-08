@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 
 class TextRegion(BaseModel):
@@ -41,7 +41,7 @@ class ImageTemplateUpdate(BaseModel):
     is_default: bool | None = None
 
 
-class ImageTemplateOut(BaseModel):
+class ImageTemplateOut(OutSchema):
     id: int
     name: str
     description: str | None
@@ -53,8 +53,6 @@ class ImageTemplateOut(BaseModel):
     is_default: bool
     created_at: UTCDatetime
     updated_at: OptionalUTCDatetime
-
-    model_config = {"from_attributes": True}
 
 
 class RenderPayload(BaseModel):
@@ -72,12 +70,10 @@ class RenderPreviewPayload(BaseModel):
     region_name: str | None = None
 
 
-class ActiveImageStateOut(BaseModel):
+class ActiveImageStateOut(OutSchema):
     id: int
     sensor_id: str
     template_id: int | None
     rendered_text: str | None
     expires_at: OptionalUTCDatetime
     updated_at: OptionalUTCDatetime
-
-    model_config = {"from_attributes": True}

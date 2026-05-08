@@ -48,6 +48,7 @@ from backend.core.logging import get_logger
 from backend.integrations.scene_analysis_client import SceneAnalyzeResult
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
+from backend.steps._image_utils import resolve_image_sources
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -182,7 +183,10 @@ class SceneAnalysisHandler(StepHandler):
             return StepResult(data=_empty)
 
         config = step.config_json or {}
-        media_paths = await _gather_images(config, trigger, services)
+        media_paths = await resolve_image_sources(
+            config, trigger, services.event_aggregator,
+            default_max_images=int(config.get("max_images", 1)),
+        )
 
         if not media_paths:
             logger.debug("scene_analysis_no_images", trigger=trigger.sensor_id)
@@ -342,66 +346,6 @@ def _empty_result() -> dict:
         "scene_memory_observation_id": None,
     }
 
-
-async def _gather_images(
-    config: dict,
-    trigger: TriggerContext,
-    services: ServiceContainer,
-) -> list[str]:
-    """Collect image paths from trigger and/or additional cameras."""
-    image_source: str = config.get("image_source", "trigger")
-    max_images: int = int(config.get("max_images", 1))
-    media_paths: list[str] = []
-
-    if image_source in ("trigger", "both"):
-        frames = list(trigger.media_paths)
-        trigger_count = config.get("trigger_images_count")
-        if trigger_count and trigger_count > 0:
-            frames = frames[-trigger_count:]
-        media_paths.extend(frames)
-
-    if image_source in ("additional", "both") and services.event_aggregator:
-        additional_sensors: list[str] = config.get("additional_sensor_ids") or []
-        additional_rooms: list[str] = config.get("additional_room_names") or []
-        time_filter: dict = config.get("image_time_filter") or {}
-        default_per_sensor: int = int(config.get("images_per_sensor", 1))
-        sensor_frame_limits: dict = config.get("sensor_frame_limits") or {}
-
-        resolved_sensors = list(additional_sensors)
-        if additional_rooms:
-            extra = await services.event_aggregator.query_recent_media(
-                sensor_ids=resolved_sensors if resolved_sensors else None,
-                room_names=additional_rooms,
-                limit=max_images,
-                since_minutes=time_filter.get("since_minutes"),
-                time_start=time_filter.get("time_start"),
-                time_end=time_filter.get("time_end"),
-            )
-            media_paths.extend(extra)
-        elif resolved_sensors:
-            extra = await services.event_aggregator.query_media_by_sensor(
-                sensor_ids_ordered=resolved_sensors,
-                images_per_sensor=default_per_sensor,
-                sensor_frame_limits=sensor_frame_limits,
-                max_images=max_images,
-                since_minutes=time_filter.get("since_minutes"),
-                time_start=time_filter.get("time_start"),
-                time_end=time_filter.get("time_end"),
-                chronological=False,
-            )
-            media_paths.extend(extra)
-        elif image_source == "additional":
-            extra = await services.event_aggregator.query_recent_media(
-                sensor_ids=None,
-                room_names=None,
-                limit=max_images,
-                since_minutes=time_filter.get("since_minutes"),
-                time_start=time_filter.get("time_start"),
-                time_end=time_filter.get("time_end"),
-            )
-            media_paths.extend(extra)
-
-    return media_paths[:max_images]
 
 
 async def _fetch_image(url: str) -> bytes | None:

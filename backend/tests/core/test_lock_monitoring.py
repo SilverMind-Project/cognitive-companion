@@ -24,10 +24,9 @@ from backend.core.database import (
 
 
 @pytest.fixture
-def db_with_monitoring(tmp_path):
+def db_with_monitoring(postgres_url):
     """Create a test database with lock monitoring enabled."""
-    db_path = tmp_path / "test.db"
-    db = Database(f"sqlite:///{db_path}")
+    db = Database(postgres_url)
     db.create_all()
     reset_lock_contention_metrics()
     yield db

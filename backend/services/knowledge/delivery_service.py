@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.models.knowledge import (
     InfoCard,
@@ -316,18 +315,21 @@ class KnowledgeDeliveryService:
                         chosen_text = c.get("text", "")
                         is_correct = c.get("is_correct", False)
                         break
-            elif question.question_type == "open_ended" and open_ended_text:
-                # Grade via LLM if content_gen is available
-                if self._content_gen and question.expected_answer:
-                    try:
-                        is_correct = await self._content_gen.grade_open_ended(
-                            question.question_text,
-                            question.expected_answer,
-                            open_ended_text,
-                        )
-                    except Exception:
-                        logger.exception("open_ended_grading_failed")
-                        is_correct = None
+            elif (
+                question.question_type == "open_ended"
+                and open_ended_text
+                and self._content_gen
+                and question.expected_answer
+            ):
+                try:
+                    is_correct = await self._content_gen.grade_open_ended(
+                        question.question_text,
+                        question.expected_answer,
+                        open_ended_text,
+                    )
+                except Exception:
+                    logger.exception("open_ended_grading_failed")
+                    is_correct = None
 
             # Record response (idempotent)
             existing = db.execute(
@@ -400,15 +402,12 @@ class KnowledgeDeliveryService:
             db.commit()
 
             # Broadcast completion
-            import asyncio
-            asyncio.ensure_future(
-                self._ws_manager.broadcast({
-                    "type": "quiz_complete",
-                    "session_id": session_id,
-                    "num_correct": num_correct,
-                    "num_answered": num_answered,
-                })
-            )
+            await self._ws_manager.broadcast({
+                "type": "quiz_complete",
+                "session_id": session_id,
+                "num_correct": num_correct,
+                "num_answered": num_answered,
+            })
 
             logger.info(
                 "quiz_session_completed",

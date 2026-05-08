@@ -6,9 +6,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.orm import Session
-
 from backend.core.config import settings
+from backend.core.database import transaction
 from backend.core.logging import get_logger
 from backend.models.conversation import ConversationSession, ConversationTurn
 
@@ -25,26 +24,18 @@ class ConversationManager:
 
     def create_session(self) -> int:
         """Create a new conversation session and return its ID."""
-        db: Session = self.db_session_factory()
-        try:
+        with transaction(self.db_session_factory) as db:
             session = ConversationSession()
             db.add(session)
-            db.commit()
-            db.refresh(session)
+            db.flush()  # populate session.id before returning
             return session.id
-        finally:
-            db.close()
 
     def end_session(self, session_id: int) -> None:
         """Mark a conversation session as ended."""
-        db: Session = self.db_session_factory()
-        try:
+        with transaction(self.db_session_factory) as db:
             session = db.get(ConversationSession, session_id)
             if session:
                 session.ended_at = datetime.now(UTC)
-                db.commit()
-        finally:
-            db.close()
 
     def add_turn(
         self,
@@ -60,8 +51,7 @@ class ConversationManager:
         if not content.strip():
             return
 
-        db: Session = self.db_session_factory()
-        try:
+        with transaction(self.db_session_factory) as db:
             turn = ConversationTurn(
                 session_id=session_id,
                 actor=actor,
@@ -69,17 +59,13 @@ class ConversationManager:
                 metadata_json=metadata,
             )
             db.add(turn)
-            db.commit()
-        finally:
-            db.close()
 
     def get_history_text(self, session_id: int) -> str:
         """
         Get formatted conversation history for the current session,
         filtered by TTL, limited to max_turns.
         """
-        db: Session = self.db_session_factory()
-        try:
+        with transaction(self.db_session_factory) as db:
             cutoff = datetime.now(UTC) - timedelta(minutes=self.ttl_minutes)
             turns = (
                 db.query(ConversationTurn)
@@ -99,13 +85,10 @@ class ConversationManager:
                 label = _actor_label(turn.actor)
                 lines.append(f"{label}: {turn.content}")
             return "\n".join(lines)
-        finally:
-            db.close()
 
     def get_recent_turns(self, session_id: int, limit: int = 10) -> list[dict]:
         """Get recent turns as dicts for API responses."""
-        db: Session = self.db_session_factory()
-        try:
+        with transaction(self.db_session_factory) as db:
             cutoff = datetime.now(UTC) - timedelta(minutes=self.ttl_minutes)
             turns = (
                 db.query(ConversationTurn)
@@ -127,20 +110,14 @@ class ConversationManager:
                 }
                 for t in turns
             ]
-        finally:
-            db.close()
 
     def prune_old_turns(self) -> int:
         """Delete turns older than TTL. Returns count deleted."""
-        db: Session = self.db_session_factory()
-        try:
+        with transaction(self.db_session_factory) as db:
             cutoff = datetime.now(UTC) - timedelta(minutes=self.ttl_minutes)
             count = db.query(ConversationTurn).filter(ConversationTurn.timestamp < cutoff).delete()
-            db.commit()
             logger.info("conversation_pruned", deleted=count)
             return count
-        finally:
-            db.close()
 
 
 def _actor_label(actor: str) -> str:

@@ -1,8 +1,8 @@
 [project]
 name = "cognitive-companion"
-version = "0.6.83"
+version = "0.6.88"
 description = "Privacy-first AI companion for senior care"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 license = "AGPL-3.0"
 
 dependencies = [
@@ -33,6 +33,7 @@ dependencies = [
     "langchain-text-splitters>=0.3",
     "pillow-heif>=0.20",
     "pgvector>=0.3",
+    "triton-shared>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +51,9 @@ dev = [
     "testcontainers[postgres]>=4.0",
 ]
 
+[tool.uv.sources]
+triton-shared = { git = "https://github.com/SilverMind-Project/triton-shared" }
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -59,7 +63,7 @@ packages = ["backend"]
 
 # ── Ruff ─────────────────────────────────────────────────────────
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 line-length = 100
 extend-exclude = ["integrations/proto"]
 
@@ -92,7 +96,7 @@ known-first-party = ["backend"]
 
 # ── Mypy ─────────────────────────────────────────────────────────
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 warn_return_any = false                # too noisy with untyped third-party libs
 warn_unused_configs = true
 warn_unused_ignores = true
@@ -126,6 +130,8 @@ module = [
     "uvicorn.*",
     "cv2.*",
     "jwt.*",
+    "pgvector.*",
+    "triton_shared.*",
 ]
 ignore_missing_imports = true
 
@@ -151,6 +157,7 @@ omit = [
 ]
 
 [tool.coverage.report]
+fail_under = 65
 show_missing = true
 skip_covered = false
 precision = 1

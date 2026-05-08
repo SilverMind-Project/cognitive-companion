@@ -39,12 +39,6 @@ services:
       - .env
     networks:
       - nanai
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=${CC_DB_USER:-cc_user}
-      - POSTGRES_PASSWORD=${CC_DB_PASSWORD:?err}
-      - POSTGRES_DB=cognitive_companion
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,13 +64,13 @@ services:
       backend:
         condition: service_healthy
 
-networks:
-  nanai:
-    name: nanai
-    external: true
-
 volumes:
   backend-data:
     driver: local
   # scene-analysis-models:
   #   driver: local
+
+networks:
+  nanai:
+    name: nanai
+    external: true

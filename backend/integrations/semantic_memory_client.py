@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, TypeVar
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -27,8 +27,6 @@ from backend.core.time import normalize_utc_datetime
 from ._http_base import HttpUpstreamClient
 
 logger = get_logger(__name__)
-_PayloadModel = TypeVar("_PayloadModel", bound=BaseModel)
-
 
 # ---------------------------------------------------------------------------
 # Frozen result dataclasses (public API surface)
@@ -513,10 +511,10 @@ class SemanticMemoryClient(HttpUpstreamClient):
     async def get_recent_objects(
         self, room_id: str, since_minutes: int = 60
     ) -> list[ObjectPresenceRecord]:
-        """GET /api/v1/objects?room_id=...&since_minutes=..."""
+        """GET /api/v1/objects/{room_id}/recent?since_minutes=..."""
         data = await self._get_json(
-            "/api/v1/objects",
-            params={"room_id": room_id, "since_minutes": since_minutes},
+            f"/api/v1/objects/{room_id}/recent",
+            params={"since_minutes": since_minutes},
         )
         if data is None:
             return []
@@ -628,10 +626,10 @@ def _coerce_str_int_dict(value: object) -> dict[str, int]:
     return parsed
 
 
-def _validate_payload(
+def _validate_payload[PayloadModelT: BaseModel](
     data: object,
-    model_cls: type[_PayloadModel],
-) -> _PayloadModel | None:
+    model_cls: type[PayloadModelT],
+) -> PayloadModelT | None:
     try:
         return model_cls.model_validate(data)
     except ValidationError:

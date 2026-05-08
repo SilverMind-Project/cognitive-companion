@@ -223,7 +223,7 @@ semantic_memory:
 
 # Embedding inference (Triton)
 embedding:
-  triton_url: "triton.nanai.khoofia.com:8001"
+  triton_url: "${EMBEDDING_TRITON_URL}"
   model_name: "embeddinggemma-300m"
   tokenizer_path: "/opt/models/embeddinggemma/tokenizer.json"
   dim: 768
@@ -288,7 +288,7 @@ presence:
 
 # Continuous Tracking System (CTS) — gated by feature flag
 cts:
-  enabled: false  # Set to true to enable CTS integration
+  enabled: true
 
   # Redis Streams config (M8/M9 subscribers).
   consumer_id: "${HOSTNAME}"

@@ -6,12 +6,13 @@ its metadata via the :meth:`StepHandler.metadata` classmethod.
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from backend.core.registry import HasMetadata
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 
 # ---------------------------------------------------------------------------
@@ -91,7 +92,7 @@ class ServiceContainer:
 # ---------------------------------------------------------------------------
 
 
-class StepHandler(ABC):
+class StepHandler(HasMetadata[StepMetadata]):
     """Base class for all pipeline step handlers.
 
     Subclasses must implement :meth:`metadata` (class-level) and

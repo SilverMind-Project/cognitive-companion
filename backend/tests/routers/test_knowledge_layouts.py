@@ -2,6 +2,7 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
 from backend.core.exceptions import register_exception_handlers
 from backend.routers.knowledge_layouts import router
 from backend.services.knowledge.layout_registry import LayoutRegistry

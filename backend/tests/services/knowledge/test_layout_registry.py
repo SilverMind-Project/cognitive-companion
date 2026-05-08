@@ -1,9 +1,14 @@
 """Tests for LayoutRegistry."""
-import pytest
 import tempfile
-import yaml
+from dataclasses import FrozenInstanceError
 from pathlib import Path
-from backend.services.knowledge.layout_registry import LayoutRegistry, LayoutSpec, ImageSlotSpec, ImageVariantSpec
+
+import pytest
+import yaml
+
+from backend.services.knowledge.layout_registry import (
+    LayoutRegistry,
+)
 
 
 class TestLayoutRegistry:
@@ -72,5 +77,5 @@ class TestLayoutRegistry:
     def test_layoutspec_is_frozen(self):
         reg = LayoutRegistry.load("config/knowledge_layouts.yaml")
         layout = reg.get_required("text_only")
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             layout.display_name = "changed"

@@ -4,10 +4,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from backend.schemas.common import UTCDatetime
+from backend.schemas.common import OutSchema, UTCDatetime
 
 
-class AlertOut(BaseModel):
+class AlertOut(OutSchema):
     id: int
     timestamp: UTCDatetime
     alert_type: str
@@ -17,8 +17,6 @@ class AlertOut(BaseModel):
     resolved: bool
     assistance_needed: bool
     notification_sent_json: dict[str, Any] | None
-
-    model_config = {"from_attributes": True}
 
 
 class AlertAction(BaseModel):

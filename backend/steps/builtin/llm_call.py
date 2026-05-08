@@ -30,6 +30,7 @@ from backend.core.template import render_template
 from backend.integrations.llm.json_utils import parse_llm_json
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
+from backend.steps._image_utils import resolve_image_sources
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -370,71 +371,25 @@ class LLMCallHandler(StepHandler):
         full_prompt = "\n\n".join(p for p in parts if p)
 
         # -- Assemble images ---------------------------------------------------
-        image_source: str = config.get("image_source", "none")
-        max_images: int = int(config.get("max_images", 5))
-        media_paths: list[str] = []
-
         has_vision = model_cfg and "vision" in model_cfg.capabilities
+        image_source: str = config.get("image_source", "none")
 
         if has_vision and image_source != "none":
-            if image_source in ("trigger", "both"):
-                frames = trigger.media_paths
-                trigger_count = config.get("trigger_images_count")
-                if trigger_count and trigger_count > 0:
-                    frames = frames[-trigger_count:]
-                media_paths.extend(frames)
-
-            if image_source in ("additional", "both") and services.event_aggregator:
-                additional_sensors: list[str] = config.get("additional_sensor_ids") or []
-                additional_rooms: list[str] = config.get("additional_room_names") or []
-                time_filter: dict = config.get("image_time_filter") or {}
-                sort_by_sensor: bool = bool(config.get("sort_by_sensor_then_time", False))
-                default_per_sensor: int = int(config.get("images_per_sensor", 3))
-                sensor_frame_limits: dict = config.get("sensor_frame_limits") or {}
-
-                # Resolve room names to sensor IDs when needed
-                resolved_sensors = list(additional_sensors)
-                if additional_rooms:
-                    # Unordered query handles room-to-sensor resolution internally
-                    extra = await services.event_aggregator.query_recent_media(
-                        sensor_ids=resolved_sensors if resolved_sensors else None,
-                        room_names=additional_rooms if additional_rooms else None,
-                        limit=max_images,
-                        since_minutes=time_filter.get("since_minutes"),
-                        time_start=time_filter.get("time_start"),
-                        time_end=time_filter.get("time_end"),
-                    )
-                    media_paths.extend(extra)
-                elif resolved_sensors:
-                    # Sensor-ordered query with per-sensor limits
-                    extra = await services.event_aggregator.query_media_by_sensor(
-                        sensor_ids_ordered=resolved_sensors,
-                        images_per_sensor=default_per_sensor,
-                        sensor_frame_limits=sensor_frame_limits,
-                        max_images=max_images,
-                        since_minutes=time_filter.get("since_minutes"),
-                        time_start=time_filter.get("time_start"),
-                        time_end=time_filter.get("time_end"),
-                        chronological=sort_by_sensor,
-                    )
-                    media_paths.extend(extra)
-                elif image_source == "additional":
-                    extra = await services.event_aggregator.query_recent_media(
-                        sensor_ids=None,
-                        room_names=None,
-                        limit=max_images,
-                        since_minutes=time_filter.get("since_minutes"),
-                        time_start=time_filter.get("time_start"),
-                        time_end=time_filter.get("time_end"),
-                    )
-                    media_paths.extend(extra)
-
-            media_paths = media_paths[:max_images]
+            sort_by_sensor: bool = bool(config.get("sort_by_sensor_then_time", False))
+            media_paths = await resolve_image_sources(
+                config, trigger, services.event_aggregator,
+                default_max_images=5,
+                default_images_per_sensor=3,
+                sort_by_sensor=sort_by_sensor,
+            )
+        else:
+            media_paths: list[str] = []
 
         # -- Annotated image (from person_identification) ----------------------
         if config.get("use_annotated_image"):
             annotated = pipeline_data.get("annotated_image")
             if annotated:
+                max_images = int(config.get("max_images", 5))
                 media_paths.insert(0, f"data:image/jpeg;base64,{annotated}")
                 media_paths = media_paths[:max_images]
 

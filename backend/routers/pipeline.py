@@ -7,39 +7,19 @@ LLM model registry metadata to the frontend for dynamic form generation.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
 
 from backend.channels import ChannelRegistry
 from backend.core.auth import AuthContext, require_permission
 from backend.filters import FilterRegistry
+from backend.schemas.pipeline_types import (
+    ChannelTypeOut,
+    FilterTypeOut,
+    LLMModelOut,
+    StepTypeOut,
+)
 from backend.steps import StepRegistry
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
-
-
-class StepTypeOut(BaseModel):
-    type_name: str
-    display_name: str
-    category: str
-    icon: str
-    description: str
-    config_schema: dict
-    default_config: dict
-    deprecated: bool = False
-
-
-class ChannelTypeOut(BaseModel):
-    channel_name: str
-    display_name: str
-    description: str
-    config_schema: dict
-
-
-class FilterTypeOut(BaseModel):
-    filter_type: str
-    display_name: str
-    description: str
-    config_schema: dict
 
 
 @router.get("/step-types", response_model=list[StepTypeOut])
@@ -92,18 +72,6 @@ def list_filter_types(
         )
         for m in FilterRegistry.all_metadata()
     ]
-
-
-class LLMModelOut(BaseModel):
-    id: str
-    name: str
-    api_type: str
-    capabilities: list[str]
-    guided_decoding: bool
-    supports_thinking: bool
-    default_temperature: float | None
-    default_top_p: float | None
-    default_max_tokens: int
 
 
 @router.get("/llm-models", response_model=list[LLMModelOut])

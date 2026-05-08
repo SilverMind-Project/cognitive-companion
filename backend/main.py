@@ -159,12 +159,12 @@ async def lifespan(app: FastAPI):
     app.state.eink_renderer = eink_renderer
 
     # -- Knowledge services -------------------------------------------------
-    from backend.services.knowledge.layout_registry import LayoutRegistry
-    from backend.services.knowledge.image_pipeline import ImagePipeline
-    from backend.services.knowledge.ingestion_service import KnowledgeIngestionService
-    from backend.services.knowledge.query_service import KnowledgeQueryService
     from backend.services.knowledge.content_generation import ContentGenerationService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
+    from backend.services.knowledge.image_pipeline import ImagePipeline
+    from backend.services.knowledge.ingestion_service import KnowledgeIngestionService
+    from backend.services.knowledge.layout_registry import LayoutRegistry
+    from backend.services.knowledge.query_service import KnowledgeQueryService
     from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 
     layouts_file = settings.get("knowledge.layouts_file", "config/knowledge_layouts.yaml")
@@ -205,7 +205,7 @@ async def lifespan(app: FastAPI):
 
     logger.info(
         "knowledge_services_initialized",
-        layouts=[l.id for l in layout_registry.all_layouts()],
+        layouts=[lt.id for lt in layout_registry.all_layouts()],
     )
 
     # -- Notification dispatcher -------------------------------------------
@@ -618,6 +618,11 @@ async def lifespan(app: FastAPI):
         await cts_runtime.stop()
     if app.state.ha_state_cache is not None:
         await app.state.ha_state_cache.stop()
+    # Close integration HTTP clients (connection pools)
+    if hasattr(app.state, "scene_analysis_client") and app.state.scene_analysis_client is not None:
+        await app.state.scene_analysis_client.close()
+    if hasattr(app.state, "semantic_memory_client") and app.state.semantic_memory_client is not None:
+        await app.state.semantic_memory_client.close()
     logger.info("Shutting down Cognitive Companion v2")
 
 

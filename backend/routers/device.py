@@ -26,13 +26,13 @@ from io import BytesIO
 
 from fastapi import APIRouter, Depends, Request
 from PIL import Image
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.logging import get_logger
+from backend.schemas.device import ReCameraPayload
 
 logger = get_logger(__name__)
 
@@ -71,27 +71,6 @@ def _passes_label_filter(detected_labels: list[str], filter_config: dict) -> boo
     if mode == "all":
         return all(label in detected for label in required)
     return any(label in detected for label in required)
-
-
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
-
-
-class ReCameraData(BaseModel):
-    image: str  # base64-encoded JPEG
-    labels: list[str] = []
-    boxes: list[list[int | float]] = []
-    count: int = 0
-    perf: list[list[int | float]] = []
-    resolution: list[int] = []
-
-
-class ReCameraPayload(BaseModel):
-    code: int = 0
-    data: ReCameraData
-    name: str = ""
-    type: int = 0
 
 
 # ---------------------------------------------------------------------------

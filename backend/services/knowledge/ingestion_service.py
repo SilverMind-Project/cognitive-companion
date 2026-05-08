@@ -6,7 +6,6 @@ Phase 2: adds chunking + embedding via Triton.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import UploadFile
@@ -154,8 +153,8 @@ class KnowledgeIngestionService:
                 stmt = stmt.where(KnowledgeDocument.status == status)
                 count_stmt = count_stmt.where(KnowledgeDocument.status == status)
             if tag:
-                stmt = stmt.where(KnowledgeDocument.tags.any(tag))
-                count_stmt = count_stmt.where(KnowledgeDocument.tags.any(tag))
+                stmt = stmt.where(KnowledgeDocument.tags.contains([tag]))
+                count_stmt = count_stmt.where(KnowledgeDocument.tags.contains([tag]))
             if q:
                 search = f"%{q}%"
                 stmt = stmt.where(
@@ -184,7 +183,7 @@ class KnowledgeIngestionService:
                 select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id)
             ).scalar_one_or_none()
             if doc is None:
-                raise NotFoundError(f"Knowledge document {doc_id} not found")
+                raise NotFoundError("Knowledge document", doc_id)
 
             for key, val in kwargs.items():
                 if val is not None and hasattr(doc, key):
@@ -238,7 +237,7 @@ class KnowledgeIngestionService:
                 select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id)
             ).scalar_one_or_none()
             if doc is None:
-                raise NotFoundError(f"Knowledge document {doc_id} not found")
+                raise NotFoundError("Knowledge document", doc_id)
             self._transition(doc, "approved")
             db.commit()
             db.refresh(doc)
@@ -260,7 +259,7 @@ class KnowledgeIngestionService:
                 select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id)
             ).scalar_one_or_none()
             if doc is None:
-                raise NotFoundError(f"Knowledge document {doc_id} not found")
+                raise NotFoundError("Knowledge document", doc_id)
             self._transition(doc, "archived")
             db.commit()
             db.refresh(doc)
@@ -282,7 +281,7 @@ class KnowledgeIngestionService:
                 select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id)
             ).scalar_one_or_none()
             if doc is None:
-                raise NotFoundError(f"Knowledge document {doc_id} not found")
+                raise NotFoundError("Knowledge document", doc_id)
             self._transition(doc, "uploaded")
             db.commit()
             db.refresh(doc)
@@ -311,7 +310,7 @@ class KnowledgeIngestionService:
                 select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id)
             ).scalar_one_or_none()
             if doc is None:
-                raise NotFoundError(f"Knowledge document {doc_id} not found")
+                raise NotFoundError("Knowledge document", doc_id)
 
             # Block if active deliverables reference this doc
             active_cards = db.execute(
@@ -390,7 +389,7 @@ class KnowledgeIngestionService:
 
             # Insert chunk rows
             char_pos = 0
-            for idx, (chunk_text, emb) in enumerate(zip(chunks, embeddings)):
+            for idx, (chunk_text, emb) in enumerate(zip(chunks, embeddings, strict=False)):
                 chunk = KnowledgeDocumentChunk(
                     document_id=doc.id,
                     chunk_index=idx,
@@ -463,7 +462,7 @@ class KnowledgeIngestionService:
                 select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id)
             ).scalar_one_or_none()
             if doc is None:
-                raise NotFoundError(f"Knowledge document {doc_id} not found")
+                raise NotFoundError("Knowledge document", doc_id)
 
             data = await file.read()
             if not data:
@@ -519,7 +518,7 @@ class KnowledgeIngestionService:
                 select(KnowledgeDocumentImage).where(KnowledgeDocumentImage.id == img_id)
             ).scalar_one_or_none()
             if img_row is None:
-                raise NotFoundError(f"Image {img_id} not found")
+                raise NotFoundError("Image", img_id)
             if alt_text is not None:
                 img_row.alt_text = alt_text
             if ord is not None:
@@ -543,7 +542,7 @@ class KnowledgeIngestionService:
                 select(KnowledgeDocumentImage).where(KnowledgeDocumentImage.id == img_id)
             ).scalar_one_or_none()
             if img_row is None:
-                raise NotFoundError(f"Image {img_id} not found")
+                raise NotFoundError("Image", img_id)
             object_name = img_row.minio_object_name
             db.delete(img_row)
             db.commit()

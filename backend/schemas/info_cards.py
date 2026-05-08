@@ -6,8 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
-
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 # -- Info Card ----------------------------------------------------------------
 
@@ -33,7 +32,7 @@ class InfoCardUpdate(BaseModel):
     layout_id: str | None = None
 
 
-class InfoCardSlotResponse(BaseModel):
+class InfoCardSlotResponse(OutSchema):
     id: int
     info_card_id: int
     slot_index: int
@@ -42,10 +41,8 @@ class InfoCardSlotResponse(BaseModel):
     alt_text: str = ""
     variants: dict[str, Any] = {}
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class InfoCardOut(BaseModel):
+class InfoCardOut(OutSchema):
     id: int
     document_id: int | None = None
     layout_id: str
@@ -61,10 +58,8 @@ class InfoCardOut(BaseModel):
     updated_at: UTCDatetime
     image_slots: list[InfoCardSlotResponse] = []
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class InfoCardListOut(BaseModel):
+class InfoCardListOut(OutSchema):
     id: int
     document_id: int | None = None
     layout_id: str
@@ -76,8 +71,6 @@ class InfoCardListOut(BaseModel):
     created_at: UTCDatetime
     updated_at: UTCDatetime
     slot_count: int = 0
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class InfoCardPreviewRequest(BaseModel):

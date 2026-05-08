@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.types import NullType
 
 import backend.core.time
 from alembic import op
@@ -91,7 +92,7 @@ def upgrade() -> None:
         ),
         sa.Column("chunk_index", sa.Integer(), nullable=False),
         sa.Column("text", sa.Text(), nullable=False),
-        sa.Column("embedding", sa.NullType(), nullable=True),
+        sa.Column("embedding", NullType(), nullable=True),
         sa.Column("char_start", sa.Integer(), nullable=False),
         sa.Column("char_end", sa.Integer(), nullable=False),
         sa.UniqueConstraint("document_id", "chunk_index", name="uq_kdc_doc_chunk"),

@@ -73,6 +73,7 @@ export const api = {
   trackingOrchestratorHealth: () => request("/admin/health/tracking-orchestrator"),
   sceneAnalysisHealth: () => request("/admin/health/scene-analysis"),
   semanticMemoryHealth: () => request("/admin/health/semantic-memory"),
+  tritonHealth: () => request("/admin/health/triton"),
   llmHealth: () => request("/admin/health/llm-models"),
 
   // Rooms

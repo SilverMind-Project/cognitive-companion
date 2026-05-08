@@ -1,9 +1,12 @@
 """Tests for ImagePipeline."""
-import pytest
 from io import BytesIO
+
+import pytest
 from PIL import Image
+
 from backend.services.knowledge.image_pipeline import (
-    ImagePipeline, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES, MAX_PIXELS
+    MAX_UPLOAD_BYTES,
+    ImagePipeline,
 )
 
 

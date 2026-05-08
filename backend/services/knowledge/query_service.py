@@ -156,11 +156,16 @@ class KnowledgeQueryService:
 
     async def _synthesize(self, query: str, context: str) -> str:
         """Call the configured LLM with a constrained prompt."""
+        if self._llm_registry is None:
+            return ""
         answer_model_id = settings.get("knowledge.answer_model", "gemma4_26b")
         try:
             provider = self._llm_registry.get_provider(answer_model_id)
         except Exception:
             logger.exception("llm_provider_not_found", model=answer_model_id)
+            return ""
+        if provider is None:
+            logger.warning("llm_provider_none", model=answer_model_id)
             return ""
 
         prompt = f"""You are a helpful assistant for a senior citizen. Answer the question using ONLY the provided context. If the context does not contain the answer, say "I don't have that information."

@@ -15,9 +15,7 @@ Settings keys (under ``scene_analysis``)::
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TypeVar
 
-import httpx
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from backend.core.logging import get_logger
@@ -25,8 +23,6 @@ from backend.core.logging import get_logger
 from ._http_base import HttpUpstreamClient
 
 logger = get_logger(__name__)
-_PayloadModel = TypeVar("_PayloadModel", bound=BaseModel)
-
 
 # ---------------------------------------------------------------------------
 # Frozen result dataclasses (public API surface)
@@ -213,39 +209,28 @@ class SceneAnalysisClient(HttpUpstreamClient):
     # /detect: object detection only
     # ------------------------------------------------------------------
 
+    def _sensor_headers(self, sensor_id: str | None) -> dict[str, str]:
+        if sensor_id is not None:
+            return {"X-Sensor-Id": sensor_id}
+        return {}
+
+    # ------------------------------------------------------------------
+    # /detect: object detection only
+    # ------------------------------------------------------------------
+
     async def detect(
         self,
         image_bytes: bytes,
         *,
         sensor_id: str | None = None,
     ) -> SceneDetectResult:
-        """Run object detection on raw image bytes.
-
-        Args:
-            image_bytes: Raw image data (JPEG, PNG, etc.).
-            sensor_id: Optional sensor identifier; sent as ``X-Sensor-Id``
-                header for server-side correlation.
-
-        Returns:
-            :class:`SceneDetectResult` with detected objects, or an empty
-            result when the service is unavailable.
-        """
-        if not self.configured:
-            return SceneDetectResult()
-        headers: dict[str, str] = {}
-        if sensor_id is not None:
-            headers["X-Sensor-Id"] = sensor_id
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.post(
-                    f"{self._base_url}/detect",
-                    headers=headers,
-                    files={"image": ("image.jpg", image_bytes, "image/jpeg")},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-        except Exception:
-            logger.exception("scene_analysis_detect_failed")
+        """Run object detection on raw image bytes."""
+        data = await self._post_multipart(
+            "/detect",
+            files={"image": ("image.jpg", image_bytes, "image/jpeg")},
+            headers=self._sensor_headers(sensor_id),
+        )
+        if data is None:
             return SceneDetectResult()
         payload = _validate_response_payload(
             data,
@@ -264,33 +249,13 @@ class SceneAnalysisClient(HttpUpstreamClient):
         *,
         sensor_id: str | None = None,
     ) -> SceneDescribeResult:
-        """Generate a structured scene description for raw image bytes.
-
-        Args:
-            image_bytes: Raw image data.
-            sensor_id: Optional sensor identifier; sent as ``X-Sensor-Id``
-                header for server-side correlation.
-
-        Returns:
-            :class:`SceneDescribeResult` with the description string, or an
-            empty result when the service is unavailable.
-        """
-        if not self.configured:
-            return SceneDescribeResult()
-        headers: dict[str, str] = {}
-        if sensor_id is not None:
-            headers["X-Sensor-Id"] = sensor_id
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.post(
-                    f"{self._base_url}/describe",
-                    headers=headers,
-                    files={"image": ("image.jpg", image_bytes, "image/jpeg")},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-        except Exception:
-            logger.exception("scene_analysis_describe_failed")
+        """Generate a structured scene description for raw image bytes."""
+        data = await self._post_multipart(
+            "/describe",
+            files={"image": ("image.jpg", image_bytes, "image/jpeg")},
+            headers=self._sensor_headers(sensor_id),
+        )
+        if data is None:
             return SceneDescribeResult()
         payload = _validate_response_payload(
             data,
@@ -313,43 +278,19 @@ class SceneAnalysisClient(HttpUpstreamClient):
         run_hazards: bool = True,
         sensor_id: str | None = None,
     ) -> SceneAnalyzeResult:
-        """Run the full analysis pipeline on raw image bytes.
-
-        Args:
-            image_bytes: Raw image data.
-            run_detect: Whether to run object detection.
-            run_describe: Whether to run scene description.
-            run_embed: Whether to run CLIP embedding.
-            run_hazards: Whether to evaluate hazard rules.
-            sensor_id: Optional sensor identifier; sent as ``X-Sensor-Id``
-                header for server-side correlation.
-
-        Returns:
-            :class:`SceneAnalyzeResult` with populated fields for each
-            enabled stage, or an empty result when the service is unavailable.
-        """
-        if not self.configured:
-            return SceneAnalyzeResult()
-        headers: dict[str, str] = {}
-        if sensor_id is not None:
-            headers["X-Sensor-Id"] = sensor_id
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.post(
-                    f"{self._base_url}/analyze",
-                    headers=headers,
-                    params={
-                        "run_detect": str(run_detect).lower(),
-                        "run_describe": str(run_describe).lower(),
-                        "run_embed": str(run_embed).lower(),
-                        "run_hazards": str(run_hazards).lower(),
-                    },
-                    files={"image": ("image.jpg", image_bytes, "image/jpeg")},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-        except Exception:
-            logger.exception("scene_analysis_analyze_failed")
+        """Run the full analysis pipeline on raw image bytes."""
+        data = await self._post_multipart(
+            "/analyze",
+            files={"image": ("image.jpg", image_bytes, "image/jpeg")},
+            params={
+                "run_detect": str(run_detect).lower(),
+                "run_describe": str(run_describe).lower(),
+                "run_embed": str(run_embed).lower(),
+                "run_hazards": str(run_hazards).lower(),
+            },
+            headers=self._sensor_headers(sensor_id),
+        )
+        if data is None:
             return SceneAnalyzeResult()
         payload = _validate_response_payload(
             data,
@@ -364,14 +305,14 @@ class SceneAnalysisClient(HttpUpstreamClient):
 # ---------------------------------------------------------------------------
 
 
-def _validate_payload_list(
+def _validate_payload_list[PayloadModelT: BaseModel](
     raw_items: object,
-    model_cls: type[_PayloadModel],
-) -> list[_PayloadModel]:
+    model_cls: type[PayloadModelT],
+) -> list[PayloadModelT]:
     if not isinstance(raw_items, list):
         return []
 
-    validated_items: list[_PayloadModel] = []
+    validated_items: list[PayloadModelT] = []
     for item in raw_items:
         try:
             validated_items.append(model_cls.model_validate(item))
@@ -380,12 +321,12 @@ def _validate_payload_list(
     return validated_items
 
 
-def _validate_response_payload(
+def _validate_response_payload[PayloadModelT: BaseModel](
     data: object,
-    model_cls: type[_PayloadModel],
+    model_cls: type[PayloadModelT],
     *,
     log_event: str,
-) -> _PayloadModel | None:
+) -> PayloadModelT | None:
     try:
         return model_cls.model_validate(data)
     except ValidationError:

@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, field_validator
 
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 _LABEL_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -44,7 +44,7 @@ class PipelineStepUpdate(BaseModel):
         return v
 
 
-class PipelineStepOut(BaseModel):
+class PipelineStepOut(OutSchema):
     id: int
     rule_id: int
     order: int
@@ -55,7 +55,6 @@ class PipelineStepOut(BaseModel):
     next_step_on_true: int | None
     next_step_on_false: int | None
 
-    model_config = {"from_attributes": True}
 
 
 class PipelineStepReorder(BaseModel):
@@ -99,27 +98,25 @@ class RuleUpdate(BaseModel):
     telegram_trigger_config: dict[str, Any] | None = None
 
 
-class RuleContextOut(BaseModel):
+class RuleContextOut(OutSchema):
     id: int
     rule_id: int
     context_type: str
     config_json: dict[str, Any]
     negate: bool = False
 
-    model_config = {"from_attributes": True}
 
 
-class RuleDependencyOut(BaseModel):
+class RuleDependencyOut(OutSchema):
     id: int
     dependent_rule_id: int
     parent_rule_id: int
     lookback_minutes: int
     require_success: bool
 
-    model_config = {"from_attributes": True}
 
 
-class RuleOut(BaseModel):
+class RuleOut(OutSchema):
     id: int
     name: str
     description: str | None
@@ -140,10 +137,9 @@ class RuleOut(BaseModel):
     contexts: list[RuleContextOut] = []
     dependencies: list[RuleDependencyOut] = []
 
-    model_config = {"from_attributes": True}
 
 
-class RuleListOut(BaseModel):
+class RuleListOut(OutSchema):
     """Lighter version without sub-resources for list endpoints."""
 
     id: int
@@ -158,7 +154,6 @@ class RuleListOut(BaseModel):
     execution_timeout_minutes: int
     created_at: UTCDatetime
 
-    model_config = {"from_attributes": True}
 
 
 # -- Context -----------------------------------------------------------------

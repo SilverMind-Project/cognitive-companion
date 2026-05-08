@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
+from pydantic import BaseModel, ConfigDict
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
-
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 # -- Knowledge Document -------------------------------------------------------
 
@@ -29,7 +25,7 @@ class KnowledgeDocumentUpdate(BaseModel):
     tags: list[str] | None = None
 
 
-class KnowledgeDocumentImageOut(BaseModel):
+class KnowledgeDocumentImageOut(OutSchema):
     id: int
     document_id: int
     minio_object_name: str
@@ -40,10 +36,9 @@ class KnowledgeDocumentImageOut(BaseModel):
     ord: int = 0
     presigned_url: str | None = None
 
-    model_config = ConfigDict(from_attributes=True)
 
 
-class KnowledgeDocumentOut(BaseModel):
+class KnowledgeDocumentOut(OutSchema):
     id: int
     title: str
     source_text: str
@@ -56,10 +51,9 @@ class KnowledgeDocumentOut(BaseModel):
     images: list[KnowledgeDocumentImageOut] = []
     chunk_count: int = 0
 
-    model_config = ConfigDict(from_attributes=True)
 
 
-class KnowledgeDocumentListOut(BaseModel):
+class KnowledgeDocumentListOut(OutSchema):
     id: int
     title: str
     tags: list[str] = []
@@ -69,7 +63,6 @@ class KnowledgeDocumentListOut(BaseModel):
     updated_at: UTCDatetime
     image_count: int = 0
 
-    model_config = ConfigDict(from_attributes=True)
 
 
 # -- Knowledge Document Image -------------------------------------------------

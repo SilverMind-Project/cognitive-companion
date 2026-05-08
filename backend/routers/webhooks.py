@@ -14,7 +14,6 @@ import secrets
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.database import get_db
@@ -25,13 +24,6 @@ from backend.steps.base import TriggerContext
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
-
-
-class WebhookPayload(BaseModel):
-    """Arbitrary JSON payload from the webhook caller."""
-
-    class Config:
-        extra = "allow"
 
 
 def generate_webhook_secret() -> str:

@@ -4,16 +4,22 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
 
-from backend.schemas.common import UTCDatetime
+from backend.schemas.common import OutSchema, UTCDatetime
 
 
-class CtsCameraCreate(BaseModel):
-    id: str = Field(..., min_length=1, max_length=128)
-    name: str = Field(..., min_length=1, max_length=256)
+class CtsCameraFields(BaseModel):
+    """Shared editable fields for CTS camera create / output."""
+
+    id: str = Field(min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=256)
     rtsp_url: str = Field(default="", max_length=1024)
     location: str = Field(default="", max_length=256)
     enabled: bool = True
     floor_plan_key: str | None = None
+
+
+class CtsCameraCreate(CtsCameraFields):
+    pass
 
 
 class CtsCameraUpdate(BaseModel):
@@ -24,21 +30,13 @@ class CtsCameraUpdate(BaseModel):
     floor_plan_key: str | None = None
 
 
-class CtsCameraOut(BaseModel):
-    id: str
-    name: str
-    rtsp_url: str
-    location: str
-    enabled: bool
-    floor_plan_key: str | None
+class CtsCameraOut(CtsCameraFields, OutSchema):
     has_homography: bool
     homography_residuals: list[float] | None
     privacy_zone_count: int
     health: dict | None
     created_at: UTCDatetime
     updated_at: UTCDatetime
-
-    model_config = {"from_attributes": True}
 
 
 # ---------------------------------------------------------------------------

@@ -81,6 +81,10 @@ async def app_info():
                 "enabled": bool(settings.get("tracking_orchestrator.url")),
                 "health_url": "/admin/health/tracking-orchestrator",
             },
+            "triton": {
+                "enabled": bool(settings.get("embedding.triton_url")),
+                "health_url": "/admin/health/triton",
+            },
         },
     }
 
@@ -156,6 +160,30 @@ async def semantic_memory_health():
     url = settings.get("semantic_memory.url") or ""
     timeout = float(settings.get("semantic_memory.timeout") or 5)
     return await _proxy_health(url, timeout)
+
+
+@router.get("/health/triton")
+async def triton_health():
+    """Health check for Triton Inference Server.
+
+    Converts the configured gRPC URL (port 8701) to an HTTP URL (port 8700)
+    and hits Triton's built-in /v2/health/ready endpoint.
+    """
+    triton_url: str = settings.get("embedding.triton_url") or ""
+    if not triton_url:
+        return {"configured": False, "status": "not_configured"}
+    # Derive HTTP health URL: replace gRPC port 8701 with HTTP port 8700.
+    # URL may be bare host:port (no scheme) so we prepend http://.
+    http_url = triton_url.replace(":8701", ":8700")
+    if "://" not in http_url:
+        http_url = f"http://{http_url}"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{http_url}/v2/health/ready")
+            resp.raise_for_status()
+            return {"configured": True, "status": "ready"}
+    except Exception:
+        return {"configured": True, "status": "unreachable"}
 
 
 @router.get("/health/llm-models")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 # -- Household Members --------------------------------------------------------
 
@@ -23,7 +23,7 @@ class HouseholdMemberUpdate(BaseModel):
     metadata_json: dict | None = None
 
 
-class HouseholdMemberOut(BaseModel):
+class HouseholdMemberOut(OutSchema):
     id: str
     name: str
     is_active: bool
@@ -33,8 +33,6 @@ class HouseholdMemberOut(BaseModel):
     updated_at: OptionalUTCDatetime = None
     is_enrolled: bool = False
     embedding_count: int = 0
-
-    model_config = {"from_attributes": True}
 
 
 # -- Enrollment --------------------------------------------------------------
@@ -57,7 +55,7 @@ class EnrollResultOut(BaseModel):
 # -- Person Sightings --------------------------------------------------------
 
 
-class PersonSightingOut(BaseModel):
+class PersonSightingOut(OutSchema):
     id: int
     person_id: str
     sensor_id: str
@@ -68,13 +66,11 @@ class PersonSightingOut(BaseModel):
     bbox_json: dict | None = None
     source: str
 
-    model_config = {"from_attributes": True}
-
 
 # -- Person Location ---------------------------------------------------------
 
 
-class PersonLocationOut(BaseModel):
+class PersonLocationOut(OutSchema):
     person_id: str
     person_name: str
     current_room_name: str | None = None
@@ -83,15 +79,11 @@ class PersonLocationOut(BaseModel):
     status: str
     confidence: float
 
-    model_config = {"from_attributes": True}
 
-
-class PersonLocationHistoryOut(BaseModel):
+class PersonLocationHistoryOut(OutSchema):
     id: int
     person_id: str
     room_name: str | None = None
     entered_at: UTCDatetime
     exited_at: OptionalUTCDatetime = None
     source: str
-
-    model_config = {"from_attributes": True}

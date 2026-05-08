@@ -6,8 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
-
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 # -- Quiz ---------------------------------------------------------------------
 
@@ -33,7 +32,7 @@ class QuizUpdate(BaseModel):
     tags: list[str] | None = None
 
 
-class QuizQuestionOut(BaseModel):
+class QuizQuestionOut(OutSchema):
     id: int
     quiz_id: int
     ord: int
@@ -44,10 +43,8 @@ class QuizQuestionOut(BaseModel):
     explanation: str = ""
     image_slot: dict[str, Any] = {}
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class QuizOut(BaseModel):
+class QuizOut(OutSchema):
     id: int
     document_id: int | None = None
     title: str
@@ -63,10 +60,8 @@ class QuizOut(BaseModel):
     updated_at: UTCDatetime
     questions: list[QuizQuestionOut] = []
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class QuizListOut(BaseModel):
+class QuizListOut(OutSchema):
     id: int
     document_id: int | None = None
     title: str
@@ -78,8 +73,6 @@ class QuizListOut(BaseModel):
     created_at: UTCDatetime
     updated_at: UTCDatetime
     question_count: int = 0
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class QuizPreviewRequest(BaseModel):

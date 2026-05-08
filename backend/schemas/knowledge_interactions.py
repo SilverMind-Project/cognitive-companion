@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
-
-from backend.schemas.common import OptionalUTCDatetime, UTCDatetime
-
+from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
 # -- Senior Knowledge Query --------------------------------------------------
 
 
-class SeniorKnowledgeQueryOut(BaseModel):
+class SeniorKnowledgeQueryOut(OutSchema):
     id: int
     asked_at: UTCDatetime
     senior_id: str | None = None
@@ -23,13 +20,11 @@ class SeniorKnowledgeQueryOut(BaseModel):
     channel: str
     latency_ms: int | None = None
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 # -- Quiz Session -------------------------------------------------------------
 
 
-class QuizSessionListOut(BaseModel):
+class QuizSessionListOut(OutSchema):
     id: int
     quiz_id: int
     rule_id: int | None = None
@@ -42,10 +37,8 @@ class QuizSessionListOut(BaseModel):
     completed_at: OptionalUTCDatetime = None
     response_count: int = 0
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class QuizResponseOut(BaseModel):
+class QuizResponseOut(OutSchema):
     id: int
     session_id: int
     question_id: int
@@ -59,10 +52,8 @@ class QuizResponseOut(BaseModel):
     answered_at: UTCDatetime
     latency_ms: int | None = None
 
-    model_config = ConfigDict(from_attributes=True)
 
-
-class QuizSessionDetailOut(BaseModel):
+class QuizSessionDetailOut(OutSchema):
     id: int
     quiz_id: int
     rule_id: int | None = None
@@ -75,13 +66,11 @@ class QuizSessionDetailOut(BaseModel):
     completed_at: OptionalUTCDatetime = None
     responses: list[QuizResponseOut] = []
 
-    model_config = ConfigDict(from_attributes=True)
-
 
 # -- Info Card Delivery -------------------------------------------------------
 
 
-class InfoCardDeliveryOut(BaseModel):
+class InfoCardDeliveryOut(OutSchema):
     id: int
     info_card_id: int
     rule_id: int | None = None
@@ -91,5 +80,3 @@ class InfoCardDeliveryOut(BaseModel):
     viewed_at: OptionalUTCDatetime = None
     dismissed_at: OptionalUTCDatetime = None
     dismissed_by: str | None = None
-
-    model_config = ConfigDict(from_attributes=True)

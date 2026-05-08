@@ -1,5 +1,7 @@
 """Unit tests for KnowledgeQueryService (no DB required)."""
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from backend.services.knowledge.query_service import KnowledgeAnswer, KnowledgeQueryService
@@ -40,7 +42,7 @@ class TestKnowledgeAnswer:
             top_similarity=0.0,
             answered_via="no_answer",
         )
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             result.answer_text = "modified"  # type: ignore[misc]
 
 

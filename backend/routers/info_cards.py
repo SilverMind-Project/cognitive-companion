@@ -7,23 +7,19 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
 from backend.core.database import get_db
-from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
+from backend.core.exceptions import NotFoundError, ValidationError
 from backend.models.knowledge import InfoCard, InfoCardImageSlot
 from backend.schemas.info_cards import (
     InfoCardCreate,
-    InfoCardListOut,
-    InfoCardOut,
     InfoCardPreviewRequest,
     InfoCardSlotPatch,
-    InfoCardSlotResponse,
-    InfoCardSlotUpdate,
     InfoCardUpdate,
 )
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/info-cards", tags=["info-cards"])
 
@@ -74,8 +70,8 @@ async def list_info_cards(
         stmt = stmt.where(InfoCard.status == status)
         count_stmt = count_stmt.where(InfoCard.status == status)
     if tag:
-        stmt = stmt.where(InfoCard.tags.any(tag))
-        count_stmt = count_stmt.where(InfoCard.tags.any(tag))
+        stmt = stmt.where(InfoCard.tags.contains([tag]))
+        count_stmt = count_stmt.where(InfoCard.tags.contains([tag]))
     if document_id is not None:
         stmt = stmt.where(InfoCard.document_id == document_id)
         count_stmt = count_stmt.where(InfoCard.document_id == document_id)
@@ -85,7 +81,7 @@ async def list_info_cards(
         stmt.order_by(InfoCard.created_at.desc()).offset(offset).limit(limit)
     ).scalars().all()
 
-    minio = request.app.state.minio_client
+    _ = request.app.state.minio_client  # ensure MinIO is available
     return {
         "items": [
             {
@@ -116,7 +112,7 @@ async def get_info_card(
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
-        raise NotFoundError(f"Info card {card_id} not found")
+        raise NotFoundError("Info card", card_id)
     return _card_out(card, request.app.state.minio_client, request.app.state.layout_registry)
 
 
@@ -130,7 +126,7 @@ async def update_info_card(
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
-        raise NotFoundError(f"Info card {card_id} not found")
+        raise NotFoundError("Info card", card_id)
 
     for key, val in body.model_dump(exclude_none=True).items():
         setattr(card, key, val)
@@ -159,7 +155,7 @@ async def approve_info_card(
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
-        raise NotFoundError(f"Info card {card_id} not found")
+        raise NotFoundError("Info card", card_id)
 
     # Validate min_images
     layout_registry = request.app.state.layout_registry
@@ -191,7 +187,7 @@ async def archive_info_card(
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
-        raise NotFoundError(f"Info card {card_id} not found")
+        raise NotFoundError("Info card", card_id)
     card.status = "archived"
     db.commit()
     return {"status": "archived"}
@@ -206,7 +202,7 @@ async def restore_info_card(
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
-        raise NotFoundError(f"Info card {card_id} not found")
+        raise NotFoundError("Info card", card_id)
     card.status = "draft"
     db.commit()
     return {"status": "restored"}
@@ -221,7 +217,7 @@ async def delete_info_card(
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
-        raise NotFoundError(f"Info card {card_id} not found")
+        raise NotFoundError("Info card", card_id)
     db.delete(card)
     db.commit()
     pipeline = request.app.state.image_pipeline
@@ -276,7 +272,7 @@ async def set_info_card_slot(
 ):
     card = db.execute(select(InfoCard).where(InfoCard.id == card_id)).scalar_one_or_none()
     if card is None:
-        raise NotFoundError(f"Info card {card_id} not found")
+        raise NotFoundError("Info card", card_id)
 
     layout_registry = request.app.state.layout_registry
     layout = layout_registry.get_required(card.layout_id)
@@ -305,7 +301,7 @@ async def set_info_card_slot(
             select(KnowledgeDocumentImage).where(KnowledgeDocumentImage.id == source_image_id)
         ).scalar_one_or_none()
         if src is None:
-            raise NotFoundError(f"Source image {source_image_id} not found")
+            raise NotFoundError("Source image", source_image_id)
         original_object_name = src.minio_object_name
 
     # Upsert or create slot row
@@ -378,7 +374,7 @@ async def patch_info_card_slot(
         )
     ).scalar_one_or_none()
     if slot is None:
-        raise NotFoundError(f"Slot {slot_index} not found for info card {card_id}")
+        raise NotFoundError(f"Slot for info card {card_id}", slot_index)
     if body.alt_text is not None:
         slot.alt_text = body.alt_text
     db.commit()
@@ -400,7 +396,7 @@ async def delete_info_card_slot(
         )
     ).scalar_one_or_none()
     if slot is None:
-        raise NotFoundError(f"Slot {slot_index} not found for info card {card_id}")
+        raise NotFoundError(f"Slot for info card {card_id}", slot_index)
     db.delete(slot)
     db.commit()
     pipeline = request.app.state.image_pipeline

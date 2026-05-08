@@ -18,23 +18,29 @@ via the ``db_engine`` / ``db_session`` / ``db_factory`` fixtures in
 from __future__ import annotations
 
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, func
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.core.time import UTCDateTime
 
 __all__ = [
     "Base",
     "Database",
+    "TimestampMixin",
+    "UTCDateTime",
     "get_db",
     "get_session",
     "init_db",
     "reset_default_database",
+    "transaction",
 ]
 
 logger = get_logger(__name__)
@@ -42,6 +48,48 @@ logger = get_logger(__name__)
 
 class Base(DeclarativeBase):
     """Shared declarative base for all ORM models."""
+
+
+class TimestampMixin:
+    """Mixin providing ``created_at`` and ``updated_at`` columns.
+
+    ``created_at`` is set once on insert (server-side default).
+    ``updated_at`` is set on insert and updated on every row change via
+    the SQLAlchemy ``onupdate`` hook.  Models that need a different
+    ``updated_at`` contract (e.g. non-null with a server default) can
+    override the column in the model body.
+    """
+
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(), nullable=True, onupdate=func.now()
+    )
+
+
+@contextmanager
+def transaction(db_factory: Callable[[], Session]) -> Generator[Session]:
+    """Context manager that yields a DB session and commits on success.
+
+    Rolls back on exception and always closes the session in a finally block.
+    Use in services that follow the session-per-call pattern.
+
+    Usage::
+
+        with transaction(self._db_session_factory) as db:
+            row = db.get(Model, id)
+            row.field = value
+    """
+    db = db_factory()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 # ─── Lock Contention Monitoring ──────────────────────────────────────────────
@@ -220,7 +268,7 @@ class Database:
                 f"Consider increasing database.pool_size or database.max_overflow in settings.yaml."
             ) from e
 
-    def session_scope(self) -> Generator[Session, None, None]:
+    def session_scope(self) -> Generator[Session]:
         """Generator yielding a session that is always closed on exit."""
         sess = self.session()
         try:
@@ -273,7 +321,7 @@ def init_db(url: str | None = None) -> None:
     _default_database.create_all()
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db() -> Generator[Session]:
     """FastAPI dependency: yields a DB session and closes it after the request."""
     db = _ensure_default()
     sess = db.session()

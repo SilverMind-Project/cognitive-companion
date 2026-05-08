@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
-
-from backend.schemas.common import UTCDatetime
+from backend.schemas.common import OutSchema, UTCDatetime
 
 
-class EventLogOut(BaseModel):
+class EventLogOut(OutSchema):
     id: int
     timestamp: UTCDatetime
     rule_id: int | None
@@ -18,5 +16,3 @@ class EventLogOut(BaseModel):
     media_paths_json: list[str] | None
     pipeline_data_json: dict[str, Any] | None
     status: str
-
-    model_config = {"from_attributes": True}

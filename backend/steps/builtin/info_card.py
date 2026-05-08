@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from backend.core.logging import get_logger
 from backend.models.knowledge import InfoCard
 from backend.models.pipeline import PipelineStep, WorkflowExecution
@@ -13,8 +16,6 @@ from backend.steps.base import (
     StepResult,
     TriggerContext,
 )
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 logger = get_logger(__name__)
 

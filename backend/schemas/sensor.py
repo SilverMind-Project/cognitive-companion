@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, field_validator
 
-from backend.schemas.common import UTCDatetime
+from backend.schemas.common import OutSchema, UTCDatetime
 
 
 def _validate_movement_map_in_config(config_json: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -18,7 +18,9 @@ def _validate_movement_map_in_config(config_json: dict[str, Any] | None) -> dict
     return config_json
 
 
-class SensorCreate(BaseModel):
+class SensorFields(BaseModel):
+    """Shared editable fields for Sensor create / update / output."""
+
     id: str
     name: str
     room_id: int | None = None
@@ -28,6 +30,8 @@ class SensorCreate(BaseModel):
     enabled: bool = True
     config_json: dict[str, Any] | None = None
 
+
+class SensorCreate(SensorFields):
     @field_validator("config_json")
     @classmethod
     def _check_config_json(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -49,15 +53,5 @@ class SensorUpdate(BaseModel):
         return _validate_movement_map_in_config(v)
 
 
-class SensorOut(BaseModel):
-    id: str
-    name: str
-    room_id: int | None
-    sensor_type: str
-    source: str
-    ha_entity_id: str | None
-    enabled: bool
-    config_json: dict[str, Any] | None
+class SensorOut(SensorFields, OutSchema):
     created_at: UTCDatetime
-
-    model_config = {"from_attributes": True}

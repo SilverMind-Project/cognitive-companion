@@ -229,20 +229,13 @@ class TestOpenSession:
 class TestCloseSession:
     """ActivityService.close_session() delegation tests."""
 
-    def test_close_session_computes_duration(self):
+    def test_close_session_computes_duration(self, db_engine):
         """Should delegate to activity_session.close_session and return SessionRecord."""
-        # Use a fresh DB-backed service to avoid fixture pollution
-        from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
 
         from backend.services.activity_session import ActivitySessionService
 
-        engine = create_engine("sqlite+pysqlite:///:memory:")
-        import backend.models  # noqa: F401
-        from backend.core.database import Base
-
-        Base.metadata.create_all(bind=engine)
-        factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+        factory = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
 
         def _make():
             return factory()

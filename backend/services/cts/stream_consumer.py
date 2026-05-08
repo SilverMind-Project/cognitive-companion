@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import redis.asyncio as aioredis
 
@@ -37,7 +37,7 @@ class ConsumerConfig:
     reclaim_idle_ms: int = 60_000
 
 
-class StreamConsumer(ABC, Generic[T]):
+class StreamConsumer[T](ABC):
     """Base class for a Redis Streams consumer-group reader.
 
     Override ``decode()`` to parse raw Redis fields into your message

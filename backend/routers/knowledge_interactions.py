@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
 from backend.core.database import get_db
@@ -17,8 +19,6 @@ from backend.models.knowledge import (
     QuizSession,
     SeniorKnowledgeQuery,
 )
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/knowledge-interactions", tags=["knowledge-interactions"])
 
@@ -113,7 +113,7 @@ async def get_quiz_session_detail(
         select(QuizSession).where(QuizSession.id == session_id)
     ).scalar_one_or_none()
     if session is None:
-        raise NotFoundError(f"Quiz session {session_id} not found")
+        raise NotFoundError("Quiz session", session_id)
 
     responses = db.execute(
         select(QuizResponse).where(QuizResponse.session_id == session_id)
@@ -194,8 +194,8 @@ async def get_tag_analytics(
     _auth: None = Depends(require_permission("GET /api/v1/knowledge-interactions")),
 ):
     """Return per-tag document count, quiz count, and average quiz score."""
+
     from backend.models.knowledge import KnowledgeDocument, Quiz, QuizResponse, QuizSession
-    from sqlalchemy import case
 
     # Get all distinct tags across documents and quizzes
     doc_tags = set()
@@ -216,17 +216,17 @@ async def get_tag_analytics(
     for tag in all_tags:
         doc_count = db.execute(
             select(func.count(KnowledgeDocument.id)).where(
-                KnowledgeDocument.tags.any(tag)
+                KnowledgeDocument.tags.contains([tag])
             )
         ).scalar() or 0
 
         quiz_count = db.execute(
-            select(func.count(Quiz.id)).where(Quiz.tags.any(tag))
+            select(func.count(Quiz.id)).where(Quiz.tags.contains([tag]))
         ).scalar() or 0
 
         # Avg quiz score: find sessions for quizzes with this tag
         quiz_ids = db.execute(
-            select(Quiz.id).where(Quiz.tags.any(tag))
+            select(Quiz.id).where(Quiz.tags.contains([tag]))
         ).scalars().all()
 
         avg_score = None

@@ -76,7 +76,7 @@ class ImagePipeline:
         if original_bytes is None:
             raise FileNotFoundError(f"Original not found in MinIO: {original_object_name}")
 
-        img = Image.open(BytesIO(original_bytes))
+        img: Image.Image = Image.open(BytesIO(original_bytes))
         # Honour EXIF orientation, then strip metadata
         img = ImageOps.exif_transpose(img)
 
@@ -87,9 +87,7 @@ class ImagePipeline:
             content_type = _content_type_for(spec.format)
             buf = BytesIO()
             save_kwargs: dict = {"format": _pillow_format(spec.format)}
-            if spec.format == "webp" and spec.quality:
-                save_kwargs["quality"] = spec.quality
-            elif spec.format == "jpeg" and spec.quality:
+            if (spec.format == "webp" and spec.quality) or (spec.format == "jpeg" and spec.quality):
                 save_kwargs["quality"] = spec.quality
             variant.save(buf, **save_kwargs)
             data = buf.getvalue()

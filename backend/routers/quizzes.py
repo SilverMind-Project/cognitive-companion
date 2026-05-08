@@ -7,6 +7,8 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
 from backend.core.database import get_db
@@ -14,16 +16,12 @@ from backend.core.exceptions import NotFoundError, ValidationError
 from backend.models.knowledge import Quiz, QuizQuestion
 from backend.schemas.quizzes import (
     QuizCreate,
-    QuizListOut,
-    QuizOut,
     QuizPreviewRequest,
     QuizQuestionCreate,
     QuizQuestionReorder,
     QuizQuestionUpdate,
     QuizUpdate,
 )
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/quizzes", tags=["quizzes"])
 
@@ -76,8 +74,8 @@ async def list_quizzes(
         stmt = stmt.where(Quiz.status == status)
         count_stmt = count_stmt.where(Quiz.status == status)
     if tag:
-        stmt = stmt.where(Quiz.tags.any(tag))
-        count_stmt = count_stmt.where(Quiz.tags.any(tag))
+        stmt = stmt.where(Quiz.tags.contains([tag]))
+        count_stmt = count_stmt.where(Quiz.tags.contains([tag]))
 
     total = db.execute(count_stmt).scalar() or 0
     quizzes = db.execute(
@@ -114,7 +112,7 @@ async def get_quiz(
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
-        raise NotFoundError(f"Quiz {quiz_id} not found")
+        raise NotFoundError("Quiz", quiz_id)
     return _quiz_out(quiz, request.app.state.minio_client)
 
 
@@ -128,7 +126,7 @@ async def update_quiz(
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
-        raise NotFoundError(f"Quiz {quiz_id} not found")
+        raise NotFoundError("Quiz", quiz_id)
 
     for key, val in body.model_dump(exclude_none=True).items():
         setattr(quiz, key, val)
@@ -158,7 +156,7 @@ async def approve_quiz(
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
-        raise NotFoundError(f"Quiz {quiz_id} not found")
+        raise NotFoundError("Quiz", quiz_id)
     quiz.status = "approved"
     quiz.version += 1
     from datetime import UTC, datetime
@@ -180,7 +178,7 @@ async def archive_quiz(
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
-        raise NotFoundError(f"Quiz {quiz_id} not found")
+        raise NotFoundError("Quiz", quiz_id)
     quiz.status = "archived"
     db.commit()
     return {"status": "archived"}
@@ -195,7 +193,7 @@ async def restore_quiz(
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
-        raise NotFoundError(f"Quiz {quiz_id} not found")
+        raise NotFoundError("Quiz", quiz_id)
     quiz.status = "draft"
     db.commit()
     return {"status": "restored"}
@@ -210,7 +208,7 @@ async def delete_quiz(
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
-        raise NotFoundError(f"Quiz {quiz_id} not found")
+        raise NotFoundError("Quiz", quiz_id)
     db.delete(quiz)
     db.commit()
     pipeline = request.app.state.image_pipeline
@@ -240,7 +238,7 @@ async def create_question(
 ):
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     if quiz is None:
-        raise NotFoundError(f"Quiz {quiz_id} not found")
+        raise NotFoundError("Quiz", quiz_id)
 
     ord_val = body.ord
     if ord_val is None:
@@ -279,7 +277,7 @@ async def update_question(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
     ).scalar_one_or_none()
     if q is None:
-        raise NotFoundError(f"Question {qid} not found in quiz {quiz_id}")
+        raise NotFoundError(f"Question in quiz {quiz_id}", qid)
 
     for key, val in body.model_dump(exclude_none=True).items():
         if key == "choices" and val is not None:
@@ -304,7 +302,7 @@ async def delete_question(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
     ).scalar_one_or_none()
     if q is None:
-        raise NotFoundError(f"Question {qid} not found in quiz {quiz_id}")
+        raise NotFoundError(f"Question in quiz {quiz_id}", qid)
     db.delete(q)
     db.commit()
 
@@ -395,7 +393,7 @@ async def regenerate_question(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
     ).scalar_one_or_none()
     if q is None:
-        raise NotFoundError(f"Question {qid} not found in quiz {quiz_id}")
+        raise NotFoundError(f"Question in quiz {quiz_id}", qid)
 
     quiz = db.execute(select(Quiz).where(Quiz.id == quiz_id)).scalar_one_or_none()
     doc_id = quiz.document_id if quiz else None
@@ -433,7 +431,7 @@ async def set_question_image(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
     ).scalar_one_or_none()
     if q is None:
-        raise NotFoundError(f"Question {qid} not found in quiz {quiz_id}")
+        raise NotFoundError(f"Question in quiz {quiz_id}", qid)
 
     minio = request.app.state.minio_client
     pipeline = request.app.state.image_pipeline
@@ -493,7 +491,7 @@ async def delete_question_image(
         select(QuizQuestion).where(QuizQuestion.id == qid, QuizQuestion.quiz_id == quiz_id)
     ).scalar_one_or_none()
     if q is None:
-        raise NotFoundError(f"Question {qid} not found in quiz {quiz_id}")
+        raise NotFoundError(f"Question in quiz {quiz_id}", qid)
     q.image_slot = {}
     db.commit()
 

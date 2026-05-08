@@ -20,6 +20,7 @@ Key design points:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from collections.abc import Callable
@@ -218,7 +219,7 @@ class AudioSessionHandler:
                             elif kind == "text":
                                 await provider.send_text(session, payload)
                             elif kind == "prompt":
-                                text, callback, exp, voice_instruction, metadata = payload
+                                text, callback, exp, voice_instruction, _metadata = payload
                                 if time.time() > exp:
                                     logger.debug("ws_backend_prompt_expired")
                                     continue
@@ -227,21 +228,20 @@ class AudioSessionHandler:
                                 if voice_instruction and voice_instruction != self._current_voice_instruction:
                                     self._current_voice_instruction = voice_instruction
                                     logger.info("ws_voice_instruction_changed")
-                                    try:
-                                        await self.provider.disconnect(session)
-                                    except Exception:
-                                        pass
-                                    gemini_tools = None
-                                    if self.tool_adapter:
-                                        gemini_tools = self.tool_adapter.get_declarations()
-                                    config = self.provider.build_config(
-                                        system_instruction=voice_instruction,
-                                        conversation_history=self._get_history_text(),
-                                        tools=gemini_tools,
-                                    )
-                                    session = await self.provider.connect(config)
-                                    self._current_session = session
-                                    logger.info("ws_backend_reconnected_with_voice_instruction")
+                                    if self.provider is not None:
+                                        with contextlib.suppress(Exception):
+                                            await self.provider.disconnect(session)
+                                        gemini_tools = None
+                                        if self.tool_adapter:
+                                            gemini_tools = self.tool_adapter.get_declarations()
+                                        config = self.provider.build_config(
+                                            system_instruction=voice_instruction,
+                                            conversation_history=self._get_history_text(),
+                                            tools=gemini_tools,
+                                        )
+                                        session = await self.provider.connect(config)
+                                        self._current_session = session
+                                        logger.info("ws_backend_reconnected_with_voice_instruction")
                                 self._current_callback = callback
                                 self._is_orchestrator_turn = True
                                 self._pending_prompt_text.append(text)

@@ -6,13 +6,15 @@ Each context filter type (room, time_range, day_of_week, etc.) implements
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
+
+from backend.core.registry import HasMetadata
 
 
 @dataclass
@@ -25,7 +27,7 @@ class FilterMetadata:
     config_schema: dict  # JSONSchema for config_json validation
 
 
-class ContextFilter(ABC):
+class ContextFilter(HasMetadata[FilterMetadata]):
     """Base class for rule context filter plugins."""
 
     @classmethod

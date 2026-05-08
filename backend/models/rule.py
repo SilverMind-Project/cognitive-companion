@@ -2,20 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.core.database import Base
-from backend.core.time import UTCDateTime
+from backend.core.database import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from backend.models.pipeline import PipelineStep
 
 
-class Rule(Base):
+class Rule(Base, TimestampMixin):
     __tablename__ = "rules"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -51,11 +49,6 @@ class Rule(Base):
     max_concurrent_executions: Mapped[int] = mapped_column(Integer, default=1)
     # 0 = no timeout; default 5 minutes
     execution_timeout_minutes: Mapped[int] = mapped_column(Integer, default=5)
-
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        UTCDateTime(), onupdate=func.now(), nullable=True
-    )
 
     # Relationships
     steps: Mapped[list[PipelineStep]] = relationship(

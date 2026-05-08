@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from backend.core.logging import get_logger
 from backend.models.knowledge import KnowledgeDocument
 
 if TYPE_CHECKING:
-    from backend.integrations.llm import LLMModelRegistry
+    from backend.integrations.llm import LLMModelRegistry, LLMProvider
 
 logger = get_logger(__name__)
 
@@ -66,7 +66,7 @@ class ContentGenerationService:
         """Generate a paraphrased info card from a knowledge document's source_text."""
         doc = self._get_document(document_id)
         model_id = settings.get("knowledge.paraphrase_model", "gemma4_26b")
-        provider = self._llm_registry.get_provider(model_id)
+        provider = self._require_provider(model_id)
 
         prompt = _PARAPHRASE_PROMPT.format(source_text=doc.source_text[:8000])
         response = await provider.call(prompt)
@@ -85,7 +85,7 @@ class ContentGenerationService:
         """Generate a quiz draft from a knowledge document's source_text."""
         doc = self._get_document(document_id)
         model_id = settings.get("knowledge.quiz_generation_model", "gemma4_26b")
-        provider = self._llm_registry.get_provider(model_id)
+        provider = self._require_provider(model_id)
 
         q_type_instruction = (
             "Include a mix of multiple_choice and open_ended questions."
@@ -109,7 +109,7 @@ class ContentGenerationService:
         """Generate a voice instruction for an info card or quiz."""
         doc = self._get_document(document_id)
         model_id = settings.get("knowledge.paraphrase_model", "gemma4_26b")
-        provider = self._llm_registry.get_provider(model_id)
+        provider = self._require_provider(model_id)
 
         prompt = _VOICE_INSTRUCTION_PROMPT.format(
             source_text=doc.source_text[:4000],
@@ -127,10 +127,11 @@ class ContentGenerationService:
         question_type: str,
         existing_text: str = "",
     ) -> QuizQuestionSuggestion:
+        _validate_question_type(question_type)
         """Regenerate a single quiz question."""
         doc = self._get_document(document_id)
         model_id = settings.get("knowledge.quiz_generation_model", "gemma4_26b")
-        provider = self._llm_registry.get_provider(model_id)
+        provider = self._require_provider(model_id)
 
         prompt = _REGENERATE_QUESTION_PROMPT.format(
             source_text=doc.source_text[:6000],
@@ -147,7 +148,7 @@ class ContentGenerationService:
     ) -> bool:
         """Grade an open-ended quiz response against the expected answer."""
         model_id = settings.get("knowledge.quiz_generation_model", "gemma4_26b")
-        provider = self._llm_registry.get_provider(model_id)
+        provider = self._require_provider(model_id)
 
         prompt = _GRADING_PROMPT.format(
             question_text=question_text,
@@ -159,6 +160,12 @@ class ContentGenerationService:
         return response_clean.startswith("correct") or "correct" in response_clean[:20]
 
     # -- helpers ------------------------------------------------------------
+
+    def _require_provider(self, model_id: str) -> LLMProvider:
+        provider = self._require_provider(model_id)
+        if provider is None:
+            raise RuntimeError(f"LLM model {model_id!r} not available")
+        return provider
 
     def _get_document(self, document_id: int) -> KnowledgeDocument:
         db: Session = self._db_factory()
@@ -215,11 +222,12 @@ class ContentGenerationService:
     def _parse_single_question(
         self, response: str, question_type: str
     ) -> QuizQuestionSuggestion:
+        _validate_question_type(question_type)
         """Parse a single regenerated question."""
         try:
             data = _extract_json(response)
             return QuizQuestionSuggestion(
-                question_type=question_type,
+                question_type=cast(Literal["multiple_choice", "open_ended"], question_type),
                 question_text=data.get("question_text", response[:500]),
                 choices=data.get("choices", []),
                 expected_answer=data.get("expected_answer", ""),
@@ -227,12 +235,19 @@ class ContentGenerationService:
             )
         except Exception:
             return QuizQuestionSuggestion(
-                question_type=question_type,
+                question_type=cast(Literal["multiple_choice", "open_ended"], question_type),
                 question_text=response.strip()[:500],
             )
 
 
 # -- helpers ------------------------------------------------------------------
+
+_VALID_QTYPES: set[str] = {"multiple_choice", "open_ended"}
+
+
+def _validate_question_type(question_type: str) -> None:
+    if question_type not in _VALID_QTYPES:
+        raise ValueError(f"Invalid question_type: {question_type!r}")
 
 
 def _extract_json(text: str) -> dict:

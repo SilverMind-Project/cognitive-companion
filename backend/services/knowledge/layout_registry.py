@@ -99,7 +99,7 @@ class LayoutRegistry:
         return layout
 
     def get_for(self, applies_to: str) -> list[LayoutSpec]:
-        return [l for l in self._by_id.values() if applies_to in l.applies_to]
+        return [lo for lo in self._by_id.values() if applies_to in lo.applies_to]
 
     def all_layouts(self) -> list[LayoutSpec]:
         return list(self._by_id.values())

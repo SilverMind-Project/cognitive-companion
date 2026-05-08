@@ -13,6 +13,7 @@ All private HTTP methods:
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
@@ -30,6 +31,10 @@ class HttpUpstreamClient:
     or ``"scene_analysis"``) which is used to build the default
     ``base_url``, ``timeout``, and ``enabled`` values from
     ``settings.yaml``.
+
+    Maintains a lazy-initialised shared :class:`httpx.AsyncClient` with
+    connection-pooling for the lifetime of the instance.  Call
+    :meth:`close` during shutdown to release connections.
     """
 
     SETTINGS_PREFIX: str = ""
@@ -56,24 +61,46 @@ class HttpUpstreamClient:
             if enabled is not None
             else bool(settings.get_required(f"{self.SETTINGS_PREFIX}.enabled"))
         )
+        self._client: httpx.AsyncClient | None = None
+        self._client_lock: asyncio.Lock = asyncio.Lock()
 
     @property
     def configured(self) -> bool:
         """Whether the client has a valid base URL and is enabled."""
         return bool(self._base_url) and self.enabled
 
+    async def _ensure_client(self) -> httpx.AsyncClient:
+        """Return the shared :class:`httpx.AsyncClient`, creating it lazily."""
+        if self._client is not None:
+            return self._client
+        async with self._client_lock:
+            if self._client is None:
+                self._client = httpx.AsyncClient(
+                    timeout=self._timeout,
+                    limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+                )
+        return self._client
+
+    async def close(self) -> None:
+        """Release the shared HTTP client and its connection pool."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    # ── private HTTP helpers ──────────────────────────────────────────
+
     async def _get_json(
-        self, path: str, *, params: dict | None = None
+        self, path: str, *, params: dict | None = None, headers: dict | None = None
     ) -> Any | None:
         """GET a JSON response. Returns None on any error."""
         if not self.configured:
             return None
         url = f"{self._base_url}{path}"
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.get(url, params=params)
-                resp.raise_for_status()
-                return resp.json()
+            client = await self._ensure_client()
+            resp = await client.get(url, params=params, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
         except Exception:
             logger.exception(
                 "upstream_get_error",
@@ -83,17 +110,17 @@ class HttpUpstreamClient:
             return None
 
     async def _post_json(
-        self, path: str, *, json: dict
+        self, path: str, *, json: dict, headers: dict | None = None
     ) -> Any | None:
         """POST a JSON body. Returns None on any error."""
         if not self.configured:
             return None
         url = f"{self._base_url}{path}"
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.post(url, json=json)
-                resp.raise_for_status()
-                return resp.json()
+            client = await self._ensure_client()
+            resp = await client.post(url, json=json, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
         except Exception:
             logger.exception(
                 "upstream_post_error",
@@ -103,17 +130,22 @@ class HttpUpstreamClient:
             return None
 
     async def _post_multipart(
-        self, path: str, *, files: dict, params: dict | None = None
+        self,
+        path: str,
+        *,
+        files: dict,
+        params: dict | None = None,
+        headers: dict | None = None,
     ) -> Any | None:
         """POST multipart/form-data. Returns None on any error."""
         if not self.configured:
             return None
         url = f"{self._base_url}{path}"
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.post(url, files=files, params=params)
-                resp.raise_for_status()
-                return resp.json()
+            client = await self._ensure_client()
+            resp = await client.post(url, files=files, params=params, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
         except Exception:
             logger.exception(
                 "upstream_post_multipart_error",
@@ -123,17 +155,17 @@ class HttpUpstreamClient:
             return None
 
     async def _delete_json(
-        self, path: str, *, params: dict | None = None
+        self, path: str, *, params: dict | None = None, headers: dict | None = None
     ) -> Any | None:
         """DELETE with optional query params. Returns None on any error."""
         if not self.configured:
             return None
         url = f"{self._base_url}{path}"
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.delete(url, params=params)
-                resp.raise_for_status()
-                return resp.json()
+            client = await self._ensure_client()
+            resp = await client.delete(url, params=params, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
         except Exception:
             logger.exception(
                 "upstream_delete_error",

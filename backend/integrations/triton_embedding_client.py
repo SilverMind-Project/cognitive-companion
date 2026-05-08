@@ -45,7 +45,7 @@ class TritonEmbeddingClient:
         from triton_shared.client.grpc import TritonGrpcClient
         from triton_shared.models.embedder import TextEmbedder
 
-        triton_url = settings.get("embedding.triton_url", "triton.nanai.khoofia.com:8001")
+        triton_url = settings.get("embedding.triton_url", "") or "triton.nanai.khoofia.com:8701"
         model_name = settings.get("embedding.model_name", "embeddinggemma-300m")
         tokenizer_path = settings.get("embedding.tokenizer_path", "/opt/models/embeddinggemma/tokenizer.json")
         max_seq_len = settings.get("embedding.max_seq_len", 2048)

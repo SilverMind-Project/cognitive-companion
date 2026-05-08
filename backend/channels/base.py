@@ -7,9 +7,11 @@ Each channel (Telegram, WebSocket, eInk, TTS, etc.) implements
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any
+
+from backend.core.registry import HasMetadata
 
 
 @dataclass
@@ -22,7 +24,7 @@ class ChannelMetadata:
     config_schema: dict  # JSONSchema for per-channel config
 
 
-class NotificationChannel(ABC):
+class NotificationChannel(HasMetadata[ChannelMetadata]):
     """Base class for notification channel plugins."""
 
     @classmethod

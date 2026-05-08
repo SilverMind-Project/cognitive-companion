@@ -22,6 +22,7 @@ vi.mock("../../../services/api.js", () => ({
     trackingOrchestratorHealth: vi.fn().mockResolvedValue({ configured: false }),
     sceneAnalysisHealth: vi.fn().mockResolvedValue({ configured: false }),
     semanticMemoryHealth: vi.fn().mockResolvedValue({ configured: false }),
+    tritonHealth: vi.fn().mockResolvedValue({ configured: false }),
     // LLM health — overridden per test
     llmHealth: vi.fn().mockResolvedValue([]),
   },
@@ -74,6 +75,7 @@ const FIXED_SERVICE_NAMES = new Set([
   "Tracking Orchestrator",
   "Scene Analysis",
   "Semantic Memory",
+  "Triton Inference Server",
   "LLM Models", // error fallback card
 ]);
 
@@ -105,6 +107,7 @@ describe("DashboardView — LLM health cards", () => {
     api.trackingOrchestratorHealth.mockResolvedValue({ configured: false });
     api.sceneAnalysisHealth.mockResolvedValue({ configured: false });
     api.semanticMemoryHealth.mockResolvedValue({ configured: false });
+    api.tritonHealth.mockResolvedValue({ configured: false });
     api.llmHealth.mockResolvedValue([]);
   });
 

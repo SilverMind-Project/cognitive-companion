@@ -56,7 +56,17 @@ class TestConstructor:
 
     def test_dim_from_settings(self):
         """dim is read from settings."""
-        s = Settings.from_dict({"embedding": {"dim": 512}})
+        s = Settings.from_dict(
+            {
+                "embedding": {
+                    "dim": 512,
+                    "triton_url": "localhost:8701",
+                    "model_name": "test-model",
+                    "tokenizer_path": "/tmp/tokenizer.json",
+                    "max_seq_len": 512,
+                }
+            }
+        )
         with patch("backend.integrations.triton_embedding_client.settings", s):
             client = TritonEmbeddingClient()
             assert client.dim == 512
@@ -82,8 +92,12 @@ class TestEmbedQuery:
         """When Triton is unreachable, embed_query raises TritonEmbeddingError."""
         client = TritonEmbeddingClient()
 
-        with patch("triton_shared.client.grpc.TritonGrpcClient") as mock_grpc:
-            mock_grpc.return_value.__aenter__ = AsyncMock(side_effect=OSError("connection refused"))
+        with patch(
+            "backend.integrations.triton_embedding_client.TritonGrpcClient"
+        ) as mock_grpc:
+            mock_grpc.return_value.__aenter__ = AsyncMock(
+                side_effect=OSError("connection refused")
+            )
 
             with pytest.raises(TritonEmbeddingError, match="Failed to embed query"):
                 await client.embed_query("hello")
@@ -128,8 +142,12 @@ class TestEmbedChunks:
         """When Triton is unreachable, embed_chunks raises TritonEmbeddingError."""
         client = TritonEmbeddingClient()
 
-        with patch("triton_shared.client.grpc.TritonGrpcClient") as mock_grpc:
-            mock_grpc.return_value.__aenter__ = AsyncMock(side_effect=OSError("connection refused"))
+        with patch(
+            "backend.integrations.triton_embedding_client.TritonGrpcClient"
+        ) as mock_grpc:
+            mock_grpc.return_value.__aenter__ = AsyncMock(
+                side_effect=OSError("connection refused")
+            )
 
             with pytest.raises(TritonEmbeddingError, match="Failed to embed chunks"):
                 await client.embed_chunks(["a"])
@@ -166,11 +184,11 @@ class TestLazyInit:
 
         with (
             patch(
-                "triton_shared.client.grpc.TritonGrpcClient",
+                "backend.integrations.triton_embedding_client.TritonGrpcClient",
                 return_value=mock_grpc,
             ),
             patch(
-                "triton_shared.models.embedder.TextEmbedder",
+                "backend.integrations.triton_embedding_client.TextEmbedder",
                 return_value=mock_embedder,
             ),
         ):

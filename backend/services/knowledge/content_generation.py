@@ -65,7 +65,7 @@ class ContentGenerationService:
     async def suggest_paraphrase(self, document_id: int) -> ParaphraseSuggestion:
         """Generate a paraphrased info card from a knowledge document's source_text."""
         doc = self._get_document(document_id)
-        model_id = settings.get("knowledge.paraphrase_model", "gemma4_26b")
+        model_id = settings.get("knowledge.paraphrase_model")
         provider = self._require_provider(model_id)
 
         prompt = _PARAPHRASE_PROMPT.format(source_text=doc.source_text[:8000])

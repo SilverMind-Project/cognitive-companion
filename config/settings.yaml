@@ -243,6 +243,7 @@ knowledge:
   max_pixels: 40000000
   allowed_mime_types: ["image/jpeg", "image/png", "image/webp", "image/heic"]
   layouts_file: "config/knowledge_layouts.yaml"
+  voice_config_file: "config/knowledge_voice.yaml"
 
 # Image rendering for eInk display
 image:
@@ -280,11 +281,22 @@ image:
 #       mode: "any"
 cameras: {}
 
+# Memory query service (semantic memory caching)
+memory_query:
+  cache:
+    enabled: false
+    ttl_seconds: 30
+    maxsize: 256
+
 # Presence service configuration
 # Block 1 stub: CTS-only provider with configurable TTL.
 # Block 3 introduces the full provider chain in config/presence.yaml.
 presence:
   cts_ttl_seconds: 120
+
+# Redis (required when cts.enabled=true)
+redis:
+  url: "${REDIS_URL}"
 
 # Continuous Tracking System (CTS) — gated by feature flag
 cts:

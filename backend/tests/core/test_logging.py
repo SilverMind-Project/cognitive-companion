@@ -117,7 +117,7 @@ class TestSetupLogging:
         from backend.core import config as config_module
         from backend.core.config import Settings
 
-        fake = Settings.from_dict({"app": {"log_level": "WARNING"}})
+        fake = Settings.from_dict({"logging": {"level": "WARNING"}})
         monkeypatch.setattr(config_module, "settings", fake)
         buf = io.StringIO()
         setup_logging(stream=buf)

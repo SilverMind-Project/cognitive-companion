@@ -67,7 +67,31 @@
             placeholder="rtsp://192.168.1.10/stream"
           />
           <v-text-field v-model="form.location" label="Location (optional)" variant="outlined" class="mb-3" />
-          <v-switch v-model="form.enabled" label="Enabled" color="primary" />
+          <v-switch v-model="form.enabled" label="Enabled" color="primary" class="mb-3" />
+          <v-divider class="mb-3" />
+          <div class="text-subtitle-2 font-weight-medium mb-2">Face Identification</div>
+          <v-switch
+            v-model="form.face_id_enabled"
+            label="Enable face identification"
+            color="primary"
+            hint="Disable for top-down or surveillance cameras where faces are never visible"
+            persistent-hint
+            density="compact"
+            class="mb-2"
+          />
+          <v-text-field
+            v-if="form.face_id_enabled"
+            v-model.number="form.face_id_min_confidence"
+            label="Min confidence (optional)"
+            variant="outlined"
+            type="number"
+            min="0"
+            max="1"
+            step="0.05"
+            hint="Higher values require stronger face matches. Leave empty for system default (0.4)."
+            persistent-hint
+            density="compact"
+          />
         </v-card-text>
         <v-card-actions class="px-6 pb-4">
           <v-spacer />
@@ -178,6 +202,8 @@ const emptyForm = () => ({
   rtsp_url: "",
   location: "",
   enabled: true,
+  face_id_enabled: true,
+  face_id_min_confidence: null,
 });
 
 const form = ref(emptyForm());
@@ -209,6 +235,8 @@ function openEdit(cam) {
     rtsp_url: cam.rtsp_url,
     location: cam.location || "",
     enabled: cam.enabled,
+    face_id_enabled: cam.face_id_enabled !== false,
+    face_id_min_confidence: cam.face_id_min_confidence ?? null,
   };
   dialog.value = true;
 }

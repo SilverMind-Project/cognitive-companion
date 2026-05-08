@@ -16,6 +16,11 @@ class CtsCameraFields(BaseModel):
     location: str = Field(default="", max_length=256)
     enabled: bool = True
     floor_plan_key: str | None = None
+    # Face identification: set enabled=false for top-down cameras where
+    # faces are never visible.  min_confidence overrides the orchestrator
+    # default (higher = stricter matching).
+    face_id_enabled: bool = True
+    face_id_min_confidence: float | None = None
 
 
 class CtsCameraCreate(CtsCameraFields):
@@ -28,6 +33,8 @@ class CtsCameraUpdate(BaseModel):
     location: str | None = Field(default=None, max_length=256)
     enabled: bool | None = None
     floor_plan_key: str | None = None
+    face_id_enabled: bool | None = None
+    face_id_min_confidence: float | None = None
 
 
 class CtsCameraOut(CtsCameraFields, OutSchema):

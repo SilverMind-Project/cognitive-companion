@@ -56,7 +56,7 @@ llm:
       temperature: 0.7
       top_p: 0.9
 
-    - id: "gemma4_26b"
+    - id: "gemma-4-26B-A4B-it"
       name: "Gemma 4 26B (General)"
       api_type: "openai"
       base_url: "${GEMMA_MODEL_URL}"
@@ -73,8 +73,8 @@ llm:
       name: "Qwen 3.6 35b MOE (General)"
       api_type: "openai"
       base_url: "${GEMMA_MODEL_URL}"
-      model: "gemma-4-26B-A4B-it"
-      capabilities: ["text", "translation"]
+      model: "qwen-3.6-35b"
+      capabilities: ["text", "vision", "translation"]
       max_tokens: 32000
       timeout: 180
       guided_decoding: false

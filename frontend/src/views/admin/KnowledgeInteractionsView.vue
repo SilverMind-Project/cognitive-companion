@@ -1,6 +1,15 @@
 <template>
   <div>
-    <v-tabs v-model="activeTab" bg-color="surface" class="mb-4">
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Knowledge Interactions</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          Queries, quiz sessions, and info card deliveries.
+        </div>
+      </div>
+    </div>
+
+    <v-tabs v-model="activeTab" color="primary" class="mb-4">
       <v-tab value="queries">Knowledge Queries</v-tab>
       <v-tab value="sessions">Quiz Sessions</v-tab>
       <v-tab value="deliveries">Info Card Deliveries</v-tab>
@@ -9,7 +18,7 @@
     <v-window v-model="activeTab">
       <!-- Queries Tab -->
       <v-window-item value="queries">
-        <v-card class="pa-2 mb-2">
+        <v-card variant="tonal" class="pa-2 mb-2">
           <v-row dense align="center">
             <v-col cols="auto">
               <v-text-field
@@ -35,18 +44,19 @@
           </v-row>
         </v-card>
 
-        <v-data-table
-          :headers="queryHeaders"
-          :items="queries"
-          :loading="queriesLoading"
-          :items-per-page="15"
-        >
+        <v-card class="glass-card">
+          <v-data-table
+            :headers="queryHeaders"
+            :items="queries"
+            :loading="queriesLoading"
+            :items-per-page="15"
+          >
           <template #[`item.query_text`]="{ item }">
             {{ truncate(item.query_text, 80) }}
           </template>
 
-          <template #bottom>
-            <div v-if="queries.length === 0 && !queriesLoading" class="pa-6 text-center">
+          <template #no-data>
+            <div class="pa-6 text-center">
               <v-card flat>
                 <v-card-text class="text-grey text-h6">No data yet</v-card-text>
                 <v-card-text class="text-grey">
@@ -55,12 +65,13 @@
               </v-card>
             </div>
           </template>
-        </v-data-table>
+          </v-data-table>
+        </v-card>
       </v-window-item>
 
       <!-- Quiz Sessions Tab -->
       <v-window-item value="sessions">
-        <v-card class="pa-2 mb-2">
+        <v-card variant="tonal" class="pa-2 mb-2">
           <v-row dense align="center">
             <v-col cols="auto">
               <v-text-field
@@ -86,15 +97,16 @@
           </v-row>
         </v-card>
 
-        <v-data-table
-          :headers="sessionHeaders"
-          :items="sessions"
-          :loading="sessionsLoading"
-          :items-per-page="15"
-          :show-expand="true"
-          item-value="id"
-          @click:row="toggleSessionExpand"
-        >
+        <v-card class="glass-card">
+          <v-data-table
+            :headers="sessionHeaders"
+            :items="sessions"
+            :loading="sessionsLoading"
+            :items-per-page="15"
+            :show-expand="true"
+            item-value="id"
+            @click:row="toggleSessionExpand"
+          >
           <template #expanded-row="{ item }">
             <td :colspan="sessionHeaders.length" class="pa-4">
               <v-progress-circular
@@ -130,8 +142,8 @@
             </td>
           </template>
 
-          <template #bottom>
-            <div v-if="sessions.length === 0 && !sessionsLoading" class="pa-6 text-center">
+          <template #no-data>
+            <div class="pa-6 text-center">
               <v-card flat>
                 <v-card-text class="text-grey text-h6">No data yet</v-card-text>
                 <v-card-text class="text-grey">
@@ -140,12 +152,13 @@
               </v-card>
             </div>
           </template>
-        </v-data-table>
+          </v-data-table>
+        </v-card>
       </v-window-item>
 
       <!-- Deliveries Tab -->
       <v-window-item value="deliveries">
-        <v-card class="pa-2 mb-2">
+        <v-card variant="tonal" class="pa-2 mb-2">
           <v-row dense align="center">
             <v-col cols="auto">
               <v-text-field
@@ -171,14 +184,15 @@
           </v-row>
         </v-card>
 
-        <v-data-table
-          :headers="deliveryHeaders"
-          :items="deliveries"
-          :loading="deliveriesLoading"
-          :items-per-page="15"
-        >
-          <template #bottom>
-            <div v-if="deliveries.length === 0 && !deliveriesLoading" class="pa-6 text-center">
+        <v-card class="glass-card">
+          <v-data-table
+            :headers="deliveryHeaders"
+            :items="deliveries"
+            :loading="deliveriesLoading"
+            :items-per-page="15"
+          >
+          <template #no-data>
+            <div class="pa-6 text-center">
               <v-card flat>
                 <v-card-text class="text-grey text-h6">No data yet</v-card-text>
                 <v-card-text class="text-grey">
@@ -187,7 +201,8 @@
               </v-card>
             </div>
           </template>
-        </v-data-table>
+          </v-data-table>
+        </v-card>
       </v-window-item>
     </v-window>
   </div>
@@ -197,10 +212,9 @@
 import { ref, reactive, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
-import { useConfirm } from "@/composables/useConfirm.js";
-import { formatDateTime } from "@/services/timezone.js";
+import { formatDateTime, DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
 
-const notify = useNotify();
+const { notify } = useNotify();
 
 const activeTab = ref("queries");
 
@@ -208,7 +222,7 @@ const activeTab = ref("queries");
 const queries = ref([]);
 const queriesLoading = ref(false);
 const queryHeaders = [
-  { title: "Asked At", key: "asked_at", sortable: true },
+  { title: "Asked At", key: "asked_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
   { title: "Senior ID", key: "senior_id", sortable: true },
   { title: "Query", key: "query_text", sortable: false },
   { title: "Answered Via", key: "answered_via", sortable: true },
@@ -222,7 +236,7 @@ const sessions = ref([]);
 const sessionsLoading = ref(false);
 const loadingSessionDetail = ref(null);
 const sessionHeaders = [
-  { title: "Started At", key: "started_at", sortable: true },
+  { title: "Started At", key: "started_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
   { title: "Quiz ID", key: "quiz_id", sortable: true },
   { title: "Senior ID", key: "senior_id", sortable: true },
   { title: "Status", key: "status", sortable: true },
@@ -234,11 +248,11 @@ const sessionDateRange = reactive({ start: "", end: "" });
 const deliveries = ref([]);
 const deliveriesLoading = ref(false);
 const deliveryHeaders = [
-  { title: "Delivered At", key: "delivered_at", sortable: true },
+  { title: "Delivered At", key: "delivered_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
   { title: "Info Card ID", key: "info_card_id", sortable: true },
   { title: "Channels", key: "channels", sortable: false },
-  { title: "Viewed At", key: "viewed_at", sortable: true },
-  { title: "Dismissed At", key: "dismissed_at", sortable: true },
+  { title: "Viewed At", key: "viewed_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
+  { title: "Dismissed At", key: "dismissed_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
   { title: "Dismissed By", key: "dismissed_by", sortable: false },
 ];
 const deliveryDateRange = reactive({ start: "", end: "" });
@@ -261,7 +275,7 @@ async function fetchQueries() {
   try {
     const params = buildDateParams(queryDateRange);
     const res = await api.getSeniorKnowledgeQueries(params);
-    queries.value = res.data ?? res ?? [];
+    queries.value = res;
   } catch (err) {
     notify.error("Failed to load queries: " + (err.message || err));
   } finally {
@@ -275,7 +289,7 @@ async function fetchSessions() {
   try {
     const params = buildDateParams(sessionDateRange);
     const res = await api.getQuizSessions(params);
-    sessions.value = res.data ?? res ?? [];
+    sessions.value = res;
   } catch (err) {
     notify.error("Failed to load sessions: " + (err.message || err));
   } finally {
@@ -291,7 +305,7 @@ async function toggleSessionExpand(event, { item }) {
   loadingSessionDetail.value = item.id;
   try {
     const res = await api.getQuizSession(item.id);
-    item._details = res.data ?? res;
+    item._details = res;
   } catch (err) {
     notify.error("Failed to load session detail: " + (err.message || err));
   } finally {
@@ -305,7 +319,7 @@ async function fetchDeliveries() {
   try {
     const params = buildDateParams(deliveryDateRange);
     const res = await api.getInfoCardDeliveries(params);
-    deliveries.value = res.data ?? res ?? [];
+    deliveries.value = res;
   } catch (err) {
     notify.error("Failed to load deliveries: " + (err.message || err));
   } finally {

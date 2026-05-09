@@ -840,7 +840,8 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../../services/api.js";
-import { formatDateTime, getAppTimezone } from "../../services/timezone.js";
+import { useNotify } from "../../composables/useNotify.js";
+import { formatDateTime, getAppTimezone, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 import PipelineBuilder from "../../components/pipeline/PipelineBuilder.vue";
 
 const route = useRoute();
@@ -849,9 +850,7 @@ const ruleId = computed(() => Number(route.params.id));
 const rule = ref(null);
 const tab = ref("settings");
 const executing = ref(false);
-const snack = ref(false);
-const snackText = ref("");
-const snackColor = ref("success");
+const { snack, snackText, snackColor, notify } = useNotify();
 
 // Reference data from API
 const allSensors = ref([]);
@@ -922,8 +921,8 @@ const execLoading = ref(false);
 const execHeaders = [
   { title: "ID", key: "id" },
   { title: "Status", key: "status" },
-  { title: "Started", key: "started_at" },
-  { title: "Completed", key: "completed_at" },
+  { title: "Started", key: "started_at", width: DATETIME_COLUMN_WIDTH },
+  { title: "Completed", key: "completed_at", width: DATETIME_COLUMN_WIDTH },
   { title: "Duration", key: "_duration" },
 ];
 
@@ -1051,12 +1050,6 @@ async function copyPipelineData() {
   } catch {
     notify("Copy failed", "error");
   }
-}
-
-function notify(text, color = "success") {
-  snackText.value = text;
-  snackColor.value = color;
-  snack.value = true;
 }
 
 function sensorIcon(type) {
@@ -1354,8 +1347,8 @@ onBeforeUnmount(() => {
 }
 
 .live-json {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--cc-surface-3);
+  border: 1px solid var(--cc-divider);
   border-radius: 12px;
   padding: 14px 16px;
   font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -1364,7 +1357,7 @@ onBeforeUnmount(() => {
   max-height: 520px;
   overflow: auto;
   white-space: pre;
-  color: #e5e5ea;
+  color: var(--cc-text-1);
 }
 
 .cc-code {

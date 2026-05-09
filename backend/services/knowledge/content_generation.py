@@ -62,10 +62,12 @@ class ContentGenerationService:
 
     # -- paraphrase ---------------------------------------------------------
 
-    async def suggest_paraphrase(self, document_id: int) -> ParaphraseSuggestion:
+    async def suggest_paraphrase(
+        self, document_id: int, *, model_id: str | None = None
+    ) -> ParaphraseSuggestion:
         """Generate a paraphrased info card from a knowledge document's source_text."""
         doc = self._get_document(document_id)
-        model_id = settings.get("knowledge.paraphrase_model")
+        model_id = model_id or settings.get("knowledge.paraphrase_model")
         provider = self._require_provider(model_id)
 
         prompt = _PARAPHRASE_PROMPT.format(source_text=doc.source_text[:8000])
@@ -81,10 +83,11 @@ class ContentGenerationService:
         *,
         num_questions: int = 5,
         mix: Literal["mc_only", "mixed"] = "mixed",
+        model_id: str | None = None,
     ) -> QuizSuggestion:
         """Generate a quiz draft from a knowledge document's source_text."""
         doc = self._get_document(document_id)
-        model_id = settings.get("knowledge.quiz_generation_model", "gemma4_26b")
+        model_id = model_id or settings.get("knowledge.quiz_generation_model", "gemma4_26b")
         provider = self._require_provider(model_id)
 
         q_type_instruction = (
@@ -104,11 +107,15 @@ class ContentGenerationService:
     # -- voice instruction --------------------------------------------------
 
     async def suggest_voice_instruction(
-        self, document_id: int, resource_type: Literal["info_card", "quiz"]
+        self,
+        document_id: int,
+        resource_type: Literal["info_card", "quiz"],
+        *,
+        model_id: str | None = None,
     ) -> str:
         """Generate a voice instruction for an info card or quiz."""
         doc = self._get_document(document_id)
-        model_id = settings.get("knowledge.paraphrase_model", "gemma4_26b")
+        model_id = model_id or settings.get("knowledge.paraphrase_model", "gemma4_26b")
         provider = self._require_provider(model_id)
 
         prompt = _VOICE_INSTRUCTION_PROMPT.format(
@@ -126,11 +133,13 @@ class ContentGenerationService:
         document_id: int,
         question_type: str,
         existing_text: str = "",
+        *,
+        model_id: str | None = None,
     ) -> QuizQuestionSuggestion:
         _validate_question_type(question_type)
         """Regenerate a single quiz question."""
         doc = self._get_document(document_id)
-        model_id = settings.get("knowledge.quiz_generation_model", "gemma4_26b")
+        model_id = model_id or settings.get("knowledge.quiz_generation_model", "gemma4_26b")
         provider = self._require_provider(model_id)
 
         prompt = _REGENERATE_QUESTION_PROMPT.format(
@@ -162,7 +171,7 @@ class ContentGenerationService:
     # -- helpers ------------------------------------------------------------
 
     def _require_provider(self, model_id: str) -> LLMProvider:
-        provider = self._require_provider(model_id)
+        provider = self._llm_registry.get_provider(model_id)
         if provider is None:
             raise RuntimeError(f"LLM model {model_id!r} not available")
         return provider

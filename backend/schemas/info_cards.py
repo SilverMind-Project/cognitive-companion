@@ -30,6 +30,7 @@ class InfoCardUpdate(BaseModel):
     voice_instruction: str | None = None
     tags: list[str] | None = None
     layout_id: str | None = None
+    document_id: int | None = None
 
 
 class InfoCardSlotResponse(OutSchema):

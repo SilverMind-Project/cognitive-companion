@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.6.90"
+version = "0.6.91"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -39,6 +39,9 @@ dependencies = [
 [project.optional-dependencies]
 gemini = [
     "google-genai>=1.0",
+]
+triton = [
+    "tritonclient[all]>=2.51.0",
 ]
 dev = [
     "ruff>=0.8",

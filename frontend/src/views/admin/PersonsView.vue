@@ -60,6 +60,14 @@
               <v-btn icon="mdi-delete" size="small" variant="text" color="error"
                      @click="deleteMember(item.id)" />
             </template>
+            <template #no-data>
+              <div class="pa-6 text-center">
+                <v-card flat>
+                  <v-card-text class="text-grey text-h6">No members yet</v-card-text>
+                  <v-card-text class="text-grey">Add household members to enable person recognition and tracking.</v-card-text>
+                </v-card>
+              </div>
+            </template>
           </v-data-table>
         </v-card>
       </v-window-item>
@@ -101,7 +109,7 @@
     </v-window>
 
     <!-- Create/Edit Dialog -->
-    <v-dialog v-model="dialog" max-width="500" scrollable>
+    <v-dialog v-model="dialog" max-width="500" scrollable persistent>
       <v-card>
         <v-card-title>{{ editing ? 'Edit Member' : 'Add Member' }}</v-card-title>
         <v-card-text>
@@ -127,7 +135,7 @@
     </v-dialog>
 
     <!-- Face Enrollment Dialog -->
-    <v-dialog v-model="enrollDialog" max-width="600" scrollable>
+    <v-dialog v-model="enrollDialog" max-width="600" scrollable persistent>
       <v-card>
         <v-card-title class="d-flex align-center">
           <v-icon class="mr-2">mdi-face-recognition</v-icon>
@@ -328,7 +336,7 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card>
+      <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
@@ -346,7 +354,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
-import { formatDateOnly, formatDateTimeShort } from "../../services/timezone.js";
+import { formatDateOnly, formatDateTimeShort, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
@@ -373,7 +381,7 @@ const memberHeaders = [
   { title: "Status", key: "is_active" },
   { title: "Type", key: "is_guest" },
   { title: "Enrollment", key: "enrollment", sortable: false },
-  { title: "Added", key: "created_at" },
+  { title: "Added", key: "created_at", width: DATETIME_COLUMN_WIDTH },
   { title: "Actions", key: "actions", sortable: false },
 ];
 

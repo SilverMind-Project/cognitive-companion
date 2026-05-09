@@ -93,6 +93,14 @@
           </span>
           <span v-else class="text-medium-emphasis">—</span>
         </template>
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey text-h6">No responses yet</v-card-text>
+              <v-card-text class="text-grey">Interactive responses will appear here once seniors begin engaging with the companion.</v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -107,7 +115,7 @@ import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
-import { formatDateTime } from "../../services/timezone.js";
+import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const router = useRouter();
 const { snack, snackText, snackColor, notify } = useNotify();
@@ -135,7 +143,7 @@ const actionOptions = [
 ];
 
 const headers = [
-  { title: "Time", key: "timestamp", width: 180 },
+  { title: "Time", key: "timestamp", width: DATETIME_COLUMN_WIDTH },
   { title: "Execution", key: "execution_id", width: 120 },
   { title: "Step", key: "step_id", width: 100 },
   { title: "Channel", key: "channel", width: 140 },

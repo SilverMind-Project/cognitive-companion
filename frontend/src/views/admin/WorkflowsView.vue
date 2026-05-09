@@ -45,6 +45,14 @@
             @click.stop="cancel(item.id)"
           />
         </template>
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey text-h6">No executions yet</v-card-text>
+              <v-card-text class="text-grey">Workflow executions will appear here once rules are triggered.</v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -85,7 +93,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
-import { formatDateTime } from "../../services/timezone.js";
+import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const items = ref([]);
 const loading = ref(false);
@@ -97,7 +105,7 @@ const headers = [
   { title: "ID", key: "id", width: 80 },
   { title: "Rule", key: "rule_name" },
   { title: "Status", key: "status" },
-  { title: "Started", key: "started_at" },
+  { title: "Started", key: "started_at", width: DATETIME_COLUMN_WIDTH },
   { title: "", key: "actions", sortable: false, width: 60 },
 ];
 

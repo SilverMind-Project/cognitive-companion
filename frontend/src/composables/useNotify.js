@@ -22,5 +22,10 @@ export function useNotify() {
     snack.value = true;
   }
 
+  notify.success = (text) => notify(text, "success");
+  notify.error = (text) => notify(text, "error");
+  notify.warning = (text) => notify(text, "warning");
+  notify.info = (text) => notify(text, "info");
+
   return { snack, snackText, snackColor, notify };
 }

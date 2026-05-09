@@ -201,11 +201,7 @@ async function loadKeyframes() {
 }
 
 function keyframeImage(kf) {
-  // The keyframe image URL depends on the backend implementation.
-  // Adjust this based on how images are served.
-  if (kf.image_url) return kf.image_url;
-  if (kf.minio_key) return `/api/v1/cts/keyframes/${kf.keyframe_id || kf.sample_id}/image`;
-  return "";
+  return kf.image_url || "";
 }
 
 function viewKeyframe(kf) {
@@ -243,7 +239,7 @@ function formatTime(iso) {
 }
 .keyframe-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--cc-shadow-md);
 }
 .keyframe-image {
   border-radius: 4px 4px 0 0;

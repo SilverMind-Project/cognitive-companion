@@ -108,7 +108,7 @@
       </v-col>
     </v-row>
 
-    <v-dialog v-model="dialogOpen" max-width="560">
+    <v-dialog v-model="dialogOpen" max-width="560" persistent>
       <v-card>
         <v-card-title>
           {{ dialogMode === "merge" ? "Merge identities" : "Correct identity" }}
@@ -152,6 +152,7 @@
 
 <script>
 import { cts } from "@/services/cts";
+import { DATETIME_COLUMN_WIDTH } from "@/services/timezone";
 
 export default {
   name: "CTSIdentityCorrectionsView",
@@ -165,7 +166,7 @@ export default {
         { title: "GlobalTrack", key: "global_track_id", sortable: true },
         { title: "Current identity", key: "current_identity_id" },
         { title: "Cameras", key: "cameras", sortable: false },
-        { title: "Last seen", key: "last_seen_at", sortable: true },
+        { title: "Last seen", key: "last_seen_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
         { title: "", key: "actions", sortable: false, align: "end" },
       ],
       dialogOpen: false,

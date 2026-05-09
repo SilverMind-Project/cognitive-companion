@@ -1,6 +1,29 @@
 /**
  * API client for the Cognitive Companion backend.
+ *
+ * @module api
+ *
+ * ## Response shape contracts
+ *
+ * Every endpoint's return shape is registered in {@link contracts.js}.
+ * Pass `{ contract: "name" }` in the options to `request()` and the
+ * response will be validated against that shape in dev mode.  Mismatches
+ * are logged as console warnings so wiring bugs surface immediately
+ * rather than silently producing empty tables.
+ *
+ *   @example
+ *   // With contract validation
+ *   request("/quizzes", { contract: "quizzes.list" })
+ *
+ *   // Contract names follow the pattern "<resource>.<action>":
+ *   //   quizzes.list   info-cards.list   knowledge.documents.list
+ *   //   quizzes.single  info-cards.single  knowledge.documents.single
+ *   //   knowledge.layouts.list         knowledge.layouts.single
+ *   //   knowledge.interactions.queries  knowledge.interactions.sessions
+ *   //   knowledge.interactions.session  knowledge.interactions.deliveries
  */
+
+import { validateContract } from "./contracts.js";
 
 const BASE = "/api/v1";
 
@@ -16,18 +39,22 @@ function authHeaders(extra = {}) {
 
 /** JSON request helper: always injects the API key. */
 async function request(path, options = {}) {
+  const { contract, ...fetchOpts } = options;
+
   const headers = authHeaders({
     "Content-Type": "application/json",
-    ...options.headers,
+    ...fetchOpts.headers,
   });
 
-  const resp = await fetch(`${BASE}${path}`, { ...options, headers });
+  const resp = await fetch(`${BASE}${path}`, { ...fetchOpts, headers });
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(body.detail || `HTTP ${resp.status}`);
   }
   if (resp.status === 204) return null;
-  return resp.json();
+  const data = await resp.json();
+  if (contract) validateContract(contract, data);
+  return data;
 }
 
 /**
@@ -77,7 +104,7 @@ export const api = {
   llmHealth: () => request("/admin/health/llm-models"),
 
   // Rooms
-  getRooms: () => request("/rooms"),
+  getRooms: () => request("/rooms", { contract: "rooms.list" }),
   createRoom: (data) => request("/rooms", { method: "POST", body: JSON.stringify(data) }),
   updateRoom: (id, data) => request(`/rooms/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteRoom: (id) => request(`/rooms/${id}`, { method: "DELETE" }),
@@ -85,16 +112,16 @@ export const api = {
   // Sensors
   getSensors: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/sensors${qs ? "?" + qs : ""}`);
+    return request(`/sensors${qs ? "?" + qs : ""}`, { contract: "sensors.list" });
   },
   createSensor: (data) => request("/sensors", { method: "POST", body: JSON.stringify(data) }),
   updateSensor: (id, data) => request(`/sensors/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteSensor: (id) => request(`/sensors/${id}`, { method: "DELETE" }),
 
   // Rules
-  getRules: () => request("/rules"),
+  getRules: () => request("/rules", { contract: "rules.list" }),
   createRule: (data) => request("/rules", { method: "POST", body: JSON.stringify(data) }),
-  getRule: (id) => request(`/rules/${id}`),
+  getRule: (id) => request(`/rules/${id}`, { contract: "rules.single" }),
   updateRule: (id, data) => request(`/rules/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteRule: (id) => request(`/rules/${id}`, { method: "DELETE" }),
 
@@ -115,7 +142,7 @@ export const api = {
   // Alerts
   getAlerts: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/alerts${qs ? "?" + qs : ""}`);
+    return request(`/alerts${qs ? "?" + qs : ""}`, { contract: "alerts.list" });
   },
   alertAction: (id, action) =>
     request(`/alerts/${id}/action`, { method: "POST", body: JSON.stringify(action) }),
@@ -123,19 +150,19 @@ export const api = {
   // Interactive Responses
   getInteractiveResponses: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/interactive-responses${qs ? "?" + qs : ""}`);
+    return request(`/interactive-responses${qs ? "?" + qs : ""}`, { contract: "interactive.responses.list" });
   },
 
   // Events
   getEvents: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/events${qs ? "?" + qs : ""}`);
+    return request(`/events${qs ? "?" + qs : ""}`, { contract: "events.list" });
   },
 
   // Occupancy
   getOccupancy: (roomName) => {
     const qs = roomName ? `?room_name=${roomName}` : "";
-    return request(`/occupancy${qs}`);
+    return request(`/occupancy${qs}`, { contract: "occupancy" });
   },
 
   // HA Sync
@@ -151,19 +178,19 @@ export const api = {
   },
 
   // Persons
-  getPersons: () => request("/persons"),
+  getPersons: () => request("/persons", { contract: "persons.list" }),
   createPerson: (data) => request("/persons", { method: "POST", body: JSON.stringify(data) }),
-  getPerson: (id) => request(`/persons/${id}`),
+  getPerson: (id) => request(`/persons/${id}`, { contract: "persons.single" }),
   updatePerson: (id, data) =>
     request(`/persons/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deletePerson: (id) => request(`/persons/${id}`, { method: "DELETE" }),
-  getPersonLocations: () => request("/persons/locations"),
-  getPersonLocation: (id) => request(`/persons/${id}/location`),
-  getPersonHistory: (id, hours = 24) => request(`/persons/${id}/history?hours=${hours}`),
-  getPersonSightings: (id, limit = 20) => request(`/persons/${id}/sightings?limit=${limit}`),
+  getPersonLocations: () => request("/persons/locations", { contract: "persons.locations" }),
+  getPersonLocation: (id) => request(`/persons/${id}/location`, { contract: "persons.location" }),
+  getPersonHistory: (id, hours = 24) => request(`/persons/${id}/history?hours=${hours}`, { contract: "persons.history" }),
+  getPersonSightings: (id, limit = 20) => request(`/persons/${id}/sightings?limit=${limit}`, { contract: "persons.sightings" }),
 
   // Face Enrollment (person-ID service proxy)
-  getEnrolledPersons: () => request("/persons/enrolled"),
+  getEnrolledPersons: () => request("/persons/enrolled", { contract: "persons.enrolled" }),
   getEnrollmentStatus: (id) => request(`/persons/${id}/enrollment`),
   enrollPerson: (id, formData) => requestForm(`/persons/${id}/enroll`, "POST", formData),
   deleteEnrollment: (id) => request(`/persons/${id}/enrollment`, { method: "DELETE" }),
@@ -187,15 +214,15 @@ export const api = {
   // Workflows
   getWorkflows: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/workflows${qs ? "?" + qs : ""}`);
+    return request(`/workflows${qs ? "?" + qs : ""}`, { contract: "workflows.list" });
   },
-  getWorkflow: (id) => request(`/workflows/${id}`),
+  getWorkflow: (id) => request(`/workflows/${id}`, { contract: "workflows.single" }),
   cancelWorkflow: (id) => request(`/workflows/${id}/cancel`, { method: "POST" }),
 
   // Activities
   getActivities: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/activities${qs ? "?" + qs : ""}`);
+    return request(`/activities${qs ? "?" + qs : ""}`, { contract: "activities.list" });
   },
 
   // Activity Timeline
@@ -233,14 +260,14 @@ export const api = {
   },
 
   // Image Templates
-  getImageTemplates: () => request("/image/templates"),
+  getImageTemplates: () => request("/image/templates", { contract: "image.templates.list" }),
   createImageTemplate: (formData) => requestForm("/image/templates", "POST", formData),
   updateImageTemplate: (id, data) =>
     request(`/image/templates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   updateImageTemplateImage: (id, formData) =>
     requestForm(`/image/templates/${id}/image`, "PUT", formData),
   deleteImageTemplate: (id) => request(`/image/templates/${id}`, { method: "DELETE" }),
-  getImageFonts: () => request("/image/fonts"),
+  getImageFonts: () => request("/image/fonts", { contract: "image.fonts" }),
 
   /**
    * Fetch the background image for a saved template as an authenticated
@@ -249,7 +276,7 @@ export const api = {
   getImageTemplatePreview: (id) => requestBlob(`/image/templates/${id}/preview`),
 
   // E-Ink Display State
-  getImageStates: () => request("/image/states"),
+  getImageStates: () => request("/image/states", { contract: "image.states" }),
   renderImage: (data) =>
     request("/image/render", { method: "POST", body: JSON.stringify(data) }),
   resetImage: (sensorIds) =>
@@ -319,7 +346,7 @@ export const api = {
   // Media buffer (camera feed)
   getMediaBuffer: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/media/buffer${qs ? "?" + qs : ""}`);
+    return request(`/media/buffer${qs ? "?" + qs : ""}`, { contract: "media.buffer" });
   },
 
   // Admin
@@ -338,9 +365,10 @@ export const api = {
 
   getKnowledgeDocuments: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/knowledge/documents${qs ? "?" + qs : ""}`);
+    return request(`/knowledge/documents${qs ? "?" + qs : ""}`, { contract: "knowledge.documents.list" });
   },
-  getKnowledgeDocument: (id) => request(`/knowledge/documents/${id}`),
+  getKnowledgeDocument: (id) =>
+    request(`/knowledge/documents/${id}`, { contract: "knowledge.documents.single" }),
   createKnowledgeDocument: (formData) =>
     requestForm("/knowledge/documents", "POST", formData),
   updateKnowledgeDocument: (id, data) =>
@@ -369,9 +397,9 @@ export const api = {
 
   getInfoCards: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/info-cards${qs ? "?" + qs : ""}`);
+    return request(`/info-cards${qs ? "?" + qs : ""}`, { contract: "info-cards.list" });
   },
-  getInfoCard: (id) => request(`/info-cards/${id}`),
+  getInfoCard: (id) => request(`/info-cards/${id}`, { contract: "info-cards.single" }),
   createInfoCard: (data) =>
     request("/info-cards", { method: "POST", body: JSON.stringify(data) }),
   updateInfoCard: (id, data) =>
@@ -399,14 +427,19 @@ export const api = {
     request(`/info-cards/${cardId}/slots/${slotIndex}`, { method: "DELETE" }),
   rerenderInfoCard: (id) =>
     request(`/info-cards/${id}/rerender`, { method: "POST" }),
+  suggestInfoCard: (documentId, modelId) => {
+    const params = new URLSearchParams({ document_id: documentId });
+    if (modelId) params.set("model_id", modelId);
+    return request(`/info-cards/suggest?${params}`, { method: "POST" });
+  },
 
   // -- Quizzes -------------------------------------------------------------
 
   getQuizzes: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/quizzes${qs ? "?" + qs : ""}`);
+    return request(`/quizzes${qs ? "?" + qs : ""}`, { contract: "quizzes.list" });
   },
-  getQuiz: (id) => request(`/quizzes/${id}`),
+  getQuiz: (id) => request(`/quizzes/${id}`, { contract: "quizzes.single" }),
   createQuiz: (data) =>
     request("/quizzes", { method: "POST", body: JSON.stringify(data) }),
   updateQuiz: (id, data) =>
@@ -438,28 +471,47 @@ export const api = {
     requestForm(`/quizzes/${quizId}/questions/${qid}/image`, "PUT", formData),
   deleteQuizQuestionImage: (quizId, qid) =>
     request(`/quizzes/${quizId}/questions/${qid}/image`, { method: "DELETE" }),
+  suggestQuiz: (documentId, numQuestions, mix, modelId) => {
+    const params = new URLSearchParams({ document_id: documentId });
+    if (numQuestions) params.set("num_questions", numQuestions);
+    if (mix) params.set("mix", mix);
+    if (modelId) params.set("model_id", modelId);
+    return request(`/quizzes/suggest?${params}`, { method: "POST" });
+  },
+  suggestQuizVoiceInstruction: (documentId, resourceType, modelId) => {
+    const params = new URLSearchParams({ document_id: documentId });
+    if (resourceType) params.set("resource_type", resourceType);
+    if (modelId) params.set("model_id", modelId);
+    return request(`/quizzes/voice-instruction-suggest?${params}`, { method: "POST" });
+  },
+  regenerateQuizQuestion: (quizId, qid, modelId) => {
+    const params = modelId ? `?model_id=${encodeURIComponent(modelId)}` : "";
+    return request(`/quizzes/${quizId}/questions/${qid}/regenerate${params}`, { method: "POST" });
+  },
 
   // -- Layouts -------------------------------------------------------------
 
   getKnowledgeLayouts: (appliesTo) => {
     const qs = appliesTo ? `?applies_to=${appliesTo}` : "";
-    return request(`/knowledge/layouts${qs}`);
+    return request(`/knowledge/layouts${qs}`, { contract: "knowledge.layouts.list" });
   },
-  getKnowledgeLayout: (id) => request(`/knowledge/layouts/${id}`),
+  getKnowledgeLayout: (id) =>
+    request(`/knowledge/layouts/${id}`, { contract: "knowledge.layouts.single" }),
 
   // -- Interactions --------------------------------------------------------
 
   getSeniorKnowledgeQueries: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/knowledge-interactions/queries${qs ? "?" + qs : ""}`);
+    return request(`/knowledge-interactions/queries${qs ? "?" + qs : ""}`, { contract: "knowledge.interactions.queries" });
   },
   getQuizSessions: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/knowledge-interactions/quiz-sessions${qs ? "?" + qs : ""}`);
+    return request(`/knowledge-interactions/quiz-sessions${qs ? "?" + qs : ""}`, { contract: "knowledge.interactions.sessions" });
   },
-  getQuizSession: (id) => request(`/knowledge-interactions/quiz-sessions/${id}`),
+  getQuizSession: (id) =>
+    request(`/knowledge-interactions/quiz-sessions/${id}`, { contract: "knowledge.interactions.session" }),
   getInfoCardDeliveries: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/knowledge-interactions/info-card-deliveries${qs ? "?" + qs : ""}`);
+    return request(`/knowledge-interactions/info-card-deliveries${qs ? "?" + qs : ""}`, { contract: "knowledge.interactions.deliveries" });
   },
 };

@@ -40,6 +40,14 @@
         <template #item.timestamp="{ item }">
           {{ formatDateTime(item.timestamp) }}
         </template>
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey text-h6">No events yet</v-card-text>
+              <v-card-text class="text-grey">System events will appear here as rules execute and actions are triggered.</v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
   </div>
@@ -48,14 +56,14 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
-import { formatDateTime } from "../../services/timezone.js";
+import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const events = ref([]);
 const loading = ref(false);
 const filter = ref({ status: "", rule_name: "" });
 
 const headers = [
-  { title: "Time", key: "timestamp" },
+  { title: "Time", key: "timestamp", width: DATETIME_COLUMN_WIDTH },
   { title: "Rule", key: "rule_name" },
   { title: "Room", key: "room_name" },
   { title: "Trigger", key: "trigger_type" },

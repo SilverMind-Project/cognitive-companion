@@ -382,6 +382,22 @@ kbd {
   border-color: var(--cc-glass-border-strong);
 }
 
+/* Inset section: subtle card surface for grouping within dialogs or larger cards.
+   Use on v-card elements inside dialogs to visually separate child content
+   (e.g. question editor cards, generation settings panels). */
+.cc-inset-section {
+  background-color: var(--cc-surface-2) !important;
+  backdrop-filter: saturate(140%) blur(12px);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
+  border: 1px solid var(--cc-divider) !important;
+  border-radius: var(--cc-radius-md);
+  transition: border-color 0.2s ease;
+}
+
+.cc-inset-section:hover {
+  border-color: var(--cc-divider-strong);
+}
+
 /* Page header pattern used across admin views */
 .cc-page-header {
   display: flex;

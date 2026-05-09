@@ -1,8 +1,17 @@
 <template>
   <div>
+    <div class="d-flex align-center mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">CTS Dashboard</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          Real-time tracking, signals, and dwell data for monitored persons.
+        </div>
+      </div>
+    </div>
+
     <!-- Current presence widgets -->
     <div class="mb-6">
-      <div class="text-overline text-medium-emphasis mb-2 px-1">Current presence</div>
+      <div class="text-subtitle-2 font-weight-bold mb-2">Current Presence</div>
       <v-row dense>
         <v-col v-for="person in trackedPersons" :key="person.id" cols="12" sm="6" md="4">
           <PresenceWidget :person-id="person.id" :person-label="person.display_name" :poll-seconds="10" />
@@ -17,49 +26,55 @@
       </v-row>
     </div>
 
-    <!-- Person selector + date picker -->
-    <v-row class="mb-2">
-      <v-col cols="12" sm="4">
-        <v-select
-          v-model="selectedPerson"
-          :items="personOptions"
-          label="Person"
-          prepend-inner-icon="mdi-account"
-          clearable
-          hide-details
-          @update:modelValue="onPersonChange"
-        />
-      </v-col>
-      <v-col cols="12" sm="3">
-        <v-text-field
-          v-model="selectedDate"
-          label="Date (YYYY-MM-DD)"
-          prepend-inner-icon="mdi-calendar"
-          hide-details
-          clearable
-          @change="loadDwellSummary"
-        />
-      </v-col>
-      <v-col cols="12" sm="2">
-        <v-select
-          v-model="windowHours"
-          :items="[6, 12, 24, 48, 168]"
-          label="Signal window (h)"
-          hide-details
-          @update:modelValue="loadSignals"
-        />
-      </v-col>
-      <v-col cols="12" sm="3" class="d-flex align-center">
-        <v-btn
-          prepend-icon="mdi-refresh"
-          variant="tonal"
-          :loading="loading"
-          @click="refreshAll"
-        >
-          Refresh
-        </v-btn>
-      </v-col>
-    </v-row>
+    <!-- Filters -->
+    <v-card variant="tonal" class="mb-4 pa-3">
+      <v-row dense align="center">
+        <v-col cols="12" sm="4">
+          <v-select
+            v-model="selectedPerson"
+            :items="personOptions"
+            label="Person"
+            prepend-inner-icon="mdi-account"
+            density="compact"
+            clearable
+            hide-details
+            @update:modelValue="onPersonChange"
+          />
+        </v-col>
+        <v-col cols="12" sm="3">
+          <v-text-field
+            v-model="selectedDate"
+            label="Date (YYYY-MM-DD)"
+            prepend-inner-icon="mdi-calendar"
+            density="compact"
+            hide-details
+            clearable
+            @change="loadDwellSummary"
+          />
+        </v-col>
+        <v-col cols="12" sm="2">
+          <v-select
+            v-model="windowHours"
+            :items="[6, 12, 24, 48, 168]"
+            label="Signal window (h)"
+            density="compact"
+            hide-details
+            @update:modelValue="loadSignals"
+          />
+        </v-col>
+        <v-col cols="12" sm="3" class="d-flex align-center">
+          <v-btn
+            prepend-icon="mdi-refresh"
+            variant="tonal"
+            :loading="loading"
+            block
+            @click="refreshAll"
+          >
+            Refresh
+          </v-btn>
+        </v-col>
+      </v-row>
+    </v-card>
 
     <v-row>
       <!-- Signal summary cards -->
@@ -184,7 +199,7 @@
               <svg
                 viewBox="0 0 400 300"
                 width="100%"
-                style="background: #f5f5f5; border-radius: 4px"
+                style="background: var(--cc-surface-3); border-radius: 4px"
                 aria-label="Floor-plan trajectory overlay"
               >
                 <!-- Grid lines -->
@@ -192,24 +207,22 @@
                   v-for="x in [100, 200, 300]"
                   :key="`vg-${x}`"
                   :x1="x" y1="0" :x2="x" y2="300"
-                  stroke="#ddd" stroke-width="1"
+                  style="stroke: var(--cc-divider); stroke-width: 1"
                 />
                 <line
                   v-for="y in [75, 150, 225]"
                   :key="`hg-${y}`"
                   x1="0" :y1="y" x2="400" :y2="y"
-                  stroke="#ddd" stroke-width="1"
+                  style="stroke: var(--cc-divider); stroke-width: 1"
                 />
                 <!-- Trajectory path -->
                 <polyline
                   v-if="svgPath"
                   :points="svgPath"
                   fill="none"
-                  stroke="#1976d2"
-                  stroke-width="2"
+                  style="stroke: var(--cc-brand); stroke-width: 2; opacity: 0.7"
                   stroke-linejoin="round"
                   stroke-linecap="round"
-                  opacity="0.7"
                 />
                 <!-- Most recent position dot -->
                 <circle
@@ -217,9 +230,7 @@
                   :cx="latestPoint.svgX"
                   :cy="latestPoint.svgY"
                   r="6"
-                  fill="#1976d2"
-                  stroke="white"
-                  stroke-width="2"
+                  style="fill: var(--cc-brand); stroke: var(--cc-bg-elevated); stroke-width: 2"
                 />
               </svg>
               <div class="text-caption text-medium-emphasis mt-1 text-center">

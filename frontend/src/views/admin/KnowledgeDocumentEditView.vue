@@ -96,7 +96,7 @@
             <v-row v-if="images.length > 0" class="mb-3">
               <v-col v-for="img in images" :key="img.id" cols="6" sm="4" md="3">
                 <v-card>
-                  <v-img :src="img.url || img.image_url" height="140" cover />
+                  <v-img :src="img.presigned_url" height="140" cover />
                   <v-card-actions class="pa-1">
                     <v-spacer />
                     <v-btn
@@ -268,11 +268,11 @@ async function uploadImages() {
   if (newImages.value.length === 0) return;
   uploadingImages.value = true;
   try {
-    const fd = new FormData();
     for (const img of newImages.value) {
-      fd.append("images", img);
+      const fd = new FormData();
+      fd.append("file", img);
+      await api.addKnowledgeDocumentImage(route.params.id, fd);
     }
-    await api.addKnowledgeDocumentImage(route.params.id, fd);
     notify.success("Images uploaded.");
     newImages.value = [];
     await fetchDocument();

@@ -286,7 +286,7 @@ wheels = [
 
 [[package]]
 name = "cognitive-companion"
-version = "0.6.90"
+version = "0.6.91"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },

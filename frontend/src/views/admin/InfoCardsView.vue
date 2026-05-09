@@ -239,6 +239,86 @@
             label="Layout"
             class="mb-3"
           />
+
+          <!-- Image Slots -->
+          <v-card v-if="editingItem && currentEditLayoutSlots.length > 0" variant="tonal" class="mb-3 pa-3">
+            <div class="text-subtitle-2 mb-3">Image Slots</div>
+            <div v-for="(slotDef, idx) in currentEditLayoutSlots" :key="idx" class="mb-3">
+              <div class="text-caption mb-1">Slot {{ idx }}: {{ slotDef.slot_id }}</div>
+              <div class="d-flex align-center ga-2 flex-wrap">
+                <v-sheet
+                  v-if="getSlotPreview(idx)"
+                  width="80"
+                  height="60"
+                  class="rounded-lg overflow-hidden"
+                >
+                  <v-img :src="getSlotPreview(idx)" height="60" cover />
+                </v-sheet>
+                <v-sheet
+                  v-else
+                  width="80"
+                  height="60"
+                  class="rounded-lg bg-surface-variant d-flex align-center justify-center"
+                >
+                  <v-icon size="24" color="grey">mdi-image-outline</v-icon>
+                </v-sheet>
+
+                <v-file-input
+                  v-model="slotUploadFiles[idx]"
+                  label="Upload"
+                  accept="image/*"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  style="max-width: 180px"
+                />
+                <v-btn
+                  v-if="slotUploadFiles[idx]"
+                  size="small"
+                  color="primary"
+                  variant="tonal"
+                  :loading="slotUploading[idx]"
+                  @click="uploadSlotImage(idx)"
+                >
+                  Save
+                </v-btn>
+
+                <v-btn
+                  v-if="docImagesForPick.length > 0"
+                  size="small"
+                  variant="tonal"
+                  @click="showDocPickIdx = showDocPickIdx === idx ? -1 : idx"
+                >
+                  Pick from Document
+                </v-btn>
+
+                <v-btn
+                  v-if="getSlotPreview(idx)"
+                  size="small"
+                  color="error"
+                  variant="text"
+                  icon="mdi-delete"
+                  :loading="slotUploading[idx]"
+                  @click="clearSlot(idx)"
+                />
+              </div>
+
+              <div v-if="showDocPickIdx === idx" class="d-flex ga-2 flex-wrap mt-2">
+                <v-img
+                  v-for="docImg in docImagesForPick"
+                  :key="docImg.id"
+                  :src="docImg.presigned_url"
+                  width="80"
+                  height="60"
+                  cover
+                  class="rounded-lg"
+                  style="cursor: pointer; border: 2px solid transparent"
+                  @click="pickSlotImage(idx, docImg.id); showDocPickIdx = -1"
+                />
+              </div>
+            </div>
+          </v-card>
+
           <v-combobox
             v-model="editForm.tags"
             label="Tags"
@@ -249,7 +329,7 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="showEditDialog = false">Cancel</v-btn>
+          <v-btn variant="text" @click="closeEditDialog">Cancel</v-btn>
           <v-btn color="primary" :loading="saving" @click="submitEdit">Save</v-btn>
         </v-card-actions>
       </v-card>
@@ -284,7 +364,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
@@ -345,6 +425,19 @@ const editForm = reactive({
   layout_id: null,
   document_id: null,
   tags: [],
+});
+
+// -- slot management state
+const editCardSlots = ref([]);
+const slotUploadFiles = reactive({});
+const slotUploading = reactive({});
+const showDocPickIdx = ref(-1);
+const docImagesForPick = ref([]);
+
+const currentEditLayoutSlots = computed(() => {
+  if (!editForm.layout_id) return [];
+  const layout = layouts.value.find((l) => l.id === editForm.layout_id);
+  return layout?.image_slots ?? [];
 });
 
 let debounceTimer = null;
@@ -486,7 +579,7 @@ function closeCreateDialog() {
   generateModelId.value = "";
 }
 
-function editCard(item) {
+async function editCard(item) {
   editingItem.value = item;
   editForm.title = item.title ?? "";
   editForm.body_text = item.body_text ?? "";
@@ -494,7 +587,93 @@ function editCard(item) {
   editForm.document_id = item.document_id ?? null;
   editForm.tags = item.tags ?? [];
   editGenerateModelId.value = "";
+  editCardSlots.value = [];
+  docImagesForPick.value = [];
+  showDocPickIdx.value = -1;
+  // Clear per-slot file inputs
+  for (const k of Object.keys(slotUploadFiles)) delete slotUploadFiles[k];
+
+  // Fetch full card to get image_slots
+  try {
+    const full = await api.getInfoCard(item.id);
+    editCardSlots.value = full.image_slots ?? [];
+  } catch (_) { /* best-effort */ }
+
+  // Fetch document images for picker
+  if (editForm.document_id) {
+    try {
+      const doc = await api.getKnowledgeDocument(editForm.document_id);
+      docImagesForPick.value = doc.images ?? [];
+    } catch (_) { /* best-effort */ }
+  }
+
   showEditDialog.value = true;
+}
+
+function getSlotPreview(slotIndex) {
+  const slot = editCardSlots.value.find((s) => s.slot_index === slotIndex);
+  if (!slot) return null;
+  const pwa = slot.variants?.pwa;
+  return pwa?.presigned_url || null;
+}
+
+async function uploadSlotImage(slotIndex) {
+  const file = slotUploadFiles[slotIndex];
+  if (!file) return;
+  slotUploading[slotIndex] = true;
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    await api.setInfoCardSlot(editingItem.value.id, slotIndex, fd);
+    notify.success("Slot image updated.");
+    delete slotUploadFiles[slotIndex];
+    // Refresh slot data
+    const full = await api.getInfoCard(editingItem.value.id);
+    editCardSlots.value = full.image_slots ?? [];
+  } catch (err) {
+    notify.error("Failed to upload slot image: " + (err.message || err));
+  } finally {
+    slotUploading[slotIndex] = false;
+  }
+}
+
+async function pickSlotImage(slotIndex, sourceImageId) {
+  slotUploading[slotIndex] = true;
+  try {
+    const fd = new FormData();
+    fd.append("source_image_id", String(sourceImageId));
+    await api.setInfoCardSlot(editingItem.value.id, slotIndex, fd);
+    notify.success("Slot image set from document.");
+    const full = await api.getInfoCard(editingItem.value.id);
+    editCardSlots.value = full.image_slots ?? [];
+  } catch (err) {
+    notify.error("Failed to set slot image: " + (err.message || err));
+  } finally {
+    slotUploading[slotIndex] = false;
+  }
+}
+
+async function clearSlot(slotIndex) {
+  slotUploading[slotIndex] = true;
+  try {
+    await api.deleteInfoCardSlot(editingItem.value.id, slotIndex);
+    notify.success("Slot image cleared.");
+    const full = await api.getInfoCard(editingItem.value.id);
+    editCardSlots.value = full.image_slots ?? [];
+  } catch (err) {
+    notify.error("Failed to clear slot image: " + (err.message || err));
+  } finally {
+    slotUploading[slotIndex] = false;
+  }
+}
+
+function closeEditDialog() {
+  showEditDialog.value = false;
+  editingItem.value = null;
+  editCardSlots.value = [];
+  docImagesForPick.value = [];
+  showDocPickIdx.value = -1;
+  for (const k of Object.keys(slotUploadFiles)) delete slotUploadFiles[k];
 }
 
 async function submitEdit() {
@@ -509,8 +688,7 @@ async function submitEdit() {
       tags: editForm.tags,
     });
     notify.success("Info card updated.");
-    showEditDialog.value = false;
-    editingItem.value = null;
+    closeEditDialog();
     await fetchCards();
   } catch (err) {
     notify.error("Failed to update: " + (err.message || err));

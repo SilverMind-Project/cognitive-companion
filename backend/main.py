@@ -207,6 +207,7 @@ async def lifespan(app: FastAPI):
     knowledge_delivery = KnowledgeDeliveryService(
         db_factory=get_session,
         ws_manager=ws_manager,
+        minio_client=minio_client,
         eink_renderer=eink_renderer,
         voice_instructions=voice_instructions,
         content_generation=knowledge_content_gen,

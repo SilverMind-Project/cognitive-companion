@@ -24,6 +24,7 @@ from backend.models.knowledge import (
 
 if TYPE_CHECKING:
     from backend.integrations.eink_renderer import EInkRenderer
+    from backend.integrations.minio_client import MinioClient
     from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
     from backend.websocket.connection_manager import ConnectionManager
 
@@ -43,12 +44,14 @@ class KnowledgeDeliveryService:
         self,
         db_factory,
         ws_manager: ConnectionManager,
+        minio_client: MinioClient | None = None,
         eink_renderer: EInkRenderer | None = None,
         voice_instructions: VoiceInstructionConfig | None = None,
         content_generation: Any = None,
     ) -> None:
         self._db_factory = db_factory
         self._ws_manager = ws_manager
+        self._minio = minio_client
         self._eink = eink_renderer
         self._voice = voice_instructions
         self._content_gen = content_generation
@@ -96,10 +99,17 @@ class KnowledgeDeliveryService:
         if "pwa" in channels:
             for slot in card.image_slots or []:
                 pwa_var = slot.variants.get("pwa", {}) if isinstance(slot.variants, dict) else {}
+                object_name = pwa_var.get("object_name", slot.original_object_name)
+                url = ""
+                if object_name and self._minio:
+                    try:
+                        url = self._minio.generate_presigned_url(object_name)
+                    except Exception:
+                        logger.exception("presigned_url_failed", object_name=object_name)
                 image_slots.append({
                     "slot_id": slot.slot_index,
                     "alt_text": slot.alt_text or "",
-                    "url": pwa_var.get("object_name", slot.original_object_name),
+                    "url": url,
                     "width": pwa_var.get("width", 0),
                     "height": pwa_var.get("height", 0),
                 })
@@ -437,9 +447,16 @@ class KnowledgeDeliveryService:
         image_data = None
         if question.image_slot and isinstance(question.image_slot, dict):
             pwa = question.image_slot.get("variants", {}).get("pwa", {})
+            object_name = pwa.get("object_name", "")
+            url = ""
+            if object_name and self._minio:
+                try:
+                    url = self._minio.generate_presigned_url(object_name)
+                except Exception:
+                    logger.exception("quiz_presigned_url_failed", object_name=object_name)
             if pwa:
                 image_data = {
-                    "url": pwa.get("object_name", ""),
+                    "url": url,
                     "width": pwa.get("width", 0),
                     "height": pwa.get("height", 0),
                     "alt_text": question.image_slot.get("alt_text", ""),

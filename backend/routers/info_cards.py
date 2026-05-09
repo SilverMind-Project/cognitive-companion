@@ -437,13 +437,25 @@ def _card_out(card: InfoCard, minio_client, layout_registry) -> dict[str, Any]:
 
 
 def _slot_out(slot, minio_client) -> dict[str, Any]:
-    d = {
+    variants = {}
+    for surface, v in (slot.variants or {}).items():
+        entry = dict(v)
+        object_name = v.get("object_name", "")
+        if object_name and minio_client:
+            try:
+                entry["presigned_url"] = minio_client.generate_presigned_url(object_name)
+            except Exception:
+                entry["presigned_url"] = None
+        else:
+            entry["presigned_url"] = None
+        variants[surface] = entry
+
+    return {
         "id": slot.id,
         "info_card_id": slot.info_card_id,
         "slot_index": slot.slot_index,
         "source_image_id": slot.source_image_id,
         "original_object_name": slot.original_object_name,
         "alt_text": slot.alt_text,
-        "variants": slot.variants or {},
+        "variants": variants,
     }
-    return d

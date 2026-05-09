@@ -1182,5 +1182,5 @@ async def complete_quiz_session(session_id: int) -> dict:
     if _svc.knowledge_delivery is None:
         return {"error": "Delivery service not available"}
 
-    result = _svc.knowledge_delivery.complete_quiz_session(session_id)
+    result = await _svc.knowledge_delivery.complete_quiz_session(session_id)
     return result

@@ -1,55 +1,61 @@
 <template>
   <div>
-    <v-card class="pa-4">
-      <v-row align="center" dense>
-        <v-col cols="12" sm="4">
-          <v-text-field
-            v-model="filters.q"
-            label="Search documents"
-            prepend-inner-icon="mdi-magnify"
-            density="compact"
-            hide-details
-            clearable
-            @update:model-value="debouncedFetch"
-          />
-        </v-col>
-        <v-col cols="6" sm="2">
-          <v-select
-            v-model="filters.status"
-            :items="statusOptions"
-            label="Status"
-            density="compact"
-            hide-details
-            clearable
-            @update:model-value="fetchDocuments"
-          />
-        </v-col>
-        <v-col cols="6" sm="3">
-          <v-combobox
-            v-model="filters.tags"
-            label="Tags"
-            multiple
-            density="compact"
-            hide-details
-            clearable
-            @update:model-value="fetchDocuments"
-          />
-        </v-col>
-        <v-col cols="auto" class="ml-auto">
-          <v-btn color="primary" prepend-icon="mdi-plus" @click="showCreateDialog = true">
-            New Document
-          </v-btn>
-        </v-col>
-      </v-row>
-    </v-card>
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
+      <div>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Knowledge Documents</h2>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          Manage documents used for knowledge queries, quizzes, and info cards.
+        </div>
+      </div>
+      <v-spacer />
+      <v-text-field
+        v-model="filters.q"
+        label="Search documents"
+        prepend-inner-icon="mdi-magnify"
+        variant="outlined"
+        density="compact"
+        hide-details
+        clearable
+        style="max-width: 240px"
+        @update:model-value="debouncedFetch"
+      />
+      <v-select
+        v-model="filters.status"
+        :items="statusOptions"
+        label="Status"
+        variant="outlined"
+        density="compact"
+        hide-details
+        clearable
+        style="max-width: 160px"
+        @update:model-value="page = 1; fetchDocuments()"
+      />
+      <v-combobox
+        v-model="filters.tags"
+        label="Tags"
+        variant="outlined"
+        multiple
+        density="compact"
+        hide-details
+        clearable
+        style="max-width: 200px"
+        @update:model-value="page = 1; fetchDocuments()"
+      />
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="showCreateDialog = true">
+        New Document
+      </v-btn>
+    </div>
 
-    <v-data-table
-      :headers="headers"
-      :items="documents"
-      :loading="loading"
-      :items-per-page="20"
-      class="mt-2"
-    >
+    <v-card class="glass-card">
+      <v-data-table
+        :headers="headers"
+        :items="documents"
+        :loading="loading"
+        :items-length="totalItems"
+        :items-per-page="itemsPerPage"
+        :page="page"
+        @update:options="onPageOptions"
+      >
       <template #[`item.title`]="{ item }">
         {{ truncate(item.title, 60) }}
       </template>
@@ -119,14 +125,8 @@
         />
       </template>
 
-      <template #bottom>
-        <div class="pa-4 text-center" v-if="documents.length === 0 && !loading">
-          <v-card flat>
-            <v-card-text class="text-grey">No documents yet.</v-card-text>
-          </v-card>
-        </div>
-      </template>
-    </v-data-table>
+      </v-data-table>
+    </v-card>
 
     <!-- Create Dialog -->
     <v-dialog v-model="showCreateDialog" max-width="640" persistent>
@@ -169,6 +169,32 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Confirm Dialog -->
+    <v-dialog v-model="confirmDialog" max-width="400">
+      <v-card rounded="xl">
+        <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
+        <v-card-text>{{ confirmText }}</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+          <v-btn :color="confirmColor" @click="onConfirm">{{ confirmLabel }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Delete Confirm Dialog -->
+    <v-dialog v-model="deleteDialog" max-width="400">
+      <v-card rounded="xl">
+        <v-card-text class="pt-4">Archive this item instead?</v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
+          <v-spacer />
+          <v-btn color="warning" @click="doArchive">Archive</v-btn>
+          <v-btn color="error" @click="doDelete">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -177,23 +203,28 @@ import { ref, reactive, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
-import { formatDateTime } from "@/services/timezone.js";
+import { formatDateTime, DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
 
-const notify = useNotify();
-const confirm = useConfirm();
+const { notify } = useNotify();
+const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();
 
 const documents = ref([]);
 const loading = ref(false);
+const totalItems = ref(0);
+const itemsPerPage = ref(20);
+const page = ref(1);
 const creating = ref(false);
 const showCreateDialog = ref(false);
+const deleteDialog = ref(false);
+const deleteTarget = ref(null);
 
 const headers = [
   { title: "Title", key: "title", sortable: true },
   { title: "Tags", key: "tags", sortable: false },
   { title: "Images", key: "image_count", sortable: false, width: 80 },
   { title: "Status", key: "status", sortable: true, width: 100 },
-  { title: "Created", key: "created_at", sortable: true },
-  { title: "Actions", key: "actions", sortable: false, width: 160 },
+  { title: "Created", key: "created_at", sortable: true, width: DATETIME_COLUMN_WIDTH },
+  { title: "Actions", key: "actions", sortable: false, width: 200 },
 ];
 
 const statusOptions = ["uploaded", "chunked", "approved", "archived"];
@@ -214,19 +245,30 @@ const createFormData = reactive({
 let debounceTimer = null;
 function debouncedFetch() {
   clearTimeout(debounceTimer);
+  page.value = 1;
   debounceTimer = setTimeout(fetchDocuments, 300);
+}
+
+function onPageOptions({ page: newPage, itemsPerPage: newPerPage }) {
+  if (newPerPage !== itemsPerPage.value) {
+    itemsPerPage.value = newPerPage;
+    page.value = 1;
+  } else {
+    page.value = newPage;
+  }
+  fetchDocuments();
 }
 
 async function fetchDocuments() {
   loading.value = true;
   try {
-    const params = {};
+    const params = { limit: itemsPerPage.value, offset: (page.value - 1) * itemsPerPage.value };
     if (filters.q) params.q = filters.q;
     if (filters.status) params.status = filters.status;
     if (filters.tags && filters.tags.length > 0) params.tags = filters.tags.join(",");
     const res = await api.getKnowledgeDocuments(params);
-    const body = res.data ?? res;
-    documents.value = Array.isArray(body) ? body : (body?.items ?? []);
+    documents.value = res.items ?? [];
+    totalItems.value = res.total ?? 0;
   } catch (err) {
     notify.error("Failed to load documents: " + (err.message || err));
   } finally {
@@ -310,20 +352,22 @@ async function restore(item) {
   }
 }
 
-async function confirmDelete(item) {
-  const archiveFirst = await confirm.require(
-    "Archive this item instead?",
-    { confirmText: "Archive", cancelText: "Delete permanently" }
-  );
-  if (archiveFirst) {
-    await archive(item);
-    return;
-  }
-  const reallyDelete = await confirm.require(
-    "Delete permanently? This cannot be undone.",
-    { confirmText: "Delete", color: "error" }
-  );
-  if (!reallyDelete) return;
+function confirmDelete(item) {
+  deleteTarget.value = item;
+  deleteDialog.value = true;
+}
+
+async function doArchive() {
+  deleteDialog.value = false;
+  if (deleteTarget.value) await archive(deleteTarget.value);
+  deleteTarget.value = null;
+}
+
+async function doDelete() {
+  deleteDialog.value = false;
+  const item = deleteTarget.value;
+  deleteTarget.value = null;
+  if (!item) return;
   try {
     await api.deleteKnowledgeDocument(item.id);
     notify.success("Document deleted.");

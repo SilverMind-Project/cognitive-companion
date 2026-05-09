@@ -127,7 +127,7 @@
       {{ revisionToastText }}
     </v-snackbar>
 
-    <v-dialog v-model="correctionOpen" max-width="520">
+    <v-dialog v-model="correctionOpen" max-width="520" persistent>
       <v-card>
         <v-card-title>Correct identity</v-card-title>
         <v-card-text>
@@ -307,11 +307,11 @@ export default {
   grid-template-columns: repeat(4, 1fr);
 }
 .live-tile {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--cc-surface-2);
 }
 .live-tile-frame {
   position: relative;
-  background: #111;
+  background: var(--cc-bg);
   aspect-ratio: 16 / 9;
   overflow: hidden;
 }

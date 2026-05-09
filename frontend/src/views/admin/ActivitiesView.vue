@@ -55,6 +55,14 @@
         <template #item.activity_type="{ item }">
           <v-chip size="small" color="info">{{ item.activity_type }}</v-chip>
         </template>
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey text-h6">No activities yet</v-card-text>
+              <v-card-text class="text-grey">Person activities will appear here as the system detects movement and behavior patterns.</v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
   </div>
@@ -63,7 +71,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
-import { formatDateTime } from "../../services/timezone.js";
+import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const items = ref([]);
 const loading = ref(false);
@@ -75,7 +83,7 @@ const headers = [
   { title: "Activity", key: "activity_type" },
   { title: "Room", key: "room_name" },
   { title: "Confidence", key: "confidence", width: 100 },
-  { title: "Detected At", key: "detected_at" },
+  { title: "Detected At", key: "detected_at", width: DATETIME_COLUMN_WIDTH },
 ];
 
 async function load() {

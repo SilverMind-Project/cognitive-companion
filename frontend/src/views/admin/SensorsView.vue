@@ -23,10 +23,18 @@
           <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(item)" />
           <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteSensor(item.id)" />
         </template>
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey text-h6">No sensors yet</v-card-text>
+              <v-card-text class="text-grey">Add sensors or import from Home Assistant to begin monitoring.</v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
-    <v-dialog v-model="dialog" max-width="500">
+    <v-dialog v-model="dialog" max-width="500" persistent>
       <v-card>
         <v-card-title>{{ editing ? 'Edit Sensor' : 'Add Sensor' }}</v-card-title>
         <v-card-text>
@@ -47,7 +55,7 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card>
+      <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>

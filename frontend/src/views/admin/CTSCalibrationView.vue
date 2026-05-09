@@ -61,15 +61,14 @@
                   :cy="pt.pixel[1] * imgRect.height"
                   r="7"
                   fill="none"
-                  stroke="#1976D2"
-                  stroke-width="2.5"
+                  style="stroke: var(--cc-brand); stroke-width: 2.5"
                 />
                 <text
                   v-for="(pt, i) in points"
                   :key="`t${i}`"
                   :x="pt.pixel[0] * imgRect.width + 10"
                   :y="pt.pixel[1] * imgRect.height - 6"
-                  fill="#1976D2"
+                  style="fill: var(--cc-brand)"
                   font-size="12"
                   font-weight="bold"
                 >{{ i + 1 }}</text>

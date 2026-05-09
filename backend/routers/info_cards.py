@@ -228,6 +228,7 @@ async def delete_info_card(
 async def suggest_info_card(
     request: Request,
     document_id: int | None = None,
+    model_id: str | None = None,
     _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
 ):
     """Generate a paraphrased info card draft via LLM."""
@@ -236,7 +237,7 @@ async def suggest_info_card(
         raise ValidationError("document_id is required")
 
     content_gen = request.app.state.knowledge_content_gen
-    suggestion = await content_gen.suggest_paraphrase(document_id)
+    suggestion = await content_gen.suggest_paraphrase(document_id, model_id=model_id)
     return {
         "title": suggestion.title,
         "body_text": suggestion.body_text,

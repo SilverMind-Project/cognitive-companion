@@ -1,145 +1,184 @@
 <template>
   <div>
-    <v-btn
-      variant="text"
-      prepend-icon="mdi-arrow-left"
-      class="mb-2"
-      to="/admin/knowledge/documents"
-    >
-      Back to Documents
-    </v-btn>
+    <div class="d-flex align-center flex-wrap ga-3 mb-6">
+      <div class="d-flex align-center ga-2">
+        <v-btn
+          variant="text"
+          icon="mdi-arrow-left"
+          to="/admin/knowledge/documents"
+        />
+        <div>
+          <h2 class="text-h4 font-weight-bold tracking-tight">
+            {{ document?.title || "Edit Document" }}
+          </h2>
+          <div class="text-body-2 text-medium-emphasis mt-1">
+            Edit document metadata, images, and workflow status.
+          </div>
+        </div>
+      </div>
+      <v-spacer />
+      <v-btn color="primary" :loading="saving" @click="save">Save</v-btn>
+      <v-btn
+        v-if="document?.status !== 'approved'"
+        color="success"
+        variant="tonal"
+        @click="approve"
+      >
+        Approve
+      </v-btn>
+      <v-btn
+        v-if="document?.status !== 'archived'"
+        color="warning"
+        variant="tonal"
+        @click="archive"
+      >
+        Archive
+      </v-btn>
+      <v-btn
+        v-if="document?.status === 'archived'"
+        color="warning"
+        variant="tonal"
+        @click="restore"
+      >
+        Restore
+      </v-btn>
+      <v-btn
+        color="error"
+        variant="text"
+        @click="confirmDelete"
+      >
+        Delete
+      </v-btn>
+      <v-btn
+        variant="text"
+        @click="reEmbed"
+      >
+        Re-embed
+      </v-btn>
+    </div>
 
     <v-card v-if="loading" class="pa-8 text-center">
       <v-progress-circular indeterminate />
     </v-card>
 
     <template v-else-if="document">
-      <v-card class="pa-4 mb-4">
-        <v-row dense>
-          <v-col cols="12" md="8">
+      <v-row>
+        <v-col cols="12" md="8">
+          <v-card class="glass-card pa-4 mb-4">
+            <v-card-title class="pa-0 mb-4">Content</v-card-title>
             <v-text-field
               v-model="editForm.title"
               label="Title"
+              variant="outlined"
+              density="comfortable"
               :rules="[r => !!r || 'Title is required']"
+              class="mb-3"
             />
             <v-textarea
               v-model="editForm.source_text"
               label="Source Text"
+              variant="outlined"
               rows="8"
+              class="mb-3"
             />
             <v-combobox
               v-model="editForm.tags"
               label="Tags"
+              variant="outlined"
               multiple
               chips
               deletable-chips
             />
-          </v-col>
-          <v-col cols="12" md="4">
-            <v-list-subheader>Details</v-list-subheader>
-            <v-chip :color="statusColor(document.status)" size="small" class="mb-2">
+          </v-card>
+
+          <v-card class="glass-card pa-4">
+            <v-card-title class="pa-0 mb-3">Images</v-card-title>
+            <v-row v-if="images.length > 0" class="mb-3">
+              <v-col v-for="img in images" :key="img.id" cols="6" sm="4" md="3">
+                <v-card>
+                  <v-img :src="img.url || img.image_url" height="140" cover />
+                  <v-card-actions class="pa-1">
+                    <v-spacer />
+                    <v-btn
+                      icon="mdi-delete"
+                      size="x-small"
+                      color="error"
+                      variant="text"
+                      @click="confirmDeleteImage(img)"
+                    />
+                  </v-card-actions>
+                </v-card>
+              </v-col>
+            </v-row>
+            <v-card-text v-else class="text-medium-emphasis pa-0 pb-3">No images attached.</v-card-text>
+            <v-file-input
+              v-model="newImages"
+              label="Add images"
+              multiple
+              accept="image/*"
+              variant="outlined"
+              prepend-icon="mdi-camera"
+              show-size
+              class="mb-2"
+            />
+            <v-btn
+              v-if="newImages.length > 0"
+              color="primary"
+              variant="tonal"
+              size="small"
+              :loading="uploadingImages"
+              @click="uploadImages"
+            >
+              Upload Images
+            </v-btn>
+          </v-card>
+        </v-col>
+
+        <v-col cols="12" md="4">
+          <v-card class="glass-card pa-4">
+            <v-card-title class="pa-0 mb-3">Details</v-card-title>
+            <v-chip :color="statusColor(document.status)" size="small" class="mb-3">
               {{ document.status }}
             </v-chip>
-            <div class="text-body-2 mt-1">
+            <div class="text-body-2 mb-2">
               <strong>Created by:</strong> {{ document.created_by ?? "—" }}
             </div>
-            <div class="text-body-2">
+            <div class="text-body-2 mb-2">
               <strong>Created at:</strong> {{ formatDateTime(document.created_at) }}
             </div>
             <div class="text-body-2">
               <strong>Chunks:</strong> {{ document.chunk_count ?? 0 }}
             </div>
-          </v-col>
-        </v-row>
-      </v-card>
-
-      <!-- Image Gallery -->
-      <v-card class="pa-4 mb-4">
-        <v-card-title class="pa-0 mb-2">Images</v-card-title>
-        <v-row v-if="images.length > 0">
-          <v-col v-for="img in images" :key="img.id" cols="6" sm="4" md="3">
-            <v-card>
-              <v-img :src="img.url || img.image_url" height="140" cover />
-              <v-card-actions class="pa-1">
-                <v-spacer />
-                <v-btn
-                  icon="mdi-delete"
-                  size="x-small"
-                  color="error"
-                  variant="text"
-                  @click="confirmDeleteImage(img)"
-                />
-              </v-card-actions>
-            </v-card>
-          </v-col>
-        </v-row>
-        <v-card-text v-else class="text-grey pa-0">No images attached.</v-card-text>
-        <v-file-input
-          v-model="newImages"
-          label="Add images"
-          multiple
-          accept="image/*"
-          prepend-icon="mdi-camera"
-          class="mt-2"
-          show-size
-        />
-        <v-btn
-          v-if="newImages.length > 0"
-          color="primary"
-          size="small"
-          :loading="uploadingImages"
-          @click="uploadImages"
-        >
-          Upload Images
-        </v-btn>
-      </v-card>
-
-      <!-- Actions -->
-      <v-card-actions class="pa-0">
-        <v-btn color="primary" :loading="saving" @click="save">Save</v-btn>
-        <v-btn
-          v-if="document.status !== 'approved'"
-          color="success"
-          variant="outlined"
-          class="ml-2"
-          @click="approve"
-        >
-          Approve
-        </v-btn>
-        <v-btn
-          v-if="document.status !== 'archived'"
-          variant="outlined"
-          class="ml-2"
-          @click="archive"
-        >
-          Archive
-        </v-btn>
-        <v-btn
-          v-if="document.status === 'archived'"
-          color="warning"
-          variant="outlined"
-          class="ml-2"
-          @click="restore"
-        >
-          Restore
-        </v-btn>
-        <v-btn
-          color="error"
-          variant="text"
-          class="ml-2"
-          @click="confirmDelete"
-        >
-          Delete
-        </v-btn>
-        <v-btn
-          variant="text"
-          class="ml-2"
-          @click="reEmbed"
-        >
-          Re-embed
-        </v-btn>
-      </v-card-actions>
+          </v-card>
+        </v-col>
+      </v-row>
     </template>
+
+    <!-- Confirm Dialog -->
+    <v-dialog v-model="confirmDialog" max-width="400">
+      <v-card rounded="xl">
+        <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
+        <v-card-text>{{ confirmText }}</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+          <v-btn :color="confirmColor" @click="onConfirm">{{ confirmLabel }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Delete Confirm Dialog -->
+    <v-dialog v-model="deleteDialog" max-width="400">
+      <v-card rounded="xl">
+        <v-card-text class="pt-4">Archive this item instead?</v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="deleteDialog = false">Cancel</v-btn>
+          <v-spacer />
+          <v-btn color="warning" @click="doArchive">Archive</v-btn>
+          <v-btn color="error" @click="doDelete">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- Re-embed snackbar -->
     <v-snackbar v-model="reembedSnackbar" timeout="3000">
@@ -158,8 +197,8 @@ import { formatDateTime } from "@/services/timezone.js";
 
 const route = useRoute();
 const router = useRouter();
-const notify = useNotify();
-const confirm = useConfirm();
+const { notify } = useNotify();
+const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();
 
 const document = ref(null);
 const loading = ref(true);
@@ -167,6 +206,7 @@ const saving = ref(false);
 const uploadingImages = ref(false);
 const newImages = ref([]);
 const reembedSnackbar = ref(false);
+const deleteDialog = ref(false);
 
 const editForm = reactive({
   title: "",
@@ -190,7 +230,7 @@ async function fetchDocument() {
   loading.value = true;
   try {
     const res = await api.getKnowledgeDocument(route.params.id);
-    const doc = res.data ?? res;
+    const doc = res;
     document.value = doc;
     editForm.title = doc.title ?? "";
     editForm.source_text = doc.source_text ?? "";
@@ -244,7 +284,7 @@ async function uploadImages() {
 }
 
 async function confirmDeleteImage(img) {
-  const ok = await confirm.require("Delete this image?");
+  const ok = await confirmRequire("Delete this image?");
   if (!ok) return;
   try {
     await api.deleteKnowledgeDocumentImage(img.id);
@@ -285,20 +325,17 @@ async function restore() {
   }
 }
 
-async function confirmDelete() {
-  const archiveFirst = await confirm.require(
-    "Archive this item instead?",
-    { confirmText: "Archive", cancelText: "Delete permanently" }
-  );
-  if (archiveFirst) {
-    await archive();
-    return;
-  }
-  const reallyDelete = await confirm.require(
-    "Delete permanently? This cannot be undone.",
-    { confirmText: "Delete", color: "error" }
-  );
-  if (!reallyDelete) return;
+function confirmDelete() {
+  deleteDialog.value = true;
+}
+
+async function doArchive() {
+  deleteDialog.value = false;
+  await archive();
+}
+
+async function doDelete() {
+  deleteDialog.value = false;
   try {
     await api.deleteKnowledgeDocument(route.params.id);
     notify.success("Document deleted.");

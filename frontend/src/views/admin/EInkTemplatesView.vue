@@ -59,6 +59,14 @@
             @click.stop="deleteTemplate(item.id)"
           />
         </template>
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey text-h6">No templates yet</v-card-text>
+              <v-card-text class="text-grey">Create e-ink display templates to show custom content on connected displays.</v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -70,7 +78,7 @@
       :fullscreen="$vuetify.display.smAndDown"
       persistent
     >
-      <v-card class="eink-dialog-card d-flex flex-column">
+      <v-card class="d-flex flex-column" style="height: 88vh; max-height: 880px; overflow: hidden">
         <!-- Header -->
         <div class="eink-dialog-header px-6 py-4 d-flex align-center">
           <v-avatar size="40" class="eink-dialog-icon mr-3">
@@ -287,7 +295,7 @@
 
     <!-- ── Confirm Dialog ─────────────────────────────────────────────── -->
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card>
+      <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>
@@ -596,24 +604,17 @@ onMounted(load);
 }
 
 /* ── Dialog shell ────────────────────────────────────────────────────────── */
-.eink-dialog-card {
-  height: 88vh;
-  max-height: 880px;
-  border-radius: 24px !important;
-  overflow: hidden;
-}
-
 .eink-dialog-header {
   background: linear-gradient(
     135deg,
-    rgba(10, 132, 255, 0.08) 0%,
-    rgba(94, 92, 230, 0.04) 100%
+    var(--cc-brand-soft) 0%,
+    var(--cc-brand-softer) 100%
   );
   flex-shrink: 0;
 }
 
 .eink-dialog-icon {
-  background: linear-gradient(135deg, #0a84ff 0%, #5e5ce6 60%, #bf5af2 100%);
+  background: var(--cc-brand-gradient);
 }
 
 .eink-dialog-body {
@@ -623,7 +624,7 @@ onMounted(load);
 /* ── Left tabs ───────────────────────────────────────────────────────────── */
 .eink-dialog-tabs {
   width: 180px;
-  background-color: var(--cc-bg-elevated, rgba(0, 0, 0, 0.02));
+  background-color: var(--cc-bg-elevated);
   padding-top: 12px;
 }
 

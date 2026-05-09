@@ -119,6 +119,9 @@ class KnowledgeIngestionService:
             )
             # Chunk + embed after commit (external side effect)
             await self._chunk_and_embed(doc)
+            # Eagerly load relationships so they survive session close
+            _ = doc.images
+            _ = doc.chunks
             return doc
         except Exception:
             db.rollback()
@@ -129,9 +132,13 @@ class KnowledgeIngestionService:
     def get_document(self, doc_id: int) -> KnowledgeDocument | None:
         db: Session = self._db_factory()
         try:
-            return db.execute(
+            doc = db.execute(
                 select(KnowledgeDocument).where(KnowledgeDocument.id == doc_id)
             ).scalar_one_or_none()
+            if doc is not None:
+                _ = doc.images
+                _ = doc.chunks
+            return doc
         finally:
             db.close()
 
@@ -172,6 +179,9 @@ class KnowledgeIngestionService:
                 .offset(offset)
                 .limit(limit)
             ).scalars().all()
+            for doc in docs:
+                _ = doc.images
+                _ = doc.chunks
             return list(docs), total
         finally:
             db.close()
@@ -203,6 +213,8 @@ class KnowledgeIngestionService:
             if source_changed:
                 await self._chunk_and_embed(doc)
 
+            _ = doc.images
+            _ = doc.chunks
             return doc
         except NotFoundError:
             db.rollback()
@@ -242,6 +254,8 @@ class KnowledgeIngestionService:
             db.commit()
             db.refresh(doc)
             logger.info("knowledge_document_approved", doc_id=doc_id)
+            _ = doc.images
+            _ = doc.chunks
             return doc
         except (NotFoundError, ValidationError):
             db.rollback()
@@ -264,6 +278,8 @@ class KnowledgeIngestionService:
             db.commit()
             db.refresh(doc)
             logger.info("knowledge_document_archived", doc_id=doc_id)
+            _ = doc.images
+            _ = doc.chunks
             return doc
         except (NotFoundError, ValidationError):
             db.rollback()
@@ -286,6 +302,8 @@ class KnowledgeIngestionService:
             db.commit()
             db.refresh(doc)
             logger.info("knowledge_document_restored", doc_id=doc_id)
+            _ = doc.images
+            _ = doc.chunks
             return doc
         except (NotFoundError, ValidationError):
             db.rollback()

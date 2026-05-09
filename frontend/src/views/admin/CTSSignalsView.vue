@@ -100,12 +100,12 @@
       </v-data-table>
 
       <!-- Trend section (only when a person is selected) -->
-      <template v-if="selectedPerson">
+      <template v-if="filters.person_id">
         <v-divider />
         <v-card-text class="pa-4">
           <div class="d-flex align-center mb-3">
             <v-icon start size="18">mdi-chart-timeline</v-icon>
-            <span class="text-subtitle-2 font-weight-semibold">7-Day Trend: {{ selectedPerson }}</span>
+            <span class="text-subtitle-2 font-weight-semibold">7-Day Trend: {{ filters.person_id }}</span>
           </div>
           <v-table v-if="trend.length > 0" density="compact">
             <thead>
@@ -143,8 +143,6 @@ import { cts } from "../../services/cts.js";
 const signals = ref([]);
 const trend = ref([]);
 const search = ref("");
-const selectedPerson = ref(null);
-
 const filters = ref({
   person_id: null,
   signal_type: null,
@@ -231,7 +229,7 @@ function severityColor(severity) {
   return map[severity] || "grey";
 }
 
-watch(selectedPerson, (personId) => {
+watch(() => filters.value.person_id, (personId) => {
   if (personId) {
     loadTrend(personId);
   } else {

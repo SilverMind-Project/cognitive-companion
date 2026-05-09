@@ -404,7 +404,7 @@ onUnmounted(stopAutoRefresh);
 
 .image-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--cc-shadow-md);
 }
 
 .image-thumb {
@@ -412,7 +412,7 @@ onUnmounted(stopAutoRefresh);
 }
 
 .broken-placeholder {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--cc-surface-3);
   height: 100%;
 }
 </style>

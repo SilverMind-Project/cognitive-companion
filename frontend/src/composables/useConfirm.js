@@ -24,12 +24,30 @@ export function useConfirm() {
   const confirmDialog = ref(false);
   const confirmTitle = ref("");
   const confirmText = ref("");
+  const confirmLabel = ref("Confirm");
+  const cancelLabel = ref("Cancel");
+  const confirmColor = ref("error");
 
   let _resolve = null;
 
   function showConfirm(title, text) {
     confirmTitle.value = title;
     confirmText.value = text;
+    confirmLabel.value = "Confirm";
+    cancelLabel.value = "Cancel";
+    confirmColor.value = "error";
+    confirmDialog.value = true;
+    return new Promise((resolve) => {
+      _resolve = resolve;
+    });
+  }
+
+  function require(text, options = {}) {
+    confirmTitle.value = "";
+    confirmText.value = text;
+    confirmLabel.value = options.confirmText || "Confirm";
+    cancelLabel.value = options.cancelText || "Cancel";
+    confirmColor.value = options.color || "error";
     confirmDialog.value = true;
     return new Promise((resolve) => {
       _resolve = resolve;
@@ -48,5 +66,5 @@ export function useConfirm() {
     _resolve = null;
   }
 
-  return { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel };
+  return { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, showConfirm, require, onConfirm, onCancel };
 }

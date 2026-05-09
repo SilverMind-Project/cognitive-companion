@@ -300,8 +300,8 @@ onMounted(loadData);
 }
 .stat-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(10, 132, 255, 0.4);
-  box-shadow: 0 18px 40px -20px rgba(10, 132, 255, 0.35);
+  border-color: var(--cc-brand-soft);
+  box-shadow: var(--cc-shadow-lg);
 }
 .tracking-tight {
   letter-spacing: -0.018em;

@@ -35,11 +35,19 @@
             @click.stop="deleteRule(item.id)"
           />
         </template>
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey text-h6">No rules yet</v-card-text>
+              <v-card-text class="text-grey">Create automation rules to detect events and trigger actions.</v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
     <!-- Create Dialog: minimal entry point. Trigger type and other settings are configured on the rule detail page. -->
-    <v-dialog v-model="createDialog" max-width="500">
+    <v-dialog v-model="createDialog" max-width="500" persistent>
       <v-card>
         <v-card-title>Create Rule</v-card-title>
         <v-card-text>
@@ -56,7 +64,7 @@
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card>
+      <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>

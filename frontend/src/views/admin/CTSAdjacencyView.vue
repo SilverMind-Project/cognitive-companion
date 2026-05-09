@@ -43,7 +43,7 @@
     </div>
 
     <!-- Add / Edit edge dialog -->
-    <v-dialog v-model="dialog" max-width="460">
+    <v-dialog v-model="dialog" max-width="460" persistent>
       <v-card>
         <v-card-title>{{ editingIdx !== null ? "Edit Edge" : "Add Adjacency Edge" }}</v-card-title>
         <v-card-text>

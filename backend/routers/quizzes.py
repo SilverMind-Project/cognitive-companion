@@ -333,6 +333,7 @@ async def suggest_quiz(
     document_id: int | None = None,
     num_questions: int = 5,
     mix: str = "mixed",
+    model_id: str | None = None,
     _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
 ):
     """Generate a quiz draft via LLM from a knowledge document."""
@@ -345,6 +346,7 @@ async def suggest_quiz(
         document_id,
         num_questions=num_questions,
         mix=mix,
+        model_id=model_id,
     )
     return {
         "title": suggestion.title,
@@ -368,6 +370,7 @@ async def suggest_voice_instruction(
     request: Request,
     document_id: int | None = None,
     resource_type: str = "quiz",
+    model_id: str | None = None,
     _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
 ):
     """Generate a voice instruction suggestion via LLM."""
@@ -376,7 +379,9 @@ async def suggest_voice_instruction(
         raise ValidationError("document_id is required")
 
     content_gen = request.app.state.knowledge_content_gen
-    text = await content_gen.suggest_voice_instruction(document_id, resource_type)
+    text = await content_gen.suggest_voice_instruction(
+        document_id, resource_type, model_id=model_id
+    )
     return {"voice_instruction": text}
 
 
@@ -386,6 +391,7 @@ async def regenerate_question(
     qid: int,
     request: Request,
     db: Session = Depends(get_db),
+    model_id: str | None = None,
     _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
 ):
     """Regenerate a single quiz question via LLM."""
@@ -406,6 +412,7 @@ async def regenerate_question(
         doc_id,
         question_type=q.question_type,
         existing_text=q.question_text,
+        model_id=model_id,
     )
     return {
         "question_type": suggestion.question_type,

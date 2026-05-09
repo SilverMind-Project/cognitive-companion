@@ -45,7 +45,7 @@
     </v-card>
 
     <!-- Add / Edit dialog -->
-    <v-dialog v-model="dialog" max-width="520" :persistent="saving">
+    <v-dialog v-model="dialog" max-width="520" persistent>
       <v-card>
         <v-card-title>{{ editing ? "Edit Camera" : "Add Camera" }}</v-card-title>
         <v-card-text>
@@ -147,7 +147,7 @@
 
     <!-- Delete confirm -->
     <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card>
+      <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
         <v-card-text>{{ confirmText }}</v-card-text>
         <v-card-actions>

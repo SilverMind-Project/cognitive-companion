@@ -60,9 +60,7 @@
               <svg viewBox="0 0 100 60" class="zone-preview mt-2">
                 <polygon
                   :points="zone.polygon.map(([x, y]) => `${x * 100},${y * 60}`).join(' ')"
-                  fill="rgba(25,118,210,0.15)"
-                  stroke="#1976D2"
-                  stroke-width="1.5"
+                  style="fill: var(--cc-brand-soft); stroke: var(--cc-brand); stroke-width: 1.5"
                 />
               </svg>
             </v-card-text>
@@ -93,7 +91,7 @@
     </v-alert>
 
     <!-- Add / Edit zone dialog -->
-    <v-dialog v-model="dialog" max-width="540">
+    <v-dialog v-model="dialog" max-width="540" persistent>
       <v-card>
         <v-card-title>{{ editingZone ? "Edit Zone" : "Add Privacy Zone" }}</v-card-title>
         <v-card-text>
@@ -268,8 +266,8 @@ onMounted(loadCameras);
   display: block;
   width: 100%;
   height: 60px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--cc-divider-strong);
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--cc-surface-3);
 }
 </style>

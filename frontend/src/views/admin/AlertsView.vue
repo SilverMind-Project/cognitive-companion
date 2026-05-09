@@ -36,6 +36,14 @@
             Dismiss
           </v-btn>
         </template>
+        <template #no-data>
+          <div class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey text-h6">No alerts yet</v-card-text>
+              <v-card-text class="text-grey">Alerts will appear here when rules detect conditions that need attention.</v-card-text>
+            </v-card>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
@@ -46,7 +54,7 @@
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
-import { formatDateTime } from "../../services/timezone.js";
+import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 
@@ -55,7 +63,7 @@ const loading = ref(false);
 const filter = ref({ resolved: "" });
 
 const headers = [
-  { title: "Time", key: "timestamp" },
+  { title: "Time", key: "timestamp", width: DATETIME_COLUMN_WIDTH },
   { title: "Type", key: "alert_type" },
   { title: "Room", key: "room_name" },
   { title: "Description", key: "description" },

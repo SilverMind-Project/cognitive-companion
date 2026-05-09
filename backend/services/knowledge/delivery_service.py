@@ -379,7 +379,7 @@ class KnowledgeDeliveryService:
         finally:
             db.close()
 
-    def complete_quiz_session(self, session_id: int) -> dict[str, Any]:
+    async def complete_quiz_session(self, session_id: int) -> dict[str, Any]:
         """Finalize a quiz session."""
         db: Session = self._db_factory()
         try:

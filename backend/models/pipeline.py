@@ -12,7 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.core.database import Base
 from backend.core.time import UTCDateTime
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # required: reciprocal SQLAlchemy relationship with rule.py
     from backend.models.rule import Rule
 
 

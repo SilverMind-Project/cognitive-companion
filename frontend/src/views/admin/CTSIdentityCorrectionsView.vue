@@ -110,9 +110,12 @@
 
     <v-dialog v-model="dialogOpen" max-width="560" persistent>
       <v-card>
-        <v-card-title>
-          {{ dialogMode === "merge" ? "Merge identities" : "Correct identity" }}
-        </v-card-title>
+        <DialogHeader
+          :icon="dialogMode === 'merge' ? 'mdi-merge' : 'mdi-account-edit'"
+          :label="dialogMode === 'merge' ? 'Merge' : 'Correct'"
+          :title="dialogMode === 'merge' ? 'Identity' : 'Identity'"
+          @close="dialogOpen = false"
+        />
         <v-card-text>
           <div class="text-body-2 mb-2">
             GlobalTrack: <strong>{{ form.global_track_id }}</strong>
@@ -138,13 +141,13 @@
             variant="outlined"
           />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn @click="dialogOpen = false">Cancel</v-btn>
-          <v-btn color="primary" :loading="saving" @click="submit">
-            Apply
-          </v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Manual identity corrections help train the tracking system for better future matches."
+          confirm-label="Apply"
+          :confirm-loading="saving"
+          @cancel="dialogOpen = false"
+          @confirm="submit"
+        />
       </v-card>
     </v-dialog>
   </div>
@@ -153,9 +156,12 @@
 <script>
 import { cts } from "@/services/cts";
 import { DATETIME_COLUMN_WIDTH } from "@/services/timezone";
+import DialogHeader from "@/components/common/DialogHeader.vue";
+import DialogFooter from "@/components/common/DialogFooter.vue";
 
 export default {
   name: "CTSIdentityCorrectionsView",
+  components: { DialogHeader, DialogFooter },
   data() {
     return {
       error: "",

@@ -8,19 +8,12 @@
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <v-card class="cc-glass step-config-card d-flex flex-column">
-      <!-- Header -->
-      <div class="step-config-header px-6 py-4 d-flex align-center">
-        <v-avatar size="40" class="step-config-icon mr-3">
-          <v-icon color="white">{{ stepIcon }}</v-icon>
-        </v-avatar>
-        <div class="flex-grow-1">
-          <div class="text-overline text-medium-emphasis">Configure Step</div>
-          <div class="text-h6 font-weight-bold tracking-tight">{{ humanize(localStep.step_type) }}</div>
-        </div>
-        <v-btn icon="mdi-close" variant="text" @click="$emit('update:modelValue', false)" />
-      </div>
-
-      <v-divider />
+      <DialogHeader
+        :icon="stepIcon"
+        label="Configure Step"
+        :title="humanize(localStep.step_type)"
+        @close="$emit('update:modelValue', false)"
+      />
 
       <!-- Body: tabs left, content + variable reference right -->
       <div class="step-config-body d-flex flex-grow-1 overflow-hidden">
@@ -137,15 +130,17 @@
 
       <v-divider />
 
-      <v-card-actions class="px-6 py-3">
-        <v-icon size="small" color="medium-emphasis" class="mr-1">mdi-information-outline</v-icon>
-        <span class="text-caption text-medium-emphasis">
-          Use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates to reference pipeline variables. Labeled steps are also accessible as <code class="cc-code">&#123;&#123;step_label.key&#125;&#125;</code>.
-        </span>
-        <v-spacer />
-        <v-btn variant="text" @click="$emit('update:modelValue', false)">Cancel</v-btn>
-        <v-btn color="primary" variant="flat" @click="save">Save</v-btn>
-      </v-card-actions>
+      <DialogFooter
+        confirm-label="Save"
+        @cancel="$emit('update:modelValue', false)"
+        @confirm="save"
+      >
+        <template #hint>
+          <span class="text-caption text-medium-emphasis">
+            Use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates to reference pipeline variables. Labeled steps are also accessible as <code class="cc-code">&#123;&#123;step_label.key&#125;&#125;</code>.
+          </span>
+        </template>
+      </DialogFooter>
     </v-card>
   </v-dialog>
 </template>
@@ -154,6 +149,8 @@
 import { ref, watch, reactive, computed, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { isoToLocalHHMM, localHHMMToUTCISO } from "../../services/timezone.js";
+import DialogHeader from "../common/DialogHeader.vue";
+import DialogFooter from "../common/DialogFooter.vue";
 import {
   stepConfigMap,
   genericPluginConfig,
@@ -475,14 +472,6 @@ function save() {
   overflow: hidden;
 }
 
-.step-config-header {
-  background: linear-gradient(135deg, rgba(10, 132, 255, 0.08) 0%, rgba(94, 92, 230, 0.04) 100%);
-}
-
-.step-config-icon {
-  background: linear-gradient(135deg, #0a84ff 0%, #5e5ce6 60%, #bf5af2 100%);
-}
-
 .step-config-body {
   min-height: 0;
 }
@@ -513,7 +502,7 @@ function save() {
 }
 
 .step-config-vars {
-  width: 300px;
+  width: 375px;
   flex-shrink: 0;
   background-color: var(--cc-bg-elevated);
   min-width: 0;

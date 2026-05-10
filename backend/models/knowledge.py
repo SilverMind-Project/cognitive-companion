@@ -17,7 +17,6 @@ Tables:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -39,9 +38,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
 from backend.core.time import UTCDateTime
-
-if TYPE_CHECKING:
-    pass
 
 
 class KnowledgeDocument(Base):

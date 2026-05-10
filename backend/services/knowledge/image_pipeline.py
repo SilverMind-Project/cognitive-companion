@@ -9,19 +9,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
-from typing import TYPE_CHECKING
 
 from PIL import Image, ImageOps
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
-
-if TYPE_CHECKING:
-    from backend.integrations.minio_client import MinioClient
-    from backend.services.knowledge.layout_registry import (
-        ImageVariantSpec,
-        LayoutRegistry,
-    )
+from backend.integrations.minio_client import MinioClient
+from backend.services.knowledge.layout_registry import (
+    ImageVariantSpec,
+    LayoutRegistry,
+)
 
 logger = get_logger(__name__)
 

@@ -218,19 +218,25 @@
     <!-- Create Dialog -->
     <v-dialog v-model="showCreateDialog" max-width="800" persistent>
       <v-card>
-        <v-card-title class="d-flex align-center">
-          New Quiz
-          <v-spacer />
-          <v-btn
-            v-if="createForm.questions.length > 0"
-            size="small"
-            variant="tonal"
-            prepend-icon="mdi-plus"
-            @click="addCreateQuestion"
-          >
-            Add Question
-          </v-btn>
-        </v-card-title>
+        <DialogHeader
+          icon="mdi-help-box-outline"
+          label="Create New"
+          title="Quiz"
+          @close="closeCreateDialog"
+        >
+          <template #actions>
+            <v-btn
+              v-if="createForm.questions.length > 0"
+              size="small"
+              variant="tonal"
+              prepend-icon="mdi-plus"
+              class="mr-2"
+              @click="addCreateQuestion"
+            >
+              Add Question
+            </v-btn>
+          </template>
+        </DialogHeader>
         <v-card-text>
           <!-- LLM Generation Section -->
           <v-card variant="tonal" class="mb-4 pa-3">
@@ -254,7 +260,6 @@
                   item-value="id"
                   label="Knowledge Document"
                   hint="Source document for generation"
-                  persistent-hint
                   clearable
                 />
               </v-col>
@@ -281,7 +286,7 @@
                   hide-details
                 />
               </v-col>
-              <v-col cols="12" sm="3" class="d-flex align-center">
+              <v-col cols="12" sm="3" class="d-flex align-end">
                 <v-btn
                   color="secondary"
                   variant="tonal"
@@ -402,29 +407,37 @@
             </v-card>
           </div>
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="closeCreateDialog">Cancel</v-btn>
-          <v-btn color="primary" :loading="creating" @click="submitCreate">Create Quiz</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Generate questions from a knowledge document, or add them manually."
+          confirm-label="Create Quiz"
+          :confirm-loading="creating"
+          @cancel="closeCreateDialog"
+          @confirm="submitCreate"
+        />
       </v-card>
     </v-dialog>
 
     <!-- Edit Dialog -->
     <v-dialog v-model="showEditDialog" max-width="800" persistent>
       <v-card>
-        <v-card-title class="d-flex align-center">
-          Edit Quiz
-          <v-spacer />
-          <v-btn
-            size="small"
-            variant="tonal"
-            prepend-icon="mdi-plus"
-            @click="addEditQuestion"
-          >
-            Add Question
-          </v-btn>
-        </v-card-title>
+        <DialogHeader
+          icon="mdi-help-box-outline"
+          label="Edit"
+          title="Quiz"
+          @close="showEditDialog = false"
+        >
+          <template #actions>
+            <v-btn
+              size="small"
+              variant="tonal"
+              prepend-icon="mdi-plus"
+              class="mr-2"
+              @click="addEditQuestion"
+            >
+              Add Question
+            </v-btn>
+          </template>
+        </DialogHeader>
         <v-card-text>
           <!-- LLM Regeneration -->
           <v-card variant="tonal" class="mb-4 pa-3">
@@ -550,11 +563,12 @@
             </v-card>
           </div>
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="showEditDialog = false">Cancel</v-btn>
-          <v-btn color="primary" :loading="saving" @click="submitEdit">Save</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Modify quiz metadata and edit individual questions."
+          :confirm-loading="saving"
+          @cancel="showEditDialog = false"
+          @confirm="submitEdit"
+        />
       </v-card>
     </v-dialog>
 
@@ -593,6 +607,8 @@ import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { formatDateTime } from "@/services/timezone.js";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
+import DialogHeader from "@/components/common/DialogHeader.vue";
+import DialogFooter from "@/components/common/DialogFooter.vue";
 
 const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();

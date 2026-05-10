@@ -112,7 +112,12 @@
     <!-- Create Dialog -->
     <v-dialog v-model="showCreateDialog" max-width="640" persistent>
       <v-card>
-        <v-card-title>New Info Card</v-card-title>
+        <DialogHeader
+          icon="mdi-card-text-outline"
+          label="Create New"
+          title="Info Card"
+          @close="closeCreateDialog"
+        />
         <v-card-text>
           <!-- LLM Generation Section -->
           <v-card variant="tonal" class="mb-4 pa-3">
@@ -136,18 +141,16 @@
                   item-value="id"
                   label="Knowledge Document"
                   hint="Source document for content generation"
-                  persistent-hint
                   clearable
                 />
               </v-col>
-              <v-col cols="12" sm="4" class="d-flex align-center">
+              <v-col cols="12" sm="4" class="align-self-center">
                 <v-btn
                   color="secondary"
                   variant="tonal"
                   :loading="generating"
                   :disabled="!createForm.document_id"
                   block
-                  class="mt-2"
                   @click="generateFromDocument"
                 >
                   Generate
@@ -174,18 +177,25 @@
             deletable-chips
           />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="closeCreateDialog">Cancel</v-btn>
-          <v-btn color="primary" :loading="creating" @click="submitCreate">Create</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Generate content from a knowledge document, or fill in fields manually."
+          confirm-label="Create"
+          :confirm-loading="creating"
+          @cancel="closeCreateDialog"
+          @confirm="submitCreate"
+        />
       </v-card>
     </v-dialog>
 
     <!-- Edit / Expand Dialog -->
     <v-dialog v-model="showEditDialog" max-width="640" persistent>
       <v-card>
-        <v-card-title>Edit Info Card</v-card-title>
+        <DialogHeader
+          icon="mdi-card-text-outline"
+          label="Edit"
+          title="Info Card"
+          @close="closeEditDialog"
+        />
         <v-card-text>
           <!-- LLM Generation Section -->
           <v-card variant="tonal" class="mb-4 pa-3">
@@ -209,18 +219,16 @@
                   item-value="id"
                   label="Knowledge Document"
                   hint="Source document for content regeneration"
-                  persistent-hint
                   clearable
                 />
               </v-col>
-              <v-col cols="12" sm="4" class="d-flex align-center">
+              <v-col cols="12" sm="4" class="align-self-center">
                 <v-btn
                   color="secondary"
                   variant="tonal"
                   :loading="editGenerating"
                   :disabled="!editForm.document_id"
                   block
-                  class="mt-2"
                   @click="generateEditFromDocument"
                 >
                   Regenerate
@@ -263,15 +271,14 @@
                   <v-icon size="24" color="grey">mdi-image-outline</v-icon>
                 </v-sheet>
 
-                <v-file-input
-                  v-model="slotUploadFiles[idx]"
-                  label="Upload"
-                  accept="image/*"
-                  variant="outlined"
-                  density="compact"
-                  hide-details
-                  style="max-width: 180px"
-                />
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  prepend-icon="mdi-image-plus"
+                  @click="triggerSlotFilePicker(idx)"
+                >
+                  {{ slotFileNames[idx] || 'Choose' }}
+                </v-btn>
                 <v-btn
                   v-if="slotUploadFiles[idx]"
                   size="small"
@@ -326,12 +333,21 @@
             chips
             deletable-chips
           />
+          <!-- Hidden file input for slot image picking -->
+          <input
+            ref="slotFileInput"
+            type="file"
+            accept="image/*"
+            hidden
+            @change="onSlotFilePicked"
+          />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="closeEditDialog">Cancel</v-btn>
-          <v-btn color="primary" :loading="saving" @click="submitEdit">Save</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Modify card content, manage image slots, and update tags."
+          :confirm-loading="saving"
+          @cancel="closeEditDialog"
+          @confirm="submitEdit"
+        />
       </v-card>
     </v-dialog>
 
@@ -370,6 +386,8 @@ import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { formatDateTime } from "@/services/timezone.js";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
+import DialogHeader from "@/components/common/DialogHeader.vue";
+import DialogFooter from "@/components/common/DialogFooter.vue";
 
 const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();
@@ -431,6 +449,9 @@ const editForm = reactive({
 const editCardSlots = ref([]);
 const slotUploadFiles = reactive({});
 const slotUploading = reactive({});
+const slotFileNames = reactive({});
+const activeSlotIdx = ref(-1);
+const slotFileInput = ref(null);
 const showDocPickIdx = ref(-1);
 const docImagesForPick = ref([]);
 
@@ -592,6 +613,7 @@ async function editCard(item) {
   showDocPickIdx.value = -1;
   // Clear per-slot file inputs
   for (const k of Object.keys(slotUploadFiles)) delete slotUploadFiles[k];
+  for (const k of Object.keys(slotFileNames)) delete slotFileNames[k];
 
   // Fetch full card to get image_slots
   try {
@@ -615,6 +637,23 @@ function getSlotPreview(slotIndex) {
   if (!slot) return null;
   const pwa = slot.variants?.pwa;
   return pwa?.presigned_url || null;
+}
+
+function triggerSlotFilePicker(idx) {
+  activeSlotIdx.value = idx;
+  slotFileInput.value?.click();
+}
+
+function onSlotFilePicked(e) {
+  const idx = activeSlotIdx.value;
+  if (idx < 0) return;
+  const file = e.target.files?.[0];
+  if (file) {
+    slotUploadFiles[idx] = file;
+    slotFileNames[idx] = file.name;
+  }
+  e.target.value = "";
+  activeSlotIdx.value = -1;
 }
 
 async function uploadSlotImage(slotIndex) {
@@ -673,7 +712,9 @@ function closeEditDialog() {
   editCardSlots.value = [];
   docImagesForPick.value = [];
   showDocPickIdx.value = -1;
+  activeSlotIdx.value = -1;
   for (const k of Object.keys(slotUploadFiles)) delete slotUploadFiles[k];
+  for (const k of Object.keys(slotFileNames)) delete slotFileNames[k];
 }
 
 async function submitEdit() {

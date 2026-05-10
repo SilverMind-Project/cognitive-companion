@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base, TimestampMixin
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # required: reciprocal SQLAlchemy relationship with pipeline.py
     from backend.models.pipeline import PipelineStep
 
 

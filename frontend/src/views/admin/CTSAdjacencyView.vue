@@ -45,7 +45,12 @@
     <!-- Add / Edit edge dialog -->
     <v-dialog v-model="dialog" max-width="460" persistent>
       <v-card>
-        <v-card-title>{{ editingIdx !== null ? "Edit Edge" : "Add Adjacency Edge" }}</v-card-title>
+        <DialogHeader
+          icon="mdi-graph"
+          :label="editingIdx !== null ? 'Edit' : 'Create New'"
+          :title="editingIdx !== null ? 'Adjacency Edge' : 'Adjacency Edge'"
+          @close="dialog = false"
+        />
         <v-card-text>
           <v-text-field
             v-model="form.from"
@@ -98,18 +103,13 @@
             Max transit must be ≥ min transit.
           </v-alert>
         </v-card-text>
-        <v-card-actions class="px-6 pb-4">
-          <v-spacer />
-          <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
-          <v-btn
-            color="primary"
-            variant="flat"
-            :disabled="form.max_transit_s < form.min_transit_s || !form.from || !form.to"
-            @click="commitEdge"
-          >
-            {{ editingIdx !== null ? "Update" : "Add" }}
-          </v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Adjacency edges define which cameras are physically connected for person tracking across rooms."
+          :confirm-label="editingIdx !== null ? 'Update' : 'Add'"
+          :confirm-disabled="form.max_transit_s < form.min_transit_s || !form.from || !form.to"
+          @cancel="dialog = false"
+          @confirm="commitEdge"
+        />
       </v-card>
     </v-dialog>
 
@@ -121,6 +121,8 @@
 import { ref, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 

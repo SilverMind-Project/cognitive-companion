@@ -34,7 +34,7 @@ async def resolve_image_sources(
     * ``<prefix>images_per_sensor`` — per-sensor cap
     * ``<prefix>sensor_frame_limits`` — per-sensor overrides
     """
-    def _cfg(key: str) -> object:
+    def _cfg(key: str) -> Any:
         return config.get(f"{config_prefix}{key}")
 
     image_source: str = _cfg("image_source") or "trigger"

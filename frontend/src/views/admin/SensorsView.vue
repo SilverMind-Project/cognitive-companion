@@ -36,7 +36,12 @@
 
     <v-dialog v-model="dialog" max-width="500" persistent>
       <v-card>
-        <v-card-title>{{ editing ? 'Edit Sensor' : 'Add Sensor' }}</v-card-title>
+        <DialogHeader
+          icon="mdi-access-point"
+          :label="editing ? 'Edit' : 'Create New'"
+          :title="editing ? 'Sensor' : 'Sensor'"
+          @close="dialog = false"
+        />
         <v-card-text>
           <v-text-field v-model="form.name" label="Name" variant="outlined" class="mb-2" />
           <v-select v-model="form.sensor_type" :items="sensorTypes" label="Type" variant="outlined" class="mb-2" />
@@ -45,11 +50,12 @@
           <v-text-field v-model="form.ha_entity_id" label="HA Entity ID (optional)" variant="outlined" class="mb-2" />
           <v-switch v-model="form.enabled" label="Enabled" color="primary" />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
-          <v-btn color="primary" @click="saveSensor">{{ editing ? 'Update' : 'Create' }}</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Sensors provide presence, motion, and environmental data for rule triggers."
+          :confirm-label="editing ? 'Update' : 'Create'"
+          @cancel="dialog = false"
+          @confirm="saveSensor"
+        />
       </v-card>
     </v-dialog>
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
@@ -73,6 +79,8 @@ import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();

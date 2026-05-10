@@ -93,7 +93,12 @@
     <!-- Add / Edit zone dialog -->
     <v-dialog v-model="dialog" max-width="540" persistent>
       <v-card>
-        <v-card-title>{{ editingZone ? "Edit Zone" : "Add Privacy Zone" }}</v-card-title>
+        <DialogHeader
+          icon="mdi-shield-eye-outline"
+          :label="editingZone ? 'Edit' : 'Create New'"
+          :title="editingZone ? 'Privacy Zone' : 'Privacy Zone'"
+          @close="dialog = false"
+        />
         <v-card-text>
           <v-text-field
             v-model="form.zone_id"
@@ -151,13 +156,12 @@
             Add Vertex
           </v-btn>
         </v-card-text>
-        <v-card-actions class="px-6 pb-4">
-          <v-spacer />
-          <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
-          <v-btn color="primary" variant="flat" @click="commitZone">
-            {{ editingZone ? "Update" : "Add" }}
-          </v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Privacy zones define regions where face identification is restricted for resident privacy."
+          :confirm-label="editingZone ? 'Update' : 'Add'"
+          @cancel="dialog = false"
+          @confirm="commitZone"
+        />
       </v-card>
     </v-dialog>
 
@@ -169,6 +173,8 @@
 import { ref, computed, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 

@@ -131,7 +131,12 @@
     <!-- Create Dialog -->
     <v-dialog v-model="showCreateDialog" max-width="640" persistent>
       <v-card>
-        <v-card-title>New Knowledge Document</v-card-title>
+        <DialogHeader
+          icon="mdi-file-document-outline"
+          label="Create New"
+          title="Knowledge Document"
+          @close="closeCreateDialog"
+        />
         <v-card-text>
           <v-form ref="createForm">
             <v-text-field
@@ -162,11 +167,13 @@
             />
           </v-form>
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="closeCreateDialog">Cancel</v-btn>
-          <v-btn color="primary" :loading="creating" @click="submitCreate">Create</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Upload images and provide source text for content generation."
+          confirm-label="Create"
+          :confirm-loading="creating"
+          @cancel="closeCreateDialog"
+          @confirm="submitCreate"
+        />
       </v-card>
     </v-dialog>
 
@@ -204,6 +211,8 @@ import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
+import DialogHeader from "@/components/common/DialogHeader.vue";
+import DialogFooter from "@/components/common/DialogFooter.vue";
 
 const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();

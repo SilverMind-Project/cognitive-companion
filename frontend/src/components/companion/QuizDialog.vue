@@ -6,160 +6,158 @@
     no-click-animation
     @after-leave="onDialogClosed"
   >
-    <!-- ============================================================ -->
-    <!-- INTRO SCREEN                                                 -->
-    <!-- ============================================================ -->
-    <v-card v-if="screen === 'intro'" class="quiz-card">
-      <v-card-item>
-        <template #prepend>
-          <v-icon color="primary" size="28">mdi-help-box-outline</v-icon>
-        </template>
-        <v-card-title class="text-h6 font-weight-bold">{{ title }}</v-card-title>
-      </v-card-item>
+    <v-fade-transition mode="out-in" :duration="200">
+      <!-- ============================================================ -->
+      <!-- INTRO SCREEN                                                 -->
+      <!-- ============================================================ -->
+      <v-card v-if="screen === 'intro'" key="intro" class="quiz-card">
+        <v-card-item>
+          <template #prepend>
+            <v-icon color="primary" size="28">mdi-help-box-outline</v-icon>
+          </template>
+          <v-card-title class="text-h6 font-weight-bold">{{ title }}</v-card-title>
+        </v-card-item>
 
-      <v-divider class="mx-4" />
+        <v-divider class="mx-4" />
 
-      <v-card-text class="pt-4">
-        <p class="text-body-1 intro-text mb-3">{{ introText }}</p>
-        <p class="text-caption text-medium-emphasis">
-          Total: {{ totalQuestions }}
-          {{ totalQuestions === 1 ? "question" : "questions" }}
-        </p>
-      </v-card-text>
-
-      <v-divider class="mx-4" />
-
-      <v-card-actions class="pa-4">
-        <v-spacer />
-        <v-btn
-          color="primary"
-          variant="flat"
-          size="large"
-          class="px-8 start-btn"
-          @click="startQuiz"
-        >
-          Start
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-
-    <!-- ============================================================ -->
-    <!-- QUESTION SCREEN                                              -->
-    <!-- ============================================================ -->
-    <v-card v-else-if="screen === 'question'" class="quiz-card">
-      <v-card-item class="pb-0">
-        <template #prepend>
-          <v-chip
-            color="primary"
-            size="small"
-            variant="tonal"
-          >
-            {{ currentOrd + 1 }} / {{ totalQuestions }}
-          </v-chip>
-        </template>
-        <v-card-title class="text-h6 font-weight-bold question-title text-wrap" style="line-height: 1.3">
-          {{ questionText }}
-        </v-card-title>
-      </v-card-item>
-
-      <v-divider class="mx-4 my-2" />
-
-      <v-card-text class="pt-2">
-        <!-- Question image -->
-        <v-img
-          v-if="questionImage"
-          :src="questionImage.url"
-          :width="questionImage.width || undefined"
-          :height="questionImage.height || 200"
-          :alt="questionImage.alt_text || ''"
-          cover
-          class="rounded-lg mb-4 question-image"
-        />
-
-        <!-- Multiple choice -->
-        <div v-if="questionType === 'multiple_choice'" class="choices-stack">
-          <v-btn
-            v-for="choice in choices"
-            :key="choice.id"
-            block
-            size="x-large"
-            variant="tonal"
-            class="choice-btn mb-3"
-            :class="{ 'choice-btn--selected': answered === choice.id }"
-            :color="getChoiceColor(choice.id)"
-            :disabled="answered !== null"
-            @click="selectChoice(choice.id)"
-          >
-            {{ choice.text }}
-          </v-btn>
-        </div>
-
-        <!-- Open ended -->
-        <div v-else class="open-ended-hint">
-          <v-icon size="56" color="primary" class="d-block text-center mb-3">
-            mdi-microphone
-          </v-icon>
-          <p class="text-center text-body-2 text-medium-emphasis px-4">
-            Speak your answer aloud
+        <v-card-text class="pt-4">
+          <p class="text-body-1 intro-text mb-3">{{ introText }}</p>
+          <p class="text-caption text-medium-emphasis">
+            {{ totalQuestions }}
+            {{ totalQuestions === 1 ? "question" : "questions" }}
           </p>
-        </div>
-      </v-card-text>
+        </v-card-text>
 
-      <!-- Feedback bar (visible after answer is recorded) -->
-      <v-card-text
-        v-if="answerRecorded"
-        class="pt-0"
-      >
-        <v-alert
-          :type="isCorrect === true ? 'success' : (isCorrect === false ? 'error' : 'info')"
-          :text="isCorrect === true ? 'Correct!' : (isCorrect === false ? 'Not quite' : 'Answer recorded')"
-          variant="tonal"
-          density="compact"
-          class="feedback-alert"
-        />
-      </v-card-text>
-    </v-card>
+        <v-divider class="mx-4" />
 
-    <!-- ============================================================ -->
-    <!-- COMPLETE SCREEN                                              -->
-    <!-- ============================================================ -->
-    <v-card v-else-if="screen === 'complete'" class="quiz-card">
-      <v-card-item>
-        <template #prepend>
-          <v-icon color="primary" size="28">mdi-trophy-outline</v-icon>
-        </template>
-        <v-card-title class="text-h6 font-weight-bold">Quiz Complete!</v-card-title>
-      </v-card-item>
+        <v-card-actions class="pa-4">
+          <v-spacer />
+          <v-btn
+            color="primary"
+            variant="flat"
+            size="large"
+            class="px-8 start-btn"
+            @click="startQuiz"
+          >
+            Start
+          </v-btn>
+        </v-card-actions>
+      </v-card>
 
-      <v-divider class="mx-4" />
+      <!-- ============================================================ -->
+      <!-- QUESTION SCREEN                                              -->
+      <!-- ============================================================ -->
+      <v-card v-else-if="screen === 'question'" key="question" class="quiz-card">
+        <v-card-item class="pb-0">
+          <template #prepend>
+            <v-chip
+              color="primary"
+              size="small"
+              variant="tonal"
+            >
+              {{ currentOrd + 1 }}&thinsp;/&thinsp;{{ totalQuestions }}
+            </v-chip>
+          </template>
+          <v-card-title class="text-h6 font-weight-bold question-title text-wrap" style="line-height: 1.3">
+            {{ questionText }}
+          </v-card-title>
+        </v-card-item>
 
-      <v-card-text class="pt-6 pb-4 text-center">
-        <p class="text-h3 font-weight-bold text-primary">{{ numCorrect }} / {{ numAnswered }}</p>
-        <p class="text-body-2 text-medium-emphasis mt-1">
-          questions answered correctly
-        </p>
-      </v-card-text>
+        <v-divider class="mx-4 my-2" />
 
-      <v-divider class="mx-4" />
+        <v-card-text class="pt-2">
+          <!-- Question image -->
+          <v-img
+            v-if="questionImage"
+            :src="questionImage.url"
+            :width="questionImage.width || undefined"
+            :height="questionImage.height || 200"
+            :alt="questionImage.alt_text || ''"
+            cover
+            class="rounded-lg mb-4 question-image"
+          />
 
-      <v-card-actions class="pa-4">
-        <v-spacer />
-        <v-btn
-          color="primary"
-          variant="flat"
-          size="large"
-          class="px-8 done-btn"
-          @click="close"
-        >
-          Done
-        </v-btn>
-      </v-card-actions>
-    </v-card>
+          <!-- Multiple choice -->
+          <div v-if="questionType === 'multiple_choice'" class="choices-stack">
+            <v-btn
+              v-for="choice in choices"
+              :key="choice.id"
+              block
+              size="x-large"
+              variant="tonal"
+              class="choice-btn mb-3"
+              :class="{ 'choice-btn--selected': answered === choice.id }"
+              :color="getChoiceColor(choice.id)"
+              :disabled="answered !== null"
+              @click="selectChoice(choice.id)"
+            >
+              {{ choice.text }}
+            </v-btn>
+          </div>
+
+          <!-- Open ended -->
+          <div v-else class="open-ended-hint">
+            <div class="mic-icon-wrap">
+              <v-icon size="48" color="primary">mdi-microphone</v-icon>
+            </div>
+            <p class="text-center text-body-2 text-medium-emphasis mt-3">
+              Speak your answer aloud
+            </p>
+          </div>
+        </v-card-text>
+
+        <!-- Feedback bar (visible after answer is recorded) -->
+        <v-slide-y-transition>
+          <v-card-text v-if="answerRecorded" class="pt-0">
+            <div class="feedback-bar" :class="feedbackClass">
+              <v-icon size="18" class="mr-1">{{ feedbackIcon }}</v-icon>
+              <span>{{ feedbackText }}</span>
+            </div>
+          </v-card-text>
+        </v-slide-y-transition>
+      </v-card>
+
+      <!-- ============================================================ -->
+      <!-- COMPLETE SCREEN                                              -->
+      <!-- ============================================================ -->
+      <v-card v-else-if="screen === 'complete'" key="complete" class="quiz-card">
+        <v-card-item>
+          <template #prepend>
+            <v-icon color="primary" size="28">mdi-trophy-outline</v-icon>
+          </template>
+          <v-card-title class="text-h6 font-weight-bold">Quiz Complete!</v-card-title>
+        </v-card-item>
+
+        <v-divider class="mx-4" />
+
+        <v-card-text class="pt-6 pb-4 text-center">
+          <p class="text-h3 font-weight-bold text-primary score-text">{{ numCorrect }} / {{ numAnswered }}</p>
+          <p class="text-body-2 text-medium-emphasis mt-1">
+            questions answered correctly
+          </p>
+        </v-card-text>
+
+        <v-divider class="mx-4" />
+
+        <v-card-actions class="pa-4">
+          <v-spacer />
+          <v-btn
+            color="primary"
+            variant="flat"
+            size="large"
+            class="px-8 done-btn"
+            @click="close"
+          >
+            Done
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-fade-transition>
   </v-dialog>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { wsClient } from "../../services/WebSocketClient.js";
 
 // ---------------------------------------------------------------------------
@@ -324,6 +322,27 @@ function getChoiceColor(choiceId) {
   return isCorrect.value === true ? "success" : "error";
 }
 
+const feedbackClass = computed(() => {
+  if (!answerRecorded.value) return "";
+  if (isCorrect.value === true) return "feedback-bar--correct";
+  if (isCorrect.value === false) return "feedback-bar--incorrect";
+  return "";
+});
+
+const feedbackIcon = computed(() => {
+  if (!answerRecorded.value) return "";
+  if (isCorrect.value === true) return "mdi-check-circle";
+  if (isCorrect.value === false) return "mdi-close-circle";
+  return "mdi-check";
+});
+
+const feedbackText = computed(() => {
+  if (!answerRecorded.value) return "";
+  if (isCorrect.value === true) return "Correct!";
+  if (isCorrect.value === false) return "Not quite";
+  return "Answer recorded";
+});
+
 // ---------------------------------------------------------------------------
 // WS listener — all quiz messages flow through onStatus since wsClient
 // does not have dedicated callback arrays for these types.
@@ -366,7 +385,7 @@ defineExpose({ show: handleQuizStart });
 .intro-text {
   line-height: 1.7;
   white-space: pre-wrap;
-  color: rgba(255, 255, 255, 0.87);
+  color: var(--cc-text-1);
 }
 
 .start-btn,
@@ -382,7 +401,7 @@ defineExpose({ show: handleQuizStart });
 }
 
 .question-image {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--cc-divider);
 }
 
 .choices-stack {
@@ -413,11 +432,48 @@ defineExpose({ show: handleQuizStart });
 
 /* ── Open ended hint ───────────────────────────────────────────────────── */
 .open-ended-hint {
-  padding: 24px 0;
+  padding: 32px 0 24px;
 }
 
-/* ── Feedback alert ────────────────────────────────────────────────────── */
-.feedback-alert {
-  border-radius: 10px;
+.mic-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-primary), 0.08);
+  animation: mic-pulse 2s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0.15); }
+  50%      { box-shadow: 0 0 0 12px rgba(var(--v-theme-primary), 0); }
+}
+
+/* ── Feedback bar ──────────────────────────────────────────────────────── */
+.feedback-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.feedback-bar--correct {
+  background: rgba(var(--v-theme-success), 0.12);
+  color: rgb(var(--v-theme-success));
+}
+
+.feedback-bar--incorrect {
+  background: rgba(var(--v-theme-error), 0.12);
+  color: rgb(var(--v-theme-error));
+}
+
+/* ── Complete screen ───────────────────────────────────────────────────── */
+.score-text {
+  letter-spacing: -0.02em;
 }
 </style>

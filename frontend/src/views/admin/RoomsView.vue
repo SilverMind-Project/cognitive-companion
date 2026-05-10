@@ -31,17 +31,23 @@
 
     <v-dialog v-model="dialog" max-width="400" persistent>
       <v-card>
-        <v-card-title>{{ editing ? 'Edit Room' : 'Add Room' }}</v-card-title>
+        <DialogHeader
+          icon="mdi-door-open"
+          :label="editing ? 'Edit' : 'Create New'"
+          :title="editing ? 'Room' : 'Room'"
+          @close="dialog = false"
+        />
         <v-card-text>
           <v-text-field v-model="form.name" label="Name" variant="outlined" class="mb-2" />
           <v-text-field v-model="form.ha_area_id" label="HA Area ID (optional)" variant="outlined" class="mb-2" />
           <v-text-field v-model="form.floor" label="Floor (optional)" variant="outlined" />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
-          <v-btn color="primary" @click="saveRoom">{{ editing ? 'Update' : 'Create' }}</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Rooms group sensors and define spatial context for rules and presence tracking."
+          :confirm-label="editing ? 'Update' : 'Create'"
+          @cancel="dialog = false"
+          @confirm="saveRoom"
+        />
       </v-card>
     </v-dialog>
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
@@ -65,6 +71,8 @@ import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();

@@ -47,7 +47,12 @@
     <!-- Add / Edit dialog -->
     <v-dialog v-model="dialog" max-width="520" persistent>
       <v-card>
-        <v-card-title>{{ editing ? "Edit Camera" : "Add Camera" }}</v-card-title>
+        <DialogHeader
+          icon="mdi-cctv"
+          :label="editing ? 'Edit' : 'Create New'"
+          :title="editing ? 'Camera' : 'Camera'"
+          @close="dialog = false"
+        />
         <v-card-text>
           <v-text-field
             v-model="form.id"
@@ -93,13 +98,13 @@
             density="compact"
           />
         </v-card-text>
-        <v-card-actions class="px-6 pb-4">
-          <v-spacer />
-          <v-btn variant="text" :disabled="saving" @click="dialog = false">Cancel</v-btn>
-          <v-btn color="primary" variant="flat" :loading="saving" @click="saveCamera">
-            {{ editing ? "Update" : "Create" }}
-          </v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Cameras feed the continuous tracking system for presence and activity detection."
+          :confirm-label="editing ? 'Update' : 'Create'"
+          :confirm-loading="saving"
+          @cancel="dialog = false"
+          @confirm="saveCamera"
+        />
       </v-card>
     </v-dialog>
 
@@ -167,6 +172,8 @@ import { ref, onMounted, onBeforeUnmount } from "vue";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();

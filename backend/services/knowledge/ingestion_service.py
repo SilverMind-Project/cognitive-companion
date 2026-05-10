@@ -6,7 +6,6 @@ Phase 2: adds chunking + embedding via Triton.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
 from fastapi import UploadFile
 from sqlalchemy import func, select, text
@@ -15,6 +14,8 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.core.logging import get_logger
+from backend.integrations.minio_client import MinioClient
+from backend.integrations.triton_embedding_client import TritonEmbeddingClient
 from backend.models.knowledge import (
     InfoCard,
     KnowledgeDocument,
@@ -22,11 +23,7 @@ from backend.models.knowledge import (
     KnowledgeDocumentImage,
     Quiz,
 )
-
-if TYPE_CHECKING:
-    from backend.integrations.minio_client import MinioClient
-    from backend.integrations.triton_embedding_client import TritonEmbeddingClient
-    from backend.services.knowledge.image_pipeline import ImagePipeline
+from backend.services.knowledge.image_pipeline import ImagePipeline
 
 logger = get_logger(__name__)
 

@@ -8,17 +8,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import Any, Literal, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.integrations.llm import LLMModelRegistry, LLMProvider
 from backend.models.knowledge import KnowledgeDocument
-
-if TYPE_CHECKING:
-    from backend.integrations.llm import LLMModelRegistry, LLMProvider
 
 logger = get_logger(__name__)
 

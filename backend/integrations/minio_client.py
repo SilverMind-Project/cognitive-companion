@@ -7,6 +7,8 @@ and cleanup helpers for the application's media bucket.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 from io import BytesIO
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -18,10 +20,22 @@ from botocore.exceptions import ClientError
 from backend.core.config import settings
 from backend.core.logging import get_logger
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # required: mypy_boto3_s3 is a type-stubs-only package with no runtime code
     from mypy_boto3_s3 import S3Client
 
 logger = get_logger(__name__)
+
+
+def _inject_content_md5(request, **kwargs: object) -> None:
+    """Compute and inject Content-MD5 header for requests with a body.
+
+    MinIO requires this header for operations like DeleteObjects,
+    but boto3 does not always add it automatically.
+    """
+    body = request.body
+    if body:
+        md5 = base64.b64encode(hashlib.md5(body).digest()).decode()
+        request.headers["Content-MD5"] = md5
 
 
 class MinioClient:
@@ -50,6 +64,9 @@ class MinioClient:
                 signature_version="s3v4",
                 s3={"addressing_style": "path"},
             ),
+        )
+        self._client.meta.events.register(
+            "before-send.s3", _inject_content_md5
         )
         logger.info("minio_client_initialized", endpoint=endpoint, bucket=bucket)
 

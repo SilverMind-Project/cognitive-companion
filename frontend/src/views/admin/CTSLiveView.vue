@@ -129,7 +129,12 @@
 
     <v-dialog v-model="correctionOpen" max-width="520" persistent>
       <v-card>
-        <v-card-title>Correct identity</v-card-title>
+        <DialogHeader
+          icon="mdi-account-convert"
+          label="Correct"
+          title="Identity"
+          @close="correctionOpen = false"
+        />
         <v-card-text>
           <div class="text-body-2 mb-2">
             GlobalTrack: <strong>{{ correction.global_track_id }}</strong>
@@ -152,13 +157,13 @@
             variant="outlined"
           />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn @click="correctionOpen = false">Cancel</v-btn>
-          <v-btn color="primary" @click="submitCorrection" :loading="saving">
-            Apply override
-          </v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Correct misidentified persons to improve tracking accuracy."
+          confirm-label="Apply override"
+          :confirm-loading="saving"
+          @cancel="correctionOpen = false"
+          @confirm="submitCorrection"
+        />
       </v-card>
     </v-dialog>
   </div>
@@ -166,9 +171,12 @@
 
 <script>
 import { cts } from "@/services/cts";
+import DialogHeader from "@/components/common/DialogHeader.vue";
+import DialogFooter from "@/components/common/DialogFooter.vue";
 
 export default {
   name: "CTSLiveView",
+  components: { DialogHeader, DialogFooter },
   data() {
     return {
       error: "",

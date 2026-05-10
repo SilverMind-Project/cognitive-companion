@@ -50,14 +50,16 @@
           {{ (item.regions_json || []).length }} region(s)
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon="mdi-pencil" size="small" variant="text" @click.stop="openEdit(item)" />
-          <v-btn
-            icon="mdi-delete"
-            size="small"
-            variant="text"
-            color="error"
-            @click.stop="deleteTemplate(item.id)"
-          />
+          <div style="white-space: nowrap">
+            <v-btn icon="mdi-pencil" size="small" variant="text" @click.stop="openEdit(item)" />
+            <v-btn
+              icon="mdi-delete"
+              size="small"
+              variant="text"
+              color="error"
+              @click.stop="deleteTemplate(item.id)"
+            />
+          </div>
         </template>
         <template #no-data>
           <div class="pa-6 text-center">
@@ -79,21 +81,12 @@
       persistent
     >
       <v-card class="d-flex flex-column" style="height: 88vh; max-height: 880px; overflow: hidden">
-        <!-- Header -->
-        <div class="eink-dialog-header px-6 py-4 d-flex align-center">
-          <v-avatar size="40" class="eink-dialog-icon mr-3">
-            <v-icon color="white">mdi-monitor</v-icon>
-          </v-avatar>
-          <div class="flex-grow-1">
-            <div class="text-overline text-medium-emphasis">E-Ink Template</div>
-            <div class="text-h6 font-weight-bold tracking-tight">
-              {{ editing ? form.name || "Edit Template" : "New Template" }}
-            </div>
-          </div>
-          <v-btn icon="mdi-close" variant="text" @click="dialog = false" />
-        </div>
-
-        <v-divider />
+        <DialogHeader
+          icon="mdi-monitor"
+          :label="editing ? 'Edit' : 'Create New'"
+          :title="editing ? 'E-Ink Template' : 'E-Ink Template'"
+          @close="dialog = false"
+        />
 
         <!-- Body: vertical tabs + content -->
         <div class="eink-dialog-body d-flex flex-grow-1 overflow-hidden">
@@ -279,14 +272,13 @@
 
         <v-divider />
 
-        <!-- Footer actions -->
-        <v-card-actions class="px-6 py-3">
-          <v-spacer />
-          <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
-          <v-btn color="primary" variant="flat" :loading="saving" @click="save">
-            {{ editing ? "Update" : "Create" }}
-          </v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="E-Ink templates define the layout for low-power display output, including regions and content slots."
+          :confirm-label="editing ? 'Update' : 'Create'"
+          :confirm-loading="saving"
+          @cancel="dialog = false"
+          @confirm="save"
+        />
       </v-card>
     </v-dialog>
 
@@ -315,6 +307,8 @@ import BoundingBoxCanvas from "../../components/eink/BoundingBoxCanvas.vue";
 import RegionEditor from "../../components/eink/RegionEditor.vue";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } =
@@ -376,7 +370,7 @@ const headers = [
   { title: "Font", key: "font_filename" },
   { title: "Regions", key: "regions_json" },
   { title: "Default", key: "is_default", width: 80 },
-  { title: "", key: "actions", sortable: false, width: 100 },
+  { title: "Actions", key: "actions", sortable: false, width: 120 },
 ];
 
 // When the user switches to the Regions tab, the BoundingBoxCanvas wrapper
@@ -603,19 +597,6 @@ onMounted(load);
   letter-spacing: -0.018em;
 }
 
-/* ── Dialog shell ────────────────────────────────────────────────────────── */
-.eink-dialog-header {
-  background: linear-gradient(
-    135deg,
-    var(--cc-brand-soft) 0%,
-    var(--cc-brand-softer) 100%
-  );
-  flex-shrink: 0;
-}
-
-.eink-dialog-icon {
-  background: var(--cc-brand-gradient);
-}
 
 .eink-dialog-body {
   min-height: 0; /* Required for flex children to shrink */

@@ -8,18 +8,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.integrations.llm import LLMModelRegistry
+from backend.integrations.triton_embedding_client import TritonEmbeddingClient
 from backend.models.knowledge import SeniorKnowledgeQuery
-
-if TYPE_CHECKING:
-    from backend.integrations.llm import LLMModelRegistry
-    from backend.integrations.triton_embedding_client import TritonEmbeddingClient
 
 logger = get_logger(__name__)
 

@@ -49,16 +49,22 @@
     <!-- Create Dialog: minimal entry point. Trigger type and other settings are configured on the rule detail page. -->
     <v-dialog v-model="createDialog" max-width="500" persistent>
       <v-card>
-        <v-card-title>Create Rule</v-card-title>
+        <DialogHeader
+          icon="mdi-automation"
+          label="Create New"
+          title="Rule"
+          @close="createDialog = false"
+        />
         <v-card-text>
           <v-text-field v-model="createForm.name" label="Name" variant="outlined" class="mb-3" />
           <v-textarea v-model="createForm.description" label="Description" variant="outlined" rows="2" />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="createDialog = false">Cancel</v-btn>
-          <v-btn color="primary" @click="createRule">Create</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Rules define automated workflows triggered by sensors, schedules, or events."
+          confirm-label="Create"
+          @cancel="createDialog = false"
+          @confirm="createRule"
+        />
       </v-card>
     </v-dialog>
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
@@ -83,6 +89,8 @@ import { useRouter } from "vue-router";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();

@@ -374,6 +374,7 @@ class LLMCallHandler(StepHandler):
         has_vision = model_cfg and "vision" in model_cfg.capabilities
         image_source: str = config.get("image_source", "none")
 
+        media_paths: list[str] = []
         if has_vision and image_source != "none":
             sort_by_sensor: bool = bool(config.get("sort_by_sensor_then_time", False))
             media_paths = await resolve_image_sources(
@@ -382,8 +383,6 @@ class LLMCallHandler(StepHandler):
                 default_images_per_sensor=3,
                 sort_by_sensor=sort_by_sensor,
             )
-        else:
-            media_paths: list[str] = []
 
         # -- Annotated image (from person_identification) ----------------------
         if config.get("use_annotated_image"):

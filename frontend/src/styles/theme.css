@@ -398,6 +398,15 @@ kbd {
   border-color: var(--cc-divider-strong);
 }
 
+/* Shared dialog header — avatar + two-line title + close button */
+.dialog-header {
+  background: linear-gradient(135deg, rgba(var(--v-theme-primary), 0.08) 0%, rgba(var(--v-theme-primary), 0.03) 100%);
+}
+
+.dialog-header-icon {
+  background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, #5e5ce6 60%, #bf5af2 100%);
+}
+
 /* Page header pattern used across admin views */
 .cc-page-header {
   display: flex;

@@ -7,12 +7,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
+from backend.integrations.eink_renderer import EInkRenderer
+from backend.integrations.minio_client import MinioClient
 from backend.models.knowledge import (
     InfoCard,
     InfoCardDelivery,
@@ -21,12 +23,8 @@ from backend.models.knowledge import (
     QuizResponse,
     QuizSession,
 )
-
-if TYPE_CHECKING:
-    from backend.integrations.eink_renderer import EInkRenderer
-    from backend.integrations.minio_client import MinioClient
-    from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
-    from backend.websocket.connection_manager import ConnectionManager
+from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
+from backend.websocket.connection_manager import ConnectionManager
 
 logger = get_logger(__name__)
 

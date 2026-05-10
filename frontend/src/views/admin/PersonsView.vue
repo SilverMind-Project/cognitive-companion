@@ -111,7 +111,12 @@
     <!-- Create/Edit Dialog -->
     <v-dialog v-model="dialog" max-width="500" scrollable persistent>
       <v-card>
-        <v-card-title>{{ editing ? 'Edit Member' : 'Add Member' }}</v-card-title>
+        <DialogHeader
+          icon="mdi-account-plus"
+          :label="editing ? 'Edit' : 'Create New'"
+          :title="editing ? 'Member' : 'Member'"
+          @close="dialog = false"
+        />
         <v-card-text>
           <v-text-field
             v-model="form.id"
@@ -126,21 +131,24 @@
           <v-switch v-model="form.is_guest" label="Guest (not a permanent member)" color="info" />
           <v-switch v-model="form.is_active" label="Active" color="primary" v-if="editing" />
         </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="dialog = false">Cancel</v-btn>
-          <v-btn color="primary" @click="saveMember">{{ editing ? 'Update' : 'Create' }}</v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Persons are recognized by the face identification service for presence and activity tracking."
+          :confirm-label="editing ? 'Update' : 'Create'"
+          @cancel="dialog = false"
+          @confirm="saveMember"
+        />
       </v-card>
     </v-dialog>
 
     <!-- Face Enrollment Dialog -->
     <v-dialog v-model="enrollDialog" max-width="600" scrollable persistent>
       <v-card>
-        <v-card-title class="d-flex align-center">
-          <v-icon class="mr-2">mdi-face-recognition</v-icon>
-          Enroll Face: {{ enrollTarget?.name }}
-        </v-card-title>
+        <DialogHeader
+          icon="mdi-face-recognition"
+          label="Face Enrollment"
+          :title="enrollTarget?.name || 'Enroll Face'"
+          @close="enrollDialog = false"
+        />
         <v-card-text>
           <!-- Current enrollment status -->
           <v-alert
@@ -212,26 +220,26 @@
             </span>
           </v-alert>
         </v-card-text>
-        <v-card-actions>
-          <v-btn
-            v-if="enrollmentMap[enrollTarget?.id]"
-            color="error"
-            variant="text"
-            @click="unenroll"
-          >
-            Remove Enrollment
-          </v-btn>
-          <v-spacer />
-          <v-btn variant="text" @click="enrollDialog = false">Close</v-btn>
-          <v-btn
-            color="primary"
-            :loading="enrolling"
-            :disabled="enrollFiles.length === 0"
-            @click="submitEnrollment"
-          >
-            Upload & Enroll
-          </v-btn>
-        </v-card-actions>
+        <DialogFooter
+          hint="Upload 5–10 reference photos for reliable face recognition."
+          cancel-label="Close"
+          confirm-label="Upload & Enroll"
+          :confirm-loading="enrolling"
+          :confirm-disabled="enrollFiles.length === 0"
+          @cancel="enrollDialog = false"
+          @confirm="submitEnrollment"
+        >
+          <template #actions>
+            <v-btn
+              v-if="enrollmentMap[enrollTarget?.id]"
+              color="error"
+              variant="text"
+              @click="unenroll"
+            >
+              Remove Enrollment
+            </v-btn>
+          </template>
+        </DialogFooter>
       </v-card>
     </v-dialog>
 
@@ -355,6 +363,8 @@ import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
 import { formatDateOnly, formatDateTimeShort, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();

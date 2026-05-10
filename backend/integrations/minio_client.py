@@ -3,12 +3,18 @@ MinIO / S3-compatible object storage client.
 
 Wraps boto3 to provide upload, download, presigned-URL generation,
 and cleanup helpers for the application's media bucket.
+
+All I/O methods come in sync/async pairs. Sync methods are the
+boto3 originals and MUST NOT be called from the asyncio event loop.
+Async wrappers defer to a thread-pool executor.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -25,6 +31,10 @@ if TYPE_CHECKING:  # required: mypy_boto3_s3 is a type-stubs-only package with n
 
 logger = get_logger(__name__)
 
+# Shared thread pool for offloading blocking boto3 calls.
+# Max 8 threads — enough for concurrent MinIO operations without oversubscribing.
+_io_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="minio-io")
+
 
 def _inject_content_md5(request, **kwargs: object) -> None:
     """Compute and inject Content-MD5 header for requests with a body.
@@ -34,6 +44,10 @@ def _inject_content_md5(request, **kwargs: object) -> None:
     """
     body = request.body
     if body:
+        if isinstance(body, str):
+            body = body.encode("utf-8")
+        elif not isinstance(body, bytes):
+            body = body.read()
         md5 = base64.b64encode(hashlib.md5(body).digest()).decode()
         request.headers["Content-MD5"] = md5
 
@@ -63,6 +77,9 @@ class MinioClient:
             config=BotoConfig(
                 signature_version="s3v4",
                 s3={"addressing_style": "path"},
+                connect_timeout=30,
+                read_timeout=30,
+                retries={"max_attempts": 2, "mode": "standard"},
             ),
         )
         self._client.meta.events.register(
@@ -182,6 +199,32 @@ class MinioClient:
             failed=len(failed),
         )
         return failed
+
+    # -- async wrappers (for asyncio event-loop callers) ---------------------
+
+    async def async_upload_file(self, file_path: str, object_name: str) -> str:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_io_pool, self.upload_file, file_path, object_name)
+
+    async def async_upload_bytes(self, data: bytes, object_name: str, content_type: str) -> str:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_io_pool, self.upload_bytes, data, object_name, content_type)
+
+    async def async_get_object(self, object_name: str) -> bytes | None:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_io_pool, self.get_object, object_name)
+
+    async def async_delete_object(self, object_name: str) -> None:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_io_pool, self.delete_object, object_name)
+
+    async def async_delete_objects(self, object_names: list[str]) -> list[str]:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_io_pool, self.delete_objects, object_names)
+
+    async def async_list_objects(self, prefix: str) -> list[str]:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_io_pool, self.list_objects, prefix)
 
     # -- helpers --------------------------------------------------------------
 

@@ -101,7 +101,7 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
 
         # 1. Pull JPEG from MinIO -------------------------------------------------
         try:
-            image_bytes = self._minio.get_object(minio_key)
+            image_bytes = await self._minio.async_get_object(minio_key)
         except Exception:
             logger.exception("scene_sample_minio_fetch_error", minio_key=minio_key)
             return True  # ack; don't retry a missing object

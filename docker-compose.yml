@@ -4,24 +4,21 @@
 #   cp .env.example .env   # fill in your values
 #   docker compose up -d
 #
-# External services (assumed running separately):
-#   - Person Identification Service (GPU)  see ../person-identification-service/
+# Prerequisites (start these first):
+#   - Shared PostgreSQL:  cd ../db && docker compose up -d
+#   - Continuous Tracking (Redis + Triton + orchestrator + rtsp-ingress)
+#   - Person Identification Service (GPU)
+#   - Semantic Memory Service
+#   - TTS service
 #   - vLLM (Cosmos + TranslateGemma)  GPU inference servers
 #   - Ollama  logic reasoning LLM
 #   - Home Assistant  smart home integration
 #   - MinIO  S3-compatible object storage
-#   - TTS service  text-to-speech
+#   - Scene Analysis Service  YOLO + Florence-2 + CLIP
 #
-# GPU-accelerated services (optional):
-#   - scene-analysis-service  YOLO + Florence-2 + CLIP  see ../scene-analysis-service/
-#
-# The shared PostgreSQL container is provided by ../docker-compose.db.yml
-# which is included below.  That single instance hosts all three databases.
-
-include:
-  - path: ../db/docker-compose.db.yml
-    env_file:
-      - ../db/.env
+# The shared PostgreSQL instance hosts all databases and must be started
+# first (see ../db/docker-compose.db.yml).  This compose file no longer
+# includes it — start it independently to avoid container-name conflicts.
 
 services:
   # ─── Backend API ───────────────────────────────────────────────
@@ -37,17 +34,16 @@ services:
       - backend-data:/app/data
     env_file:
       - .env
+    environment:
+      POSTGRES_HOST: postgres
     networks:
       - nanai
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "backend/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 30s
 
   # ─── Frontend (Vue 3 + Vuetify) ───────────────────────────────
   frontend:
@@ -63,12 +59,16 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 volumes:
   backend-data:
     driver: local
-  # scene-analysis-models:
-  #   driver: local
 
 networks:
   nanai:

@@ -93,7 +93,7 @@ class KnowledgeIngestionService:
                 img = Image.open(BytesIO(data))
                 w, h = img.size
 
-                self._minio.upload_bytes(data, object_name, content_type)
+                await self._minio.async_upload_bytes(data, object_name, content_type)
 
                 img_row = KnowledgeDocumentImage(
                     document_id=doc.id,
@@ -562,7 +562,7 @@ class KnowledgeIngestionService:
             db.delete(img_row)
             db.commit()
             # Purge after DB commit (per section 6.5.5 contract)
-            self._minio.delete_object(object_name)
+            await self._minio.async_delete_object(object_name)
         except NotFoundError:
             db.rollback()
             raise

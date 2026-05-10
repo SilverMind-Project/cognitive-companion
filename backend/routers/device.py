@@ -118,7 +118,7 @@ async def recamera_upload(
     minio_client = getattr(request.app.state, "minio_client", None)
     media_url = ""
     if minio_client is not None:
-        media_url = minio_client.upload_bytes(
+        media_url = await minio_client.async_upload_bytes(
             data=image_bytes,
             object_name=object_name,
             content_type="image/jpeg",

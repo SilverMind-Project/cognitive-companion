@@ -307,18 +307,43 @@ def _ensure_default(url: str | None = None) -> Database:
     return _default_database
 
 
-def init_db(url: str | None = None) -> None:
-    """Create the default engine, session factory, and all tables.
+def _run_alembic_migrations() -> None:
+    """Apply pending Alembic migrations at startup.
 
-    Idempotent when called with no argument.  Passing an explicit *url* forces
-    a fresh :class:`Database` (useful for CLI scripts and migration runners).
+    Idempotent for fresh databases (creates all tables) and existing
+    databases (skips already-applied revisions).  The sqlalchemy.url is
+    left blank so env.py populates it from settings.yaml.
+    """
+    from pathlib import Path
+
+    import alembic.command
+    import alembic.config
+
+    alembic_dir = Path(__file__).resolve().parent.parent / "alembic"
+    alembic_cfg = alembic.config.Config()
+    alembic_cfg.set_main_option("script_location", str(alembic_dir))
+    alembic_cfg.set_main_option("sqlalchemy.url", "")
+
+    alembic.command.upgrade(alembic_cfg, "head")
+    logger.info("alembic_migrations_complete")
+
+
+def init_db(url: str | None = None, *, run_migrations: bool = True) -> None:
+    """Create the default engine, session factory, and schema.
+
+    Schema is applied via Alembic (``alembic upgrade head``), which is
+    safe for both fresh and existing databases.  Pass *run_migrations=False*
+    for tools that manage migrations separately (e.g. the Alembic CLI itself).
+
+    Passing an explicit *url* forces a fresh :class:`Database`.
     """
     global _default_database
     if url is not None or _default_database is None:
         if _default_database is not None:
             _default_database.dispose()
         _default_database = Database(_resolve_url(url))
-    _default_database.create_all()
+    if run_migrations:
+        _run_alembic_migrations()
 
 
 def get_db() -> Generator[Session]:

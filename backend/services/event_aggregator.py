@@ -213,7 +213,7 @@ class EventAggregator:
             logger.info("cleanup_expired_media_start", count=len(expired_rows))
             for row in expired_rows:
                 try:
-                    self._minio.delete_object(row.object_name)
+                    await self._minio.async_delete_object(row.object_name)
                 except Exception:
                     logger.exception("cleanup_delete_error", object_name=row.object_name)
                 row.deleted = True

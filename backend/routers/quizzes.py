@@ -455,7 +455,7 @@ async def set_question_image(
         if ext == "jpeg":
             ext = "jpg"
         object_name = f"quizzes/{quiz_id}/q{q.ord}__original.{ext}"
-        minio.upload_bytes(data, object_name, content_type)
+        await minio.async_upload_bytes(data, object_name, content_type)
         image_slot["original_object_name"] = object_name
 
         # Render variant for pwa

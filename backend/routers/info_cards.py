@@ -294,7 +294,7 @@ async def set_info_card_slot(
         if ext == "jpeg":
             ext = "jpg"
         object_name = f"info_cards/{card_id}/slot{slot_index}__original.{ext}"
-        minio.upload_bytes(data, object_name, content_type)
+        await minio.async_upload_bytes(data, object_name, content_type)
         original_object_name = object_name
     elif source_image_id is not None:
         from backend.models.knowledge import KnowledgeDocumentImage

@@ -69,7 +69,7 @@ class ImagePipeline:
         layout = self._layouts.get_required(layout_id)
         slot = _find_slot(layout, slot_id)
 
-        original_bytes = self._minio.get_object(original_object_name)
+        original_bytes = await self._minio.async_get_object(original_object_name)
         if original_bytes is None:
             raise FileNotFoundError(f"Original not found in MinIO: {original_object_name}")
 
@@ -88,7 +88,7 @@ class ImagePipeline:
                 save_kwargs["quality"] = spec.quality
             variant.save(buf, **save_kwargs)
             data = buf.getvalue()
-            self._minio.upload_bytes(data, object_name, content_type)
+            await self._minio.async_upload_bytes(data, object_name, content_type)
 
             results[surface] = RenderedVariant(
                 object_name=object_name,
@@ -105,10 +105,10 @@ class ImagePipeline:
 
     async def purge_prefix(self, prefix: str) -> PurgeResult:
         """List every object under *prefix* and delete them. Idempotent."""
-        keys = self._minio.list_objects(prefix)
+        keys = await self._minio.async_list_objects(prefix)
         if not keys:
             return PurgeResult(deleted_count=0, failed_keys=[])
-        failed = self._minio.delete_objects(keys)
+        failed = await self._minio.async_delete_objects(keys)
         deleted = len(keys) - len(failed)
         if failed:
             logger.warning(

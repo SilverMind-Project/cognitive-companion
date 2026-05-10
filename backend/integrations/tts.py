@@ -184,7 +184,7 @@ class TTSClient:
 
         object_name = f"tts/{uuid.uuid4().hex[:12]}.mp3"
         try:
-            url = minio_client.upload_bytes(
+            url = await minio_client.async_upload_bytes(
                 data=audio_bytes,
                 object_name=object_name,
                 content_type="audio/mpeg",

@@ -63,6 +63,7 @@ class CTSRuntime:
         minio_client: Any = None,
         scene_analysis_client: Any = None,
         semantic_memory_client: Any = None,
+        camera_room_map: dict[str, str] | None = None,
     ) -> None:
         self._cfg = config
         self._db_factory = db_factory
@@ -79,6 +80,14 @@ class CTSRuntime:
             db_factory=db_factory, ws_manager=ws_manager
         )
         self.signal_store = SignalStore(db_factory=db_factory)
+
+        # Build camera→room mapping from the CtsCamera table at startup.
+        # Cameras rarely change location, so this is loaded once and passed
+        # to the scene sample subscriber for O(1) lookup without per-message
+        # DB sessions.
+        camera_map = camera_room_map if camera_room_map is not None else {}
+        if not camera_map and db_factory is not None:
+            camera_map = _load_camera_room_map(db_factory)
 
         self.tracking_event_subscriber = TrackingEventSubscriber(
             redis_url=config.redis_url,
@@ -105,7 +114,7 @@ class CTSRuntime:
             minio_client=minio_client,
             scene_analysis_client=scene_analysis_client,
             semantic_memory_client=semantic_memory_client,
-            db_factory=db_factory,
+            camera_room_map=camera_map,
         )
 
         self._bundles: list[_SubscriberBundle] = [
@@ -190,3 +199,18 @@ class CTSRuntime:
                 for b in self._bundles
             ],
         }
+
+
+def _load_camera_room_map(db_factory) -> dict[str, str]:
+    """Load camera_id → location mapping from the CtsCamera table."""
+    db = db_factory()
+    try:
+        from backend.models.cts_camera import CtsCamera
+
+        cameras = db.query(CtsCamera).filter(CtsCamera.enabled.is_(True)).all()
+        return {cam.id: cam.location or "" for cam in cameras}
+    except Exception:
+        logger.exception("cts_camera_room_map_load_error")
+        return {}
+    finally:
+        db.close()

@@ -51,6 +51,7 @@ class StreamConsumer[T](ABC):
         self._redis: aioredis.Redis | None = None
         self._sem = asyncio.Semaphore(cfg.concurrency)
         self._stopped = asyncio.Event()
+        self._pending: set[asyncio.Task[object]] = set()
 
     @abstractmethod
     def decode(self, message_id: bytes, fields: dict) -> T | None: ...
@@ -77,6 +78,9 @@ class StreamConsumer[T](ABC):
 
     async def stop(self) -> None:
         self._stopped.set()
+        if self._pending:
+            await asyncio.gather(*self._pending, return_exceptions=True)
+            self._pending.clear()
 
     async def _tick(self) -> None:
         assert self._redis is not None
@@ -112,7 +116,9 @@ class StreamConsumer[T](ABC):
                     self._cfg.stream, self._cfg.group, message_id
                 )
                 continue
-            asyncio.create_task(self._run_one(message_id, msg))  # noqa: RUF006
+            task = asyncio.create_task(self._run_one(message_id, msg))
+            self._pending.add(task)
+            task.add_done_callback(self._pending.discard)
 
     async def _run_one(self, message_id, msg: T) -> None:
         assert self._redis is not None

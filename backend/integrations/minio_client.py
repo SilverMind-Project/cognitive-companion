@@ -37,19 +37,28 @@ _io_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="minio-io")
 
 
 def _inject_content_md5(request, **kwargs: object) -> None:
-    """Compute and inject Content-MD5 header for requests with a body.
+    """Compute and inject Content-MD5 header for DeleteObjects requests.
 
-    MinIO requires this header for operations like DeleteObjects,
-    but boto3 does not always add it automatically.
+    MinIO requires Content-MD5 for DeleteObjects but boto3 does not
+    add it automatically.  We identify DeleteObjects by the XML root
+    element in the body rather than by operation name so we don't
+    depend on botocore internals (request.context was removed in
+    newer botocore).  Stream bodies (PutObject) are never bytes/str,
+    so the isinstance guard avoids consuming a live upload stream.
     """
     body = request.body
-    if body:
-        if isinstance(body, str):
-            body = body.encode("utf-8")
-        elif not isinstance(body, bytes):
-            body = body.read()
-        md5 = base64.b64encode(hashlib.md5(body).digest()).decode()
-        request.headers["Content-MD5"] = md5
+    if not body:
+        return
+    if not isinstance(body, (bytes, str)):
+        return
+
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    if not body.strip().startswith(b"<Delete"):
+        return
+
+    md5 = base64.b64encode(hashlib.md5(body).digest()).decode()
+    request.headers["Content-MD5"] = md5
 
 
 class MinioClient:
@@ -74,6 +83,8 @@ class MinioClient:
             endpoint_url=endpoint_url,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
+            verify=secure,
+            use_ssl=secure,
             config=BotoConfig(
                 signature_version="s3v4",
                 s3={"addressing_style": "path"},

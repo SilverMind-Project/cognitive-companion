@@ -118,11 +118,19 @@ async def recamera_upload(
     minio_client = getattr(request.app.state, "minio_client", None)
     media_url = ""
     if minio_client is not None:
-        media_url = await minio_client.async_upload_bytes(
-            data=image_bytes,
-            object_name=object_name,
-            content_type="image/jpeg",
-        )
+        try:
+            media_url = await minio_client.async_upload_bytes(
+                data=image_bytes,
+                object_name=object_name,
+                content_type="image/jpeg",
+            )
+        except Exception:
+            logger.warning(
+                "recamera_minio_upload_failed",
+                object_name=object_name,
+                sensor_id=sensor_id,
+                exc_info=True,
+            )
 
     # -- Add event to aggregator ----------------------------------------------
     aggregator = getattr(request.app.state, "event_aggregator", None)

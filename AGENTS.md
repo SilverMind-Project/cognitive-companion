@@ -22,7 +22,7 @@ Three things make this codebase non-trivial:
 
 | Layer | Choice |
 | --- | --- |
-| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic 2, APScheduler, stdlib logging via `BoundLogger` |
+| Backend | Python 3.14, FastAPI, SQLAlchemy 2.0, Pydantic 2, APScheduler, stdlib logging via `BoundLogger` |
 | Database | PostgreSQL 18 via `timescale/timescaledb-ha:pg18` (shared instance with `continuous_tracking`, `semantic_memory`); Alembic migrations; DB `cognitive_companion` owns all tables |
 | Frontend | Vue 3 (Composition API, `<script setup>`), Vuetify 3, Vite, vue-router |
 | Object storage | MinIO (S3-compatible) via `boto3` |
@@ -44,10 +44,10 @@ cognitive-companion/
 │   │   ├── base.py             StepHandler ABC, StepMetadata, StepResult, TriggerContext, ServiceContainer
 │   │   ├── _helpers.py         Shared helpers (resolve_person_id, etc.)
 │   │   ├── __init__.py         StepRegistry singleton + auto-discovery
-│   │   └── builtin/            19 built-in step files (see section 6)
+│   │   └── builtin/            20 built-in step files (see section 6)
 │   ├── channels/               Notification-channel plugin system
 │   │   ├── base.py, __init__.py
-│   │   └── builtin/            7 built-in channels (see section 7)
+│   │   └── builtin/            8 built-in channel files for 7 channel types (see section 7)
 │   ├── filters/                Rule-context filter plugin system
 │   │   ├── base.py, __init__.py
 │   │   └── builtin/            13 built-in filters (see section 8)
@@ -201,9 +201,11 @@ The `ServiceContainer` dataclass in `backend/steps/base.py` is the bag passed to
 
 ```text
 db_factory, person_id_client, notification_dispatcher, ha_client,
-event_aggregator, scheduler, rag_service, llm_model_registry, ha_state_cache,
+event_aggregator, scheduler, llm_model_registry, ha_state_cache,
 presence, scene_analysis_client, daily_report_service, semantic_memory_client,
 interactive_response_service, memory_query, scene_intel, activity, signals,
+knowledge_ingestion, knowledge_query, content_generation, knowledge_delivery,
+layout_registry, voice_instruction_config, embedding_client, image_renderer,
 person_tracking (DEPRECATED), activity_session_service (DEPRECATED)
 ```
 
@@ -380,7 +382,7 @@ In tests, use `RulesEngine(tz_name="UTC")` to keep timestamp comparisons aligned
 
 ## 6. Built-in pipeline step types
 
-18 step files under `backend/steps/builtin/`. Categories drive the StepPalette grouping in the admin UI.
+20 step files under `backend/steps/builtin/`. Categories drive the StepPalette grouping in the admin UI.
 
 | Type name | File | Category | Notes |
 | --- | --- | --- | --- |
@@ -393,6 +395,8 @@ In tests, use `RulesEngine(tz_name="UTC")` to keep timestamp comparisons aligned
 | `presence_query` | `presence_query.py` | perception | Reads the fused `PresenceService`. Emits a structured snapshot under `output_key` and flat keys (`presence_status`, `presence_room_name`, `presence_dwell_minutes`, `presence_at_home`, `presence_asleep`, `presence_away`). Also fetches recent dementia signals when `services.signals` is wired. |
 
 | `home_state` | `home_state.py` | perception | Thin wrapper around `presence_query` that emits four boolean flags only: `<key>_at_home`, `<key>_asleep`, `<key>_away`, `<key>_state_unknown`. |
+| `info_card` | `info_card.py` | action | Delivers a curated info card to the senior via PWA popup, e-ink display, or both. Loads an approved `InfoCard` by ID, resolves image slots, and dispatches through `KnowledgeDeliveryService`. Supports per-delivery voice instruction override. |
+| `quiz_start` | `quiz_start.py` | flow | Starts an interactive quiz session via the companion PWA. Loads an approved `Quiz` by ID, creates a `QuizSession`, supports question randomization, per-senior dedupe (skip if completed within N hours), session timeout, and voice instruction override. |
 | `notification` | `notification.py` | action | Formats and dispatches across channels using `notifications.yaml` mappings, with per-channel template overrides (`telegram_template`, `ha_speaker_tts_template`, `eink_template`, `webhook_template`, `pwa_popup_text_template`, `pwa_realtime_ai_template`). The `pwa_tts_announcement` channel reuses `ha_speaker_tts_template`. Selects an eink template via `eink_template_id` and expiry via `eink_expiry_minutes`. |
 | `ha_action` | `ha_action.py` | action | Calls a Home Assistant service. |
 | `activity_detection` | `activity_detection.py` | state | Records a single `PersonActivity`. All fields support `{{template}}` syntax. Setting `capture_scene_description: true` saves the upstream vision output (`scene_description_key`, default `vision_response`) into `metadata_json.scene_description`. `metadata_extra` accepts a templated JSON string for arbitrary extra metadata. |
@@ -404,23 +408,23 @@ In tests, use `RulesEngine(tz_name="UTC")` to keep timestamp comparisons aligned
 | `wait` | `wait.py` | flow | Persists `WorkflowExecution.status = waiting`, sets `resume_at`, and returns. Scheduler resumes via APScheduler `DateTrigger` and the injected `SchedulerBridge`. |
 | `interactive_prompt` | `interactive_prompt.py` | flow | Asks the senior a question (popup or voice) and waits for the answer with a timeout. Wires to `InteractiveResponseService` which persists the pending response and resumes the workflow when the answer arrives or the timeout expires. |
 
-`logic_reasoning`, `translation`, and `vision_analysis` step types were removed; use `llm_call` with the appropriate `output_key` and `model_id`.
+`logic_reasoning`, `translation`, and `vision_analysis` step types were removed in v0.6; use `llm_call` with the appropriate `output_key` and `model_id`. `info_card` and `quiz_start` were added in v0.6.9 to support knowledge repository delivery through the pipeline.
 
 ---
 
 ## 7. Built-in notification channels
 
-7 files under `backend/channels/builtin/`. Each declares a `channel_name` consumed by `notifications.yaml`.
+8 files under `backend/channels/builtin/` implementing 7 channel types (each file declares a `channel_name` consumed by `notifications.yaml`).
 
 | `channel_name` | File | Notes |
 | --- | --- | --- |
-| `pwa_popup_text` | `announcement.py` | Text popup pushed over WebSocket to the senior's PWA. |
-| `pwa_realtime_ai` | `announcement.py` | Sends a backend-authored prompt to the active Gemini Live session (transcript actor: `orchestrator`, hidden from the senior's UI). |
-| `pwa_tts_announcement` | `announcement.py` | TTS audio streamed directly to PWA clients via WebSocket; full-buffer playback on the frontend to avoid gaps. Reuses `ha_speaker_tts_template`. |
-| `telegram` | `telegram.py` | Caregiver chat alerts via Telegram Bot API. |
-| `eink` | `eink.py` | Renders an image via the internal `EInkRenderer` and updates `ActiveImageState`. |
-| `ha_speaker_tts` | `tts.py` | Generates MP3 via `TTSClient`, uploads to MinIO, calls `media_player.play_media` on the configured HA entity (`ha_media_player` in step config; defaults to `media_player.living_room_speaker`). |
-| `webhook` | `webhook.py` | Outbound HTTP POST. |
+| `pwa_popup_text` | `websocket.py` | Text popup pushed over WebSocket to the senior's PWA. Broadcasts structured JSON payloads; frontend renders as snackbar toasts or persistent dialogs. |
+| `pwa_realtime_ai` | `realtime_voice.py` | Queues an interactive voice prompt on the active Gemini Live session (transcript actor: `orchestrator`, hidden from the senior's UI). Two-way: the AI speaks then listens. |
+| `pwa_tts_announcement` | `announcement.py` | TTS audio streamed directly to PWA clients via WebSocket as PCM chunks; full-buffer playback on the frontend to avoid gaps. Also supports pre-rendered file mode. |
+| `telegram` | `telegram.py` | Caregiver chat alerts via Telegram Bot API. Supports text, single photo, media groups, and per-rule target overrides. |
+| `eink` | `eink.py` | Renders an image via the internal `EInkRenderer` and updates `ActiveImageState`. Supports per-device targeting, template selection, and expiry. |
+| `ha_speaker_tts` | `tts.py` | Generates audio via `TTSClient`, uploads to MinIO, calls `media_player.play_media` on the configured HA entity (`ha_media_player` in step config; defaults to `media_player.living_room_speaker`). Wakes the speaker before playback. |
+| `webhook` | `webhook.py` | Outbound HTTP POST with JSON payload and configurable templating. |
 
 `NotificationDispatcher` accepts a `DispatchServices` bundle containing `minio_client`, `ha_client`, `tts_client`, `ws_manager`, and `image_renderer` so channels never import integration clients directly.
 
@@ -752,7 +756,8 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 
 | Service | Env var | Required |
 | --- | --- | --- |
-| Person Identification Service | `PERSON_ID_SERVICE_URL` | Face recognition |
+| PostgreSQL (shared) | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Required. |
+| Person Identification Service | `PERSON_ID_SERVICE_URL` | Face recognition. |
 | Scene Analysis Service | `SCENE_ANALYSIS_URL` (settings.yaml) | Optional. YOLO + Florence-2 + CLIP. |
 | Semantic Memory Service | `SEMANTIC_MEMORY_URL` (settings.yaml) | Optional. Observations, movements, trends. |
 | TTS Service | `TTS_API_URL` | Optional but recommended for audible reminders. |
@@ -760,10 +765,11 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 | MinIO | `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | Required. |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CAREGIVER_CHAT_ID` | Optional. |
 | Google Gemini | `GEMINI_API_KEY` | Optional. Required only for the realtime voice companion. |
-| vLLM (Cosmos Reason2) | `VISION_MODEL_URL` | Required when using vision steps. |
-| llama.cpp (Gemma 4) | `GEMMA_MODEL_URL` (or `LOGIC_MODEL_URL`) | Required for general reasoning. |
-| Tracking Orchestrator | `TRACKING_ORCHESTRATOR_URL` (and `cts.upstream.tracking_orchestrator`) | Required when `cts.enabled=true`. |
-| RTSP Ingress | `CTS_INGRESS_URL` (and `cts.upstream.rtsp_ingress`) | Required when `cts.enabled=true`. |
+| vLLM (vision) | `VISION_MODEL_URL` | Required for vision steps. |
+| llama.cpp (reasoning) | `GEMMA_MODEL_URL` (or `LOGIC_MODEL_URL`) | Required for general reasoning. |
+| Triton Inference Server | `embedding.tokenizer_path`, `embedding.service_url` (settings.yaml) | Required for knowledge repository RAG embeddings. |
+| Tracking Orchestrator | `TRACKING_ORCHESTRATOR_URL` (+ `cts.upstream.tracking_orchestrator`) | Required when `cts.enabled=true`. |
+| RTSP Ingress | `CTS_INGRESS_URL` (+ `cts.upstream.rtsp_ingress`) | Required when `cts.enabled=true`. |
 | Redis | `redis.url` (settings.yaml) | Required when `cts.enabled=true`. |
 
 ---
@@ -805,12 +811,16 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 | Understand knowledge surface | `cc-rag.md` (design), `backend/services/knowledge/` (services), `backend/routers/knowledge*.py` (REST) |
 | Understand voice delivery | `backend/websocket/audio_handler.py`, `backend/services/knowledge/delivery_service.py` |
 | Debug embedding issues | `backend/integrations/triton_embedding_client.py`, `triton-shared/triton_shared/models/embedder.py` |
+| Understand knowledge repository | `cc-rag.md` (design), `backend/services/knowledge/` (services), `backend/routers/knowledge.py`, `info_cards.py`, `quizzes.py` (REST) |
+| Understand voice delivery | `backend/websocket/audio_handler.py`, `backend/services/knowledge/delivery_service.py` |
+| Understand info card / quiz pipeline steps | `backend/steps/builtin/info_card.py`, `backend/steps/builtin/quiz_start.py` |
+| Find the canonical config | `config/settings.yaml` (loaded fresh on every lifespan) |
 
 ---
 
-## 20. Knowledge repository operator runbook
+## 21. Knowledge repository operator runbook
 
-### 20.1. Triton embedding model rollover
+### 21.1. Triton embedding model rollover
 
 The embedding model (`embeddinggemma-300m`) runs on Triton Inference Server.
 To upgrade or replace it:
@@ -855,7 +865,7 @@ To upgrade or replace it:
    status every 10 minutes. Check logs for `chunk_embed_complete` and
    `reembed_stuck_complete` events.
 
-### 20.2. Embedding similarity threshold calibration
+### 21.2. Embedding similarity threshold calibration
 
 The `knowledge.min_similarity` setting (default 0.55) controls the cosine
 similarity floor for RAG answers. If seniors are getting too many "I don't
@@ -868,7 +878,7 @@ distribution. Run it after model changes:
 uv run python scripts/calibrate_similarity.py
 ```
 
-### 20.3. Voice instruction debugging
+### 21.3. Voice instruction debugging
 
 Voice instructions follow the 3-layer composition rule (section 6.5 of
 `cc-rag.md`): step override → resource column → yaml default → base only.
@@ -882,7 +892,7 @@ To debug what instruction is active:
 - Structured logs emit `ws_voice_instruction_changed` when the handler
   reconnects with a new instruction.
 
-### 20.4. pgvector index maintenance
+### 21.4. pgvector index maintenance
 
 The DiskANN index on `knowledge_document_chunks.embedding` requires
 periodic reindexing after large bulk inserts. The `pgvectorscale`
@@ -895,7 +905,7 @@ REINDEX INDEX CONCURRENTLY knowledge_chunks_embedding_diskann;
 
 This is non-blocking and can run during normal operation.
 
-### 20.5. MinIO orphan reconciliation
+### 21.5. MinIO orphan reconciliation
 
 Image cleanup follows the DB-first, MinIO-second contract (section 6.5.5
 of `cc-rag.md`). A nightly reconciler script compares MinIO prefixes
@@ -908,4 +918,3 @@ uv run python scripts/scrub_minio_orphans.py
 Run this after any incident where MinIO cleanup partially failed (check
 logs for `image_purge_partial` events). The `pending_image_purges` gauge
 on the admin metrics surface shows unreconciled prefixes.
-| Find the canonical config | `config/settings.yaml` (loaded fresh on every lifespan) |

@@ -38,7 +38,7 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
         minio_client: Any = None,
         scene_analysis_client: Any = None,
         semantic_memory_client: Any = None,
-        db_factory: Any = None,
+        camera_room_map: dict[str, str] | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -52,7 +52,7 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
         self._minio = minio_client
         self._scene_analysis = scene_analysis_client
         self._semantic_memory = semantic_memory_client
-        self._db_factory = db_factory
+        self._camera_room_map = camera_room_map or {}
 
     # -- StreamConsumer abstract methods ----------------------------------
 
@@ -111,7 +111,7 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
             return True
 
         # 2. Resolve camera_id -> room -------------------------------------------
-        room_id = _resolve_room(self._db_factory, camera_id)
+        room_id = self._camera_room_map.get(camera_id, "")
 
         # 3. Scene analysis -------------------------------------------------------
         description = ""
@@ -186,19 +186,3 @@ def _ns_to_iso(ns: int) -> str:
     if ns <= 0:
         return datetime.now(UTC).isoformat()
     return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()
-
-
-def _resolve_room(db_factory, camera_id: str) -> str:
-    """Resolve a CTS camera_id to a room_id string."""
-    if db_factory is None:
-        return ""
-    db = db_factory()
-    try:
-        from backend.models.cts_camera import CtsCamera
-
-        cam = db.query(CtsCamera).filter(CtsCamera.id == camera_id).first()
-        return cam.location if cam else ""
-    except Exception:
-        return ""
-    finally:
-        db.close()

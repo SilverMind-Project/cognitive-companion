@@ -88,7 +88,7 @@ class TestSceneSampleDecode:
 class TestSceneSampleHandle:
     async def test_full_pipeline_success(self):
         minio = MagicMock()
-        minio.get_object.return_value = b"fake-jpeg-bytes"
+        minio.async_get_object = AsyncMock(return_value=b"fake-jpeg-bytes")
 
         analysis = MagicMock()
         analysis.configured = True
@@ -121,7 +121,7 @@ class TestSceneSampleHandle:
 
         result = await sub.handle(sample)
         assert result  # not a coroutine
-        minio.get_object.assert_called_once_with("keyframes/kf-001.jpg")
+        minio.async_get_object.assert_called_once_with("keyframes/kf-001.jpg")
         analysis.analyze.assert_called_once()
         memory.create_observation.assert_called_once()
 
@@ -133,7 +133,7 @@ class TestSceneSampleHandle:
 
     async def test_minio_miss_acks_and_skips(self):
         minio = MagicMock()
-        minio.get_object.side_effect = FileNotFoundError("no such key")
+        minio.async_get_object = AsyncMock(side_effect=FileNotFoundError("no such key"))
 
         analysis = MagicMock()
         analysis.configured = True
@@ -151,7 +151,7 @@ class TestSceneSampleHandle:
 
     async def test_analysis_not_configured_skips(self):
         minio = MagicMock()
-        minio.get_object.return_value = b"jpeg"
+        minio.async_get_object = AsyncMock(return_value=b"jpeg")
 
         analysis = MagicMock()
         analysis.configured = False
@@ -188,7 +188,7 @@ class TestSceneSampleHandle:
 
     async def test_no_semantic_memory_client_skips_persist(self):
         minio = MagicMock()
-        minio.get_object.return_value = b"jpeg"
+        minio.async_get_object = AsyncMock(return_value=b"jpeg")
 
         analysis = MagicMock()
         analysis.configured = True
@@ -208,7 +208,7 @@ class TestSceneSampleHandle:
 
     async def test_empty_minio_object_acks(self):
         minio = MagicMock()
-        minio.get_object.return_value = b""
+        minio.async_get_object = AsyncMock(return_value=b"")
 
         sub = SceneSampleSubscriber(
             redis_url="redis://x", consumer_id="t1", minio_client=minio
@@ -220,7 +220,7 @@ class TestSceneSampleHandle:
 
     async def test_analysis_exception_does_not_crash(self):
         minio = MagicMock()
-        minio.get_object.return_value = b"jpeg"
+        minio.async_get_object = AsyncMock(return_value=b"jpeg")
 
         analysis = MagicMock()
         analysis.configured = True

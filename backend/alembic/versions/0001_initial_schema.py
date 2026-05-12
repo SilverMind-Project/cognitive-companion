@@ -1,6 +1,6 @@
 """Consolidated initial schema.
 
-Revision ID: 0001
+Revision ID: 0001_initial_schema
 Revises: None
 Create Date: 2026-05-08
 
@@ -9,6 +9,7 @@ Combines all previous migrations into a single baseline:
   - 0001_label_not_null (pipeline_steps.label NOT NULL)
   - 0002_knowledge_repository (knowledge tables + extensions + seed)
   - 0003_camera_face_id (cts_cameras face_id columns)
+  - 0002_decouple_cron_triggers (cron_triggers + rule_cron_triggers tables)
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 import backend.core.time
 from alembic import op
 
-revision: str = "0001"
+revision: str = "0001_initial_schema"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -108,8 +109,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=256), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("enabled", sa.Boolean(), nullable=False),
-        sa.Column("trigger_type", sa.String(length=32), nullable=False),
-        sa.Column("schedule_cron", sa.String(length=128), nullable=True),
+        sa.Column("trigger_types", sa.JSON(), nullable=False, server_default=sa.text("'[\"sensor_event\"]'")),
         sa.Column("primary_sensor_id", sa.String(length=128), nullable=True),
         sa.Column("webhook_config", sa.JSON(), nullable=True),
         sa.Column("occupancy_config", sa.JSON(), nullable=True),
@@ -123,6 +123,30 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_rules_name"), "rules", ["name"], unique=True)
+
+    # -- cron_triggers --------------------------------------------------------
+    op.create_table(
+        "cron_triggers",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=256), nullable=False),
+        sa.Column("expression", sa.String(length=128), nullable=False),
+        sa.Column("timezone", sa.String(length=64), nullable=False, server_default="UTC"),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", backend.core.time.UTCDateTime(), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # -- rule_cron_triggers ---------------------------------------------------
+    op.create_table(
+        "rule_cron_triggers",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("rule_id", sa.Integer(), sa.ForeignKey("rules.id"), nullable=False),
+        sa.Column("cron_trigger_id", sa.Integer(), sa.ForeignKey("cron_triggers.id"), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("ix_rule_cron_triggers_rule_id", "rule_cron_triggers", ["rule_id"])
+    op.create_index("ix_rule_cron_triggers_cron_trigger_id", "rule_cron_triggers", ["cron_trigger_id"])
 
     # -- pipeline_steps -------------------------------------------------------
     op.create_table(
@@ -846,6 +870,10 @@ def downgrade() -> None:
     op.drop_table("workflow_executions")
     op.drop_index(op.f("ix_pipeline_steps_rule_id"), table_name="pipeline_steps")
     op.drop_table("pipeline_steps")
+    op.drop_index(op.f("ix_rule_cron_triggers_cron_trigger_id"), table_name="rule_cron_triggers")
+    op.drop_index(op.f("ix_rule_cron_triggers_rule_id"), table_name="rule_cron_triggers")
+    op.drop_table("rule_cron_triggers")
+    op.drop_table("cron_triggers")
     op.drop_index(op.f("ix_rules_name"), table_name="rules")
     op.drop_table("rules")
     op.drop_table("emergency_alerts")

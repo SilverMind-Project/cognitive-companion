@@ -314,6 +314,11 @@ def _run_alembic_migrations() -> None:
     databases (skips already-applied revisions).  When the default
     database is already initialized its URL is used directly; otherwise
     the URL is left blank so env.py populates it from settings.yaml.
+
+    If the ``alembic_version`` table does not exist and the upgrade fails
+    (e.g. because of a broken revision chain after a volume wipe), the
+    database is treated as a fresh deployment: the head revision is
+    stamped and startup continues.
     """
     from pathlib import Path
 
@@ -327,8 +332,42 @@ def _run_alembic_migrations() -> None:
     url = _default_database.url if _default_database is not None else ""
     alembic_cfg.set_main_option("sqlalchemy.url", url)
 
-    alembic.command.upgrade(alembic_cfg, "head")
+    try:
+        alembic.command.upgrade(alembic_cfg, "head")
+    except Exception:
+        fresh = _default_database is not None and not _table_exists(
+            _default_database.engine, "alembic_version"
+        )
+        if fresh:
+            logger.warning(
+                "alembic_upgrade_failed_on_fresh_db stamping_head",
+                exc_info=True,
+            )
+            alembic.command.stamp(alembic_cfg, "head")
+            logger.info("alembic_stamp_complete")
+            return
+        raise
+
     logger.info("alembic_migrations_complete")
+
+
+def _table_exists(engine: Engine, table_name: str) -> bool:
+    """Return ``True`` if *table_name* exists in the public schema."""
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        return bool(
+            conn.execute(
+                text(
+                    "SELECT EXISTS ("
+                    "  SELECT FROM information_schema.tables"
+                    "  WHERE table_schema = 'public'"
+                    "    AND table_name   = :name"
+                    ")"
+                ),
+                {"name": table_name},
+            ).scalar()
+        )
 
 
 def init_db(url: str | None = None, *, run_migrations: bool = True) -> None:

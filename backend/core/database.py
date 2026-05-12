@@ -311,8 +311,9 @@ def _run_alembic_migrations() -> None:
     """Apply pending Alembic migrations at startup.
 
     Idempotent for fresh databases (creates all tables) and existing
-    databases (skips already-applied revisions).  The sqlalchemy.url is
-    left blank so env.py populates it from settings.yaml.
+    databases (skips already-applied revisions).  When the default
+    database is already initialized its URL is used directly; otherwise
+    the URL is left blank so env.py populates it from settings.yaml.
     """
     from pathlib import Path
 
@@ -322,7 +323,9 @@ def _run_alembic_migrations() -> None:
     alembic_dir = Path(__file__).resolve().parent.parent / "alembic"
     alembic_cfg = alembic.config.Config()
     alembic_cfg.set_main_option("script_location", str(alembic_dir))
-    alembic_cfg.set_main_option("sqlalchemy.url", "")
+
+    url = _default_database.url if _default_database is not None else ""
+    alembic_cfg.set_main_option("sqlalchemy.url", url)
 
     alembic.command.upgrade(alembic_cfg, "head")
     logger.info("alembic_migrations_complete")

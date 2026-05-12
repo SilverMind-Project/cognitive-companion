@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.6.97"
+version = "0.6.98"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -68,7 +68,7 @@ packages = ["backend"]
 [tool.ruff]
 target-version = "py314"
 line-length = 100
-extend-exclude = ["integrations/proto"]
+extend-exclude = ["integrations/proto", "scripts/*"]
 
 [tool.ruff.lint]
 select = [

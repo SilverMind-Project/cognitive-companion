@@ -16,7 +16,6 @@ from io import BytesIO
 
 import boto3
 from botocore.config import Config as BotoConfig
-from botocore.exceptions import ClientError, EndpointConnectionError
 
 ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio.nanai.khoofia.com")
 ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")

@@ -8,7 +8,6 @@ import pytest
 
 from backend.services.cts.location_repository import InMemoryLocationRepository
 from backend.services.cts.location_writer import LocationWriter
-from backend.services.cts.source_authority import SourceAuthority
 
 
 def _make_event(

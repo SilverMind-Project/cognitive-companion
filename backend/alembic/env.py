@@ -28,9 +28,19 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set the database URL from settings if not already set
-if not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", settings.get("database.url"))
+# Resolve the database URL.
+# - If set explicitly (e.g. via _run_alembic_migrations), use it as-is.
+# - Otherwise fall back to settings.yaml.
+# Both the main option (used by run_migrations_offline) and the section
+# option (used by engine_from_config in run_migrations_online) are kept
+# in sync so that both modes see the same URL.
+url = config.get_main_option("sqlalchemy.url")
+if not url:
+    url = settings.get("database.url")
+    config.set_main_option("sqlalchemy.url", url)
+config.set_section_option(
+    config.config_ini_section, "sqlalchemy.url", url
+)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

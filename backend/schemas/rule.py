@@ -70,8 +70,8 @@ class RuleCreate(BaseModel):
     name: str
     description: str | None = None
     enabled: bool = True
-    trigger_type: str = "sensor_event"
-    schedule_cron: str | None = None
+    trigger_types: list[str] = ["sensor_event"]
+    cron_trigger_ids: list[int] = []
     primary_sensor_id: str | None = None
     cool_off_minutes: int = 5
     max_daily_triggers: int = 3
@@ -86,8 +86,8 @@ class RuleUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     enabled: bool | None = None
-    trigger_type: str | None = None
-    schedule_cron: str | None = None
+    trigger_types: list[str] | None = None
+    cron_trigger_ids: list[int] | None = None
     primary_sensor_id: str | None = None
     cool_off_minutes: int | None = None
     max_daily_triggers: int | None = None
@@ -116,13 +116,20 @@ class RuleDependencyOut(OutSchema):
 
 
 
+class CronTriggerOut(OutSchema):
+    id: int
+    name: str
+    expression: str
+    timezone: str
+    enabled: bool
+
+
 class RuleOut(OutSchema):
     id: int
     name: str
     description: str | None
     enabled: bool
-    trigger_type: str
-    schedule_cron: str | None
+    trigger_types: list[str]
     primary_sensor_id: str | None
     cool_off_minutes: int
     max_daily_triggers: int
@@ -136,6 +143,7 @@ class RuleOut(OutSchema):
     steps: list[PipelineStepOut] = []
     contexts: list[RuleContextOut] = []
     dependencies: list[RuleDependencyOut] = []
+    cron_triggers: list[CronTriggerOut] = []
 
 
 
@@ -146,8 +154,7 @@ class RuleListOut(OutSchema):
     name: str
     description: str | None
     enabled: bool
-    trigger_type: str
-    schedule_cron: str | None
+    trigger_types: list[str]
     cool_off_minutes: int
     max_daily_triggers: int
     max_concurrent_executions: int
@@ -172,3 +179,44 @@ class DependencyCreate(BaseModel):
     parent_rule_id: int
     lookback_minutes: int = 30
     require_success: bool = True
+
+
+# -- Cron Triggers -----------------------------------------------------------
+
+
+class CronTriggerCreate(BaseModel):
+    name: str
+    expression: str
+    timezone: str = "UTC"
+    enabled: bool = True
+
+    @field_validator("expression")
+    @classmethod
+    def expression_must_be_valid_cron(cls, v: str) -> str:
+        from apscheduler.triggers.cron import CronTrigger
+
+        try:
+            CronTrigger.from_crontab(v)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid cron expression: {e}") from e
+        return v
+
+
+class CronTriggerUpdate(BaseModel):
+    name: str | None = None
+    expression: str | None = None
+    timezone: str | None = None
+    enabled: bool | None = None
+
+    @field_validator("expression")
+    @classmethod
+    def expression_must_be_valid_cron(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        from apscheduler.triggers.cron import CronTrigger
+
+        try:
+            CronTrigger.from_crontab(v)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid cron expression: {e}") from e
+        return v

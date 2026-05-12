@@ -58,17 +58,17 @@ async def trigger_webhook(
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found or disabled")
 
-    if rule.trigger_type != "webhook":
+    if "webhook" not in rule.trigger_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Rule trigger_type is '{rule.trigger_type}', not 'webhook'",
+            detail="Rule is not configured for webhook triggers",
         )
 
     # Validate webhook secret
     webhook_config = rule.webhook_config or {}
     expected_secret = webhook_config.get("secret", "")
     if not expected_secret:
-        raise HTTPException(status_code=500, detail="Rule has no webhook secret configured")
+        raise HTTPException(status_code=400, detail="Rule has no webhook secret configured")
 
     if not x_webhook_secret or not verify_webhook_secret(x_webhook_secret, expected_secret):
         raise HTTPException(status_code=401, detail="Invalid webhook secret")

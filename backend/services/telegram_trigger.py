@@ -208,7 +208,7 @@ class TelegramTriggerService:
             return (
                 db.query(Rule)
                 .options(selectinload(Rule.steps))
-                .filter(Rule.enabled.is_(True), Rule.trigger_type == "telegram")
+                .filter(Rule.enabled.is_(True), Rule.trigger_types.contains(["telegram"]))
                 .all()
             )
         finally:

@@ -8,10 +8,14 @@ from sqlalchemy.orm import Session, joinedload
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
 from backend.core.exceptions import ConflictError, NotFoundError
+from backend.models.cron_trigger import CronTrigger
 from backend.models.pipeline import PipelineStep
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.schemas.rule import (
     ContextCreate,
+    CronTriggerCreate,
+    CronTriggerOut,
+    CronTriggerUpdate,
     DependencyCreate,
     PipelineStepCreate,
     PipelineStepOut,
@@ -24,8 +28,15 @@ from backend.schemas.rule import (
     RuleOut,
     RuleUpdate,
 )
+from backend.schemas.rule_bundle import ImportReport, RuleBundle
+from backend.services.rule_serializer import rule_to_bundle, validate_bundle
 
 router = APIRouter(prefix="/rules", tags=["rules"])
+
+
+def _app_version() -> str:
+    from importlib.metadata import version
+    return version("cognitive-companion")
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +61,22 @@ def create_rule(
     existing = db.query(Rule).filter(Rule.name == payload.name).first()
     if existing:
         raise ConflictError(f"Rule '{payload.name}' already exists")
-    rule = Rule(**payload.model_dump())
+
+    # Separate cron_trigger_ids from the ORM fields
+    data = payload.model_dump()
+    cron_trigger_ids: list[int] = data.pop("cron_trigger_ids", [])
+
+    rule = Rule(**data)
+    if cron_trigger_ids:
+        cron_triggers = (
+            db.query(CronTrigger).filter(CronTrigger.id.in_(cron_trigger_ids)).all()
+        )
+        if len(cron_triggers) != len(cron_trigger_ids):
+            raise NotFoundError("CronTrigger", str(set(cron_trigger_ids) - {t.id for t in cron_triggers}))
+        rule.cron_triggers = cron_triggers
+        if "cron" not in rule.trigger_types:
+            rule.trigger_types = [*rule.trigger_types, "cron"]
+
     db.add(rule)
     db.commit()
     db.refresh(rule)
@@ -69,6 +95,7 @@ def get_rule(
             joinedload(Rule.steps),
             joinedload(Rule.contexts),
             joinedload(Rule.dependencies),
+            joinedload(Rule.cron_triggers),
         )
         .filter(Rule.id == rule_id)
         .first()
@@ -88,8 +115,25 @@ def update_rule(
     rule = db.get(Rule, rule_id)
     if not rule:
         raise NotFoundError("Rule", rule_id)
-    for key, value in payload.model_dump(exclude_unset=True).items():
+
+    updates = payload.model_dump(exclude_unset=True)
+    cron_trigger_ids: list[int] | None = updates.pop("cron_trigger_ids", None)
+
+    for key, value in updates.items():
         setattr(rule, key, value)
+
+    if cron_trigger_ids is not None:
+        cron_triggers = (
+            db.query(CronTrigger).filter(CronTrigger.id.in_(cron_trigger_ids)).all()
+        )
+        if len(cron_triggers) != len(cron_trigger_ids):
+            raise NotFoundError("CronTrigger", str(set(cron_trigger_ids) - {t.id for t in cron_triggers}))
+        rule.cron_triggers = cron_triggers
+        if cron_triggers and "cron" not in rule.trigger_types:
+            rule.trigger_types = [*rule.trigger_types, "cron"]
+        elif not cron_triggers and "cron" in rule.trigger_types:
+            rule.trigger_types = [t for t in rule.trigger_types if t != "cron"]
+
     db.commit()
     db.refresh(rule)
     return rule
@@ -101,12 +145,18 @@ def delete_rule(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
+    from backend.models.cron_trigger import RuleCronTrigger
     from backend.models.event import EventLog
     from backend.models.pipeline import WorkflowExecution
 
     rule = db.get(Rule, rule_id)
     if not rule:
         raise NotFoundError("Rule", rule_id)
+
+    # Clean up cron trigger join table
+    db.query(RuleCronTrigger).filter(RuleCronTrigger.rule_id == rule_id).delete(
+        synchronize_session=False
+    )
 
     # FK dependency order:
     #   event_logs.workflow_execution_id → workflow_executions.id
@@ -331,7 +381,7 @@ async def execute_rule(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
-    """Manually trigger a rule for testing."""
+    """Manually trigger a rule for testing. Works for any rule regardless of trigger_type."""
     from backend.steps.base import TriggerContext
 
     rule = db.query(Rule).options(joinedload(Rule.steps)).filter(Rule.id == rule_id).first()
@@ -462,3 +512,217 @@ def delete_dependency(
         raise NotFoundError("RuleDependency", dep_id)
     db.delete(dep)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Cron Triggers
+# ---------------------------------------------------------------------------
+
+
+@router.get("/cron-triggers", response_model=list[CronTriggerOut])
+def list_cron_triggers(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:read")),
+):
+    return db.query(CronTrigger).order_by(CronTrigger.name).all()
+
+
+@router.post("/cron-triggers", response_model=CronTriggerOut, status_code=201)
+def create_cron_trigger(
+    payload: CronTriggerCreate,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:write")),
+):
+    ct = CronTrigger(**payload.model_dump())
+    db.add(ct)
+    db.commit()
+    db.refresh(ct)
+    return ct
+
+
+@router.put("/cron-triggers/{ct_id}", response_model=CronTriggerOut)
+def update_cron_trigger(
+    ct_id: int,
+    payload: CronTriggerUpdate,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:write")),
+):
+    ct = db.get(CronTrigger, ct_id)
+    if not ct:
+        raise NotFoundError("CronTrigger", ct_id)
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(ct, key, value)
+    db.commit()
+    db.refresh(ct)
+    return ct
+
+
+@router.delete("/cron-triggers/{ct_id}", status_code=204)
+def delete_cron_trigger(
+    ct_id: int,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:write")),
+):
+    from backend.models.cron_trigger import RuleCronTrigger
+
+    ct = db.get(CronTrigger, ct_id)
+    if not ct:
+        raise NotFoundError("CronTrigger", ct_id)
+
+    db.query(RuleCronTrigger).filter(RuleCronTrigger.cron_trigger_id == ct_id).delete(
+        synchronize_session=False
+    )
+    db.delete(ct)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Import / Export
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{rule_id}/export")
+def export_rule(
+    rule_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:read")),
+):
+    """Export a rule as a portable YAML bundle."""
+    rule = (
+        db.query(Rule)
+        .options(
+            joinedload(Rule.steps),
+            joinedload(Rule.contexts),
+            joinedload(Rule.dependencies),
+            joinedload(Rule.cron_triggers),
+        )
+        .filter(Rule.id == rule_id)
+        .first()
+    )
+    if not rule:
+        raise NotFoundError("Rule", rule_id)
+
+    bundle = rule_to_bundle(rule, app_version=_app_version())
+    return bundle.model_dump(mode="json")
+
+
+@router.post("/import/preview", response_model=ImportReport)
+def preview_import(
+    bundle: RuleBundle,
+    request: Request,
+    _auth: AuthContext = Depends(require_permission("rules:write")),
+):
+    """Validate an import bundle without committing."""
+    return validate_bundle(bundle, _app_version())
+
+
+@router.post("/import", response_model=ImportReport, status_code=201)
+def import_rule(
+    bundle: RuleBundle,
+    request: Request,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:write")),
+):
+    """Import a rule from a portable bundle. All-or-nothing within a transaction."""
+    from backend.models.pipeline import PipelineStep
+
+    # Validate first
+    report = validate_bundle(bundle, _app_version())
+    if report.status == "error":
+        return report
+
+    # Check for name conflict
+    existing = db.query(Rule).filter(Rule.name == bundle.rule.name).first()
+    if existing:
+        raise ConflictError(f"Rule '{bundle.rule.name}' already exists")
+
+    rule_def = bundle.rule
+
+    # Create rule
+    rule = Rule(
+        name=rule_def.name,
+        description=rule_def.description,
+        enabled=rule_def.enabled,
+        trigger_types=rule_def.trigger_types,
+        primary_sensor_id=rule_def.primary_sensor_ref.label
+        if rule_def.primary_sensor_ref
+        else None,
+        cool_off_minutes=rule_def.cool_off_minutes,
+        max_daily_triggers=rule_def.max_daily_triggers,
+        max_concurrent_executions=rule_def.max_concurrent_executions,
+        execution_timeout_minutes=rule_def.execution_timeout_minutes,
+        webhook_config=rule_def.webhook_config,
+        occupancy_config=rule_def.occupancy_config,
+        telegram_trigger_config=rule_def.telegram_trigger_config,
+    )
+    db.add(rule)
+    db.flush()
+
+    # Create cron triggers
+    for ce in rule_def.cron_expressions:
+        ct = CronTrigger(
+            name=f"{rule_def.name} ({ce.expression})",
+            expression=ce.expression,
+            timezone=ce.timezone,
+        )
+        db.add(ct)
+        db.flush()
+        rule.cron_triggers.append(ct)
+
+    # Create contexts
+    for ctx_bundle in bundle.contexts:
+        ctx = RuleContext(
+            rule_id=rule.id,
+            context_type=ctx_bundle.context_type,
+            config_json=ctx_bundle.config,
+            negate=ctx_bundle.negate,
+        )
+        db.add(ctx)
+
+    # Create steps
+    step_id_map: dict[str, int] = {}
+    for i, step_bundle in enumerate(bundle.steps):
+        step = PipelineStep(
+            rule_id=rule.id,
+            order=i,
+            step_type=step_bundle.step_type,
+            label=step_bundle.label,
+            config_json=step_bundle.config,
+            enabled=step_bundle.enabled,
+        )
+        db.add(step)
+        db.flush()
+        step_id_map[step_bundle.label] = step.id
+
+    # Wire up branch targets (now that all steps have ids)
+    for step_bundle in bundle.steps:
+        step_id = step_id_map[step_bundle.label]
+        step = db.get(PipelineStep, step_id)
+        if step and step_bundle.branches.on_true:
+            step.next_step_on_true = step_id_map.get(step_bundle.branches.on_true)
+        if step and step_bundle.branches.on_false:
+            step.next_step_on_false = step_id_map.get(step_bundle.branches.on_false)
+
+    # Create dependencies (resolved by rule name)
+    for dep_bundle in bundle.dependencies:
+        parent = db.query(Rule).filter(Rule.name == dep_bundle.parent_rule_name).first()
+        if parent:
+            dep = RuleDependency(
+                dependent_rule_id=rule.id,
+                parent_rule_id=parent.id,
+                lookback_minutes=dep_bundle.lookback_minutes,
+                require_success=dep_bundle.require_success,
+            )
+            db.add(dep)
+        else:
+            report.warnings.append(
+                f"Dependency on rule '{dep_bundle.parent_rule_name}' could not be resolved; skipped"
+            )
+
+    db.commit()
+    db.refresh(rule)
+
+    report.rule_id = rule.id
+    report.status = "ok"
+    return report

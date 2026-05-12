@@ -453,7 +453,7 @@ async def lifespan(app: FastAPI):
     # -- Scheduler ---------------------------------------------------------
     from backend.services.scheduler import SchedulerBridge, setup_scheduler
 
-    scheduler = setup_scheduler(event_aggregator, get_session, pipeline_executor)
+    scheduler = setup_scheduler(event_aggregator, get_session, pipeline_executor, rules_engine=rules_engine)
     app.state.scheduler = scheduler
 
     # Inject scheduler bridge into pipeline executor for wait/resume

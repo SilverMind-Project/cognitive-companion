@@ -22,6 +22,7 @@ class ChannelMetadata:
     display_name: str  # "Telegram"
     description: str
     config_schema: dict  # JSONSchema for per-channel config
+    schema_version: int = 1
 
 
 class NotificationChannel(HasMetadata[ChannelMetadata]):

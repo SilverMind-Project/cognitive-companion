@@ -41,7 +41,8 @@ class RulesEngine:
         """Return enabled rules matching the sensor that pass all checks.
 
         Args:
-            trigger_type: Only rules with this trigger_type are considered.
+            trigger_type: Only rules whose ``trigger_types`` JSON column
+                contains this type are considered.
             occupancy_minutes: When ``trigger_type`` is ``"occupancy_duration"``,
                 only rules whose ``occupancy_config.min_minutes`` threshold has
                 been reached are included.
@@ -49,7 +50,7 @@ class RulesEngine:
         now = datetime.now(self.tz)
         query = db.query(Rule).filter(
             Rule.enabled.is_(True),
-            Rule.trigger_type == trigger_type,
+            Rule.trigger_types.contains([trigger_type]),
         )
         if trigger_type == "occupancy_duration":
             query = query.filter(Rule.primary_sensor_id == sensor.id)
@@ -85,6 +86,65 @@ class RulesEngine:
             matched_names=[r.name for r in matched],
         )
         return matched
+
+    def get_matching_rules_for_cron(
+        self,
+        rule: Rule,
+        db: Session,
+    ) -> bool:
+        """Check whether *rule* should fire from a cron trigger.
+
+        Evaluates contexts, dependencies, and rate limits against the current
+        time. Returns True if all checks pass. Unlike sensor events, cron
+        triggers have no sensor or room context.
+        """
+        now = datetime.now(self.tz)
+
+        if not rule.enabled:
+            return False
+
+        if not self._check_contexts_for_cron(rule, now, db):
+            logger.info("rule_skipped_context", rule=rule.name, trigger="cron")
+            return False
+        if not self._check_dependencies(rule, db, now):
+            logger.info("rule_skipped_dependency", rule=rule.name, trigger="cron")
+            return False
+        if not self._check_rate_limits(rule, db, now):
+            logger.info("rule_skipped_rate_limit", rule=rule.name, trigger="cron")
+            return False
+
+        return True
+
+    _SENSOR_DEPENDENT_FILTERS = frozenset({"room", "room_transition", "person_movement_memory"})
+
+    def _check_contexts_for_cron(
+        self, rule: Rule, now: datetime, db: Session | None = None, services: Any = None
+    ) -> bool:
+        """Evaluate contexts for a cron trigger (no sensor available).
+
+        Filters that require a sensor (room, room_transition, etc.) are skipped
+        with a warning since cron triggers have no associated sensor event.
+        """
+        if not rule.contexts:
+            return True
+
+        by_type: dict[str, list[RuleContext]] = {}
+        for ctx in rule.contexts:
+            by_type.setdefault(ctx.context_type, []).append(ctx)
+
+        for ctx_type, contexts in by_type.items():
+            if ctx_type in self._SENSOR_DEPENDENT_FILTERS:
+                logger.warning(
+                    "cron_context_skipped_sensor_dependent",
+                    rule=rule.name,
+                    context_type=ctx_type,
+                )
+                continue
+            if not any(
+                self._matches_context(ctx, None, now, db, services) for ctx in contexts
+            ):
+                return False
+        return True
 
     # -- context checking (via FilterRegistry) --------------------------------
 

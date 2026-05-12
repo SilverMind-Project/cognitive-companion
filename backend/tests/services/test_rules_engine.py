@@ -24,14 +24,15 @@ def _make_sensor(db, sensor_id="cam1", sensor_type="camera"):
     return sensor
 
 
-def _make_rule(db, name="Test Rule", trigger_type="sensor_event", **kwargs):
+def _make_rule(db, name="Test Rule", trigger_types=None, **kwargs):
     rule = Rule(
         name=name,
         enabled=True,
-        trigger_type=trigger_type,
+        trigger_types=trigger_types if trigger_types is not None else ["sensor_event"],
         # Default to 0 so tests don't accidentally trigger built-in rate limits
-        cool_off_minutes=kwargs.get("cool_off_minutes", 0),
-        max_daily_triggers=kwargs.get("max_daily_triggers", 0),
+        cool_off_minutes=kwargs.pop("cool_off_minutes", 0),
+        max_daily_triggers=kwargs.pop("max_daily_triggers", 0),
+        **kwargs,
     )
     db.add(rule)
     db.flush()
@@ -83,7 +84,7 @@ class TestRulesEngineBasicMatching:
 
     def test_wrong_trigger_type_not_matched(self, db_session):
         sensor = _make_sensor(db_session)
-        _make_rule(db_session, trigger_type="cron")
+        _make_rule(db_session, trigger_types=["cron"])
         db_session.commit()
 
         matched = _engine_utc().get_matching_rules(sensor, db_session, trigger_type="sensor_event")

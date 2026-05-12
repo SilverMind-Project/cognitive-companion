@@ -58,6 +58,13 @@ class StepMetadata:
     default_config: dict  # Default config_json for new steps
     deprecated: bool = False  # Whether this step type is deprecated
 
+    # Plugin evolution
+    schema_version: int = 1
+    ui_hints_version: int = 1
+    ui_hints: dict = field(default_factory=dict)  # x-ui widget hints for SchemaForm
+    output_schema: dict = field(default_factory=dict)  # JSONSchema for step outputs
+    tags: tuple[str, ...] = ()  # for palette grouping/search
+
 
 @dataclass
 class ServiceContainer:

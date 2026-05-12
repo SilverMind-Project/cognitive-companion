@@ -1,0 +1,32 @@
+?start: expr
+?expr: or_expr
+?or_expr: and_expr ("or" and_expr)*
+?and_expr: not_expr ("and" not_expr)*
+?not_expr: "not" not_expr -> not_op | comparison
+?comparison: term (COMP_OP term)?
+?term: STRING -> string
+     | NUMBER -> number
+     | BOOL -> boolean
+     | NULL -> null
+     | func_call -> func_call
+     | jmespath_expr -> jmespath_expr
+     | "(" expr ")"
+     | path -> path
+
+path: NAME ("." (NAME | INT))* ("|" JMESPATH)?
+
+func_call: NAME "(" [expr ("," expr)*] ")"
+
+jmespath_expr: "|" JMESPATH
+
+COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
+NULL: "null"
+BOOL: "true" | "false"
+INT: /[0-9]+/
+NUMBER: /-?\d+(?:\.\d+)?/
+STRING: /"[^"]*"/ | /'[^']*'/
+NAME: /(?!true\b|false\b|null\b|and\b|or\b|not\b)[a-zA-Z_][a-zA-Z0-9_]*/
+JMESPATH: /[^|}]+/
+
+%import common.WS
+%ignore WS

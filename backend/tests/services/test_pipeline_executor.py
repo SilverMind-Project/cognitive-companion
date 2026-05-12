@@ -13,7 +13,7 @@ from backend.steps.base import StepResult, TriggerContext
 
 
 def _make_rule(db, name="Test Rule", **kwargs):
-    rule = Rule(name=name, enabled=True, trigger_type="sensor_event", **kwargs)
+    rule = Rule(name=name, enabled=True, trigger_types=["sensor_event"], **kwargs)
     db.add(rule)
     db.flush()
     return rule
@@ -454,7 +454,8 @@ class TestPipelineExecutorTimeout:
         assert result.completed_at is not None
 
     async def test_no_timeout_when_zero(self, db_session, db_factory):
-        """execution_timeout_minutes=0 passes None to wait_for (no limit)."""
+        """execution_timeout_minutes=0 passes None to wait_for for the pipeline,
+        but per-step timeout is always applied."""
         rule = _make_rule(db_session, execution_timeout_minutes=0)
         _make_step(db_session, rule, order=1)
         db_session.commit()
@@ -479,7 +480,10 @@ class TestPipelineExecutorTimeout:
         ):
             result = await executor.execute(rule, trigger, db_session)
 
-        assert captured_timeout == [None]
+        # First call from execute() has timeout=None (pipeline-level, disabled).
+        # Second call from _run_steps() has timeout=PER_STEP_TIMEOUT (always applied).
+        assert captured_timeout[0] is None
+        assert captured_timeout[1] > 0  # per-step timeout
         assert result.status == "completed"
 
     async def test_timeout_error_message_uses_singular_for_one_minute(self, db_session, db_factory):

@@ -49,6 +49,10 @@ flowchart TB
 
 Camera frames are batched by the EventAggregator and matched against rules whose context filters, dependencies, and rate limits pass. Each rule defines its own composable pipeline of steps. Notifications fan out to whichever channels the step config and `notifications.yaml` request.
 
+Triggers are decoupled from rules: a rule can respond to multiple trigger types (cron schedules, sensor events, webhooks, Telegram commands, occupancy duration). Cron schedules use a dedicated `CronTrigger` model with many-to-many relationships, so multiple rules can share the same schedule. Rules can be exported to portable YAML/JSON bundles and imported across installations.
+
+All template and condition expressions use a unified Lark-based grammar with `{{ }}` syntax supporting dotted paths, JMESPath pipes, comparisons, boolean operators, and built-in functions. Server-side validation catches typos and unknown paths at save time.
+
 ---
 
 ## Prerequisites
@@ -129,11 +133,16 @@ class YourStep(StepHandler):
     def metadata(cls) -> StepMetadata:
         return StepMetadata(type_name="your_step", display_name="Your Step",
                             category="action", icon="mdi-star", description="...",
-                            config_schema={}, default_config={})
+                            config_schema={}, default_config={},
+                            output_schema={"type": "object", "properties": {
+                                "your_key": {"type": "string"}
+                            }})
 
     async def execute(self, step, execution, pipeline_data, trigger, services):
         return StepResult(data={"your_key": "value"})
 ```
+
+Use `uv run --project backend python -m backend.steps._scaffold new your_step --category action` to generate a handler and test from a template.
 
 Same pattern for `@ChannelRegistry.register` and `@FilterRegistry.register`. See [Extending the Pipeline](https://silvermind-project.github.io/development/extending-pipeline).
 

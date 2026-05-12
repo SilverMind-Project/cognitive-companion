@@ -1,23 +1,15 @@
-"""Lightweight prompt template renderer for pipeline step prompts.
+"""Template renderer and expression evaluator for pipeline step prompts.
 
-Resolves ``{{key}}`` and ``{{key.sub}}`` references against *pipeline_data*
-and *trigger* context so that rule authors can write prompts like::
+Resolves ``{{ expr }}`` expressions against *pipeline_data* using a Lark-based
+grammar. The grammar supports dotted paths, JMESPath pipes, comparisons,
+boolean combinators, and built-in functions.
 
-    Is {{person_detections.0.name}} cooking on the stove?
-    Based on the vision analysis: {{vision_response}}: determine the activity.
-    The detected activity was: {{analysis_step.activity_type}}
+Simple ``{{path.to.value}}`` references use fast regex + resolve_path for
+substitution; full expressions with operators, functions, or pipes use the
+Lark parser.
 
-Unresolvable references are left as-is so the LLM still sees the intent.
-
-The resolver supports four traversal modes per path segment:
-
-* dict keys (``foo.bar``)
-* list / tuple indices (``items.0.name``)
-* JSON string auto-parsing -- when a string value looks like a JSON object or
-  array, it is transparently parsed so that downstream segments can traverse
-  into it.  This allows ``{{my_llm_response.activity_type}}`` to work even
-  when ``my_llm_response`` is stored as a raw JSON string rather than a dict.
-* attribute access (``obj.field``) as a last resort for dataclasses & pydantic
+``resolve_path`` remains the fast path for dotted traversal with JSON
+auto-parsing and list-index support.
 """
 
 from __future__ import annotations
@@ -27,14 +19,17 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-__all__ = ["render_template", "resolve_path"]
+__all__ = ["evaluate_condition", "evaluate_expression", "render_template", "resolve_path"]
 
-# Matches {{ path.to.value }} with optional whitespace inside braces.
-_VAR_RE = re.compile(r"\{\{\s*([\w][\w.]*)\s*\}\}")
+# Matches {{ expr }} with optional whitespace inside braces.
+_VAR_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
+
+# Operators/functions/pipe that indicate a full grammar parse is needed
+_SIMPLE_PATH_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*$")
 
 
 def _try_parse_json(value: Any) -> Any:
-    """If *value* is a JSON-encoded string, return the parsed object; otherwise return *value* unchanged."""
+    """If *value* is a JSON-encoded string, return the parsed object."""
     if not isinstance(value, str):
         return value
     stripped = value.strip()
@@ -49,25 +44,16 @@ def _try_parse_json(value: Any) -> Any:
 def resolve_path(path: str, data: Mapping[str, Any] | Any) -> Any:
     """Walk *data* following a dotted *path*.
 
-    Numeric segments are treated as list indices, e.g.
-    ``person_detections.0.name`` resolves
-    ``data["person_detections"][0]["name"]``.
+    Numeric segments are treated as list indices. JSON string auto-parsing
+    is applied after the first segment.
 
-    JSON string auto-parsing: when a segment resolves to a string that looks
-    like a JSON object or array, it is automatically parsed before the next
-    segment is applied.  This lets templates like
-    ``{{llm_step_response.confidence}}`` work transparently whether the LLM
-    response is stored as a dict or as a raw JSON string.
-
-    Returns ``None`` when any segment fails to resolve (missing key,
-    out-of-range index, or attribute not found).
+    Returns ``None`` when any segment fails to resolve.
     """
     current: Any = data
     segments = path.split(".")
     for i, segment in enumerate(segments):
         if current is None:
             return None
-        # Auto-parse JSON strings before attempting further traversal
         if i > 0 and isinstance(current, str):
             current = _try_parse_json(current)
         if isinstance(current, dict):
@@ -78,9 +64,51 @@ def resolve_path(path: str, data: Mapping[str, Any] | Any) -> Any:
             except (ValueError, IndexError):
                 return None
         else:
-            # Try attribute access as last resort (dataclass / pydantic field)
             current = getattr(current, segment, None)
     return current
+
+
+def _is_simple_path(expr: str) -> bool:
+    """Return True if *expr* is a plain dotted identifier path.
+
+    Excludes keywords and literals that would match the same pattern.
+    """
+    if not _SIMPLE_PATH_RE.match(expr):
+        return False
+    # Exclude language keywords
+    return expr not in ("true", "false", "null", "and", "or", "not")
+
+
+def evaluate_expression(expr: str, pipeline_data: Mapping[str, Any]) -> Any:
+    """Parse and evaluate a single ``{{ }}`` expression.
+
+    For simple dotted paths, uses the fast resolve_path. For expressions
+    with operators, functions, or pipes, uses the Lark grammar.
+    """
+    expr = expr.strip()
+    if _is_simple_path(expr):
+        return resolve_path(expr, pipeline_data)
+
+    from backend.core.template_ast import parse_expression
+    from backend.core.template_interpreter import _eval
+
+    ast = parse_expression(expr)
+    return _eval(ast, pipeline_data)
+
+
+def evaluate_condition(expr: str, pipeline_data: Mapping[str, Any]) -> bool:
+    """Evaluate an expression and coerce to bool.
+
+    Raises TemplateTypeError if the expression does not evaluate to boolean.
+    """
+    from backend.core.template_interpreter import TemplateTypeError
+
+    result = evaluate_expression(expr, pipeline_data)
+    if isinstance(result, bool):
+        return result
+    raise TemplateTypeError(
+        f"Expected boolean result, got {type(result).__name__}: {result!r}"
+    )
 
 
 def render_template(
@@ -88,14 +116,10 @@ def render_template(
     pipeline_data: Mapping[str, Any],
     trigger_vars: Mapping[str, Any] | None = None,
 ) -> str:
-    """Replace ``{{key}}`` placeholders in *template* with values from *pipeline_data*.
+    """Replace ``{{ expr }}`` placeholders in *template* with evaluated values.
 
-    *trigger_vars* is an optional flat mapping of trigger-level values
-    (room_name, sensor_id, etc.) merged under a ``trigger`` namespace as well
-    as top-level for convenience (without overwriting ``pipeline_data`` keys).
-
-    Unresolvable placeholders are left unchanged so the downstream LLM still
-    sees the author's intent.
+    Simple path references use fast resolve_path. Complex expressions use
+    the Lark grammar. Unresolvable placeholders are left as-is.
     """
     if "{{" not in template:
         return template
@@ -107,10 +131,14 @@ def render_template(
             merged.setdefault(k, v)
 
     def _replace(match: re.Match[str]) -> str:
-        path = match.group(1)
-        value = resolve_path(path, merged)
-        if value is None:
+        expr = match.group(1).strip()
+        try:
+            value = evaluate_expression(expr, merged)
+        except Exception:
             return match.group(0)  # leave unresolved
+
+        if value is None:
+            return match.group(0)
         if isinstance(value, (dict, list)):
             return json.dumps(value)
         return str(value)

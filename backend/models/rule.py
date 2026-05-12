@@ -5,11 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base, TimestampMixin
 
-if TYPE_CHECKING:  # required: reciprocal SQLAlchemy relationship with pipeline.py
+if TYPE_CHECKING:
+    from backend.models.cron_trigger import CronTrigger
     from backend.models.pipeline import PipelineStep
 
 
@@ -21,14 +23,15 @@ class Rule(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    # Trigger configuration
-    trigger_type: Mapped[str] = mapped_column(
-        String(32), default="sensor_event"
-    )  # sensor_event, cron, manual, webhook, occupancy_duration, telegram
-    schedule_cron: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Trigger configuration -- decoupled from cron schedules (see cron_trigger.py).
+    # trigger_types replaces the old single trigger_type column.
+    # Valid values: sensor_event, cron, manual, webhook, occupancy_duration, telegram.
+    trigger_types: Mapped[list[str]] = mapped_column(
+        JSONB, default=lambda: ["sensor_event"]
+    )
     primary_sensor_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True
-    )  # for periodic rules that need to capture from a specific sensor
+    )
 
     # Webhook trigger configuration
     webhook_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -63,6 +66,10 @@ class Rule(Base, TimestampMixin):
         back_populates="dependent_rule",
         foreign_keys="RuleDependency.dependent_rule_id",
         cascade="all, delete-orphan",
+    )
+    cron_triggers: Mapped[list[CronTrigger]] = relationship(
+        secondary="rule_cron_triggers",
+        back_populates="rules",
     )
 
 

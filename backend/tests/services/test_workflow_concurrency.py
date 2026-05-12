@@ -30,7 +30,7 @@ def _make_rule(
     rule = Rule(
         name=name,
         enabled=True,
-        trigger_type="sensor_event",
+        trigger_types=["sensor_event"],
         cool_off_minutes=0,
         max_daily_triggers=0,
         max_concurrent_executions=max_concurrent_executions,

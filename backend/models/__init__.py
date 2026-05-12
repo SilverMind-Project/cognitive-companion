@@ -2,6 +2,7 @@
 
 from backend.models.alert import EmergencyAlert
 from backend.models.conversation import ConversationSession, ConversationTurn
+from backend.models.cron_trigger import CronTrigger, RuleCronTrigger
 from backend.models.cts_camera import CtsCamera
 from backend.models.cts_signal import DementiaSignal
 from backend.models.event import EventLog
@@ -43,6 +44,7 @@ __all__ = [
     "ActivityTypeEnum",
     "ConversationSession",
     "ConversationTurn",
+    "CronTrigger",
     "CtsCamera",
     "DailyReport",
     "DementiaSignal",
@@ -70,6 +72,7 @@ __all__ = [
     "Room",
     "Rule",
     "RuleContext",
+    "RuleCronTrigger",
     "RuleDependency",
     "SeniorKnowledgeQuery",
     "Sensor",

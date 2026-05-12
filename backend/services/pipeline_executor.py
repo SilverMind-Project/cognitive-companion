@@ -150,6 +150,11 @@ class PipelineExecutor:
     def _scheduler(self, value):
         self._services.scheduler = value
 
+    @property
+    def event_aggregator(self):
+        """Public accessor for the event aggregator (used by Scheduler for media fetch)."""
+        return self._services.event_aggregator
+
     # -- public API -----------------------------------------------------------
 
     async def execute(
@@ -446,6 +451,32 @@ class PipelineExecutor:
                 execution.current_step_id = step.id
                 db.commit()
 
+                # Cooperative cancellation: check if execution was cancelled
+                db.refresh(execution)
+                pipeline_data = execution.pipeline_data_json  # re-bind after refresh
+                if pipeline_data is None:
+                    execution.pipeline_data_json = {}
+                    pipeline_data = execution.pipeline_data_json
+                if execution.status == "cancelled":
+                    step_timings.append(
+                        _make_step_timing(
+                            step,
+                            datetime.now(UTC),
+                            datetime.now(UTC),
+                            success=False,
+                            error="Execution cancelled",
+                            cancellation_observed=True,
+                        )
+                    )
+                    pipeline_data["_step_timings"] = step_timings
+                    db.commit()
+                    logger.info(
+                        "step_cancelled",
+                        rule=execution.rule.name,
+                        step_label=step.label,
+                    )
+                    return execution
+
                 logger.info(
                     "step_executing",
                     rule=execution.rule.name,
@@ -457,12 +488,26 @@ class PipelineExecutor:
                 _active_step = step
                 _active_step_started_at = datetime.now(UTC)
 
-                result = await self._execute_step(step, execution, pipeline_data, trigger)
+                # Per-step timeout (coarse safety net for stuck LLM calls)
+                try:
+                    result = await asyncio.wait_for(
+                        self._execute_step(step, execution, pipeline_data, trigger),
+                        timeout=_PER_STEP_TIMEOUT,
+                    )
+                except TimeoutError:
+                    result = StepResult(
+                        success=False,
+                        data={"error": f"Step timed out after {_PER_STEP_TIMEOUT:.0f}s"},
+                    )
 
                 step_completed_at = datetime.now(UTC)
                 step_timings.append(
                     _make_step_timing(
-                        step, _active_step_started_at, step_completed_at, result.success
+                        step,
+                        _active_step_started_at,
+                        step_completed_at,
+                        result.success,
+                        error=result.data.get("error") if not result.success else None,
                     )
                 )
                 # Signal to the except-block that this step's timing is already saved
@@ -563,6 +608,13 @@ class PipelineExecutor:
             # Rollback any failed transaction before attempting cleanup writes.
             with contextlib.suppress(Exception):
                 db.rollback()
+
+            # Re-bind after rollback: the execution's tracked reference may have
+            # been replaced, so the local ``pipeline_data`` variable is stale.
+            pipeline_data = execution.pipeline_data_json
+            if pipeline_data is None:
+                execution.pipeline_data_json = {}
+                pipeline_data = execution.pipeline_data_json
 
             completed_at = datetime.now(UTC)
 
@@ -674,6 +726,7 @@ def _make_step_timing(
     completed_at: datetime,
     success: bool,
     error: str | None = None,
+    cancellation_observed: bool = False,
 ) -> dict:
     """Build a timing entry dict for a single pipeline step."""
     entry: dict = {
@@ -684,10 +737,16 @@ def _make_step_timing(
         "completed_at": completed_at.isoformat(),
         "elapsed_seconds": round((completed_at - started_at).total_seconds(), 3),
         "success": success,
+        "logs": [],
     }
     if error is not None:
         entry["error"] = error
+    if cancellation_observed:
+        entry["cancellation_observed"] = True
     return entry
+
+
+_PER_STEP_TIMEOUT = 60.0  # seconds; coarse safety net for stuck LLM calls
 
 
 def _mark_pipeline_completed(execution: WorkflowExecution, completed_at: datetime) -> None:

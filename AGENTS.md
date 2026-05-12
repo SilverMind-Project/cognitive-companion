@@ -37,7 +37,7 @@ Three things make this codebase non-trivial:
 ```text
 cognitive-companion/
 ├── backend/
-│   ├── core/                   Foundational layer (Settings, Database, KeyStore, exceptions, logging, template, time helpers)
+│   ├── core/                   Foundational layer (Settings, Database, KeyStore, exceptions, logging, template, template_grammar, template_ast, template_interpreter, plugin_migrations, time helpers)
 │   ├── models/                 SQLAlchemy ORM (Rule, PipelineStep, WorkflowExecution, EventLog, Sensor, Room, HouseholdMember, PersonSighting, PersonLocationState/History, PersonActivity, MediaCache, ImageTemplate, ActiveImageState, ConversationSession, EmergencyAlert, CtsCamera, DementiaSignal, InteractiveResponse, ...)
 │   ├── schemas/                Pydantic *Create / *Update / *Out mirrors of the ORM models
 │   ├── steps/                  Pipeline-step plugin system
@@ -468,6 +468,8 @@ When a filter needs services (semantic memory, presence, signals), it accesses t
 
 ## 9. Workflow lifecycle
 
+Triggers are decoupled from rules via `Rule.trigger_types: list[str]` (JSON column). Cron schedules live in a separate `CronTrigger` table with a many-to-many join (`rule_cron_triggers`). A rule can respond to multiple trigger types simultaneously.
+
 ```text
 edge device  ─►  routers/device.py      ─►  EventAggregator
                                               │
@@ -475,7 +477,11 @@ edge device  ─►  routers/device.py      ─►  EventAggregator
 HA poll      ─►  SensorPollingService   ─►  WorkflowPipeline.process_event
 webhook      ─►  routers/webhooks.py    ─►  ▼
 telegram cmd ─►  TelegramTriggerService ─►  RulesEngine.matches(rules, ctx)
-cron tick    ─►  Scheduler              ─►  for each match: PipelineExecutor.run(rule, trigger)
+                                              │
+                                              ▼
+cron tick    ─►  Scheduler              ─►  for each CronTrigger: find linked rules
+  (one job per CronTrigger,                  via rule_cron_triggers → RulesEngine checks
+   not per rule)                              contexts, dependencies, rate limits
                                               │
                                               ▼
                                             WorkflowExecution row + EventLog row
@@ -492,6 +498,10 @@ cron tick    ─►  Scheduler              ─►  for each match: PipelineExec
                                               ▼
                                    `notification` step → NotificationDispatcher → ChannelRegistry plugins
 ```
+
+The executor checks `execution.status == "cancelled"` between steps (cooperative cancellation). A per-step timeout (60s default) prevents stuck LLM calls from hanging the pipeline indefinitely. Step timings are recorded in `pipeline_data_json._step_timings` with labels, elapsed seconds, and success/failure status.
+
+`WorkflowExecution` uses optimistic locking (`version` column). `PipelineExecutor` retries on version conflicts with exponential backoff. Status transitions (cancel, timeout) use pessimistic locking (`SELECT ... FOR UPDATE`).
 
 `WorkflowExecution` uses optimistic locking (`version` column). `PipelineExecutor` retries on version conflicts with exponential backoff.
 
@@ -571,7 +581,12 @@ For vLLM, `guided_decoding=true` sends the JSON schema as the `guided_json` requ
 
 ## 12. MCP
 
-`backend/mcp/server.py` defines the FastMCP tool registry. Each tool is an `@_register` async function; type hints auto-generate JSON schemas. Tools currently include get_rooms, get_sensors, get_room_occupancy, get_recent_images, get_light_level, get_alerts, get_event_logs, get_rules, get_conversation_history, get_person_locations, get_enrolled_persons, get_person_sightings, get_person_activities, get_workflow_executions, get_rule_pipeline, trigger_rule, get_eink_display_status, get_local_datetime, get_weather, plus five semantic-memory read tools (`get_recent_scene_objects`, `get_scene_observations`, `get_person_movements`, `get_room_trend`, `search_similar_scenes`). The full list is in `mcp.tools` in `settings.yaml`. A subset is mirrored to Gemini Live in `mcp.gemini_tools`.
+`backend/mcp/server.py` defines the FastMCP tool registry. Each tool is an `@_register` async function; type hints auto-generate JSON schemas. Tools currently include get_rooms, get_sensors, get_room_occupancy, get_recent_images, get_light_level, get_alerts, get_event_logs, get_rules, get_conversation_history, get_person_locations, get_enrolled_persons, get_person_sightings, get_person_activities, get_workflow_executions, get_rule_pipeline, trigger_rule, get_eink_display_status, get_local_datetime, get_weather, five semantic-memory read tools (`get_recent_scene_objects`, `get_scene_observations`, `get_person_movements`, `get_room_trend`, `search_similar_scenes`), plus three rule-authoring tools (`list_plugin_metadata`, `get_rule_bundle`, `import_rule_bundle`). The full list is in `mcp.tools` in `settings.yaml`. A subset is mirrored to Gemini Live in `mcp.gemini_tools`.
+
+The rule-authoring MCP tools enable AI agents to read, create, and import rules:
+- `list_plugin_metadata(kind)`: returns full metadata (config_schema, output_schema, default_config) for every registered step, filter, or channel, so agents can construct syntactically valid pipelines
+- `get_rule_bundle(rule_id)`: exports a rule as a portable `RuleBundle` dict
+- `import_rule_bundle(bundle, mode)`: validates (`mode="preview"`) or commits (`mode="commit"`) a bundle, returning the same `ImportReport` the UI shows
 
 Auth is enforced by the ASGI middleware in `backend/mcp/middleware.py`. Permission patterns under `mcp_readonly` cover `GET /mcp*` and `POST /mcp*`.
 
@@ -631,7 +646,9 @@ Fixtures (`backend/tests/conftest.py`): `db_engine`, `db_session`, `db_factory`,
 
 | What you are testing | Pattern |
 | --- | --- |
-| Step handler | `@dataclass class _FakeStep` instead of `PipelineStep`. SQLAlchemy instrumentation breaks when you set mapped attributes on objects created with `__new__`. |
+| Step handler | `@dataclass class _FakeStep` instead of `PipelineStep`. SQLAlchemy instrumentation breaks when you set mapped attributes on objects created with `__new__`. Call `assert_output_conforms_to_schema(handler, result)` from `backend/steps/_testing.py`. |
+| Plugin contract | `test_registry_contract.py` validates every registered handler's config_schema, default_config, output_schema, naming conventions, and icon. Run as part of `make check`. |
+| Expression grammar | `test_template_grammar.py` covers parsing, evaluation, functions, and template rendering. Use `parse_expression()` and `_eval()` for unit tests of specific AST nodes. |
 | `ServiceContainer` | Pass only the fields the step uses; everything else defaults to `None`. |
 | Router | New `FastAPI()` + `register_exception_handlers(app)` + `app.dependency_overrides[get_auth_context]`. Use `StaticPool` so tables persist across the test connections. |
 | Class-level property | Local subclass; never `type(obj).prop = property(...)`. Class mutation leaks. |
@@ -659,6 +676,8 @@ Every code change must pass these gates. Check off each item before opening a PR
 
 - [ ] New public classes, methods, and endpoints have mirrored tests under `backend/tests/<mirror_path>/`
 - [ ] Step handlers, channels, and filters each have: success path, missing-service path, and at least one config-edge-case test
+- [ ] New step handlers call `assert_output_conforms_to_schema(handler, result)` in their tests
+- [ ] New step handlers are enumerated in `test_registry_contract.py`
 - [ ] Tests follow Arrange-Act-Assert structure with blank lines between blocks
 - [ ] No mocks for the database (use testcontainer fixtures)
 
@@ -706,6 +725,16 @@ Use `uv run --project backend ruff check backend/<changed_path>` for a fast lint
 
 ### 17.1 Add a pipeline step type
 
+Use the scaffolding CLI for boilerplate:
+
+```bash
+uv run --project backend python -m backend.steps._scaffold new your_step --category action
+```
+
+This generates `backend/steps/builtin/your_step.py` and `backend/tests/steps/test_your_step.py`.
+
+Or write manually:
+
 ```python
 # backend/steps/builtin/your_step.py
 from backend.steps import StepRegistry
@@ -723,13 +752,22 @@ class YourStepHandler(StepHandler):
             description="What this does.",
             config_schema={"type": "object", "properties": {...}},
             default_config={...},
+            # New fields:
+            output_schema={              # REQUIRED for data-emitting steps
+                "type": "object",
+                "properties": {
+                    "your_key": {"type": "string", "description": "Result value"},
+                },
+            },
         )
 
     async def execute(self, step, execution, pipeline_data, trigger, services) -> StepResult:
         return StepResult(data={"your_key": "value"})
 ```
 
-The step appears in the StepPalette via `GET /pipeline/step-types`. For a custom config form, add a `<template v-if="localStep.step_type === 'your_step'">` block in `frontend/src/components/pipeline/StepConfigDialog.vue`. Add a corresponding test under `backend/tests/steps/test_your_step.py`.
+The step appears in the StepPalette via `GET /pipeline/step-types`. For a custom config form, use the `x-ui` hints in `config_schema` (consumed by `SchemaForm.vue`), or add a `<template v-if>` block in the step config dialog.
+
+Every step handler test must call `assert_output_conforms_to_schema(handler, result)` from `backend/steps/_testing.py`.
 
 ### 17.2 Add a notification channel
 
@@ -826,7 +864,9 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 
 **Error handling.**
 - Do not catch `AuthenticationError` or `PermissionDeniedError` in routers.
-- Do not use `eval()` for condition expressions. Use `ConditionEvaluator`.
+- Do not use `eval()` for conditions. Use `evaluate_condition()` from `backend.core.template` (Lark-based grammar).
+- Do not use bare condition expressions without `{{ }}` wrapping. The old `ConditionEvaluator` has been deleted.
+- Do not access `self._pipeline_executor._services` from other services. Use the public `PipelineExecutor.event_aggregator` property.
 - Do not use bare `except:` or `except Exception: pass`. Log and return a zero value or re-raise as AppError.
 
 **Architecture and layering.**
@@ -866,9 +906,11 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 | You want to ... | Read |
 | --- | --- |
 | Understand startup wiring | `backend/main.py` (lifespan) |
-| Add a step type | `backend/steps/base.py`, an existing builtin like `backend/steps/builtin/scene_analysis.py` |
+| Add a step type | `backend/steps/base.py`, an existing builtin like `backend/steps/builtin/scene_analysis.py`, run `python -m backend.steps._scaffold new` |
 | Trace a rule firing | `backend/services/workflow.py` then `rules_engine.py` then `pipeline_executor.py` |
-| Debug a condition expression | `backend/services/condition_evaluator.py` and its tests |
+| Debug a condition / expression | `backend/core/template_grammar.lark` (grammar), `template_ast.py` (parser), `template_interpreter.py` (evaluator) |
+| Understand trigger dispatch | `backend/services/scheduler.py` (cron via CronTrigger), `backend/services/rules_engine.py` (sensor/occupancy), `backend/models/cron_trigger.py` (schema) |
+| Export or import rules | `backend/services/rule_serializer.py`, `backend/schemas/rule_bundle.py`, `backend/core/plugin_migrations.py` |
 | Understand CTS data flow | `backend/services/cts/runtime.py`, then the four subscribers, then `services/cts/location_writer.py` |
 | Understand presence fusion | `backend/services/presence/factory.py`, `service.py`, `anchor_rules.py`, plus `config/presence.yaml` |
 | Add an external HTTP client | `backend/integrations/_http_base.py` (LAN) or `_upstream_base.py` (CTS only) |
@@ -876,8 +918,8 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 | Understand voice delivery | `backend/websocket/audio_handler.py`, `backend/services/knowledge/delivery_service.py` |
 | Debug embedding issues | `backend/integrations/triton_embedding_client.py`, `triton-shared/triton_shared/models/embedder.py` |
 | Understand knowledge repository | `cc-rag.md` (design), `backend/services/knowledge/` (services), `backend/routers/knowledge.py`, `info_cards.py`, `quizzes.py` (REST) |
-| Understand voice delivery | `backend/websocket/audio_handler.py`, `backend/services/knowledge/delivery_service.py` |
 | Understand info card / quiz pipeline steps | `backend/steps/builtin/info_card.py`, `backend/steps/builtin/quiz_start.py` |
+| Understand MCP rule authoring | `backend/mcp/server.py` (list_plugin_metadata, get_rule_bundle, import_rule_bundle) |
 | Find the canonical config | `config/settings.yaml` (loaded fresh on every lifespan) |
 
 ---

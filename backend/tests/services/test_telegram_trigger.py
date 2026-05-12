@@ -72,7 +72,7 @@ def _make_rule_obj(
         id=rule_id,
         name=name,
         enabled=True,
-        trigger_type="telegram",
+        trigger_types=["telegram"],
         telegram_trigger_config={
             "command": command,
             "allowed_chat_ids": [] if allowed_chat_ids is None else allowed_chat_ids,
@@ -512,14 +512,14 @@ class TestLoadTelegramRules:
         telegram_rule = Rule(
             name="telegram-rule",
             enabled=True,
-            trigger_type="telegram",
+            trigger_types=["telegram"],
             telegram_trigger_config={"command": "/remind", "allowed_chat_ids": ["1"]},
         )
-        cron_rule = Rule(name="cron-rule", enabled=True, trigger_type="cron")
+        cron_rule = Rule(name="cron-rule", enabled=True, trigger_types=["cron"])
         disabled = Rule(
             name="disabled-telegram",
             enabled=False,
-            trigger_type="telegram",
+            trigger_types=["telegram"],
             telegram_trigger_config={"command": "/remind"},
         )
         db_session.add_all([telegram_rule, cron_rule, disabled])
@@ -541,7 +541,7 @@ class TestLoadTelegramRules:
         rule = Rule(
             name="rule-with-steps",
             enabled=True,
-            trigger_type="telegram",
+            trigger_types=["telegram"],
             telegram_trigger_config={"command": "/test", "allowed_chat_ids": ["1"]},
         )
         db_session.add(rule)

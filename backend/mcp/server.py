@@ -310,7 +310,7 @@ async def get_rules(enabled_only: bool = True) -> list[dict]:
                 "name": r.name,
                 "description": r.description,
                 "enabled": r.enabled,
-                "schedule_cron": r.schedule_cron,
+                "trigger_types": r.trigger_types,
                 "cool_off_minutes": r.cool_off_minutes,
                 "max_daily_triggers": r.max_daily_triggers,
             }
@@ -1184,3 +1184,225 @@ async def complete_quiz_session(session_id: int) -> dict:
 
     result = await _svc.knowledge_delivery.complete_quiz_session(session_id)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Rule authoring (Phase 7: import/export + plugin metadata for agents)
+# ---------------------------------------------------------------------------
+
+
+@_register
+async def list_plugin_metadata(
+    kind: str | None = None,
+) -> list[dict]:
+    """Return metadata for every registered plugin (step, filter, or channel).
+
+    Args:
+        kind: Filter by kind. One of 'step', 'filter', 'channel'. If None, returns all.
+    """
+    from backend.channels import ChannelRegistry
+    from backend.filters import FilterRegistry
+    from backend.steps import StepRegistry
+
+    results: list[dict] = []
+
+    if kind is None or kind == "step":
+        StepRegistry.discover()
+        for meta in StepRegistry.all_metadata():
+            results.append({
+                "kind": "step",
+                "type_name": meta.type_name,
+                "display_name": meta.display_name,
+                "category": meta.category,
+                "icon": meta.icon,
+                "description": meta.description,
+                "config_schema": meta.config_schema,
+                "default_config": meta.default_config,
+                "output_schema": meta.output_schema,
+                "schema_version": meta.schema_version,
+                "deprecated": meta.deprecated,
+                "tags": list(meta.tags),
+            })
+
+    if kind is None or kind == "filter":
+        FilterRegistry.discover()
+        for meta in FilterRegistry.all_metadata():
+            results.append({
+                "kind": "filter",
+                "type_name": meta.filter_type,
+                "display_name": meta.display_name,
+                "description": meta.description,
+                "config_schema": meta.config_schema,
+                "schema_version": meta.schema_version,
+            })
+
+    if kind is None or kind == "channel":
+        ChannelRegistry.discover()
+        for meta in ChannelRegistry.all_metadata():
+            results.append({
+                "kind": "channel",
+                "type_name": meta.channel_name,
+                "display_name": meta.display_name,
+                "description": meta.description,
+                "config_schema": meta.config_schema,
+                "schema_version": meta.schema_version,
+            })
+
+    return results
+
+
+@_register
+async def get_rule_bundle(rule_id: int) -> dict:
+    """Export a rule as a portable bundle that can be shared or imported into another install."""
+    from importlib.metadata import version as _pkg_version
+
+    from sqlalchemy.orm import joinedload
+
+    from backend.models.rule import Rule
+    from backend.services.rule_serializer import rule_to_bundle
+
+    db = _svc.db_factory()
+    try:
+        rule = (
+            db.query(Rule)
+            .options(
+                joinedload(Rule.steps),
+                joinedload(Rule.contexts),
+                joinedload(Rule.dependencies),
+                joinedload(Rule.cron_triggers),
+            )
+            .filter(Rule.id == rule_id)
+            .first()
+        )
+        if not rule:
+            return {"error": f"Rule {rule_id} not found"}
+
+        bundle = rule_to_bundle(rule, app_version=_pkg_version("cognitive-companion"))
+        return bundle.model_dump(mode="json")
+    finally:
+        db.close()
+
+
+@_register
+async def import_rule_bundle(
+    bundle: dict,
+    mode: str = "preview",
+) -> dict:
+    """Validate and optionally commit a rule bundle. Returns the same report the UI shows.
+
+    Args:
+        bundle: The RuleBundle as a JSON dict.
+        mode: 'preview' validates without writing; 'commit' writes to the database.
+    """
+    from importlib.metadata import version as _pkg_version
+
+    from backend.schemas.rule_bundle import RuleBundle
+    from backend.services.rule_serializer import validate_bundle
+
+    app_version = _pkg_version("cognitive-companion")
+
+    try:
+        parsed = RuleBundle(**bundle)
+    except Exception as e:
+        return {"status": "error", "errors": [f"Invalid bundle: {e}"]}
+
+    if mode == "preview":
+        return validate_bundle(parsed, app_version).model_dump(mode="json")
+
+    # Commit mode
+    db = _svc.db_factory()
+    try:
+        from backend.models.cron_trigger import CronTrigger
+        from backend.models.pipeline import PipelineStep
+        from backend.models.rule import Rule, RuleContext, RuleDependency
+
+        # Validate first
+        report = validate_bundle(parsed, app_version)
+        if report.status == "error":
+            return report.model_dump(mode="json")
+
+        existing = db.query(Rule).filter(Rule.name == parsed.rule.name).first()
+        if existing:
+            return {"status": "error", "errors": [f"Rule '{parsed.rule.name}' already exists"]}
+
+        rule_def = parsed.rule
+        rule = Rule(
+            name=rule_def.name,
+            description=rule_def.description,
+            enabled=rule_def.enabled,
+            trigger_types=rule_def.trigger_types,
+            primary_sensor_id=rule_def.primary_sensor_ref.label
+            if rule_def.primary_sensor_ref
+            else None,
+            cool_off_minutes=rule_def.cool_off_minutes,
+            max_daily_triggers=rule_def.max_daily_triggers,
+            max_concurrent_executions=rule_def.max_concurrent_executions,
+            execution_timeout_minutes=rule_def.execution_timeout_minutes,
+            webhook_config=rule_def.webhook_config,
+            occupancy_config=rule_def.occupancy_config,
+            telegram_trigger_config=rule_def.telegram_trigger_config,
+        )
+        db.add(rule)
+        db.flush()
+
+        for ce in rule_def.cron_expressions:
+            ct = CronTrigger(
+                name=f"{rule_def.name} ({ce.expression})",
+                expression=ce.expression,
+                timezone=ce.timezone,
+            )
+            db.add(ct)
+            db.flush()
+            rule.cron_triggers.append(ct)
+
+        for ctx_bundle in parsed.contexts:
+            ctx = RuleContext(
+                rule_id=rule.id,
+                context_type=ctx_bundle.context_type,
+                config_json=ctx_bundle.config,
+                negate=ctx_bundle.negate,
+            )
+            db.add(ctx)
+
+        step_id_map: dict[str, int] = {}
+        for i, step_bundle in enumerate(parsed.steps):
+            step = PipelineStep(
+                rule_id=rule.id,
+                order=i,
+                step_type=step_bundle.step_type,
+                label=step_bundle.label,
+                config_json=step_bundle.config,
+                enabled=step_bundle.enabled,
+            )
+            db.add(step)
+            db.flush()
+            step_id_map[step_bundle.label] = step.id
+
+        for step_bundle in parsed.steps:
+            step_id = step_id_map[step_bundle.label]
+            step = db.get(PipelineStep, step_id)
+            if step and step_bundle.branches.on_true:
+                step.next_step_on_true = step_id_map.get(step_bundle.branches.on_true)
+            if step and step_bundle.branches.on_false:
+                step.next_step_on_false = step_id_map.get(step_bundle.branches.on_false)
+
+        for dep_bundle in parsed.dependencies:
+            parent = db.query(Rule).filter(Rule.name == dep_bundle.parent_rule_name).first()
+            if parent:
+                dep = RuleDependency(
+                    dependent_rule_id=rule.id,
+                    parent_rule_id=parent.id,
+                    lookback_minutes=dep_bundle.lookback_minutes,
+                    require_success=dep_bundle.require_success,
+                )
+                db.add(dep)
+
+        db.commit()
+        report.rule_id = rule.id
+        report.status = "ok"
+        return report.model_dump(mode="json")
+    except Exception as e:
+        db.rollback()
+        return {"status": "error", "errors": [str(e)]}
+    finally:
+        db.close()

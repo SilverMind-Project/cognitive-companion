@@ -6,7 +6,7 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 
 ## What this is
 
-Privacy-first, on-premise AI for senior care. Python 3.14 FastAPI backend, Vue 3 + Vuetify frontend, PostgreSQL 18 (shared `timescale/timescaledb-ha:pg18` instance), plugin-based per-rule pipelines. The backend is also the BFF gateway for sibling services: `person-identification-service`, `scene-analysis-service`, `semantic-memory-service`, `tts-service`, and the `continuous-tracking/` family.
+Privacy-first, on-premise AI for senior care. Python 3.14 FastAPI backend, Vue 3 + Vuetify frontend, PostgreSQL 18 (shared `timescale/timescaledb-ha:pg18` instance), plugin-based per-rule pipelines. The backend is also the BFF gateway for sibling services in the monorepo: `person-identification-service`, `scene-analysis-service`, `semantic-memory-service`, `tts-service`, and the `continuous-tracking/` family.
 
 ---
 
@@ -45,6 +45,9 @@ make init-db / make migrate / make migration / make migration-history
 
 # Docker
 docker compose up -d
+
+# Scaffold a new step type
+uv run --project backend python -m backend.steps._scaffold new <type_name> --category <category>
 ```
 
 `make check` is the fast pre-commit gate. `make check-all` is required for service or schema changes.
@@ -64,6 +67,9 @@ docker compose up -d
 - **Shared PostgreSQL.** The database host, port, user, password, and name come from `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` env vars. The shared `timescale/timescaledb-ha:pg18` instance hosts three databases: `cognitive_companion`, `continuous_tracking`, `semantic_memory`. Dev: `docker compose --profile standalone up -d` for a self-contained Postgres, or use the shared `docker-compose.db.yml` via `include`.
 - **CTS surface is isolated.** Don't write CTS tables outside `services/cts/`. Don't import `_upstream_base` from non-CTS code. Don't subscribe to `tracking.*` or `scene.*` streams outside `CTSRuntime`.
 - **No em-dashes in `.md` files.** Use colons, commas, semicolons.
+- **Template expressions use `{{ }}` syntax everywhere.** The Lark-based grammar in `backend/core/template_grammar.lark` is the single evaluator. Bare expressions (no braces) are not supported. JMESPath uses pipe syntax: `steps.foo.outputs.detections | length(@)`.
+- **Plugins declare their output schema.** Every data-emitting step handler must include `output_schema` in its `StepMetadata`. The contract tests in `backend/tests/steps/test_registry_contract.py` enforce this.
+- **Config is validated before step execution.** `PipelineExecutor` runs `jsonschema.validate(config, schema)` before calling `handler.execute()`. Handlers receive known-valid config.
 
 ---
 
@@ -82,13 +88,19 @@ class YourStepHandler(StepHandler):
             description="...",
             config_schema={...},
             default_config={...},
+            # New fields (all optional with defaults):
+            schema_version=1,
+            ui_hints_version=1,
+            ui_hints={},            # x-ui widget hints for SchemaForm
+            output_schema={},        # JSONSchema for step outputs (REQUIRED for data-emitting steps)
+            tags=(),                # for palette grouping/search
         )
 
     async def execute(self, step, execution, pipeline_data, trigger, services) -> StepResult:
         return StepResult(data={"your_key": result})
 ```
 
-`ChannelRegistry` and `FilterRegistry` follow the same shape (see AGENTS.md sections 7 and 8).
+`ChannelRegistry` and `FilterRegistry` follow the same shape (see AGENTS.md sections 7 and 8). Both support `schema_version` for migration chains.
 
 ---
 
@@ -106,6 +118,52 @@ class YourStepHandler(StepHandler):
 
 ---
 
+## Trigger architecture
+
+Triggers are decoupled from rules. A `Rule` stores `trigger_types: list[str]` (JSON column, default `["sensor_event"]`). Cron schedules are managed through a separate `CronTrigger` model with a many-to-many join table (`rule_cron_triggers`).
+
+| Trigger type | Mechanism |
+|---|---|
+| `sensor_event` | RulesEngine queries all rules with `trigger_types` containing `"sensor_event"` |
+| `cron` | Scheduler creates one APScheduler job per `CronTrigger` row. On fire, queries `rule_cron_triggers` for linked rules and dispatches each through `RulesEngine` (context filters, dependencies, rate limits all apply) |
+| `webhook` | `POST /webhooks/{rule_id}`; rule must have `"webhook"` in `trigger_types` and a configured secret |
+| `telegram` | `TelegramTriggerService` polls for commands, matches rules with `"telegram"` in `trigger_types` |
+| `manual` | `POST /rules/{id}/execute`; works for any enabled rule |
+| `occupancy_duration` | RulesEngine with `trigger_type="occupancy_duration"` filter |
+
+A rule can respond to multiple trigger types simultaneously (e.g., both cron and sensor_event).
+
+---
+
+## Expression grammar
+
+All `{{ }}` template expressions use a Lark-based grammar defined in `backend/core/template_grammar.lark`. The grammar supports:
+
+- **Path access:** `steps.foo.outputs.bar`, `trigger.sensor_id`, `system.local_time`
+- **List indexing:** `steps.foo.outputs.detections.0.label`
+- **JMESPath pipes:** `steps.foo.outputs.detections | length(@)`
+- **Comparisons:** `==`, `!=`, `>`, `<`, `>=`, `<=`
+- **Boolean:** `and`, `or`, `not`
+- **Functions:** `contains()`, `icontains()`, `length()`, `lower()`, `upper()`, `keys()`, `values()`, `exists()`
+- **Literals:** numbers, `true`, `false`, `null`, quoted strings
+
+The old `ConditionEvaluator` in `backend/services/condition_evaluator.py` has been deleted. The Lark interpreter in `backend/core/template_interpreter.py` is the single evaluator for both template substitution and condition evaluation.
+
+For simple dotted paths (no operators), `render_template` uses a fast regex + `resolve_path` shortcut. Everything else goes through the Lark parser.
+
+---
+
+## Import/export
+
+Rules can be exported to portable YAML/JSON bundles and imported across installations.
+
+- **Export:** `GET /rules/{id}/export` returns a `RuleBundle` with label-based cross-references (no DB ids)
+- **Import:** `POST /rules/import/preview` validates without writing; `POST /rules/import` commits within a transaction
+- **ConfigMigration:** Each plugin can declare migration chains in its metadata via `ConfigMigration` dataclasses
+- **Schema:** `backend/schemas/rule_bundle.py`, serializer in `backend/services/rule_serializer.py`
+
+---
+
 ## Correctness expectations for every change
 
 1. `make check` passes (lint + strict mypy on core + core tests). For service or schema changes, also `make check-all`.
@@ -114,6 +172,7 @@ class YourStepHandler(StepHandler):
 4. Graceful degradation. Integration clients return `None`, `[]`, or a typed zero value when upstream is disabled or unreachable; no exceptions bubble.
 5. New endpoints have an `auth.yaml` entry.
 6. Frontend changes pass `cd frontend && npm run build`. New step / filter types also pass `npm run test`.
+7. **New:** Plugin contract tests pass. Every config_schema is valid JSONSchema, every default_config validates against it, every data-emitting step has a non-empty `output_schema`.
 
 ---
 
@@ -126,12 +185,15 @@ class YourStepHandler(StepHandler):
 - For class-level property overrides: local subclass; never `type(obj).prop = property(...)`.
 - For `SignalStore`: inject the conftest `db_factory` (returns plain `Session`, not a context manager).
 - HTTP is patched via `unittest.mock.patch("backend.integrations.<module>.httpx.AsyncClient")`.
+- For expression grammar tests: use `backend.core.template_ast.parse_expression()` and `backend.core.template_interpreter._eval()`. For template tests: `render_template()`.
+- For migration tests: frozen fixtures in `backend/tests/fixtures/rule_bundles/`.
+- **New:** Use `backend/steps/_testing.assert_output_conforms_to_schema()` in step handler tests to verify output schema compliance.
 
 ---
 
 ## What NOT to do (short list)
 
-- `print()` (use `get_logger()`); `eval()` for conditions (use `ConditionEvaluator`); `alert()` / `confirm()` in Vue (use `useNotify`, `useConfirm`); `toLocaleString()` directly (use `services/timezone.js`).
+- `print()` (use `get_logger()`); `eval()` for conditions (use Lark grammar via `evaluate_condition()`); `alert()` / `confirm()` in Vue (use `useNotify`, `useConfirm`); `toLocaleString()` directly (use `services/timezone.js`).
 - Catch `AuthenticationError` / `PermissionDeniedError` in routers.
 - Run structural migrations by hand in production.
 - Add deps without updating `pyproject.toml` and running `uv lock`, or `package.json` and `npm install`.
@@ -139,6 +201,8 @@ class YourStepHandler(StepHandler):
 - Add new callers of `services.person_tracking` or `services.activity_session_service` (deprecated; use `services.activity`).
 - Import `_upstream_base` from non-CTS code.
 - Hardcode timezone strings.
+- Use bare condition expressions without `{{ }}` wrapping (the old syntax is not supported).
+- Access `self._pipeline_executor._services` from Scheduler (use the public `event_aggregator` property).
 
 Full do-not list: AGENTS.md section 19.
 
@@ -182,10 +246,15 @@ This project loads two skills at conversation start. Read them before making fro
 | Startup wiring | `backend/main.py` (lifespan) |
 | Step plugin contract | `backend/steps/base.py` |
 | Trace a rule firing | `backend/services/workflow.py` → `rules_engine.py` → `pipeline_executor.py` |
-| Condition evaluation | `backend/services/condition_evaluator.py` |
+| Condition / expression evaluation | `backend/core/template_grammar.lark` → `template_ast.py` → `template_interpreter.py` |
+| Template rendering | `backend/core/template.py` |
 | CTS data flow | `backend/services/cts/runtime.py` and the four subscribers |
 | Presence fusion | `backend/services/presence/factory.py`, `service.py`, plus `config/presence.yaml` |
 | LLM model registry | `backend/integrations/llm/__init__.py` |
 | Notification routing | `backend/services/notification_dispatcher.py` and `config/notifications.yaml` |
+| Trigger dispatch | `backend/services/scheduler.py` (cron), `backend/services/rules_engine.py` (sensor/occupancy) |
+| Import/export | `backend/services/rule_serializer.py`, `backend/schemas/rule_bundle.py` |
+| Plugin migrations | `backend/core/plugin_migrations.py` |
+| Cron expression handling | `backend/routers/pipeline.py` (preview endpoint) |
 | Frontend styling | `frontend/src/styles/theme.css` and the `front-end` skill |
 | Testing conventions | AGENTS.md section 16 and `engineering-standards` skill section 6 |

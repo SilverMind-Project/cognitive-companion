@@ -40,3 +40,21 @@ class LLMModelOut(BaseModel):
     default_temperature: float | None
     default_top_p: float | None
     default_max_tokens: int
+
+
+# -- Cron preview ------------------------------------------------------------
+
+
+class CronPreviewRequest(BaseModel):
+    expression: str
+    timezone: str | None = None
+    count: int = 5
+
+
+class CronPreviewResponse(BaseModel):
+    valid: bool
+    error: str | None = None
+    next_runs: list[str]  # ISO 8601
+    parsed: dict | None = None  # minute, hour, dom, month, dow
+    preset: str | None = None
+    description: str | None = None

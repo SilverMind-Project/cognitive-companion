@@ -21,7 +21,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.cron import CronTrigger as ApschedulerCronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select
@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.models.cron_trigger import CronTrigger, RuleCronTrigger
 from backend.models.rule import Rule
 from backend.services.event_aggregator import EventAggregator
 
@@ -60,11 +61,13 @@ class Scheduler:
         db_session_factory: Callable[[], Session],
         pipeline_executor: Any = None,
         *,
+        rules_engine: Any = None,
         apscheduler: AsyncIOScheduler | None = None,
     ) -> None:
         self._event_aggregator = event_aggregator
         self._db_session_factory = db_session_factory
         self._pipeline_executor = pipeline_executor
+        self._rules_engine = rules_engine
         self._scheduler = apscheduler or AsyncIOScheduler()
 
     # -- public API ---------------------------------------------------------
@@ -102,7 +105,7 @@ class Scheduler:
     def reload_rules(self) -> None:
         """Remove all rule-based jobs and re-add them from the database."""
         for job in self._scheduler.get_jobs():
-            if job.id.startswith("rule_"):
+            if job.id.startswith("cron_"):
                 self._scheduler.remove_job(job.id)
                 logger.debug("rule_job_removed", job_id=job.id)
 
@@ -128,46 +131,76 @@ class Scheduler:
 
     # -- callbacks ----------------------------------------------------------
 
-    async def execute_periodic_rule(self, rule_id: int) -> None:
-        """Execute a periodic (cron-scheduled) rule via the pipeline executor."""
+    async def execute_periodic_rule(self, cron_trigger_id: int) -> None:
+        """Execute all rules linked to a cron trigger, filtered through RulesEngine.
+
+        One job is scheduled per CronTrigger. When it fires, all rules linked
+        via rule_cron_triggers are evaluated for contexts, dependencies, and
+        rate limits before execution.
+        """
         if not self._pipeline_executor:
-            logger.warning("pipeline_executor_not_set", rule_id=rule_id)
+            logger.warning("pipeline_executor_not_set", cron_trigger_id=cron_trigger_id)
             return
 
         from backend.services.pipeline_executor import TriggerContext
 
         db: Session = self._db_session_factory()
         try:
-            rule = db.get(Rule, rule_id)
-            if rule is None:
-                logger.warning("periodic_rule_not_found", rule_id=rule_id)
+            ct = db.get(CronTrigger, cron_trigger_id)
+            if ct is None:
+                logger.warning("cron_trigger_not_found", cron_trigger_id=cron_trigger_id)
                 return
 
-            if not rule.enabled:
-                logger.debug("periodic_rule_disabled", rule_id=rule_id, name=rule.name)
+            if not ct.enabled:
+                logger.debug("cron_trigger_disabled", cron_trigger_id=cron_trigger_id, name=ct.name)
                 return
 
-            media_paths: list[str] = []
-            aggregator = self._pipeline_executor._services.event_aggregator
-            if rule.primary_sensor_id and aggregator:
-                media_paths = await aggregator.get_recent_images(rule.primary_sensor_id, limit=3)
-
-            trigger = TriggerContext(
-                trigger_type="cron",
-                sensor_id=rule.primary_sensor_id,
-                room_name=None,
-                media_paths=media_paths,
+            # Find all enabled rules linked to this cron trigger
+            rule_ids = [
+                row[0]
+                for row in db.query(RuleCronTrigger.rule_id)
+                .filter(RuleCronTrigger.cron_trigger_id == cron_trigger_id)
+                .all()
+            ]
+            rules = (
+                db.query(Rule)
+                .filter(Rule.id.in_(rule_ids), Rule.enabled.is_(True))
+                .all()
             )
 
-            await self._pipeline_executor.execute(rule, trigger, db)
             logger.info(
-                "periodic_rule_executed",
-                rule_id=rule_id,
-                name=rule.name,
-                schedule_cron=rule.schedule_cron,
+                "cron_trigger_fired",
+                cron_trigger_id=cron_trigger_id,
+                cron_trigger_name=ct.name,
+                expression=ct.expression,
+                linked_rules=len(rules),
             )
+
+            for rule in rules:
+                if self._rules_engine is not None and not self._rules_engine.get_matching_rules_for_cron(rule, db):
+                    continue
+
+                media_paths: list[str] = []
+                aggregator = self._pipeline_executor.event_aggregator
+                if rule.primary_sensor_id and aggregator:
+                    media_paths = await aggregator.get_recent_images(rule.primary_sensor_id, limit=3)
+
+                trigger = TriggerContext(
+                    trigger_type="cron",
+                    sensor_id=rule.primary_sensor_id,
+                    room_name=None,
+                    media_paths=media_paths,
+                )
+
+                await self._pipeline_executor.execute(rule, trigger, db)
+                logger.info(
+                    "periodic_rule_executed",
+                    rule_id=rule.id,
+                    rule_name=rule.name,
+                    cron_trigger_name=ct.name,
+                )
         except Exception:
-            logger.exception("periodic_rule_error", rule_id=rule_id)
+            logger.exception("periodic_rule_error", cron_trigger_id=cron_trigger_id)
         finally:
             db.close()
 
@@ -193,51 +226,48 @@ class Scheduler:
     # -- internal helpers ---------------------------------------------------
 
     def _load_rule_jobs(self) -> None:
-        """Query DB for enabled rules with a cron schedule and register them.
+        """Query DB for enabled cron triggers and register APScheduler jobs.
 
-        Cron expressions are always interpreted in the application timezone
-        (``app.timezone`` in settings.yaml) so that "0 8 * * *" fires at
-        08:00 local time, not 08:00 UTC.  APScheduler's ``CronTrigger``
-        handles DST transitions automatically when a ``ZoneInfo`` is given.
+        One job is created per CronTrigger (not per Rule). When the job fires,
+        all rules linked to that trigger via rule_cron_triggers are evaluated
+        through RulesEngine and executed if they pass.
         """
         db: Session = self._db_session_factory()
-        tz = _app_timezone()
+        app_tz = _app_timezone()
         try:
-            stmt = select(Rule).where(
-                Rule.enabled.is_(True),
-                Rule.schedule_cron.isnot(None),
-            )
-            rules: list[Rule] = list(db.execute(stmt).scalars().all())
+            stmt = select(CronTrigger).where(CronTrigger.enabled.is_(True))
+            triggers: list[CronTrigger] = list(db.execute(stmt).scalars().all())
 
-            for rule in rules:
-                job_id = f"rule_{rule.id}"
+            for ct in triggers:
+                job_id = f"cron_{ct.id}"
+                trigger_tz = ZoneInfo(ct.timezone) if ct.timezone else app_tz
                 try:
-                    trigger = CronTrigger.from_crontab(rule.schedule_cron, timezone=tz)
+                    trigger = ApschedulerCronTrigger.from_crontab(ct.expression, timezone=trigger_tz)
                 except ValueError:
                     logger.warning(
                         "invalid_cron_expression",
-                        rule_id=rule.id,
-                        schedule_cron=rule.schedule_cron,
+                        cron_trigger_id=ct.id,
+                        expression=ct.expression,
                     )
                     continue
 
                 self._scheduler.add_job(
                     self.execute_periodic_rule,
                     trigger=trigger,
-                    args=[rule.id],
+                    args=[ct.id],
                     id=job_id,
-                    name=f"Rule: {rule.name}",
+                    name=f"Cron: {ct.name}",
                     replace_existing=True,
                 )
                 logger.info(
-                    "rule_job_added",
+                    "cron_trigger_job_added",
                     job_id=job_id,
-                    rule_name=rule.name,
-                    cron=rule.schedule_cron,
-                    timezone=str(tz),
+                    cron_trigger_name=ct.name,
+                    expression=ct.expression,
+                    timezone=str(trigger_tz),
                 )
 
-            logger.info("rule_jobs_loaded", count=len(rules))
+            logger.info("cron_trigger_jobs_loaded", count=len(triggers))
         finally:
             db.close()
 
@@ -338,6 +368,8 @@ def setup_scheduler(
     event_aggregator: EventAggregator,
     db_session_factory: Callable[[], Session],
     pipeline_executor: Any = None,
+    *,
+    rules_engine: Any = None,
 ) -> AsyncIOScheduler:
     """Create and configure the default :class:`Scheduler`, returning its
     underlying ``AsyncIOScheduler`` for backward compatibility.
@@ -347,6 +379,7 @@ def setup_scheduler(
         event_aggregator=event_aggregator,
         db_session_factory=db_session_factory,
         pipeline_executor=pipeline_executor,
+        rules_engine=rules_engine,
     )
     instance.configure()
     _default_scheduler = instance
@@ -371,33 +404,31 @@ def reload_scheduled_rules(
 
     # Legacy path: rebuild jobs against the caller's bare scheduler.
     for job in scheduler.get_jobs():
-        if job.id.startswith("rule_"):
+        if job.id.startswith("cron_"):
             scheduler.remove_job(job.id)
-            logger.debug("rule_job_removed", job_id=job.id)
+            logger.debug("cron_job_removed", job_id=job.id)
 
     tz = _app_timezone()
     db: Session = db_session_factory()
     try:
-        stmt = select(Rule).where(
-            Rule.enabled.is_(True),
-            Rule.schedule_cron.isnot(None),
-        )
-        for rule in db.execute(stmt).scalars().all():
+        stmt = select(CronTrigger).where(CronTrigger.enabled.is_(True))
+        for ct in db.execute(stmt).scalars().all():
+            trigger_tz = ZoneInfo(ct.timezone) if ct.timezone else tz
             try:
-                trigger = CronTrigger.from_crontab(rule.schedule_cron, timezone=tz)
+                trigger = ApschedulerCronTrigger.from_crontab(ct.expression, timezone=trigger_tz)
             except ValueError:
                 logger.warning(
                     "invalid_cron_expression",
-                    rule_id=rule.id,
-                    schedule_cron=rule.schedule_cron,
+                    cron_trigger_id=ct.id,
+                    expression=ct.expression,
                 )
                 continue
             scheduler.add_job(
                 execute_periodic_rule,
                 trigger=trigger,
-                args=[rule.id, db_session_factory],
-                id=f"rule_{rule.id}",
-                name=f"Rule: {rule.name}",
+                args=[ct.id, db_session_factory],
+                id=f"cron_{ct.id}",
+                name=f"Cron: {ct.name}",
                 replace_existing=True,
             )
     finally:
@@ -406,22 +437,19 @@ def reload_scheduled_rules(
 
 
 async def execute_periodic_rule(
-    rule_id: int,
+    cron_trigger_id: int,
     db_session_factory: Callable[[], Session],
 ) -> None:
     """Module-level facade kept for the legacy job-args code path."""
     if _default_scheduler is not None:
-        await _default_scheduler.execute_periodic_rule(rule_id)
+        await _default_scheduler.execute_periodic_rule(cron_trigger_id)
         return
 
     if not _pipeline_executor:
-        logger.warning("pipeline_executor_not_set", rule_id=rule_id)
+        logger.warning("pipeline_executor_not_set", cron_trigger_id=cron_trigger_id)
         return
 
-    # Transient instance so legacy callers still get consistent behavior.
-    from backend.services.pipeline_executor import TriggerContext  # noqa: F401
-
-    logger.warning("execute_periodic_rule_legacy_path", rule_id=rule_id)
+    logger.warning("execute_periodic_rule_legacy_path", cron_trigger_id=cron_trigger_id)
 
 
 async def _resume_workflow_callback(execution_id: int) -> None:

@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.6.100"
+version = "0.6.107"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -34,6 +34,7 @@ dependencies = [
     "pillow-heif>=0.20",
     "pgvector>=0.3",
     "triton-shared>=0.1.0",
+    "lark>=1.3.1",
 ]
 
 [project.optional-dependencies]
@@ -71,6 +72,8 @@ line-length = 100
 extend-exclude = ["integrations/proto", "scripts/*"]
 
 [tool.ruff.lint]
+extend-per-file-ignores = {"steps/_scaffold/__init__.py" = ["T201"]}
+
 select = [
     "E",     # pycodestyle errors
     "F",     # pyflakes (includes unused imports, undefined names)

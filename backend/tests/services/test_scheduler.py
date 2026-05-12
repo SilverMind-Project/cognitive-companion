@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from backend.models.cron_trigger import CronTrigger, RuleCronTrigger
 from backend.models.pipeline import WorkflowExecution
 from backend.models.rule import Rule
 from backend.services import scheduler as scheduler_module
@@ -43,6 +44,7 @@ def pipeline_executor(aggregator) -> MagicMock:
     pe.resume = AsyncMock()
     pe._services = MagicMock()
     pe._services.event_aggregator = aggregator
+    pe.event_aggregator = aggregator  # set directly for scheduler access
     return pe
 
 
@@ -56,8 +58,7 @@ def _make_rule(db, **kwargs) -> Rule:
     defaults = {
         "name": kwargs.pop("name", "r"),
         "enabled": True,
-        "trigger_type": "cron",
-        "schedule_cron": "*/5 * * * *",
+        "trigger_types": kwargs.pop("trigger_types", ["sensor_event"]),
         "cool_off_minutes": 0,
         "max_daily_triggers": 0,
     }
@@ -66,6 +67,23 @@ def _make_rule(db, **kwargs) -> Rule:
     db.add(rule)
     db.flush()
     return rule
+
+
+def _make_cron_trigger(db, rule=None, **kwargs) -> CronTrigger:
+    """Create a CronTrigger, optionally linked to *rule* via RuleCronTrigger."""
+    ct = CronTrigger(
+        name=kwargs.pop("name", "test-cron"),
+        expression=kwargs.pop("expression", "*/5 * * * *"),
+        timezone=kwargs.pop("timezone", "UTC"),
+        enabled=kwargs.pop("enabled", True),
+        **kwargs,
+    )
+    db.add(ct)
+    db.flush()
+    if rule is not None:
+        db.add(RuleCronTrigger(rule_id=rule.id, cron_trigger_id=ct.id))
+        db.flush()
+    return ct
 
 
 # ---------------------------------------------------------------------------
@@ -81,31 +99,33 @@ def test_configure_adds_maintenance_job(db_factory, aggregator, pipeline_executo
 
 
 def test_configure_loads_rule_jobs(db_session, db_factory, aggregator, pipeline_executor) -> None:
-    rule = _make_rule(db_session, name="rule-a", schedule_cron="*/10 * * * *")
+    rule = _make_rule(db_session, name="rule-a")
+    ct = _make_cron_trigger(db_session, rule=rule, expression="*/10 * * * *")
     db_session.commit()
 
     s = Scheduler(aggregator, db_factory, pipeline_executor)
     s.configure()
     job_ids = {j.id for j in s.apscheduler.get_jobs()}
-    assert f"rule_{rule.id}" in job_ids
+    assert f"cron_{ct.id}" in job_ids
 
 
 def test_configure_skips_invalid_cron(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    rule = _make_rule(db_session, name="bad", schedule_cron="not a cron")
+    rule = _make_rule(db_session, name="bad")
+    ct = _make_cron_trigger(db_session, rule=rule, expression="not a cron")
     db_session.commit()
 
     s = Scheduler(aggregator, db_factory, pipeline_executor)
     s.configure()
     job_ids = {j.id for j in s.apscheduler.get_jobs()}
-    assert f"rule_{rule.id}" not in job_ids
+    assert f"cron_{ct.id}" not in job_ids
 
 
 def test_configure_schedules_pending_resumes(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    rule = _make_rule(db_session, schedule_cron=None)
+    rule = _make_rule(db_session)
     execution = WorkflowExecution(
         rule_id=rule.id,
         status="waiting",
@@ -129,21 +149,23 @@ def test_reload_rules_removes_and_readds(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
     rule1 = _make_rule(db_session, name="r1")
+    ct1 = _make_cron_trigger(db_session, rule=rule1)
     db_session.commit()
 
     s = Scheduler(aggregator, db_factory, pipeline_executor)
     s.configure()
-    assert f"rule_{rule1.id}" in {j.id for j in s.apscheduler.get_jobs()}
+    assert f"cron_{ct1.id}" in {j.id for j in s.apscheduler.get_jobs()}
 
-    # Disable rule1 and add rule2
-    rule1.enabled = False
-    rule2 = _make_rule(db_session, name="r2", schedule_cron="0 * * * *")
+    # Disable cron trigger 1 and add a new rule + trigger
+    ct1.enabled = False
+    rule2 = _make_rule(db_session, name="r2")
+    ct2 = _make_cron_trigger(db_session, rule=rule2, expression="0 * * * *")
     db_session.commit()
 
     s.reload_rules()
     job_ids = {j.id for j in s.apscheduler.get_jobs()}
-    assert f"rule_{rule1.id}" not in job_ids
-    assert f"rule_{rule2.id}" in job_ids
+    assert f"cron_{ct1.id}" not in job_ids
+    assert f"cron_{ct2.id}" in job_ids
 
 
 # ---------------------------------------------------------------------------
@@ -181,11 +203,12 @@ async def test_execute_periodic_rule_missing_rule(
 async def test_execute_periodic_rule_disabled(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    rule = _make_rule(db_session, enabled=False, schedule_cron=None)
+    rule = _make_rule(db_session, enabled=False)
+    ct = _make_cron_trigger(db_session, rule=rule)
     db_session.commit()
 
     s = Scheduler(aggregator, db_factory, pipeline_executor)
-    await s.execute_periodic_rule(rule.id)
+    await s.execute_periodic_rule(ct.id)
     pipeline_executor.execute.assert_not_awaited()
 
 
@@ -193,11 +216,12 @@ async def test_execute_periodic_rule_disabled(
 async def test_execute_periodic_rule_success(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    rule = _make_rule(db_session, schedule_cron=None, primary_sensor_id="cam1")
+    rule = _make_rule(db_session, primary_sensor_id="cam1")
+    ct = _make_cron_trigger(db_session, rule=rule)
     db_session.commit()
 
     s = Scheduler(aggregator, db_factory, pipeline_executor)
-    await s.execute_periodic_rule(rule.id)
+    await s.execute_periodic_rule(ct.id)
     pipeline_executor.execute.assert_awaited_once()
     trigger = pipeline_executor.execute.await_args.args[1]
     assert trigger.trigger_type == "cron"
@@ -209,11 +233,12 @@ async def test_execute_periodic_rule_success(
 async def test_execute_periodic_rule_skips_aggregator_fetch_without_sensor(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    rule = _make_rule(db_session, schedule_cron=None, primary_sensor_id=None)
+    rule = _make_rule(db_session, primary_sensor_id=None)
+    ct = _make_cron_trigger(db_session, rule=rule)
     db_session.commit()
 
     s = Scheduler(aggregator, db_factory, pipeline_executor)
-    await s.execute_periodic_rule(rule.id)
+    await s.execute_periodic_rule(ct.id)
     aggregator.get_recent_images.assert_not_awaited()
     pipeline_executor.execute.assert_awaited_once()
 
@@ -222,13 +247,14 @@ async def test_execute_periodic_rule_skips_aggregator_fetch_without_sensor(
 async def test_execute_periodic_rule_swallows_exception(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    rule = _make_rule(db_session, schedule_cron=None, primary_sensor_id="cam1")
+    rule = _make_rule(db_session, primary_sensor_id="cam1")
+    ct = _make_cron_trigger(db_session, rule=rule)
     db_session.commit()
     pipeline_executor.execute.side_effect = RuntimeError("boom")
 
     s = Scheduler(aggregator, db_factory, pipeline_executor)
     # Must not raise.
-    await s.execute_periodic_rule(rule.id)
+    await s.execute_periodic_rule(ct.id)
 
 
 # ---------------------------------------------------------------------------
@@ -286,7 +312,8 @@ def test_bridge_wraps_raw_apscheduler(db_factory, aggregator, pipeline_executor)
 def test_setup_scheduler_returns_apscheduler_and_populates_globals(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    rule = _make_rule(db_session, name="facade", schedule_cron="*/1 * * * *")
+    rule = _make_rule(db_session, name="facade")
+    ct = _make_cron_trigger(db_session, rule=rule, expression="*/1 * * * *")
     db_session.commit()
 
     ap = setup_scheduler(aggregator, db_factory, pipeline_executor)
@@ -294,21 +321,23 @@ def test_setup_scheduler_returns_apscheduler_and_populates_globals(
     assert scheduler_module._pipeline_executor is pipeline_executor
     assert scheduler_module._db_session_factory is db_factory
     job_ids = {j.id for j in ap.get_jobs()}
-    assert f"rule_{rule.id}" in job_ids
+    assert f"cron_{ct.id}" in job_ids
 
 
 def test_reload_scheduled_rules_delegates_to_default(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    _make_rule(db_session, name="fac-a", schedule_cron="*/1 * * * *")
+    rule1 = _make_rule(db_session, name="fac-a")
+    _make_cron_trigger(db_session, rule=rule1, expression="*/1 * * * *")
     db_session.commit()
     ap = setup_scheduler(aggregator, db_factory, pipeline_executor)
 
-    new_rule = _make_rule(db_session, name="fac-b", schedule_cron="0 * * * *")
+    rule2 = _make_rule(db_session, name="fac-b")
+    ct2 = _make_cron_trigger(db_session, rule=rule2, expression="0 * * * *")
     db_session.commit()
     reload_scheduled_rules(ap, db_factory)
 
-    assert f"rule_{new_rule.id}" in {j.id for j in ap.get_jobs()}
+    assert f"cron_{ct2.id}" in {j.id for j in ap.get_jobs()}
 
 
 def test_reload_scheduled_rules_legacy_path_without_default(
@@ -317,25 +346,27 @@ def test_reload_scheduled_rules_legacy_path_without_default(
     """When no default Scheduler is set, reload_scheduled_rules should still
     rebuild jobs against the bare apscheduler passed in.
     """
-    rule = _make_rule(db_session, name="legacy", schedule_cron="*/7 * * * *")
+    rule = _make_rule(db_session, name="legacy")
+    ct = _make_cron_trigger(db_session, rule=rule, expression="*/7 * * * *")
     db_session.commit()
 
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
     bare = AsyncIOScheduler()
     reload_scheduled_rules(bare, db_factory)
-    assert f"rule_{rule.id}" in {j.id for j in bare.get_jobs()}
+    assert f"cron_{ct.id}" in {j.id for j in bare.get_jobs()}
 
 
 @pytest.mark.asyncio
 async def test_module_execute_periodic_rule_delegates(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
-    rule = _make_rule(db_session, schedule_cron=None, primary_sensor_id="cam1")
+    rule = _make_rule(db_session, primary_sensor_id="cam1")
+    ct = _make_cron_trigger(db_session, rule=rule)
     db_session.commit()
 
     setup_scheduler(aggregator, db_factory, pipeline_executor)
-    await scheduler_module.execute_periodic_rule(rule.id, db_factory)
+    await scheduler_module.execute_periodic_rule(ct.id, db_factory)
     pipeline_executor.execute.assert_awaited_once()
 
 
@@ -384,7 +415,8 @@ def test_cron_trigger_uses_app_timezone(
     time, not at the server's system timezone or UTC.  We verify this by
     checking the timezone attached to the APScheduler job's trigger.
     """
-    _make_rule(db_session, name="tz-rule", schedule_cron="0 8 * * *")
+    rule = _make_rule(db_session, name="tz-rule")
+    _make_cron_trigger(db_session, rule=rule, expression="0 8 * * *", timezone="")
     db_session.commit()
 
     with patch(
@@ -397,8 +429,8 @@ def test_cron_trigger_uses_app_timezone(
         s.configure()
 
     jobs = {j.id: j for j in s.apscheduler.get_jobs()}
-    job = next((j for jid, j in jobs.items() if jid.startswith("rule_")), None)
-    assert job is not None, "rule job was not registered"
+    job = next((j for jid, j in jobs.items() if jid.startswith("cron_")), None)
+    assert job is not None, "cron trigger job was not registered"
     trigger = job.trigger
     # APScheduler stores the timezone on CronTrigger as ``timezone`` attribute.
     assert str(trigger.timezone) == "America/New_York", (
@@ -410,7 +442,8 @@ def test_cron_trigger_uses_utc_when_configured(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
     """When app.timezone is UTC the trigger should also use UTC."""
-    _make_rule(db_session, name="utc-rule", schedule_cron="30 12 * * *")
+    rule = _make_rule(db_session, name="utc-rule")
+    _make_cron_trigger(db_session, rule=rule, expression="30 12 * * *", timezone="")
     db_session.commit()
 
     with patch(
@@ -421,7 +454,7 @@ def test_cron_trigger_uses_utc_when_configured(
         s.configure()
 
     jobs = {j.id: j for j in s.apscheduler.get_jobs()}
-    job = next((j for jid, j in jobs.items() if jid.startswith("rule_")), None)
+    job = next((j for jid, j in jobs.items() if jid.startswith("cron_")), None)
     assert job is not None
     assert str(job.trigger.timezone) == "UTC"
 
@@ -430,7 +463,8 @@ def test_reload_rules_preserves_app_timezone(
     db_session, db_factory, aggregator, pipeline_executor
 ) -> None:
     """reload_rules() must also apply the app timezone to new CronTriggers."""
-    _make_rule(db_session, name="r-initial", schedule_cron="*/5 * * * *")
+    rule1 = _make_rule(db_session, name="r-initial")
+    _make_cron_trigger(db_session, rule=rule1, expression="*/5 * * * *", timezone="")
     db_session.commit()
 
     with patch(
@@ -442,11 +476,12 @@ def test_reload_rules_preserves_app_timezone(
         s = Scheduler(aggregator, db_factory, pipeline_executor)
         s.configure()
         # Add a second rule and reload.
-        r2 = _make_rule(db_session, name="r-reload", schedule_cron="0 9 * * 1")
+        r2 = _make_rule(db_session, name="r-reload")
+        ct2 = _make_cron_trigger(db_session, rule=r2, expression="0 9 * * 1", timezone="")
         db_session.commit()
         s.reload_rules()
 
     jobs = {j.id: j for j in s.apscheduler.get_jobs()}
-    job = jobs.get(f"rule_{r2.id}")
+    job = jobs.get(f"cron_{ct2.id}")
     assert job is not None
     assert str(job.trigger.timezone) == "America/Chicago"

@@ -25,6 +25,7 @@ class FilterMetadata:
     display_name: str  # "Room"
     description: str
     config_schema: dict  # JSONSchema for config_json validation
+    schema_version: int = 1
 
 
 class ContextFilter(HasMetadata[FilterMetadata]):

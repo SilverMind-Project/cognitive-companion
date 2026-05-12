@@ -133,7 +133,7 @@ class TestModuleFacade:
     ) -> None:
         reset_default_database()
 
-        init_db(postgres_url)
+        init_db(postgres_url, run_migrations=False)
         try:
             assert db_module._default_database is not None
             assert db_module._default_database.url == postgres_url

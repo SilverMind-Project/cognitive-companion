@@ -12,10 +12,11 @@ Privacy-first, on-premise AI for senior care. Python 3.14 FastAPI backend, Vue 3
 
 ## Read before editing
 
-1. [AGENTS.md](AGENTS.md): canonical reference (architecture, plugin contracts, all 19 step types, all 7 channels, all 13 filters, CTS gateway, testing conventions, common tasks).
+1. [AGENTS.md](AGENTS.md): canonical reference (architecture, plugin contracts, all 20 step types, all 7 channels, all 13 filters, CTS gateway, testing conventions, naming conventions, common tasks).
 2. `backend/main.py` lifespan: source of truth for service wiring and `app.state` keys.
 3. `backend/steps/base.py`: `StepHandler`, `StepMetadata`, `StepResult`, `TriggerContext`, `ServiceContainer`.
 4. `config/settings.yaml`: every tunable, plus the operator timezone.
+5. `.claude/skills/engineering-standards/SKILL.md`: coding standards, naming conventions, type safety, testing, anti-patterns (loaded as a skill at conversation start).
 
 ---
 
@@ -165,6 +166,15 @@ Full do-not list: AGENTS.md section 19.
 
 ---
 
+## Agent skills
+
+This project loads two skills at conversation start. Read them before making frontend or backend changes:
+
+- **`engineering-standards`** (`.claude/skills/engineering-standards/SKILL.md`): naming conventions, type safety, error handling, testing standards, database patterns, plugin development, API design, security, anti-patterns, pre-commit checklist.
+- **`front-end`** (`.claude/skills/front-end/SKILL.md`): design tokens, frosted-glass system, page layout pattern, dialog pattern, server-side pagination, form patterns, API contracts, composables, common mistakes.
+
+---
+
 ## Where to look when stuck
 
 | Goal | File |
@@ -173,7 +183,9 @@ Full do-not list: AGENTS.md section 19.
 | Step plugin contract | `backend/steps/base.py` |
 | Trace a rule firing | `backend/services/workflow.py` → `rules_engine.py` → `pipeline_executor.py` |
 | Condition evaluation | `backend/services/condition_evaluator.py` |
-| CTS data flow | `backend/services/cts/runtime.py` and the three subscribers |
+| CTS data flow | `backend/services/cts/runtime.py` and the four subscribers |
 | Presence fusion | `backend/services/presence/factory.py`, `service.py`, plus `config/presence.yaml` |
 | LLM model registry | `backend/integrations/llm/__init__.py` |
 | Notification routing | `backend/services/notification_dispatcher.py` and `config/notifications.yaml` |
+| Frontend styling | `frontend/src/styles/theme.css` and the `front-end` skill |
+| Testing conventions | AGENTS.md section 16 and `engineering-standards` skill section 6 |

@@ -14,7 +14,7 @@ Three things make this codebase non-trivial:
 
 1. **Plugin registries.** Pipeline steps, notification channels, and context filters are auto-discovered classes. Adding a new one is a single file in the right directory.
 2. **Composable per-rule pipelines.** Each rule defines its own ordered sequence of `PipelineStep` rows. The same step type can behave very differently across rules via per-step `config_json`.
-3. **Multi-service architecture.** The backend depends on five sibling services in this monorepo: `person-identification-service` (face ID), `scene-analysis-service` (YOLO + Florence-2 + CLIP), `semantic-memory-service` (pgvectorscale observations and movements), `tts-service` (TTS), and the `continuous-tracking/` family (multi-camera tracking + dementia signals via Redis Streams). Cognitive Companion is the BFF gateway for all browser and MCP traffic into those services.
+3. **Multi-service architecture.** The backend depends on five sibling services: `person-identification-service` (face ID), `scene-analysis-service` (YOLO + Florence-2 + CLIP), `semantic-memory-service` (pgvectorscale observations and movements), `tts-service` (TTS), and the `continuous-tracking/` family (multi-camera tracking + dementia signals via Redis Streams). Cognitive Companion is the BFF gateway for all browser and MCP traffic into those services.
 
 ---
 

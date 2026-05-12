@@ -6,7 +6,7 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 
 ## What this is
 
-Privacy-first, on-premise AI for senior care. Python 3.14 FastAPI backend, Vue 3 + Vuetify frontend, PostgreSQL 18 (shared `timescale/timescaledb-ha:pg18` instance), plugin-based per-rule pipelines. The backend is also the BFF gateway for sibling services in the monorepo: `person-identification-service`, `scene-analysis-service`, `semantic-memory-service`, `tts-service`, and the `continuous-tracking/` family.
+Privacy-first, on-premise AI for senior care. Python 3.14 FastAPI backend, Vue 3 + Vuetify frontend, PostgreSQL 18 (shared `timescale/timescaledb-ha:pg18` instance), plugin-based per-rule pipelines. The backend is also the BFF gateway for sibling services: `person-identification-service`, `scene-analysis-service`, `semantic-memory-service`, `tts-service`, and the `continuous-tracking/` family.
 
 ---
 

@@ -9,15 +9,12 @@
      | BOOL -> boolean
      | NULL -> null
      | func_call -> func_call
-     | jmespath_expr -> jmespath_expr
      | "(" expr ")"
      | path -> path
 
-path: NAME ("." (NAME | INT))* ("|" JMESPATH)?
+path: NAME ("." (NAME | INT))* (VBAR JMESPATH)?
 
 func_call: NAME "(" [expr ("," expr)*] ")"
-
-jmespath_expr: "|" JMESPATH
 
 COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
 NULL: "null"
@@ -25,8 +22,18 @@ BOOL: "true" | "false"
 INT: /[0-9]+/
 NUMBER: /-?\d+(?:\.\d+)?/
 STRING: /"[^"]*"/ | /'[^']*'/
+
+// Must come after BOOL/INT/NUMBER to avoid shadowing
 NAME: /(?!true\b|false\b|null\b|and\b|or\b|not\b)[a-zA-Z_][a-zA-Z0-9_]*/
-JMESPATH: /[^|}]+/
+
+// Pipe operator for JMESPath expressions
+VBAR: "|"
+
+// JMESPath expression body after the pipe.
+// Stops before comparison operators so that "path | length(@) > 0"
+// is parsed as (path | length(@)) > 0 rather than path | length(@) > 0
+// where the JMESPath greedily consumes "length(@) > 0" as one token.
+JMESPATH: /[^|}><=!]+/
 
 %import common.WS
 %ignore WS

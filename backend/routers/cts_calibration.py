@@ -22,12 +22,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
-from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
 from backend.models.cts_camera import CtsCamera
+from backend.routers.cts_deps import cts_enabled
 from backend.schemas.cts_camera import (
     AdjacencyRequest,
     HomographyRequest,
@@ -96,19 +96,6 @@ def _residual_status(max_residual: float) -> str:
     return "error"
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _cts_enabled() -> None:
-    if not settings.get("cts.enabled", False):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "cts.disabled", "message": "CTS is not enabled on this instance."},
-        )
-
-
 def _get_orchestrator(request: Request):
     client = getattr(request.app.state, "orchestrator_client", None)
     if client is None:
@@ -146,7 +133,7 @@ async def post_homography(
     Returns 400 with ``error.code = "cts.calibration.residuals_too_high"``
     when the maximum per-point error exceeds 0.5 m (§5.20 gate 8).
     """
-    _cts_enabled()
+    cts_enabled()
 
     cam = db.get(CtsCamera, body.camera_id)
     if not cam:
@@ -229,7 +216,7 @@ def get_homography(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
 ) -> dict:
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
@@ -259,7 +246,7 @@ async def post_privacy_zones(
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
 ) -> None:
     """Replace all privacy zones for a camera and push to the orchestrator."""
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, body.camera_id)
     if not cam:
         raise NotFoundError("Camera", body.camera_id)
@@ -296,7 +283,7 @@ def get_privacy_zones(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
 ) -> dict:
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
@@ -316,7 +303,7 @@ async def post_adjacency(
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
 ) -> None:
     """Replace the full camera adjacency graph and push to the orchestrator."""
-    _cts_enabled()
+    cts_enabled()
 
     for edge in body.edges:
         if edge.max_transit_s < edge.min_transit_s:
@@ -348,7 +335,7 @@ async def get_adjacency(
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
 ) -> dict:
     """Fetch the current adjacency state from the orchestrator."""
-    _cts_enabled()
+    cts_enabled()
     orchestrator = _get_orchestrator(request)
     try:
         status_data = await orchestrator.calibration_status()

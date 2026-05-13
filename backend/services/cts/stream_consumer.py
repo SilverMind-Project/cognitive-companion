@@ -1,7 +1,8 @@
 """Shared Redis Streams consumer-group base class.
 
-Reused by all CTS subscribers (tracking events, identity revisions,
-dementia signals) so each subscriber is ~60 lines of actual logic.
+Reused by all four CTS subscribers (tracking events, identity revisions,
+dementia signals, scene samples) so each subscriber focuses on decode
+and handle logic.
 
 Handles: consumer-group creation, pending-entry reclamation via
 XAUTOCLAIM, parse-or-skip for malformed messages, backpressure via
@@ -54,7 +55,9 @@ class StreamConsumer[T](ABC):
         self._pending: set[asyncio.Task[object]] = set()
 
     @abstractmethod
-    def decode(self, message_id: bytes, fields: dict) -> T | None: ...
+    def decode(
+        self, message_id: bytes, fields: dict[bytes | str, bytes | str]
+    ) -> T | None: ...
 
     @abstractmethod
     async def handle(self, msg: T) -> bool: ...
@@ -107,7 +110,7 @@ class StreamConsumer[T](ABC):
             )
             await asyncio.sleep(1.0)
 
-    async def _fan_out(self, messages: list) -> None:
+    async def _fan_out(self, messages: list[tuple[bytes, dict[bytes, bytes]]]) -> None:
         assert self._redis is not None
         for message_id, fields in messages:
             msg = self.decode(message_id, fields)
@@ -137,7 +140,7 @@ class StreamConsumer[T](ABC):
                 self._cfg.stream, self._cfg.group, message_id
             )
 
-    async def _reclaim(self) -> list | None:
+    async def _reclaim(self) -> list[tuple[bytes, dict[bytes, bytes]]] | None:
         assert self._redis is not None
         res = await self._redis.xautoclaim(
             self._cfg.stream,

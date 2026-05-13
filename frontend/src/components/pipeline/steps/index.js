@@ -41,10 +41,12 @@ export const stepConfigMap = {
   verification:        { component: VerificationConfig,        defaults: verDefaults,     tabs: verTabs,    beforeSave: verBeforeSave,    onStepLoaded: verOnStepLoaded },
   interactive_prompt:  { component: InteractivePromptConfig,   defaults: ipDefaults,      tabs: ipTabs },
 };
+import SchemaForm from "./_shared/SchemaForm.vue";
+
 export const genericPluginConfig = {
-  component: GenericPluginConfig,
-  defaults: genericDefaults,
-  tabs: genericTabs,
+  component: SchemaForm,
+  defaults: {},
+  tabs: [],
 };
 
 // Shared constants

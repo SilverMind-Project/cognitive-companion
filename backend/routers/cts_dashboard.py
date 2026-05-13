@@ -15,21 +15,13 @@ When ``cts.enabled=false`` every handler returns 404 with code
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from backend.core.auth import AuthContext, require_permission
-from backend.core.config import settings
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
+from backend.routers.cts_deps import cts_enabled
 
 router = APIRouter(prefix="/cts/dashboard", tags=["cts-dashboard"])
-
-
-def _cts_enabled() -> None:
-    if not settings.get("cts.enabled", False):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "cts.disabled", "message": "CTS is not enabled on this instance."},
-        )
 
 
 def _get_orchestrator_client() -> OrchestratorClient:
@@ -51,7 +43,7 @@ async def get_signals(
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Return recent dementia signals from the orchestrator."""
-    _cts_enabled()
+    cts_enabled()
     return await client.get_dashboard_signals(
         person_id=person_id,
         window_hours=window_hours,
@@ -75,7 +67,7 @@ async def get_trajectory(
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Return trajectory points for floor-plan overlay."""
-    _cts_enabled()
+    cts_enabled()
     return await client.get_dashboard_trajectory(
         person_id=person_id,
         start=start,
@@ -97,7 +89,7 @@ async def get_dwell_summary(
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Return room dwell aggregation (time-in-room) for one day."""
-    _cts_enabled()
+    cts_enabled()
     return await client.get_dashboard_dwell_summary(
         person_id=person_id,
         date=date,

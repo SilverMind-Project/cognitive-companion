@@ -24,11 +24,14 @@ for consistency with :class:`LocationWriter` and testability.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from collections.abc import Callable
 from typing import Any
+
+from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.models.person import PersonLocationHistory, PersonLocationState
+from backend.services.cts._time import parse_ts
 
 logger = get_logger(__name__)
 
@@ -52,7 +55,7 @@ class IdentityRewriter:
 
     def __init__(
         self,
-        db_factory,
+        db_factory: Callable[[], Session],
         ws_manager: Any = None,
     ) -> None:
         self._db_factory = db_factory
@@ -64,7 +67,7 @@ class IdentityRewriter:
         global_track_id = revision.get("global_track_id") or None
         previous_identity_id = revision.get("previous_identity_id") or None
         new_identity_id = revision.get("new_identity_id") or None
-        applied_at = _parse_ts(revision.get("revision_time"))
+        applied_at = parse_ts(revision.get("revision_time"))
 
         if previous_identity_id == new_identity_id:
             return {"revision_id": revision_id, "rewritten": 0, "inserted": 0}
@@ -195,11 +198,3 @@ class IdentityRewriter:
             "inserted": inserted,
         }
 
-
-def _parse_ts(value: str | datetime | None) -> datetime:
-    if value is None:
-        return datetime.now(UTC)
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=UTC)
-    dt = datetime.fromisoformat(value)
-    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)

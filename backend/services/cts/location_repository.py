@@ -369,7 +369,9 @@ class InMemoryLocationRepository:
             existing.confidence = confidence
             existing.updated_at = now
 
-        return self.get_state(person_id)  # type: ignore[return-value]
+        result = self.get_state(person_id)
+        assert result is not None, "upsert_state must always produce state"
+        return result
 
     def close_open_history(
         self,

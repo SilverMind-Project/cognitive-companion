@@ -84,6 +84,12 @@
             </span>
           </v-card-text>
           <div class="live-tile-frame" :aria-label="`Live camera ${cameraForSlot(slot)?.camera_id || slot}`">
+            <img
+              v-if="cameraForSlot(slot)?.minio_key"
+              :src="frameUrl(cameraForSlot(slot).minio_key)"
+              class="live-tile-img"
+              alt=""
+            />
             <svg
               v-if="cameraForSlot(slot) && showBboxes"
               viewBox="0 0 1000 600"
@@ -100,7 +106,7 @@
                   :width="((det.bbox.x_max || 0) - (det.bbox.x_min || 0)) / 2"
                   :height="((det.bbox.y_max || 0) - (det.bbox.y_min || 0)) / 2"
                   fill="none"
-                  :stroke="det.identity_id ? '#4CAF50' : '#FFC107'"
+                  :stroke="det.identity_id ? 'var(--cc-success)' : 'var(--cc-warning)'"
                   stroke-width="3"
                   @click="openCorrection(det, cameraForSlot(slot))"
                   style="cursor: pointer"
@@ -109,7 +115,7 @@
                   v-if="showIdLabels"
                   :x="(det.bbox.x_min || 0) / 2 + 4"
                   :y="(det.bbox.y_min || 0) / 2 + 14"
-                  fill="#fff"
+                  fill="var(--cc-text-1)"
                   font-size="12"
                   font-weight="bold"
                   style="paint-order: stroke; stroke: rgba(0, 0, 0, 0.6); stroke-width: 3"
@@ -250,6 +256,7 @@ export default {
             detections: msg.detections || [],
             event_time: msg.event_time,
             room_name: msg.room_name,
+            minio_key: msg.minio_key || null,
           },
         };
       } else if (msg.type === "cts_identity_revision") {
@@ -263,6 +270,14 @@ export default {
       const ids = Object.keys(this.cameras).sort();
       const id = ids[slot];
       return id ? this.cameras[id] : null;
+    },
+    frameUrl(minioKey) {
+      // Encode each path segment individually so slashes stay literal.
+      // FastAPI's {key:path} captures the full key; nginx and proxies
+      // handle literal slashes correctly, while %2F causes routing issues.
+      const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
+      const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");
+      return `/api/v1/cts/frames/${encodedKey}?api_key=${apiKey}`;
     },
     openCorrection(det, cam) {
       this.correction = {
@@ -322,6 +337,13 @@ export default {
   background: var(--cc-bg);
   aspect-ratio: 16 / 9;
   overflow: hidden;
+}
+.live-tile-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .live-tile-overlay {
   position: absolute;

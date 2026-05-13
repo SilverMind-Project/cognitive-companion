@@ -24,12 +24,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
-from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.exceptions import ConflictError, NotFoundError
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
 from backend.models.cts_camera import CtsCamera
+from backend.routers.cts_deps import cts_enabled
 from backend.schemas.cts_camera import CtsCameraCreate, CtsCameraOut, CtsCameraUpdate
 
 logger = get_logger(__name__)
@@ -40,14 +40,6 @@ router = APIRouter(prefix="/cts/cameras", tags=["cts-cameras"])
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _cts_enabled() -> None:
-    if not settings.get("cts.enabled", False):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "cts.disabled", "message": "CTS is not enabled on this instance."},
-        )
 
 
 def _get_ingress(request: Request):
@@ -108,7 +100,7 @@ def list_cameras(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
 ) -> list[CtsCameraOut]:
-    _cts_enabled()
+    cts_enabled()
     return [_to_out(c) for c in db.query(CtsCamera).order_by(CtsCamera.name).all()]
 
 
@@ -118,7 +110,7 @@ def create_camera(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
 ) -> CtsCameraOut:
-    _cts_enabled()
+    cts_enabled()
     if db.get(CtsCamera, payload.id):
         raise ConflictError(f"Camera '{payload.id}' already exists")
     cam = CtsCamera(**payload.model_dump())
@@ -135,7 +127,7 @@ def get_camera(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
 ) -> CtsCameraOut:
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
@@ -149,7 +141,7 @@ def update_camera(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
 ) -> CtsCameraOut:
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
@@ -167,7 +159,7 @@ def delete_camera(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
 ) -> None:
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
@@ -187,7 +179,7 @@ async def rtsp_test_connect(
     request: Request,
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
 ) -> dict:
-    _cts_enabled()
+    cts_enabled()
     rtsp_url: str = body.get("rtsp_url", "")
     if not rtsp_url:
         raise HTTPException(
@@ -213,7 +205,7 @@ async def get_snapshot(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
 ) -> Response:
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
@@ -237,7 +229,7 @@ async def get_health(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
 ) -> dict:
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
@@ -267,7 +259,7 @@ async def reload_camera(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
 ) -> None:
-    _cts_enabled()
+    cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)

@@ -16,24 +16,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.core.auth import AuthContext, require_permission
-from backend.core.config import settings
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
+from backend.routers.cts_deps import cts_enabled
 
 router = APIRouter(prefix="/cts/keyframes", tags=["cts-keyframes"])
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _cts_enabled() -> None:
-    if not settings.get("cts.enabled", False):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "cts.disabled", "message": "CTS is not enabled on this instance."},
-        )
 
 
 def _get_orchestrator_client() -> OrchestratorClient:
@@ -55,7 +42,7 @@ async def list_keyframes(
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """List tagged keyframes from the tracking-orchestrator."""
-    _cts_enabled()
+    cts_enabled()
     keyframes = await client.list_keyframes(
         person_id=person_id,
         signal_type=signal_type,
@@ -77,7 +64,7 @@ async def get_keyframe(
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
     """Get a single tagged keyframe by sample ID."""
-    _cts_enabled()
+    cts_enabled()
     try:
         keyframe = await client.get_keyframe(sample_id)
     except (HTTPException, UpstreamError) as e:
@@ -104,7 +91,7 @@ async def retain_keyframe(
     This is used when a caregiver bookmarks a keyframe for later
     review or exports it for training.
     """
-    _cts_enabled()
+    cts_enabled()
     try:
         result = await client.retain_keyframe(sample_id)
     except (HTTPException, UpstreamError) as e:

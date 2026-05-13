@@ -115,9 +115,6 @@ def _transform(tree: Tree) -> ASTNode:
         return NotOp(operand=_transform(tree.children[0]))
     if tree.data in ("or_expr", "and_expr"):
         return _transform_binop(tree)
-    if tree.data in ("jmespath_expr",):
-        # Standalone JMESPath expression (shouldn't normally occur at top level)
-        return _transform_jmespath_expr(tree)
     # Fallback: recurse into the only child
     if len(tree.children) == 1:
         return _transform(tree.children[0])
@@ -127,25 +124,32 @@ def _transform(tree: Tree) -> ASTNode:
 def _transform_path(tree: Tree) -> PathNode:
     segments: list[str] = []
     jmespath: str | None = None
-    _collect_path_segments(tree, segments)
-    for child in tree.children:
-        if isinstance(child, Token) and child.type == "JMESPATH":
-            jmespath = child.value.strip()
-        elif isinstance(child, Tree) and child.data == "jmespath_expr":
-            for token in child.children:
-                if isinstance(token, Token) and token.type == "JMESPATH":
-                    jmespath = token.value.strip()
+    _collect_path_parts(tree, segments)
+    # Search for JMESPATH token anywhere in the path tree children
+    jmespath = _find_jmespath(tree)
     return PathNode(segments=tuple(segments), jmespath=jmespath)
 
 
-def _collect_path_segments(tree: Tree, segments: list[str]) -> None:
+def _collect_path_parts(tree: Tree, segments: list[str]) -> None:
     """Recursively collect NAME and INT tokens from nested path trees."""
     for child in tree.children:
         if isinstance(child, Token):
-            if child.type == "NAME" or child.type == "INT":
+            if child.type in ("NAME", "INT"):
                 segments.append(child.value)
         elif isinstance(child, Tree) and child.data == "path":
-            _collect_path_segments(child, segments)
+            _collect_path_parts(child, segments)
+
+
+def _find_jmespath(tree: Tree) -> str | None:
+    """Find the first JMESPATH token in the tree (recursively)."""
+    for child in tree.children:
+        if isinstance(child, Token) and child.type == "JMESPATH":
+            return child.value.strip()
+        if isinstance(child, Tree):
+            result = _find_jmespath(child)
+            if result is not None:
+                return result
+    return None
 
 
 def _transform_func_call(tree: Tree) -> FuncCall:
@@ -214,10 +218,3 @@ def _transform_binop(tree: Tree) -> ASTNode:
         i += 1
     return result
 
-
-def _transform_jmespath_expr(tree: Tree) -> PathNode:
-    jmespath: str | None = None
-    for child in tree.children:
-        if isinstance(child, Token) and child.type == "JMESPATH":
-            jmespath = child.value.strip()
-    return PathNode(segments=(), jmespath=jmespath)

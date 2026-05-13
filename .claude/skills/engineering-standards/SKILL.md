@@ -509,3 +509,74 @@ Before opening a PR, verify:
 - Extract a component when the same UI pattern appears in 3+ views.
 - Extract a base class when 3+ handlers share the same lifecycle steps.
 - Don't abstract for "future use." The codebase already has a plugin system for that.
+
+---
+
+## 16. CTS-specific standards
+
+These apply to all code under `backend/services/cts/`, `backend/routers/cts*.py`, and `backend/websocket/connection_manager.py`.
+
+### 16.1 Shared utilities (do not duplicate)
+
+Three files are the single authoritative source for previously-duplicated functions:
+
+| Utility | Import from | Replaces |
+| --- | --- | --- |
+| `ns_to_iso()` | `backend.services.cts._time` | 4 identical copies across subscriber files |
+| `parse_ts()` | `backend.services.cts._time` | 3 divergent copies across service files |
+| `ensure_aware()` | `backend.services.cts._time` | 1 copy in source_authority |
+| `cts_enabled()` | `backend.routers.cts_deps` | 8 identical copies across router files |
+
+If you need one of these, import it. Never redefine it.
+
+### 16.2 Protocol-based dependency injection
+
+CTS subscribers and services accept their dependencies through `__init__`. Use the protocol types from `backend.services.cts._types`, never `Any`:
+
+```python
+from backend.services.cts._types import ConnectionManager, PipelineExecutor, DBSessionFactory
+
+class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
+    def __init__(
+        self,
+        redis_url: str,
+        consumer_id: str,
+        writer: LocationWriter,
+        ws_manager: ConnectionManager | None = None,      # not Any
+        pipeline: PipelineExecutor | None = None,          # not Any
+    ) -> None:
+        ...
+```
+
+`DBSessionFactory` is `Callable[[], Session]`. Use it for `db_factory` parameters.
+
+### 16.3 StreamConsumer contract
+
+All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle()` signatures must match the base class exactly. The `decode` parameter `fields` uses `dict[bytes | str, bytes | str]` because Redis returns bytes keys and values when `decode_responses=False`.
+
+### 16.4 CTS isolation
+
+- CTS tables (`dementia_signals`, `cts_cameras`, `person_location_state`, `person_location_history`) are written only inside `services/cts/`.
+- `_upstream_base` is imported only by CTS integration clients (`ingress_admin_client`, `tracking_orchestrator_client`).
+- Redis Stream subscriptions (`tracking.events`, `tracking.revisions`, `tracking.signals`, `scene.samples`) are created only inside `CTSRuntime`.
+- All browser and MCP traffic to `rtsp-ingress` or `tracking-orchestrator` goes through CC routers. No direct access.
+
+### 16.5 WebSocket security
+
+- The `/ws/cts` WebSocket reads the API key from `sec-websocket-protocol` header, not from a query parameter.
+- Frame image URLs (`GET /api/v1/cts/frames/{key}`) use query-param auth as a known limitation (browser `<img>` tags cannot set headers).
+- Nginx uses `location ^~ /api/` and `location ^~ /ws` to prevent regex static-cache locations from stealing proxied URLs.
+
+---
+
+## 17. Frontend composables
+
+Extract duplicated view logic into composables under `frontend/src/composables/`. Existing shared composables include:
+
+| Composable | Replaces |
+| --- | --- |
+| `useCtsSeverity.js` | `severityColor()` / `severityIcon()` duplicated across 3 views |
+| `useFormatRelative.js` | `formatRelative()` duplicated across 2 views |
+| `useCtsWebSocket.js` | Ad-hoc WebSocket lifecycle with no reconnection; adds 3-second exponential backoff |
+
+Use design tokens (`var(--cc-*)`) or Vuetify theme colors for all CSS color values. Never hardcode hex values like `'#4CAF50'` or `'#fff'` in templates.

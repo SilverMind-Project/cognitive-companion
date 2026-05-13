@@ -8,12 +8,13 @@ Decodes ``IdentityRevision`` proto messages from the
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
 from backend.services.cts import metrics
+from backend.services.cts._time import ns_to_iso
+from backend.services.cts._types import PipelineExecutor
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -33,7 +34,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         redis_url: str,
         consumer_id: str,
         rewriter: IdentityRewriter,
-        pipeline: Any = None,
+        pipeline: PipelineExecutor | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -49,7 +50,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
 
     # -- StreamConsumer abstract methods -------------------------------------
 
-    def decode(self, message_id: bytes, fields: dict) -> dict[str, Any] | None:
+    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> dict[str, Any] | None:
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
             logger.warning("revision_missing_payload", message_id=message_id)
@@ -91,7 +92,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
             "posterior_entropy": float(message.posterior_entropy),
             "reason": message.reason,
             "evidence": evidence,
-            "revision_time": _ns_to_iso(message.revision_time_unix_ns),
+            "revision_time": ns_to_iso(message.revision_time_unix_ns),
         }
 
     async def handle(self, revision: dict[str, Any]) -> bool:
@@ -123,9 +124,3 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
                 logger.exception("identity_revision_pipeline_fire_error")
 
         return True
-
-
-def _ns_to_iso(ns: int) -> str:
-    if ns <= 0:
-        return datetime.now(UTC).isoformat()
-    return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()

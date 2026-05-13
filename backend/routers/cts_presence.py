@@ -17,8 +17,8 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
-from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.routers.cts_deps import cts_enabled
 from backend.services.presence import (
     PresenceService,
     PresenceSnapshot,
@@ -87,14 +87,6 @@ class PresenceConfigOut(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _cts_enabled() -> None:
-    if not settings.get("cts.enabled", False):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "cts.disabled", "message": "CTS is not enabled on this instance."},
-        )
 
 
 def _snapshot_to_out(snapshot: PresenceSnapshot) -> PresenceSnapshotOut:
@@ -180,14 +172,14 @@ def _build_provider_summaries(
 # Routes
 # ---------------------------------------------------------------------------
 
-# NOTE: /presence-config MUST be defined before /{person_id} so that
+# NOTE: /presence-config MUST be defined before /presence/{person_id} so that
 # FastAPI does not match "presence-config" as a person_id value.
 
 
 @router.get("/presence-config", response_model=PresenceConfigOut)
 async def get_presence_config(request: Request) -> PresenceConfigOut:
     """Return the active presence fuser configuration (sanitized)."""
-    _cts_enabled()
+    cts_enabled()
 
     presence_service: PresenceService | None = request.app.state.presence
     if presence_service is None:
@@ -215,7 +207,7 @@ async def reload_presence_config(request: Request) -> PresenceConfigOut:
     If validation fails, returns 422 with a parse-error detail and
     does NOT touch the running provider chain.
     """
-    _cts_enabled()
+    cts_enabled()
 
     presence_service: PresenceService | None = request.app.state.presence
     if presence_service is None:
@@ -277,7 +269,7 @@ async def reload_presence_config(request: Request) -> PresenceConfigOut:
     )
 
 
-@router.get("/{person_id}", response_model=PresenceSnapshotOut)
+@router.get("/presence/{person_id}", response_model=PresenceSnapshotOut)
 async def get_presence(
     person_id: str,
     request: Request,
@@ -290,7 +282,7 @@ async def get_presence(
     ),
 ) -> PresenceSnapshotOut:
     """Return the fused presence snapshot for *person_id*."""
-    _cts_enabled()
+    cts_enabled()
 
     presence_service: PresenceService | None = request.app.state.presence
     if presence_service is None:

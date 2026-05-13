@@ -252,6 +252,7 @@ import { ref, computed, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
 import { api } from "../../services/api.js";
 import PresenceWidget from "../../components/cts/PresenceWidget.vue";
+import { severityColor, severityIcon } from "../../composables/useCtsSeverity";
 
 const selectedPerson = ref(null);
 const selectedDate = ref(null);
@@ -374,16 +375,6 @@ async function loadDwellSummary() {
   }
 }
 
-function severityColor(severity) {
-  return { info: "grey", warning: "orange", emergency: "red" }[severity] || "grey";
-}
-
-function severityIcon(severity) {
-  return (
-    { info: "mdi-information", warning: "mdi-alert", emergency: "mdi-alert-circle" }[severity] ||
-    "mdi-circle"
-  );
-}
 
 function formatTime(iso) {
   if (!iso) return "";

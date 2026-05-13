@@ -14,6 +14,10 @@ class StepTypeOut(BaseModel):
     config_schema: dict
     default_config: dict
     deprecated: bool = False
+    schema_version: int = 1
+    ui_hints: dict | None = None
+    output_schema: dict | None = None
+    tags: list[str] = []
 
 
 class ChannelTypeOut(BaseModel):
@@ -21,6 +25,7 @@ class ChannelTypeOut(BaseModel):
     display_name: str
     description: str
     config_schema: dict
+    schema_version: int = 1
 
 
 class FilterTypeOut(BaseModel):
@@ -28,6 +33,7 @@ class FilterTypeOut(BaseModel):
     display_name: str
     description: str
     config_schema: dict
+    schema_version: int = 1
 
 
 class LLMModelOut(BaseModel):
@@ -40,6 +46,21 @@ class LLMModelOut(BaseModel):
     default_temperature: float | None
     default_top_p: float | None
     default_max_tokens: int
+
+
+# -- Data keys (variable reference for autocomplete) -------------------------
+
+
+class VariableEntry(BaseModel):
+    key: str
+    description: str
+    type: str = "any"
+
+
+class DataKeysResponse(BaseModel):
+    trigger: list[VariableEntry]
+    system: list[VariableEntry]
+    step_outputs: dict[str, dict]  # step_type -> output_schema
 
 
 # -- Cron preview ------------------------------------------------------------

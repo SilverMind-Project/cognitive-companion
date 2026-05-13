@@ -18,8 +18,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from backend.core.auth import AuthContext, require_permission
-from backend.core.config import settings
 from backend.core.database import get_session
+from backend.routers.cts_deps import cts_enabled
 from backend.services.cts.signal_store import SignalStore
 
 router = APIRouter(prefix="/cts/signals", tags=["cts-signals"])
@@ -28,19 +28,6 @@ router = APIRouter(prefix="/cts/signals", tags=["cts-signals"])
 def _get_signal_store() -> SignalStore:
     """Dependency: provide the SignalStore instance."""
     return SignalStore(db_factory=get_session)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _cts_enabled() -> None:
-    if not settings.get("cts.enabled", False):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "cts.disabled", "message": "CTS is not enabled on this instance."},
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +46,7 @@ async def list_signals(
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """List recent dementia signals with optional filters."""
-    _cts_enabled()
+    cts_enabled()
     signals = await store.list_recent(
         person_id=person_id,
         signal_type=signal_type,
@@ -82,7 +69,7 @@ async def acknowledge_signal(
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """Mark a dementia signal as acknowledged by a caregiver."""
-    _cts_enabled()
+    cts_enabled()
     ok = await store.acknowledge(signal_id)
     if not ok:
         raise HTTPException(
@@ -107,7 +94,7 @@ async def list_unacknowledged(
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """Return unacknowledged signals (for alerting / dashboard)."""
-    _cts_enabled()
+    cts_enabled()
     signals = await store.get_unacknowledged(
         person_id=person_id,
         severity=severity,
@@ -129,7 +116,7 @@ async def get_summary(
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """Return a 24-hour signal summary for the dashboard."""
-    _cts_enabled()
+    cts_enabled()
     summary = await store.get_24h_summary(person_id=person_id)
     return summary
 
@@ -147,6 +134,6 @@ async def get_trend(
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
     """Return per-day signal counts for trend charts."""
-    _cts_enabled()
+    cts_enabled()
     trend = await store.get_daily_trend(person_id=person_id, days=days)
     return {"person_id": person_id, "days": days, "trend": trend}

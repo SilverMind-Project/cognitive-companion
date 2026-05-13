@@ -81,16 +81,8 @@
                   </template>
                 </v-autocomplete>
               </v-col>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.schedule_cron"
-                  label="Cron Schedule"
-                  variant="outlined"
-                  placeholder="*/5 * * * *"
-                  :disabled="form.trigger_type !== 'cron'"
-                  :hint="form.trigger_type === 'cron' ? `Times are interpreted in ${getAppTimezone()}` : ''"
-                  persistent-hint
-                />
+              <v-col v-if="form.trigger_type === 'cron'" cols="12">
+                <CronBuilder v-model="form.schedule_cron" :timezone="getAppTimezone()" />
               </v-col>
               <v-col v-if="form.trigger_type === 'occupancy_duration'" cols="12" md="6">
                 <v-text-field
@@ -842,6 +834,7 @@ import { useRoute } from "vue-router";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { formatDateTime, getAppTimezone, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
+import CronBuilder from "../../components/pipeline/CronBuilder.vue";
 import PipelineBuilder from "../../components/pipeline/PipelineBuilder.vue";
 
 const route = useRoute();

@@ -19,6 +19,7 @@ api_keys:
     name: "OpenClaw Agent"
     permissions:
       - "mcp_readonly"
+      - "rules:write_via_mcp"
 
   # CTS operator key: full camera-management and calibration access.
   - key: "${CC_OPERATOR_API_KEY}"
@@ -147,6 +148,10 @@ permission_map:
     - "GET /api/v1/image/*"
     - "GET /api/v1/ha/media-players"
     - "GET /api/v1/ha/entities"
+
+  rules:write_via_mcp:
+    - "POST /api/v1/rules/import"
+    - "POST /api/v1/rules/import/preview"
 
   cts_ingress:
     - "GET /api/v1/cts/cameras"

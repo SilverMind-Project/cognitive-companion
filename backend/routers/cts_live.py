@@ -37,7 +37,10 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="cts.disabled")
         return
 
-    raw_key = websocket.headers.get("x-api-key") or websocket.query_params.get("api_key")
+    raw_key = (
+        websocket.headers.get("x-api-key")
+        or websocket.headers.get("sec-websocket-protocol", "").strip()
+    )
     if not raw_key:
         await websocket.close(code=1008, reason="auth_required")
         return

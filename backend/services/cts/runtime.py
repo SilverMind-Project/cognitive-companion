@@ -16,6 +16,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.core.logging import get_logger
+from backend.models.cts_camera import CtsCamera
+from backend.services.cts._types import (
+    ConnectionManager,
+    DBSessionFactory,
+    MinioClient,
+    PipelineExecutor,
+    SceneAnalysisClient,
+    SemanticMemoryClient,
+)
 from backend.services.cts.identity_revision_subscriber import IdentityRevisionSubscriber
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.location_repository import SqlAlchemyLocationRepository
@@ -23,6 +32,7 @@ from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.scene_sample_subscriber import SceneSampleSubscriber
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.source_authority import SourceAuthority
+from backend.services.cts.stream_consumer import StreamConsumer
 from backend.services.cts.subscriber import DementiaSignalSubscriber
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 
@@ -46,7 +56,7 @@ class _SubscriberBundle:
     """Handle to one subscriber's state (subscriber + its background task)."""
 
     name: str
-    subscriber: Any
+    subscriber: StreamConsumer[Any]
     task: asyncio.Task[None] | None = None
 
 
@@ -57,12 +67,12 @@ class CTSRuntime:
         self,
         *,
         config: CTSRuntimeConfig,
-        db_factory,
-        ws_manager: Any = None,
-        pipeline: Any = None,
-        minio_client: Any = None,
-        scene_analysis_client: Any = None,
-        semantic_memory_client: Any = None,
+        db_factory: DBSessionFactory,
+        ws_manager: ConnectionManager | None = None,
+        pipeline: PipelineExecutor | None = None,
+        minio_client: MinioClient | None = None,
+        scene_analysis_client: SceneAnalysisClient | None = None,
+        semantic_memory_client: SemanticMemoryClient | None = None,
         camera_room_map: dict[str, str] | None = None,
     ) -> None:
         self._cfg = config
@@ -201,12 +211,10 @@ class CTSRuntime:
         }
 
 
-def _load_camera_room_map(db_factory) -> dict[str, str]:
+def _load_camera_room_map(db_factory: DBSessionFactory) -> dict[str, str]:
     """Load camera_id → location mapping from the CtsCamera table."""
     db = db_factory()
     try:
-        from backend.models.cts_camera import CtsCamera
-
         cameras = db.query(CtsCamera).filter(CtsCamera.enabled.is_(True)).all()
         return {cam.id: cam.location or "" for cam in cameras}
     except Exception:

@@ -218,6 +218,8 @@ export const api = {
   },
   getWorkflow: (id) => request(`/workflows/${id}`, { contract: "workflows.single" }),
   cancelWorkflow: (id) => request(`/workflows/${id}/cancel`, { method: "POST" }),
+  getWorkflowDetail: (id) => request(`/workflows/${id}/detail`),
+  rerunWorkflow: (id) => request(`/workflows/${id}/rerun`, { method: "POST" }),
 
   // Activities
   getActivities: (params = {}) => {
@@ -323,6 +325,9 @@ export const api = {
   getChannelTypes: () => request("/pipeline/channel-types"),
   getFilterTypes: () => request("/pipeline/filter-types"),
   getLLMModels: () => request("/pipeline/llm-models"),
+  getDataKeys: () => request("/pipeline/data-keys"),
+  getCronPreview: (data) =>
+    request("/pipeline/cron/preview", { method: "POST", body: JSON.stringify(data) }),
 
   // Webhooks
   triggerWebhook: (ruleId, payload, secret) =>

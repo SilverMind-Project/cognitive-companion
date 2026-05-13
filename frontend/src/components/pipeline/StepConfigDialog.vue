@@ -65,6 +65,7 @@
                     :key="`${localStep.step_type}_${tabItem.key}`"
                     v-model="cfg"
                     :tab="tabItem.key"
+                    :schema="currentStepSchema"
                     :all-steps="allSteps"
                     :available-persons="availablePersons"
                     :available-rooms="availableRooms"
@@ -185,6 +186,9 @@ const stepComponent = computed(() => currentConfig.value.component);
 
 // API-fetched data
 const stepTypeDefaults = ref({});
+const stepTypeSchemas = ref({});
+const dataKeys = ref({ trigger: [], system: [], step_outputs: {} });
+const currentStepSchema = computed(() => stepTypeSchemas.value[localStep.step_type] || {});
 const availableChannels = ref([
   "pwa_popup_text", "telegram", "eink", "ha_speaker_tts",
   "pwa_tts_announcement", "pwa_realtime_ai", "webhook",
@@ -234,50 +238,50 @@ function humanize(type) {
   return type.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
-// --- Pipeline variables reference ---
-const pipelineDataReference = [
-  { key: "trigger.sensor_id", source: "Trigger context" },
-  { key: "trigger.room_name", source: "Trigger context" },
-  { key: "trigger.media_paths", source: "Trigger context" },
-  { key: "trigger_input", source: "Webhook / Telegram payload" },
-  { key: "trigger_input.command", source: "Telegram trigger" },
-  { key: "trigger_input.chat_id", source: "Telegram trigger" },
-  { key: "trigger_input.args", source: "Telegram trigger (list)" },
-  { key: "trigger_input.text", source: "Telegram / webhook raw text" },
-  { key: "steps.<label>.outputs.<key>", source: "General pattern — replace <label> with the step label" },
-  { key: "steps.person_identification_1.outputs.person_detections", source: "person_identification" },
-  { key: "steps.person_identification_1.outputs.person_detections.0.person_id", source: "person_identification: first match" },
-  { key: "steps.person_identification_1.outputs.person_detections.0.name", source: "person_identification: first match" },
-  { key: "steps.person_identification_1.outputs.person_detections.0.confidence", source: "person_identification: first match" },
-  { key: "steps.person_identification_1.outputs.annotated_image", source: "person_identification: base64 bbox overlay" },
-  { key: "steps.scene_analysis_1.outputs.scene_detections", source: "scene_analysis: YOLO object list" },
-  { key: "steps.scene_analysis_1.outputs.scene_description", source: "scene_analysis: Florence-2 text" },
-  { key: "steps.scene_analysis_1.outputs.scene_hazards", source: "scene_analysis: hazard alert list" },
-  { key: "steps.object_trend_analysis_1.outputs.room_trends", source: "object_trend_analysis: map of room to trend" },
-  { key: "steps.object_trend_analysis_1.outputs.room_trends_any_warning", source: "object_trend_analysis: bool" },
-  { key: "steps.object_trend_analysis_1.outputs.room_trends_summary", source: "object_trend_analysis: compact text for LLM" },
-  { key: "steps.llm_call_1.outputs.llm_response", source: "llm_call (default output_key)" },
-  { key: "steps.llm_call_1.outputs.llm_response.is_notification_needed", source: "llm_call: default notification schema" },
-  { key: "steps.llm_call_1.outputs.llm_response.user_notification", source: "llm_call: default notification schema" },
-  { key: "steps.llm_call_1.outputs.llm_response.alert_level", source: "llm_call: default notification schema" },
-  { key: "steps.llm_call_1.outputs.llm_response.reasoning", source: "llm_call: default notification schema" },
-  { key: "steps.activity_detection_1.outputs.detected_activities", source: "activity_detection" },
-  { key: "steps.activity_session_start_1.outputs.session", source: "activity_session_start" },
-  { key: "steps.activity_session_end_1.outputs.closed_session", source: "activity_session_end" },
-  { key: "steps.verification_1.outputs.verification.verified", source: "verification: bool" },
-  { key: "steps.condition_1.outputs.condition.result", source: "condition: bool" },
-  { key: "steps.ha_action_1.outputs.ha_action.success", source: "ha_action: bool" },
-  { key: "steps.notification_1.outputs.notification_dispatched", source: "notification: bool" },
-  { key: "steps.daily_report_1.outputs.daily_reports", source: "daily_report" },
-  { key: "steps.semantic_memory_write_1.outputs.semantic_memory_observation_id", source: "semantic_memory_write" },
-  { key: "steps.semantic_memory_query_1.outputs.memory_context.summary", source: "semantic_memory_query: LLM-ready summary" },
-  { key: "steps.semantic_memory_query_1.outputs.memory_context.observations", source: "semantic_memory_query: observation records" },
-];
+// --- Pipeline variables reference (computed from API data) ---
+
+function _buildPipelineReference() {
+  const entries = [];
+  // Trigger and system vars from data-keys API
+  for (const v of dataKeys.value.trigger || []) {
+    entries.push({ key: v.key, source: v.description || "Trigger context" });
+  }
+  for (const v of dataKeys.value.system || []) {
+    entries.push({ key: v.key, source: v.description || "System" });
+  }
+  // General pattern
+  entries.push({ key: "steps.<label>.outputs.<key>", source: "General pattern" });
+  // Per-step-type output vars from data-keys API
+  const stepOutputs = dataKeys.value.step_outputs || {};
+  for (const [stepType, outputSchema] of Object.entries(stepOutputs)) {
+    const props = outputSchema.properties || {};
+    for (const [propName, propSchema] of Object.entries(props)) {
+      entries.push({
+        key: `steps.<label>.outputs.${propName}`,
+        source: `${stepType}: ${propSchema.description || propName}`,
+      });
+    }
+  }
+  // Per-step instance entries for current pipeline's labels
+  for (const s of props.allSteps || []) {
+    const stepMetaSchema = stepTypeSchemas.value[s.step_type];
+    if (!stepMetaSchema?.output_schema?.properties) continue;
+    for (const [propName] of Object.entries(stepMetaSchema.output_schema.properties)) {
+      entries.push({
+        key: `steps.${s.label}.outputs.${propName}`,
+        source: `${s.label} (${s.step_type})`,
+      });
+    }
+  }
+  return entries;
+}
+
+const pipelineVariableEntries = computed(() => _buildPipelineReference());
 
 const filteredVariables = computed(() => {
   const q = varSearch.value.trim().toLowerCase();
-  if (!q) return pipelineDataReference;
-  return pipelineDataReference.filter(
+  if (!q) return pipelineVariableEntries.value;
+  return pipelineVariableEntries.value.filter(
     (v) => v.key.toLowerCase().includes(q) || v.source.toLowerCase().includes(q)
   );
 });
@@ -366,8 +370,12 @@ onMounted(async () => {
     const types = await api.getStepTypes();
     for (const t of types) {
       stepTypeDefaults.value[t.type_name] = t.default_config || {};
+      stepTypeSchemas.value[t.type_name] = t;
     }
   } catch { /* use static defaults */ }
+  try {
+    dataKeys.value = await api.getDataKeys();
+  } catch { /* use static reference */ }
   try {
     const channels = await api.getChannelTypes();
     availableChannels.value = channels.map((c) => c.channel_name);

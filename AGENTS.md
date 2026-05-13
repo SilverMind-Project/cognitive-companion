@@ -14,7 +14,8 @@ Three things make this codebase non-trivial:
 
 1. **Plugin registries.** Pipeline steps, notification channels, and context filters are auto-discovered classes. Adding a new one is a single file in the right directory.
 2. **Composable per-rule pipelines.** Each rule defines its own ordered sequence of `PipelineStep` rows. The same step type can behave very differently across rules via per-step `config_json`.
-3. **Multi-service architecture.** The backend depends on five sibling services: `person-identification-service` (face ID), `scene-analysis-service` (YOLO + Florence-2 + CLIP), `semantic-memory-service` (pgvectorscale observations and movements), `tts-service` (TTS), and the `continuous-tracking/` family (multi-camera tracking + dementia signals via Redis Streams). Cognitive Companion is the BFF gateway for all browser and MCP traffic into those services.
+3. **Strongly-typed service injection.** CTS-injected services use structural `Protocol` classes from `backend/services/cts/_types.py`. Never pass `Any` for `ws_manager`, `pipeline`, `minio_client`, or `db_factory`. Shared utilities (`_time.py`, `cts_deps.py`) replace duplicated functions; import them, don't redefine them.
+4. **Multi-service architecture.** The backend depends on seven sibling services: `person-identification-service` (face ID), `scene-analysis-service` (YOLO + Florence-2 + CLIP), `semantic-memory-service` (pgvectorscale observations and movements), `tts-service` (TTS), and the `continuous-tracking/` family (multi-camera tracking + dementia signals via Redis Streams: `tracking-orchestrator`, `rtsp-ingress`, Triton Inference Server, Redis). Cognitive Companion is the BFF gateway for all browser and MCP traffic into those services.
 
 ---
 
@@ -55,7 +56,7 @@ cognitive-companion/
 │   │   ├── pipeline_executor.py    Orchestrates step execution via StepRegistry
 │   │   ├── workflow.py             Per-event entry point: rules engine + executor
 │   │   ├── rules_engine.py         Rule matching: filters + dependencies + rate limits
-│   │   ├── condition_evaluator.py  Recursive-descent evaluator for `condition` expressions
+│   │   ├── rule_serializer.py          Rule import/export: Rule ↔ RuleBundle serialization
 │   │   ├── event_aggregator.py     Frame batching, per-sensor cooldown, MinIO lifecycle
 │   │   ├── sensor_polling.py       HA presence polling + occupancy_duration triggers
 │   │   ├── person_tracking.py      Camera-detection + HA presence fusion (DEPRECATED, prefer services.activity)
@@ -63,6 +64,7 @@ cognitive-companion/
 │   │   ├── conversation_manager.py     Conversation history with TTL
 │   │   ├── media_processor.py          Image/video helpers
 │   │   ├── rag.py                       Optional RAG lookup
+│   │   ├── template_validator.py         Lark-based template validation for step configs
 │   │   ├── scheduler.py                 APScheduler wrapper + SchedulerBridge
 │   │   ├── camera_topology.py           infer_room_transition() + RoomTransition dataclass
 │   │   ├── activity_session.py          Open/close duration sessions (DEPRECATED, prefer services.activity)
@@ -75,7 +77,7 @@ cognitive-companion/
 │   │   ├── presence/                    PresenceService (Block 1-3 provider chain: night anchor + HA bed sensor + CTS location + HA device tracker + stale fallback)
 │   │   ├── signals/                     SignalsService (CTS dementia signal reads)
 │   │   ├── telegram_trigger.py          Telegram command-to-rule polling
-│   │   └── cts/                         CTS subscribers + writers (runtime, signal_store, location_writer, identity_rewriter, source_authority, stream_consumer, tracking_event_subscriber, identity_revision_subscriber, scene_sample_subscriber)
+│   │   └── cts/                         CTS subscribers + writers: runtime, stream_consumer, _time (shared time utils), _types (protocols), tracking_event_subscriber, identity_revision_subscriber, subscriber (dementia_signal), scene_sample_subscriber, location_writer, location_repository, identity_rewriter, signal_store, source_authority, metrics
 │   ├── integrations/           External clients
 │   │   ├── homeassistant.py, ha_state_cache.py, telegram.py, tts.py, minio_client.py
 │   │   ├── eink_renderer.py            Internal PIL-based eink renderer
@@ -100,13 +102,13 @@ cognitive-companion/
 │   └── src/
 │       ├── views/CompanionView.vue                Senior-facing voice UI
 │       └── views/admin/                            25 admin views (Dashboard, Rules, RuleDetail, Sensors, Rooms, Events, Alerts, Persons, PersonTimeline, Activities, DailyReports, Workflows, EInkTemplates, CameraMedia, InteractiveResponses, plus 10 CTS views)
-│       ├── components/pipeline/                    PipelineBuilder, StepCard, StepConfigDialog, StepPalette
+│       ├── components/pipeline/                    PipelineBuilder, StepCard, StepConfigDialog, StepPalette, CronBuilder, ExecutionDetail, steps/_shared/SchemaForm
 │       ├── components/companion/                   Widget registry (VoiceWidget, TranscriptWidget, AlertWidget)
 │       ├── components/cts/                         PresenceStatusChip, PresenceWidget
 │       ├── components/eink/                        BoundingBoxCanvas, RegionEditor
 │       ├── components/person/                      PersonTimeline, DailyReportCard
-│       ├── composables/useNotify.js, useConfirm.js
-│       └── services/api.js, cts.js, timezone.js, WebSocketClient.js
+│       ├── composables/useNotify.js, useConfirm.js, useCtsSeverity.js, useFormatRelative.js, useCtsWebSocket.js
+│       └── services/api.js, cts.js, timezone.js, WebSocketClient.js, contracts.js
 ├── config/
 │   ├── settings.yaml           Application settings (single source of truth for the operator timezone in app.timezone)
 │   ├── auth.yaml               API keys, device keys, fnmatch permission map
@@ -416,7 +418,7 @@ In tests, use `RulesEngine(tz_name="UTC")` to keep timestamp comparisons aligned
 | `activity_session_end` | `activity_session_end.py` | action | Closes an open session, optionally recording a `PersonActivity` with `duration_minutes`. |
 | `daily_report` | `daily_report.py` | action | Aggregates sleep, meals, medication, bathroom, door, exercise, and location into a `DailyReport` row with wellness scoring. Designed for cron-triggered end-of-day rules. |
 | `verification` | `verification.py` | state | Queries `PersonActivity` to verify activities within a time window. No images, no LLMs. |
-| `condition` | `condition.py` | reasoning | Evaluates a safe expression via `ConditionEvaluator`. Branches via `next_step_on_true` / `next_step_on_false`. |
+| `condition` | `condition.py` | reasoning | Evaluates a safe expression via the Lark-based `evaluate_condition()`. Branches via `next_step_on_true` / `next_step_on_false`. |
 | `wait` | `wait.py` | flow | Persists `WorkflowExecution.status = waiting`, sets `resume_at`, and returns. Scheduler resumes via APScheduler `DateTrigger` and the injected `SchedulerBridge`. |
 | `interactive_prompt` | `interactive_prompt.py` | flow | Asks the senior a question (popup or voice) and waits for the answer with a timeout. Wires to `InteractiveResponseService` which persists the pending response and resumes the workflow when the answer arrives or the timeout expires. |
 
@@ -515,11 +517,21 @@ CTS lives in `../continuous-tracking/`. Cognitive Companion is the BFF: all brow
 
 `cts.enabled` in `config/settings.yaml`. When false, every CTS router returns `404 {"code": "cts.disabled"}` and the lifespan does not start any CTS subscribers.
 
-### 10.2 CTS routers (9 files)
+### 10.2 CTS shared utilities
+
+Before editing any CTS code, know these three files:
+
+| File | Purpose | Rule |
+| --- | --- | --- |
+| `backend/routers/cts_deps.py` | `cts_enabled()` | Import it; never redefine `_cts_enabled()` in a router. |
+| `backend/services/cts/_time.py` | `ns_to_iso()`, `parse_ts()`, `ensure_aware()` | Import them; never duplicate these helpers in a subscriber or service. |
+| `backend/services/cts/_types.py` | `ConnectionManager`, `PipelineExecutor`, `MinioClient`, `SceneAnalysisClient`, `SemanticMemoryClient` protocols + `DBSessionFactory` type alias | Use these protocol types for injected service parameters. Never `Any`. |
+
+### 10.3 CTS routers (9 files)
 
 | Router | Endpoints |
 | --- | --- |
-| `cts.py` | `GET /cts/status`, `GET /cts/features` |
+| `cts.py` | `GET /cts/status`, `GET /cts/features`, `GET /cts/frames/{key}` |
 | `cts_cameras.py` | CRUD, `test-connect`, `snapshot`, `health`, `reload` (proxies via `IngressAdminClient`) |
 | `cts_calibration.py` | OpenCV RANSAC homography fit, privacy zones, adjacency graph |
 | `cts_signals.py` | List, ack, unacknowledged, summary, trend (read from `SignalStore`) |
@@ -529,33 +541,35 @@ CTS lives in `../continuous-tracking/`. Cognitive Companion is the BFF: all brow
 | `cts_presence.py` | Read/reload `presence.yaml`, `GET /cts/{person_id}` snapshot |
 | `cts_live.py` | `WS /ws/cts` live tracking stream |
 
-All handlers begin with `_cts_enabled()` and return 404 + `{"code": "cts.disabled"}` when off.
+All handlers call `cts_enabled()` (imported from `backend.routers.cts_deps`) and return 404 + `{"code": "cts.disabled"}` when off.
 
-### 10.3 CTS runtime
+### 10.4 CTS runtime
 
 `backend/services/cts/runtime.py` is `CTSRuntime`, started in the lifespan when `cts.enabled` is `true`. It owns four subscribers (Redis Streams consumer groups) and a `LocationWriter`:
 
 | Subscriber | Stream | Effect |
 | --- | --- | --- |
-| `DementiaSignalSubscriber` | `tracking.signals` | Persists `DementiaSignal` rows via `SignalStore`; fires pipeline events for rules with the `dementia_signal` filter. |
-| `TrackingEventSubscriber` | `tracking.events` | Updates `PersonLocationState` and writes `PersonLocationHistory` via `LocationWriter` and `SourceAuthority` (CTS-precedence lock for `cts.lock_seconds`). |
+| `TrackingEventSubscriber` | `tracking.events` | Updates `PersonLocationState` and writes `PersonLocationHistory` via `LocationWriter` and `SourceAuthority` (CTS-precedence lock for `cts.lock_seconds`). Broadcasts `cts_live_frame` WebSocket messages for the live view. |
 | `IdentityRevisionSubscriber` | `tracking.revisions` | Soft-deletes superseded `PersonLocationHistory` rows via `IdentityRewriter` and inserts the corrected entries. |
-| `SceneSampleSubscriber` | `scene.samples` | Decodes tagged keyframe `SceneSample` messages, pulls JPEG from MinIO, runs scene analysis (YOLO + Florence-2 + CLIP + hazards), and persists observations to semantic memory. |
+| `DementiaSignalSubscriber` | `tracking.signals` | Persists `DementiaSignal` rows via `SignalStore`; fires pipeline events for rules with the `dementia_signal` filter. |
+| `SceneSampleSubscriber` | `scene.samples` | Decodes tagged keyframe `SceneSample` proto messages, pulls JPEG from MinIO, runs scene analysis (YOLO + Florence-2 + CLIP + hazards), and persists observations to semantic memory. |
 
-`StreamConsumer` (in `stream_consumer.py`) is the shared base class: consumer-group creation, `XAUTOCLAIM` reclaim, bounded semaphore, graceful shutdown.
+`StreamConsumer` (in `stream_consumer.py`) is the shared base class: consumer-group creation, `XAUTOCLAIM` reclaim, bounded semaphore, graceful shutdown. All four subscribers decode protobuf-encoded messages from the `backend/integrations/proto/continuoustracking/v1/` package, compiled from `.proto` sources in the `continuous-tracking/` repository.
 
 `SignalStore` reads use `db = self._db_factory(); try / finally db.close()`; never the context-manager form, because the conftest `db_factory` returns a plain `Session`.
 
-### 10.4 Identities and presence
+### 10.5 Identities and presence
 
 `PresenceService` (Block 3 chain in `config/presence.yaml`): provider order is `night_anchor`, `ha_bed_sensor`, `cts_location`, `ha_device_tracker`, plus stale fallback / unknown sentinel. Build with `services/presence/factory.py`. The `PresenceQueryHandler` step + `presence_status` / `presence_dwell` / `home_state` filters read this service.
 
-### 10.5 Don't
+### 10.6 Don't
 
 - Don't write to CTS tables (`dementia_signals`, `cts_cameras`, etc.) outside the `services/cts/` package.
 - Don't import `_upstream_base` from non-CTS code (it does mTLS + EdDSA service JWTs; LAN clients use `_http_base`).
-- Don't subscribe to `tracking.*` streams outside `CTSRuntime`.
+- Don't subscribe to `tracking.*` or `scene.*` streams outside `CTSRuntime`.
 - Don't bypass the BFF: there is no path from the browser or MCP to `rtsp-ingress` or `tracking-orchestrator` except through CC routers.
+- Don't duplicate `_cts_enabled()`, `_ns_to_iso()`, or `_parse_ts()`. Import from the shared modules.
+- Don't use `Any` for CTS-injected service parameters. Use the protocols in `backend/services.cts._types`.
 
 ---
 
@@ -584,6 +598,7 @@ For vLLM, `guided_decoding=true` sends the JSON schema as the `guided_json` requ
 `backend/mcp/server.py` defines the FastMCP tool registry. Each tool is an `@_register` async function; type hints auto-generate JSON schemas. Tools currently include get_rooms, get_sensors, get_room_occupancy, get_recent_images, get_light_level, get_alerts, get_event_logs, get_rules, get_conversation_history, get_person_locations, get_enrolled_persons, get_person_sightings, get_person_activities, get_workflow_executions, get_rule_pipeline, trigger_rule, get_eink_display_status, get_local_datetime, get_weather, five semantic-memory read tools (`get_recent_scene_objects`, `get_scene_observations`, `get_person_movements`, `get_room_trend`, `search_similar_scenes`), plus three rule-authoring tools (`list_plugin_metadata`, `get_rule_bundle`, `import_rule_bundle`). The full list is in `mcp.tools` in `settings.yaml`. A subset is mirrored to Gemini Live in `mcp.gemini_tools`.
 
 The rule-authoring MCP tools enable AI agents to read, create, and import rules:
+- `list_rules()`: returns rule summaries (name, description, enabled, trigger_types)
 - `list_plugin_metadata(kind)`: returns full metadata (config_schema, output_schema, default_config) for every registered step, filter, or channel, so agents can construct syntactically valid pipelines
 - `get_rule_bundle(rule_id)`: exports a rule as a portable `RuleBundle` dict
 - `import_rule_bundle(bundle, mode)`: validates (`mode="preview"`) or commits (`mode="commit"`) a bundle, returning the same `ImportReport` the UI shows
@@ -693,7 +708,7 @@ Every code change must pass these gates. Check off each item before opening a PR
 - [ ] External datetimes pass through `backend.core.time.normalize_utc_datetime()` before storage
 - [ ] Outbound datetimes serialize with `.astimezone(UTC).isoformat()`
 - [ ] Schema changes use Alembic (`make migration`); autogenerated migration reviewed by hand
-- [ ] No `print()`, no `eval()` for conditions (use `ConditionEvaluator`)
+- [ ] No `print()`, no `eval()` for conditions (use `evaluate_condition()` from `backend.core.template`)
 
 **Gate 5: Security and config**
 
@@ -875,6 +890,10 @@ Append a new entry to `llm.models` in `config/settings.yaml`. The unified `llm_c
 - Do not write to CTS tables (`dementia_signals`, `cts_cameras`) outside `services/cts/`.
 - Do not add new callers of the deprecated `services.person_tracking` or `services.activity_session_service`. Use `services.activity` (`ActivityService`).
 - Do not import `ObjectTrendClient` or `backend.integrations.object_trend_client`. Use `SemanticMemoryClient` from `backend.integrations.semantic_memory_client`.
+- Do not duplicate `_cts_enabled()`, `_ns_to_iso()`, or `_parse_ts()`. Import from `backend.routers.cts_deps` or `backend.services.cts._time`.
+- Do not use `Any` for injected service parameters in CTS code. Use the protocol types in `backend.services.cts._types`.
+- Do not hardcode `'#4CAF50'`, `'#FFC107'`, or `'#fff'` in Vue templates. Use `var(--cc-*)` design tokens or Vuetify theme colors.
+- Do not duplicate `severityColor` or `formatRelative` in views. Import from `frontend/src/composables/`.
 
 **Database.**
 - Do not run structural migrations by hand in production. Always use Alembic via `make migrate`.

@@ -338,7 +338,7 @@ cts:
 cts_ui:
   calibration_enabled: true
   dashboard_enabled: true
-  live_view_enabled: false   # Enabled in M9
+  live_view_enabled: true   # Enabled in M9
 
 # Logging
 logging:

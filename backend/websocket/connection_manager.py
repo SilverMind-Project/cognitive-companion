@@ -23,7 +23,7 @@ class ConnectionManager:
 
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
-        self.prompt_queue: asyncio.Queue = asyncio.Queue()
+        self.prompt_queue: asyncio.Queue[tuple[str, Callable | None, float, str | None, dict[str, Any]]] = asyncio.Queue()
         self.max_connections: int = settings.get("websocket.max_connections", 10)
         # Guards the active_connections list against concurrent connect /
         # disconnect / broadcast operations.  Without the lock, two simultaneous
@@ -125,7 +125,7 @@ class ConnectionManager:
         ttl_seconds: int = 300,
         *,
         voice_instruction: str | None = None,
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Enqueue a prompt for the realtime AI backend.
 

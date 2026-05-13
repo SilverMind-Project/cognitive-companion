@@ -1,7 +1,8 @@
 """Pipeline metadata endpoints.
 
-Serves step type metadata, channel metadata, filter metadata, and
-LLM model registry metadata to the frontend for dynamic form generation.
+Serves step type metadata, channel metadata, filter metadata,
+LLM model registry metadata, and data-keys variable reference
+to the frontend for dynamic form generation and autocomplete.
 """
 
 from __future__ import annotations
@@ -15,9 +16,11 @@ from backend.schemas.pipeline_types import (
     ChannelTypeOut,
     CronPreviewRequest,
     CronPreviewResponse,
+    DataKeysResponse,
     FilterTypeOut,
     LLMModelOut,
     StepTypeOut,
+    VariableEntry,
 )
 from backend.steps import StepRegistry
 
@@ -29,6 +32,7 @@ def list_step_types(
     _auth: AuthContext = Depends(require_permission("rules:read")),
 ):
     """Return metadata for all registered pipeline step types."""
+    StepRegistry.discover()
     return [
         StepTypeOut(
             type_name=m.type_name,
@@ -39,6 +43,10 @@ def list_step_types(
             config_schema=m.config_schema,
             default_config=m.default_config,
             deprecated=m.deprecated,
+            schema_version=m.schema_version,
+            ui_hints=m.ui_hints if m.ui_hints else None,
+            output_schema=m.output_schema if m.output_schema else None,
+            tags=list(m.tags),
         )
         for m in StepRegistry.all_metadata()
     ]
@@ -49,12 +57,14 @@ def list_channel_types(
     _auth: AuthContext = Depends(require_permission("rules:read")),
 ):
     """Return metadata for all registered notification channels."""
+    ChannelRegistry.discover()
     return [
         ChannelTypeOut(
             channel_name=m.channel_name,
             display_name=m.display_name,
             description=m.description,
             config_schema=m.config_schema,
+            schema_version=m.schema_version,
         )
         for m in ChannelRegistry.all_metadata()
     ]
@@ -65,12 +75,14 @@ def list_filter_types(
     _auth: AuthContext = Depends(require_permission("rules:read")),
 ):
     """Return metadata for all registered context filter types."""
+    FilterRegistry.discover()
     return [
         FilterTypeOut(
             filter_type=m.filter_type,
             display_name=m.display_name,
             description=m.description,
             config_schema=m.config_schema,
+            schema_version=m.schema_version,
         )
         for m in FilterRegistry.all_metadata()
     ]
@@ -99,6 +111,53 @@ def list_llm_models(
         )
         for cfg in registry.all_configs()
     ]
+
+
+# -- Data keys (variable reference for autocomplete) -------------------------
+
+
+# Static trigger/system variables exposed to template autocomplete.
+_TRIGGER_VARS: list[VariableEntry] = [
+    VariableEntry(key="trigger.sensor_id", description="Sensor that triggered the pipeline", type="string"),
+    VariableEntry(key="trigger.room_name", description="Room where the trigger originated", type="string"),
+    VariableEntry(key="trigger.media_paths", description="Media files captured at trigger time", type="list"),
+    VariableEntry(key="trigger.type", description="Trigger type (sensor_event, cron, manual, etc.)", type="string"),
+    VariableEntry(key="trigger_input", description="Raw webhook/telegram payload (if applicable)", type="any"),
+    VariableEntry(key="trigger_input.command", description="Telegram command text", type="string"),
+    VariableEntry(key="trigger_input.chat_id", description="Telegram chat ID", type="string"),
+    VariableEntry(key="trigger_input.args", description="Telegram command arguments", type="list"),
+    VariableEntry(key="trigger_input.text", description="Telegram message text", type="string"),
+]
+
+_SYSTEM_VARS: list[VariableEntry] = [
+    VariableEntry(key="system.local_time", description="Current local time (e.g. 02:30 PM)", type="string"),
+    VariableEntry(key="system.local_date", description="Current local date (e.g. 2026-05-12)", type="string"),
+    VariableEntry(key="system.local_day_of_week", description="Current day of week (e.g. Monday)", type="string"),
+    VariableEntry(key="system.timezone", description="Operator timezone (e.g. America/Los_Angeles)", type="string"),
+]
+
+
+@router.get("/data-keys", response_model=DataKeysResponse)
+def get_data_keys(
+    _auth: AuthContext = Depends(require_permission("rules:read")),
+):
+    """Return the complete variable reference for template autocomplete.
+
+    Includes trigger/system variables plus per-step-type output schemas
+    keyed by step type_name so the frontend can build ``steps.<label>.outputs.*``
+    suggestions from the current pipeline's labels.
+    """
+    StepRegistry.discover()
+    step_outputs: dict[str, dict] = {}
+    for m in StepRegistry.all_metadata():
+        if m.output_schema:
+            step_outputs[m.type_name] = m.output_schema
+
+    return DataKeysResponse(
+        trigger=_TRIGGER_VARS,
+        system=_SYSTEM_VARS,
+        step_outputs=step_outputs,
+    )
 
 
 # -- Cron preview ------------------------------------------------------------

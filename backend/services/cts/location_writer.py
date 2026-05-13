@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
+from backend.services.cts._time import parse_ts
 from backend.services.cts.source_authority import SourceAuthority
 
 logger = get_logger(__name__)
@@ -64,7 +65,7 @@ class LocationWriter:
         room_name = event.get("room_name") or None
         camera_id = event.get("camera_id") or ""
         event_time = (
-            _parse_ts(event.get("event_time")) if event.get("event_time") else datetime.now(UTC)
+            parse_ts(event.get("event_time")) if event.get("event_time") else datetime.now(UTC)
         )
 
         touched: list[str] = []
@@ -142,12 +143,3 @@ class LocationWriter:
 
         return touched
 
-
-def _parse_ts(value: Any) -> datetime:
-    """Normalise an ISO-8601 string or datetime to a tz-aware UTC datetime."""
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=UTC)
-    if not isinstance(value, str):
-        raise TypeError(f"Expected str or datetime, got {type(value)}")
-    dt = datetime.fromisoformat(value)
-    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)

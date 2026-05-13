@@ -168,9 +168,10 @@ export const cts = {
   // ── Live view WebSocket ───────────────────────────────────────────────────
   openLiveSocket(onMessage) {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const key = encodeURIComponent(getApiKey());
-    const url = `${proto}//${window.location.host}/ws/cts?api_key=${key}`;
-    const ws = new WebSocket(url);
+    const key = getApiKey();
+    const url = `${proto}//${window.location.host}/ws/cts`;
+    // Pass API key via Sec-WebSocket-Protocol header (avoids query-param logging).
+    const ws = new WebSocket(url, key ? [key] : undefined);
     ws.onmessage = (ev) => {
       try {
         onMessage(JSON.parse(ev.data));

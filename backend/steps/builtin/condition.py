@@ -1,11 +1,15 @@
-"""Condition step -- evaluate expression and branch accordingly."""
+"""Condition step -- evaluate expression and branch accordingly.
+
+Uses the Lark-based expression evaluator from ``backend.core.template``
+for parse-safe evaluation with typed error reporting.
+"""
 
 from __future__ import annotations
 
 import re
 
+from backend.core.template import evaluate_condition
 from backend.models.pipeline import PipelineStep, WorkflowExecution
-from backend.services.condition_evaluator import ConditionEvaluator
 from backend.steps import StepRegistry
 from backend.steps.base import (
     ServiceContainer,
@@ -15,11 +19,10 @@ from backend.steps.base import (
     TriggerContext,
 )
 
-_condition_eval = ConditionEvaluator()
 # Strip {{ }} wrappers so authors can write either form:
-#   steps.foo.outputs.bar == "x"          (evaluator IDENT syntax)
-#   {{steps.foo.outputs.bar}} == "x"      (template-style reference)
-_TEMPLATE_REF_RE = re.compile(r"\{\{\s*([\w][\w.]*)\s*\}\}")
+#   steps.foo.outputs.bar == "x"          (bare expression)
+#   {{ steps.foo.outputs.bar == "x" }}    (template-style wrapping)
+_TEMPLATE_REF_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
 
 
 @StepRegistry.register
@@ -39,8 +42,11 @@ class ConditionHandler(StepHandler):
                         "type": "string",
                         "description": (
                             "Expression evaluated at runtime. Supports path access, "
-                            "comparisons, boolean operators, exists(), contains()."
+                            "comparisons, boolean operators, JMESPath pipes, and "
+                            "built-in functions: exists(), contains(), icontains(), "
+                            "length(), lower(), upper(), keys(), values()."
                         ),
+                        "x-ui": {"widget": "template-textarea", "rows": 3, "supports_template": True},
                     },
                     "trigger_cooloff": {
                         "type": "boolean",
@@ -52,6 +58,14 @@ class ConditionHandler(StepHandler):
             default_config={
                 "expression": "",
                 "trigger_cooloff": False,
+            },
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "expression": {"type": "string"},
+                    "result": {"type": "boolean"},
+                    "branch": {"type": "string"},
+                },
             },
         )
 
@@ -65,9 +79,11 @@ class ConditionHandler(StepHandler):
     ) -> StepResult:
         config = step.config_json
         expression = config.get("expression", "true")
+        # Strip {{ }} wrappers for backward compat; evaluate_condition
+        # expects the raw expression body.
         expression = _TEMPLATE_REF_RE.sub(r"\1", expression)
 
-        result = _condition_eval.evaluate(expression, pipeline_data)
+        result = evaluate_condition(expression, pipeline_data)
 
         next_step_id = step.next_step_on_true if result else step.next_step_on_false
 

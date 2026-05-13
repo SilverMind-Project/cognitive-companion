@@ -27,28 +27,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from backend.core.auth import AuthContext, require_permission
-from backend.core.config import settings
 from backend.core.database import get_session
 from backend.core.logging import get_logger
 from backend.integrations._upstream_base import UpstreamError
 from backend.models.person import PersonLocationHistory
+from backend.routers.cts_deps import cts_enabled
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/cts/identity", tags=["cts-identity"])
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _cts_enabled() -> None:
-    if not settings.get("cts.enabled", False):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "cts.disabled", "message": "CTS is not enabled on this instance."},
-        )
 
 
 def _get_orchestrator_client(request: Request) -> Any:
@@ -93,7 +80,7 @@ async def list_global_tracks(
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> dict:
     """List current global tracks for the corrections review pane."""
-    _cts_enabled()
+    cts_enabled()
     client = _get_orchestrator_client(request)
     try:
         tracks = await client.get_global_tracks(open_only=open_only)
@@ -123,7 +110,7 @@ async def apply_correction(
     ``tracking.revisions``; the CC subscriber picks it up and rewrites the
     local history within one stream-read cycle (typically <200 ms).
     """
-    _cts_enabled()
+    cts_enabled()
     client = _get_orchestrator_client(request)
     try:
         resp = await client.manual_identity_override(
@@ -167,7 +154,7 @@ async def merge_identities(
     to the target identity with ``reason="manual_merge"`` and evidence carrying
     both ids for audit.
     """
-    _cts_enabled()
+    cts_enabled()
     client = _get_orchestrator_client(request)
     try:
         resp = await client.manual_identity_override(
@@ -207,7 +194,7 @@ async def list_revisions(
     result represents one applied revision; its earliest ``entered_at`` is used
     as the revision timestamp.
     """
-    _cts_enabled()
+    cts_enabled()
     cutoff = datetime.now(UTC) - timedelta(hours=window_hours)
     db = get_session()
     try:

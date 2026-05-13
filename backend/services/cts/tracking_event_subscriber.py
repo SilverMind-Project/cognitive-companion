@@ -14,12 +14,13 @@ subscriber is the only consumer.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
 from backend.services.cts import metrics
+from backend.services.cts._time import ns_to_iso
+from backend.services.cts._types import ConnectionManager, PipelineExecutor
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -40,8 +41,8 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         redis_url: str,
         consumer_id: str,
         writer: LocationWriter,
-        ws_manager: Any = None,
-        pipeline: Any = None,
+        ws_manager: ConnectionManager | None = None,
+        pipeline: PipelineExecutor | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -58,7 +59,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
     # -- StreamConsumer abstract methods ------------------------------------
 
-    def decode(self, message_id: bytes, fields: dict) -> dict[str, Any] | None:
+    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> dict[str, Any] | None:
         """Decode the proto envelope into the LocationWriter event dict."""
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
@@ -105,16 +106,16 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                     "global_track_id": det.global_track_id,
                     "identity_id": identity_id,
                     "identity_confidence": identity_conf,
-                    "confidence": float(det.confidence),
+                    "confidence": det.confidence,
                     "bbox": {
-                        "x_min": int(det.bbox.x_min),
-                        "y_min": int(det.bbox.y_min),
-                        "x_max": int(det.bbox.x_max),
-                        "y_max": int(det.bbox.y_max),
+                        "x_min": det.bbox.x_min,
+                        "y_min": det.bbox.y_min,
+                        "x_max": det.bbox.x_max,
+                        "y_max": det.bbox.y_max,
                     },
                     "floor_point": {
-                        "x_mm": int(det.floor_point.x_mm),
-                        "y_mm": int(det.floor_point.y_mm),
+                        "x_mm": det.floor_point.x_mm,
+                        "y_mm": det.floor_point.y_mm,
                     },
                 }
             )
@@ -122,7 +123,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         return {
             "event_id": message.event_id,
             "camera_id": message.camera_id,
-            "event_time": _ns_to_iso(message.event_time_unix_ns),
+            "event_time": ns_to_iso(message.event_time_unix_ns),
             "frame_index": int(message.frame_ref.frame_index),
             "detection_count": len(detections),
             "minio_key": message.frame_ref.minio_key,
@@ -144,7 +145,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
         metrics.cts_events_persisted.labels(event_type=camera_id).inc()
 
-        if self._ws_manager is not None and event.get("detections"):
+        if self._ws_manager is not None:
             try:
                 await self._ws_manager.broadcast(
                     {
@@ -153,7 +154,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                         "event_time": event["event_time"],
                         "room_name": event.get("room_name"),
                         "minio_key": event.get("minio_key"),
-                        "detections": event["detections"],
+                        "detections": event.get("detections", []),
                     }
                 )
             except Exception:
@@ -177,13 +178,3 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         return True
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _ns_to_iso(ns: int) -> str:
-    """Convert unix-ns to an ISO-8601 UTC string."""
-    if ns <= 0:
-        return datetime.now(UTC).isoformat()
-    return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()

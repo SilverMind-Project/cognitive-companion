@@ -13,12 +13,13 @@ carrying the raw protobuf body of a
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import signals_pb2
 from backend.services.cts import metrics
+from backend.services.cts._time import ns_to_iso
+from backend.services.cts._types import PipelineExecutor
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -58,7 +59,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
         redis_url: str,
         consumer_id: str,
         store: SignalStore,
-        pipeline: Any | None = None,
+        pipeline: PipelineExecutor | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -74,7 +75,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
 
     # -- StreamConsumer abstract methods -------------------------------------
 
-    def decode(self, message_id: bytes, fields: dict) -> dict[str, Any] | None:
+    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> dict[str, Any] | None:
         """Decode the proto envelope into the SignalStore dict shape."""
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
@@ -114,11 +115,11 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
             "person_id": message.identity_id,
             "signal_type": kind,
             "severity": severity,
-            "value": float(message.value),
-            "baseline": float(message.baseline) if message.has_baseline else None,
-            "z_score": float(message.z_score) if message.has_z_score else None,
-            "window_start": _ns_to_iso(message.window_start_unix_ns),
-            "window_end": _ns_to_iso(message.window_end_unix_ns),
+            "value": message.value,
+            "baseline": message.baseline if message.has_baseline else None,
+            "z_score": message.z_score if message.has_z_score else None,
+            "window_start": ns_to_iso(message.window_start_unix_ns),
+            "window_end": ns_to_iso(message.window_end_unix_ns),
             "context_json": context,
         }
 
@@ -162,7 +163,4 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
         return True
 
 
-def _ns_to_iso(ns: int) -> str:
-    if ns <= 0:
-        return datetime.now(UTC).isoformat()
-    return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()
+

@@ -153,6 +153,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
+import { severityColor } from "../../composables/useCtsSeverity";
 
 const keyframes = ref([]);
 const selectedKeyframe = ref(null);
@@ -216,11 +217,6 @@ async function retain(kf) {
   } catch (e) {
     console.error("Failed to retain keyframe:", e);
   }
-}
-
-function severityColor(severity) {
-  const map = { info: "grey", warning: "orange", emergency: "red" };
-  return map[severity] || "grey";
 }
 
 function formatTime(iso) {

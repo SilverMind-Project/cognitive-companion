@@ -61,6 +61,7 @@ All template and condition expressions use a unified Lark-based grammar with `{{
 | --- | --- |
 | Python 3.14, Node 18+ | Runtimes |
 | PostgreSQL 18 (TimescaleDB + pgvectorscale) | Application database |
+| Redis 7 | CTS stream transport (required for continuous tracking) |
 | MinIO (S3-compatible) | Media object storage |
 | Home Assistant | Sensor integration + actions |
 | NVIDIA GPU (10 GB+ VRAM) | Person-ID + vLLM + Triton |
@@ -69,7 +70,7 @@ All template and condition expressions use a unified Lark-based grammar with `{{
 | Triton Inference Server | Embedding model for RAG |
 | Docker + NVIDIA Container Toolkit | Container runtime |
 
-Optional: `person-identification-service`, `scene-analysis-service`, `semantic-memory-service`, `tts-service`, `continuous-tracking/`, Telegram Bot, Google Gemini API.
+Optional: `person-identification-service`, `scene-analysis-service`, `semantic-memory-service`, `tts-service`, `continuous-tracking/` (tracking-orchestrator, rtsp-ingress, Redis, Triton), Telegram Bot, Google Gemini API.
 
 ---
 

@@ -139,6 +139,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { cts } from "../../services/cts.js";
+import { severityColor } from "../../composables/useCtsSeverity";
 
 const signals = ref([]);
 const trend = ref([]);
@@ -222,11 +223,6 @@ async function acknowledge(signalId) {
   } catch (e) {
     console.error("Failed to acknowledge signal:", e);
   }
-}
-
-function severityColor(severity) {
-  const map = { info: "grey", warning: "orange", emergency: "red" };
-  return map[severity] || "grey";
 }
 
 watch(() => filters.value.person_id, (personId) => {

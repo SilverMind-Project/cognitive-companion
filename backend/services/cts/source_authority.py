@@ -24,7 +24,9 @@ The policy is codified here so the callers (:class:`LocationWriter` and
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+
+from backend.services.cts._time import ensure_aware
 
 
 class SourceAuthority:
@@ -66,19 +68,13 @@ class SourceAuthority:
         if current_updated_at is None:
             return True
 
-        now_aware = _ensure_aware(current_updated_at)
-        evt_aware = _ensure_aware(event_time)
+        now_aware = ensure_aware(current_updated_at)
+        evt_aware = ensure_aware(event_time)
 
         if not self._is_cts_source(current_source):
             return True
 
-        if evt_aware <= now_aware:
-            return False
-
-        # The current CTS row is recent; accept only fresh events.
-        if now_aware + self._cts_lock > evt_aware:
-            return evt_aware > now_aware
-        return True
+        return evt_aware > now_aware
 
     def _is_cts_source(self, source: str) -> bool:
         if not source:
@@ -88,5 +84,4 @@ class SourceAuthority:
         return source in self._cts_source_names
 
 
-def _ensure_aware(dt: datetime) -> datetime:
-    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+

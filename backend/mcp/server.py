@@ -1192,6 +1192,29 @@ async def complete_quiz_session(session_id: int) -> dict:
 
 
 @_register
+async def list_rules() -> list[dict]:
+    """List all rules with summary info (name, description, enabled, trigger_types)."""
+    from backend.models.rule import Rule
+
+    db = _svc.db_factory()
+    try:
+        rules = db.query(Rule).order_by(Rule.name).all()
+        return [
+            {
+                "id": r.id,
+                "name": r.name,
+                "description": r.description,
+                "enabled": r.enabled,
+                "trigger_types": r.trigger_types,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rules
+        ]
+    finally:
+        db.close()
+
+
+@_register
 async def list_plugin_metadata(
     kind: str | None = None,
 ) -> list[dict]:

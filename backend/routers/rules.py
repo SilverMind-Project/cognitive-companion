@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.auth import AuthContext, require_permission
@@ -30,6 +30,7 @@ from backend.schemas.rule import (
 )
 from backend.schemas.rule_bundle import ImportReport, RuleBundle
 from backend.services.rule_serializer import rule_to_bundle, validate_bundle
+from backend.services.template_validator import validate_step_config
 
 router = APIRouter(prefix="/rules", tags=["rules"])
 
@@ -241,6 +242,27 @@ def _assert_label_unique(db: Session, rule_id: int, label: str, exclude_step_id:
         raise ConflictError(f"A step with label '{label}' already exists in this pipeline")
 
 
+def _get_known_labels(db: Session, rule_id: int, exclude_step_id: int | None = None) -> list[str]:
+    """Return the list of step labels for the given rule."""
+    q = db.query(PipelineStep.label).filter(PipelineStep.rule_id == rule_id)
+    if exclude_step_id is not None:
+        q = q.filter(PipelineStep.id != exclude_step_id)
+    return [row[0] for row in q.all()]
+
+
+def _assert_valid_templates(step_type: str, config: dict, known_labels: list[str]) -> None:
+    """Raise HTTPException 422 if any template expression in *config* is invalid."""
+    errors = validate_step_config(step_type, config, known_labels)
+    if errors:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Template validation failed",
+                "errors": [e.to_dict() for e in errors],
+            },
+        )
+
+
 @router.post("/{rule_id}/steps", response_model=PipelineStepOut, status_code=201)
 def add_step(
     rule_id: int,
@@ -271,6 +293,12 @@ def add_step(
         order=next_order,
         **data,
     )
+    # Validate template expressions
+    known_labels = _get_known_labels(db, rule_id)
+    if payload.label and payload.label not in known_labels:
+        known_labels.append(payload.label)
+    _assert_valid_templates(payload.step_type, payload.config_json or {}, known_labels)
+
     db.add(step)
     db.commit()
     db.refresh(step)
@@ -324,6 +352,16 @@ def update_step(
     updates = payload.model_dump(exclude_unset=True)
     if "label" in updates and updates["label"] is not None:
         _assert_label_unique(db, rule_id, updates["label"], exclude_step_id=step_id)
+
+    # Validate template expressions if config is being updated
+    if "config_json" in updates:
+        effective_label = updates.get("label") or step.label
+        effective_type = updates.get("step_type") or step.step_type
+        known_labels = _get_known_labels(db, rule_id, exclude_step_id=step_id)
+        if effective_label not in known_labels:
+            known_labels.append(effective_label)
+        _assert_valid_templates(effective_type, updates["config_json"] or {}, known_labels)
+
     for key, value in updates.items():
         setattr(step, key, value)
     db.commit()
@@ -375,6 +413,33 @@ def delete_step(
 
 
 @router.post("/{rule_id}/execute", status_code=202)
+@router.post("/{rule_id}/validate")
+def validate_rule(
+    rule_id: int,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:read")),
+):
+    """Lint all template expressions across every step in a rule.
+
+    Returns a list of ``TemplateError`` dicts keyed by step label.
+    """
+    rule = db.get(Rule, rule_id)
+    if not rule:
+        raise NotFoundError("Rule", rule_id)
+
+    steps = db.query(PipelineStep).filter(PipelineStep.rule_id == rule_id).all()
+    known_labels = [s.label for s in steps]
+
+    all_errors: dict[str, list[dict]] = {}
+    for step in steps:
+        config = step.config_json or {}
+        errors = validate_step_config(step.step_type, config, known_labels)
+        if errors:
+            all_errors[step.label] = [e.to_dict() for e in errors]
+
+    return {"rule_id": rule_id, "errors": all_errors, "valid": len(all_errors) == 0}
+
+
 async def execute_rule(
     rule_id: int,
     request: Request,

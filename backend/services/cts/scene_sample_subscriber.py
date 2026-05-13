@@ -11,12 +11,13 @@ whose value is the raw protobuf body of a
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import scene_pb2
 from backend.services.cts import metrics
+from backend.services.cts._time import ns_to_iso
+from backend.services.cts._types import MinioClient, SceneAnalysisClient, SemanticMemoryClient
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
 logger = get_logger(__name__)
@@ -35,9 +36,9 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
         *,
         redis_url: str,
         consumer_id: str,
-        minio_client: Any = None,
-        scene_analysis_client: Any = None,
-        semantic_memory_client: Any = None,
+        minio_client: MinioClient | None = None,
+        scene_analysis_client: SceneAnalysisClient | None = None,
+        semantic_memory_client: SemanticMemoryClient | None = None,
         camera_room_map: dict[str, str] | None = None,
     ) -> None:
         super().__init__(
@@ -56,7 +57,7 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
 
     # -- StreamConsumer abstract methods ----------------------------------
 
-    def decode(self, message_id: bytes, fields: dict) -> dict[str, Any] | None:
+    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> dict[str, Any] | None:
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
             logger.warning("scene_sample_missing_payload", message_id=message_id)
@@ -77,10 +78,10 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
             "global_track_id": message.global_track_id,
             "camera_id": message.camera_id,
             "minio_key": message.minio_key,
-            "captured_at": _ns_to_iso(message.captured_at_unix_ns),
+            "captured_at": ns_to_iso(message.captured_at_unix_ns),
             "tag_reason": scene_pb2.TagReason.Name(message.tag_reason),
             "annotations_json": message.annotations_json or "{}",
-            "expires_at": _ns_to_iso(message.expires_at_unix_ns) if message.expires_at_unix_ns else None,
+            "expires_at": ns_to_iso(message.expires_at_unix_ns) if message.expires_at_unix_ns else None,
         }
 
     async def handle(self, sample: dict[str, Any]) -> bool:
@@ -182,7 +183,4 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
         return True
 
 
-def _ns_to_iso(ns: int) -> str:
-    if ns <= 0:
-        return datetime.now(UTC).isoformat()
-    return datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()
+

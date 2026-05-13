@@ -11,12 +11,15 @@ SQLite fixture.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import case, desc, func, select
+from sqlalchemy.orm import Session
 
 from backend.models.cts_signal import DementiaSignal
+from backend.services.cts._time import parse_ts
 
 
 class SignalStore:
@@ -30,7 +33,7 @@ class SignalStore:
         the in-memory fixture.
     """
 
-    def __init__(self, db_factory) -> None:
+    def __init__(self, db_factory: Callable[[], Session]) -> None:
         self._db_factory = db_factory
 
     # -- Write path ----------------------------------------------------------
@@ -57,8 +60,8 @@ class SignalStore:
                 person_id=signal_data["person_id"],
                 signal_type=signal_data["signal_type"],
                 severity=signal_data["severity"],
-                window_start=self._parse_ts(signal_data["window_start"]),
-                window_end=self._parse_ts(signal_data["window_end"]),
+                window_start=parse_ts(signal_data["window_start"]),
+                window_end=parse_ts(signal_data["window_end"]),
                 value=float(signal_data["value"]),
                 baseline=float(signal_data["baseline"]) if signal_data.get("baseline") is not None else None,
                 z_score=float(signal_data["z_score"]) if signal_data.get("z_score") is not None else None,
@@ -250,13 +253,6 @@ class SignalStore:
 
     # -- Helpers -------------------------------------------------------------
 
-    @staticmethod
-    def _parse_ts(value: str | datetime) -> datetime:
-        """Normalise an ISO-8601 string or datetime into a timezone-aware datetime."""
-        dt = value if isinstance(value, datetime) else datetime.fromisoformat(value)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-        return dt
 
     @staticmethod
     def _to_dict(row: DementiaSignal) -> dict[str, Any]:

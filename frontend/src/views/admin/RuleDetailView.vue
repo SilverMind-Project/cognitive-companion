@@ -13,6 +13,14 @@
       </div>
       <v-spacer />
       <v-btn
+        variant="text"
+        prepend-icon="mdi-download"
+        :loading="exporting"
+        @click="exportRule"
+      >
+        Export
+      </v-btn>
+      <v-btn
         color="primary"
         variant="flat"
         prepend-icon="mdi-play"
@@ -678,140 +686,43 @@
 
       <!-- Live Run Tab -->
       <v-window-item value="liverun">
-        <v-row v-if="liveExecution">
-          <!-- Live timeline + status -->
-          <v-col cols="12" md="6">
-            <v-card class="live-card">
-              <v-card-text>
-                <div class="d-flex align-center mb-4">
-                  <v-avatar
-                    :color="statusColor(liveExecution.status)"
-                    size="44"
-                    variant="tonal"
-                    class="mr-3"
-                  >
-                    <v-icon>{{ liveStatusIcon }}</v-icon>
-                  </v-avatar>
-                  <div class="flex-grow-1">
-                    <div class="text-overline text-medium-emphasis">Execution #{{ liveExecution.id }}</div>
-                    <div class="text-h6 font-weight-bold">
-                      {{ liveExecution.status }}
-                      <v-progress-circular
-                        v-if="livePolling"
-                        indeterminate
-                        size="16"
-                        width="2"
-                        color="info"
-                        class="ml-2"
-                      />
-                    </div>
-                    <div class="text-caption text-medium-emphasis">
-                      Started {{ formatDate(liveExecution.started_at) }}
-                      <span v-if="liveExecution.completed_at">
-                        &middot; {{ formatDuration(liveExecution.started_at, liveExecution.completed_at) }}
-                      </span>
-                    </div>
-                  </div>
-                  <v-btn
-                    icon="mdi-close"
-                    variant="text"
-                    size="small"
-                    title="Close live view"
-                    @click="closeLiveExecution"
-                  />
-                </div>
-
-                <v-alert
-                  v-if="liveExecution.error"
-                  type="error"
-                  variant="tonal"
-                  class="mb-4"
-                  density="compact"
-                >
-                  {{ liveExecution.error }}
-                </v-alert>
-
-                <div class="text-overline text-medium-emphasis mb-2">Steps</div>
-                <v-timeline side="end" density="compact" class="live-timeline">
-                  <v-timeline-item
-                    v-for="step in rule.steps || []"
-                    :key="step.id"
-                    :icon="liveStepIcon(step)"
-                    :dot-color="liveStepColor(step)"
-                    size="x-small"
-                  >
-                    <div class="d-flex align-center">
-                      <div class="flex-grow-1">
-                        <div
-                          class="text-body-2 font-weight-medium"
-                          :class="{ 'text-primary': step.id === liveExecution.current_step_id }"
-                        >
-                          {{ step.name || humanize(step.step_type) }}
-                        </div>
-                        <div class="text-caption text-medium-emphasis">{{ step.step_type }}</div>
-                      </div>
-                      <v-chip
-                        v-if="step.id === liveExecution.current_step_id && livePolling"
-                        size="x-small"
-                        color="info"
-                        variant="tonal"
-                      >
-                        running
-                      </v-chip>
-                    </div>
-                  </v-timeline-item>
-                </v-timeline>
-              </v-card-text>
-            </v-card>
-          </v-col>
-
-          <!-- Pipeline data viewer -->
-          <v-col cols="12" md="6">
-            <v-card class="live-card">
-              <v-card-text>
-                <div class="d-flex align-center mb-3">
-                  <div>
-                    <div class="text-overline text-medium-emphasis">Pipeline Data</div>
-                    <div class="text-body-2 text-medium-emphasis">
-                      Live view of the data dictionary as steps run.
-                    </div>
-                  </div>
-                  <v-spacer />
-                  <v-btn
-                    size="small"
-                    variant="text"
-                    :prepend-icon="livePolling ? 'mdi-pause' : 'mdi-play'"
-                    @click="toggleLivePolling"
-                  >
-                    {{ livePolling ? 'Pause' : 'Resume' }}
-                  </v-btn>
-                  <v-btn
-                    size="small"
-                    variant="text"
-                    prepend-icon="mdi-content-copy"
-                    @click="copyPipelineData"
-                  >
-                    Copy
-                  </v-btn>
-                </div>
-
-                <div v-if="pipelineKeys.length" class="mb-3">
-                  <v-chip
-                    v-for="k in pipelineKeys"
-                    :key="k"
-                    size="x-small"
-                    variant="tonal"
-                    class="mr-1 mb-1 cc-code"
-                  >
-                    {{ k }}
-                  </v-chip>
-                </div>
-
-                <pre class="live-json">{{ pipelineDataPretty }}</pre>
-              </v-card-text>
-            </v-card>
-          </v-col>
-        </v-row>
+        <template v-if="liveExecution">
+          <div class="d-flex align-center mb-3">
+            <div>
+              <div class="text-overline text-medium-emphasis">Execution #{{ liveExecution.id }}</div>
+            </div>
+            <v-spacer />
+            <v-btn
+              size="small"
+              variant="text"
+              :prepend-icon="livePolling ? 'mdi-pause' : 'mdi-play'"
+              @click="toggleLivePolling"
+            >
+              {{ livePolling ? "Pause" : "Resume" }}
+            </v-btn>
+            <v-btn
+              size="small"
+              variant="text"
+              prepend-icon="mdi-content-copy"
+              @click="copyPipelineData"
+            >
+              Copy
+            </v-btn>
+            <v-btn
+              icon="mdi-close"
+              variant="text"
+              size="small"
+              title="Close live view"
+              @click="closeLiveExecution"
+            />
+          </div>
+          <ExecutionDetail
+            :execution="liveExecution"
+            :live="true"
+            @cancel="cancelLiveExecution"
+            @rerun="rerunLiveExecution"
+          />
+        </template>
         <v-card v-else>
           <v-card-text class="text-center text-medium-emphasis py-8">
             <v-icon size="48" class="mb-2">mdi-flash-outline</v-icon>
@@ -836,6 +747,7 @@ import { useNotify } from "../../composables/useNotify.js";
 import { formatDateTime, getAppTimezone, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 import CronBuilder from "../../components/pipeline/CronBuilder.vue";
 import PipelineBuilder from "../../components/pipeline/PipelineBuilder.vue";
+import ExecutionDetail from "../../components/pipeline/ExecutionDetail.vue";
 
 const route = useRoute();
 const ruleId = computed(() => Number(route.params.id));
@@ -843,6 +755,7 @@ const ruleId = computed(() => Number(route.params.id));
 const rule = ref(null);
 const tab = ref("settings");
 const executing = ref(false);
+const exporting = ref(false);
 const { snack, snackText, snackColor, notify } = useNotify();
 
 // Reference data from API
@@ -926,7 +839,16 @@ const livePolling = ref(false);
 let livePollTimer = null;
 
 const pipelineDataPretty = computed(() => {
-  const data = liveExecution.value?.pipeline_data_json || {};
+  const timeline = liveExecution.value?.timeline || [];
+  const data = {};
+  for (const step of timeline) {
+    if (step.label && step.outputs) {
+      data[`steps.${step.label}.outputs`] = step.outputs;
+    }
+    if (step.resolved_config) {
+      data[`steps.${step.label}.resolved_config`] = step.resolved_config;
+    }
+  }
   try {
     return JSON.stringify(data, null, 2);
   } catch {
@@ -934,53 +856,14 @@ const pipelineDataPretty = computed(() => {
   }
 });
 
-const pipelineKeys = computed(() => Object.keys(liveExecution.value?.pipeline_data_json || {}));
-
-const liveStatusIcon = computed(() => {
-  const map = {
-    completed: "mdi-check-circle",
-    failed: "mdi-alert-circle",
-    running: "mdi-flash",
-    waiting: "mdi-clock-outline",
-    cancelled: "mdi-cancel",
-  };
-  return map[liveExecution.value?.status] || "mdi-flash-outline";
+const pipelineKeys = computed(() => {
+  const timeline = liveExecution.value?.timeline || [];
+  return timeline.filter((s) => s.label).map((s) => `steps.${s.label}`);
 });
 
 function humanize(s) {
   if (!s) return "";
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function liveStepIcon(step) {
-  const map = {
-    llm_call: "mdi-brain",
-    logic_reasoning: "mdi-sitemap-outline",
-    notification: "mdi-bell-outline",
-    verification: "mdi-check-decagram-outline",
-    web_search: "mdi-magnify",
-    image_generation: "mdi-image-outline",
-    eink_render: "mdi-image-edit-outline",
-  };
-  return map[step.step_type] || "mdi-cog-outline";
-}
-
-function liveStepColor(step) {
-  if (!liveExecution.value) return "grey";
-  const status = liveExecution.value.status;
-  const currentId = liveExecution.value.current_step_id;
-  const steps = (rule.value?.steps || []).slice().sort((a, b) => a.order - b.order);
-  const currentStep = steps.find((s) => s.id === currentId);
-  const currentOrder = currentStep ? currentStep.order : null;
-
-  if (status === "completed") return "success";
-  if (status === "failed" && step.id === currentId) return "error";
-
-  if (currentOrder !== null) {
-    if (step.order < currentOrder) return "success";
-    if (step.id === currentId) return status === "failed" ? "error" : "info";
-  }
-  return "grey";
 }
 
 function openLiveExecution(id) {
@@ -1000,16 +883,35 @@ function closeLiveExecution() {
 async function fetchLiveExecution() {
   if (!liveExecutionId.value) return;
   try {
-    const exec = await api.getWorkflow(liveExecutionId.value);
+    const exec = await api.getWorkflowDetail(liveExecutionId.value);
     liveExecution.value = exec;
     if (!["running", "waiting"].includes(exec.status)) {
       stopLivePolling();
-      // Refresh executions list to show the final status
       loadExecutions();
     }
   } catch (e) {
     console.error("Failed to fetch live execution:", e);
     stopLivePolling();
+  }
+}
+
+async function cancelLiveExecution() {
+  try {
+    await api.cancelWorkflow(liveExecutionId.value);
+    notify.success("Execution cancelled.");
+    fetchLiveExecution();
+  } catch (e) {
+    notify.error("Cancel failed: " + (e.message || "Unknown error"));
+  }
+}
+
+async function rerunLiveExecution() {
+  try {
+    const result = await api.rerunWorkflow(liveExecutionId.value);
+    notify.success(`Rerun started (#${result.execution_id})`);
+    openLiveExecution(result.execution_id);
+  } catch (e) {
+    notify.error("Rerun failed: " + (e.message || "Unknown error"));
   }
 }
 
@@ -1123,8 +1025,8 @@ async function loadRule() {
       name: rule.value.name,
       description: rule.value.description || "",
       enabled: rule.value.enabled,
-      trigger_type: rule.value.trigger_type,
-      schedule_cron: rule.value.schedule_cron || "",
+      trigger_type: rule.value.trigger_types?.[0] || "sensor_event",
+      schedule_cron: rule.value.cron_triggers?.[0]?.expression || "",
       primary_sensor_id: rule.value.primary_sensor_id || "",
       cool_off_minutes: rule.value.cool_off_minutes,
       max_daily_triggers: rule.value.max_daily_triggers,
@@ -1179,7 +1081,39 @@ async function saveSettings() {
     }
   }
   try {
-    await api.updateRule(ruleId.value, form.value);
+    const triggerType = form.value.trigger_type || "sensor_event";
+
+    // Build the payload for RuleUpdate (backend uses trigger_types list + cron_trigger_ids)
+    const { schedule_cron, trigger_type: _unused, ...rest } = form.value;
+    const payload = {
+      ...rest,
+      trigger_types: [triggerType],
+    };
+
+    // Manage cron trigger lifecycle: cron expressions are now separate CronTrigger
+    // rows linked via rule_cron_triggers join table.
+    if (triggerType === "cron" && schedule_cron) {
+      const existingCronId = rule.value.cron_triggers?.[0]?.id;
+      if (existingCronId) {
+        await api.updateCronTrigger(existingCronId, {
+          expression: schedule_cron,
+          timezone: getAppTimezone(),
+        });
+        payload.cron_trigger_ids = [existingCronId];
+      } else {
+        const ct = await api.createCronTrigger({
+          name: `${rule.value.name} cron`,
+          expression: schedule_cron,
+          timezone: getAppTimezone(),
+        });
+        payload.cron_trigger_ids = [ct.id];
+      }
+    } else if (triggerType !== "cron" && rule.value.cron_triggers?.length) {
+      // Rule no longer uses cron — unlink existing cron triggers
+      payload.cron_trigger_ids = [];
+    }
+
+    await api.updateRule(ruleId.value, payload);
     await loadRule();
     notify("Settings saved");
   } catch (e) {
@@ -1200,6 +1134,26 @@ async function executeRule() {
     notify(e.message, "error");
   }
   executing.value = false;
+}
+
+async function exportRule() {
+  exporting.value = true;
+  try {
+    const bundle = await api.exportRule(ruleId.value);
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const name = (bundle.rule?.name || "rule").replace(/\s+/g, "_").toLowerCase();
+    a.download = `${name}.cc-rule.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify.success("Rule exported.");
+  } catch (e) {
+    notify.error("Export failed: " + (e.message || "Unknown error"));
+  } finally {
+    exporting.value = false;
+  }
 }
 
 async function addContext() {
@@ -1327,30 +1281,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .tracking-tight {
   letter-spacing: -0.018em;
-}
-
-.live-card {
-  min-height: 480px;
-}
-
-.live-timeline {
-  max-height: 420px;
-  overflow-y: auto;
-  padding-right: 8px;
-}
-
-.live-json {
-  background: var(--cc-surface-3);
-  border: 1px solid var(--cc-divider);
-  border-radius: 12px;
-  padding: 14px 16px;
-  font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  max-height: 520px;
-  overflow: auto;
-  white-space: pre;
-  color: var(--cc-text-1);
 }
 
 .cc-code {

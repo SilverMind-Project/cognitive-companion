@@ -83,7 +83,11 @@
               {{ cameraForSlot(slot)?.detections?.length || 0 }} detections
             </span>
           </v-card-text>
-          <div class="live-tile-frame" :aria-label="`Live camera ${cameraForSlot(slot)?.camera_id || slot}`">
+          <div
+            class="live-tile-frame"
+            :class="{ 'live-tile-stale': isCameraStale(cameraForSlot(slot)) }"
+            :aria-label="`Live camera ${cameraForSlot(slot)?.camera_id || slot}`"
+          >
             <img
               v-if="cameraForSlot(slot)?.minio_key"
               :src="frameUrl(cameraForSlot(slot).minio_key)"
@@ -124,6 +128,13 @@
                 </text>
               </g>
             </svg>
+            <div
+              v-if="isCameraStale(cameraForSlot(slot))"
+              class="live-tile-stale-badge"
+            >
+              <v-icon size="12" class="mr-1">mdi-clock-alert-outline</v-icon>
+              Last seen {{ staleLabel(cameraForSlot(slot)) }}
+            </div>
           </div>
         </v-card>
       </div>
@@ -176,11 +187,13 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from "vue";
+import { ref, computed, reactive, onMounted, onUnmounted } from "vue";
 import { cts } from "@/services/cts";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket.js";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
+
+const STALE_THRESHOLD_S = 15;
 
 const error = ref("");
 const layout = ref(4);
@@ -194,6 +207,13 @@ const showBboxes = ref(true);
 const showIdLabels = ref(true);
 
 const cameras = ref({});
+const now = ref(Date.now());
+let _freshnessTimer = null;
+onMounted(() => {
+  _freshnessTimer = setInterval(() => { now.value = Date.now(); }, 5000);
+});
+onUnmounted(() => { clearInterval(_freshnessTimer); });
+
 const revisionToast = ref(false);
 const revisionToastText = ref("");
 const correctionOpen = ref(false);
@@ -233,6 +253,7 @@ function onMessage(msg) {
         minio_key: msg.minio_key || null,
         frame_width: msg.frame_width || 1920,
         frame_height: msg.frame_height || 1080,
+        lastSeenMs: Date.now(),
       },
     };
   } else if (msg.type === "cts_identity_revision") {
@@ -249,6 +270,23 @@ function cameraForSlot(slot) {
   const ids = Object.keys(cameras.value).sort();
   const id = ids[slot];
   return id ? cameras.value[id] : null;
+}
+
+function cameraAgeS(cam) {
+  if (!cam?.lastSeenMs) return null;
+  return (now.value - cam.lastSeenMs) / 1000;
+}
+
+function isCameraStale(cam) {
+  const age = cameraAgeS(cam);
+  return age !== null && age > STALE_THRESHOLD_S;
+}
+
+function staleLabel(cam) {
+  const age = cameraAgeS(cam);
+  if (age === null) return "";
+  if (age < 60) return `${Math.round(age)}s ago`;
+  return `${Math.round(age / 60)}m ago`;
 }
 
 function frameUrl(minioKey) {
@@ -325,5 +363,25 @@ async function submitCorrection() {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+.live-tile-stale .live-tile-img {
+  opacity: 0.4;
+  filter: grayscale(60%);
+}
+.live-tile-stale-badge {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  color: var(--cc-warning, #fb8c00);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
 }
 </style>

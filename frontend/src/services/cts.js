@@ -144,6 +144,13 @@ export const cts = {
     return req(`/dashboard/dwell_summary?${qs.toString()}`);
   },
 
+  // ── Gallery enrollment ─────────────────────────────────────────────────────
+  enrollFromTracklet: (payload) =>
+    req("/gallery/enroll", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   // ── Identity corrections (M9) ──────────────────────────────────────────────
   getGlobalTracks: (openOnly = true) =>
     req(`/identity/global_tracks?open_only=${openOnly}`),

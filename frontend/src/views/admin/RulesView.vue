@@ -6,6 +6,7 @@
         <div class="text-body-2 text-medium-emphasis mt-1">Triggers, contexts, and pipelines that drive the system.</div>
       </div>
       <v-spacer />
+      <v-btn variant="text" prepend-icon="mdi-import" @click="showImportDialog = true">Import</v-btn>
       <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="createDialog = true">New Rule</v-btn>
     </div>
 
@@ -69,6 +70,8 @@
     </v-dialog>
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
+    <ImportRuleDialog v-model="showImportDialog" @imported="onRuleImported" />
+
     <v-dialog v-model="confirmDialog" max-width="400">
       <v-card rounded="xl">
         <v-card-title>{{ confirmTitle }}</v-card-title>
@@ -91,6 +94,7 @@ import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
+import ImportRuleDialog from "../../components/pipeline/ImportRuleDialog.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
@@ -100,6 +104,12 @@ const rules = ref([]);
 const loading = ref(false);
 const createDialog = ref(false);
 const createForm = ref({ name: "", description: "" });
+const showImportDialog = ref(false);
+
+function onRuleImported(ruleId) {
+  showImportDialog.value = false;
+  loadRules();
+}
 
 const headers = [
   { title: "Name", key: "name" },

@@ -1,28 +1,23 @@
 <template>
   <div>
     <template v-for="field in visibleFields" :key="field.name">
-      <!-- template-textarea -->
-      <v-textarea
+      <!-- template-textarea (with CodeMirror autocomplete) -->
+      <TemplateInput
         v-if="field.widget === 'template-textarea'"
         :model-value="localConfig[field.name]"
         :label="field.label"
-        :rows="field.rows || 4"
-        variant="outlined"
-        density="comfortable"
-        :hint="field.description"
-        persistent-hint
+        :multiline="true"
+        :rule-context="ruleContext"
         @update:model-value="setField(field.name, $event)"
       />
 
-      <!-- template-text -->
-      <v-text-field
+      <!-- template-text (with CodeMirror autocomplete) -->
+      <TemplateInput
         v-else-if="field.widget === 'template-text'"
         :model-value="localConfig[field.name]"
         :label="field.label"
-        variant="outlined"
-        density="comfortable"
-        :hint="field.description"
-        persistent-hint
+        :multiline="false"
+        :rule-context="ruleContext"
         @update:model-value="setField(field.name, $event)"
       />
 
@@ -173,19 +168,27 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from "vue";
+import { ref, reactive, watch, computed, defineAsyncComponent } from "vue";
 import CronBuilder from "../../CronBuilder.vue";
+
+const TemplateInput = defineAsyncComponent(() => import("./TemplateInput.vue"));
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
   schema: { type: Object, default: () => ({}) },
   stepLabel: { type: String, default: "" },
+  allSteps: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(["update:modelValue"]);
 
 const localConfig = reactive({ ...props.modelValue });
 const jsonTexts = reactive({});
+
+const ruleContext = computed(() => {
+  const labels = (props.allSteps || []).map((s) => s.label);
+  return { labels };
+});
 
 // Initialize JSON text fields from config
 for (const [key, propSchema] of Object.entries(props.schema.properties || {})) {

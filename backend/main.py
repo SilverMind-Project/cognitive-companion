@@ -672,6 +672,7 @@ def create_app() -> FastAPI:
         cts_calibration,
         cts_cameras,
         cts_dashboard,
+        cts_gallery,
         cts_identity,
         cts_keyframes,
         cts_live,
@@ -736,6 +737,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_signals.router, prefix=api)
     app.include_router(cts_keyframes.router, prefix=api)
     app.include_router(cts_dashboard.router, prefix=api)
+    app.include_router(cts_gallery.router, prefix=api)
     app.include_router(cts_identity.router, prefix=api)
 
     # WebSocket routers (no /api/v1 prefix).

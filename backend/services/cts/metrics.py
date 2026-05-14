@@ -62,6 +62,12 @@ cts_events_dropped = Counter(
     [EVENT_TYPE_LABEL],
 )
 
+cts_events_stale_dropped = Counter(
+    "cts_events_stale_dropped_total",
+    "Total tracking.events messages dropped because capture_time_unix_ns"
+    " was older than the max-event-age threshold.",
+)
+
 # -- IdentityRevision counters ------------------------------------------------
 
 cts_revisions_received = Counter(

@@ -109,6 +109,32 @@ class OrchestratorClient(UpstreamClient):
 
     # -- Keyframe methods (M8) -----------------------------------------------
 
+    async def enroll_from_tracklet(
+        self,
+        *,
+        identity_id: str,
+        tracklet_id: str,
+        display_name: str | None = None,
+    ) -> dict:
+        """Enroll a tracklet's embeddings under a named identity in the ReID gallery.
+
+        Proxies ``POST /internal/gallery/enroll`` on the orchestrator.  Returns
+        the enrollment response dict (``identity_id``, ``enrolled_count``,
+        ``enrolled_at``).
+
+        Raises :class:`UpstreamError` (propagated as HTTP 502) when the
+        orchestrator returns an error (e.g., 404 when the tracklet has no
+        gallery embeddings yet).
+        """
+        body: dict = {
+            "identity_id": identity_id,
+            "tracklet_id": tracklet_id,
+        }
+        if display_name is not None:
+            body["display_name"] = display_name
+        r = await self._request("POST", "/internal/gallery/enroll", json=body)
+        return r.json()
+
     async def list_keyframes(
         self,
         person_id: str | None = None,

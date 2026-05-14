@@ -25,6 +25,7 @@ from backend.services.cts._types import (
     SceneAnalysisClient,
     SemanticMemoryClient,
 )
+from backend.services.cts.event_bucketizer import CtsEventBucketizer, CtsWindowTrigger
 from backend.services.cts.identity_revision_subscriber import IdentityRevisionSubscriber
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.location_repository import SqlAlchemyLocationRepository
@@ -91,6 +92,16 @@ class CTSRuntime:
         )
         self.signal_store = SignalStore(db_factory=db_factory)
 
+        # Bucketizer for cts_window triggers. Loads enabled triggers from the
+        # DB at startup and caches them; call ``reload_triggers()`` to refresh.
+        def _load_triggers() -> list[CtsWindowTrigger]:
+            return _load_window_triggers(db_factory)
+
+        self.bucketizer = CtsEventBucketizer(
+            pipeline=pipeline,
+            get_triggers=_load_triggers,
+        )
+
         # Build camera→room mapping from the CtsCamera table at startup.
         # Cameras rarely change location, so this is loaded once and passed
         # to the scene sample subscriber for O(1) lookup without per-message
@@ -105,6 +116,7 @@ class CTSRuntime:
             writer=self.location_writer,
             ws_manager=ws_manager,
             pipeline=pipeline,
+            bucketizer=self.bucketizer,
         )
         self.identity_revision_subscriber = IdentityRevisionSubscriber(
             redis_url=config.redis_url,
@@ -220,5 +232,39 @@ def _load_camera_room_map(db_factory: DBSessionFactory) -> dict[str, str]:
     except Exception:
         logger.exception("cts_camera_room_map_load_error")
         return {}
+    finally:
+        db.close()
+
+
+def _load_window_triggers(db_factory: DBSessionFactory) -> list[CtsWindowTrigger]:
+    """Load enabled CtsWindowTrigger rows and convert to in-memory config."""
+    from backend.models.cts_window_trigger import (
+        CtsWindowTrigger as CtsWindowTriggerModel,
+    )
+
+    db = db_factory()
+    try:
+        rows = (
+            db.query(CtsWindowTriggerModel)
+            .filter(CtsWindowTriggerModel.enabled.is_(True))
+            .all()
+        )
+        return [
+            CtsWindowTrigger(
+                id=row.id,
+                name=row.name,
+                window_seconds=row.window_seconds,
+                min_detections=row.min_detections,
+                min_identities=row.min_identities,
+                cameras=row.cameras,
+                rooms=row.rooms,
+                cooldown_seconds=row.cooldown_seconds,
+                enabled=row.enabled,
+            )
+            for row in rows
+        ]
+    except Exception:
+        logger.exception("cts_window_triggers_load_error")
+        return []
     finally:
         db.close()

@@ -79,6 +79,7 @@ def _to_out(cam: CtsCamera) -> CtsCameraOut:
         location=cam.location,
         enabled=cam.enabled,
         floor_plan_key=cam.floor_plan_key,
+        rotation_degrees=cam.rotation_degrees,
         face_id_enabled=cam.face_id_enabled if cam.face_id_enabled is not None else True,
         face_id_min_confidence=cam.face_id_min_confidence,
         has_homography=homography is not None,

@@ -12,6 +12,7 @@ from backend.core.database import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from backend.models.cron_trigger import CronTrigger
+    from backend.models.cts_window_trigger import CtsWindowTrigger
     from backend.models.pipeline import PipelineStep
 
 
@@ -25,7 +26,7 @@ class Rule(Base, TimestampMixin):
 
     # Trigger configuration -- decoupled from cron schedules (see cron_trigger.py).
     # trigger_types replaces the old single trigger_type column.
-    # Valid values: sensor_event, cron, manual, webhook, occupancy_duration, telegram.
+    # Valid values: sensor_event, cron, manual, webhook, occupancy_duration, telegram, cts_window.
     trigger_types: Mapped[list[str]] = mapped_column(
         JSONB, default=lambda: ["sensor_event"]
     )
@@ -69,6 +70,10 @@ class Rule(Base, TimestampMixin):
     )
     cron_triggers: Mapped[list[CronTrigger]] = relationship(
         secondary="rule_cron_triggers",
+        back_populates="rules",
+    )
+    cts_window_triggers: Mapped[list[CtsWindowTrigger]] = relationship(
+        secondary="rule_cts_window_triggers",
         back_populates="rules",
     )
 

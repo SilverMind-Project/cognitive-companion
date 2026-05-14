@@ -43,6 +43,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         writer: LocationWriter,
         ws_manager: ConnectionManager | None = None,
         pipeline: PipelineExecutor | None = None,
+        bucketizer: Any = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -56,6 +57,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         self._writer = writer
         self._ws_manager = ws_manager
         self._pipeline = pipeline
+        self._bucketizer = bucketizer
 
     # -- StreamConsumer abstract methods ------------------------------------
 
@@ -128,6 +130,9 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             "detection_count": len(detections),
             "minio_key": message.frame_ref.minio_key,
             "room_name": message.room_name or None,
+            "frame_width": int(message.frame_ref.width),
+            "frame_height": int(message.frame_ref.height),
+            "capture_time": ns_to_iso(message.frame_ref.capture_time_unix_ns),
             "detections": detections,
         }
 
@@ -154,6 +159,9 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                         "event_time": event["event_time"],
                         "room_name": event.get("room_name"),
                         "minio_key": event.get("minio_key"),
+                        "frame_width": event.get("frame_width", 0),
+                        "frame_height": event.get("frame_height", 0),
+                        "capture_time": event.get("capture_time"),
                         "detections": event.get("detections", []),
                     }
                 )
@@ -174,6 +182,12 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 )
             except Exception:
                 logger.exception("tracking_event_pipeline_fire_error")
+
+        if self._bucketizer is not None:
+            try:
+                self._bucketizer.ingest(event)
+            except Exception:
+                logger.exception("tracking_event_bucketizer_ingest_error")
 
         return True
 

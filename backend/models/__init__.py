@@ -5,6 +5,7 @@ from backend.models.conversation import ConversationSession, ConversationTurn
 from backend.models.cron_trigger import CronTrigger, RuleCronTrigger
 from backend.models.cts_camera import CtsCamera
 from backend.models.cts_signal import DementiaSignal
+from backend.models.cts_window_trigger import CtsWindowTrigger, RuleCtsWindowTrigger
 from backend.models.event import EventLog
 from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
@@ -46,6 +47,7 @@ __all__ = [
     "ConversationTurn",
     "CronTrigger",
     "CtsCamera",
+    "CtsWindowTrigger",
     "DailyReport",
     "DementiaSignal",
     "EmergencyAlert",
@@ -73,6 +75,7 @@ __all__ = [
     "Rule",
     "RuleContext",
     "RuleCronTrigger",
+    "RuleCtsWindowTrigger",
     "RuleDependency",
     "SeniorKnowledgeQuery",
     "Sensor",

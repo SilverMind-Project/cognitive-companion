@@ -16,6 +16,16 @@ class CtsCameraFields(BaseModel):
     location: str = Field(default="", max_length=256)
     enabled: bool = True
     floor_plan_key: str | None = None
+    # Clockwise rotation applied at ingest time (0, 90, 180, 270).
+    # Changing this invalidates homography calibration.
+    rotation_degrees: int = Field(default=0, ge=0, le=270)
+
+    @field_validator("rotation_degrees")
+    @classmethod
+    def _validate_rotation(cls, v: int) -> int:
+        if v not in (0, 90, 180, 270):
+            raise ValueError("rotation_degrees must be 0, 90, 180, or 270")
+        return v
     # Face identification: set enabled=false for top-down cameras where
     # faces are never visible.  min_confidence overrides the orchestrator
     # default (higher = stricter matching).
@@ -33,6 +43,7 @@ class CtsCameraUpdate(BaseModel):
     location: str | None = Field(default=None, max_length=256)
     enabled: bool | None = None
     floor_plan_key: str | None = None
+    rotation_degrees: int | None = Field(default=None, ge=0, le=270)
     face_id_enabled: bool | None = None
     face_id_min_confidence: float | None = None
 

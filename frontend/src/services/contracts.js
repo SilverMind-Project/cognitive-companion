@@ -50,6 +50,8 @@ def("knowledge.interactions.deliveries", "array");
 // ---------------------------------------------------------------------------
 def("rules.list", "array");
 def("rules.single", "object");
+def("rules.export", "object");
+def("rules.import", "object");
 
 // ---------------------------------------------------------------------------
 // Workflows

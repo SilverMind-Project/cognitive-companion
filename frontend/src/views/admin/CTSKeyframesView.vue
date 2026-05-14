@@ -148,11 +148,65 @@
         </v-card-text>
         <v-divider />
         <v-card-actions class="px-6 py-3">
+          <v-btn
+            v-if="selectedKeyframe?.tracklet_id"
+            variant="tonal"
+            color="primary"
+            prepend-icon="mdi-account-plus"
+            @click="openEnroll(selectedKeyframe)"
+          >
+            Enroll in gallery
+          </v-btn>
           <v-spacer />
           <v-btn variant="text" @click="detailDialog = false">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Gallery Enrollment Dialog -->
+    <v-dialog v-model="enrollDialog" max-width="480" persistent>
+      <v-card>
+        <DialogHeader
+          icon="mdi-account-plus"
+          label="Enroll"
+          title="Gallery"
+          @close="enrollDialog = false"
+        />
+        <v-card-text>
+          <div class="text-body-2 text-medium-emphasis mb-4">
+            Assign this tracklet's appearance embeddings to an identity so the
+            ReID resolver can recognise them in future frames.
+          </div>
+          <div class="text-caption text-medium-emphasis mb-1">Tracklet</div>
+          <div class="font-weight-medium text-body-2 mb-4">{{ enrollTrackletId }}</div>
+          <v-text-field
+            v-model="enrollIdentityId"
+            label="Identity ID"
+            variant="outlined"
+            placeholder="e.g. grandma"
+            :error-messages="enrollError ? [enrollError] : []"
+          />
+          <v-text-field
+            v-model="enrollDisplayName"
+            label="Display name (optional)"
+            variant="outlined"
+            placeholder="e.g. Grandma"
+          />
+        </v-card-text>
+        <DialogFooter
+          hint="Creates named gallery entries for the Bayesian identity resolver."
+          confirm-label="Enroll"
+          :confirm-loading="enrollSaving"
+          :confirm-disabled="!enrollIdentityId.trim()"
+          @cancel="enrollDialog = false"
+          @confirm="submitEnroll"
+        />
+      </v-card>
+    </v-dialog>
+
+    <v-snackbar v-model="enrollSnackbar" :timeout="3500" color="success">
+      {{ enrollSnackbarText }}
+    </v-snackbar>
   </div>
 </template>
 
@@ -162,6 +216,7 @@ import { cts } from "../../services/cts.js";
 import { severityColor } from "../../composables/useCtsSeverity";
 import { formatDateTime } from "../../services/timezone.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
+import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const keyframes = ref([]);
 const selectedKeyframe = ref(null);
@@ -229,6 +284,43 @@ async function retain(kf) {
 
 function formatTime(iso) {
   return formatDateTime(iso) || "";
+}
+
+// ── Gallery enrollment ──────────────────────────────────────────────────────
+const enrollDialog = ref(false);
+const enrollSaving = ref(false);
+const enrollTrackletId = ref("");
+const enrollIdentityId = ref("");
+const enrollDisplayName = ref("");
+const enrollError = ref("");
+const enrollSnackbar = ref(false);
+const enrollSnackbarText = ref("");
+
+function openEnroll(kf) {
+  enrollTrackletId.value = kf.tracklet_id || "";
+  enrollIdentityId.value = kf.person_id || "";
+  enrollDisplayName.value = "";
+  enrollError.value = "";
+  enrollDialog.value = true;
+}
+
+async function submitEnroll() {
+  enrollError.value = "";
+  enrollSaving.value = true;
+  try {
+    const resp = await cts.enrollFromTracklet({
+      identity_id: enrollIdentityId.value.trim(),
+      tracklet_id: enrollTrackletId.value,
+      display_name: enrollDisplayName.value.trim() || null,
+    });
+    enrollDialog.value = false;
+    enrollSnackbarText.value = `Enrolled ${resp.enrolled_count} embedding(s) for "${resp.identity_id}".`;
+    enrollSnackbar.value = true;
+  } catch (e) {
+    enrollError.value = e.message || String(e);
+  } finally {
+    enrollSaving.value = false;
+  }
 }
 </script>
 

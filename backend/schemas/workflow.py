@@ -56,6 +56,7 @@ class StepTimelineEntry(BaseModel):
 
 class ExecutionDetailOut(BaseModel):
     id: int
+    rule_id: int
     status: str
     started_at: datetime | None
     completed_at: datetime | None

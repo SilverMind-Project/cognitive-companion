@@ -8,6 +8,8 @@ records calls.
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from backend.integrations.proto.continuoustracking.v1 import (  # type: ignore[attr-defined]
@@ -24,6 +26,7 @@ def _make_event(
     identity_id: str = "grandma",
     confidence: float = 0.87,
     event_time_unix_ns: int = 1735305600000000000,
+    capture_time_unix_ns: int = 0,
 ) -> tracking_pb2.TrackingEvent:
     ev = tracking_pb2.TrackingEvent(
         camera_id=camera_id,
@@ -33,6 +36,7 @@ def _make_event(
     )
     ev.frame_ref.minio_key = "frames/evt-1.jpg"
     ev.frame_ref.frame_index = 42
+    ev.frame_ref.capture_time_unix_ns = capture_time_unix_ns
     det = ev.detections.add(
         detection_id="det-0",
         confidence=0.92,
@@ -114,6 +118,26 @@ class TestDecode:
     def test_garbage_payload_returns_none(self, subscriber):
         sub, _ = subscriber
         assert sub.decode(b"0-0", {b"event": b"not-protobuf-\xff\x01"}) is None
+
+    def test_stale_capture_time_returns_none(self, subscriber):
+        """Events with capture_time older than 30s are dropped (backlog replay guard)."""
+        sub, _ = subscriber
+        stale_ns = int((time.time() - 60) * 1e9)  # 60 s ago — well past the 30s gate
+        assert sub.decode(b"0-0", _proto_fields(_make_event(capture_time_unix_ns=stale_ns))) is None
+
+    def test_fresh_capture_time_passes(self, subscriber):
+        """Events with a recent capture_time are decoded normally."""
+        sub, _ = subscriber
+        fresh_ns = int(time.time() * 1e9)
+        event = sub.decode(b"0-0", _proto_fields(_make_event(capture_time_unix_ns=fresh_ns)))
+        assert event is not None
+        assert event["camera_id"] == "kitchen-1"
+
+    def test_zero_capture_time_not_dropped(self, subscriber):
+        """capture_time_unix_ns=0 means the field is absent; the gate must not fire."""
+        sub, _ = subscriber
+        event = sub.decode(b"0-0", _proto_fields(_make_event(capture_time_unix_ns=0)))
+        assert event is not None
 
 
 class TestHandle:

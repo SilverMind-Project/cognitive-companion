@@ -153,6 +153,7 @@ def get_execution_detail(
 
     return ExecutionDetailOut(
         id=execution.id,
+        rule_id=execution.rule_id,
         status=execution.status,
         started_at=execution.started_at,
         completed_at=execution.completed_at,

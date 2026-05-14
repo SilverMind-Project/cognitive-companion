@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from backend.core.logging import get_logger
-from backend.models.person import PersonLocationHistory, PersonLocationState
+from backend.models.person import HouseholdMember, PersonLocationHistory, PersonLocationState
 
 logger = get_logger(__name__)
 
@@ -165,6 +165,25 @@ class SqlAlchemyLocationRepository:
         event_time: datetime | None = None,
     ) -> PersonLocationState:
         now = event_time or datetime.now(UTC)
+
+        # Auto-create a HouseholdMember row for CTS-discovered identities so
+        # the FK constraint on PersonLocationState is satisfied and the
+        # identity appears on the dashboard without manual provisioning.
+        member = (
+            self._db.query(HouseholdMember)
+            .filter(HouseholdMember.id == person_id)
+            .first()
+        )
+        if member is None:
+            is_guest = person_id == "unknown" or person_id.startswith("unknown_")
+            member = HouseholdMember(
+                id=person_id,
+                name="Guest" if is_guest else person_id,
+                is_guest=is_guest,
+            )
+            self._db.add(member)
+            self._db.flush()
+
         state = self.get_state(person_id)
         if state is None:
             state = PersonLocationState(

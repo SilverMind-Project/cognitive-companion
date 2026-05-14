@@ -14,6 +14,7 @@ subscriber is the only consumer.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
@@ -23,6 +24,11 @@ from backend.services.cts._time import ns_to_iso
 from backend.services.cts._types import ConnectionManager, PipelineExecutor
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
+
+# TrackingEvents whose capture_time_unix_ns is older than this are replayed
+# backlog.  Returning None from decode() causes the base class to XACK and
+# skip handle(), keeping the live view free of historical frames.
+_MAX_TRACKING_EVENT_AGE_S: float = 30.0
 
 logger = get_logger(__name__)
 
@@ -76,6 +82,18 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             logger.exception("tracking_event_proto_decode_error", message_id=message_id)
             metrics.cts_events_decode_errors.inc()
             return None
+
+        capture_ns = message.frame_ref.capture_time_unix_ns
+        if capture_ns > 0:
+            age_s = datetime.now(UTC).timestamp() - capture_ns / 1e9
+            if age_s > _MAX_TRACKING_EVENT_AGE_S:
+                logger.warning(
+                    "stale_tracking_event_dropped",
+                    camera_id=message.camera_id,
+                    age_s=round(age_s, 1),
+                )
+                metrics.cts_events_stale_dropped.inc()
+                return None
 
         # MAP identities live on IdentityRevision sub-messages; the top
         # candidate's probability acts as the per-detection confidence.

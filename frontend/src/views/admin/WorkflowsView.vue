@@ -57,34 +57,16 @@
     </v-card>
 
     <!-- Detail dialog -->
-    <v-dialog v-model="detailOpen" max-width="700" scrollable>
+    <v-dialog v-model="detailOpen" max-width="1100" scrollable>
       <v-card v-if="detail">
-        <v-card-title>Execution #{{ detail.id }}</v-card-title>
-        <v-card-text>
-          <v-list density="compact">
-            <v-list-item>
-              <v-list-item-title>Rule</v-list-item-title>
-              <v-list-item-subtitle>{{ detail.rule_name }} (#{{ detail.rule_id }})</v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item>
-              <v-list-item-title>Status</v-list-item-title>
-              <v-list-item-subtitle>
-                <v-chip :color="statusColor(detail.status)" size="small">{{ detail.status }}</v-chip>
-              </v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item v-if="detail.error">
-              <v-list-item-title>Error</v-list-item-title>
-              <v-list-item-subtitle class="text-error">{{ detail.error }}</v-list-item-subtitle>
-            </v-list-item>
-          </v-list>
-          <v-divider class="my-3" />
-          <h4 class="text-subtitle-2 mb-2">Pipeline Data</h4>
-          <pre class="text-body-2 bg-grey-lighten-4 pa-3 rounded overflow-auto" style="max-height: 400px">{{ JSON.stringify(detail.pipeline_data_json, null, 2) }}</pre>
-        </v-card-text>
-        <v-card-actions>
+        <v-card-title class="d-flex align-center">
+          Execution #{{ detail.id }}
           <v-spacer />
-          <v-btn @click="detailOpen = false">Close</v-btn>
-        </v-card-actions>
+          <v-btn icon="mdi-close" variant="text" @click="detailOpen = false" />
+        </v-card-title>
+        <v-card-text>
+          <ExecutionDetail :execution="detail" :live="false" @rerun="rerunDetail" />
+        </v-card-text>
       </v-card>
     </v-dialog>
   </div>
@@ -92,8 +74,14 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { api } from "../../services/api.js";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
+import ExecutionDetail from "../../components/pipeline/ExecutionDetail.vue";
+import { useNotify } from "../../composables/useNotify.js";
+
+const router = useRouter();
+const { notify } = useNotify();
 
 const items = ref([]);
 const loading = ref(false);
@@ -124,9 +112,21 @@ async function load() {
 
 async function openDetail(item) {
   try {
-    detail.value = await api.getWorkflow(item.id);
+    detail.value = await api.getWorkflowDetail(item.id);
     detailOpen.value = true;
   } catch (e) { console.error("Failed to load workflow detail:", e); }
+}
+
+async function rerunDetail() {
+  if (!detail.value) return;
+  try {
+    const result = await api.rerunWorkflow(detail.value.id);
+    notify.success(`Rerun started (#${result.execution_id})`);
+    detailOpen.value = false;
+    router.push(`/admin/rules/${detail.value.rule_id || ""}`);
+  } catch (e) {
+    notify.error("Rerun failed: " + (e.message || "Unknown error"));
+  }
 }
 
 async function cancel(id) {

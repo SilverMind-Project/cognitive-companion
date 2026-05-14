@@ -139,6 +139,23 @@ export const api = {
   deleteRuleDep: (ruleId, depId) =>
     request(`/rules/${ruleId}/dependencies/${depId}`, { method: "DELETE" }),
 
+  // Cron triggers (separate from rules; linked via cron_trigger_ids in RuleUpdate)
+  getCronTriggers: () => request("/rules/cron-triggers"),
+  createCronTrigger: (data) =>
+    request("/rules/cron-triggers", { method: "POST", body: JSON.stringify(data) }),
+  updateCronTrigger: (id, data) =>
+    request(`/rules/cron-triggers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteCronTrigger: (id) =>
+    request(`/rules/cron-triggers/${id}`, { method: "DELETE" }),
+
+  // Rule import/export
+  exportRule: (id) => request(`/rules/${id}/export`, { contract: "rules.export" }),
+  importRulePreview: (bundle) =>
+    request("/rules/import/preview", { method: "POST", body: JSON.stringify(bundle) }),
+  importRule: (bundle) =>
+    request("/rules/import", { method: "POST", body: JSON.stringify(bundle) }),
+  validateRule: (id) => request(`/rules/${id}/validate`, { method: "POST" }),
+
   // Alerts
   getAlerts: (params = {}) => {
     const qs = new URLSearchParams(params).toString();

@@ -677,6 +677,7 @@ def create_app() -> FastAPI:
         cts_live,
         cts_presence,
         cts_signals,
+        cts_window_triggers,
         device,
         events,
         ha_sync,
@@ -703,6 +704,7 @@ def create_app() -> FastAPI:
     app.include_router(rooms.router, prefix=api)
     app.include_router(sensors.router, prefix=api)
     app.include_router(rules.router, prefix=api)
+    app.include_router(cts_window_triggers.router, prefix=api)
     app.include_router(alerts.router, prefix=api)
     app.include_router(events.router, prefix=api)
     app.include_router(device.router, prefix=api)

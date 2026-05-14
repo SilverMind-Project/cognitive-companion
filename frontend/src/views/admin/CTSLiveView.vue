@@ -92,19 +92,19 @@
             />
             <svg
               v-if="cameraForSlot(slot) && showBboxes"
-              viewBox="0 0 1000 600"
+              :viewBox="`0 0 ${cameraForSlot(slot).frame_width || 1920} ${cameraForSlot(slot).frame_height || 1080}`"
               class="live-tile-overlay"
-              preserveAspectRatio="none"
+              preserveAspectRatio="xMidYMid meet"
             >
               <g
                 v-for="(det, idx) in cameraForSlot(slot).detections"
                 :key="idx"
               >
                 <rect
-                  :x="(det.bbox.x_min || 0) / 2"
-                  :y="(det.bbox.y_min || 0) / 2"
-                  :width="((det.bbox.x_max || 0) - (det.bbox.x_min || 0)) / 2"
-                  :height="((det.bbox.y_max || 0) - (det.bbox.y_min || 0)) / 2"
+                  :x="det.bbox.x_min || 0"
+                  :y="det.bbox.y_min || 0"
+                  :width="(det.bbox.x_max || 0) - (det.bbox.x_min || 0)"
+                  :height="(det.bbox.y_max || 0) - (det.bbox.y_min || 0)"
                   fill="none"
                   :stroke="det.identity_id ? 'var(--cc-success)' : 'var(--cc-warning)'"
                   stroke-width="3"
@@ -113,8 +113,8 @@
                 />
                 <text
                   v-if="showIdLabels"
-                  :x="(det.bbox.x_min || 0) / 2 + 4"
-                  :y="(det.bbox.y_min || 0) / 2 + 14"
+                  :x="(det.bbox.x_min || 0) + 4"
+                  :y="(det.bbox.y_min || 0) + 14"
                   fill="var(--cc-text-1)"
                   font-size="12"
                   font-weight="bold"
@@ -175,141 +175,116 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, reactive } from "vue";
 import { cts } from "@/services/cts";
+import { useCtsWebSocket } from "@/composables/useCtsWebSocket.js";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
 
-export default {
-  name: "CTSLiveView",
-  components: { DialogHeader, DialogFooter },
-  data() {
-    return {
-      error: "",
-      layout: 4,
-      layoutOptions: [
-        { label: "1 camera", value: 1 },
-        { label: "4 cameras (2x2)", value: 4 },
-        { label: "9 cameras (3x3)", value: 9 },
-        { label: "16 cameras (4x4)", value: 16 },
-      ],
-      showBboxes: true,
-      showIdLabels: true,
-      cameras: {},
-      ws: null,
-      wsStatus: "connecting",
-      revisionToast: false,
-      revisionToastText: "",
-      correctionOpen: false,
-      saving: false,
-      correction: {
-        global_track_id: "",
-        previous_identity_id: "",
-        new_identity_id: "",
-        camera_id: "",
-        reason: "manual",
+const error = ref("");
+const layout = ref(4);
+const layoutOptions = [
+  { label: "1 camera", value: 1 },
+  { label: "4 cameras (2x2)", value: 4 },
+  { label: "9 cameras (3x3)", value: 9 },
+  { label: "16 cameras (4x4)", value: 16 },
+];
+const showBboxes = ref(true);
+const showIdLabels = ref(true);
+
+const cameras = ref({});
+const revisionToast = ref(false);
+const revisionToastText = ref("");
+const correctionOpen = ref(false);
+const saving = ref(false);
+const correction = reactive({
+  global_track_id: "",
+  previous_identity_id: "",
+  new_identity_id: "",
+  camera_id: "",
+  reason: "manual",
+});
+
+const slots = computed(() => Array.from({ length: layout.value }, (_, i) => i));
+
+const gridClass = computed(() => {
+  if (layout.value === 1) return "d-grid grid-1";
+  if (layout.value === 4) return "d-grid grid-2";
+  if (layout.value === 9) return "d-grid grid-3";
+  return "d-grid grid-4";
+});
+
+const wsStatusColor = computed(() => {
+  if (wsStatus.value === "open") return "success";
+  if (wsStatus.value === "connecting") return "warning";
+  return "error";
+});
+
+function onMessage(msg) {
+  if (msg.type === "cts_live_frame") {
+    cameras.value = {
+      ...cameras.value,
+      [msg.camera_id]: {
+        camera_id: msg.camera_id,
+        detections: msg.detections || [],
+        event_time: msg.event_time,
+        room_name: msg.room_name,
+        minio_key: msg.minio_key || null,
+        frame_width: msg.frame_width || 1920,
+        frame_height: msg.frame_height || 1080,
       },
     };
-  },
-  computed: {
-    slots() {
-      return Array.from({ length: this.layout }, (_, i) => i);
-    },
-    gridClass() {
-      if (this.layout === 1) return "d-grid grid-1";
-      if (this.layout === 4) return "d-grid grid-2";
-      if (this.layout === 9) return "d-grid grid-3";
-      return "d-grid grid-4";
-    },
-    wsStatusColor() {
-      if (this.wsStatus === "open") return "success";
-      if (this.wsStatus === "connecting") return "warning";
-      return "error";
-    },
-  },
-  mounted() {
-    this.connect();
-  },
-  beforeUnmount() {
-    if (this.ws) {
-      this.ws.close();
-    }
-  },
-  methods: {
-    connect() {
-      try {
-        this.ws = cts.openLiveSocket((msg) => this.onMessage(msg));
-        this.ws.onopen = () => (this.wsStatus = "open");
-        this.ws.onerror = () => (this.wsStatus = "error");
-        this.ws.onclose = () => (this.wsStatus = "closed");
-      } catch (err) {
-        this.error = String(err.message || err);
-        this.wsStatus = "error";
-      }
-    },
-    onMessage(msg) {
-      if (msg.type === "cts_live_frame") {
-        this.cameras = {
-          ...this.cameras,
-          [msg.camera_id]: {
-            camera_id: msg.camera_id,
-            detections: msg.detections || [],
-            event_time: msg.event_time,
-            room_name: msg.room_name,
-            minio_key: msg.minio_key || null,
-          },
-        };
-      } else if (msg.type === "cts_identity_revision") {
-        const prev = msg.previous_identity_id || "unknown";
-        const next = msg.new_identity_id || "unknown";
-        this.revisionToastText = `Identity corrected: ${prev} → ${next}`;
-        this.revisionToast = true;
-      }
-    },
-    cameraForSlot(slot) {
-      const ids = Object.keys(this.cameras).sort();
-      const id = ids[slot];
-      return id ? this.cameras[id] : null;
-    },
-    frameUrl(minioKey) {
-      // Encode each path segment individually so slashes stay literal.
-      // FastAPI's {key:path} captures the full key; nginx and proxies
-      // handle literal slashes correctly, while %2F causes routing issues.
-      const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
-      const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");
-      return `/api/v1/cts/frames/${encodedKey}?api_key=${apiKey}`;
-    },
-    openCorrection(det, cam) {
-      this.correction = {
-        global_track_id: det.global_track_id,
-        previous_identity_id: det.identity_id || "",
-        new_identity_id: "",
-        camera_id: cam?.camera_id || "",
-        reason: "manual",
-      };
-      this.correctionOpen = true;
-    },
-    async submitCorrection() {
-      if (!this.correction.global_track_id) {
-        this.error = "No global_track_id on the selected detection.";
-        return;
-      }
-      this.saving = true;
-      try {
-        await cts.applyCorrection({
-          global_track_id: this.correction.global_track_id,
-          new_identity_id: this.correction.new_identity_id || null,
-          reason: this.correction.reason || "manual",
-        });
-        this.correctionOpen = false;
-      } catch (err) {
-        this.error = String(err.message || err);
-      } finally {
-        this.saving = false;
-      }
-    },
-  },
-};
+  } else if (msg.type === "cts_identity_revision") {
+    const prev = msg.previous_identity_id || "unknown";
+    const next = msg.new_identity_id || "unknown";
+    revisionToastText.value = `Identity corrected: ${prev} → ${next}`;
+    revisionToast.value = true;
+  }
+}
+
+const { status: wsStatus } = useCtsWebSocket(onMessage);
+
+function cameraForSlot(slot) {
+  const ids = Object.keys(cameras.value).sort();
+  const id = ids[slot];
+  return id ? cameras.value[id] : null;
+}
+
+function frameUrl(minioKey) {
+  const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
+  const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");
+  return `/api/v1/cts/frames/${encodedKey}?api_key=${apiKey}`;
+}
+
+function openCorrection(det, cam) {
+  correction.global_track_id = det.global_track_id;
+  correction.previous_identity_id = det.identity_id || "";
+  correction.new_identity_id = "";
+  correction.camera_id = cam?.camera_id || "";
+  correction.reason = "manual";
+  correctionOpen.value = true;
+}
+
+async function submitCorrection() {
+  if (!correction.global_track_id) {
+    error.value = "No global_track_id on the selected detection.";
+    return;
+  }
+  saving.value = true;
+  try {
+    await cts.applyCorrection({
+      global_track_id: correction.global_track_id,
+      new_identity_id: correction.new_identity_id || null,
+      reason: correction.reason || "manual",
+    });
+    correctionOpen.value = false;
+  } catch (err) {
+    error.value = String(err.message || err);
+  } finally {
+    saving.value = false;
+  }
+}
 </script>
 
 <style scoped>

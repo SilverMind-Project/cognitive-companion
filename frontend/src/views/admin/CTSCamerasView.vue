@@ -111,7 +111,12 @@
     <!-- Test-connect dialog -->
     <v-dialog v-model="testDialog" max-width="480">
       <v-card>
-        <v-card-title>Test RTSP Connection</v-card-title>
+        <DialogHeader
+          icon="mdi-connection"
+          label="Test"
+          title="RTSP Connection"
+          @close="testDialog = false"
+        />
         <v-card-text>
           <v-text-field
             v-model="testUrl"
@@ -123,27 +128,33 @@
             {{ testResult.message }}
           </v-alert>
         </v-card-text>
-        <v-card-actions class="px-6 pb-4">
-          <v-spacer />
-          <v-btn variant="text" @click="testDialog = false">Close</v-btn>
-          <v-btn color="primary" variant="flat" :loading="testing" @click="runTestConnect">
-            Test
-          </v-btn>
-        </v-card-actions>
+        <DialogFooter
+          cancel-label="Close"
+          confirm-label="Test"
+          :confirm-loading="testing"
+          @cancel="testDialog = false"
+          @confirm="runTestConnect"
+        />
       </v-card>
     </v-dialog>
 
     <!-- Snapshot dialog -->
     <v-dialog v-model="snapshotDialog" max-width="800">
       <v-card>
-        <v-card-title>Camera Snapshot</v-card-title>
+        <DialogHeader
+          icon="mdi-image-outline"
+          label="Camera"
+          title="Snapshot"
+          @close="closeSnapshot"
+        />
         <v-card-text class="pa-0">
           <v-img v-if="snapshotUrl" :src="snapshotUrl" cover />
           <div v-else class="d-flex align-center justify-center pa-8">
             <v-progress-circular indeterminate />
           </div>
         </v-card-text>
-        <v-card-actions class="px-6 pb-4">
+        <v-divider />
+        <v-card-actions class="px-6 py-3">
           <v-spacer />
           <v-btn variant="text" @click="closeSnapshot">Close</v-btn>
         </v-card-actions>

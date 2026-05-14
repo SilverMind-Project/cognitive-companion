@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Float, String, func
+from sqlalchemy import JSON, Boolean, Float, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -25,6 +25,11 @@ class CtsCamera(Base):
     rtsp_url: Mapped[str] = mapped_column(String(1024), default="")
     location: Mapped[str] = mapped_column(String(256), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Clockwise rotation applied by rtsp-ingress at ingest time.
+    # One of 0, 90, 180, 270.  Changing this value invalidates any existing
+    # homography calibration — recalibrate after rotation changes.
+    rotation_degrees: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Face identification: set to false for top-down cameras where faces
     # are never visible.  min_confidence overrides the orchestrator default.

@@ -60,6 +60,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -156,6 +157,46 @@ class PipelineExecutor:
         return self._services.event_aggregator
 
     # -- public API -----------------------------------------------------------
+
+    async def fire_event(
+        self,
+        *,
+        source: str,
+        kind: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """Lightweight event dispatch for CTS subscribers and the bucketizer.
+
+        This satisfies the ``PipelineExecutor`` protocol from
+        ``backend.services.cts._types``. It is called by
+        ``TrackingEventSubscriber``, ``IdentityRevisionSubscriber``,
+        ``DementiaSignalSubscriber``, and ``CtsEventBucketizer``.
+
+        Unlike :meth:`execute`, this method does not require a Rule or a
+        database session — it is a fire-and-forget signal that the
+        RulesEngine can optionally consume when the ``cts_window`` trigger
+        type is activated.
+        """
+        logger.info(
+            "pipeline_fire_event",
+            source=source,
+            kind=kind,
+            payload_keys=sorted(payload.keys()) if payload else [],
+        )
+        # In the future, this will look up rules with trigger_types
+        # containing *kind* and dispatch through RulesEngine. For now
+        # it serves as the integration point that satisfies the
+        # protocol contract.
+        try:
+            agg = self._services.event_aggregator
+            if agg is not None:
+                await agg.ingest_external(
+                    source=source,
+                    kind=kind,
+                    payload=payload,
+                )
+        except Exception:
+            logger.exception("pipeline_fire_event_error", source=source, kind=kind)
 
     async def execute(
         self,

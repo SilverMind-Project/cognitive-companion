@@ -105,7 +105,12 @@
     <v-dialog v-model="detailDialog" max-width="800">
       <v-card v-if="selectedKeyframe">
         <v-img :src="keyframeImage(selectedKeyframe)" height="400" cover />
-        <v-card-title>Keyframe Details</v-card-title>
+        <DialogHeader
+          icon="mdi-image-search"
+          label="Keyframe"
+          title="Details"
+          @close="detailDialog = false"
+        />
         <v-card-text>
           <v-row>
             <v-col cols="6">
@@ -141,7 +146,8 @@
             </v-chip>
           </v-chip-group>
         </v-card-text>
-        <v-card-actions>
+        <v-divider />
+        <v-card-actions class="px-6 py-3">
           <v-spacer />
           <v-btn variant="text" @click="detailDialog = false">Close</v-btn>
         </v-card-actions>
@@ -154,6 +160,8 @@
 import { ref, computed, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
 import { severityColor } from "../../composables/useCtsSeverity";
+import { formatDateTime } from "../../services/timezone.js";
+import DialogHeader from "../../components/common/DialogHeader.vue";
 
 const keyframes = ref([]);
 const selectedKeyframe = ref(null);
@@ -220,12 +228,7 @@ async function retain(kf) {
 }
 
 function formatTime(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso) || "";
 }
 </script>
 

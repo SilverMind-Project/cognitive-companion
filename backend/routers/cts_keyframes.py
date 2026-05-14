@@ -13,12 +13,12 @@ When ``cts.enabled=false`` every handler returns 404 with code
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
-from backend.routers.cts_deps import cts_enabled
+from backend.routers.cts_deps import cts_enabled, inject_image_urls
 
 router = APIRouter(prefix="/cts/keyframes", tags=["cts-keyframes"])
 
@@ -34,6 +34,7 @@ def _get_orchestrator_client() -> OrchestratorClient:
 
 @router.get("")
 async def list_keyframes(
+    request: Request,
     person_id: str | None = Query(None, description="Filter by person ID"),
     signal_type: str | None = Query(None, description="Filter by signal type"),
     after: str | None = Query(None, description="ISO-8601 timestamp"),
@@ -49,6 +50,7 @@ async def list_keyframes(
         after=after,
         limit=limit,
     )
+    keyframes = inject_image_urls(keyframes, request)
     return {"keyframes": keyframes, "count": len(keyframes)}
 
 
@@ -60,6 +62,7 @@ async def list_keyframes(
 @router.get("/{sample_id}")
 async def get_keyframe(
     sample_id: str,
+    request: Request,
     _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
@@ -72,7 +75,7 @@ async def get_keyframe(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "keyframe.not_found", "message": f"Keyframe {sample_id} not found."},
         ) from e
-    return keyframe
+    return inject_image_urls([keyframe], request)[0]
 
 
 # ---------------------------------------------------------------------------

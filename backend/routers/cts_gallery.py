@@ -19,10 +19,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
+from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.integrations._upstream_base import UpstreamError
+from backend.models.person import HouseholdMember
 from backend.routers.cts_deps import cts_enabled
 
 logger = get_logger(__name__)
@@ -62,6 +65,7 @@ class EnrollRequest(BaseModel):
 async def enroll_tracklet(
     body: EnrollRequest,
     request: Request,
+    db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("cts.identity.correct")),
 ) -> dict:
     """Promote tracklet gallery embeddings to a named identity.
@@ -75,6 +79,20 @@ async def enroll_tracklet(
     must appear on camera before enrollment is possible).
     """
     cts_enabled()
+
+    member = db.query(HouseholdMember).filter(
+        HouseholdMember.id == body.identity_id,
+        HouseholdMember.is_active.is_(True),
+    ).first()
+    if member is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "cts.identity_not_found",
+                "message": f"No active household member with id '{body.identity_id}'.",
+            },
+        )
+
     client = _get_orchestrator_client(request)
     try:
         resp = await client.enroll_from_tracklet(

@@ -21,12 +21,12 @@
       class="mb-4"
       @update:model-value="emit('update:modelValue', { ...modelValue, room_id: $event })"
     />
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.description"
       label="Description"
-      rows="3"
-      hint="Human-readable description of the scene."
-      persistent-hint
+      multiline
+      :rows="3"
+      hint="Human-readable description of the scene. Type {{ to autocomplete pipeline variables."
       class="mb-4"
       @update:model-value="emit('update:modelValue', { ...modelValue, description: $event })"
     />
@@ -139,6 +139,8 @@ export const stepTabs = [];
 </script>
 
 <script setup>
+import TemplateInput from "./_shared/TemplateInput.vue";
+
 defineProps({
   modelValue: { type: Object, required: true },
   availablePersons: { type: Array, default: () => [] },

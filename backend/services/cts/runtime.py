@@ -117,6 +117,7 @@ class CTSRuntime:
             ws_manager=ws_manager,
             pipeline=pipeline,
             bucketizer=self.bucketizer,
+            minio_client=minio_client,
         )
         self.identity_revision_subscriber = IdentityRevisionSubscriber(
             redis_url=config.redis_url,

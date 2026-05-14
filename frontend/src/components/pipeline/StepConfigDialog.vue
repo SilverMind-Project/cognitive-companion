@@ -63,7 +63,7 @@
                   <component
                     :is="stepComponent"
                     :key="`${localStep.step_type}_${tabItem.key}`"
-                    v-model="cfg"
+                    :model-value="cfg"
                     :tab="tabItem.key"
                     :schema="currentStepSchema"
                     :all-steps="allSteps"
@@ -80,6 +80,7 @@
                     :context-keys="contextKeys"
                     :known-signal-kinds="knownSignalKinds"
                     :severity-items="severityItems"
+                    @update:model-value="Object.assign(cfg, $event)"
                   />
                 </KeepAlive>
               </v-window-item>
@@ -147,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive, computed, onMounted } from "vue";
+import { ref, watch, reactive, computed, onMounted, provide } from "vue";
 import { api } from "../../services/api.js";
 import { isoToLocalHHMM, localHHMMToUTCISO } from "../../services/timezone.js";
 import DialogHeader from "../common/DialogHeader.vue";
@@ -231,6 +232,21 @@ watch(
 
 // Compute step icon
 const stepIcon = computed(() => STEP_ICONS[localStep.step_type] || "mdi-cog-outline");
+
+// Rule context — step labels and their output schemas — provided to TemplateInput
+// components anywhere in the step config subtree via inject('pipelineRuleContext').
+const ruleContext = computed(() => {
+  const labels = props.allSteps.map((s) => s.label).filter(Boolean);
+  const stepOutputs = {};
+  for (const s of props.allSteps) {
+    const schema = stepTypeSchemas.value[s.step_type];
+    if (s.label && schema?.output_schema?.properties) {
+      stepOutputs[s.label] = schema.output_schema;
+    }
+  }
+  return { labels, stepOutputs };
+});
+provide("pipelineRuleContext", ruleContext);
 
 function humanize(type) {
   if (!type) return "Step";

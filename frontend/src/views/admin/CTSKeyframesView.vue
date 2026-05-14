@@ -179,13 +179,24 @@
           </div>
           <div class="text-caption text-medium-emphasis mb-1">Tracklet</div>
           <div class="font-weight-medium text-body-2 mb-4">{{ enrollTrackletId }}</div>
-          <v-text-field
+          <v-autocomplete
             v-model="enrollIdentityId"
-            label="Identity ID"
+            :items="householdMembers"
+            :item-title="(m) => m.name + ' (' + m.id + ')'"
+            item-value="id"
+            label="Identity"
             variant="outlined"
-            placeholder="e.g. grandma"
             :error-messages="enrollError ? [enrollError] : []"
-          />
+            :menu-props="{ maxHeight: 280 }"
+          >
+            <template #item="{ props: itemProps, item }">
+              <v-list-item v-bind="itemProps" :subtitle="item.raw.is_enrolled ? 'Enrolled · ' + item.raw.embedding_count + ' embedding(s)' : 'Not yet enrolled'">
+                <template #append>
+                  <v-chip v-if="!item.raw.is_active" size="x-small" color="warning" class="ml-2">Inactive</v-chip>
+                </template>
+              </v-list-item>
+            </template>
+          </v-autocomplete>
           <v-text-field
             v-model="enrollDisplayName"
             label="Display name (optional)"
@@ -212,6 +223,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
+import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import { severityColor } from "../../composables/useCtsSeverity";
 import { formatDateTime } from "../../services/timezone.js";
@@ -287,6 +299,7 @@ function formatTime(iso) {
 }
 
 // ── Gallery enrollment ──────────────────────────────────────────────────────
+const householdMembers = ref([]);
 const enrollDialog = ref(false);
 const enrollSaving = ref(false);
 const enrollTrackletId = ref("");
@@ -296,12 +309,21 @@ const enrollError = ref("");
 const enrollSnackbar = ref(false);
 const enrollSnackbarText = ref("");
 
+async function loadHouseholdMembers() {
+  try {
+    householdMembers.value = await api.getPersons();
+  } catch {
+    householdMembers.value = [];
+  }
+}
+
 function openEnroll(kf) {
   enrollTrackletId.value = kf.tracklet_id || "";
   enrollIdentityId.value = kf.person_id || "";
   enrollDisplayName.value = "";
   enrollError.value = "";
   enrollDialog.value = true;
+  if (!householdMembers.value.length) loadHouseholdMembers();
 }
 
 async function submitEnroll() {

@@ -31,58 +31,59 @@
 
   <!-- Templates tab -->
   <div v-else-if="tab === 'templates'">
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.message_template"
       label="Default Message Template"
-      rows="3"
-      hint="Default for all channels. Use {{message}}, {{room_name}}, {{vision_response}}, {{logic_response.user_notification}}, etc."
-      persistent-hint
+      multiline
+      :rows="3"
+      hint="Default for all channels. Type {{ to autocomplete pipeline variables: {{steps.my_step.outputs.field}}, {{trigger.sensor_id}}, etc."
       class="mb-5"
       @update:model-value="emit('update:modelValue', { ...modelValue, message_template: $event })"
     />
     <div class="text-overline text-medium-emphasis mb-2">Per-Channel Overrides</div>
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.telegram_template"
       label="Telegram Template"
-      rows="3"
-      hint="HTML supported. Use {{message}}, {{room_name}}, etc. Falls back to the default template."
-      persistent-hint
+      multiline
+      :rows="3"
+      hint="HTML supported. Falls back to the default template if empty."
       class="mb-3"
       @update:model-value="emit('update:modelValue', { ...modelValue, telegram_template: $event })"
     />
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.eink_template"
       label="E-Ink Template"
-      rows="2"
-      hint="Short plain-text for e-ink displays. Use {{message}}, {{room_name}}, etc."
-      persistent-hint
+      multiline
+      :rows="2"
+      hint="Short plain-text for e-ink displays. Falls back to the default template if empty."
       class="mb-3"
       @update:model-value="emit('update:modelValue', { ...modelValue, eink_template: $event })"
     />
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.ha_speaker_tts_template"
       label="HA Speaker TTS / PWA Announcement Template"
-      rows="2"
-      hint="Natural language for spoken announcements. Use {{message}}, {{room_name}}, etc."
-      persistent-hint
+      multiline
+      :rows="2"
+      hint="Natural language for spoken announcements. Falls back to the default template if empty."
       class="mb-3"
       @update:model-value="emit('update:modelValue', { ...modelValue, ha_speaker_tts_template: $event })"
     />
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.pwa_popup_text_template"
       label="PWA Popup Text Template"
-      rows="2"
-      hint="Notification text shown in the companion UI overlay. Use {{message}}, {{room_name}}, etc."
-      persistent-hint
+      multiline
+      :rows="2"
+      hint="Notification text shown in the companion UI overlay. Falls back to the default template if empty."
       class="mb-3"
       @update:model-value="emit('update:modelValue', { ...modelValue, pwa_popup_text_template: $event })"
     />
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.pwa_realtime_ai_template"
       label="PWA Realtime AI Template"
-      rows="2"
-      hint="Conversational voice prompt for Gemini Live delivery. Use {{message}}, {{room_name}}, etc."
-      persistent-hint
+      multiline
+      :rows="2"
+      hint="Conversational voice prompt for Gemini Live delivery. Falls back to the default template if empty."
+      class="mb-3"
       @update:model-value="emit('update:modelValue', { ...modelValue, pwa_realtime_ai_template: $event })"
     />
   </div>
@@ -243,12 +244,12 @@
         class="mb-3"
         @update:model-value="emit('update:modelValue', { ...modelValue, webhook_url: $event })"
       />
-      <v-textarea
+      <TemplateInput
         :model-value="modelValue.webhook_template"
         label="Webhook JSON Template (optional)"
-        rows="5"
-        hint="JSON payload template. Use {{message}}, {{room_name}}, etc. Falls back to a basic JSON envelope."
-        persistent-hint
+        multiline
+        :rows="5"
+        hint="JSON payload template. Falls back to a basic JSON envelope if empty."
         @update:model-value="emit('update:modelValue', { ...modelValue, webhook_template: $event })"
       />
     </div>
@@ -305,6 +306,8 @@ export function onStepLoaded(cfg) {
 </script>
 
 <script setup>
+import TemplateInput from "./_shared/TemplateInput.vue";
+
 defineProps({
   modelValue: { type: Object, required: true },
   tab: { type: String, default: "general" },

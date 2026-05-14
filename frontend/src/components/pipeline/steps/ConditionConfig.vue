@@ -1,25 +1,23 @@
 <!-- Backend: backend/steps/builtin/condition.py -->
 <template>
   <div v-if="tab === 'general'">
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.expression"
       label="Condition Expression"
+      multiline
       :rows="3"
-      auto-grow
-      hint="Evaluated at runtime — true branch continues, false branch stops or takes the alternate path."
-      persistent-hint
-      class="mb-4 condition-expression-textarea"
+      hint="Wrap the expression in {{ }}. True branch continues; false branch stops or takes the alternate path."
+      class="mb-4 condition-expression-input"
       @update:model-value="emit('update:modelValue', { ...modelValue, expression: $event })"
     />
 
     <v-alert type="info" variant="tonal" density="compact" class="mb-4 text-body-2">
-      <strong>No <code>{{ }}</code> curly braces needed.</strong>
-      Write expressions directly using dotted paths
-      (<code>steps.my_step.outputs.field</code>), comparison operators, and
+      Write condition expressions inside <code>&#123;&#123; &#125;&#125;</code> curly braces.
+      Use dotted paths (<code>steps.my_step.outputs.field</code>), comparison operators, and
       <code>and</code> / <code>or</code> / <code>not</code>.
-      Use <code>jq("...")</code> with JMESPath syntax to filter and count arrays,
-      and <code>icontains(path, "text")</code> for case-insensitive string checks.
-      Step labels in expressions must match the labels you assigned your steps.
+      Pipe JMESPath for array operations: <code>steps.my_step.outputs.list | length(@)</code>.
+      Use <code>icontains(path, "text")</code> for case-insensitive checks.
+      Type <code>&#123;&#123;</code> in the expression field to see autocomplete suggestions.
     </v-alert>
 
     <v-expansion-panels variant="accordion" class="mb-4">
@@ -60,6 +58,8 @@ export const stepTabs = [];
 </script>
 
 <script setup>
+import TemplateInput from "./_shared/TemplateInput.vue";
+
 defineProps({
   modelValue: { type: Object, required: true },
   tab: { type: String, default: "general" },
@@ -70,78 +70,52 @@ const conditionExamples = [
   {
     label: "LLM flagged an alert",
     description: "True when an llm_call step set is_notification_needed to true.",
-    expr: "steps.llm_call_1.outputs.llm_response.is_notification_needed == true",
+    expr: "{{ steps.llm_call_1.outputs.llm_response.is_notification_needed == true }}",
   },
   {
     label: "LLM response severity is high",
     description: "Case-sensitive string comparison on a nested field.",
-    expr: 'steps.llm_call_1.outputs.llm_response.alert_level == "emergency"',
+    expr: '{{ steps.llm_call_1.outputs.llm_response.alert_level == "emergency" }}',
   },
   {
     label: "Scene description mentions a keyword",
     description: "icontains() checks case-insensitively — no need for lower().",
-    expr: 'icontains(steps.scene_analysis_1.outputs.scene_description, "kitchen")',
+    expr: '{{ icontains(steps.scene_analysis_1.outputs.scene_description, "kitchen") }}',
   },
   {
     label: "Any detection with a specific label",
-    description: "jq() + JMESPath filter; icontains() inside the filter handles mixed case.",
-    expr: "jq(\"length(steps.scene_analysis_1.outputs.scene_detections[?icontains(label, 'person')])\") > 0",
-  },
-  {
-    label: "High-confidence detection of a specific object",
-    description: "Backtick-quoted numbers are JMESPath JSON literals for numeric comparisons.",
-    expr: "jq(\"length(steps.scene_analysis_1.outputs.scene_detections[?label == 'person' && confidence > `0.9`])\") > 0",
+    description: "Pipe JMESPath filter; icontains() handles mixed case.",
+    expr: '{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, \'person\')]) > 0 }}',
   },
   {
     label: "Any medium or higher hazard present",
     description: "Filter the hazards list by severity field.",
-    expr: "jq(\"length(steps.scene_analysis_1.outputs.scene_hazards[?severity == 'medium' || severity == 'high'])\") > 0",
+    expr: "{{ steps.scene_analysis_1.outputs.scene_hazards | length([?severity == 'medium' || severity == 'high']) > 0 }}",
   },
   {
     label: "Exact detection count",
     description: "Compare the count of matching detections to a specific number.",
-    expr: "jq(\"length(steps.scene_analysis_1.outputs.scene_detections[?icontains(label, 'person')])\") == 2",
+    expr: '{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, \'person\')]) == 2 }}',
   },
   {
     label: "Person detected AND scene keyword match",
-    description: "Combine a jq() filter with an icontains() check using and.",
-    expr: "jq(\"length(steps.scene_analysis_1.outputs.scene_detections[?icontains(label, 'person')])\") > 0 and icontains(steps.scene_analysis_1.outputs.scene_description, \"kitchen\")",
-  },
-  {
-    label: "Per-image: first image describes a specific room",
-    description: "Access the description of a single image by index inside scene_images[].",
-    expr: "jq(\"contains(lower(steps.scene_analysis_1.outputs.scene_images[0].scene_description), 'kitchen')\")",
-  },
-  {
-    label: "Per-image: any image has a specific detection",
-    description: "[] flattens detections across all images; pipe | applies the filter on the flat list.",
-    expr: "jq(\"length(steps.scene_analysis_1.outputs.scene_images[].scene_detections[] | [?label == 'person'])\") > 0",
-  },
-  {
-    label: "Per-image: second image has hazards",
-    description: "Check the hazard list on a specific image by index.",
-    expr: "jq(\"length(steps.scene_analysis_1.outputs.scene_images[1].scene_hazards)\") > 0",
+    description: "Combine a pipe filter with an icontains() check using and.",
+    expr: '{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, \'person\')]) > 0 and icontains(steps.scene_analysis_1.outputs.scene_description, "kitchen") }}',
   },
   {
     label: "Interactive prompt escalated",
     description: "Check what the user chose in an interactive_prompt step.",
-    expr: 'steps.interactive_prompt_1.outputs.interactive_response.action == "escalate"',
+    expr: '{{ steps.interactive_prompt_1.outputs.interactive_response.action == "escalate" }}',
   },
   {
     label: "Step output key exists",
     description: "exists() returns false if the path is missing or null.",
-    expr: "exists(steps.scene_analysis_1.outputs.scene_description)",
+    expr: "{{ exists(steps.scene_analysis_1.outputs.scene_description) }}",
   },
 ];
 </script>
 
 <style scoped>
-.condition-expression-textarea :deep(textarea) {
-  font-family: var(--cc-font-mono);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
 .condition-examples-list {
   background: transparent;
 }
@@ -171,5 +145,11 @@ const conditionExamples = [
   white-space: pre-wrap;
   word-break: break-all;
   margin-top: 2px;
+}
+
+.condition-expression-input :deep(.cm-content) {
+  font-family: var(--cc-font-mono);
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>

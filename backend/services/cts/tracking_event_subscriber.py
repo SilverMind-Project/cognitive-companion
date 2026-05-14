@@ -21,7 +21,7 @@ from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
 from backend.services.cts import metrics
 from backend.services.cts._time import ns_to_iso
-from backend.services.cts._types import ConnectionManager, PipelineExecutor
+from backend.services.cts._types import ConnectionManager, MinioClient, PipelineExecutor
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -34,6 +34,9 @@ logger = get_logger(__name__)
 
 # Redis Streams field name carrying the proto body.
 FIELD = b"event"
+
+# Live frames are displayed within seconds of capture; keep the window tight.
+_LIVE_FRAME_TTL = 30
 
 
 class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
@@ -50,6 +53,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         ws_manager: ConnectionManager | None = None,
         pipeline: PipelineExecutor | None = None,
         bucketizer: Any = None,
+        minio_client: MinioClient | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -64,6 +68,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         self._ws_manager = ws_manager
         self._pipeline = pipeline
         self._bucketizer = bucketizer
+        self._minio_client = minio_client
 
     # -- StreamConsumer abstract methods ------------------------------------
 
@@ -170,13 +175,19 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
         if self._ws_manager is not None:
             try:
+                frame_url: str | None = None
+                minio_key = event.get("minio_key")
+                if minio_key and self._minio_client is not None:
+                    frame_url = self._minio_client.generate_presigned_url(
+                        minio_key, expiration=_LIVE_FRAME_TTL
+                    )
                 await self._ws_manager.broadcast(
                     {
                         "type": "cts_live_frame",
                         "camera_id": event["camera_id"],
                         "event_time": event["event_time"],
                         "room_name": event.get("room_name"),
-                        "minio_key": event.get("minio_key"),
+                        "frame_url": frame_url,
                         "frame_width": event.get("frame_width", 0),
                         "frame_height": event.get("frame_height", 0),
                         "capture_time": event.get("capture_time"),

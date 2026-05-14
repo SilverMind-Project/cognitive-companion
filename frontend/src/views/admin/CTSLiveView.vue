@@ -89,8 +89,8 @@
             :aria-label="`Live camera ${cameraForSlot(slot)?.camera_id || slot}`"
           >
             <img
-              v-if="cameraForSlot(slot)?.minio_key"
-              :src="frameUrl(cameraForSlot(slot).minio_key)"
+              v-if="cameraForSlot(slot)?.frame_url"
+              :src="cameraForSlot(slot).frame_url"
               class="live-tile-img"
               alt=""
             />
@@ -120,7 +120,7 @@
                   :x="(det.bbox.x_min || 0) + 4"
                   :y="(det.bbox.y_min || 0) + 14"
                   fill="var(--cc-text-1)"
-                  font-size="12"
+                  font-size="18"
                   font-weight="bold"
                   style="paint-order: stroke; stroke: rgba(0, 0, 0, 0.6); stroke-width: 3"
                 >
@@ -250,7 +250,7 @@ function onMessage(msg) {
         detections: msg.detections || [],
         event_time: msg.event_time,
         room_name: msg.room_name,
-        minio_key: msg.minio_key || null,
+        frame_url: msg.frame_url || null,
         frame_width: msg.frame_width || 1920,
         frame_height: msg.frame_height || 1080,
         lastSeenMs: Date.now(),
@@ -287,12 +287,6 @@ function staleLabel(cam) {
   if (age === null) return "";
   if (age < 60) return `${Math.round(age)}s ago`;
   return `${Math.round(age / 60)}m ago`;
-}
-
-function frameUrl(minioKey) {
-  const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
-  const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");
-  return `/api/v1/cts/frames/${encodedKey}?api_key=${apiKey}`;
 }
 
 function openCorrection(det, cam) {

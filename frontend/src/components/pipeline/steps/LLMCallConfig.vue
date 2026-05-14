@@ -43,22 +43,22 @@
       <v-chip v-if="selectedModel.supports_thinking" size="small" color="purple" variant="tonal">thinking</v-chip>
     </div>
 
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.prompt"
       label="Prompt"
-      rows="6"
+      multiline
+      :rows="6"
+      hint="Use {{variable}} for template values. Type {{ to trigger autocomplete."
       class="mb-4"
-      hint="Use {{variable}} for template values. Drag a chip from the right or click to insert."
-      persistent-hint
       @update:model-value="emit('update:modelValue', { ...modelValue, prompt: $event })"
     />
 
-    <v-textarea
+    <TemplateInput
       :model-value="modelValue.special_instructions"
       label="Special Instructions (prepended to prompt)"
-      rows="3"
-      hint="Useful for style guides, translation instructions, etc."
-      persistent-hint
+      multiline
+      :rows="3"
+      hint="Useful for style guides, translation instructions, etc. Supports {{ }} template syntax."
       class="mb-4"
       @update:model-value="emit('update:modelValue', { ...modelValue, special_instructions: $event })"
     />
@@ -293,6 +293,7 @@
 import { ref, computed } from "vue";
 import CameraSelector from "./_shared/CameraSelector.vue";
 import TimeFilterCard from "./_shared/TimeFilterCard.vue";
+import TemplateInput from "./_shared/TemplateInput.vue";
 
 export const stepDefaults = {
   model_id: "",

@@ -4,12 +4,12 @@
     Configure at least one channel (popup or voice) to prompt the user for a response.
   </v-alert>
 
-  <v-textarea
+  <TemplateInput
     :model-value="modelValue.popup_message_template"
     label="Popup Message Template"
-    rows="3"
-    hint="Message shown in the PWA popup dialog. Use {{variable}} syntax for pipeline data."
-    persistent-hint
+    multiline
+    :rows="3"
+    hint="Message shown in the PWA popup dialog. Type {{ to autocomplete pipeline variables."
     class="mb-4"
     @update:model-value="emit('update:modelValue', { ...modelValue, popup_message_template: $event })"
   />
@@ -50,12 +50,12 @@
     </v-col>
   </v-row>
 
-  <v-textarea
+  <TemplateInput
     :model-value="modelValue.voice_prompt_template"
     label="Voice Prompt Template"
-    rows="3"
-    hint="Conversational prompt for Gemini Live voice channel. Use {{variable}} syntax. When set, the microphone auto-enables so the user can reply."
-    persistent-hint
+    multiline
+    :rows="3"
+    hint="Conversational prompt for Gemini Live voice channel. When set, the microphone auto-enables so the user can reply. Type {{ to autocomplete."
     class="mb-4"
     @update:model-value="emit('update:modelValue', { ...modelValue, voice_prompt_template: $event })"
   />
@@ -143,6 +143,8 @@ export const stepTabs = [];
 </script>
 
 <script setup>
+import TemplateInput from "./_shared/TemplateInput.vue";
+
 defineProps({
   modelValue: { type: Object, required: true },
 });

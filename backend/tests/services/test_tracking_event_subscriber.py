@@ -166,6 +166,65 @@ class TestHandle:
         assert ok is False
 
 
+class TestHandleWithBroadcast:
+    """WebSocket broadcast payload contracts for cts_live_frame messages."""
+
+    @pytest.mark.asyncio
+    async def test_broadcasts_frame_url_when_minio_configured(self):
+        class _StubMinio:
+            def generate_presigned_url(self, key: str, expiration: int) -> str:
+                return f"https://minio.example.com/{key}?exp={expiration}"
+
+        broadcasts: list[dict] = []
+
+        class _StubWS:
+            async def broadcast(self, payload: dict) -> None:
+                broadcasts.append(payload)
+
+        writer = _StubWriter()
+        sub = TrackingEventSubscriber(
+            redis_url="redis://localhost:6379",
+            consumer_id="test",
+            writer=writer,  # type: ignore[arg-type]
+            ws_manager=_StubWS(),  # type: ignore[arg-type]
+            minio_client=_StubMinio(),  # type: ignore[arg-type]
+        )
+        event = sub.decode(b"0-0", _proto_fields(_make_event()))
+        assert event is not None
+        await sub.handle(event)
+
+        assert len(broadcasts) == 1
+        msg = broadcasts[0]
+        assert msg["type"] == "cts_live_frame"
+        assert msg["frame_url"] == "https://minio.example.com/frames/evt-1.jpg?exp=30"
+        assert "minio_key" not in msg
+
+    @pytest.mark.asyncio
+    async def test_broadcasts_frame_url_none_when_minio_absent(self):
+        broadcasts: list[dict] = []
+
+        class _StubWS:
+            async def broadcast(self, payload: dict) -> None:
+                broadcasts.append(payload)
+
+        writer = _StubWriter()
+        sub = TrackingEventSubscriber(
+            redis_url="redis://localhost:6379",
+            consumer_id="test",
+            writer=writer,  # type: ignore[arg-type]
+            ws_manager=_StubWS(),  # type: ignore[arg-type]
+            minio_client=None,
+        )
+        event = sub.decode(b"0-0", _proto_fields(_make_event()))
+        assert event is not None
+        await sub.handle(event)
+
+        assert len(broadcasts) == 1
+        msg = broadcasts[0]
+        assert msg["frame_url"] is None
+        assert "minio_key" not in msg
+
+
 def test_uses_in_memory_writer(db_factory):
     """End-to-end: real :class:`LocationWriter`, decoded event, assertion on state."""
     from backend.models.person import HouseholdMember

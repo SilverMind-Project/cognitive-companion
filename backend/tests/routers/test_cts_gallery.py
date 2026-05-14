@@ -3,24 +3,49 @@
 Covers:
 - CTS-disabled guard (404 + code "cts.disabled").
 - No orchestrator client attached (503 + code "cts.orchestrator_unavailable").
+- identity_id not found in household_members (400 + code "cts.identity_not_found").
 - Happy-path proxy: forwards to OrchestratorClient.enroll_from_tracklet.
-- Upstream 404 surfaced as 502 with "cts.upstream_error".
+- Upstream 404 surfaced as 404 with "cts.upstream_error".
+- Upstream 500 surfaced as 500 with "cts.upstream_error".
 """
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from dataclasses import dataclass
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.core.auth import AuthContext, get_auth_context
 from backend.core.config import Settings
+from backend.core.database import get_db
 from backend.core.exceptions import register_exception_handlers
 from backend.core.upstream_errors import UpstreamError
 
 
-def _build_app(cts_enabled: bool = True, orchestrator=None):
+@dataclass
+class _FakeMember:
+    id: str = "grandma"
+    name: str = "Grandma"
+    is_active: bool = True
+
+
+def _make_mock_db(member: _FakeMember | None = None):
+    """Build a mock SQLAlchemy session whose query chain returns *member*."""
+    db = MagicMock()
+    query_mock = MagicMock()
+    query_mock.filter.return_value = query_mock
+    query_mock.first.return_value = member
+    db.query.return_value = query_mock
+    return db
+
+
+def _build_app(
+    cts_enabled: bool = True,
+    orchestrator=None,
+    db_member: _FakeMember | None = _FakeMember(),
+):
     cfg = Settings.from_dict({"cts": {"enabled": cts_enabled}})
 
     import backend.routers.cts_deps as cts_deps_mod
@@ -33,6 +58,7 @@ def _build_app(cts_enabled: bool = True, orchestrator=None):
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
         key="x", name="tester", permissions=["*"]
     )
+    app.dependency_overrides[get_db] = lambda: _make_mock_db(db_member)
 
     settings_patch = patch.object(cts_deps_mod, "settings", cfg)
     settings_patch.start()
@@ -63,6 +89,35 @@ class TestOrchestratorUnavailable:
             )
             assert r.status_code == 503
             assert r.json()["detail"]["code"] == "cts.orchestrator_unavailable"
+        finally:
+            patcher.stop()
+
+
+class TestIdentityValidation:
+    def test_enroll_400_when_identity_not_found(self):
+        client, patcher = _build_app(db_member=None)
+        try:
+            r = client.post(
+                "/api/v1/cts/gallery/enroll",
+                json={"identity_id": "nobody", "tracklet_id": "t-1"},
+            )
+            assert r.status_code == 400
+            assert r.json()["detail"]["code"] == "cts.identity_not_found"
+        finally:
+            patcher.stop()
+
+    def test_enroll_400_when_member_inactive(self):
+        # The endpoint filters ``is_active.is_(True)``, so an inactive
+        # member won't match the query.  Simulate that by returning None
+        # from the mock (the mock doesn't evaluate SQLAlchemy filters).
+        client, patcher = _build_app(db_member=None)
+        try:
+            r = client.post(
+                "/api/v1/cts/gallery/enroll",
+                json={"identity_id": "bob", "tracklet_id": "t-1"},
+            )
+            assert r.status_code == 400
+            assert r.json()["detail"]["code"] == "cts.identity_not_found"
         finally:
             patcher.stop()
 

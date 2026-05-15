@@ -152,6 +152,7 @@ export const cts = {
     }),
 
   // ── Identity corrections (M9) ──────────────────────────────────────────────
+  getIdentities: () => req("/identity/identities"),
   getGlobalTracks: (openOnly = true) =>
     req(`/identity/global_tracks?open_only=${openOnly}`),
   applyCorrection: (payload) =>

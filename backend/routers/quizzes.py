@@ -16,7 +16,6 @@ from backend.core.exceptions import NotFoundError, ValidationError
 from backend.models.knowledge import Quiz, QuizQuestion
 from backend.schemas.quizzes import (
     QuizCreate,
-    QuizPreviewRequest,
     QuizQuestionCreate,
     QuizQuestionReorder,
     QuizQuestionUpdate,
@@ -213,16 +212,6 @@ async def delete_quiz(
     db.commit()
     pipeline = request.app.state.image_pipeline
     await pipeline.purge_prefix(f"quizzes/{quiz_id}/")
-
-
-@router.post("/{quiz_id}/preview")
-async def preview_quiz(
-    quiz_id: int,
-    body: QuizPreviewRequest,
-    request: Request,
-    _auth: None = Depends(require_permission("POST /api/v1/quizzes")),
-):
-    return {"status": "not_implemented", "message": "Preview available in Phase 3"}
 
 
 # -- questions ---------------------------------------------------------------

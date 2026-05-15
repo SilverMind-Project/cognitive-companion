@@ -171,6 +171,9 @@ mcp:
     - "get_person_movements"
     - "get_room_trend"
     - "search_similar_scenes"
+    - "submit_quiz_answer"
+    - "get_current_quiz_question"
+    - "complete_quiz_session"
   gemini_tools:
     - "get_rooms"
     - "get_room_occupancy"
@@ -186,6 +189,7 @@ mcp:
     - "submit_user_response"
     - "query_knowledge_base"
     - "submit_quiz_answer"
+    - "get_current_quiz_question"
     - "complete_quiz_session"
 
 # Person Identification Service

@@ -42,10 +42,10 @@ class QuizStartStep(StepHandler):
                     "randomize_order": {"type": "boolean", "default": False},
                     "session_timeout_minutes": {"type": "integer", "default": 10},
                     "trigger_cooloff": {"type": "boolean", "default": True},
-                    "per_senior_dedupe_hours": {
+                    "dedupe_hours": {
                         "type": "integer",
                         "default": 12,
-                        "description": "Skip if same senior_id finished this quiz within N hours.",
+                        "description": "Skip if this quiz was completed within N hours.",
                     },
                     "voice_instruction": {
                         "type": "string",
@@ -60,8 +60,16 @@ class QuizStartStep(StepHandler):
                 "randomize_order": False,
                 "session_timeout_minutes": 10,
                 "trigger_cooloff": True,
-                "per_senior_dedupe_hours": 12,
+                "dedupe_hours": 12,
                 "voice_instruction": "",
+            },
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "quiz_id": {"type": "integer"},
+                    "quiz_session_id": {"type": "integer"},
+                    "max_questions": {"type": "integer"},
+                },
             },
         )
 
@@ -81,7 +89,7 @@ class QuizStartStep(StepHandler):
         max_questions = config.get("max_questions", 5)
         randomize_order = config.get("randomize_order", False)
         timeout_minutes = config.get("session_timeout_minutes", 10)
-        dedupe_hours = config.get("per_senior_dedupe_hours", 12)
+        dedupe_hours = config.get("dedupe_hours", 12)
         voice_instruction = config.get("voice_instruction", "")
 
         # Load the quiz
@@ -114,23 +122,12 @@ class QuizStartStep(StepHandler):
         finally:
             db.close()
 
-        # Get ws_manager
-        ws_manager = None
-        if services.notification_dispatcher and hasattr(
-            services.notification_dispatcher, "_dispatch_services"
-        ):
-            ws_manager = services.notification_dispatcher._dispatch_services.ws_manager
-
-        if ws_manager is None:
-            return StepResult(success=False, data={"error": "WebSocket manager not available"})
-
         # Delivery
-        from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
-
-        delivery_svc = KnowledgeDeliveryService(
-            db_factory=services.db_factory,
-            ws_manager=ws_manager,
-        )
+        delivery_svc = services.knowledge_delivery
+        if delivery_svc is None:
+            return StepResult(
+                success=False, data={"error": "knowledge delivery service not available"}
+            )
 
         result = await delivery_svc.start_quiz_session(
             quiz=quiz,

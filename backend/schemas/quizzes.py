@@ -75,10 +75,6 @@ class QuizListOut(OutSchema):
     question_count: int = 0
 
 
-class QuizPreviewRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
 # -- Quiz Question ------------------------------------------------------------
 
 

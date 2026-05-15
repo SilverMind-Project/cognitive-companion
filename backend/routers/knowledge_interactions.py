@@ -85,6 +85,20 @@ async def list_quiz_sessions(
         stmt.order_by(QuizSession.started_at.desc()).limit(limit)
     ).scalars().all()
 
+    # Batch-fetch response counts
+    session_ids = [s.id for s in rows]
+    response_counts: dict[int, int] = {}
+    if session_ids:
+        count_rows = db.execute(
+            select(
+                QuizResponse.session_id,
+                func.count(QuizResponse.id).label("count"),
+            )
+            .where(QuizResponse.session_id.in_(session_ids))
+            .group_by(QuizResponse.session_id)
+        ).all()
+        response_counts = {row.session_id: row.count for row in count_rows}
+
     return [
         {
             "id": s.id,
@@ -97,7 +111,7 @@ async def list_quiz_sessions(
             "started_at": s.started_at.isoformat() if s.started_at else None,
             "last_activity_at": s.last_activity_at.isoformat() if s.last_activity_at else None,
             "completed_at": s.completed_at.isoformat() if s.completed_at else None,
-            "response_count": 0,  # populated in Phase 3
+            "response_count": response_counts.get(s.id, 0),
         }
         for s in rows
     ]

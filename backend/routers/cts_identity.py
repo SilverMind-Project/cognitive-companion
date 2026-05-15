@@ -93,6 +93,29 @@ async def list_global_tracks(
 
 
 # ---------------------------------------------------------------------------
+# GET /cts/identity/identities
+# ---------------------------------------------------------------------------
+
+
+@router.get("/identities")
+async def list_identities(
+    request: Request,
+    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+) -> dict:
+    """Return all named identities for the identity picker in the corrections UI."""
+    cts_enabled()
+    client = _get_orchestrator_client(request)
+    try:
+        identities = await client.get_identities()
+    except UpstreamError as exc:
+        raise HTTPException(
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "cts.upstream_error", "message": str(exc)},
+        ) from exc
+    return {"identities": identities, "count": len(identities)}
+
+
+# ---------------------------------------------------------------------------
 # POST /cts/identity/corrections
 # ---------------------------------------------------------------------------
 

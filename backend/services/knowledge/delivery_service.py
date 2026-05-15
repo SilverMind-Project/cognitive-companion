@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
@@ -46,6 +46,7 @@ class KnowledgeDeliveryService:
         eink_renderer: EInkRenderer | None = None,
         voice_instructions: VoiceInstructionConfig | None = None,
         content_generation: Any = None,
+        pipeline_executor: Any = None,
     ) -> None:
         self._db_factory = db_factory
         self._ws_manager = ws_manager
@@ -53,6 +54,7 @@ class KnowledgeDeliveryService:
         self._eink = eink_renderer
         self._voice = voice_instructions
         self._content_gen = content_generation
+        self._pipeline_executor = pipeline_executor
 
     # -- info card delivery -------------------------------------------------
 
@@ -64,6 +66,7 @@ class KnowledgeDeliveryService:
         execution_id: int,
         rule_id: int | None = None,
         voice_instruction: str | None = None,
+        speak: bool = False,
         dismiss_seconds: int = 60,
         eink_expiry_minutes: int = 30,
     ) -> DeliveryResult:
@@ -88,9 +91,15 @@ class KnowledgeDeliveryService:
             db.close()
 
         # Resolve voice instruction
-        voice_inst = voice_instruction or card.voice_instruction or ""
-        if self._voice and not voice_inst:
-            voice_inst = self._voice.default_for("info_card")
+        if self._voice:
+            voice_inst = self._voice.compose(
+                step_type="info_card",
+                base_instruction="",
+                step_override=voice_instruction or None,
+                resource_override=card.voice_instruction or None,
+            )
+        else:
+            voice_inst = voice_instruction or card.voice_instruction or ""
 
         # Build image slots for PWA
         image_slots: list[dict[str, Any]] = []
@@ -131,16 +140,32 @@ class KnowledgeDeliveryService:
         # Eink rendering
         if "eink" in channels and self._eink:
             try:
+                # Resolve eink image variant from the first image slot
+                eink_image_bytes: bytes | None = None
+                for slot in card.image_slots or []:
+                    variants = slot.variants if isinstance(slot.variants, dict) else {}
+                    eink_var = variants.get("eink", {})
+                    object_name = eink_var.get("object_name") or slot.original_object_name
+                    if object_name and self._minio:
+                        try:
+                            eink_image_bytes = self._minio.get_object(object_name)
+                        except Exception:
+                            logger.exception(
+                                "eink_image_fetch_failed", object_name=object_name
+                            )
+                    break  # Use only the first image slot for eink
+
                 await self._eink.render(
                     text=f"{card.title}\n\n{card.body_text}",
                     template="info_card",
                     expires_in_minutes=eink_expiry_minutes,
+                    overlay_image=eink_image_bytes,
                 )
             except Exception:
                 logger.exception("info_card_eink_render_failed")
 
-        # Voice delivery via Gemini Live
-        if voice_inst or card.title:
+        # Voice delivery via Gemini Live (gated on explicit speak flag)
+        if speak:
             try:
                 voice_prompt = f"Here is some information for you.\n\n{card.title}\n\n{card.body_text}"
                 await self._ws_manager.send_backend_task(
@@ -197,17 +222,40 @@ class KnowledgeDeliveryService:
             db.close()
 
         # Resolve voice instruction
-        voice_inst = voice_instruction or quiz.voice_instruction or ""
-        if self._voice and not voice_inst:
-            voice_inst = self._voice.default_for("quiz")
+        if self._voice:
+            voice_inst = self._voice.compose(
+                step_type="quiz",
+                base_instruction="",
+                step_override=voice_instruction or None,
+                resource_override=quiz.voice_instruction or None,
+            )
+        else:
+            voice_inst = voice_instruction or quiz.voice_instruction or ""
 
-        # Get questions
+        # Get questions, build persisted order
         questions = sorted(quiz.questions or [], key=lambda q: q.ord)
         if randomize_order:
             import random
+
             random.shuffle(questions)
         questions = questions[:max_questions]
+        question_ids = [q.id for q in questions]
         total = len(questions)
+
+        # Persist question_order on the session
+        db2: Session = self._db_factory()
+        try:
+            db2.execute(
+                update(QuizSession)
+                .where(QuizSession.id == session_id)
+                .values(question_order=question_ids)
+            )
+            db2.commit()
+        except Exception:
+            db2.rollback()
+            logger.exception("question_order_persist_failed", session_id=session_id)
+        finally:
+            db2.close()
 
         # PWA popup
         try:
@@ -231,7 +279,10 @@ class KnowledgeDeliveryService:
         if voice_inst or quiz.intro_voice_template:
             try:
                 intro = quiz.intro_voice_template or f"Let's start the quiz: {quiz.title}."
-                voice_prompt = f"{intro}\n\nThere are {total} questions. Here is the first question.\n\n{q.question_text}"
+                voice_prompt = (
+                    f"{intro}\n\nThere are {total} questions. "
+                    f"Here is the first question.\n\n{q.question_text}"
+                )
                 await self._ws_manager.send_backend_task(
                     prompt=voice_prompt,
                     voice_instruction=voice_inst or None,
@@ -271,7 +322,7 @@ class KnowledgeDeliveryService:
             now = datetime.now(UTC)
             if action == "viewed":
                 delivery.viewed_at = now
-            elif action == "dismissed":
+            elif action in ("dismissed", "timeout"):
                 delivery.dismissed_at = now
                 delivery.dismissed_by = "senior"
             db.commit()
@@ -283,6 +334,45 @@ class KnowledgeDeliveryService:
             db.close()
 
     # -- quiz answers -------------------------------------------------------
+
+    def get_current_question(self, session_id: int) -> dict[str, Any]:
+        """Return the question the senior should answer next.
+
+        Returns ord, text, type, choices, or {"done": True} if past the end.
+        """
+        db: Session = self._db_factory()
+        try:
+            session = db.execute(
+                select(QuizSession).where(QuizSession.id == session_id)
+            ).scalar_one_or_none()
+            if session is None:
+                return {"error": "Session not found"}
+
+            question_order: list[int] = session.question_order or []
+            total = len(question_order)
+            if total == 0:
+                return {"done": True, "reason": "no questions"}
+
+            idx = session.current_question_ord
+            if idx >= total:
+                return {"done": True, "reason": "past last question"}
+
+            question = db.execute(
+                select(QuizQuestion).where(QuizQuestion.id == question_order[idx])
+            ).scalar_one_or_none()
+            if question is None:
+                return {"done": True, "reason": "question not found"}
+
+            return {
+                "session_id": session_id,
+                "question_ord": idx,
+                "question_text": question.question_text,
+                "question_type": question.question_type,
+                "choices": question.choices or [],
+                "total": total,
+            }
+        finally:
+            db.close()
 
     async def submit_quiz_answer(
         self,
@@ -303,12 +393,17 @@ class KnowledgeDeliveryService:
             if session is None:
                 return {"error": "Session not found"}
 
-            # Find the question by ord
+            question_order: list[int] = session.question_order or []
+            total = len(question_order)
+            if total == 0:
+                return {"error": "No questions in session"}
+
+            if question_ord < 0 or question_ord >= total:
+                return {"error": f"question_ord {question_ord} out of range [0, {total})"}
+
+            question_id = question_order[question_ord]
             question = db.execute(
-                select(QuizQuestion).where(
-                    QuizQuestion.quiz_id == session.quiz_id,
-                    QuizQuestion.ord == question_ord,
-                )
+                select(QuizQuestion).where(QuizQuestion.id == question_id)
             ).scalar_one_or_none()
 
             if question is None:
@@ -339,7 +434,7 @@ class KnowledgeDeliveryService:
                     logger.exception("open_ended_grading_failed")
                     is_correct = None
 
-            # Record response (idempotent)
+            # Record response (idempotent — only advance on first insert)
             existing = db.execute(
                 select(QuizResponse).where(
                     QuizResponse.session_id == session_id,
@@ -347,7 +442,8 @@ class KnowledgeDeliveryService:
                 )
             ).scalar_one_or_none()
 
-            if existing is None:
+            is_new_response = existing is None
+            if is_new_response:
                 resp = QuizResponse(
                     session_id=session_id,
                     question_id=question.id,
@@ -363,16 +459,32 @@ class KnowledgeDeliveryService:
                 db.add(resp)
                 db.commit()
 
-            # Advance session
-            session.current_question_ord = question_ord + 1
-            session.last_activity_at = datetime.now(UTC)
-            db.commit()
+                # Advance session (idempotent: only on new response)
+                session.current_question_ord = question_ord + 1
+                session.last_activity_at = datetime.now(UTC)
+                db.commit()
 
-            # Check if quiz is complete
-            all_questions = db.execute(
-                select(QuizQuestion).where(QuizQuestion.quiz_id == session.quiz_id)
-            ).scalars().all()
-            advance = session.current_question_ord < len(all_questions)
+            # Check if quiz is complete using persisted question_order
+            advance = (question_ord + 1) < total
+
+            # Broadcast shared result for both PWA and voice paths
+            try:
+                await self._ws_manager.broadcast({
+                    "type": "quiz_answer_recorded",
+                    "session_id": session_id,
+                    "question_ord": question_ord,
+                    "is_correct": is_correct,
+                    "advance": advance,
+                })
+            except Exception:
+                logger.exception("quiz_answer_recorded_broadcast_failed")
+
+            # Drive the next question or complete
+            if is_new_response:
+                if advance:
+                    await self._send_question_by_index(session, question_ord + 1)
+                else:
+                    await self.complete_quiz_session(session_id)
 
             return {
                 "session_id": session_id,
@@ -408,6 +520,7 @@ class KnowledgeDeliveryService:
             num_correct = sum(1 for r in responses if r.is_correct)
 
             db.commit()
+            execution_id = session.execution_id
 
             # Broadcast completion
             await self._ws_manager.broadcast({
@@ -416,6 +529,17 @@ class KnowledgeDeliveryService:
                 "num_correct": num_correct,
                 "num_answered": num_answered,
             })
+
+            # Resume the owning pipeline execution so it doesn't wait for timeout
+            if execution_id and self._pipeline_executor:
+                try:
+                    db2: Session = self._db_factory()
+                    try:
+                        self._pipeline_executor.resume(execution_id, db2)
+                    finally:
+                        db2.close()
+                except Exception:
+                    logger.exception("quiz_complete_pipeline_resume_failed", execution_id=execution_id)
 
             logger.info(
                 "quiz_session_completed",
@@ -437,6 +561,25 @@ class KnowledgeDeliveryService:
             db.close()
 
     # -- helpers ------------------------------------------------------------
+
+    async def _send_question_by_index(self, session: QuizSession, index: int) -> None:
+        """Resolve question_order[index], load the QuizQuestion, send via ws."""
+        question_order: list[int] = session.question_order or []
+        if index < 0 or index >= len(question_order):
+            logger.error("question_index_out_of_range", index=index, total=len(question_order))
+            return
+        question_id = question_order[index]
+        db: Session = self._db_factory()
+        try:
+            question = db.execute(
+                select(QuizQuestion).where(QuizQuestion.id == question_id)
+            ).scalar_one_or_none()
+            if question is None:
+                logger.error("question_not_found", question_id=question_id)
+                return
+            await self._send_question_ws(session.id, question, index, len(question_order))
+        finally:
+            db.close()
 
     async def _send_question_ws(
         self, session_id: int, question: QuizQuestion, ord_num: int, total: int

@@ -101,6 +101,19 @@ class HttpUpstreamClient:
             resp = await client.get(url, params=params, headers=headers)
             resp.raise_for_status()
             return resp.json()
+        except httpx.HTTPStatusError as exc:
+            try:
+                body_preview = exc.response.text[:500]
+            except Exception:
+                body_preview = "<unreadable>"
+            logger.exception(
+                "upstream_get_error",
+                service=self.SETTINGS_PREFIX,
+                path=path,
+                status=exc.response.status_code,
+                body_preview=body_preview,
+            )
+            return None
         except Exception:
             logger.exception(
                 "upstream_get_error",
@@ -121,6 +134,19 @@ class HttpUpstreamClient:
             resp = await client.post(url, json=json, headers=headers)
             resp.raise_for_status()
             return resp.json()
+        except httpx.HTTPStatusError as exc:
+            try:
+                body_preview = exc.response.text[:500]
+            except Exception:
+                body_preview = "<unreadable>"
+            logger.exception(
+                "upstream_post_error",
+                service=self.SETTINGS_PREFIX,
+                path=path,
+                status=exc.response.status_code,
+                body_preview=body_preview,
+            )
+            return None
         except Exception:
             logger.exception(
                 "upstream_post_error",
@@ -146,6 +172,19 @@ class HttpUpstreamClient:
             resp = await client.post(url, files=files, params=params, headers=headers)
             resp.raise_for_status()
             return resp.json()
+        except httpx.HTTPStatusError as exc:
+            try:
+                body_preview = exc.response.text[:500]
+            except Exception:
+                body_preview = "<unreadable>"
+            logger.exception(
+                "upstream_post_multipart_error",
+                service=self.SETTINGS_PREFIX,
+                path=path,
+                status=exc.response.status_code,
+                body_preview=body_preview,
+            )
+            return None
         except Exception:
             logger.exception(
                 "upstream_post_multipart_error",
@@ -166,6 +205,19 @@ class HttpUpstreamClient:
             resp = await client.delete(url, params=params, headers=headers)
             resp.raise_for_status()
             return resp.json()
+        except httpx.HTTPStatusError as exc:
+            try:
+                body_preview = exc.response.text[:500]
+            except Exception:
+                body_preview = "<unreadable>"
+            logger.exception(
+                "upstream_delete_error",
+                service=self.SETTINGS_PREFIX,
+                path=path,
+                status=exc.response.status_code,
+                body_preview=body_preview,
+            )
+            return None
         except Exception:
             logger.exception(
                 "upstream_delete_error",

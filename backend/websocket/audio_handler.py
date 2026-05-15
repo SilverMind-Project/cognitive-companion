@@ -142,6 +142,10 @@ class AudioSessionHandler:
                         await self._client_to_backend.put(("text", text))
                     elif msg_type == "interactive_response":
                         await self._handle_interactive_response(data)
+                    elif msg_type == "quiz_answer":
+                        await self._handle_quiz_answer(data)
+                    elif msg_type == "info_card_dismiss":
+                        await self._handle_info_card_event(data)
         except WebSocketDisconnect:
             logger.info("ws_client_disconnected_in_reader")
         except Exception as exc:
@@ -219,10 +223,18 @@ class AudioSessionHandler:
                             elif kind == "text":
                                 await provider.send_text(session, payload)
                             elif kind == "prompt":
-                                text, callback, exp, voice_instruction, _metadata = payload
+                                text, callback, exp, voice_instruction, metadata = payload
                                 if time.time() > exp:
                                     logger.debug("ws_backend_prompt_expired")
                                     continue
+
+                                # Carry quiz session_id into the prompt so Gemini can use
+                                # get_current_quiz_question / submit_quiz_answer.
+                                if metadata:
+                                    delivery_type = metadata.get("delivery_type", "")
+                                    if delivery_type == "quiz_start" and metadata.get("session_id"):
+                                        sid = metadata["session_id"]
+                                        text = f"[quiz session {sid}] {text}"
 
                                 # Detect voice_instruction change: reconnect inline
                                 if voice_instruction and voice_instruction != self._current_voice_instruction:
@@ -592,3 +604,51 @@ class AudioSessionHandler:
                 "type": "error",
                 "message": "Failed to process interactive response",
             })
+
+    async def _handle_quiz_answer(self, data: dict) -> None:
+        """Handle quiz_answer WebSocket message from the PWA."""
+        session_id = data.get("session_id")
+        question_ord = data.get("question_ord")
+        choice_id = data.get("choice_id")
+        open_ended_text = data.get("open_ended_text")
+        latency_ms = data.get("latency_ms")
+
+        if session_id is None or question_ord is None:
+            logger.error("quiz_answer_missing_fields", data=data)
+            return
+
+        delivery = getattr(self.ws.app.state, "knowledge_delivery", None)
+        if delivery is None:
+            logger.error("quiz_answer_no_delivery_service")
+            return
+
+        try:
+            await delivery.submit_quiz_answer(
+                session_id=session_id,
+                question_ord=question_ord,
+                choice_id=choice_id,
+                open_ended_text=open_ended_text,
+                channel="pwa",
+                latency_ms=latency_ms,
+            )
+        except Exception:
+            logger.exception("quiz_answer_handler_error", session_id=session_id)
+
+    async def _handle_info_card_event(self, data: dict) -> None:
+        """Handle info_card_dismiss WebSocket message from the PWA."""
+        delivery_id = data.get("delivery_id")
+        action = data.get("action", "dismissed")
+
+        if delivery_id is None:
+            logger.error("info_card_event_missing_delivery_id", data=data)
+            return
+
+        delivery = getattr(self.ws.app.state, "knowledge_delivery", None)
+        if delivery is None:
+            logger.error("info_card_event_no_delivery_service")
+            return
+
+        try:
+            delivery.record_info_card_event(delivery_id, action)
+        except Exception:
+            logger.exception("info_card_event_handler_error", delivery_id=delivery_id)

@@ -433,11 +433,6 @@ export const api = {
     request(`/info-cards/${id}/archive`, { method: "POST" }),
   restoreInfoCard: (id) =>
     request(`/info-cards/${id}/restore`, { method: "POST" }),
-  previewInfoCard: (id, surface) =>
-    request(`/info-cards/${id}/preview`, {
-      method: "POST",
-      body: JSON.stringify({ surface: surface || "pwa" }),
-    }),
   setInfoCardSlot: (cardId, slotIndex, formData) =>
     requestForm(`/info-cards/${cardId}/slots/${slotIndex}`, "PUT", formData),
   patchInfoCardSlot: (cardId, slotIndex, data) =>
@@ -447,8 +442,6 @@ export const api = {
     }),
   deleteInfoCardSlot: (cardId, slotIndex) =>
     request(`/info-cards/${cardId}/slots/${slotIndex}`, { method: "DELETE" }),
-  rerenderInfoCard: (id) =>
-    request(`/info-cards/${id}/rerender`, { method: "POST" }),
   suggestInfoCard: (documentId, modelId) => {
     const params = new URLSearchParams({ document_id: documentId });
     if (modelId) params.set("model_id", modelId);
@@ -473,8 +466,6 @@ export const api = {
     request(`/quizzes/${id}/archive`, { method: "POST" }),
   restoreQuiz: (id) =>
     request(`/quizzes/${id}/restore`, { method: "POST" }),
-  previewQuiz: (id) =>
-    request(`/quizzes/${id}/preview`, { method: "POST", body: JSON.stringify({}) }),
   createQuizQuestion: (quizId, data) =>
     request(`/quizzes/${quizId}/questions`, { method: "POST", body: JSON.stringify(data) }),
   updateQuizQuestion: (quizId, qid, data) =>

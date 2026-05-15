@@ -1,5 +1,5 @@
 <template>
-  <v-dialog :model-value="visible" max-width="480" persistent @update:model-value="$emit('close')">
+  <v-dialog :model-value="visible" max-width="480" persistent @update:model-value="onClose">
     <v-card class="knowledge-answer-card">
       <v-card-item>
         <template #prepend>
@@ -14,7 +14,7 @@
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" color="primary" @click="$emit('close')">Got it</v-btn>
+        <v-btn variant="text" color="primary" @click="onClose">Got it</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -33,6 +33,11 @@ const emit = defineEmits(["close"]);
 
 const visible = ref(false);
 
+function onClose() {
+  visible.value = false;
+  emit("close");
+}
+
 watch(
   () => props.queryText,
   (val) => {
@@ -41,7 +46,7 @@ watch(
 );
 
 function show(query, answer, sourceIds = []) {
-  visible.value = true;
+  if (query) visible.value = true;
 }
 
 defineExpose({ show });

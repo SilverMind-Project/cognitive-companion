@@ -16,7 +16,6 @@ from backend.core.exceptions import NotFoundError, ValidationError
 from backend.models.knowledge import InfoCard, InfoCardImageSlot
 from backend.schemas.info_cards import (
     InfoCardCreate,
-    InfoCardPreviewRequest,
     InfoCardSlotPatch,
     InfoCardUpdate,
 )
@@ -245,17 +244,6 @@ async def suggest_info_card(
     }
 
 
-@router.post("/{card_id}/preview")
-async def preview_info_card(
-    card_id: int,
-    body: InfoCardPreviewRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
-):
-    return {"status": "not_implemented", "message": "Preview available in Phase 3"}
-
-
 # -- slots -------------------------------------------------------------------
 
 
@@ -402,16 +390,6 @@ async def delete_info_card_slot(
     db.commit()
     pipeline = request.app.state.image_pipeline
     await pipeline.purge_prefix(f"info_cards/{card_id}/slot{slot_index}")
-
-
-@router.post("/{card_id}/rerender")
-async def rerender_info_card(
-    card_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    _auth: None = Depends(require_permission("POST /api/v1/info-cards")),
-):
-    return {"status": "not_implemented", "message": "Batch re-render available in Phase 5"}
 
 
 # -- serialisers ------------------------------------------------------------

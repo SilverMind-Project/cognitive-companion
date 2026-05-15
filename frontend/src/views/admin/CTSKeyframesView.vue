@@ -104,13 +104,13 @@
     <!-- Keyframe Detail Dialog -->
     <v-dialog v-model="detailDialog" max-width="800">
       <v-card v-if="selectedKeyframe">
-        <v-img :src="keyframeImage(selectedKeyframe)" height="400" cover />
         <DialogHeader
           icon="mdi-image-search"
           label="Keyframe"
           title="Details"
           @close="detailDialog = false"
         />
+        <v-img :src="keyframeImage(selectedKeyframe)" height="400" cover />
         <v-card-text>
           <v-row>
             <v-col cols="6">

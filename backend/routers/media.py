@@ -21,8 +21,10 @@ from sqlalchemy.orm import Session
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
+from backend.integrations.minio_client import MinioClient
 from backend.models.media_cache import MediaCache
 from backend.models.sensor import Sensor
+from backend.services.event_aggregator import EventAggregator
 
 logger = get_logger(__name__)
 
@@ -56,8 +58,8 @@ def get_media_buffer(
     limit : int (1-100, default 20)
         Maximum number of flushed images per sensor.
     """
-    aggregator = getattr(request.app.state, "event_aggregator", None)
-    minio_client = getattr(request.app.state, "minio_client", None)
+    aggregator: EventAggregator | None = request.app.state.event_aggregator
+    minio_client: MinioClient | None = request.app.state.minio_client
     now_utc = datetime.now(UTC)
     mono_now = time.monotonic()
 

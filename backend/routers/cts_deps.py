@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import HTTPException, Request, status
 
 from backend.core.config import settings
+from backend.integrations.minio_client import MinioClient
 
 __all__ = ["cts_enabled", "inject_image_urls", "presigned_image_url"]
 
@@ -42,7 +43,7 @@ def presigned_image_url(
     """Generate a presigned MinIO URL for a CTS frame, or None if unavailable."""
     if not minio_key:
         return None
-    minio = getattr(request.app.state, "minio_client", None)
+    minio: MinioClient | None = request.app.state.minio_client
     if minio is None:
         return None
     return minio.generate_presigned_url(minio_key, expiration=ttl)  # type: ignore[no-any-return]

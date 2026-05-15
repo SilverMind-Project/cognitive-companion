@@ -39,38 +39,84 @@ class SignalStore:
     # -- Write path ----------------------------------------------------------
 
     async def insert(self, signal_data: dict[str, Any]) -> int:
-        """Insert a single dementia signal received from the orchestrator.
+        """Insert a single dementia signal (backward-compatible wrapper).
 
-        Parameters
-        ----------
-        signal_data:
-            Dict with keys matching the orchestrator's ``DementiaSignal``
-            proto or JSON envelope.  Required keys: ``person_id``,
-            ``signal_type``, ``severity``, ``window_start``, ``window_end``,
-            ``value``.
+        Prefer ``upsert()`` for new code; it returns the action taken
+        (``new`` / ``escalation`` / ``update``) so callers can gate
+        notifications on severity transitions.
+        """
+        row_id, _ = await self.upsert(signal_data)
+        return row_id
 
-        Returns
-        -------
-        int
-            The auto-generated primary-key id of the inserted row.
+    async def upsert(self, signal_data: dict[str, Any]) -> tuple[int, str]:
+        """Insert or update a dementia signal with severity-transition semantics.
+
+        Returns ``(row_id, action)`` where *action* is one of:
+
+        - ``"new"`` — a new signal_id was inserted (actionable).
+        - ``"escalation"`` — same signal_id, higher severity (actionable).
+        - ``"update"`` — same signal_id, equal or lower severity (no-op for
+          notification purposes; consumers should not re-alert).
         """
         db = self._db_factory()
         try:
-            row = DementiaSignal(
-                person_id=signal_data["person_id"],
-                signal_type=signal_data["signal_type"],
-                severity=signal_data["severity"],
-                window_start=parse_ts(signal_data["window_start"]),
-                window_end=parse_ts(signal_data["window_end"]),
-                value=float(signal_data["value"]),
-                baseline=float(signal_data["baseline"]) if signal_data.get("baseline") is not None else None,
-                z_score=float(signal_data["z_score"]) if signal_data.get("z_score") is not None else None,
-                context_json=signal_data.get("context_json"),
+            signal_id = signal_data.get("signal_id")
+            new_severity = signal_data["severity"]
+            sev_order = {"info": 0, "warning": 1, "emergency": 2}
+            new_sev_rank = sev_order.get(new_severity, 0)
+
+            if signal_id:
+                existing = (
+                    db.query(DementiaSignal)
+                    .filter(DementiaSignal.signal_id == signal_id)
+                    .first()
+                )
+            else:
+                existing = None
+
+            if existing is None:
+                # New signal — insert.
+                row = DementiaSignal(
+                    signal_id=signal_id,
+                    person_id=signal_data["person_id"],
+                    signal_type=signal_data["signal_type"],
+                    severity=new_severity,
+                    window_start=parse_ts(signal_data["window_start"]),
+                    window_end=parse_ts(signal_data["window_end"]),
+                    value=float(signal_data["value"]),
+                    baseline=float(signal_data["baseline"]) if signal_data.get("baseline") is not None else None,
+                    z_score=float(signal_data["z_score"]) if signal_data.get("z_score") is not None else None,
+                    context_json=signal_data.get("context_json"),
+                    algorithm_version=signal_data.get("algorithm_version"),
+                )
+                db.add(row)
+                db.commit()
+                db.refresh(row)
+                return row.id, "new"
+
+            # Existing signal — check severity transition.
+            old_sev_rank = sev_order.get(existing.severity, 0)
+            existing.severity = new_severity
+            existing.value = float(signal_data["value"])
+            existing.baseline = (
+                float(signal_data["baseline"])
+                if signal_data.get("baseline") is not None
+                else None
             )
-            db.add(row)
+            existing.z_score = (
+                float(signal_data["z_score"])
+                if signal_data.get("z_score") is not None
+                else None
+            )
+            existing.context_json = signal_data.get("context_json")
+            existing.algorithm_version = signal_data.get("algorithm_version")
+            existing.window_end = parse_ts(signal_data["window_end"])
             db.commit()
-            db.refresh(row)
-            return row.id
+            db.refresh(existing)
+
+            if new_sev_rank > old_sev_rank:
+                return existing.id, "escalation"
+            return existing.id, "update"
         finally:
             db.close()
 
@@ -258,6 +304,7 @@ class SignalStore:
     def _to_dict(row: DementiaSignal) -> dict[str, Any]:
         return {
             "id": row.id,
+            "signal_id": row.signal_id,
             "person_id": row.person_id,
             "signal_type": row.signal_type,
             "severity": row.severity,
@@ -267,6 +314,7 @@ class SignalStore:
             "baseline": row.baseline,
             "z_score": row.z_score,
             "context_json": row.context_json,
+            "algorithm_version": row.algorithm_version,
             "acknowledged_at": row.acknowledged_at.isoformat() if row.acknowledged_at else None,
             "received_at": row.received_at.isoformat() if row.received_at else None,
         }

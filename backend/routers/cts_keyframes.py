@@ -19,12 +19,9 @@ from backend.core.auth import AuthContext, require_permission
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.routers.cts_deps import cts_enabled, inject_image_urls
+from backend.routers.dependencies import get_orchestrator_client
 
 router = APIRouter(prefix="/cts/keyframes", tags=["cts-keyframes"])
-
-
-def _get_orchestrator_client() -> OrchestratorClient:
-    return OrchestratorClient()
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +37,7 @@ async def list_keyframes(
     after: str | None = Query(None, description="ISO-8601 timestamp"),
     limit: int = Query(100, ge=1, le=500, description="Max results"),
     _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
-    client: OrchestratorClient = Depends(_get_orchestrator_client),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """List tagged keyframes from the tracking-orchestrator."""
     cts_enabled()
@@ -64,7 +61,7 @@ async def get_keyframe(
     sample_id: str,
     request: Request,
     _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
-    client: OrchestratorClient = Depends(_get_orchestrator_client),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Get a single tagged keyframe by sample ID."""
     cts_enabled()
@@ -87,7 +84,7 @@ async def get_keyframe(
 async def retain_keyframe(
     sample_id: str,
     _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
-    client: OrchestratorClient = Depends(_get_orchestrator_client),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Retain a keyframe past the normal retention window.
 

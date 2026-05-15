@@ -121,6 +121,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
             "window_start": ns_to_iso(message.window_start_unix_ns),
             "window_end": ns_to_iso(message.window_end_unix_ns),
             "context_json": context,
+            "algorithm_version": message.algorithm_version if message.algorithm_version else None,
         }
 
     async def handle(self, signal: dict[str, Any]) -> bool:
@@ -128,28 +129,46 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
         metrics.cts_signals_received.labels(signal_kind=kind).inc()
 
         try:
-            signal_id = await self._store.insert(signal)
+            row_id, action = await self._store.upsert(signal)
+
+            if action == "update":
+                logger.debug(
+                    "dementia_signal_upsert_noop",
+                    signal_id=signal.get("signal_id"),
+                    signal_type=kind,
+                    severity=signal["severity"],
+                    action=action,
+                )
+                metrics.cts_signals_persisted.labels(signal_kind=kind).inc()
+                return True
+
             logger.info(
                 "dementia_signal_stored",
-                signal_id=signal_id,
+                row_id=row_id,
+                signal_id=signal.get("signal_id"),
                 signal_type=kind,
                 person_id=signal["person_id"],
                 severity=signal["severity"],
+                action=action,
             )
             metrics.cts_signals_persisted.labels(signal_kind=kind).inc()
 
+            # Only fire pipeline events for new signals or severity escalations.
+            # Re-upserts at equal/lower severity do NOT re-trigger notifications.
             if self._pipeline is not None:
                 try:
                     await self._pipeline.fire_event(
                         source="cts",
                         kind="dementia_signal",
                         payload={
-                            "signal_id": signal_id,
+                            "row_id": row_id,
+                            "signal_id": signal.get("signal_id"),
                             "signal_kind": kind,
                             "person_id": signal["person_id"],
                             "severity": signal["severity"],
                             "window_start": signal["window_start"],
                             "window_end": signal["window_end"],
+                            "action": action,
                             "evidence": signal.get("context_json", {}),
                         },
                     )

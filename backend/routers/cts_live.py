@@ -24,6 +24,7 @@ from backend.core.auth import _resolve_key, has_permission
 from backend.core.config import settings
 from backend.core.exceptions import AuthenticationError
 from backend.core.logging import get_logger
+from backend.websocket.connection_manager import ConnectionManager
 
 logger = get_logger(__name__)
 
@@ -55,7 +56,7 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason="permission_denied")
         return
 
-    manager = getattr(websocket.app.state, "ws_manager", None)
+    manager: ConnectionManager | None = websocket.app.state.ws_manager
     if manager is None:
         await websocket.close(code=1011, reason="server_not_ready")
         return

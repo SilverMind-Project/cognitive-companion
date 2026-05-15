@@ -10,11 +10,15 @@ from abc import abstractmethod
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Session
 
 from backend.core.registry import HasMetadata
+
+if TYPE_CHECKING:
+    from backend.models.sensor import Sensor
+    from backend.steps.base import ServiceContainer
 
 
 @dataclass
@@ -40,10 +44,10 @@ class ContextFilter(HasMetadata[FilterMetadata]):
     def evaluate(
         self,
         config: dict,
-        sensor: Any,
+        sensor: Sensor,
         now: datetime,
         db: Session | None = None,
-        services: Any = None,
+        services: ServiceContainer | None = None,
     ) -> bool | Awaitable[bool]:
         """Return True if the context filter passes.
 

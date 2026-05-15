@@ -26,8 +26,10 @@ from backend.core.database import get_db
 from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
+from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.cts_camera import CtsCamera
 from backend.routers.cts_deps import cts_enabled
+from backend.routers.dependencies import get_orchestrator_client
 from backend.schemas.cts_camera import (
     AdjacencyRequest,
     HomographyRequest,
@@ -96,17 +98,6 @@ def _residual_status(max_residual: float) -> str:
     return "error"
 
 
-def _get_orchestrator(request: Request):
-    client = getattr(request.app.state, "orchestrator_client", None)
-    if client is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "upstream.unavailable", "service": "tracking_orchestrator",
-                    "message": "Orchestrator client not initialised."},
-        )
-    return client
-
-
 def _upstream_to_http(exc: UpstreamError) -> HTTPException:
     code_map = {503: status.HTTP_503_SERVICE_UNAVAILABLE, 504: status.HTTP_504_GATEWAY_TIMEOUT}
     http_code = code_map.get(exc.status, status.HTTP_502_BAD_GATEWAY)
@@ -127,6 +118,7 @@ async def post_homography(
     request: Request,
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> HomographyResult:
     """Fit a homography from calibration points, validate residuals, and push to orchestrator.
 
@@ -179,8 +171,7 @@ async def post_homography(
     cam.homography_residuals = residuals
     db.commit()
 
-    # Push to orchestrator (non-fatal if orchestrator is down in dev mode).
-    orchestrator = _get_orchestrator(request)
+    # Push to orchestrator (non-fatal if orchestrator is unreachable).
     try:
         await orchestrator.post_homography(
             camera_id=body.camera_id,
@@ -244,6 +235,7 @@ async def post_privacy_zones(
     request: Request,
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> None:
     """Replace all privacy zones for a camera and push to the orchestrator."""
     cts_enabled()
@@ -255,7 +247,6 @@ async def post_privacy_zones(
     cam.privacy_zones = zones_data
     db.commit()
 
-    orchestrator = _get_orchestrator(request)
     try:
         await orchestrator.post_privacy_zones(
             camera_id=body.camera_id,
@@ -298,9 +289,9 @@ def get_privacy_zones(
 @router.post("/adjacency", status_code=status.HTTP_204_NO_CONTENT)
 async def post_adjacency(
     body: AdjacencyRequest,
-    request: Request,
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> None:
     """Replace the full camera adjacency graph and push to the orchestrator."""
     cts_enabled()
@@ -320,7 +311,6 @@ async def post_adjacency(
 
     edges_data = [e.model_dump(by_alias=False) for e in body.edges]
 
-    orchestrator = _get_orchestrator(request)
     try:
         await orchestrator.post_adjacency(edges=edges_data)
     except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
@@ -331,12 +321,11 @@ async def post_adjacency(
 
 @router.get("/adjacency")
 async def get_adjacency(
-    request: Request,
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Fetch the current adjacency state from the orchestrator."""
     cts_enabled()
-    orchestrator = _get_orchestrator(request)
     try:
         status_data = await orchestrator.calibration_status()
         return {"edge_count": status_data.get("adjacency_edge_count", 0)}

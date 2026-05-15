@@ -10,10 +10,30 @@ from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING
 
 from backend.core.registry import HasMetadata
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+
+if TYPE_CHECKING:
+    from backend.integrations.ha_state_cache import HaStateCache
+    from backend.integrations.homeassistant import HomeAssistantClient
+    from backend.integrations.llm import LLMModelRegistry
+    from backend.integrations.person_id_client import PersonIDClient
+    from backend.integrations.scene_analysis_client import SceneAnalysisClient
+    from backend.integrations.semantic_memory_client import SemanticMemoryClient
+    from backend.services.activity.service import ActivityService
+    from backend.services.daily_report import DailyReportService
+    from backend.services.event_aggregator import EventAggregator
+    from backend.services.interactive_response import InteractiveResponseService
+    from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
+    from backend.services.memory_query.service import MemoryQueryService
+    from backend.services.notification_dispatcher import NotificationDispatcher
+    from backend.services.person_tracking import PersonTrackingService
+    from backend.services.presence.service import PresenceService
+    from backend.services.scene_intel.service import SceneIntelService
+    from backend.services.scheduler import SchedulerBridge
+    from backend.services.signals.service import SignalsService
 
 # ---------------------------------------------------------------------------
 # Data transfer objects
@@ -75,24 +95,24 @@ class ServiceContainer:
     """
 
     db_factory: Callable
-    person_tracking: Any = None  # Used by person_identification; for activity ops use services.activity
-    person_id_client: Any = None
-    notification_dispatcher: Any = None
-    ha_client: Any = None
-    event_aggregator: Any = None
-    scheduler: Any = None
-    llm_model_registry: Any = None  # LLMModelRegistry for the unified llm_call step
-    ha_state_cache: Any = None  # HaStateCache (Block 2)
-    presence: Any = None  # PresenceService (Block 1)
-    scene_analysis_client: Any = None
-    daily_report_service: Any = None
-    semantic_memory_client: Any = None
-    interactive_response_service: Any = None
-    memory_query: Any = None  # MemoryQueryService (Block 4)
-    scene_intel: Any = None  # SceneIntelService (Block 4)
-    activity: Any = None  # ActivityService (Block 5)
-    signals: Any = None  # SignalsService (Block 10)
-    knowledge_delivery: Any = None  # KnowledgeDeliveryService (knowledge feature)
+    person_tracking: PersonTrackingService | None = None
+    person_id_client: PersonIDClient | None = None
+    notification_dispatcher: NotificationDispatcher | None = None
+    ha_client: HomeAssistantClient | None = None
+    event_aggregator: EventAggregator | None = None
+    scheduler: SchedulerBridge | None = None
+    llm_model_registry: LLMModelRegistry | None = None
+    ha_state_cache: HaStateCache | None = None
+    presence: PresenceService | None = None
+    scene_analysis_client: SceneAnalysisClient | None = None
+    daily_report_service: DailyReportService | None = None
+    semantic_memory_client: SemanticMemoryClient | None = None
+    interactive_response_service: InteractiveResponseService | None = None
+    memory_query: MemoryQueryService | None = None
+    scene_intel: SceneIntelService | None = None
+    activity: ActivityService | None = None
+    signals: SignalsService | None = None
+    knowledge_delivery: KnowledgeDeliveryService | None = None
 
 
 # ---------------------------------------------------------------------------

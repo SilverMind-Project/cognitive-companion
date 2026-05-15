@@ -90,7 +90,7 @@ cognitive-companion/
 │   │   ├── _upstream_base.py           CTS-only mTLS + JWT base
 │   │   ├── llm/                        LLM providers (OpenAICompatibleProvider, OllamaProvider, GeminiLiveProvider, LLMProviderChain, LLMProviderPool, LLMModelRegistry)
 │   │   └── proto/                      Generated protobuf bindings (committed)
-│   ├── routers/                FastAPI route handlers (one file per domain). 30 routers including 9 CTS routers (cts, cts_cameras, cts_calibration, cts_dashboard, cts_identity, cts_keyframes, cts_live, cts_presence, cts_signals)
+│   ├── routers/                FastAPI route handlers (one file per domain). 30 routers including 10 CTS routers (cts, cts_cameras, cts_calibration, cts_dashboard, cts_identity, cts_keyframes, cts_live, cts_presence, cts_signals)
 │   ├── mcp/                    FastMCP tool server, Gemini tool adapter, ASGI auth middleware
 │   ├── websocket/              Connection manager, audio handler (Gemini Live)
 │   ├── alembic/                Alembic migrations (linear chain on PostgreSQL)
@@ -107,7 +107,7 @@ cognitive-companion/
 │       ├── components/cts/                         PresenceStatusChip, PresenceWidget
 │       ├── components/eink/                        BoundingBoxCanvas, RegionEditor
 │       ├── components/person/                      PersonTimeline, DailyReportCard
-│       ├── composables/useNotify.js, useConfirm.js, useCtsSeverity.js, useFormatRelative.js, useCtsWebSocket.js
+│       ├── composables/useNotify.js, useConfirm.js, useCtsSeverity.js, useFormatRelative.js, useCtsWebSocket.js, useIdentityColor.js
 │       └── services/api.js, cts.js, timezone.js, WebSocketClient.js, contracts.js
 ├── config/
 │   ├── settings.yaml           Application settings (single source of truth for the operator timezone in app.timezone)
@@ -539,7 +539,7 @@ Before editing any CTS code, know these three files:
 | `cts_dashboard.py` | Signals + trajectory + dwell summary aggregates |
 | `cts_identity.py` | Global tracks, identity corrections, merges, revision log |
 | `cts_presence.py` | Read/reload `presence.yaml`, `GET /cts/{person_id}` snapshot |
-| `cts_live.py` | `WS /ws/cts` live tracking stream |
+| `cts_live.py` | `WS /ws/cts` live tracking stream |\n| `cts_trajectory.py` | Proxy `GET /api/v1/cts/trajectory/recent` from orchestrator |
 
 All handlers call `cts_enabled()` (imported from `backend.routers.cts_deps`) and return 404 + `{"code": "cts.disabled"}` when off.
 
@@ -551,7 +551,7 @@ All handlers call `cts_enabled()` (imported from `backend.routers.cts_deps`) and
 | --- | --- | --- |
 | `TrackingEventSubscriber` | `tracking.events` | Updates `PersonLocationState` and writes `PersonLocationHistory` via `LocationWriter` and `SourceAuthority` (CTS-precedence lock for `cts.lock_seconds`). Broadcasts `cts_live_frame` WebSocket messages for the live view. |
 | `IdentityRevisionSubscriber` | `tracking.revisions` | Soft-deletes superseded `PersonLocationHistory` rows via `IdentityRewriter` and inserts the corrected entries. |
-| `DementiaSignalSubscriber` | `tracking.signals` | Persists `DementiaSignal` rows via `SignalStore`; fires pipeline events for rules with the `dementia_signal` filter. |
+| `DementiaSignalSubscriber` | `tracking.signals` | Persists `DementiaSignal` rows via `SignalStore.upsert()` with severity-transition semantics: `new` and `escalation` fire pipeline events; `update` at equal severity does not re-alert. |
 | `SceneSampleSubscriber` | `scene.samples` | Decodes tagged keyframe `SceneSample` proto messages, pulls JPEG from MinIO, runs scene analysis (YOLO + Florence-2 + CLIP + hazards), and persists observations to semantic memory. |
 
 `StreamConsumer` (in `stream_consumer.py`) is the shared base class: consumer-group creation, `XAUTOCLAIM` reclaim, bounded semaphore, graceful shutdown. All four subscribers decode protobuf-encoded messages from the `backend/integrations/proto/continuoustracking/v1/` package, compiled from `.proto` sources in the `continuous-tracking/` repository.

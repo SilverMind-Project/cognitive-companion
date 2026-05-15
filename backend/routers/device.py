@@ -32,7 +32,9 @@ from backend.core.auth import AuthContext, require_permission
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.logging import get_logger
+from backend.integrations.minio_client import MinioClient
 from backend.schemas.device import ReCameraPayload
+from backend.services.event_aggregator import EventAggregator
 
 logger = get_logger(__name__)
 
@@ -115,7 +117,7 @@ async def recamera_upload(
     unique_id = uuid.uuid4().hex[:8]
     object_name = f"recamera/{ts}_{unique_id}.jpg"
 
-    minio_client = getattr(request.app.state, "minio_client", None)
+    minio_client: MinioClient | None = request.app.state.minio_client
     media_url = ""
     if minio_client is not None:
         try:
@@ -133,7 +135,7 @@ async def recamera_upload(
             )
 
     # -- Add event to aggregator ----------------------------------------------
-    aggregator = getattr(request.app.state, "event_aggregator", None)
+    aggregator: EventAggregator | None = request.app.state.event_aggregator
     if aggregator is not None and media_url:
         await aggregator.add_event(sensor_id=sensor_id, media_path=media_url)
 

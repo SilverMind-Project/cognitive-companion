@@ -524,7 +524,7 @@ async def get_local_datetime() -> dict:
 @_register
 async def get_weather() -> dict:
     """Get the current weather from Home Assistant."""
-    if not _svc.ha_client or not getattr(_svc.ha_client, "configured", False):
+    if not _svc.ha_client or not _svc.ha_client.configured:
         return {"error": "Home Assistant not configured"}
     try:
         state = await _svc.ha_client.get_entity_state("weather.forecast_home")
@@ -886,7 +886,7 @@ async def submit_user_response(
         raw_response["user_statement"] = user_statement
 
     # Get InteractiveResponseService from service container
-    interactive_response_service = getattr(_svc, "interactive_response", None)
+    interactive_response_service = _svc.interactive_response
     if not interactive_response_service:
         return {"error": "Interactive response service not available"}
 

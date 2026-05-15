@@ -23,6 +23,10 @@ class DementiaSignal(Base):
     # TimescaleDB schema in the orchestrator).
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
+    # Deterministic signal ID from the orchestrator (UUID5).  Used to
+    # detect re-upserts of the same logical signal window across worker runs.
+    signal_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+
     # Person this signal belongs to (from the orchestrator).
     person_id: Mapped[str] = mapped_column(String(255), index=True)
 
@@ -48,6 +52,9 @@ class DementiaSignal(Base):
 
     # Arbitrary context: room names, trajectory stats, etc.
     context_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Detector algorithm version from the orchestrator (for filtering stale signals).
+    algorithm_version: Mapped[int | None] = mapped_column(nullable=True, default=None)
 
     # Timestamp when a caregiver acknowledged this signal (NULL = unacknowledged).
     acknowledged_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)

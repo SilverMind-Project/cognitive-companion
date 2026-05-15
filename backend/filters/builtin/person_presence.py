@@ -75,7 +75,7 @@ class PersonPresenceFilter(ContextFilter):
         )
 
         # -- Semantic memory path ----------------------------------------------
-        if use_semantic_memory and services and getattr(services, "semantic_memory_client", None):
+        if use_semantic_memory and services and services.semantic_memory_client:
             client = services.semantic_memory_client
             transitions = asyncio.get_event_loop().run_until_complete(
                 client.get_transitions(

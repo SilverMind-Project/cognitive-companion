@@ -34,7 +34,7 @@ DEMENTIA_SIGNAL_SEVERITY_WARNING: DementiaSignalSeverity
 DEMENTIA_SIGNAL_SEVERITY_EMERGENCY: DementiaSignalSeverity
 
 class DementiaSignal(_message.Message):
-    __slots__ = ("signal_id", "identity_id", "kind", "severity", "value", "has_baseline", "baseline", "has_z_score", "z_score", "window_start_unix_ns", "window_end_unix_ns", "emitted_at_unix_ns", "context_json")
+    __slots__ = ("signal_id", "identity_id", "kind", "severity", "value", "has_baseline", "baseline", "has_z_score", "z_score", "window_start_unix_ns", "window_end_unix_ns", "emitted_at_unix_ns", "context_json", "algorithm_version")
     SIGNAL_ID_FIELD_NUMBER: _ClassVar[int]
     IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
@@ -48,6 +48,7 @@ class DementiaSignal(_message.Message):
     WINDOW_END_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
     EMITTED_AT_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
     CONTEXT_JSON_FIELD_NUMBER: _ClassVar[int]
+    ALGORITHM_VERSION_FIELD_NUMBER: _ClassVar[int]
     signal_id: str
     identity_id: str
     kind: DementiaSignalKind
@@ -61,4 +62,5 @@ class DementiaSignal(_message.Message):
     window_end_unix_ns: int
     emitted_at_unix_ns: int
     context_json: str
-    def __init__(self, signal_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., kind: _Optional[_Union[DementiaSignalKind, str]] = ..., severity: _Optional[_Union[DementiaSignalSeverity, str]] = ..., value: _Optional[float] = ..., has_baseline: bool = ..., baseline: _Optional[float] = ..., has_z_score: bool = ..., z_score: _Optional[float] = ..., window_start_unix_ns: _Optional[int] = ..., window_end_unix_ns: _Optional[int] = ..., emitted_at_unix_ns: _Optional[int] = ..., context_json: _Optional[str] = ...) -> None: ...
+    algorithm_version: int
+    def __init__(self, signal_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., kind: _Optional[_Union[DementiaSignalKind, str]] = ..., severity: _Optional[_Union[DementiaSignalSeverity, str]] = ..., value: _Optional[float] = ..., has_baseline: bool = ..., baseline: _Optional[float] = ..., has_z_score: bool = ..., z_score: _Optional[float] = ..., window_start_unix_ns: _Optional[int] = ..., window_end_unix_ns: _Optional[int] = ..., emitted_at_unix_ns: _Optional[int] = ..., context_json: _Optional[str] = ..., algorithm_version: _Optional[int] = ...) -> None: ...

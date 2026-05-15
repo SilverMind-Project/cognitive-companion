@@ -159,6 +159,12 @@ const routes = [
         component: () => import("../views/admin/CTSLiveView.vue"),
       },
       {
+        path: "cts/floor-plan",
+        name: "cts-floor-plan",
+        component: () => import("../views/admin/CTSFloorPlanView.vue"),
+        meta: { title: "Floor Plan", icon: "mdi-floor-plan" },
+      },
+      {
         path: "cts/identity-corrections",
         name: "cts-identity-corrections",
         component: () =>

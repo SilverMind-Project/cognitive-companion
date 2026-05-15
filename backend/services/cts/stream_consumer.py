@@ -113,7 +113,7 @@ class StreamConsumer[T](ABC):
     async def _fan_out(self, messages: list[tuple[bytes, dict[bytes, bytes]]]) -> None:
         assert self._redis is not None
         for message_id, fields in messages:
-            msg = self.decode(message_id, fields)
+            msg = self.decode(message_id, fields)  # type: ignore[arg-type]
             if msg is None:
                 await self._redis.xack(
                     self._cfg.stream, self._cfg.group, message_id

@@ -267,5 +267,5 @@ This project loads two skills at conversation start. Read them before making fro
 | Variable reference / data keys | `backend/routers/pipeline.py` (`GET /pipeline/data-keys`) |
 | Frontend generic step renderer | `frontend/src/components/pipeline/steps/_shared/SchemaForm.vue` |
 | Frontend styling | `frontend/src/styles/theme.css` and the `front-end` skill |
-| Frontend CTS composables | `frontend/src/composables/useCtsSeverity.js`, `useFormatRelative.js`, `useCtsWebSocket.js` |
+| Frontend CTS composables | `frontend/src/composables/useCtsSeverity.js`, `useFormatRelative.js`, `useCtsWebSocket.js`, `useIdentityColor.js` |
 | Testing conventions | AGENTS.md section 16 and `engineering-standards` skill section 6 |

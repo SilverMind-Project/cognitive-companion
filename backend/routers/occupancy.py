@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.logging import get_logger
+from backend.services.sensor_polling import SensorPollingService
 
 logger = get_logger(__name__)
 
@@ -21,7 +22,7 @@ async def get_occupancy(
     auth: AuthContext = Depends(require_permission("caregiver")),
 ):
     """Get current occupancy status for all rooms (or a specific room)."""
-    polling_service = getattr(request.app.state, "sensor_polling", None)
+    polling_service: SensorPollingService | None = request.app.state.sensor_polling
     if polling_service is None:
         return {"occupancy": {}}
 
@@ -41,7 +42,7 @@ async def get_occupancy_history(
     auth: AuthContext = Depends(require_permission("caregiver")),
 ):
     """Get smoothed occupancy time-series for a room from Home Assistant."""
-    polling_service = getattr(request.app.state, "sensor_polling", None)
+    polling_service: SensorPollingService | None = request.app.state.sensor_polling
     if polling_service is None:
         return {"history": []}
 

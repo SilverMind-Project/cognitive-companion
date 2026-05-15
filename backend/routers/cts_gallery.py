@@ -15,9 +15,7 @@ When ``cts.enabled=False`` returns 404 + ``{"code": "cts.disabled"}``.
 
 from __future__ import annotations
 
-from typing import Any
-
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -25,22 +23,14 @@ from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.integrations._upstream_base import UpstreamError
+from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.person import HouseholdMember
 from backend.routers.cts_deps import cts_enabled
+from backend.routers.dependencies import get_orchestrator_client
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/cts/gallery", tags=["cts-gallery"])
-
-
-def _get_orchestrator_client(request: Request) -> Any:
-    client = getattr(request.app.state, "orchestrator_client", None)
-    if client is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "cts.orchestrator_unavailable"},
-        )
-    return client
 
 
 # ---------------------------------------------------------------------------
@@ -64,9 +54,9 @@ class EnrollRequest(BaseModel):
 @router.post("/enroll")
 async def enroll_tracklet(
     body: EnrollRequest,
-    request: Request,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Promote tracklet gallery embeddings to a named identity.
 
@@ -93,7 +83,6 @@ async def enroll_tracklet(
             },
         )
 
-    client = _get_orchestrator_client(request)
     try:
         resp = await client.enroll_from_tracklet(
             identity_id=body.identity_id,

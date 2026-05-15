@@ -23,29 +23,21 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_session
 from backend.core.logging import get_logger
 from backend.integrations._upstream_base import UpstreamError
+from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.person import PersonLocationHistory
 from backend.routers.cts_deps import cts_enabled
+from backend.routers.dependencies import get_orchestrator_client
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/cts/identity", tags=["cts-identity"])
-
-
-def _get_orchestrator_client(request: Request) -> Any:
-    client = getattr(request.app.state, "orchestrator_client", None)
-    if client is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "cts.orchestrator_unavailable"},
-        )
-    return client
 
 
 # ---------------------------------------------------------------------------
@@ -75,13 +67,12 @@ class MergeRequest(BaseModel):
 
 @router.get("/global_tracks")
 async def list_global_tracks(
-    request: Request,
     open_only: bool = Query(True),
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """List current global tracks for the corrections review pane."""
     cts_enabled()
-    client = _get_orchestrator_client(request)
     try:
         tracks = await client.get_global_tracks(open_only=open_only)
     except UpstreamError as exc:
@@ -99,12 +90,11 @@ async def list_global_tracks(
 
 @router.get("/identities")
 async def list_identities(
-    request: Request,
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Return all named identities for the identity picker in the corrections UI."""
     cts_enabled()
-    client = _get_orchestrator_client(request)
     try:
         identities = await client.get_identities()
     except UpstreamError as exc:
@@ -123,8 +113,8 @@ async def list_identities(
 @router.post("/corrections")
 async def apply_correction(
     body: CorrectionRequest,
-    request: Request,
     auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Apply a manual identity override.
 
@@ -134,7 +124,6 @@ async def apply_correction(
     local history within one stream-read cycle (typically <200 ms).
     """
     cts_enabled()
-    client = _get_orchestrator_client(request)
     try:
         resp = await client.manual_identity_override(
             global_track_id=body.global_track_id,
@@ -168,8 +157,8 @@ async def apply_correction(
 @router.post("/merges")
 async def merge_identities(
     body: MergeRequest,
-    request: Request,
     auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
     """Merge ``from_identity_id`` into ``to_identity_id`` for a global track.
 
@@ -178,7 +167,6 @@ async def merge_identities(
     both ids for audit.
     """
     cts_enabled()
-    client = _get_orchestrator_client(request)
     try:
         resp = await client.manual_identity_override(
             global_track_id=body.global_track_id,

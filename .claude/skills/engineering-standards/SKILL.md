@@ -490,6 +490,10 @@ Before opening a PR, verify:
 | Catching `AppError` in router | Let the global handler convert it |
 | `time.sleep()` in async code | `await asyncio.sleep()` |
 | Hardcoded config paths | Use `settings.get("dotted.key")` |
+| `getattr(request.app.state, "name", None)` | Use typed `Depends(get_*)` from `backend.routers.dependencies`, or direct access `request.app.state.name` with a type annotation |
+| `getattr(services, "field", None)` | Use direct attribute access `services.field` (all `ServiceContainer` fields default to `None`) |
+| `Any` in `ServiceContainer` fields | Use concrete types with `TYPE_CHECKING` imports |
+| `Any` in filter/channel `services` param | Use `ServiceContainer \| None` |
 
 ### Frontend
 
@@ -499,6 +503,62 @@ Before opening a PR, verify:
 | `document.querySelector(...)` in Vue | Use `ref()` and template refs |
 | Inline styles with hex colors | Design tokens from `theme.css` |
 | `v-if` on large blocks with `v-for` children | Use `<template v-if>` wrapper |
+
+---
+
+## 14b. Router service access
+
+### The typed dependency pattern
+
+Every service on ``app.state`` is set in `backend/main.py` (to a concrete instance or ``None``).
+Routers MUST use one of two patterns to access them — never ``getattr`` with a string key.
+
+**Pattern 1 — Required service (503 when unavailable):** Use a typed ``Depends`` from
+`backend/routers/dependencies.py`:
+
+```python
+from backend.routers.dependencies import get_orchestrator_client
+
+@router.get("/data")
+async def get_data(
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    return await client.get_data()
+```
+
+**Pattern 2 — Optional service (graceful degradation):** Use direct attribute access
+with an explicit type annotation:
+
+```python
+@router.get("/data")
+async def get_data(request: Request) -> dict:
+    svc: SomeService | None = request.app.state.some_service
+    if svc is None:
+        return {"status": "unavailable"}
+    return await svc.get_data()
+```
+
+**Never do this:**
+
+```python
+# BANNED: string-keyed getattr — no type safety, silent None on typos
+client = getattr(request.app.state, "orchestrator_client", None)
+
+# BANNED: creating a new client per request — services live in the lifespan
+def _get_client() -> OrchestratorClient:
+    return OrchestratorClient()
+
+# BANNED: Any-typed helper that hides the actual type
+def _get_client(request: Request) -> Any:
+    return getattr(request.app.state, "orchestrator_client", None)
+```
+
+### Adding a new dependency
+
+1. Ensure the service is set on ``app.state`` in ``backend/main.py`` (set to ``None`` in
+   every branch so the attribute always exists).
+2. Add a typed ``get_<name>`` callable in ``backend/routers/dependencies.py``.
+3. Import and use ``Depends(get_<name>)`` in routers.
 
 ---
 
@@ -580,3 +640,43 @@ Extract duplicated view logic into composables under `frontend/src/composables/`
 | `useCtsWebSocket.js` | Ad-hoc WebSocket lifecycle with no reconnection; adds 3-second exponential backoff |
 
 Use design tokens (`var(--cc-*)`) or Vuetify theme colors for all CSS color values. Never hardcode hex values like `'#4CAF50'` or `'#fff'` in templates.
+
+---
+
+## 18. CTS integration design principles
+
+### Severity-transition contract
+
+The orchestrator's hysteresis guarantees idempotent DB rows but does not guarantee idempotent alerts. The CC must enforce the consumer side of the contract:
+
+- **New `signal_id`** (first time seen): actionable. Persist, fire pipeline event, allow notifications.
+- **Same `signal_id`, higher severity**: actionable escalation. Update row, fire pipeline event with `action="escalation"`.
+- **Same `signal_id`, equal or lower severity**: update row only. Do not fire pipeline events. Do not re-alert caregivers.
+
+`SignalStore.upsert()` enforces this contract. The `DementiaSignalSubscriber.handle()` method gates pipeline event firing on the `action` returned by upsert. The `DementiaSignalFilter` should honor this as a second line of defense.
+
+### Algorithm version tracking
+
+Every signal carries `algorithm_version` from the orchestrator. The CC persists this value and surfaces it in `CTSSignalsView`. The `get_24h_summary` and `list_recent` endpoints should allow filtering out signals from stale detector generations.
+
+### Signal identity across services
+
+The orchestrator computes deterministic signal IDs via UUID5. The CC stores these as `signal_id` on the `DementiaSignal` model. This is the cross-service identity for deduplication. Do not use the auto-increment `id` for dedup logic.
+
+### Proto evolution
+
+Additive proto fields (new tag numbers) are wire-compatible. The CC subscriber uses `message.algorithm_version if message.algorithm_version else None` to gracefully handle old orchestrators that do not set the field. Regenerate bindings in both repos after every proto change via `make proto-py` from the continuous-tracking repo.
+
+### CTS router pattern
+
+All CTS routers follow the same pattern:
+1. Import `cts_enabled` from `backend.routers.cts_deps`.
+2. All routes have `dependencies=[Depends(cts_enabled)]`.
+3. Proxy requests through the typed client (`OrchestratorClient` or `IngressAdminClient`), never raw `httpx`.
+4. Return 503 when the upstream client is not available; return 502 on upstream errors.
+
+### Testing CTS services
+
+- `SignalStore` tests use the conftest `db_factory` that returns a plain `Session`. Never use context-manager form.
+- `DementiaSignalSubscriber` tests test `decode()` and `handle()` directly. No real Redis required.
+- The severity-transition logic must be tested with three cases: new signal_id, same signal_id with escalation, same signal_id with equal severity. Assert pipeline event firing only in the first two cases.

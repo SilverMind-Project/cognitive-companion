@@ -9,9 +9,13 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
 from backend.core.registry import HasMetadata
+
+if TYPE_CHECKING:
+    from backend.services.notification_dispatcher import DispatchServices
+    from backend.steps.base import ServiceContainer
 
 
 @dataclass
@@ -43,7 +47,7 @@ class NotificationChannel(HasMetadata[ChannelMetadata]):
         image_url: str | None = None,
         image_urls: list[str] | None = None,
         config: dict | None = None,
-        services: Any = None,
+        services: ServiceContainer | DispatchServices | None = None,
     ) -> bool:
         """Send a notification. Return True on success."""
         ...

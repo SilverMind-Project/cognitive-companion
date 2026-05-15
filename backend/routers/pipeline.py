@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Request
 from backend.channels import ChannelRegistry
 from backend.core.auth import AuthContext, require_permission
 from backend.filters import FilterRegistry
+from backend.integrations.llm import LLMModelRegistry
 from backend.schemas.pipeline_types import (
     ChannelTypeOut,
     CronPreviewRequest,
@@ -94,7 +95,7 @@ def list_llm_models(
     _auth: AuthContext = Depends(require_permission("rules:read")),
 ):
     """Return all named LLM models from the registry (for the llm_call step UI)."""
-    registry = getattr(request.app.state, "llm_model_registry", None)
+    registry: LLMModelRegistry | None = request.app.state.llm_model_registry
     if registry is None:
         return []
     return [

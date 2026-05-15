@@ -14,7 +14,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from backend.core.auth import AuthContext, require_permission
 from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.integrations.minio_client import MinioClient
+from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.routers.cts_deps import cts_enabled
+from backend.routers.dependencies import get_minio_client
+from backend.services.cts.runtime import CTSRuntime
 
 logger = get_logger(__name__)
 
@@ -27,8 +31,8 @@ async def get_status(
     _auth: AuthContext = Depends(require_permission("cts.view")),
 ) -> dict:
     """Live CTS health snapshot: orchestrator reachability + subscriber states."""
-    orch_client = getattr(request.app.state, "orchestrator_client", None)
-    cts_runtime = getattr(request.app.state, "cts_runtime", None)
+    orch_client: OrchestratorClient | None = request.app.state.orchestrator_client
+    cts_runtime: CTSRuntime | None = request.app.state.cts_runtime
 
     orchestrator: dict = {"reachable": False, "error": None}
     if orch_client is not None:
@@ -68,6 +72,7 @@ async def get_frame(
     key: str,
     request: Request,
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    minio: MinioClient = Depends(get_minio_client),
 ) -> Response:
     """Proxy a CTS frame JPEG from MinIO.
 
@@ -76,12 +81,6 @@ async def get_frame(
     The frame is fetched server-side and returned as image bytes.
     """
     cts_enabled()
-    minio = getattr(request.app.state, "minio_client", None)
-    if minio is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "minio.unavailable", "message": "Object storage not configured."},
-        )
     image_bytes = await minio.async_get_object(key)
     if image_bytes is None:
         raise HTTPException(

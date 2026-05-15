@@ -112,6 +112,22 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("GET", "/internal/features")
         return r.json()
 
+    async def get_homography(self, camera_id: str) -> dict:
+        """Return the stored homography matrix + points for a camera."""
+        r = await self._request("GET", f"/internal/calibration/homography/{camera_id}")
+        return r.json()
+
+    async def list_recent_trajectory(
+        self, *, identity_id: str | None = None, since: str | None = None, limit: int = 200
+    ) -> dict:
+        params: dict = {"limit": limit}
+        if identity_id:
+            params["identity_id"] = identity_id
+        if since:
+            params["since"] = since
+        r = await self._request("GET", "/internal/trajectory/recent", params=params)
+        return r.json()
+
     async def calibration_status(self) -> dict:
         r = await self._request("GET", "/internal/calibration/status")
         return r.json()

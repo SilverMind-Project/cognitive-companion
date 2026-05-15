@@ -72,7 +72,7 @@ class PersonMovementMemoryFilter(ContextFilter):
         db: Session | None = None,
         services: Any = None,
     ) -> bool:
-        if not services or not getattr(services, "semantic_memory_client", None):
+        if not services or not services.semantic_memory_client:
             return False
 
         client = services.semantic_memory_client

@@ -20,7 +20,7 @@ Routes:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
@@ -28,8 +28,10 @@ from backend.core.database import get_db
 from backend.core.exceptions import ConflictError, NotFoundError
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
+from backend.integrations.ingress_admin_client import IngressAdminClient
 from backend.models.cts_camera import CtsCamera
 from backend.routers.cts_deps import cts_enabled
+from backend.routers.dependencies import get_ingress_admin_client
 from backend.schemas.cts_camera import CtsCameraCreate, CtsCameraOut, CtsCameraUpdate
 
 logger = get_logger(__name__)
@@ -40,17 +42,6 @@ router = APIRouter(prefix="/cts/cameras", tags=["cts-cameras"])
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _get_ingress(request: Request):
-    client = getattr(request.app.state, "ingress_admin_client", None)
-    if client is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "upstream.unavailable", "service": "rtsp_ingress",
-                    "message": "Ingress client not initialised."},
-        )
-    return client
 
 
 def _upstream_to_http(exc: UpstreamError) -> HTTPException:
@@ -177,8 +168,8 @@ def delete_camera(
 @router.post("/test-connect")
 async def rtsp_test_connect(
     body: dict,
-    request: Request,
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> dict:
     cts_enabled()
     rtsp_url: str = body.get("rtsp_url", "")
@@ -187,7 +178,6 @@ async def rtsp_test_connect(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="rtsp_url is required",
         )
-    ingress = _get_ingress(request)
     try:
         return await ingress.test_connection(rtsp_url=rtsp_url)
     except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
@@ -202,15 +192,14 @@ async def rtsp_test_connect(
 @router.get("/{camera_id}/snapshot")
 async def get_snapshot(
     camera_id: str,
-    request: Request,
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> Response:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
-    ingress = _get_ingress(request)
     try:
         data = await ingress.snapshot(camera_id=camera_id)
         return Response(content=data, media_type="image/jpeg")
@@ -226,15 +215,14 @@ async def get_snapshot(
 @router.get("/{camera_id}/health")
 async def get_health(
     camera_id: str,
-    request: Request,
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
+    ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> dict:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
-    ingress = _get_ingress(request)
     try:
         health = await ingress.stream_health(camera_id=camera_id)
         # Persist latest health snapshot for the UI to read without polling ingress.
@@ -256,15 +244,14 @@ async def get_health(
 @router.post("/{camera_id}/reload", status_code=status.HTTP_204_NO_CONTENT)
 async def reload_camera(
     camera_id: str,
-    request: Request,
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+    ingress: IngressAdminClient = Depends(get_ingress_admin_client),
 ) -> None:
     cts_enabled()
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
-    ingress = _get_ingress(request)
     try:
         await ingress.reload_camera(camera_id=camera_id)
     except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:

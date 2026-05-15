@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.logging import get_logger
+from backend.services.conversation_manager import ConversationManager
 
 logger = get_logger(__name__)
 
@@ -22,7 +23,7 @@ async def get_recent_turns(
     auth: AuthContext = Depends(require_permission("caregiver")),
 ):
     """Get recent conversation turns."""
-    conv_manager = getattr(request.app.state, "conversation_manager", None)
+    conv_manager: ConversationManager | None = request.app.state.conversation_manager
     if conv_manager is None:
         return {"turns": []}
 

@@ -17,6 +17,7 @@ from backend.schemas.workflow import (
     WorkflowExecutionListOut,
     WorkflowExecutionOut,
 )
+from backend.services.scheduler import SchedulerBridge
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/workflows", tags=["workflows"])
@@ -92,7 +93,7 @@ async def cancel_execution(
 
     # Remove scheduled resume job if one exists
     import contextlib
-    scheduler = getattr(request.app.state, "scheduler", None)
+    scheduler: SchedulerBridge | None = request.app.state.scheduler
     if scheduler:
         with contextlib.suppress(Exception):
             scheduler.remove_job(f"resume_{execution_id}")

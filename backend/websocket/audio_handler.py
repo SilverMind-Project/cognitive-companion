@@ -32,6 +32,8 @@ from backend.core.logging import get_logger
 from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
 from backend.schemas.interactive_response import InteractiveResponseMessage
 from backend.services.conversation_manager import ConversationManager
+from backend.services.interactive_response import InteractiveResponseService
+from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
 from backend.websocket.connection_manager import ConnectionManager
 
 logger = get_logger(__name__)
@@ -521,7 +523,9 @@ class AudioSessionHandler:
                 raise ValueError(f"Invalid action: {message.action}")
 
             # Get InteractiveResponseService from app state
-            interactive_service = getattr(self.ws.app.state, "interactive_response_service", None)
+            interactive_service: InteractiveResponseService | None = (
+                self.ws.app.state.interactive_response_service
+            )
 
             if interactive_service is None:
                 logger.error("interactive_response_service_not_configured")
@@ -617,7 +621,7 @@ class AudioSessionHandler:
             logger.error("quiz_answer_missing_fields", data=data)
             return
 
-        delivery = getattr(self.ws.app.state, "knowledge_delivery", None)
+        delivery: KnowledgeDeliveryService | None = self.ws.app.state.knowledge_delivery
         if delivery is None:
             logger.error("quiz_answer_no_delivery_service")
             return
@@ -643,7 +647,7 @@ class AudioSessionHandler:
             logger.error("info_card_event_missing_delivery_id", data=data)
             return
 
-        delivery = getattr(self.ws.app.state, "knowledge_delivery", None)
+        delivery: KnowledgeDeliveryService | None = self.ws.app.state.knowledge_delivery
         if delivery is None:
             logger.error("info_card_event_no_delivery_service")
             return

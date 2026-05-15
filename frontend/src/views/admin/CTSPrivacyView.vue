@@ -55,6 +55,9 @@
               <v-chip size="x-small" variant="tonal" color="primary">{{ zone.policy }}</v-chip>
               <div class="text-caption mt-2 text-medium-emphasis">
                 {{ zone.polygon.length }} vertices
+                <span v-if="zone.drop_count !== undefined" class="ml-2">
+                  · {{ zone.drop_count }} detections dropped (24h)
+                </span>
               </div>
               <!-- Mini polygon preview -->
               <svg viewBox="0 0 100 60" class="zone-preview mt-2">

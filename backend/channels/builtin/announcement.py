@@ -77,7 +77,7 @@ class PWATTSAnnouncementChannel(NotificationChannel):
         services=None,
     ) -> bool:
         config = config or {}
-        ws_manager = getattr(services, "ws_manager", None)
+        ws_manager = services.ws_manager if services else None
 
         if not ws_manager or not ws_manager.has_connections:
             logger.warning("pwa_tts_announcement_no_ws_clients")
@@ -92,7 +92,7 @@ class PWATTSAnnouncementChannel(NotificationChannel):
 
     async def _send_stream(self, ws_manager, services, message: str, config: dict) -> bool:
         """Stream TTS audio to all connected WebSocket clients."""
-        tts_client = getattr(services, "tts_client", None)
+        tts_client = services.tts_client if services else None
         if not tts_client or not tts_client.configured:
             logger.warning("pwa_tts_announcement_tts_not_configured")
             return False

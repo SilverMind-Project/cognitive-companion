@@ -55,9 +55,9 @@ class HASpeakerTTSChannel(NotificationChannel):
         services=None,
     ) -> bool:
         config = config or {}
-        tts_client = getattr(services, "tts_client", None)
-        minio_client = getattr(services, "minio_client", None)
-        ha_client = getattr(services, "ha_client", None)
+        tts_client = services.tts_client if services else None
+        minio_client = services.minio_client if services else None
+        ha_client = services.ha_client if services else None
 
         if not tts_client or not tts_client.configured:
             logger.warning("ha_speaker_tts_not_configured")

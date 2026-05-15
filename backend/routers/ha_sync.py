@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
+from backend.integrations.homeassistant import HomeAssistantClient
 from backend.models.room import Room
 from backend.models.sensor import Sensor
 
@@ -47,7 +48,7 @@ async def sync_rooms(
 
     Existing rooms with matching ha_area_id are updated; new rooms are created.
     """
-    ha_client = getattr(request.app.state, "ha_client", None)
+    ha_client: HomeAssistantClient | None = request.app.state.ha_client
     if ha_client is None or not ha_client.configured:
         return {"error": "Home Assistant not configured"}
 
@@ -87,7 +88,7 @@ async def sync_sensors(
     room_id is set or updated on every sync run so that room reassignments in
     HA are reflected locally.
     """
-    ha_client = getattr(request.app.state, "ha_client", None)
+    ha_client: HomeAssistantClient | None = request.app.state.ha_client
     if ha_client is None or not ha_client.configured:
         return {"error": "Home Assistant not configured"}
 
@@ -149,7 +150,7 @@ async def list_media_players(
     Used by the pipeline step config UI to populate the TTS media player
     dropdown without requiring a full sensor sync.
     """
-    ha_client = getattr(request.app.state, "ha_client", None)
+    ha_client: HomeAssistantClient | None = request.app.state.ha_client
     if ha_client is None or not ha_client.configured:
         return []
 
@@ -174,7 +175,7 @@ async def list_entities(
     Used by the ha_action step config UI to populate the entity_id dropdown.
     Pass ``?domain=light`` to get only light entities, etc.
     """
-    ha_client = getattr(request.app.state, "ha_client", None)
+    ha_client: HomeAssistantClient | None = request.app.state.ha_client
     if ha_client is None or not ha_client.configured:
         return []
 

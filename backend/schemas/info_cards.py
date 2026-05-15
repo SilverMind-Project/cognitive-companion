@@ -74,12 +74,6 @@ class InfoCardListOut(OutSchema):
     slot_count: int = 0
 
 
-class InfoCardPreviewRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    surface: str = "pwa"
-
-
 # -- Info Card Slot -----------------------------------------------------------
 
 

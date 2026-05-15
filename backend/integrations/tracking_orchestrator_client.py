@@ -83,6 +83,15 @@ class OrchestratorClient(UpstreamClient):
             body["display_name"] = display_name
         return await self.post_manual_correction(body)
 
+    async def get_identities(self, *, active_only: bool = True) -> list[dict]:
+        """Fetch all named identities from the ReID gallery."""
+        r = await self._request(
+            "GET",
+            "/internal/identities",
+            params={"active_only": str(active_only).lower()},
+        )
+        return r.json().get("identities", [])
+
     async def get_global_tracks(self, *, open_only: bool = True) -> list[dict]:
         r = await self._request(
             "GET",

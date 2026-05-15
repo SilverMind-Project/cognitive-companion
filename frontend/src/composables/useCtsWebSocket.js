@@ -19,16 +19,20 @@ export function useCtsWebSocket(onMessage) {
 
   function connect() {
     if (closed) return;
+    console.debug("[cts_live] WS connecting");
     status.value = "connecting";
 
     ws = cts.openLiveSocket(onMessage);
     ws.onopen = () => {
+      console.debug("[cts_live] WS connected");
       status.value = "open";
     };
-    ws.onerror = () => {
+    ws.onerror = (ev) => {
+      console.warn("[cts_live] WS error", ev);
       status.value = "error";
     };
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      console.debug("[cts_live] WS closed", { code: ev.code, reason: ev.reason, will_reconnect: !closed });
       status.value = "closed";
       ws = null;
       if (!closed) {

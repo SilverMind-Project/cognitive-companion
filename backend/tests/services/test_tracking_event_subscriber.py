@@ -197,7 +197,9 @@ class TestHandleWithBroadcast:
         msg = broadcasts[0]
         assert msg["type"] == "cts_live_frame"
         assert msg["frame_url"] == "https://minio.example.com/frames/evt-1.jpg?exp=30"
-        assert "minio_key" not in msg
+        # minio_key is included so the frontend can build a server-side proxy URL
+        # instead of using the presigned frame_url (which may use Docker-internal hostnames)
+        assert msg["minio_key"] == "frames/evt-1.jpg"
 
     @pytest.mark.asyncio
     async def test_broadcasts_frame_url_none_when_minio_absent(self):
@@ -222,7 +224,9 @@ class TestHandleWithBroadcast:
         assert len(broadcasts) == 1
         msg = broadcasts[0]
         assert msg["frame_url"] is None
-        assert "minio_key" not in msg
+        # minio_key is always included so the frontend proxy path works independently
+        # of whether MinIO presigned URLs are configured
+        assert msg["minio_key"] == "frames/evt-1.jpg"
 
 
 def test_uses_in_memory_writer(db_factory):

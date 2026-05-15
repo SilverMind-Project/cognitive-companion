@@ -381,9 +381,13 @@ async def lifespan(app: FastAPI):
         scene_intel=scene_intel_service,
         activity=activity_service,
         signals=signals_service,
+        knowledge_delivery=knowledge_delivery,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor
+
+    # Wire pipeline executor into knowledge delivery for quiz completion resume
+    knowledge_delivery._pipeline_executor = pipeline_executor
 
     # -- Workflow pipeline -------------------------------------------------
     from backend.services.workflow import WorkflowPipeline

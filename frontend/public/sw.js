@@ -24,8 +24,11 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
-  // Network-first for navigation and API calls
-  if (event.request.mode === "navigate" || event.request.url.includes("/api/")) {
+  // Let API calls pass through to the network — don't intercept them.
+  if (event.request.url.includes("/api/")) return;
+
+  // Network-first for navigation
+  if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request).catch(() => caches.match(event.request))
     );

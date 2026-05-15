@@ -177,16 +177,32 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             try:
                 frame_url: str | None = None
                 minio_key = event.get("minio_key")
-                if minio_key and self._minio_client is not None:
-                    frame_url = self._minio_client.generate_presigned_url(
-                        minio_key, expiration=_LIVE_FRAME_TTL
-                    )
+                if minio_key:
+                    if self._minio_client is not None:
+                        frame_url = self._minio_client.generate_presigned_url(
+                            minio_key, expiration=_LIVE_FRAME_TTL
+                        )
+                        logger.info(
+                            "cts_live_frame_url_generated",
+                            camera_id=camera_id,
+                            has_frame_url=bool(frame_url),
+                            frame_url_preview=frame_url[:80] if frame_url else None,
+                        )
+                    else:
+                        logger.warning(
+                            "cts_live_no_minio_client",
+                            camera_id=camera_id,
+                            minio_key=minio_key,
+                        )
+                else:
+                    logger.info("cts_live_no_minio_key", camera_id=camera_id)
                 await self._ws_manager.broadcast(
                     {
                         "type": "cts_live_frame",
                         "camera_id": event["camera_id"],
                         "event_time": event["event_time"],
                         "room_name": event.get("room_name"),
+                        "minio_key": event.get("minio_key"),
                         "frame_url": frame_url,
                         "frame_width": event.get("frame_width", 0),
                         "frame_height": event.get("frame_height", 0),

@@ -134,8 +134,8 @@ class ContentGenerationService:
         *,
         model_id: str | None = None,
     ) -> QuizQuestionSuggestion:
-        _validate_question_type(question_type)
         """Regenerate a single quiz question."""
+        _validate_question_type(question_type)
         doc = self._get_document(document_id)
         model_id = model_id or settings.get("knowledge.quiz_generation_model", "gemma4_26b")
         provider = self._require_provider(model_id)
@@ -229,8 +229,8 @@ class ContentGenerationService:
     def _parse_single_question(
         self, response: str, question_type: str
     ) -> QuizQuestionSuggestion:
-        _validate_question_type(question_type)
         """Parse a single regenerated question."""
+        _validate_question_type(question_type)
         try:
             data = _extract_json(response)
             return QuizQuestionSuggestion(

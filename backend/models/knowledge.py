@@ -305,6 +305,9 @@ class QuizSession(Base):
     current_question_ord: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    question_order: Mapped[list[int]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
     started_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), nullable=False, server_default=func.now()
     )

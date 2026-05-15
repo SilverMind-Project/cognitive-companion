@@ -92,6 +92,7 @@ class ServiceContainer:
     scene_intel: Any = None  # SceneIntelService (Block 4)
     activity: Any = None  # ActivityService (Block 5)
     signals: Any = None  # SignalsService (Block 10)
+    knowledge_delivery: Any = None  # KnowledgeDeliveryService (knowledge feature)
 
 
 # ---------------------------------------------------------------------------

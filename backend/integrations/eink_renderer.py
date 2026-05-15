@@ -63,6 +63,7 @@ class EInkRenderer:
         sensor_ids: list[str] | None = None,
         expires_in_minutes: int = 30,
         region_name: str | None = None,
+        overlay_image: bytes | None = None,
     ) -> list[str]:
         """Render text onto a template and save as active image for target devices.
 
@@ -78,7 +79,9 @@ class EInkRenderer:
                 logger.warning("eink_render_no_targets")
                 return []
 
-            img = self._render_image(text, template_path, regions, font_path, region_name)
+            img = self._render_image(
+                text, template_path, regions, font_path, region_name, overlay_image
+            )
 
             self._images_dir.mkdir(parents=True, exist_ok=True)
             for sid in targets:
@@ -209,8 +212,9 @@ class EInkRenderer:
         regions: list[dict],
         font_path: Path,
         region_name: str | None = None,
+        overlay_image: bytes | None = None,
     ):
-        """Core PIL rendering logic  renders text into template regions.
+        """Core PIL rendering logic — renders text and optional image into regions.
 
         template can be a filesystem Path or an already-loaded PIL Image.
         """
@@ -251,7 +255,10 @@ class EInkRenderer:
                 regions = [regions[0]] if regions else []
 
         for region in regions:
-            self._render_region(draw, text, region, font_path)
+            if region.get("type") == "image" and overlay_image:
+                self._render_image_region(img, overlay_image, region)
+            else:
+                self._render_region(draw, text, region, font_path)
 
         # Convert to RGB (eInk doesn't need alpha)
         return img.convert("RGB")
@@ -344,6 +351,24 @@ class EInkRenderer:
                 x = bx
             y = y_start + i * line_height
             draw.text((x, y), line, fill=text_color, font=font)
+
+    @staticmethod
+    def _render_image_region(
+        img: Image.Image,
+        overlay_bytes: bytes,
+        region: dict,
+    ) -> None:
+        """Composite a content image into a template image region."""
+        bx = region.get("x", 0)
+        by = region.get("y", 0)
+        bw = region.get("width", 760)
+        bh = region.get("height", 260)
+        try:
+            overlay = Image.open(BytesIO(overlay_bytes)).convert("RGBA")
+            overlay = overlay.resize((bw, bh), Image.Resampling.LANCZOS)
+            img.paste(overlay, (bx, by), overlay)
+        except Exception:
+            logger.exception("eink_image_region_render_failed")
 
     def _resolve_template(
         self,

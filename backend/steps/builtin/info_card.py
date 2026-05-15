@@ -38,7 +38,7 @@ class InfoCardStep(StepHandler):
                     "info_card_id": {"type": "integer"},
                     "channels": {
                         "type": "array",
-                        "items": {"enum": ["pwa", "eink"]},
+                        "items": {"enum": ["pwa", "eink", "voice"]},
                         "minItems": 1,
                     },
                     "pwa_dismiss_seconds": {"type": "integer", "default": 60},
@@ -58,6 +58,14 @@ class InfoCardStep(StepHandler):
                 "eink_expiry_minutes": 30,
                 "trigger_cooloff": True,
                 "voice_instruction": "",
+            },
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "info_card_id": {"type": "integer"},
+                    "delivery_id": {"type": "integer"},
+                    "channels": {"type": "array", "items": {"type": "string"}},
+                },
             },
         )
 
@@ -94,25 +102,10 @@ class InfoCardStep(StepHandler):
             db.close()
 
         # Delivery
-        delivery_svc = None
-        if hasattr(services, "_delivery_service"):
-            delivery_svc = services._delivery_service
-
+        delivery_svc = services.knowledge_delivery
         if delivery_svc is None:
-            from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
-            # We need ws_manager from the notification dispatcher
-            ws_manager = None
-            if services.notification_dispatcher and hasattr(
-                services.notification_dispatcher, "_dispatch_services"
-            ):
-                ws_manager = services.notification_dispatcher._dispatch_services.ws_manager
-            if ws_manager is None:
-                return StepResult(
-                    success=False, data={"error": "WebSocket manager not available"}
-                )
-            delivery_svc = KnowledgeDeliveryService(
-                db_factory=services.db_factory,
-                ws_manager=ws_manager,
+            return StepResult(
+                success=False, data={"error": "knowledge delivery service not available"}
             )
 
         result = await delivery_svc.deliver_info_card(
@@ -121,6 +114,7 @@ class InfoCardStep(StepHandler):
             execution_id=execution.id,
             rule_id=step.rule_id,
             voice_instruction=voice_instruction or None,
+            speak=("voice" in channels),
             dismiss_seconds=dismiss_seconds,
             eink_expiry_minutes=eink_expiry,
         )

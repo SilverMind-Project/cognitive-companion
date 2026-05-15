@@ -77,7 +77,7 @@
         >
           <v-card-text class="d-flex align-center justify-space-between pa-2">
             <v-chip size="small" variant="tonal">{{
-              cameraForSlot(slot)?.camera_id || "—"
+              cameraIdForSlot(slot) || "—"
             }}</v-chip>
             <span class="text-caption text-medium-emphasis">
               {{ cameraForSlot(slot)?.detections?.length || 0 }} detections
@@ -86,14 +86,27 @@
           <div
             class="live-tile-frame"
             :class="{ 'live-tile-stale': isCameraStale(cameraForSlot(slot)) }"
-            :aria-label="`Live camera ${cameraForSlot(slot)?.camera_id || slot}`"
+            :aria-label="`Live camera ${cameraIdForSlot(slot) || slot}`"
           >
             <img
               v-if="cameraForSlot(slot)?.frame_url"
               :src="cameraForSlot(slot).frame_url"
               class="live-tile-img"
               alt=""
+              @error="onFrameError($event, cameraForSlot(slot))"
             />
+            <img
+              v-else-if="snapshotUrls[cameraIdForSlot(slot)]"
+              :src="snapshotUrls[cameraIdForSlot(slot)]"
+              class="live-tile-img"
+              alt=""
+            />
+            <div
+              v-else
+              class="live-tile-no-frame"
+            >
+              <v-icon size="24" color="medium-emphasis">mdi-video-off-outline</v-icon>
+            </div>
             <svg
               v-if="cameraForSlot(slot) && showBboxes"
               :viewBox="`0 0 ${cameraForSlot(slot).frame_width || 1920} ${cameraForSlot(slot).frame_height || 1080}`"
@@ -117,10 +130,10 @@
                 />
                 <text
                   v-if="showIdLabels"
-                  :x="(det.bbox.x_min || 0) + 4"
-                  :y="(det.bbox.y_min || 0) + 14"
+                  :x="(det.bbox.x_min || 0) + 8"
+                  :y="(det.bbox.y_min || 0) + 20"
                   fill="var(--cc-text-1)"
-                  font-size="18"
+                  font-size="36"
                   font-weight="bold"
                   style="paint-order: stroke; stroke: rgba(0, 0, 0, 0.6); stroke-width: 3"
                 >
@@ -194,6 +207,7 @@ import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
 
 const STALE_THRESHOLD_S = 15;
+const SNAPSHOT_POLL_MS = 5_000;
 
 const error = ref("");
 const layout = ref(4);
@@ -207,12 +221,57 @@ const showBboxes = ref(true);
 const showIdLabels = ref(true);
 
 const cameras = ref({});
+// camera_id → blob URL for go2rtc snapshot (fallback when WS is idle)
+const snapshotUrls = ref({});
+// Camera IDs loaded from the API on mount (ensures slots populate before first WS event)
+const knownCameraIds = ref([]);
 const now = ref(Date.now());
 let _freshnessTimer = null;
-onMounted(() => {
+let _snapshotTimer = null;
+
+async function loadKnownCameras() {
+  try {
+    const data = await cts.getCameras();
+    knownCameraIds.value = (data.cameras || []).map((c) => c.camera_id);
+    console.debug("[cts_live] cameras loaded", {
+      count: knownCameraIds.value.length,
+      ids: knownCameraIds.value,
+    });
+  } catch (err) {
+    console.warn("[cts_live] camera list fetch failed", err);
+  }
+}
+
+async function pollSnapshots() {
+  const ids = [
+    ...new Set([...knownCameraIds.value, ...Object.keys(cameras.value)]),
+  ];
+  console.debug("[cts_live] polling snapshots", { camera_count: ids.length, ids });
+  await Promise.allSettled(
+    ids.map(async (id) => {
+      try {
+        const url = await cts.getSnapshot(id);
+        if (snapshotUrls.value[id]) URL.revokeObjectURL(snapshotUrls.value[id]);
+        snapshotUrls.value = { ...snapshotUrls.value, [id]: url };
+        console.debug("[cts_live] snapshot fetched", { camera_id: id });
+      } catch (err) {
+        console.warn("[cts_live] snapshot fetch failed", { camera_id: id, error: String(err) });
+      }
+    })
+  );
+}
+
+onMounted(async () => {
   _freshnessTimer = setInterval(() => { now.value = Date.now(); }, 5000);
+  await loadKnownCameras();
+  pollSnapshots();
+  _snapshotTimer = setInterval(pollSnapshots, SNAPSHOT_POLL_MS);
 });
-onUnmounted(() => { clearInterval(_freshnessTimer); });
+onUnmounted(() => {
+  clearInterval(_freshnessTimer);
+  clearInterval(_snapshotTimer);
+  for (const url of Object.values(snapshotUrls.value)) URL.revokeObjectURL(url);
+});
 
 const revisionToast = ref(false);
 const revisionToastText = ref("");
@@ -227,6 +286,12 @@ const correction = reactive({
 });
 
 const slots = computed(() => Array.from({ length: layout.value }, (_, i) => i));
+
+// Merged, sorted list of camera IDs (WS + static camera list from API)
+const allCameraIds = computed(() => {
+  const merged = new Set([...knownCameraIds.value, ...Object.keys(cameras.value)]);
+  return [...merged].sort();
+});
 
 const gridClass = computed(() => {
   if (layout.value === 1) return "d-grid grid-1";
@@ -243,6 +308,16 @@ const wsStatusColor = computed(() => {
 
 function onMessage(msg) {
   if (msg.type === "cts_live_frame") {
+    if (!msg.camera_id) {
+      console.warn("[cts_live] WS frame missing camera_id", msg);
+      return;
+    }
+    console.debug("[cts_live] WS frame received", {
+      camera_id: msg.camera_id,
+      has_frame_url: !!msg.frame_url,
+      has_minio_key: !!msg.minio_key,
+      detection_count: msg.detections?.length ?? 0,
+    });
     cameras.value = {
       ...cameras.value,
       [msg.camera_id]: {
@@ -250,6 +325,7 @@ function onMessage(msg) {
         detections: msg.detections || [],
         event_time: msg.event_time,
         room_name: msg.room_name,
+        minio_key: msg.minio_key || null,
         frame_url: msg.frame_url || null,
         frame_width: msg.frame_width || 1920,
         frame_height: msg.frame_height || 1080,
@@ -261,15 +337,33 @@ function onMessage(msg) {
     const next = msg.new_identity_id || "unknown";
     revisionToastText.value = `Identity corrected: ${prev} → ${next}`;
     revisionToast.value = true;
+  } else {
+    console.debug("[cts_live] WS unknown message type", msg.type, Object.keys(msg));
   }
 }
 
 const { status: wsStatus } = useCtsWebSocket(onMessage);
 
+function cameraIdForSlot(slot) {
+  return allCameraIds.value[slot] ?? null;
+}
+
 function cameraForSlot(slot) {
-  const ids = Object.keys(cameras.value).sort();
-  const id = ids[slot];
-  return id ? cameras.value[id] : null;
+  const id = cameraIdForSlot(slot);
+  return id ? cameras.value[id] ?? null : null;
+}
+
+function onFrameError(_event, cam) {
+  const cameraId = cam?.camera_id;
+  if (!cameraId || !cameras.value[cameraId]) return;
+  console.warn("[cts_live] frame_url load failed", {
+    camera_id: cameraId,
+    prev_frame_url: cameras.value[cameraId].frame_url?.substring(0, 80),
+  });
+  cameras.value = {
+    ...cameras.value,
+    [cameraId]: { ...cameras.value[cameraId], frame_url: null },
+  };
 }
 
 function cameraAgeS(cam) {
@@ -357,6 +451,14 @@ async function submitCorrection() {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+.live-tile-no-frame {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--v-theme-on-surface), 0.03);
 }
 .live-tile-stale .live-tile-img {
   opacity: 0.4;

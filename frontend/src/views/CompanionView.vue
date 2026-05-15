@@ -89,6 +89,13 @@ const interactivePromptData = ref({
   server_timestamp: new Date().toISOString(),
 });
 
+// Knowledge answer state
+const knowledgeAnswerData = ref({
+  queryText: "",
+  answerText: "",
+  sourceDocumentIds: [],
+});
+
 let playbackContext = null;
 let nextPlaybackTime = 0;
 let activePlaybackSources = 0;
@@ -133,6 +140,12 @@ function getWidgetProps(widgetId) {
         dismissButtonText: interactivePromptData.value.dismiss_button_text,
         countdownSeconds: interactivePromptData.value.countdown_seconds,
         serverTimestamp: interactivePromptData.value.server_timestamp,
+      };
+    case "knowledge-answer":
+      return {
+        queryText: knowledgeAnswerData.value.queryText,
+        answerText: knowledgeAnswerData.value.answerText,
+        sourceDocumentIds: knowledgeAnswerData.value.sourceDocumentIds,
       };
     default:
       return {};
@@ -375,6 +388,14 @@ onMounted(() => {
     if (interactivePromptVisible.value) {
       interactivePromptVisible.value = false;
     }
+  });
+
+  wsClient.on("onKnowledgeAnswer", (data) => {
+    knowledgeAnswerData.value = {
+      queryText: data.query_text || "",
+      answerText: data.answer_text || "",
+      sourceDocumentIds: data.source_document_ids || [],
+    };
   });
 });
 

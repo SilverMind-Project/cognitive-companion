@@ -122,6 +122,7 @@ class PipelineExecutor:
         scene_intel=None,
         activity=None,
         signals=None,
+        knowledge_delivery=None,
     ) -> None:
         self._services = ServiceContainer(
             db_factory=db_session_factory,
@@ -140,6 +141,7 @@ class PipelineExecutor:
             scene_intel=scene_intel,
             activity=activity,
             signals=signals,
+            knowledge_delivery=knowledge_delivery,
         )
 
     # Expose scheduler for injection after construction
@@ -187,16 +189,6 @@ class PipelineExecutor:
         # containing *kind* and dispatch through RulesEngine. For now
         # it serves as the integration point that satisfies the
         # protocol contract.
-        try:
-            agg = self._services.event_aggregator
-            if agg is not None:
-                await agg.ingest_external(
-                    source=source,
-                    kind=kind,
-                    payload=payload,
-                )
-        except Exception:
-            logger.exception("pipeline_fire_event_error", source=source, kind=kind)
 
     async def execute(
         self,

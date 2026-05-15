@@ -29,24 +29,26 @@ import { api } from "../../../../services/api.js";
 // do not double-inject the CSS.
 const tooltipBaseTheme = EditorView.baseTheme({
   ".cm-tooltip-autocomplete": {
-    background: "var(--cc-bg-elevated, #1e1e2e) !important",
-    border: "1px solid var(--cc-glass-border-strong, rgba(255,255,255,0.12)) !important",
+    background: "rgb(var(--v-theme-surface-bright)) !important",
+    border: "1px solid rgba(var(--v-theme-on-surface), 0.12) !important",
     borderRadius: "var(--cc-radius-md, 10px) !important",
-    boxShadow: "var(--cc-shadow-lg, 0 8px 32px rgba(0,0,0,0.4)) !important",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.3) !important",
     padding: "4px !important",
     zIndex: "2400 !important",
+    color: "rgb(var(--v-theme-on-surface)) !important",
   },
   ".cm-tooltip-autocomplete .cm-completionLabel": {
     fontFamily: "var(--cc-font-mono, monospace)",
     fontSize: "13px",
+    color: "rgb(var(--v-theme-on-surface)) !important",
   },
   ".cm-tooltip-autocomplete .cm-completionDetail": {
     fontSize: "12px",
-    opacity: "0.7",
+    color: "rgba(var(--v-theme-on-surface), 0.6) !important",
   },
   ".cm-tooltip-autocomplete ul li[aria-selected]": {
     background: "rgba(var(--v-theme-primary, 10 132 255), 0.18) !important",
-    color: "inherit",
+    color: "rgb(var(--v-theme-on-surface)) !important",
   },
 });
 

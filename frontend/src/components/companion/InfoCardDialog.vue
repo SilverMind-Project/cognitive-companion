@@ -31,8 +31,47 @@
 
       <!-- Body -->
       <v-card-text class="pt-0">
-        <!-- Image slots -->
-        <div v-if="images.length > 0" class="image-gallery mb-4 mt-2">
+        <!-- Layout: single_hero -->
+        <div v-if="layoutId === 'single_hero' && images.length > 0" class="single-hero mb-4 mt-2">
+          <v-img
+            :src="images[0].url"
+            :width="images[0].width || undefined"
+            :height="images[0].height || 220"
+            :alt="images[0].alt_text || ''"
+            cover
+            class="rounded-lg hero-image"
+          />
+        </div>
+
+        <!-- Layout: side_by_side -->
+        <div v-else-if="layoutId === 'side_by_side' && images.length > 0" class="side-by-side mb-4 mt-2">
+          <v-img
+            :src="images[0].url"
+            :width="images[0].width || undefined"
+            :height="images[0].height || 180"
+            :alt="images[0].alt_text || ''"
+            cover
+            class="rounded-lg side-image"
+          />
+          <p class="text-body-1 side-text">{{ body }}</p>
+        </div>
+
+        <!-- Layout: gallery_grid_2x2 -->
+        <div v-else-if="layoutId === 'gallery_grid_2x2' && images.length > 0" class="gallery-grid mb-4 mt-2">
+          <v-img
+            v-for="img in images.slice(0, 4)"
+            :key="img.slot_id"
+            :src="img.url"
+            :width="img.width || undefined"
+            :height="img.height || 140"
+            :alt="img.alt_text || ''"
+            cover
+            class="rounded-lg grid-image"
+          />
+        </div>
+
+        <!-- Layout: unknown with images (fallback to vertical column) -->
+        <div v-else-if="images.length > 0" class="image-gallery mb-4 mt-2">
           <v-img
             v-for="img in images"
             :key="img.slot_id"
@@ -45,8 +84,8 @@
           />
         </div>
 
-        <!-- Body text -->
-        <p class="text-body-1 body-text">{{ body }}</p>
+        <!-- Body text (hidden for side_by_side since it renders inline) -->
+        <p v-if="layoutId !== 'side_by_side'" class="text-body-1 body-text">{{ body }}</p>
       </v-card-text>
 
       <v-divider class="mx-4" />
@@ -79,6 +118,7 @@ const visible = ref(false);
 const title = ref("");
 const body = ref("");
 const images = ref([]);
+const layoutId = ref("text_only");
 const deliveryId = ref(null);
 const dismissSeconds = ref(30);
 const countdown = ref(30);
@@ -127,6 +167,7 @@ function handleInfoCard(data) {
   title.value = data.title || "";
   body.value = data.body || "";
   images.value = data.image_slots || [];
+  layoutId.value = data.layout_id || "text_only";
   deliveryId.value = data.delivery_id;
   dismissSeconds.value = data.dismiss_seconds || 30;
 
@@ -142,8 +183,7 @@ function handleInfoCard(data) {
 }
 
 // ---------------------------------------------------------------------------
-// Self-register on the shared wsClient.  Unrecognised message types
-// (info_card, quiz_*, etc.) are routed through the "onStatus" callback.
+// Self-register on the shared wsClient
 // ---------------------------------------------------------------------------
 function onWsStatus(data) {
   if (data.type === "info_card") {
@@ -165,27 +205,58 @@ defineExpose({ show: handleInfoCard });
 
 <style scoped>
 .info-card-dialog {
-  border-radius: 16px;
+  border-radius: var(--cc-radius-lg);
 }
 
+/* single_hero layout */
+.hero-image {
+  border: 1px solid var(--cc-surface-3);
+}
+
+/* side_by_side layout */
+.side-by-side {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: flex-start;
+}
+.side-image {
+  flex: 0 0 45%;
+}
+.side-text {
+  flex: 1;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+/* gallery_grid_2x2 layout */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.grid-image {
+  border: 1px solid var(--cc-surface-3);
+}
+
+/* fallback vertical column */
 .image-gallery {
   display: flex;
   flex-direction: column;
 }
-
 .image-slot {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--cc-surface-3);
 }
 
 .body-text {
   line-height: 1.7;
   white-space: pre-wrap;
-  color: rgba(255, 255, 255, 0.87);
+  color: var(--cc-text-1);
 }
 
 .dismiss-btn {
   letter-spacing: 0.02em;
   font-weight: 600;
-  border-radius: 12px;
+  border-radius: var(--cc-radius-md);
 }
 </style>

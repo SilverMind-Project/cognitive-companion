@@ -1135,6 +1135,17 @@ async def query_knowledge_base(query: str) -> dict:
 
 
 @_register
+async def get_current_quiz_question(session_id: int) -> dict:
+    """Return the question the senior should answer next in this quiz
+    session: its ord, text, type, and choices. Call this before asking
+    the senior a question.
+    """
+    if _svc.knowledge_delivery is None:
+        return {"error": "Delivery service not available"}
+    return _svc.knowledge_delivery.get_current_question(session_id)
+
+
+@_register
 async def submit_quiz_answer(
     session_id: int,
     question_ord: int,
@@ -1160,16 +1171,6 @@ async def submit_quiz_answer(
         channel="voice",
         latency_ms=latency_ms,
     )
-
-    # Broadcast answer recorded to PWA
-    if _svc.ws_manager and "error" not in result:
-        await _svc.ws_manager.broadcast({
-            "type": "quiz_answer_recorded",
-            "session_id": session_id,
-            "question_ord": question_ord,
-            "is_correct": result.get("is_correct"),
-            "advance": result.get("advance", False),
-        })
 
     return result
 

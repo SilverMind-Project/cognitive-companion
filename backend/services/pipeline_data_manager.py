@@ -91,6 +91,48 @@ def resolve_pipeline_value(
     return value if value is not None else default
 
 
+def _ordinal_suffix(n: int) -> str:
+    """Return the English ordinal suffix for *n* (e.g. 1 → 'st', 2 → 'nd')."""
+    if 10 <= (n % 100) <= 20:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+
+def _build_system_vars(now_local: datetime, timezone_name: str) -> dict[str, Any]:
+    """Build the ``pipeline_data["system"]`` namespace for templates.
+
+    All values are derived from *now_local* (operator timezone). String
+    formats are stable across executions and intended for direct
+    interpolation into notification templates without further formatting.
+    """
+    day = now_local.day
+    day_ordinal = f"{day}{_ordinal_suffix(day)}"
+    return {
+        # Existing keys (kept for backwards compatibility).
+        "local_time": now_local.strftime("%I:%M %p").lstrip("0"),
+        "local_date": now_local.strftime("%Y-%m-%d"),
+        "local_day_of_week": now_local.strftime("%A"),
+        "timezone": timezone_name,
+        # Day / date components.
+        "local_day_of_week_short": now_local.strftime("%a"),
+        "local_day_of_month": day,
+        "local_day_ordinal": day_ordinal,
+        "local_month_name": now_local.strftime("%B"),
+        "local_month_name_short": now_local.strftime("%b"),
+        "local_month_number": now_local.month,
+        "local_year": now_local.year,
+        # Friendly composite date strings.
+        "local_date_long": now_local.strftime(f"%B {day_ordinal}, %Y"),
+        "local_date_friendly": now_local.strftime(f"%A, %B {day_ordinal}"),
+        # Time components.
+        "local_time_24h": now_local.strftime("%H:%M"),
+        "local_hour_12h": now_local.strftime("%I").lstrip("0") or "12",
+        "local_hour_24h": now_local.strftime("%H"),
+        "local_minute": now_local.strftime("%M"),
+        "local_ampm": now_local.strftime("%p"),
+    }
+
+
 def build_initial_pipeline_data(
     trigger_type: str,
     sensor_id: str | None,
@@ -112,12 +154,7 @@ def build_initial_pipeline_data(
             "media_paths": media_paths,
             "media_type": media_type,
         },
-        "system": {
-            "local_time": now_local.strftime("%I:%M %p"),
-            "local_date": now_local.strftime("%Y-%m-%d"),
-            "local_day_of_week": now_local.strftime("%A"),
-            "timezone": timezone_name,
-        },
+        "system": _build_system_vars(now_local, timezone_name),
         "_pipeline": {
             "started_at": now_utc.isoformat(),
             "completed_at": None,

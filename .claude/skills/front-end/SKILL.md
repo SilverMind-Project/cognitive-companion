@@ -226,6 +226,37 @@ Use `width: 200` for the Actions column when there are 4+ icon buttons (edit, ap
 - Status columns: `width: 100`, use `<v-chip>` with `statusColor()` helper
 - Version/ID columns: `width: 80`
 - Datetime columns: import `DATETIME_COLUMN_WIDTH` from `@/services/timezone.js`
+- Tag/chip-list columns (e.g. trigger types, labels): `width: 160` to constrain without truncating typical values
+
+### Compact option selectors in page headers and table toolbars
+
+**Do not use `v-btn-toggle`** for period/mode pickers in headers and toolbars. Vuetify's `v-btn-group` collapses the border between adjacent buttons (`border-inline-end: none`), making them visually merge into a single block. Spacing utility classes (`px-4`, `ga-*`) cannot fix this because they operate on padding/gap, not on the shared-border collapse.
+
+Instead, render individual `v-btn` elements inside a `d-flex ga-2` container and manage active state manually:
+
+```html
+<div class="d-flex ga-2">
+  <v-btn
+    v-for="opt in options"
+    :key="opt.value"
+    size="small"
+    :variant="selected === opt.value ? 'flat' : 'outlined'"
+    :color="selected === opt.value ? 'primary' : undefined"
+    @click="selected = opt.value"
+  >{{ opt.label }}</v-btn>
+</div>
+```
+
+```js
+const options = [
+  { value: "last_15m", label: "15m" },
+  { value: "last_1h",  label: "1h"  },
+  { value: "last_24h", label: "24h" },
+  { value: "last_30d", label: "30d" },
+];
+```
+
+This gives full gap control, keeps Vuetify's pressed/hover states, and avoids the collapsed-border problem entirely.
 
 ### Empty-state (`#no-data`) template
 

@@ -29,12 +29,11 @@
     class="mb-4"
     @update:model-value="emit('update:modelValue', { ...modelValue, room_name: $event })"
   />
-  <v-text-field
+  <div class="text-overline text-medium-emphasis mb-2">Confidence</div>
+  <TemplateInput
     :model-value="modelValue.confidence"
-    label="Confidence"
-    hint="Fixed value (0-1) or {{template}} syntax. Defaults to 0.8."
-    persistent-hint
-    class="mb-4"
+    :multiline="false"
+    hint="Fixed value (0-1) or {{template}} syntax. Defaults to 0.8. Type {{ for variable autocomplete."
     @update:model-value="emit('update:modelValue', { ...modelValue, confidence: $event })"
   />
   <v-divider class="mb-4" />
@@ -58,13 +57,12 @@
     class="mb-4"
     @update:model-value="emit('update:modelValue', { ...modelValue, scene_description_key: $event })"
   />
-  <v-textarea
+  <div class="text-overline text-medium-emphasis mb-2 mt-4">Extra Metadata (JSON, optional)</div>
+  <TemplateInput
     :model-value="modelValue.metadata_extra"
-    label="Extra Metadata (JSON, optional)"
-    rows="3"
+    :multiline="true"
+    :rows="3"
     hint='Optional JSON merged into metadata_json. Supports {{template}} syntax, e.g. {"reasoning": "{{logic_response.reasoning}}"}'
-    persistent-hint
-    class="mb-4"
     @update:model-value="emit('update:modelValue', { ...modelValue, metadata_extra: $event })"
   />
   <v-checkbox
@@ -76,6 +74,8 @@
 </template>
 
 <script>
+import TemplateInput from "./_shared/TemplateInput.vue";
+
 export const stepDefaults = {
   activity_type: "",
   person_id: "",

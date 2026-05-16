@@ -163,14 +163,24 @@ class CtsWindowPollHandler(StepHandler):
         # Step 1: Pull historical frames from the in-memory bucketizer buffer
         # (which is the canonical recent-frame store shared with the live view).
         #
-        # The bucketizer is reachable through the CTS runtime, exposed on
-        # app.state. In the service container, it would be injected as a
-        # protocol.  For the initial implementation we collect what is
-        # available through the shared buffer.
+        # The bucketizer is wired in Phase 3 (CtsEventBucketizer). Until then
+        # ServiceContainer has no `bucketizer` attribute, so we log a warning
+        # and return an empty window with `partial=True` so downstream steps
+        # can branch on it rather than silently receiving stale data.
         frames: list[dict[str, Any]] = []
 
         # Collect from the bucketizer's per-camera buffers.
         bucketizer = _get_bucketizer(services)
+        if bucketizer is None:
+            logger.warning(
+                "cts_window_poll_no_bucketizer",
+                execution_id=str(execution.id),
+                msg=(
+                    "CtsEventBucketizer is not wired into ServiceContainer. "
+                    "Phase 3 must be completed before cts_window_poll can return "
+                    "live CTS frames. Returning empty window with partial=True."
+                ),
+            )
         if bucketizer is not None:
             target_cameras = cameras or list(bucketizer.buffer_stats().keys())
             for cam_id in target_cameras:
@@ -243,7 +253,7 @@ class CtsWindowPollHandler(StepHandler):
                     "detection_count": detection_count,
                     "rooms": sorted(rooms_seen),
                 },
-                "partial": len(downsampled) < len(frames) if frames else False,
+                "partial": bucketizer is None or (len(downsampled) < len(frames) if frames else False),
             }
         )
 

@@ -62,7 +62,7 @@
             />
           </div>
           <v-divider vertical class="mx-2" />
-          <v-btn icon="mdi-pencil" size="x-small" variant="text" @click.stop="$emit('edit')" />
+          <v-btn icon="mdi-pencil" size="x-small" variant="text" color="primary" @click.stop="$emit('edit')" />
           <v-btn
             :icon="step.enabled ? 'mdi-eye' : 'mdi-eye-off'"
             size="x-small"

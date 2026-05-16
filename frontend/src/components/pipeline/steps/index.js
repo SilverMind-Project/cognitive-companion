@@ -20,6 +20,9 @@ import ConditionConfig, { stepDefaults as condDefaults, stepTabs as condTabs } f
 import VerificationConfig, { stepDefaults as verDefaults, stepTabs as verTabs, beforeSave as verBeforeSave, onStepLoaded as verOnStepLoaded } from "./VerificationConfig.vue";
 import InteractivePromptConfig, { stepDefaults as ipDefaults, stepTabs as ipTabs } from "./InteractivePromptConfig.vue";
 import GenericPluginConfig, { stepDefaults as genericDefaults, stepTabs as genericTabs } from "./GenericPluginConfig.vue";
+import CtsWindowPollConfig, { stepDefaults as ctsWpDefaults, stepTabs as ctsWpTabs } from "./CtsWindowPollConfig.vue";
+import RecameraMediaPollConfig, { stepDefaults as rcmpDefaults, stepTabs as rcmpTabs } from "./RecameraMediaPollConfig.vue";
+import InfoCardConfig, { stepDefaults as infoCardDefaults, stepTabs as infoCardTabs } from "./InfoCardConfig.vue";
 
 export const stepConfigMap = {
   wait:                { component: WaitConfig,                defaults: waitDefaults,    tabs: waitTabs },
@@ -40,6 +43,9 @@ export const stepConfigMap = {
   condition:           { component: ConditionConfig,           defaults: condDefaults,    tabs: condTabs },
   verification:        { component: VerificationConfig,        defaults: verDefaults,     tabs: verTabs,    beforeSave: verBeforeSave,    onStepLoaded: verOnStepLoaded },
   interactive_prompt:  { component: InteractivePromptConfig,   defaults: ipDefaults,      tabs: ipTabs },
+  cts_window_poll:     { component: CtsWindowPollConfig,       defaults: ctsWpDefaults,   tabs: ctsWpTabs },
+  recamera_media_poll: { component: RecameraMediaPollConfig,   defaults: rcmpDefaults,    tabs: rcmpTabs },
+  info_card:           { component: InfoCardConfig,            defaults: infoCardDefaults, tabs: infoCardTabs },
 };
 import SchemaForm from "./_shared/SchemaForm.vue";
 
@@ -110,6 +116,9 @@ export const STEP_ICONS = {
   semantic_memory_query: "mdi-database-search-outline",
   presence_query: "mdi-map-marker-radius",
   home_state: "mdi-home-variant",
+  cts_window_poll: "mdi-camera-burst",
+  recamera_media_poll: "mdi-camera-wireless-outline",
+  info_card: "mdi-card-text-outline",
 };
 
 export const STEP_LABELS = {

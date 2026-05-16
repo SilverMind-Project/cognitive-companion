@@ -131,9 +131,27 @@ _TRIGGER_VARS: list[VariableEntry] = [
 ]
 
 _SYSTEM_VARS: list[VariableEntry] = [
-    VariableEntry(key="system.local_time", description="Current local time (e.g. 02:30 PM)", type="string"),
-    VariableEntry(key="system.local_date", description="Current local date (e.g. 2026-05-12)", type="string"),
-    VariableEntry(key="system.local_day_of_week", description="Current day of week (e.g. Monday)", type="string"),
+    # Time (12-hour and 24-hour variants).
+    VariableEntry(key="system.local_time", description="Current local time, 12-hour (e.g. 2:30 PM)", type="string"),
+    VariableEntry(key="system.local_time_24h", description="Current local time, 24-hour (e.g. 14:30)", type="string"),
+    VariableEntry(key="system.local_hour_12h", description="Current hour, 12-hour without leading zero (e.g. 2)", type="string"),
+    VariableEntry(key="system.local_hour_24h", description="Current hour, 24-hour with leading zero (e.g. 14)", type="string"),
+    VariableEntry(key="system.local_minute", description="Current minute with leading zero (e.g. 05)", type="string"),
+    VariableEntry(key="system.local_ampm", description="AM or PM marker for the current time", type="string"),
+    # Day / date components.
+    VariableEntry(key="system.local_date", description="Current local date, ISO format (e.g. 2026-05-12)", type="string"),
+    VariableEntry(key="system.local_day_of_week", description="Current day of week, full (e.g. Monday)", type="string"),
+    VariableEntry(key="system.local_day_of_week_short", description="Current day of week, abbreviated (e.g. Mon)", type="string"),
+    VariableEntry(key="system.local_day_of_month", description="Current day of the month as integer (e.g. 12)", type="number"),
+    VariableEntry(key="system.local_day_ordinal", description="Current day with ordinal suffix (e.g. 12th, 1st)", type="string"),
+    VariableEntry(key="system.local_month_name", description="Current month name, full (e.g. May)", type="string"),
+    VariableEntry(key="system.local_month_name_short", description="Current month name, abbreviated (e.g. May)", type="string"),
+    VariableEntry(key="system.local_month_number", description="Current month as integer (1-12)", type="number"),
+    VariableEntry(key="system.local_year", description="Current four-digit year (e.g. 2026)", type="number"),
+    # Friendly composite date strings.
+    VariableEntry(key="system.local_date_long", description="Friendly long date (e.g. May 12th, 2026)", type="string"),
+    VariableEntry(key="system.local_date_friendly", description="Day + month + ordinal (e.g. Monday, May 12th)", type="string"),
+    # Misc.
     VariableEntry(key="system.timezone", description="Operator timezone (e.g. America/Los_Angeles)", type="string"),
 ]
 

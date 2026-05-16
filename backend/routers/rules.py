@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
 from backend.core.exceptions import ConflictError, NotFoundError
 from backend.models.cron_trigger import CronTrigger
-from backend.models.pipeline import PipelineStep
+from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.schemas.rule import (
     ContextCreate,
@@ -24,6 +27,7 @@ from backend.schemas.rule import (
     RuleContextOut,
     RuleCreate,
     RuleDependencyOut,
+    RuleExecutionCounts,
     RuleListOut,
     RuleOut,
     RuleUpdate,
@@ -49,8 +53,42 @@ def _app_version() -> str:
 def list_rules(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:read")),
-):
-    return db.query(Rule).order_by(Rule.name).all()
+) -> list[RuleListOut]:
+    now = datetime.now(UTC)
+    t_15m = now - timedelta(minutes=15)
+    t_1h = now - timedelta(hours=1)
+    t_24h = now - timedelta(hours=24)
+    t_30d = now - timedelta(days=30)
+
+    counts_sq = (
+        db.query(
+            WorkflowExecution.rule_id,
+            func.count(case((WorkflowExecution.started_at >= t_15m, 1))).label("last_15m"),
+            func.count(case((WorkflowExecution.started_at >= t_1h, 1))).label("last_1h"),
+            func.count(case((WorkflowExecution.started_at >= t_24h, 1))).label("last_24h"),
+            func.count(case((WorkflowExecution.started_at >= t_30d, 1))).label("last_30d"),
+        )
+        .group_by(WorkflowExecution.rule_id)
+        .subquery()
+    )
+
+    count_map: dict[int, RuleExecutionCounts] = {
+        row.rule_id: RuleExecutionCounts(
+            last_15m=row.last_15m or 0,
+            last_1h=row.last_1h or 0,
+            last_24h=row.last_24h or 0,
+            last_30d=row.last_30d or 0,
+        )
+        for row in db.query(counts_sq).all()
+    }
+
+    rules = db.query(Rule).order_by(Rule.name).all()
+    result: list[RuleListOut] = []
+    for rule in rules:
+        out = RuleListOut.model_validate(rule)
+        out.execution_counts = count_map.get(rule.id, RuleExecutionCounts())
+        result.append(out)
+    return result
 
 
 @router.post("", response_model=RuleOut, status_code=201)

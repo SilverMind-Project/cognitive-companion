@@ -15,7 +15,7 @@
     <v-card class="glass-card">
       <v-data-table :headers="headers" :items="rooms" :loading="loading" item-value="id">
         <template #item.actions="{ item }">
-          <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(item)" />
+          <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
           <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteRoom(item.id)" />
         </template>
         <template #no-data>

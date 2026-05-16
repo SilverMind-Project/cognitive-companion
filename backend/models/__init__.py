@@ -4,6 +4,7 @@ from backend.models.alert import EmergencyAlert
 from backend.models.conversation import ConversationSession, ConversationTurn
 from backend.models.cron_trigger import CronTrigger, RuleCronTrigger
 from backend.models.cts_camera import CtsCamera
+from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 from backend.models.cts_signal import DementiaSignal
 from backend.models.cts_window_trigger import CtsWindowTrigger, RuleCtsWindowTrigger
 from backend.models.event import EventLog
@@ -47,6 +48,7 @@ __all__ = [
     "ConversationTurn",
     "CronTrigger",
     "CtsCamera",
+    "CtsIdentityRevisionLog",
     "CtsWindowTrigger",
     "DailyReport",
     "DementiaSignal",

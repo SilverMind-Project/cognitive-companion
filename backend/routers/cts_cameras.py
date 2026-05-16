@@ -25,14 +25,15 @@ from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
-from backend.core.exceptions import ConflictError, NotFoundError
+from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
 from backend.integrations.ingress_admin_client import IngressAdminClient
 from backend.models.cts_camera import CtsCamera
+from backend.models.room import Room
 from backend.routers.cts_deps import cts_enabled
 from backend.routers.dependencies import get_ingress_admin_client
-from backend.schemas.cts_camera import CtsCameraCreate, CtsCameraOut, CtsCameraUpdate
+from backend.schemas.cts_camera import CtsCameraCreate, CtsCameraOut, CtsCameraUpdate, RoomRef
 
 logger = get_logger(__name__)
 
@@ -60,19 +61,43 @@ def _upstream_to_http(exc: UpstreamError) -> HTTPException:
     )
 
 
-def _to_out(cam: CtsCamera) -> CtsCameraOut:
+def _resolve_room(db: Session, room_id: int | None) -> RoomRef | None:
+    """Resolve a room_id to a RoomRef for API output."""
+    if room_id is None:
+        return None
+    room = db.get(Room, room_id)
+    if room is None:
+        return None
+    return RoomRef(id=room.id, name=room.name)
+
+
+def _denormalise_room_name(db: Session, room_id: int) -> str:
+    """Return the Room name for a room_id, raising when the room is invalid."""
+    room = db.get(Room, room_id)
+    if room is None:
+        raise NotFoundError("Room", room_id)
+    return room.name
+
+
+def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
     homography = cam.homography
     residuals = cam.homography_residuals
+    room = None
+    if db is not None and cam.room_id is not None:
+        room = _resolve_room(db, cam.room_id)
     return CtsCameraOut(
         id=cam.id,
         name=cam.name,
         rtsp_url=cam.rtsp_url,
-        location=cam.location,
+        room_name=cam.room_name or "",
+        room_id=cam.room_id,
         enabled=cam.enabled,
         floor_plan_key=cam.floor_plan_key,
         rotation_degrees=cam.rotation_degrees,
         face_id_enabled=cam.face_id_enabled if cam.face_id_enabled is not None else True,
         face_id_min_confidence=cam.face_id_min_confidence,
+        role=cam.role,
+        room=room,
         has_homography=homography is not None,
         homography_residuals=residuals if residuals else None,
         privacy_zone_count=len(cam.privacy_zones) if cam.privacy_zones else 0,
@@ -93,7 +118,7 @@ def list_cameras(
     _auth: AuthContext = Depends(require_permission("cts.cameras.read")),
 ) -> list[CtsCameraOut]:
     cts_enabled()
-    return [_to_out(c) for c in db.query(CtsCamera).order_by(CtsCamera.name).all()]
+    return [_to_out(c, db) for c in db.query(CtsCamera).order_by(CtsCamera.name).all()]
 
 
 @router.post("", response_model=CtsCameraOut, status_code=status.HTTP_201_CREATED)
@@ -105,12 +130,18 @@ def create_camera(
     cts_enabled()
     if db.get(CtsCamera, payload.id):
         raise ConflictError(f"Camera '{payload.id}' already exists")
-    cam = CtsCamera(**payload.model_dump())
+    model_data = payload.model_dump()
+    # Denormalise room_name from room_id, or require an explicit custom name.
+    if model_data.get("room_id") is not None:
+        model_data["room_name"] = _denormalise_room_name(db, model_data["room_id"])
+    elif not model_data.get("room_name"):
+        raise ValidationError("Select a room or provide a custom location name")
+    cam = CtsCamera(**model_data)
     db.add(cam)
     db.commit()
     db.refresh(cam)
     logger.info("cts_camera_created", camera_id=cam.id)
-    return _to_out(cam)
+    return _to_out(cam, db)
 
 
 @router.get("/{camera_id}", response_model=CtsCameraOut)
@@ -123,7 +154,7 @@ def get_camera(
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
-    return _to_out(cam)
+    return _to_out(cam, db)
 
 
 @router.patch("/{camera_id}", response_model=CtsCameraOut)
@@ -137,12 +168,19 @@ def update_camera(
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    update_data = payload.model_dump(exclude_unset=True)
+    # Denormalise room_name from room_id
+    if "room_id" in update_data:
+        if update_data["room_id"] is not None:
+            update_data["room_name"] = _denormalise_room_name(db, update_data["room_id"])
+        elif "room_name" not in update_data:
+            update_data["room_name"] = ""
+    for field, value in update_data.items():
         setattr(cam, field, value)
     db.commit()
     db.refresh(cam)
     logger.info("cts_camera_updated", camera_id=camera_id)
-    return _to_out(cam)
+    return _to_out(cam, db)
 
 
 @router.delete("/{camera_id}", status_code=status.HTTP_204_NO_CONTENT)

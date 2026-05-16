@@ -78,7 +78,7 @@ async def test_first_sighting_writes_state_and_history(service, db_factory) -> N
             .one()
         )
         assert state.current_room_name == "Kitchen"
-        assert state.last_sensor_id == "cam-kitchen"
+        assert state.last_sensor_id == "recamera:cam-kitchen"
         assert state.confidence == pytest.approx(0.9)
 
         history = (
@@ -145,7 +145,7 @@ async def test_room_change_closes_previous_history(service, db_factory) -> None:
             .one()
         )
         assert state.current_room_name == "Living Room"
-        assert state.last_sensor_id == "cam-living"
+        assert state.last_sensor_id == "recamera:cam-living"
 
         rows = (
             db.query(PersonLocationHistory)

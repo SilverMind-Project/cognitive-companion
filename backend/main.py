@@ -298,6 +298,14 @@ async def lifespan(app: FastAPI):
     )
     app.state.scene_intel = scene_intel_service
 
+    # -- Source authority (sole arbiter for person location writes, CR-15) ---
+    from backend.services.cts.source_authority import SourceAuthority
+
+    shared_authority = SourceAuthority(
+        cts_lock_s=float(settings.get("cts.lock_seconds", 60)),
+    )
+    app.state.source_authority = shared_authority
+
     # -- Person tracking service -------------------------------------------
     from backend.services.person_tracking import PersonTrackingService
 
@@ -306,6 +314,7 @@ async def lifespan(app: FastAPI):
         person_id_client=person_id_client,
         ha_client=ha_client,
         ws_manager=ws_manager,
+        authority=shared_authority,
     )
     app.state.person_tracking = person_tracking
 
@@ -560,6 +569,7 @@ async def lifespan(app: FastAPI):
             minio_client=minio_client,
             scene_analysis_client=scene_analysis_client,
             semantic_memory_client=semantic_memory_client,
+            authority=shared_authority,
         )
         app.state.cts_runtime = cts_runtime
         # Expose individual subscribers for tests / diagnostics.
@@ -680,6 +690,7 @@ def create_app() -> FastAPI:
         cts_identity,
         cts_keyframes,
         cts_live,
+        cts_overlap_groups,
         cts_presence,
         cts_signals,
         cts_trajectory,
@@ -745,6 +756,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_dashboard.router, prefix=api)
     app.include_router(cts_gallery.router, prefix=api)
     app.include_router(cts_identity.router, prefix=api)
+    app.include_router(cts_overlap_groups.router, prefix=api)
 
     # WebSocket routers (no /api/v1 prefix).
     app.include_router(ws.router)

@@ -7,13 +7,21 @@ from pydantic import BaseModel, Field, field_validator
 from backend.schemas.common import OutSchema, UTCDatetime
 
 
+class RoomRef(BaseModel):
+    """Lightweight Room reference for camera output."""
+
+    id: int
+    name: str
+
+
 class CtsCameraFields(BaseModel):
     """Shared editable fields for CTS camera create / output."""
 
     id: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=256)
     rtsp_url: str = Field(default="", max_length=1024)
-    location: str = Field(default="", max_length=256)
+    room_name: str = Field(default="", max_length=256)
+    room_id: int | None = None
     enabled: bool = True
     floor_plan_key: str | None = None
     # Clockwise rotation applied at ingest time (0, 90, 180, 270).
@@ -26,29 +34,36 @@ class CtsCameraFields(BaseModel):
         if v not in (0, 90, 180, 270):
             raise ValueError("rotation_degrees must be 0, 90, 180, or 270")
         return v
+
     # Face identification: set enabled=false for top-down cameras where
     # faces are never visible.  min_confidence overrides the orchestrator
     # default (higher = stricter matching).
     face_id_enabled: bool = True
     face_id_min_confidence: float | None = None
+    role: str = Field(default="surveillance", pattern="^(face_capable|surveillance|mixed)$")
 
 
 class CtsCameraCreate(CtsCameraFields):
-    pass
+    model_config = {"extra": "forbid"}
 
 
 class CtsCameraUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=256)
     rtsp_url: str | None = Field(default=None, max_length=1024)
-    location: str | None = Field(default=None, max_length=256)
+    room_name: str | None = Field(default=None, max_length=256)
+    room_id: int | None = None
     enabled: bool | None = None
     floor_plan_key: str | None = None
     rotation_degrees: int | None = Field(default=None, ge=0, le=270)
     face_id_enabled: bool | None = None
     face_id_min_confidence: float | None = None
+    role: str | None = Field(default=None, pattern="^(face_capable|surveillance|mixed)$")
+
+    model_config = {"extra": "forbid"}
 
 
 class CtsCameraOut(CtsCameraFields, OutSchema):
+    room: RoomRef | None = None
     has_homography: bool
     homography_residuals: list[float] | None
     privacy_zone_count: int

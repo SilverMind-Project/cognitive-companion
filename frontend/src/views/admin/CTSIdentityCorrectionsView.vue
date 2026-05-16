@@ -1,255 +1,235 @@
 <template>
   <div>
     <!-- Page header -->
-    <div class="d-flex align-center mb-6">
+    <div class="d-flex align-center mb-4">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Identity Corrections</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
-          Review and override the identity assigned to each active tracking
-          graph. Every override is logged as a revision and flows back into
-          the dashboard within ~2 seconds.
+          Review and override identity assignments for active tracking graphs.
         </div>
       </div>
       <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading.tracks" @click="loadAll">
+      <v-btn
+        v-if="selected.length"
+        variant="tonal"
+        color="warning"
+        prepend-icon="mdi-checkbox-multiple-marked"
+        class="mr-3"
+        @click="confirmBulkUnknown"
+      >
+        Confirm {{ selected.length }} as UNKNOWN
+      </v-btn>
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="refreshAll">
         Refresh
       </v-btn>
     </div>
 
-    <v-alert
-      v-if="error"
-      type="error"
-      class="mb-4"
-      closable
-      @click:close="error = ''"
-    >
+    <v-alert v-if="error" type="error" class="mb-4" closable @click:close="error = ''">
       {{ error }}
     </v-alert>
 
-    <v-row>
-      <!-- Active tracks card grid -->
-      <v-col cols="12" md="7">
-        <div class="d-flex align-center mb-3">
-          <span class="text-subtitle-1 font-weight-medium">Active global tracks</span>
-          <v-chip size="small" variant="tonal" class="ml-2">{{ tracks.length }}</v-chip>
-        </div>
-
-        <div v-if="loading.tracks" class="d-flex justify-center py-8">
-          <v-progress-circular indeterminate color="primary" />
-        </div>
-
-        <div v-else-if="!tracks.length" class="text-center text-medium-emphasis py-8">
-          No active global tracks.
-        </div>
-
-        <v-row v-else>
-          <v-col
-            v-for="track in tracks"
-            :key="track.global_track_id"
-            cols="12"
-            sm="6"
-          >
-            <v-card class="glass-card track-card" height="100%">
-              <!-- Thumbnail -->
-              <v-img
-                v-if="track.latest_keyframe_minio_key"
-                :src="frameUrl(track.latest_keyframe_minio_key)"
-                height="140"
-                cover
-                class="track-thumb"
-              >
-                <div class="track-thumb-overlay d-flex align-end pa-2">
-                  <v-chip
-                    size="x-small"
-                    :color="track.current_identity_id ? 'success' : 'warning'"
-                    variant="flat"
-                  >
-                    {{ identityLabel(track) }}
-                  </v-chip>
-                </div>
-              </v-img>
-              <div
-                v-else
-                class="track-thumb-placeholder d-flex align-center justify-center flex-column"
-              >
-                <v-icon size="40" color="medium-emphasis">mdi-account-circle-outline</v-icon>
-                <span class="text-caption text-medium-emphasis mt-1">No keyframe yet</span>
-              </div>
-
-              <v-card-text class="pb-1 pt-2">
-                <!-- Identity name or UNKNOWN badge -->
-                <div class="d-flex align-center ga-2 mb-1">
-                  <v-chip
-                    :color="track.current_identity_id ? 'success' : 'warning'"
-                    size="small"
-                    variant="tonal"
-                  >
-                    <v-icon start size="14">mdi-account</v-icon>
-                    {{ identityLabel(track) }}
-                  </v-chip>
-                </div>
-
-                <!-- Track ID (truncated) -->
-                <div
-                  class="text-caption text-medium-emphasis font-mono text-truncate"
-                  :title="track.global_track_id"
-                >
-                  {{ track.global_track_id }}
-                </div>
-
-                <!-- Camera list -->
-                <div class="text-caption text-medium-emphasis mt-1 text-truncate">
-                  <v-icon size="12" class="mr-1">mdi-cctv</v-icon>
-                  {{ (track.camera_ids || []).join(", ") || "—" }}
-                </div>
-
-                <!-- Last seen -->
-                <div class="text-caption text-medium-emphasis mt-1">
-                  <v-icon size="12" class="mr-1">mdi-clock-outline</v-icon>
-                  {{ formatRelative(track.last_seen_at) }}
-                </div>
-              </v-card-text>
-
-              <v-card-actions class="pt-0">
-                <v-btn
-                  size="small"
-                  variant="tonal"
-                  prepend-icon="mdi-account-edit"
-                  @click="openCorrection(track, 'correct')"
-                >
-                  Correct
-                </v-btn>
-                <v-btn
-                  size="small"
-                  variant="outlined"
-                  prepend-icon="mdi-merge"
-                  @click="openCorrection(track, 'merge')"
-                >
-                  Merge
-                </v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-col>
-        </v-row>
-      </v-col>
-
-      <!-- Revision audit log -->
-      <v-col cols="12" md="5">
-        <v-card class="glass-card">
-          <v-card-title class="d-flex align-center">
-            Revision audit log
-            <v-spacer />
-            <v-chip size="small" variant="tonal">{{ revisions.length }}</v-chip>
-          </v-card-title>
-          <v-card-text>
-            <v-list density="compact">
-              <v-list-item
-                v-for="rev in revisions"
-                :key="rev.revision_id"
-                :subtitle="`track: ${shortId(rev.global_track_id)} · ${rev.rewritten_rows} rows rewritten`"
-              >
-                <template #title>
-                  <span class="text-caption text-medium-emphasis">
-                    {{ formatRelative(rev.earliest_entered_at) }}
-                  </span>
-                  &middot;
-                  <span class="font-weight-medium">
-                    {{ identityDisplayName(rev.previous_identity_id) }}
-                  </span>
-                  &rarr; revised
-                </template>
-              </v-list-item>
-              <v-list-item v-if="!revisions.length">
-                <template #title>
-                  <span class="text-caption text-medium-emphasis">
-                    No revisions in the selected window.
-                  </span>
-                </template>
-              </v-list-item>
-            </v-list>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <!-- Correction / Merge dialog -->
-    <v-dialog v-model="dialogOpen" max-width="560" persistent>
-      <v-card>
-        <DialogHeader
-          :icon="dialogMode === 'merge' ? 'mdi-merge' : 'mdi-account-edit'"
-          :label="dialogMode === 'merge' ? 'Merge' : 'Correct'"
-          :title="dialogMode === 'merge' ? 'Merge identity' : 'Correct identity'"
-          @close="dialogOpen = false"
-        />
-        <v-card-text>
-          <!-- Track thumbnail preview -->
-          <div v-if="dialogTrack" class="d-flex align-center ga-3 mb-4">
-            <v-img
-              v-if="dialogTrack.latest_keyframe_minio_key"
-              :src="frameUrl(dialogTrack.latest_keyframe_minio_key)"
-              width="72"
-              height="72"
-              cover
-              rounded="lg"
-            />
-            <v-icon v-else size="48" color="medium-emphasis">mdi-account-circle-outline</v-icon>
-            <div>
-              <div class="text-body-2 font-weight-medium">
-                Current: {{ identityLabel(dialogTrack) }}
-              </div>
-              <div
-                class="text-caption text-medium-emphasis font-mono"
-                :title="form.global_track_id"
-              >
-                {{ form.global_track_id }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Merge: source identity field -->
-          <v-autocomplete
-            v-if="dialogMode === 'merge'"
-            v-model="form.from_identity_id"
-            :items="identityItems"
-            item-title="label"
-            item-value="identity_id"
-            label="From identity"
+    <!-- Filter row -->
+    <v-card variant="flat" class="mb-4 px-4 py-2" border>
+      <v-row dense align="center">
+        <v-col cols="12" sm="4" md="3">
+          <v-select
+            v-model="filters.status"
+            :items="statusOptions"
+            label="Status"
             variant="outlined"
             density="compact"
-            class="mb-3"
             clearable
+            hide-details
+            @update:model-value="loadTracks()"
           />
-
-          <!-- Target identity picker -->
-          <v-autocomplete
-            v-model="form.new_identity_id"
-            :items="identityItems"
-            item-title="label"
-            item-value="identity_id"
-            :label="dialogMode === 'merge' ? 'To identity' : 'New identity'"
+        </v-col>
+        <v-col cols="12" sm="4" md="3">
+          <v-select
+            v-model="filters.camera_id"
+            :items="cameraOptions"
+            label="Camera"
             variant="outlined"
             density="compact"
-            class="mb-3"
             clearable
-            :placeholder="dialogMode === 'correct' ? 'Leave blank to mark UNKNOWN' : ''"
-            :hint="dialogMode === 'correct' ? 'Select a known person or leave blank to set UNKNOWN' : ''"
-            persistent-hint
+            hide-details
+            @update:model-value="loadTracks()"
           />
-
+        </v-col>
+        <v-col cols="12" sm="4" md="3">
           <v-text-field
-            v-model="form.reason"
-            label="Reason"
+            v-model="filters.search"
+            label="Search identity"
             variant="outlined"
             density="compact"
+            clearable
+            hide-details
+            prepend-inner-icon="mdi-magnify"
+            @update:model-value="debouncedSearch()"
           />
+        </v-col>
+      </v-row>
+    </v-card>
+
+    <!-- Tabs -->
+    <v-tabs v-model="activeTab" class="mb-4" density="compact" @update:model-value="onTabChange">
+      <v-tab value="active">
+        Active
+        <v-chip size="x-small" variant="tonal" class="ml-1">{{ activeCount }}</v-chip>
+      </v-tab>
+      <v-tab value="recent">
+        Recent 24h
+      </v-tab>
+      <v-tab value="decisions">
+        Decisions log
+      </v-tab>
+    </v-tabs>
+
+    <!-- Tab: Active / Recent tracks -->
+    <v-card v-if="activeTab !== 'decisions'" variant="flat" border>
+      <v-data-table-server
+        v-model="selected"
+        v-model:items-per-page="pagination.itemsPerPage"
+        v-model:page="pagination.page"
+        :headers="trackHeaders"
+        :items="tracks"
+        :items-length="totalTracks"
+        :loading="loading"
+        show-select
+        return-object
+        item-value="global_track_id"
+        items-per-page-text="Tracks per page"
+        @update:options="onTableOptions"
+      >
+        <template #item.current_identity_id="{ item }">
+          <v-chip
+            :color="item.current_identity_id ? 'success' : 'warning'"
+            size="small"
+            variant="tonal"
+          >
+            {{ identityLabel(item) }}
+          </v-chip>
+        </template>
+        <template #item.camera_ids="{ item }">
+          <span class="text-caption text-medium-emphasis">
+            {{ (item.camera_ids || []).join(", ") || "—" }}
+          </span>
+        </template>
+        <template #item.last_seen_at="{ item }">
+          <span class="text-caption text-medium-emphasis">
+            {{ formatRelative(item.last_seen_at) }}
+          </span>
+        </template>
+        <template #item.actions="{ item }">
+          <v-btn
+            size="small"
+            variant="tonal"
+            prepend-icon="mdi-account-edit"
+            class="mr-1"
+            @click="openInspector(item, 'correct')"
+          >
+            Correct
+          </v-btn>
+          <v-btn
+            size="small"
+            variant="outlined"
+            prepend-icon="mdi-merge"
+            @click="openInspector(item, 'merge')"
+          >
+            Merge
+          </v-btn>
+        </template>
+      </v-data-table-server>
+    </v-card>
+
+    <!-- Tab: Decisions log -->
+    <v-card v-else variant="flat" border>
+      <div class="pa-3">
+        <v-chip-group v-model="decisionsKindFilter" @update:model-value="loadDecisions()">
+          <v-chip value="" filter>All</v-chip>
+          <v-chip value="auto" filter>Auto</v-chip>
+          <v-chip value="manual_correct" filter>Manual</v-chip>
+          <v-chip value="manual_merge" filter>Merge</v-chip>
+        </v-chip-group>
+      </div>
+      <v-list density="compact" lines="two">
+        <v-list-item v-for="d in decisions" :key="d.revision_id">
+          <template #title>
+            <span class="text-caption text-medium-emphasis">
+              {{ formatRelative(d.applied_at) }}
+            </span>
+            <v-chip
+              size="x-small"
+              :color="kindColor(d.kind)"
+              variant="flat"
+              class="ml-1"
+            >
+              {{ kindLabel(d.kind) }}
+            </v-chip>
+            &middot;
+            <span v-if="d.new_identity_id" class="font-weight-medium">
+              {{ identityDisplayName(d.new_identity_id) }}
+            </span>
+            <span v-else class="text-medium-emphasis">UNKNOWN</span>
+            <span v-if="d.previous_identity_id">
+              (was {{ identityDisplayName(d.previous_identity_id) }})
+            </span>
+          </template>
+          <template #subtitle>
+            <span class="text-caption text-medium-emphasis font-mono">
+              track: {{ shortId(d.global_track_id) }}
+            </span>
+            <span class="text-caption text-medium-emphasis ml-2">
+              {{ d.rewritten_rows }} rows rewritten
+            </span>
+          </template>
+        </v-list-item>
+        <v-list-item v-if="!decisions.length && !loadingDecisions">
+          <template #title>
+            <span class="text-caption text-medium-emphasis">
+              No identity decisions recorded yet.
+            </span>
+          </template>
+        </v-list-item>
+      </v-list>
+      <div class="pa-3 text-center" v-if="decisionsHasMore">
+        <v-btn variant="tonal" size="small" :loading="loadingDecisions" @click="loadMoreDecisions">
+          Load more
+        </v-btn>
+      </div>
+    </v-card>
+
+    <!-- Inspector drawer -->
+    <v-navigation-drawer
+      v-model="drawerOpen"
+      location="right"
+      width="480"
+      temporary
+    >
+      <IdentityInspectorDrawer
+        v-if="inspectorTrack"
+        :track="inspectorTrack"
+        :mode="drawerMode"
+        :identities="identities"
+        @apply="onDrawerApply"
+        @close="drawerOpen = false"
+      />
+    </v-navigation-drawer>
+
+    <!-- Bulk confirm dialog -->
+    <v-dialog v-model="bulkDialogOpen" max-width="480">
+      <v-card>
+        <v-card-title>Confirm as UNKNOWN</v-card-title>
+        <v-card-text>
+          Mark {{ selected.length }} selected tracks as UNKNOWN?
+          This will clear any assigned identity for these tracks.
         </v-card-text>
-        <DialogFooter
-          hint="Manual identity corrections help train the tracking system for better future matches."
-          confirm-label="Apply"
-          :confirm-loading="saving"
-          @cancel="dialogOpen = false"
-          @confirm="submit"
-        />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="bulkDialogOpen = false">Cancel</v-btn>
+          <v-btn variant="flat" color="warning" :loading="bulkSaving" @click="executeBulk">
+            Confirm
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </div>
@@ -258,33 +238,58 @@
 <script>
 import { cts } from "@/services/cts";
 import { formatRelative } from "@/composables/useFormatRelative";
-import DialogHeader from "@/components/common/DialogHeader.vue";
-import DialogFooter from "@/components/common/DialogFooter.vue";
+import IdentityInspectorDrawer from "@/components/cts/identity/IdentityInspectorDrawer.vue";
+
+let searchTimer = null;
 
 export default {
   name: "CTSIdentityCorrectionsView",
-  components: { DialogHeader, DialogFooter },
+  components: { IdentityInspectorDrawer },
   data() {
     return {
       error: "",
-      loading: { tracks: false, revisions: false },
+      loading: false,
+      loadingDecisions: false,
       tracks: [],
-      revisions: [],
+      totalTracks: 0,
+      activeCount: 0,
+      selected: [],
       identities: [],
-      dialogOpen: false,
-      dialogMode: "correct",
-      dialogTrack: null,
-      saving: false,
-      form: {
-        global_track_id: "",
-        previous_identity_id: "",
-        from_identity_id: "",
-        new_identity_id: "",
-        reason: "manual",
-      },
+      activeTab: "active",
+      filters: { status: null, camera_id: null, search: "" },
+      pagination: { page: 1, itemsPerPage: 24 },
+      // Decisions
+      decisions: [],
+      decisionsHasMore: false,
+      decisionsKindFilter: "",
+      decisionsCursor: null,
+      // Drawer
+      drawerOpen: false,
+      drawerMode: "correct",
+      inspectorTrack: null,
+      // Bulk
+      bulkDialogOpen: false,
+      bulkSaving: false,
+      // Camera filter options
+      cameraOptions: [],
     };
   },
   computed: {
+    trackHeaders() {
+      return [
+        { title: "Identity", key: "current_identity_id", sortable: false },
+        { title: "Room / Camera", key: "camera_ids", sortable: false },
+        { title: "Last seen", key: "last_seen_at", sortable: false },
+        { title: "", key: "actions", sortable: false, width: 1 },
+      ];
+    },
+    statusOptions() {
+      return [
+        { title: "All", value: "" },
+        { title: "Committed", value: "committed" },
+        { title: "UNKNOWN", value: "UNKNOWN" },
+      ];
+    },
     identityItems() {
       return this.identities.map((id) => ({
         identity_id: id.identity_id,
@@ -300,18 +305,12 @@ export default {
     },
   },
   mounted() {
-    this.loadAll();
+    this.refreshAll();
   },
   methods: {
     formatRelative,
-    frameUrl(minioKey) {
-      if (!minioKey) return null;
-      const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
-      const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");
-      return `/api/v1/cts/frames/${encodedKey}?api_key=${apiKey}`;
-    },
     identityLabel(track) {
-      if (!track.current_identity_id) return "UNKNOWN";
+      if (!track || !track.current_identity_id) return "UNKNOWN";
       return this.identityMap[track.current_identity_id] || track.current_identity_id;
     },
     identityDisplayName(identityId) {
@@ -322,74 +321,149 @@ export default {
       if (!id) return "—";
       return id.length > 16 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id;
     },
-    async loadAll() {
-      await Promise.all([this.loadTracks(), this.loadRevisions(), this.loadIdentities()]);
+    kindColor(kind) {
+      return kind === "auto" ? "info" : kind === "manual_merge" ? "primary" : "warning";
+    },
+    kindLabel(kind) {
+      return kind === "auto" ? "Auto" : kind === "manual_merge" ? "Merge" : "Manual";
+    },
+    debouncedSearch() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => this.loadTracks(), 300);
+    },
+    async refreshAll() {
+      await Promise.all([this.loadTracks(), this.loadIdentities()]);
     },
     async loadTracks() {
-      this.loading.tracks = true;
+      this.loading = true;
       try {
-        const data = await cts.getGlobalTracks(true);
+        const params = {
+          open_only: this.activeTab === "active",
+          limit: this.pagination.itemsPerPage,
+          offset: (this.pagination.page - 1) * this.pagination.itemsPerPage,
+        };
+        if (this.filters.status) params.status = this.filters.status;
+        if (this.filters.camera_id) params.camera_id = this.filters.camera_id;
+        if (this.filters.search) params.search = this.filters.search;
+        const data = await cts.getGlobalTracks(params);
         this.tracks = data.tracks || [];
+        this.totalTracks = data.count || this.tracks.length;
+        this.activeCount = data.count || this.tracks.length;
+        // Populate camera filter
+        const cams = new Set();
+        for (const t of this.tracks) {
+          for (const cid of t.camera_ids || []) cams.add(cid);
+        }
+        this.cameraOptions = [...cams].map((c) => ({ title: c, value: c }));
       } catch (err) {
         this.error = String(err.message || err);
       } finally {
-        this.loading.tracks = false;
-      }
-    },
-    async loadRevisions() {
-      this.loading.revisions = true;
-      try {
-        const data = await cts.getRevisions({ window_hours: 48, limit: 50 });
-        this.revisions = data.revisions || [];
-      } catch (err) {
-        this.error = String(err.message || err);
-      } finally {
-        this.loading.revisions = false;
+        this.loading = false;
       }
     },
     async loadIdentities() {
       try {
         const data = await cts.getIdentities();
         this.identities = data.identities || [];
-      } catch {
-        // Non-critical: identity names degrade to raw IDs.
+      } catch (err) {
+        this.error = String(err.message || err);
       }
     },
-    openCorrection(track, mode) {
-      this.dialogMode = mode;
-      this.dialogTrack = track;
-      this.form = {
-        global_track_id: track.global_track_id,
-        previous_identity_id: track.current_identity_id || "",
-        from_identity_id: track.current_identity_id || "",
-        new_identity_id: "",
-        reason: mode === "merge" ? "manual_merge" : "manual",
-      };
-      this.dialogOpen = true;
-    },
-    async submit() {
-      this.saving = true;
+    async loadDecisions() {
+      this.loadingDecisions = true;
       try {
-        if (this.dialogMode === "merge") {
-          await cts.mergeIdentities({
-            global_track_id: this.form.global_track_id,
-            from_identity_id: this.form.from_identity_id,
-            to_identity_id: this.form.new_identity_id,
-            reason: this.form.reason,
-          });
-        } else {
-          await cts.applyCorrection({
-            global_track_id: this.form.global_track_id,
-            new_identity_id: this.form.new_identity_id || null,
-            reason: this.form.reason,
-          });
-        }
-        this.dialogOpen = false;
-        await this.loadAll();
+        const params = { limit: 50 };
+        if (this.decisionsKindFilter) params.kind = this.decisionsKindFilter;
+        const data = await cts.getDecisions(params);
+        this.decisions = data.decisions || [];
+        this.decisionsHasMore = data.has_more || false;
+        this.decisionsCursor = this.decisions.length
+          ? this.decisions[this.decisions.length - 1].revision_id
+          : null;
       } catch (err) {
         this.error = String(err.message || err);
       } finally {
-        this.saving = false;
+        this.loadingDecisions = false;
+      }
+    },
+    async loadMoreDecisions() {
+      this.loadingDecisions = true;
+      try {
+        const params = { limit: 50, before_id: this.decisionsCursor };
+        if (this.decisionsKindFilter) params.kind = this.decisionsKindFilter;
+        const data = await cts.getDecisions(params);
+        const newDecisions = data.decisions || [];
+        this.decisions = [...this.decisions, ...newDecisions];
+        this.decisionsHasMore = data.has_more || false;
+        if (newDecisions.length) {
+          this.decisionsCursor = newDecisions[newDecisions.length - 1].revision_id;
+        }
+      } catch (err) {
+        this.error = String(err.message || err);
+      } finally {
+        this.loadingDecisions = false;
+      }
+    },
+    onTabChange(tab) {
+      this.selected = [];
+      this.pagination.page = 1;
+      if (tab === "decisions") {
+        this.loadDecisions();
+      } else {
+        this.loadTracks();
+      }
+    },
+    onTableOptions(opts) {
+      this.pagination.page = opts.page;
+      this.pagination.itemsPerPage = opts.itemsPerPage;
+      this.loadTracks();
+    },
+    openInspector(track, mode) {
+      this.drawerMode = mode;
+      this.inspectorTrack = track;
+      this.drawerOpen = true;
+    },
+    async onDrawerApply(form) {
+      try {
+        if (this.drawerMode === "merge") {
+          await cts.mergeIdentities({
+            global_track_id: this.inspectorTrack.global_track_id,
+            from_identity_id: form.from_identity_id,
+            to_identity_id: form.new_identity_id,
+            reason: form.reason,
+          });
+        } else {
+          await cts.applyCorrection({
+            global_track_id: this.inspectorTrack.global_track_id,
+            new_identity_id: form.new_identity_id || null,
+            reason: form.reason,
+          });
+        }
+        this.drawerOpen = false;
+        await this.refreshAll();
+      } catch (err) {
+        this.error = String(err.message || err);
+      }
+    },
+    confirmBulkUnknown() {
+      this.bulkDialogOpen = true;
+    },
+    async executeBulk() {
+      this.bulkSaving = true;
+      try {
+        const corrections = this.selected.map((t) => ({
+          global_track_id: t.global_track_id,
+          new_identity_id: null,
+          reason: "bulk_confirm_unknown",
+        }));
+        await cts.batchCorrect(corrections);
+        this.selected = [];
+        this.bulkDialogOpen = false;
+        await this.loadTracks();
+      } catch (err) {
+        this.error = String(err.message || err);
+      } finally {
+        this.bulkSaving = false;
       }
     },
   },
@@ -397,24 +471,6 @@ export default {
 </script>
 
 <style scoped>
-.track-card {
-  transition: box-shadow 0.2s;
-}
-.track-card:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-.track-thumb {
-  border-radius: 12px 12px 0 0;
-}
-.track-thumb-overlay {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
-  height: 100%;
-}
-.track-thumb-placeholder {
-  height: 140px;
-  background: rgba(var(--v-theme-on-surface), 0.04);
-  border-radius: 12px 12px 0 0;
-}
 .font-mono {
   font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 }

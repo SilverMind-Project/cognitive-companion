@@ -122,6 +122,12 @@ export const cts = {
     req(`/keyframes/${sampleId}/retain`, { method: "POST" }),
 
   // ── Dashboard ───────────────────────────────────────────────────────────────
+  getDashboardOverview: () => req("/dashboard/overview"),
+  getUnacknowledgedCount: () => req("/dashboard/unacknowledged-count"),
+  createSuppression: (data) =>
+    req("/dashboard/suppressions", { method: "POST", body: JSON.stringify(data) }),
+  deleteSuppression: (id) =>
+    req(`/dashboard/suppressions/${id}`, { method: "DELETE" }),
   getDashboardSignals: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.person_id) qs.set("person_id", params.person_id);
@@ -153,8 +159,17 @@ export const cts = {
 
   // ── Identity corrections (M9) ──────────────────────────────────────────────
   getIdentities: () => req("/identity/identities"),
-  getGlobalTracks: (openOnly = true) =>
-    req(`/identity/global_tracks?open_only=${openOnly}`),
+  getGlobalTracks: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.open_only !== undefined) qs.set("open_only", params.open_only);
+    if (params.limit) qs.set("limit", params.limit);
+    if (params.offset) qs.set("offset", params.offset);
+    if (params.camera_id) qs.set("camera_id", params.camera_id);
+    if (params.status) qs.set("status", params.status);
+    if (params.search) qs.set("search", params.search);
+    const q = qs.toString();
+    return q ? req(`/identity/global_tracks?${q}`) : req("/identity/global_tracks");
+  },
   applyCorrection: (payload) =>
     req("/identity/corrections", {
       method: "POST",
@@ -165,6 +180,25 @@ export const cts = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  batchCorrect: (corrections) =>
+    req("/identity/corrections/batch", {
+      method: "POST",
+      body: JSON.stringify({ corrections }),
+    }),
+  getDecisions: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.kind) qs.set("kind", params.kind);
+    if (params.limit) qs.set("limit", params.limit);
+    if (params.before_id) qs.set("before_id", params.before_id);
+    const q = qs.toString();
+    return q ? req(`/identity/decisions?${q}`) : req("/identity/decisions");
+  },
+  // ── Identity track enrichment (Phase 1C) ──────────────────────────────
+  getGlobalTrackDetail: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}`),
+  getCoOccurringTracks: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}/co_occurring`),
+  getTrackKeyframes: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}/keyframes`),
+  getTrackTrail: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}/trail`),
+
   getRevisions: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.window_hours) qs.set("window_hours", params.window_hours);

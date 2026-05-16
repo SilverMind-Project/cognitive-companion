@@ -92,13 +92,36 @@ class OrchestratorClient(UpstreamClient):
         )
         return r.json().get("identities", [])
 
-    async def get_global_tracks(self, *, open_only: bool = True) -> list[dict]:
-        r = await self._request(
-            "GET",
-            "/internal/global_tracks",
-            params={"open_only": str(open_only).lower()},
-        )
-        return r.json().get("tracks", [])
+    async def get_global_tracks(
+        self,
+        *,
+        open_only: bool = True,
+        limit: int | None = None,
+        offset: int | None = None,
+        camera_id: str | None = None,
+        status: str | None = None,
+        search: str | None = None,
+    ) -> dict:
+        params: dict[str, str] = {"open_only": str(open_only).lower()}
+        if limit is not None:
+            params["limit"] = str(limit)
+        if offset is not None:
+            params["offset"] = str(offset)
+        if camera_id:
+            params["camera_id"] = camera_id
+        if status:
+            params["status"] = status
+        if search:
+            params["search"] = search
+        r = await self._request("GET", "/internal/global_tracks", params=params)
+        data = r.json()
+        tracks = data.get("tracks", [])
+        return {
+            "tracks": tracks,
+            "count": int(data.get("count", len(tracks))),
+            "limit": data.get("limit"),
+            "offset": data.get("offset"),
+        }
 
     async def get_global_track(self, track_id: str) -> dict:
         r = await self._request("GET", f"/internal/global_tracks/{track_id}")
@@ -118,11 +141,18 @@ class OrchestratorClient(UpstreamClient):
         return r.json()
 
     async def list_recent_trajectory(
-        self, *, identity_id: str | None = None, since: str | None = None, limit: int = 200
+        self,
+        *,
+        identity_id: str | None = None,
+        global_track_id: str | None = None,
+        since: str | None = None,
+        limit: int = 200,
     ) -> dict:
         params: dict = {"limit": limit}
         if identity_id:
             params["identity_id"] = identity_id
+        if global_track_id:
+            params["global_track_id"] = global_track_id
         if since:
             params["since"] = since
         r = await self._request("GET", "/internal/trajectory/recent", params=params)
@@ -166,8 +196,10 @@ class OrchestratorClient(UpstreamClient):
         signal_type: str | None = None,
         after: str | None = None,
         limit: int = 100,
+        global_track_id: str | None = None,
+        strategy: str | None = None,
     ) -> list[dict]:
-        """List tagged keyframes, optionally filtered by person or signal."""
+        """List tagged keyframes, optionally filtered by person, signal, or track."""
         params: dict[str, str] = {"limit": str(limit)}
         if person_id:
             params["person_id"] = person_id
@@ -175,6 +207,10 @@ class OrchestratorClient(UpstreamClient):
             params["signal_type"] = signal_type
         if after:
             params["after"] = after
+        if global_track_id:
+            params["global_track_id"] = global_track_id
+        if strategy:
+            params["strategy"] = strategy
         r = await self._request("GET", "/internal/keyframes", params=params)
         return r.json().get("keyframes", [])
 
@@ -185,9 +221,7 @@ class OrchestratorClient(UpstreamClient):
 
     async def retain_keyframe(self, sample_id: str) -> dict:
         """Retain a keyframe past the normal retention window."""
-        r = await self._request(
-            "POST", f"/internal/keyframes/{sample_id}/retain"
-        )
+        r = await self._request("POST", f"/internal/keyframes/{sample_id}/retain")
         return r.json()
 
     # -- Dashboard methods (M8) ----------------------------------------------

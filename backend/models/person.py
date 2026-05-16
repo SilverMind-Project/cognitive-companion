@@ -54,6 +54,7 @@ class HouseholdMember(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(128))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
+    alert_priority: Mapped[int] = mapped_column(Integer, default=5)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     sightings: Mapped[list[PersonSighting]] = relationship(back_populates="person")

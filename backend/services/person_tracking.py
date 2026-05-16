@@ -41,6 +41,7 @@ from backend.models.person import (
 )
 from backend.models.sensor import Sensor
 from backend.services.camera_topology import RoomTransition, infer_room_transition
+from backend.services.cts.source_authority import SourceAuthority
 
 logger = get_logger(__name__)
 
@@ -112,11 +113,13 @@ class PersonTrackingService:
         person_id_client: PersonIDClient,
         ha_client: HomeAssistantClient,
         ws_manager=None,
+        authority: SourceAuthority | None = None,
     ) -> None:
         self._db_factory = db_session_factory
         self._person_id = person_id_client
         self._ha = ha_client
         self._ws_manager = ws_manager
+        self._authority = authority or SourceAuthority()
         self._stale_minutes: int = settings.get("person_tracking.location_stale_minutes", 30)
         self._ha_propagation: bool = settings.get("person_tracking.ha_propagation", True)
         self._min_confidence: float = settings.get("person_id.min_confidence", 0.5)
@@ -424,6 +427,18 @@ class PersonTrackingService:
         repo = SqlAlchemyLocationRepository(db)
 
         existing = repo.get_state(person_id)
+
+        # Check SourceAuthority before writing (CR-15).
+        incoming_priority = self._authority.priority_for(source)
+        if existing is not None and not self._authority.should_write(
+            incoming_priority=incoming_priority,
+            incoming_time=now,
+            current_source=existing.last_sensor_id or "",
+            current_updated_at=existing.updated_at,
+        ):
+            # A higher-priority source already owns this state; skip.
+            return
+
         room_changed = existing is None or existing.current_room_name != room_name
 
         if room_changed:
@@ -434,22 +449,24 @@ class PersonTrackingService:
                 room_name=room_name,
                 entered_at=now,
                 source=source,
-                direction_semantic=(
-                    room_transition.semantic if room_transition else None
-                ),
-                from_room_id=(
-                    room_transition.from_room_id if room_transition else None
-                ),
-                from_room_name=(
-                    room_transition.from_room_name if room_transition else None
-                ),
+                direction_semantic=(room_transition.semantic if room_transition else None),
+                from_room_id=(room_transition.from_room_id if room_transition else None),
+                from_room_name=(room_transition.from_room_name if room_transition else None),
             )
+
+        state_source = (
+            f"recamera:{sensor_id}"
+            if source == "camera"
+            else f"ha:uncorrelated:{sensor_id}"
+            if source == "ha_sensor"
+            else sensor_id
+        )
 
         repo.upsert_state(
             person_id=person_id,
             room_name=room_name,
             room_id=room_id,
-            sensor_id=sensor_id,
+            sensor_id=state_source,
             confidence=confidence,
             status="home",
             event_time=now,
@@ -741,5 +758,3 @@ class PersonTrackingService:
             except Exception:
                 logger.warning("failed_to_load_image", path=path[:100])
         return images
-
-

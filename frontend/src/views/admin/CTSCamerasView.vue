@@ -71,8 +71,39 @@
             class="mb-3"
             placeholder="rtsp://192.168.1.10/stream"
           />
-          <v-text-field v-model="form.location" label="Location (optional)" variant="outlined" class="mb-3" />
+          <v-autocomplete
+            v-if="!useCustomName"
+            v-model="form.room_id"
+            :items="rooms"
+            item-title="name"
+            item-value="id"
+            label="Room"
+            variant="outlined"
+            class="mb-2"
+            clearable
+          />
+          <div class="d-flex align-center mb-2">
+            <v-switch
+              label="Custom name"
+              v-model="useCustomName"
+              density="compact"
+              hide-details
+              color="secondary"
+            />
+          </div>
+          <v-text-field
+            v-if="useCustomName"
+            v-model="form.room_name"
+            label="Custom location name"
+            variant="outlined"
+            class="mb-3"
+          />
           <v-switch v-model="form.enabled" label="Enabled" color="primary" class="mb-3" />
+          <v-radio-group v-model="form.role" label="Camera role" class="mb-3" density="compact" inline>
+            <v-radio label="Surveillance" value="surveillance" />
+            <v-radio label="Face-capable" value="face_capable" />
+            <v-radio label="Mixed" value="mixed" />
+          </v-radio-group>
           <v-divider class="mb-3" />
           <div class="text-subtitle-2 font-weight-medium mb-2">Face Identification</div>
           <v-switch
@@ -181,6 +212,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { cts } from "../../services/cts.js";
+import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
@@ -190,6 +222,8 @@ const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
 
 const cameras = ref([]);
+const rooms = ref([]);
+const useCustomName = ref(false);
 const loading = ref(false);
 const dialog = ref(false);
 const editing = ref(false);
@@ -207,8 +241,9 @@ const snapshotUrl = ref(null);
 const headers = [
   { title: "ID", key: "id" },
   { title: "Name", key: "name" },
-  { title: "Location", key: "location" },
+  { title: "Location", key: "room_name" },
   { title: "Status", key: "enabled", width: 100 },
+  { title: "Role", key: "role", width: 130 },
   { title: "Calibrated", key: "has_homography", width: 110 },
   { title: "Privacy Zones", key: "privacy_zone_count", width: 130 },
   { title: "", key: "actions", sortable: false, align: "end" },
@@ -218,13 +253,23 @@ const emptyForm = () => ({
   id: "",
   name: "",
   rtsp_url: "",
-  location: "",
+  room_name: "",
+  room_id: null,
   enabled: true,
   face_id_enabled: true,
   face_id_min_confidence: null,
+  role: "surveillance",
 });
 
 const form = ref(emptyForm());
+
+async function loadRooms() {
+  try {
+    rooms.value = await api.getRooms();
+  } catch (e) {
+    notify(e.message, "error");
+  }
+}
 
 async function loadCameras() {
   loading.value = true;
@@ -241,20 +286,25 @@ function openCreate() {
   editing.value = false;
   editId.value = null;
   form.value = emptyForm();
+  useCustomName.value = false;
   dialog.value = true;
 }
 
 function openEdit(cam) {
   editing.value = true;
   editId.value = cam.id;
+  const hasRoom = cam.room_id != null;
+  useCustomName.value = !hasRoom && !!cam.room_name && !(cam.room || {}).id;
   form.value = {
     id: cam.id,
     name: cam.name,
     rtsp_url: cam.rtsp_url,
-    location: cam.location || "",
+    room_name: cam.room_name || "",
+    room_id: cam.room_id ?? null,
     enabled: cam.enabled,
     face_id_enabled: cam.face_id_enabled !== false,
     face_id_min_confidence: cam.face_id_min_confidence ?? null,
+    role: cam.role || "surveillance",
   };
   dialog.value = true;
 }
@@ -262,12 +312,27 @@ function openEdit(cam) {
 async function saveCamera() {
   saving.value = true;
   try {
+    const payload = { ...form.value };
+    if (useCustomName.value) {
+      payload.room_id = null;
+      if (!payload.room_name?.trim()) {
+        notify("Enter a custom location name or choose a room", "error");
+        return;
+      }
+    } else {
+      if (!payload.room_id) {
+        notify("Choose a room or enable Custom name", "error");
+        return;
+      }
+      // When a room is selected, clear room_name so the backend denormalises it.
+      payload.room_name = "";
+    }
     if (editing.value) {
-      const { id, ...patch } = form.value;
+      const { id, ...patch } = payload;
       await cts.updateCamera(editId.value, patch);
       notify("Camera updated");
     } else {
-      await cts.createCamera(form.value);
+      await cts.createCamera(payload);
       notify("Camera created");
     }
     dialog.value = false;
@@ -336,7 +401,7 @@ function closeSnapshot() {
   }
 }
 
-onMounted(loadCameras);
+onMounted(() => { loadCameras(); loadRooms(); });
 onBeforeUnmount(() => {
   if (snapshotUrl.value) URL.revokeObjectURL(snapshotUrl.value);
 });

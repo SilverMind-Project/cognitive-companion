@@ -23,7 +23,8 @@ class CtsCamera(Base):
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     name: Mapped[str] = mapped_column(String(256), index=True)
     rtsp_url: Mapped[str] = mapped_column(String(1024), default="")
-    location: Mapped[str] = mapped_column(String(256), default="")
+    room_name: Mapped[str] = mapped_column(String(256), default="")
+    room_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Clockwise rotation applied by rtsp-ingress at ingest time.
@@ -35,6 +36,10 @@ class CtsCamera(Base):
     # are never visible.  min_confidence overrides the orchestrator default.
     face_id_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     face_id_min_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Camera role: face_capable (has usable face angles), surveillance
+    # (top-down or overview), or mixed (partial face visibility).
+    role: Mapped[str] = mapped_column(String(32), default="surveillance")
 
     # MinIO object key for the floor-plan image (optional).
     floor_plan_key: Mapped[str | None] = mapped_column(String(512), nullable=True)

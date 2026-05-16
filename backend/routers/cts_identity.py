@@ -25,12 +25,14 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_session
 from backend.core.logging import get_logger
 from backend.integrations._upstream_base import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
+from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 from backend.models.person import PersonLocationHistory
 from backend.routers.cts_deps import cts_enabled
 from backend.routers.dependencies import get_orchestrator_client
@@ -68,19 +70,176 @@ class MergeRequest(BaseModel):
 @router.get("/global_tracks")
 async def list_global_tracks(
     open_only: bool = Query(True),
+    limit: int | None = Query(None, ge=1, le=200),
+    offset: int | None = Query(None, ge=0),
+    camera_id: str | None = Query(None),
+    track_status: str | None = Query(
+        None,
+        alias="status",
+        pattern="^(committed|UNKNOWN)$",
+    ),
+    search: str | None = Query(None),
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
-    """List current global tracks for the corrections review pane."""
+    """List current global tracks for the corrections review pane.
+
+    Pagination via ``limit``/``offset``; filtering by ``camera_id``,
+    ``status`` (committed / UNKNOWN), or free-text ``search`` over
+    identity display name.
+    """
     cts_enabled()
     try:
-        tracks = await client.get_global_tracks(open_only=open_only)
+        data = await client.get_global_tracks(
+            open_only=open_only,
+            limit=limit,
+            offset=offset,
+            camera_id=camera_id,
+            status=track_status,
+            search=search,
+        )
     except UpstreamError as exc:
         raise HTTPException(
             status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
             detail={"code": "cts.upstream_error", "message": str(exc)},
         ) from exc
-    return {"tracks": tracks, "count": len(tracks)}
+    return {
+        "tracks": data["tracks"],
+        "count": data["count"],
+        "limit": data.get("limit"),
+        "offset": data.get("offset"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# GET /cts/identity/global_tracks/{id}
+# ---------------------------------------------------------------------------
+
+
+@router.get("/global_tracks/{global_track_id}")
+async def get_global_track_detail(
+    global_track_id: str,
+    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Return enriched detail for a single global track.
+
+    Sources the track metadata from the orchestrator, posterior evidence
+    from ``cts_identity_revision_log``, and camera dwell from CC side.
+    """
+    cts_enabled()
+    try:
+        track = await client.get_global_track(global_track_id)
+    except UpstreamError as exc:
+        raise HTTPException(
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "cts.upstream_error", "message": str(exc)},
+        ) from exc
+
+    # Enrich with posterior evidence from the revision log
+    posterior = _latest_posterior(global_track_id)
+    track["posterior"] = posterior
+
+    return track
+
+
+# ---------------------------------------------------------------------------
+# GET /cts/identity/global_tracks/{id}/co_occurring
+# ---------------------------------------------------------------------------
+
+
+@router.get("/global_tracks/{global_track_id}/co_occurring")
+async def list_co_occurring_tracks(
+    global_track_id: str,
+    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Return other global tracks active at overlapping times/cameras."""
+    cts_enabled()
+    try:
+        data = await client.get_global_tracks(open_only=True, limit=500, offset=0)
+    except UpstreamError as exc:
+        raise HTTPException(
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "cts.upstream_error", "message": str(exc)},
+        ) from exc
+
+    # Filter to tracks sharing a camera with the target, excluding self
+    tracks = data["tracks"]
+    target = None
+    target_cameras: set[str] = set()
+    for t in tracks:
+        if t.get("global_track_id") == global_track_id:
+            target = t
+            target_cameras = set(t.get("camera_ids", []))
+            break
+
+    if target is None:
+        return {"co_occurring": []}
+
+    co_occurring = [
+        t
+        for t in tracks
+        if t.get("global_track_id") != global_track_id
+        and set(t.get("camera_ids", [])) & target_cameras
+    ]
+    return {"co_occurring": co_occurring, "count": len(co_occurring)}
+
+
+# ---------------------------------------------------------------------------
+# GET /cts/identity/global_tracks/{id}/keyframes
+# ---------------------------------------------------------------------------
+
+
+@router.get("/global_tracks/{global_track_id}/keyframes")
+async def list_track_keyframes(
+    global_track_id: str,
+    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Return up to 3 lifecycle keyframes for a global track."""
+    cts_enabled()
+    try:
+        keyframes = await client.list_keyframes(
+            global_track_id=global_track_id,
+            limit=3,
+            strategy="lifecycle",
+        )
+    except UpstreamError as exc:
+        raise HTTPException(
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "cts.upstream_error", "message": str(exc)},
+        ) from exc
+    return {"keyframes": keyframes, "count": len(keyframes)}
+
+
+# ---------------------------------------------------------------------------
+# GET /cts/identity/global_tracks/{id}/trail
+# ---------------------------------------------------------------------------
+
+
+@router.get("/global_tracks/{global_track_id}/trail")
+async def get_track_trail(
+    global_track_id: str,
+    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Return the last 5 minutes of floor-point trail for a global track."""
+    cts_enabled()
+    try:
+        trail_data = await client.list_recent_trajectory(
+            global_track_id=global_track_id,
+            limit=300,
+        )
+    except UpstreamError as exc:
+        raise HTTPException(
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "cts.upstream_error", "message": str(exc)},
+        ) from exc
+    return {
+        "points": trail_data.get("points", []),
+        "count": trail_data.get("count", 0),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -139,12 +298,24 @@ async def apply_correction(
             detail={"code": "cts.upstream_error", "message": str(exc)},
         ) from exc
 
+    revision_id = resp.get("revision_id")
+    _write_manual_revision_log(
+        revision_id=revision_id,
+        global_track_id=body.global_track_id,
+        previous_identity_id=resp.get("previous_identity_id"),
+        new_identity_id=body.new_identity_id,
+        actor=auth.name,
+        reason=body.reason,
+        kind="manual_correct",
+        evidence=body.evidence,
+    )
+
     logger.info(
         "cts_identity_correction_applied",
         actor=auth.name,
         global_track_id=body.global_track_id,
         new_identity_id=body.new_identity_id,
-        revision_id=resp.get("revision_id"),
+        revision_id=revision_id,
     )
     return resp
 
@@ -184,7 +355,173 @@ async def merge_identities(
             detail={"code": "cts.upstream_error", "message": str(exc)},
         ) from exc
 
+    revision_id = resp.get("revision_id")
+    _write_manual_revision_log(
+        revision_id=revision_id,
+        global_track_id=body.global_track_id,
+        previous_identity_id=resp.get("previous_identity_id") or body.from_identity_id,
+        new_identity_id=body.to_identity_id,
+        actor=auth.name,
+        reason=body.reason,
+        kind="manual_merge",
+        evidence={
+            "merge_from": body.from_identity_id,
+            "merge_to": body.to_identity_id,
+        },
+    )
+
     return resp
+
+
+# ---------------------------------------------------------------------------
+# POST /cts/identity/corrections/batch
+# ---------------------------------------------------------------------------
+
+
+class BatchCorrectionItem(BaseModel):
+    global_track_id: str = Field(..., min_length=1, max_length=128)
+    new_identity_id: str | None = Field(default=None, max_length=128)
+    reason: str = Field(default="manual", max_length=512)
+
+
+class BatchCorrectionRequest(BaseModel):
+    corrections: list[BatchCorrectionItem] = Field(..., min_length=1, max_length=100)
+
+
+@router.post("/corrections/batch")
+async def apply_corrections_batch(
+    body: BatchCorrectionRequest,
+    auth: AuthContext = Depends(require_permission("cts.identity.correct.batch")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Confirm multiple tracks as UNKNOWN (or assign to the same identity).
+
+    Each correction is independent: one failure does not abort the batch.
+    """
+    cts_enabled()
+    results: list[dict[str, Any]] = []
+    for item in body.corrections:
+        try:
+            resp = await client.manual_identity_override(
+                global_track_id=item.global_track_id,
+                new_identity_id=item.new_identity_id,
+                actor=auth.name,
+                reason=item.reason,
+            )
+            revision_id = resp.get("revision_id")
+            _write_manual_revision_log(
+                revision_id=revision_id,
+                global_track_id=item.global_track_id,
+                previous_identity_id=resp.get("previous_identity_id"),
+                new_identity_id=item.new_identity_id,
+                actor=auth.name,
+                reason=item.reason,
+                kind="manual_correct",
+                evidence=None,
+            )
+            results.append(
+                {
+                    "global_track_id": item.global_track_id,
+                    "status": "ok",
+                    "revision_id": revision_id,
+                }
+            )
+        except UpstreamError as exc:
+            logger.warning(
+                "cts_identity_batch_item_upstream_error",
+                global_track_id=item.global_track_id,
+                error=str(exc),
+            )
+            results.append(
+                {
+                    "global_track_id": item.global_track_id,
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
+        except Exception as exc:
+            logger.exception(
+                "cts_identity_batch_item_error",
+                global_track_id=item.global_track_id,
+            )
+            results.append(
+                {
+                    "global_track_id": item.global_track_id,
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
+    return {"results": results}
+
+
+# ---------------------------------------------------------------------------
+# GET /cts/identity/decisions
+# ---------------------------------------------------------------------------
+
+
+@router.get("/decisions")
+async def list_decisions(
+    kind: str | None = Query(None, pattern="^(auto|manual_correct|manual_merge)$"),
+    limit: int = Query(50, ge=1, le=200),
+    before_id: str | None = Query(None),
+    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+) -> dict:
+    """Return the first-class identity decision log.
+
+    Reads from ``cts_identity_revision_log``, which records every identity
+    decision (auto from the resolver, manual from corrections/merges).
+
+    Cursor pagination via ``before_id``: pass the ``revision_id`` of the last
+    item on the current page to get the next page.
+    """
+    cts_enabled()
+    db = get_session()
+    try:
+        query = db.query(CtsIdentityRevisionLog)
+        if kind:
+            query = query.filter(CtsIdentityRevisionLog.kind == kind)
+        if before_id:
+            # Keyset pagination: fetch the reference row's applied_at,
+            # then rows with older timestamps (or same timestamp + lower id).
+            ref = query.filter(CtsIdentityRevisionLog.revision_id == before_id).first()
+            if ref is not None:
+                query = query.filter(
+                    (CtsIdentityRevisionLog.applied_at < ref.applied_at)
+                    | (
+                        (CtsIdentityRevisionLog.applied_at == ref.applied_at)
+                        & (CtsIdentityRevisionLog.revision_id < ref.revision_id)
+                    ),
+                )
+        query = query.order_by(
+            CtsIdentityRevisionLog.applied_at.desc(),
+            CtsIdentityRevisionLog.revision_id.desc(),
+        )
+        rows = query.limit(limit + 1).all()
+        has_more = len(rows) > limit
+        if has_more:
+            rows = rows[:limit]
+    finally:
+        db.close()
+
+    return {
+        "decisions": [
+            {
+                "revision_id": r.revision_id,
+                "global_track_id": r.global_track_id,
+                "previous_identity_id": r.previous_identity_id,
+                "new_identity_id": r.new_identity_id,
+                "actor": r.actor,
+                "reason": r.reason,
+                "applied_at": r.applied_at.isoformat() if r.applied_at else None,
+                "kind": r.kind,
+                "rewritten_rows": r.rewritten_rows,
+                "evidence": r.evidence,
+            }
+            for r in rows
+        ],
+        "count": len(rows),
+        "has_more": has_more,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -243,3 +580,82 @@ async def list_revisions(
         "count": len(by_revision),
         "window_hours": window_hours,
     }
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _latest_posterior(global_track_id: str) -> dict | None:
+    """Fetch the latest posterior evidence for a global track from the log."""
+    db = get_session()
+    try:
+        row = (
+            db.query(CtsIdentityRevisionLog)
+            .filter(
+                CtsIdentityRevisionLog.global_track_id == global_track_id,
+                CtsIdentityRevisionLog.evidence.isnot(None),
+            )
+            .order_by(CtsIdentityRevisionLog.applied_at.desc())
+            .first()
+        )
+        if row is None or not row.evidence:
+            return None
+        return row.evidence
+    finally:
+        db.close()
+
+
+def _write_manual_revision_log(
+    *,
+    revision_id: str | None,
+    global_track_id: str,
+    previous_identity_id: str | None,
+    new_identity_id: str | None,
+    actor: str,
+    reason: str,
+    kind: str,
+    evidence: dict[str, Any] | None,
+) -> None:
+    """Write a preliminary manual identity decision to the audit log.
+
+    Uses ON CONFLICT DO NOTHING: when the revision later flows back through
+    the subscriber and the rewriter processes it, the rewriter's upsert will
+    update ``rewritten_rows`` with the actual count while preserving the
+    ``kind`` from this preliminary entry.
+    """
+    if not revision_id:
+        logger.error("manual_revision_log_missing_revision_id")
+        raise RuntimeError("Orchestrator correction response did not include revision_id")
+
+    db = get_session()
+    try:
+        stmt = pg_insert(CtsIdentityRevisionLog).values(
+            revision_id=revision_id,
+            global_track_id=global_track_id,
+            previous_identity_id=previous_identity_id,
+            new_identity_id=new_identity_id,
+            actor=actor,
+            reason=reason,
+            applied_at=datetime.now(UTC),
+            kind=kind,
+            rewritten_rows=0,
+            evidence=evidence or {},
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[CtsIdentityRevisionLog.revision_id],
+            set_={
+                "kind": kind,
+                "actor": actor,
+                "reason": reason,
+            },
+        )
+        db.execute(stmt)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("manual_revision_log_write_error")
+        raise
+    finally:
+        db.close()

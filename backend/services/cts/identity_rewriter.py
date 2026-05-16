@@ -27,9 +27,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
+from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 from backend.models.person import PersonLocationHistory, PersonLocationState
 from backend.services.cts._time import parse_ts
 
@@ -156,6 +158,24 @@ class IdentityRewriter:
                     state.status = "home"
                     state.confidence = 1.0
 
+            # Write to the first-class audit log.  Use ON CONFLICT DO UPDATE
+            # for rewritten_rows so that a preliminary manual entry (written
+            # by the corrections router with rewritten_rows=0) gets updated
+            # with the actual count once the rewriter processes the revision.
+            _upsert_revision_log(
+                db,
+                revision_id=revision_id,
+                global_track_id=global_track_id or "",
+                previous_identity_id=previous_identity_id,
+                new_identity_id=new_identity_id,
+                actor="cts_resolver",
+                reason=revision.get("reason"),
+                applied_at=applied_at,
+                kind="auto",
+                rewritten_rows=rewritten,
+                evidence=revision.get("evidence"),
+            )
+
             db.commit()
         except Exception:
             db.rollback()
@@ -197,4 +217,45 @@ class IdentityRewriter:
             "rewritten": rewritten,
             "inserted": inserted,
         }
+
+
+def _upsert_revision_log(
+    db: Session,
+    *,
+    revision_id: str,
+    global_track_id: str,
+    previous_identity_id: str | None,
+    new_identity_id: str | None,
+    actor: str,
+    reason: str | None,
+    applied_at,
+    kind: str,
+    rewritten_rows: int,
+    evidence: dict | None,
+) -> None:
+    """Insert or update a row in ``cts_identity_revision_log``.
+
+    Uses PostgreSQL ON CONFLICT to update ``rewritten_rows`` when a
+    preliminary entry already exists (e.g. from a manual correction).
+    """
+    stmt = pg_insert(CtsIdentityRevisionLog).values(
+        revision_id=revision_id,
+        global_track_id=global_track_id,
+        previous_identity_id=previous_identity_id,
+        new_identity_id=new_identity_id,
+        actor=actor,
+        reason=reason,
+        applied_at=applied_at,
+        kind=kind,
+        rewritten_rows=rewritten_rows,
+        evidence=evidence,
+    )
+    stmt = stmt.on_conflict_do_update(
+        index_elements=[CtsIdentityRevisionLog.revision_id],
+        set_={
+            "rewritten_rows": stmt.excluded.rewritten_rows,
+            "evidence": stmt.excluded.evidence,
+        },
+    )
+    db.execute(stmt)
 

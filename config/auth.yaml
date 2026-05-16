@@ -123,6 +123,8 @@ permission_map:
     - "cts.keyframes.view"
     - "cts.cameras.read"
     - "cts.identity.correct"
+    - "cts.identity.correct.batch"
+    - "cts.identity.read_enriched"
     - "cts.replay"
 
   operator:

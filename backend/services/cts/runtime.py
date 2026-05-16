@@ -75,21 +75,22 @@ class CTSRuntime:
         scene_analysis_client: SceneAnalysisClient | None = None,
         semantic_memory_client: SemanticMemoryClient | None = None,
         camera_room_map: dict[str, str] | None = None,
+        authority: SourceAuthority | None = None,
     ) -> None:
         self._cfg = config
         self._db_factory = db_factory
         self._ws_manager = ws_manager
         self._pipeline = pipeline
 
-        authority = SourceAuthority(cts_lock_s=config.cts_lock_s)
+        if authority is None:
+            authority = SourceAuthority(cts_lock_s=config.cts_lock_s)
+        self.authority = authority
 
         def _repo_factory() -> SqlAlchemyLocationRepository:
             return SqlAlchemyLocationRepository(db_factory())
 
-        self.location_writer = LocationWriter(repo_factory=_repo_factory, authority=authority)
-        self.identity_rewriter = IdentityRewriter(
-            db_factory=db_factory, ws_manager=ws_manager
-        )
+        self.location_writer = LocationWriter(repo_factory=_repo_factory, authority=self.authority)
+        self.identity_rewriter = IdentityRewriter(db_factory=db_factory, ws_manager=ws_manager)
         self.signal_store = SignalStore(db_factory=db_factory)
 
         # Bucketizer for cts_window triggers. Loads enabled triggers from the
@@ -142,7 +143,9 @@ class CTSRuntime:
 
         self._bundles: list[_SubscriberBundle] = [
             _SubscriberBundle(name="tracking_events", subscriber=self.tracking_event_subscriber),
-            _SubscriberBundle(name="identity_revisions", subscriber=self.identity_revision_subscriber),
+            _SubscriberBundle(
+                name="identity_revisions", subscriber=self.identity_revision_subscriber
+            ),
             _SubscriberBundle(name="dementia_signals", subscriber=self.dementia_signal_subscriber),
             _SubscriberBundle(name="scene_samples", subscriber=self.scene_sample_subscriber),
         ]
@@ -179,9 +182,7 @@ class CTSRuntime:
                 try:
                     await bundle.subscriber.stop()
                 except Exception:
-                    logger.exception(
-                        "cts_runtime_subscriber_stop_error", name=bundle.name
-                    )
+                    logger.exception("cts_runtime_subscriber_stop_error", name=bundle.name)
 
         for bundle in self._bundles:
             if bundle.task is None:
@@ -225,14 +226,14 @@ class CTSRuntime:
 
 
 def _load_camera_room_map(db_factory: DBSessionFactory) -> dict[str, str]:
-    """Load camera_id → location mapping from the CtsCamera table."""
+    """Load camera_id to room_name mapping from the CtsCamera table."""
     db = db_factory()
     try:
         cameras = db.query(CtsCamera).filter(CtsCamera.enabled.is_(True)).all()
-        return {cam.id: cam.location or "" for cam in cameras}
+        return {cam.id: cam.room_name or "" for cam in cameras}
     except Exception:
         logger.exception("cts_camera_room_map_load_error")
-        return {}
+        raise
     finally:
         db.close()
 
@@ -245,11 +246,7 @@ def _load_window_triggers(db_factory: DBSessionFactory) -> list[CtsWindowTrigger
 
     db = db_factory()
     try:
-        rows = (
-            db.query(CtsWindowTriggerModel)
-            .filter(CtsWindowTriggerModel.enabled.is_(True))
-            .all()
-        )
+        rows = db.query(CtsWindowTriggerModel).filter(CtsWindowTriggerModel.enabled.is_(True)).all()
         return [
             CtsWindowTrigger(
                 id=row.id,

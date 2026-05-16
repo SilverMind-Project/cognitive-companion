@@ -59,6 +59,18 @@
         <span class="text-h6 font-weight-bold">Caregiver Console</span>
       </v-app-bar-title>
       <v-spacer />
+      <v-btn
+        v-if="alertCount > 0"
+        size="small"
+        variant="tonal"
+        :color="alertSeverity"
+        prepend-icon="mdi-alert-circle"
+        class="mr-3"
+        :title="alertTooltip"
+        @click="$router.push('/admin/cts')"
+      >
+        {{ alertCount }} alert{{ alertCount !== 1 ? 's' : '' }}
+      </v-btn>
       <div class="theme-toggle" :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="toggleTheme">
         <div class="theme-toggle__track" :class="{ 'theme-toggle__track--dark': isDark }">
           <v-icon class="theme-toggle__icon theme-toggle__icon--sun" size="14">mdi-white-balance-sunny</v-icon>
@@ -112,9 +124,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed } from "vue";
 import { useTheme } from "vuetify";
 import { api } from "../services/api.js";
+import { cts } from "../services/cts.js";
 
 const theme = useTheme();
 const isDark = computed(() => theme.global.name.value === "ccDark");
@@ -146,6 +159,32 @@ async function reloadConfig() {
     notify(e.message, "error");
   }
 }
+
+// Alert ticker (Phase 7)
+const alertCount = ref(0);
+const alertSeverity = ref("warning");
+const alertTooltip = ref("");
+let _alertTimer = null;
+
+async function pollAlerts() {
+  try {
+    const data = await cts.getUnacknowledgedCount();
+    alertCount.value = data.count || 0;
+    if (data.signals && data.signals.length > 0) {
+      const top = data.signals[0];
+      alertTooltip.value = `${top.kind || top.signal_kind}: ${top.identity_id || top.person_id}`;
+      alertSeverity.value = top.severity === "emergency" ? "error" : "warning";
+    }
+  } catch {
+    alertCount.value = 0;
+  }
+}
+
+onMounted(() => {
+  pollAlerts();
+  _alertTimer = setInterval(pollAlerts, 30000);
+});
+onBeforeUnmount(() => clearInterval(_alertTimer));
 
 function notify(text, color = "success") {
   snackText.value = text;

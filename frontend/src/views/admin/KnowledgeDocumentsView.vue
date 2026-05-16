@@ -91,6 +91,7 @@
           icon="mdi-pencil"
           size="small"
           variant="text"
+          color="primary"
           :to="`/admin/knowledge/documents/${item.id}`"
         />
         <v-btn

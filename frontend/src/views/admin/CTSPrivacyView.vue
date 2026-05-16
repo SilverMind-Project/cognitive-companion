@@ -68,7 +68,7 @@
               </svg>
             </v-card-text>
             <v-card-actions>
-              <v-btn size="small" variant="text" prepend-icon="mdi-pencil" @click="openEdit(zone)">Edit</v-btn>
+              <v-btn size="small" variant="text" prepend-icon="mdi-pencil" color="primary" @click="openEdit(zone)">Edit</v-btn>
               <v-spacer />
               <v-btn size="small" variant="text" color="error" @click="removeZone(zone.zone_id)">Remove</v-btn>
             </v-card-actions>

@@ -753,7 +753,7 @@ const route = useRoute();
 const ruleId = computed(() => Number(route.params.id));
 
 const rule = ref(null);
-const tab = ref("settings");
+const tab = ref(route.query.tab || "settings");
 const executing = ref(false);
 const exporting = ref(false);
 const { snack, snackText, snackColor, notify } = useNotify();

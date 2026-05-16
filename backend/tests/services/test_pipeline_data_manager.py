@@ -63,6 +63,69 @@ def test_build_initial_has_system_keys():
     assert data["system"]["timezone"] == "America/New_York"
 
 
+def test_build_initial_system_vars_full_format_set():
+    """Verify all date/time template variables are present and correctly formatted.
+
+    Local time fixture is 2024-01-15 07:00 America/New_York (Monday in January,
+    odd day 15 → ordinal '15th').
+    """
+    data = build_initial_pipeline_data(
+        trigger_type="cron",
+        sensor_id=None,
+        room_name=None,
+        media_paths=[],
+        media_type="image",
+        webhook_payload=None,
+        now_utc=_now_utc(),
+        now_local=_now_local(),
+        timezone_name="America/New_York",
+    )
+    sys = data["system"]
+    # Time formats.
+    assert sys["local_time"] == "7:00 AM"
+    assert sys["local_time_24h"] == "07:00"
+    assert sys["local_hour_12h"] == "7"
+    assert sys["local_hour_24h"] == "07"
+    assert sys["local_minute"] == "00"
+    assert sys["local_ampm"] == "AM"
+    # Day / date components.
+    assert sys["local_date"] == "2024-01-15"
+    assert sys["local_day_of_week"] == "Monday"
+    assert sys["local_day_of_week_short"] == "Mon"
+    assert sys["local_day_of_month"] == 15
+    assert sys["local_day_ordinal"] == "15th"
+    assert sys["local_month_name"] == "January"
+    assert sys["local_month_name_short"] == "Jan"
+    assert sys["local_month_number"] == 1
+    assert sys["local_year"] == 2024
+    # Friendly composites.
+    assert sys["local_date_long"] == "January 15th, 2024"
+    assert sys["local_date_friendly"] == "Monday, January 15th"
+
+
+def test_build_initial_system_ordinal_suffix_variants():
+    """Spot-check ordinal suffix rules: 1st/2nd/3rd/11th-13th/4th-20th/21st-23rd/24th-30th."""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo("UTC")
+    cases = {
+        1: "1st", 2: "2nd", 3: "3rd", 4: "4th",
+        11: "11th", 12: "12th", 13: "13th",
+        21: "21st", 22: "22nd", 23: "23rd",
+        31: "31st",
+    }
+    for day, expected in cases.items():
+        data = build_initial_pipeline_data(
+            trigger_type="cron",
+            sensor_id=None, room_name=None,
+            media_paths=[], media_type="image", webhook_payload=None,
+            now_utc=_now_utc(),
+            now_local=datetime(2024, 1, day, 12, 0, 0, tzinfo=tz),
+            timezone_name="UTC",
+        )
+        assert data["system"]["local_day_ordinal"] == expected, f"day={day}"
+
+
 def test_build_initial_has_pipeline_block():
     data = build_initial_pipeline_data(
         trigger_type="manual",

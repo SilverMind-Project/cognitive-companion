@@ -190,6 +190,41 @@ class TestInfoCardStepExecute:
         )
 
     @pytest.mark.asyncio
+    async def test_execute_renders_voice_instruction_template(self):
+        """Templated voice_instruction is rendered against pipeline_data + trigger."""
+        handler = InfoCardStep()
+        step = FakePipelineStep(
+            id=11,
+            step_type="info_card",
+            config_json={
+                "info_card_id": 1,
+                "channels": ["pwa", "voice"],
+                "voice_instruction": "Speak gently. It is {{system.local_day_of_week}} in {{trigger.room_name}}.",
+            },
+            rule_id=10,
+        )
+        execution = FakeWorkflowExecution(id=105, status="running")
+        card = FakeInfoCard(
+            id=1, title="T", body_text="B", layout_id="text_only", status="approved", image_slots=[]
+        )
+        mock_db = Mock()
+        mock_db.execute.return_value.scalar_one_or_none.return_value = card
+        delivery_svc = Mock()
+        delivery_svc.deliver_info_card = AsyncMock(return_value=Mock(delivery_id=44))
+        services = FakeServiceContainer(
+            db_factory=Mock(return_value=mock_db),
+            knowledge_delivery=delivery_svc,
+        )
+        pipeline_data = {"system": {"local_day_of_week": "Monday"}}
+        trigger = FakeTriggerContext(room_name="kitchen", sensor_id="cam1")
+
+        result = await handler.execute(step, execution, pipeline_data, trigger, services)
+
+        assert result.success is True
+        call_kwargs = delivery_svc.deliver_info_card.call_args.kwargs
+        assert call_kwargs["voice_instruction"] == "Speak gently. It is Monday in kitchen."
+
+    @pytest.mark.asyncio
     async def test_execute_with_voice_instruction_passed_through(self):
         """Custom voice_instruction is forwarded to delivery service."""
         handler = InfoCardStep()

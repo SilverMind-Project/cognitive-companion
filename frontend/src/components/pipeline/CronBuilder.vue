@@ -1,12 +1,15 @@
 <template>
   <div>
-    <v-btn-toggle v-model="mode" mandatory density="compact" class="mb-3" @update:model-value="onModeChange">
-      <v-btn value="daily" size="small">Daily</v-btn>
-      <v-btn value="weekly" size="small">Weekly</v-btn>
-      <v-btn value="hourly" size="small">Hourly</v-btn>
-      <v-btn value="interval" size="small">Every N min</v-btn>
-      <v-btn value="custom" size="small">Custom</v-btn>
-    </v-btn-toggle>
+    <div class="d-flex flex-wrap ga-2 mb-3">
+      <v-btn
+        v-for="opt in modeOptions"
+        :key="opt.value"
+        size="small"
+        :variant="mode === opt.value ? 'flat' : 'outlined'"
+        :color="mode === opt.value ? 'primary' : undefined"
+        @click="mode = opt.value; onModeChange()"
+      >{{ opt.label }}</v-btn>
+    </div>
 
     <!-- Daily: time of day -->
     <v-row v-if="mode === 'daily'" dense>
@@ -119,6 +122,13 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue"]);
 
 const mode = ref("custom");
+const modeOptions = [
+  { value: "daily",    label: "Daily"      },
+  { value: "weekly",   label: "Weekly"     },
+  { value: "hourly",   label: "Hourly"     },
+  { value: "interval", label: "Every N min"},
+  { value: "custom",   label: "Custom"     },
+];
 const hour = ref(9);
 const minute = ref(0);
 const selectedDays = ref([1, 2, 3, 4, 5]); // Mon-Fri

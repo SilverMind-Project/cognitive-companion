@@ -57,14 +57,14 @@
     @update:model-value="emit('update:modelValue', { ...modelValue, hazard_flags_any: $event })"
   />
 
-  <v-text-field
+  <div class="text-overline text-medium-emphasis mb-2">Text query (semantic search)</div>
+  <TemplateInput
     :model-value="modelValue.query_text"
-    label="Text query (semantic search)"
-    hint="Free-text query for semantic search. Supports {{template}} syntax."
-    persistent-hint
-    class="mb-4"
+    :multiline="false"
+    hint="Free-text query for semantic search. Supports {{template}} syntax. Type {{ for variable autocomplete."
     @update:model-value="emit('update:modelValue', { ...modelValue, query_text: $event })"
   />
+  <div class="mb-4" />
 
   <v-text-field
     :model-value="modelValue.limit"
@@ -88,6 +88,8 @@
 </template>
 
 <script>
+import TemplateInput from "./_shared/TemplateInput.vue";
+
 export const stepDefaults = {
   room_id: "",
   use_trigger_room: false,

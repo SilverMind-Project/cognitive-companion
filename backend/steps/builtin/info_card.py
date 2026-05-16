@@ -6,9 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
+from backend.core.template import render_template
 from backend.models.knowledge import InfoCard
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
+from backend.steps._helpers import make_trigger_vars
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -47,7 +49,10 @@ class InfoCardStep(StepHandler):
                     "voice_instruction": {
                         "type": "string",
                         "default": "",
-                        "description": "Override the Gemini Live system instruction for this delivery.",
+                        "description": (
+                            "Overrides the Gemini Live system instruction for this delivery. "
+                            "Supports {{template}} syntax (e.g. {{system.local_day_of_week}})."
+                        ),
                     },
                 },
                 "required": ["info_card_id", "channels"],
@@ -108,12 +113,21 @@ class InfoCardStep(StepHandler):
                 success=False, data={"error": "knowledge delivery service not available"}
             )
 
+        # voice_instruction supports {{template}} syntax — the card's stored
+        # title/body_text are static, but this per-execution override pulls
+        # from live pipeline_data + trigger context.
+        rendered_voice_instruction = (
+            render_template(voice_instruction, pipeline_data, make_trigger_vars(trigger))
+            if voice_instruction
+            else ""
+        )
+
         result = await delivery_svc.deliver_info_card(
             card=card,
             channels=channels,
             execution_id=execution.id,
             rule_id=step.rule_id,
-            voice_instruction=voice_instruction or None,
+            voice_instruction=rendered_voice_instruction or None,
             speak=("voice" in channels),
             dismiss_seconds=dismiss_seconds,
             eink_expiry_minutes=eink_expiry,

@@ -38,7 +38,7 @@
         </template>
         <template #item.actions="{ item }">
           <v-btn icon="mdi-image-outline" size="small" variant="text" title="Snapshot" @click="viewSnapshot(item.id)" />
-          <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(item)" />
+          <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
           <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="confirmDelete(item)" />
         </template>
       </v-data-table>

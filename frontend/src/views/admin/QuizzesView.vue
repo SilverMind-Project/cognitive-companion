@@ -69,6 +69,7 @@
           icon="mdi-pencil"
           size="small"
           variant="text"
+          color="primary"
           @click.stop="editQuiz(item)"
         />
         <v-btn

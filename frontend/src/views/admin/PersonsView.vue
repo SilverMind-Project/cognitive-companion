@@ -56,7 +56,7 @@
                      title="Enroll Face" @click="openEnroll(item)" />
               <v-btn icon="mdi-map-marker" size="small" variant="text" color="primary"
                      title="Location & History" @click="openDetail(item)" />
-              <v-btn icon="mdi-pencil" size="small" variant="text" @click="openEdit(item)" />
+              <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
               <v-btn icon="mdi-delete" size="small" variant="text" color="error"
                      @click="deleteMember(item.id)" />
             </template>

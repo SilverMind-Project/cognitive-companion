@@ -147,6 +147,13 @@ class RuleOut(OutSchema):
 
 
 
+class RuleExecutionCounts(BaseModel):
+    last_15m: int = 0
+    last_1h: int = 0
+    last_24h: int = 0
+    last_30d: int = 0
+
+
 class RuleListOut(OutSchema):
     """Lighter version without sub-resources for list endpoints."""
 
@@ -160,6 +167,7 @@ class RuleListOut(OutSchema):
     max_concurrent_executions: int
     execution_timeout_minutes: int
     created_at: UTCDatetime
+    execution_counts: RuleExecutionCounts = RuleExecutionCounts()
 
 
 

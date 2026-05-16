@@ -72,6 +72,7 @@
           icon="mdi-pencil"
           size="small"
           variant="text"
+          color="primary"
           @click="editCard(item)"
         />
         <v-btn

@@ -51,7 +51,7 @@
         </template>
         <template #item.actions="{ item }">
           <div style="white-space: nowrap">
-            <v-btn icon="mdi-pencil" size="small" variant="text" @click.stop="openEdit(item)" />
+            <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click.stop="openEdit(item)" />
             <v-btn
               icon="mdi-delete"
               size="small"

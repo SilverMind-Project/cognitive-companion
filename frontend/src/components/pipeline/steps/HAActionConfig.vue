@@ -25,21 +25,24 @@
     :item-value="(item) => item.entity_id || item"
     label="Entity ID"
     placeholder="e.g. light.living_room"
-    hint="Select from discovered entities or type an entity ID"
+    hint="Select from discovered entities or type an entity ID. Supports {{template}} syntax."
     persistent-hint
     class="mb-4"
     @update:model-value="emit('update:modelValue', { ...modelValue, entity_id: $event })"
   />
-  <v-textarea
+  <div class="text-overline text-medium-emphasis mb-2">Service Data (JSON)</div>
+  <TemplateInput
     :model-value="modelValue.data"
-    label="Service Data (JSON)"
-    rows="4"
-    placeholder='{ "brightness": 255 }'
+    :multiline="true"
+    :rows="4"
+    hint='JSON service data. String values support {{template}} syntax — e.g. { "brightness": 255, "message": "It is {{system.local_day_of_week}}" }. Type {{ for variable autocomplete.'
     @update:model-value="emit('update:modelValue', { ...modelValue, data: $event })"
   />
 </template>
 
 <script>
+import TemplateInput from "./_shared/TemplateInput.vue";
+
 export const stepDefaults = {
   domain: "",
   service: "",

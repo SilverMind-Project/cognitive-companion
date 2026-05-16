@@ -75,11 +75,20 @@
           class="live-tile"
           variant="outlined"
         >
-          <v-card-text class="d-flex align-center justify-space-between pa-2">
-            <v-chip size="small" variant="tonal">{{
-              cameraIdForSlot(slot) || "—"
-            }}</v-chip>
-            <span class="text-caption text-medium-emphasis">
+          <v-card-text class="d-flex align-center ga-2 pa-2">
+            <v-select
+              :model-value="cameraIdForSlot(slot)"
+              :items="availableCameras"
+              item-title="name"
+              item-value="id"
+              density="compact"
+              variant="outlined"
+              hide-details
+              clearable
+              class="camera-picker"
+              @update:model-value="(val) => onSlotCameraChange(slot, val)"
+            />
+            <span class="text-caption text-medium-emphasis text-no-wrap">
               {{ cameraForSlot(slot)?.detections?.length || 0 }} detections
             </span>
           </v-card-text>
@@ -200,7 +209,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, onUnmounted } from "vue";
+import { ref, computed, reactive, onMounted, onUnmounted, watch } from "vue";
 import { cts } from "@/services/cts";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket.js";
 import DialogHeader from "@/components/common/DialogHeader.vue";
@@ -223,16 +232,38 @@ const showIdLabels = ref(true);
 const cameras = ref({});
 // camera_id → blob URL for go2rtc snapshot (fallback when WS is idle)
 const snapshotUrls = ref({});
-// Camera IDs loaded from the API on mount (ensures slots populate before first WS event)
+// Full camera objects loaded from the API on mount
+const cameraList = ref([]);
+// Camera IDs loaded from the API (ensures slots populate before first WS event)
 const knownCameraIds = ref([]);
 const now = ref(Date.now());
 let _freshnessTimer = null;
 let _snapshotTimer = null;
 
+const SELECTED_STORAGE_KEY = "cts_live_selected_cameras";
+
+function loadSelectedFromStorage() {
+  try {
+    return JSON.parse(localStorage.getItem(SELECTED_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+const selectedCameras = ref(loadSelectedFromStorage());
+
+function persistSelected() {
+  localStorage.setItem(SELECTED_STORAGE_KEY, JSON.stringify(selectedCameras.value));
+}
+
+watch(selectedCameras, persistSelected, { deep: true });
+
 async function loadKnownCameras() {
   try {
     const data = await cts.getCameras();
-    knownCameraIds.value = (data.cameras || []).map((c) => c.camera_id);
+    const list = Array.isArray(data) ? data : (data.cameras || []);
+    cameraList.value = list;
+    knownCameraIds.value = list.map((c) => c.id);
     console.debug("[cts_live] cameras loaded", {
       count: knownCameraIds.value.length,
       ids: knownCameraIds.value,
@@ -344,8 +375,30 @@ function onMessage(msg) {
 
 const { status: wsStatus } = useCtsWebSocket(onMessage);
 
+const availableCameras = computed(() =>
+  cameraList.value.map((c) => ({ id: c.id, name: c.name || c.id }))
+);
+
 function cameraIdForSlot(slot) {
+  const forLayout = selectedCameras.value[layout.value] || {};
+  const selectedId = forLayout[slot];
+  if (selectedId && availableCameras.value.some((c) => c.id === selectedId)) {
+    return selectedId;
+  }
   return allCameraIds.value[slot] ?? null;
+}
+
+function onSlotCameraChange(slot, cameraId) {
+  const current = { ...(selectedCameras.value[layout.value] || {}) };
+  if (cameraId) {
+    current[slot] = cameraId;
+  } else {
+    delete current[slot];
+  }
+  selectedCameras.value = {
+    ...selectedCameras.value,
+    [layout.value]: current,
+  };
 }
 
 function cameraForSlot(slot) {
@@ -429,6 +482,10 @@ async function submitCorrection() {
 }
 .grid-4 {
   grid-template-columns: repeat(4, 1fr);
+}
+.camera-picker {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .live-tile {
   background: var(--cc-surface-2);

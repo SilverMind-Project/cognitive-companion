@@ -89,3 +89,18 @@ cts_revisions_dropped = Counter(
     "cts_revisions_dropped_total",
     "Total tracking.revisions messages dropped.",
 )
+
+# -- FrameResponse (tracking.responses) counters ------------------------------
+
+OUTCOME_LABEL = "outcome"
+
+cts_tracking_responses_received = Counter(
+    "cts_tracking_responses_received_total",
+    "Total tracking.responses messages received from Redis Stream.",
+    [OUTCOME_LABEL],
+)
+
+cts_tracking_responses_decode_errors = Counter(
+    "cts_tracking_responses_decode_errors_total",
+    "Total tracking.responses messages that failed proto decode.",
+)

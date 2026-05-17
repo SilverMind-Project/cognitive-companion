@@ -133,6 +133,8 @@ permission_map:
     # a permission not listed in auth.yaml)
     - "cts.cameras.write"
     - "cts.calibrate"
+    - "household:read"
+    - "household:write"
 
   mcp_readonly:
     - "GET /api/v1/rooms*"
@@ -157,6 +159,7 @@ permission_map:
 
   cts_ingress:
     - "GET /api/v1/cts/cameras"
+    - "GET /api/v1/cts/overlap_groups"
 
   "device:recamera":
     - "POST /api/v1/device/recamera"

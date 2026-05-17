@@ -62,6 +62,12 @@ const routes = [
         component: () => import("../views/admin/PersonsView.vue"),
       },
       {
+        path: "persons/:id",
+        name: "admin-person-profile",
+        component: () => import("../views/admin/PersonProfileView.vue"),
+        props: true,
+      },
+      {
         path: "activities",
         name: "admin-activities",
         component: () => import("../views/admin/ActivitiesView.vue"),
@@ -145,8 +151,7 @@ const routes = [
       },
       {
         path: "cts/signals",
-        name: "cts-signals",
-        component: () => import("../views/admin/CTSSignalsView.vue"),
+        redirect: "/admin/alerts?source=cts",
       },
       {
         path: "cts/keyframes",

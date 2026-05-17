@@ -1,4 +1,4 @@
-"""CTSRuntime: lifecycle manager for the three CTS subscribers.
+"""CTSRuntime: lifecycle manager for the CTS subscribers.
 
 A single owner so ``main.py`` lifespan does not grow three copies of the
 same start/stop boilerplate. Constructing ``CTSRuntime`` does not start any
@@ -36,6 +36,7 @@ from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.stream_consumer import StreamConsumer
 from backend.services.cts.subscriber import DementiaSignalSubscriber
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
+from backend.services.cts.tracking_response_subscriber import TrackingResponseSubscriber
 
 logger = get_logger(__name__)
 
@@ -62,7 +63,7 @@ class _SubscriberBundle:
 
 
 class CTSRuntime:
-    """Owns the three CTS subscribers and shared CTS services."""
+    """Owns the five CTS subscribers and shared CTS services."""
 
     def __init__(
         self,
@@ -140,6 +141,10 @@ class CTSRuntime:
             semantic_memory_client=semantic_memory_client,
             camera_room_map=camera_map,
         )
+        self.tracking_response_subscriber = TrackingResponseSubscriber(
+            redis_url=config.redis_url,
+            consumer_id=config.consumer_id,
+        )
 
         self._bundles: list[_SubscriberBundle] = [
             _SubscriberBundle(name="tracking_events", subscriber=self.tracking_event_subscriber),
@@ -148,6 +153,9 @@ class CTSRuntime:
             ),
             _SubscriberBundle(name="dementia_signals", subscriber=self.dementia_signal_subscriber),
             _SubscriberBundle(name="scene_samples", subscriber=self.scene_sample_subscriber),
+            _SubscriberBundle(
+                name="tracking_responses", subscriber=self.tracking_response_subscriber
+            ),
         ]
 
     # -- lifecycle ----------------------------------------------------------

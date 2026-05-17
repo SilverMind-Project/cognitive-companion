@@ -13,7 +13,7 @@
         height="75"
         cover
         rounded="lg"
-        class="keyframe-thumb"
+        :class="['keyframe-thumb', { 'cts-blur': blurMode }]"
         @click="$emit('click', kf)"
       />
     </div>
@@ -21,22 +21,20 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: "KeyframeStrip",
-  props: {
-    frames: { type: Array, default: () => [] },
-  },
-  emits: ["click"],
-  methods: {
-    frameUrl(minioKey) {
-      if (!minioKey) return "";
-      const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
-      const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");
-      return `/api/v1/cts/frames/${encodedKey}?api_key=${apiKey}`;
-    },
-  },
-};
+<script setup>
+import { useBlurMode } from "@/composables/useBlurMode";
+
+defineProps({ frames: { type: Array, default: () => [] } });
+defineEmits(["click"]);
+
+const { blurMode } = useBlurMode();
+
+function frameUrl(minioKey) {
+  if (!minioKey) return "";
+  const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
+  const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");
+  return `/api/v1/cts/frames/${encodedKey}?api_key=${apiKey}`;
+}
 </script>
 
 <style scoped>
@@ -47,5 +45,8 @@ export default {
 }
 .keyframe-thumb:hover {
   border-color: rgb(var(--v-theme-primary));
+}
+.cts-blur {
+  filter: blur(12px);
 }
 </style>

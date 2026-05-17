@@ -52,6 +52,8 @@
               {{ formatDate(item.created_at) }}
             </template>
             <template #item.actions="{ item }">
+              <v-btn icon="mdi-account-details" size="small" variant="text" color="primary"
+                     title="View Profile" :to="{ name: 'admin-person-profile', params: { id: item.id } }" />
               <v-btn icon="mdi-face-recognition" size="small" variant="text" color="primary"
                      title="Enroll Face" @click="openEnroll(item)" />
               <v-btn icon="mdi-map-marker" size="small" variant="text" color="primary"

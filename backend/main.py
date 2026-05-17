@@ -698,6 +698,7 @@ def create_app() -> FastAPI:
         device,
         events,
         ha_sync,
+        household,
         image,
         info_cards,
         interactive_responses,
@@ -719,6 +720,7 @@ def create_app() -> FastAPI:
 
     api = "/api/v1"
     app.include_router(rooms.router, prefix=api)
+    app.include_router(household.router, prefix=api)
     app.include_router(sensors.router, prefix=api)
     app.include_router(rules.router, prefix=api)
     app.include_router(cts_window_triggers.router, prefix=api)

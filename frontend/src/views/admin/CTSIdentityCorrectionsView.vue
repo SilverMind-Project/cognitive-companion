@@ -67,6 +67,15 @@
             @update:model-value="debouncedSearch()"
           />
         </v-col>
+        <v-col cols="12" sm="4" md="3" class="d-flex align-center">
+          <v-switch
+            v-model="showTransient"
+            label="Show transient (< 10 s)"
+            density="compact"
+            hide-details
+            @update:model-value="loadTracks()"
+          />
+        </v-col>
       </v-row>
     </v-card>
 
@@ -118,6 +127,18 @@
           <span class="text-caption text-medium-emphasis">
             {{ formatRelative(item.last_seen_at) }}
           </span>
+        </template>
+        <template #item.best_guess="{ item }">
+          <span v-if="item.current_identity_id" class="text-caption text-medium-emphasis">—</span>
+          <v-chip
+            v-else-if="topCompetitor(item)"
+            size="x-small"
+            variant="tonal"
+            color="info"
+          >
+            {{ topCompetitorLabel(item) }}
+          </v-chip>
+          <span v-else class="text-caption text-disabled">none</span>
         </template>
         <template #item.actions="{ item }">
           <v-btn
@@ -257,6 +278,7 @@ export default {
       identities: [],
       activeTab: "active",
       filters: { status: null, camera_id: null, search: "" },
+      showTransient: false,
       pagination: { page: 1, itemsPerPage: 24 },
       // Decisions
       decisions: [],
@@ -280,6 +302,7 @@ export default {
         { title: "Identity", key: "current_identity_id", sortable: false },
         { title: "Room / Camera", key: "camera_ids", sortable: false },
         { title: "Last seen", key: "last_seen_at", sortable: false },
+        { title: "Best guess", key: "best_guess", sortable: false },
         { title: "", key: "actions", sortable: false, width: 1 },
       ];
     },
@@ -327,6 +350,18 @@ export default {
     kindLabel(kind) {
       return kind === "auto" ? "Auto" : kind === "manual_merge" ? "Merge" : "Manual";
     },
+    topCompetitor(track) {
+      const posterior = track.last_posterior_jsonb;
+      if (!posterior || !Array.isArray(posterior.top) || !posterior.top.length) return null;
+      return posterior.top[0];
+    },
+    topCompetitorLabel(track) {
+      const top = this.topCompetitor(track);
+      if (!top) return "";
+      const name = this.identityMap[top.identity_id] || top.identity_id;
+      const pct = top.prob != null ? ` (${Math.round(top.prob * 100)}%)` : "";
+      return `${name}${pct}`;
+    },
     debouncedSearch() {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => this.loadTracks(), 300);
@@ -345,6 +380,8 @@ export default {
         if (this.filters.status) params.status = this.filters.status;
         if (this.filters.camera_id) params.camera_id = this.filters.camera_id;
         if (this.filters.search) params.search = this.filters.search;
+        params.include_transient = this.showTransient;
+        if (!this.showTransient) params.min_duration_s = 10;
         const data = await cts.getGlobalTracks(params);
         this.tracks = data.tracks || [];
         this.totalTracks = data.count || this.tracks.length;

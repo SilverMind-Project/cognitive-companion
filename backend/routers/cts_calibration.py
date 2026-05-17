@@ -328,6 +328,9 @@ async def get_adjacency(
     cts_enabled()
     try:
         status_data = await orchestrator.calibration_status()
-        return {"edge_count": status_data.get("adjacency_edge_count", 0)}
+        return {
+            "edge_count": status_data.get("adjacency_edge_count", 0),
+            "edges": status_data.get("adjacency_edges", []),
+        }
     except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
         raise _upstream_to_http(exc) from exc

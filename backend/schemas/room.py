@@ -14,6 +14,7 @@ class RoomFields(BaseModel):
     ha_area_id: str | None = None
     floor: str | None = None
     metadata_json: dict[str, Any] | None = None
+    floor_polygon: list[list[float]] | None = None
 
 
 class RoomCreate(RoomFields):
@@ -25,6 +26,7 @@ class RoomUpdate(BaseModel):
     ha_area_id: str | None = None
     floor: str | None = None
     metadata_json: dict[str, Any] | None = None
+    floor_polygon: list[list[float]] | None = None
 
 
 class RoomOut(RoomFields, OutSchema):

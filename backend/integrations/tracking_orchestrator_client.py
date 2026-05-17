@@ -101,6 +101,7 @@ class OrchestratorClient(UpstreamClient):
         camera_id: str | None = None,
         status: str | None = None,
         search: str | None = None,
+        min_duration_s: float | None = None,
     ) -> dict:
         params: dict[str, str] = {"open_only": str(open_only).lower()}
         if limit is not None:
@@ -113,6 +114,8 @@ class OrchestratorClient(UpstreamClient):
             params["status"] = status
         if search:
             params["search"] = search
+        if min_duration_s is not None:
+            params["min_duration_s"] = str(min_duration_s)
         r = await self._request("GET", "/internal/global_tracks", params=params)
         data = r.json()
         tracks = data.get("tracks", [])

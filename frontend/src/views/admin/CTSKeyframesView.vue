@@ -38,8 +38,40 @@
         style="width: 100px"
         @update:modelValue="loadKeyframes"
       />
+      <v-chip
+        v-if="identityHealth && !identityHealth.issues.length"
+        size="small"
+        variant="tonal"
+        color="success"
+        prepend-icon="mdi-shield-check"
+      >{{ identityHealth.gallery_size }} in gallery</v-chip>
+      <BlurToggle />
+      <v-btn
+        :variant="selectMode ? 'flat' : 'tonal'"
+        :color="selectMode ? 'primary' : undefined"
+        prepend-icon="mdi-checkbox-multiple-marked-outline"
+        @click="toggleSelectMode"
+      >{{ selectMode ? "Cancel" : "Select" }}</v-btn>
+      <v-btn
+        v-if="selectMode && selectedIds.size > 0"
+        variant="flat"
+        color="primary"
+        prepend-icon="mdi-account-plus"
+        @click="openBulkEnroll"
+      >Enroll ({{ selectedIds.size }})</v-btn>
       <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadKeyframes" :loading="loading">Refresh</v-btn>
     </div>
+
+    <v-alert
+      v-if="identityHealth && identityHealth.issues.length"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+    >
+      <div class="font-weight-medium mb-1">Identity gallery needs attention</div>
+      <div v-for="issue in identityHealth.issues" :key="issue" class="text-body-2">{{ issue }}</div>
+    </v-alert>
 
     <v-card class="glass-card">
       <!-- Empty state -->
@@ -58,18 +90,29 @@
           md="4"
           lg="3"
         >
-          <v-card class="keyframe-card" elevation="1">
+          <v-card
+            class="keyframe-card"
+            :class="{ 'card-selected': selectMode && selectedIds.has(kf.keyframe_id || kf.sample_id) }"
+            elevation="1"
+          >
             <v-img
               :src="keyframeImage(kf)"
               height="180"
               cover
-              class="keyframe-image"
+              :class="['keyframe-image', { 'cts-blur': blurMode }]"
             >
               <template v-slot:placeholder>
                 <v-row class="fill-height ma-0" align="center" justify="center">
                   <v-progress-circular indeterminate color="primary" />
                 </v-row>
               </template>
+              <v-overlay v-if="selectMode" :model-value="true" contained class="align-start justify-start pa-1">
+                <v-checkbox-btn
+                  :model-value="selectedIds.has(kf.keyframe_id || kf.sample_id)"
+                  color="white"
+                  @click.stop="toggleSelect(kf)"
+                />
+              </v-overlay>
               <v-overlay opacity="0.6" class="align-end" contained>
                 <div class="pa-2">
                   <v-chip v-if="kf.signal_type" size="x-small" color="primary">
@@ -110,7 +153,7 @@
           title="Details"
           @close="detailDialog = false"
         />
-        <v-img :src="keyframeImage(selectedKeyframe)" height="400" cover />
+        <v-img :src="keyframeImage(selectedKeyframe)" height="400" cover :class="{ 'cts-blur': blurMode }" />
         <v-card-text>
           <v-row>
             <v-col cols="6">
@@ -215,6 +258,62 @@
       </v-card>
     </v-dialog>
 
+    <!-- Bulk Enroll Dialog -->
+    <v-dialog v-model="bulkDialog" max-width="480" persistent>
+      <v-card>
+        <DialogHeader
+          icon="mdi-account-plus-outline"
+          label="Bulk Enroll"
+          :title="`${selectedIds.size} selected`"
+          @close="bulkDialog = false"
+        />
+        <v-card-text>
+          <v-alert v-if="enrollableCount < selectedIds.size" type="info" variant="tonal" density="compact" class="mb-3 text-body-2">
+            {{ enrollableCount }} of {{ selectedIds.size }} selected frames have a tracklet ID and will be enrolled. The rest will be skipped.
+          </v-alert>
+          <div class="text-body-2 text-medium-emphasis mb-4">
+            Assigns body-appearance embeddings from the selected tracklets to the chosen identity so the ReID resolver can recognise them in future frames.
+            This uses SOLIDER-ReID embeddings only — for ArcFace face matching, add a face anchor via the person profile.
+          </div>
+          <v-autocomplete
+            v-model="bulkIdentityId"
+            :items="householdMembers"
+            :item-title="(m) => m.name + ' (' + m.id + ')'"
+            item-value="id"
+            label="Identity"
+            variant="outlined"
+            :error-messages="bulkError ? [bulkError] : []"
+            :menu-props="{ maxHeight: 280 }"
+          >
+            <template #item="{ props: itemProps, item }">
+              <v-list-item
+                v-bind="itemProps"
+                :subtitle="item.raw.is_enrolled ? 'Enrolled · ' + item.raw.embedding_count + ' embedding(s)' : 'Not yet enrolled'"
+              >
+                <template #append>
+                  <v-chip v-if="!item.raw.is_active" size="x-small" color="warning" class="ml-2">Inactive</v-chip>
+                </template>
+              </v-list-item>
+            </template>
+          </v-autocomplete>
+          <v-text-field
+            v-model="bulkDisplayName"
+            label="Display name (optional)"
+            variant="outlined"
+            placeholder="e.g. Grandma"
+          />
+        </v-card-text>
+        <DialogFooter
+          hint="Enrolls ReID body-appearance embeddings. Add a face anchor separately for ArcFace matching."
+          confirm-label="Enroll"
+          :confirm-loading="bulkSaving"
+          :confirm-disabled="!bulkIdentityId?.trim() || enrollableCount === 0"
+          @cancel="bulkDialog = false"
+          @confirm="submitBulkEnroll"
+        />
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="enrollSnackbar" :timeout="3500" color="success">
       {{ enrollSnackbarText }}
     </v-snackbar>
@@ -227,8 +326,12 @@ import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import { severityColor } from "../../composables/useCtsSeverity";
 import { formatDateTime } from "../../services/timezone.js";
+import { useBlurMode } from "../../composables/useBlurMode.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
+import BlurToggle from "../../components/cts/BlurToggle.vue";
+
+const { blurMode } = useBlurMode();
 
 const keyframes = ref([]);
 const selectedKeyframe = ref(null);
@@ -256,8 +359,88 @@ const persons = computed(() => {
   return Array.from(ids).sort();
 });
 
+// ── Identity health ────────────────────────────────────────────────────────
+const identityHealth = ref(null);
+
+async function loadIdentityHealth() {
+  try {
+    identityHealth.value = await cts.getIdentityHealth();
+  } catch {
+    // non-blocking — banner simply won't show
+  }
+}
+
+// ── Selection mode ─────────────────────────────────────────────────────────
+const selectMode = ref(false);
+const selectedIds = ref(new Set());
+
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value;
+  if (!selectMode.value) selectedIds.value = new Set();
+}
+
+function toggleSelect(kf) {
+  const id = kf.keyframe_id || kf.sample_id;
+  const next = new Set(selectedIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selectedIds.value = next;
+}
+
+// ── Bulk enroll ────────────────────────────────────────────────────────────
+const bulkDialog = ref(false);
+const bulkIdentityId = ref("");
+const bulkDisplayName = ref("");
+const bulkSaving = ref(false);
+const bulkError = ref("");
+
+const enrollableCount = computed(() =>
+  keyframes.value.filter(
+    (kf) => selectedIds.value.has(kf.keyframe_id || kf.sample_id) && kf.tracklet_id
+  ).length
+);
+
+function openBulkEnroll() {
+  bulkIdentityId.value = "";
+  bulkDisplayName.value = "";
+  bulkError.value = "";
+  bulkDialog.value = true;
+  if (!householdMembers.value.length) loadHouseholdMembers();
+}
+
+async function submitBulkEnroll() {
+  bulkError.value = "";
+  bulkSaving.value = true;
+  const items = keyframes.value
+    .filter((kf) => selectedIds.value.has(kf.keyframe_id || kf.sample_id) && kf.tracklet_id)
+    .map((kf) => ({
+      tracklet_id: kf.tracklet_id,
+      identity_id: bulkIdentityId.value.trim(),
+      display_name: bulkDisplayName.value.trim() || null,
+    }));
+  try {
+    const resp = await cts.enrollBatch(items);
+    const ok = resp.results.filter((r) => r.status === "ok").length;
+    const fail = resp.results.length - ok;
+    bulkDialog.value = false;
+    selectMode.value = false;
+    selectedIds.value = new Set();
+    enrollSnackbarText.value =
+      fail > 0
+        ? `Enrolled ${ok} tracklet(s); ${fail} could not be enrolled.`
+        : `Enrolled ${ok} tracklet(s) for "${bulkIdentityId.value.trim()}".`;
+    enrollSnackbar.value = true;
+    await loadIdentityHealth();
+  } catch (e) {
+    bulkError.value = e.message || String(e);
+  } finally {
+    bulkSaving.value = false;
+  }
+}
+
 onMounted(() => {
   loadKeyframes();
+  loadIdentityHealth();
 });
 
 async function loadKeyframes() {
@@ -311,7 +494,21 @@ const enrollSnackbarText = ref("");
 
 async function loadHouseholdMembers() {
   try {
-    householdMembers.value = await api.getPersons();
+    const [persons, enrolled] = await Promise.all([
+      api.getPersons(),
+      api.getEnrolledPersons().catch(() => []),
+    ]);
+    const enrolledById = new Map(
+      (enrolled || []).map((e) => [e.person_id || e.id, e])
+    );
+    householdMembers.value = (persons || []).map((p) => {
+      const enrollment = enrolledById.get(p.id);
+      return {
+        ...p,
+        is_enrolled: !!enrollment,
+        embedding_count: enrollment?.embedding_count || 0,
+      };
+    });
   } catch {
     householdMembers.value = [];
   }
@@ -356,5 +553,12 @@ async function submitEnroll() {
 }
 .keyframe-image {
   border-radius: 4px 4px 0 0;
+}
+.card-selected {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: -2px;
+}
+.cts-blur {
+  filter: blur(12px);
 }
 </style>

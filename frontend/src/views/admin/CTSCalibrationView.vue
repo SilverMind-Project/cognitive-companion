@@ -22,6 +22,15 @@
       />
     </div>
 
+    <v-alert v-if="selectedCameraId" type="info" variant="tonal" density="compact" class="mb-4 text-body-2">
+      Homography calibration maps pixels in this camera's frame to metres on your floor plan. Pick
+      4+ points on the floor that you can also measure on your floor plan: corners of a rug, a
+      doorway threshold, a fixed piece of furniture. For each clicked point, enter its position in
+      metres on the floor plan (X right, Y back). The system uses the resulting transform to render
+      person locations on the household-wide floor plan and to compute walking distances for the
+      dementia signal detectors.
+    </v-alert>
+
     <v-row v-if="selectedCameraId">
       <!-- Left: camera snapshot with point picker -->
       <v-col cols="12" md="7">
@@ -29,6 +38,7 @@
           <v-card-title class="d-flex align-center">
             <span>Camera Frame</span>
             <v-spacer />
+            <BlurToggle class="mr-2" />
             <v-btn size="small" variant="tonal" prepend-icon="mdi-camera" @click="loadSnapshot">
               Refresh Snapshot
             </v-btn>
@@ -39,7 +49,7 @@
                 v-if="snapshotUrl"
                 ref="imgEl"
                 :src="snapshotUrl"
-                class="snapshot-img"
+                :class="['snapshot-img', { 'cts-blur': blurMode }]"
                 draggable="false"
                 @load="onImageLoad"
               />
@@ -196,8 +206,11 @@
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
+import { useBlurMode } from "../../composables/useBlurMode.js";
+import BlurToggle from "../../components/cts/BlurToggle.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
+const { blurMode } = useBlurMode();
 
 const cameras = ref([]);
 const selectedCameraId = ref(null);
@@ -315,6 +328,9 @@ onBeforeUnmount(() => {
   width: 100%;
   max-height: 420px;
   object-fit: contain;
+}
+.cts-blur {
+  filter: blur(12px);
 }
 
 .point-overlay {

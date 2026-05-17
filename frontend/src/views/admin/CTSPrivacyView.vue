@@ -103,6 +103,13 @@
           @close="dialog = false"
         />
         <v-card-text>
+          <v-alert type="info" variant="tonal" density="compact" class="mb-3 text-body-2">
+            Privacy zones mask or skip detection in regions of the camera frame. Use this for
+            zones with personal items (bedroom mirror, bathroom doorway, document desk). Click on
+            the snapshot to place polygon vertices; double-click to close. The orchestrator drops
+            detections whose foot-point falls inside the polygon.
+          </v-alert>
+
           <v-text-field
             v-model="form.zone_id"
             label="Zone ID"
@@ -120,44 +127,31 @@
             variant="outlined"
             class="mb-3"
           />
-          <v-switch v-model="form.enabled" label="Enabled" color="primary" class="mb-2" />
+          <v-switch v-model="form.enabled" label="Enabled" color="primary" class="mb-3" />
 
-          <div class="text-subtitle-2 mb-2">
-            Polygon Vertices
-            <span class="text-caption text-medium-emphasis ml-1">(normalised 0–1, top-left origin)</span>
+          <div class="d-flex align-center mb-2">
+            <span class="text-subtitle-2">Draw on Snapshot</span>
+            <v-spacer />
+            <BlurToggle class="mr-2" />
+            <v-btn
+              size="x-small"
+              variant="tonal"
+              prepend-icon="mdi-camera"
+              :loading="snapshotLoading"
+              :disabled="!selectedCameraId"
+              @click="loadDialogSnapshot"
+            >
+              Snapshot
+            </v-btn>
           </div>
-          <div v-for="(pt, i) in form.polygon" :key="i" class="d-flex align-center mb-2">
-            <v-chip size="x-small" class="mr-2" style="width:24px">{{ i + 1 }}</v-chip>
-            <v-text-field
-              v-model.number="pt[0]"
-              label="X"
-              variant="outlined"
-              density="compact"
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
-              hide-details
-              class="mr-2"
-              style="max-width:120px"
+          <div :class="{ 'cts-blur-wrap': blurMode }">
+            <PolygonOnSnapshot
+              :image-url="dialogSnapshotUrl"
+              :model-value="form.polygon"
+              :min-points="3"
+              @update:model-value="form.polygon = $event"
             />
-            <v-text-field
-              v-model.number="pt[1]"
-              label="Y"
-              variant="outlined"
-              density="compact"
-              type="number"
-              step="0.01"
-              min="0"
-              max="1"
-              hide-details
-              style="max-width:120px"
-            />
-            <v-btn icon="mdi-close" size="x-small" variant="text" class="ml-1" @click="form.polygon.splice(i, 1)" />
           </div>
-          <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" class="mt-1" @click="form.polygon.push([0, 0])">
-            Add Vertex
-          </v-btn>
         </v-card-text>
         <DialogFooter
           hint="Privacy zones define regions where face identification is restricted for resident privacy."
@@ -173,13 +167,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
+import { useBlurMode } from "../../composables/useBlurMode.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
+import PolygonOnSnapshot from "../../components/cts/PolygonOnSnapshot.vue";
+import BlurToggle from "../../components/cts/BlurToggle.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
+const { blurMode } = useBlurMode();
 
 const cameras = ref([]);
 const selectedCameraId = ref(null);
@@ -187,6 +185,10 @@ const zones = ref([]);
 const dialog = ref(false);
 const editingZone = ref(null);
 const saving = ref(false);
+
+// Dialog snapshot
+const dialogSnapshotUrl = ref(null);
+const snapshotLoading = ref(false);
 
 const policies = ["mask_region", "blur_region", "skip_detection"];
 
@@ -228,16 +230,36 @@ async function loadZones() {
   }
 }
 
+async function loadDialogSnapshot() {
+  if (!selectedCameraId.value) return;
+  snapshotLoading.value = true;
+  if (dialogSnapshotUrl.value) {
+    URL.revokeObjectURL(dialogSnapshotUrl.value);
+    dialogSnapshotUrl.value = null;
+  }
+  try {
+    dialogSnapshotUrl.value = await cts.getSnapshot(selectedCameraId.value);
+  } catch (e) {
+    notify(`Snapshot failed: ${e.message}`, "warning");
+  } finally {
+    snapshotLoading.value = false;
+  }
+}
+
 function openCreate() {
   editingZone.value = null;
   form.value = emptyForm();
+  dialogSnapshotUrl.value = null;
   dialog.value = true;
+  loadDialogSnapshot();
 }
 
 function openEdit(zone) {
   editingZone.value = zone;
   form.value = JSON.parse(JSON.stringify(zone));
+  dialogSnapshotUrl.value = null;
   dialog.value = true;
+  loadDialogSnapshot();
 }
 
 function commitZone() {
@@ -268,6 +290,9 @@ async function saveZones() {
 }
 
 onMounted(loadCameras);
+onBeforeUnmount(() => {
+  if (dialogSnapshotUrl.value) URL.revokeObjectURL(dialogSnapshotUrl.value);
+});
 </script>
 
 <style scoped>
@@ -278,5 +303,9 @@ onMounted(loadCameras);
   border: 1px solid var(--cc-divider-strong);
   border-radius: 4px;
   background: var(--cc-surface-3);
+}
+
+.cts-blur-wrap img {
+  filter: blur(12px);
 }
 </style>

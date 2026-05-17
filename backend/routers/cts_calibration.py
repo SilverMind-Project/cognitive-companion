@@ -28,6 +28,7 @@ from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.cts_camera import CtsCamera
+from backend.models.household_settings import HouseholdSettings
 from backend.routers.cts_deps import cts_enabled
 from backend.routers.dependencies import get_orchestrator_client
 from backend.schemas.cts_camera import (
@@ -286,6 +287,25 @@ def get_privacy_zones(
 # ---------------------------------------------------------------------------
 
 
+def _get_or_create_settings(db: Session) -> HouseholdSettings:
+    """Return the singleton HouseholdSettings row, creating it if absent."""
+    from sqlalchemy.exc import IntegrityError
+
+    row = db.get(HouseholdSettings, 1)
+    if row is not None:
+        return row
+    row = HouseholdSettings(id=1)
+    db.add(row)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        row = db.get(HouseholdSettings, 1)
+        if row is None:
+            raise
+    return row
+
+
 @router.post("/adjacency", status_code=status.HTTP_204_NO_CONTENT)
 async def post_adjacency(
     body: AdjacencyRequest,
@@ -293,7 +313,7 @@ async def post_adjacency(
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> None:
-    """Replace the full camera adjacency graph and push to the orchestrator."""
+    """Replace the full camera adjacency graph, persist to DB, and push to the orchestrator."""
     cts_enabled()
 
     for edge in body.edges:
@@ -309,28 +329,29 @@ async def post_adjacency(
                 },
             )
 
-    edges_data = [e.model_dump(by_alias=False) for e in body.edges]
+    # Persist to DB using from/to alias keys so the orchestrator startup loader
+    # can send them back unchanged.
+    edges_data = [e.model_dump(by_alias=True) for e in body.edges]
+    settings_row = _get_or_create_settings(db)
+    settings_row.cts_adjacency_edges = edges_data
+    db.commit()
 
+    # Push live update to orchestrator (non-fatal if unreachable).
     try:
         await orchestrator.post_adjacency(edges=edges_data)
     except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
-        raise _upstream_to_http(exc) from exc
+        logger.warning("cts_adjacency_push_failed", error=str(exc))
 
     logger.info("cts_adjacency_saved", edge_count=len(edges_data))
 
 
 @router.get("/adjacency")
-async def get_adjacency(
+def get_adjacency(
+    db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
-    orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
-    """Fetch the current adjacency state from the orchestrator."""
+    """Return the persisted adjacency graph from the database."""
     cts_enabled()
-    try:
-        status_data = await orchestrator.calibration_status()
-        return {
-            "edge_count": status_data.get("adjacency_edge_count", 0),
-            "edges": status_data.get("adjacency_edges", []),
-        }
-    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
-        raise _upstream_to_http(exc) from exc
+    row = db.get(HouseholdSettings, 1)
+    edges = (row.cts_adjacency_edges or []) if row is not None else []
+    return {"edge_count": len(edges), "edges": edges}

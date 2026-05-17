@@ -45,17 +45,39 @@
         <v-switch
           v-model="showBboxes"
           color="primary"
-          label="Show bboxes"
+          label="Bboxes"
           density="compact"
           hide-details
         />
         <v-switch
           v-model="showIdLabels"
           color="primary"
-          label="Show identity labels"
+          label="Labels"
           density="compact"
           hide-details
         />
+        <v-switch
+          v-model="showTrail"
+          color="primary"
+          label="Trail"
+          density="compact"
+          hide-details
+        />
+        <v-switch
+          v-model="showPose"
+          color="primary"
+          label="Pose"
+          density="compact"
+          hide-details
+        />
+        <v-switch
+          v-model="showEvidence"
+          color="primary"
+          label="Evidence"
+          density="compact"
+          hide-details
+        />
+        <BlurToggle />
         <v-spacer />
         <v-btn
           variant="tonal"
@@ -100,14 +122,14 @@
             <img
               v-if="cameraForSlot(slot)?.frame_url"
               :src="cameraForSlot(slot).frame_url"
-              class="live-tile-img"
+              :class="['live-tile-img', { 'cts-blur': blurMode }]"
               alt=""
               @error="onFrameError($event, cameraForSlot(slot))"
             />
             <img
               v-else-if="snapshotUrls[cameraIdForSlot(slot)]"
               :src="snapshotUrls[cameraIdForSlot(slot)]"
-              class="live-tile-img"
+              :class="['live-tile-img', { 'cts-blur': blurMode }]"
               alt=""
             />
             <div
@@ -117,7 +139,7 @@
               <v-icon size="24" color="medium-emphasis">mdi-video-off-outline</v-icon>
             </div>
             <svg
-              v-if="cameraForSlot(slot) && showBboxes"
+              v-if="cameraForSlot(slot)"
               :viewBox="`0 0 ${cameraForSlot(slot).frame_width || 1920} ${cameraForSlot(slot).frame_height || 1080}`"
               class="live-tile-overlay"
               preserveAspectRatio="xMidYMid meet"
@@ -126,7 +148,21 @@
                 v-for="(det, idx) in cameraForSlot(slot).detections"
                 :key="idx"
               >
+                <!-- Trail polyline -->
+                <polyline
+                  v-if="showTrail && det.trail && det.trail.length > 1"
+                  :points="trailPoints(det, cameraForSlot(slot))"
+                  fill="none"
+                  :stroke="det.identity_id ? 'var(--cc-success)' : 'var(--cc-warning)'"
+                  stroke-width="2"
+                  opacity="0.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+
+                <!-- Bounding box -->
                 <rect
+                  v-if="showBboxes"
                   :x="det.bbox.x_min || 0"
                   :y="det.bbox.y_min || 0"
                   :width="(det.bbox.x_max || 0) - (det.bbox.x_min || 0)"
@@ -134,9 +170,11 @@
                   fill="none"
                   :stroke="det.identity_id ? 'var(--cc-success)' : 'var(--cc-warning)'"
                   stroke-width="3"
-                  @click="openCorrection(det, cameraForSlot(slot))"
                   style="cursor: pointer"
+                  @click="openCorrection(det, cameraForSlot(slot))"
                 />
+
+                <!-- Identity label -->
                 <text
                   v-if="showIdLabels"
                   :x="(det.bbox.x_min || 0) + 8"
@@ -148,6 +186,69 @@
                 >
                   {{ det.identity_id || "unknown" }}
                 </text>
+
+                <!-- Pose stick figure -->
+                <g v-if="showPose && det.pose_keypoints && det.pose_keypoints.length === 17">
+                  <line
+                    v-for="([a, b], li) in LIMB_PAIRS"
+                    :key="li"
+                    :x1="poseX(det, a)"
+                    :y1="poseY(det, a)"
+                    :x2="poseX(det, b)"
+                    :y2="poseY(det, b)"
+                    stroke="rgba(255,200,50,0.85)"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                  <circle
+                    v-for="(kp, ki) in det.pose_keypoints"
+                    :key="`kp${ki}`"
+                    :cx="poseX(det, ki)"
+                    :cy="poseY(det, ki)"
+                    r="3"
+                    :fill="kp.score > 0.5 ? 'rgba(255,200,50,1)' : 'transparent'"
+                  />
+                </g>
+
+                <!-- Evidence chip (top-right of bbox) -->
+                <g v-if="showEvidence && det.evidence">
+                  <!-- Background pill -->
+                  <rect
+                    :x="(det.bbox.x_max || 0) - 80"
+                    :y="(det.bbox.y_min || 0) + 2"
+                    width="76"
+                    height="22"
+                    rx="6"
+                    fill="rgba(0,0,0,0.65)"
+                  />
+                  <!-- Top-1 bar -->
+                  <rect
+                    :x="(det.bbox.x_max || 0) - 78"
+                    :y="(det.bbox.y_min || 0) + 5"
+                    :width="Math.round(72 * (det.evidence.top_prob || 0))"
+                    height="6"
+                    rx="3"
+                    :fill="det.evidence.face_anchor_used ? '#a78bfa' : '#34d399'"
+                  />
+                  <!-- Top-2 bar -->
+                  <rect
+                    :x="(det.bbox.x_max || 0) - 78"
+                    :y="(det.bbox.y_min || 0) + 14"
+                    :width="Math.round(72 * (det.evidence.top2_prob || 0))"
+                    height="4"
+                    rx="2"
+                    fill="#94a3b8"
+                  />
+                </g>
+
+                <!-- Face badge (crown) when face anchor was used -->
+                <text
+                  v-if="showEvidence && det.evidence?.face_anchor_used"
+                  :x="(det.bbox.x_min || 0) + 4"
+                  :y="(det.bbox.y_min || 0) + 36"
+                  font-size="28"
+                  style="user-select: none"
+                >👑</text>
               </g>
             </svg>
             <div
@@ -212,8 +313,10 @@
 import { ref, computed, reactive, onMounted, onUnmounted, watch } from "vue";
 import { cts } from "@/services/cts";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket.js";
+import { useBlurMode } from "@/composables/useBlurMode.js";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
+import BlurToggle from "@/components/cts/BlurToggle.vue";
 
 const STALE_THRESHOLD_S = 15;
 const SNAPSHOT_POLL_MS = 5_000;
@@ -228,6 +331,19 @@ const layoutOptions = [
 ];
 const showBboxes = ref(true);
 const showIdLabels = ref(true);
+const showTrail = ref(false);
+const showPose = ref(false);
+const showEvidence = ref(false);
+
+const { blurMode } = useBlurMode();
+
+// COCO 17-keypoint limb pairs (0-indexed).
+const LIMB_PAIRS = [
+  [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],
+  [5, 11], [6, 12], [11, 12],
+  [11, 13], [13, 15], [12, 14], [14, 16],
+  [0, 5], [0, 6],
+];
 
 const cameras = ref({});
 // camera_id → blob URL for go2rtc snapshot (fallback when WS is idle)
@@ -436,6 +552,27 @@ function staleLabel(cam) {
   return `${Math.round(age / 60)}m ago`;
 }
 
+function poseX(det, keypointIdx) {
+  const kp = det.pose_keypoints[keypointIdx];
+  if (!kp) return 0;
+  const bw = (det.bbox.x_max || 0) - (det.bbox.x_min || 0);
+  return (det.bbox.x_min || 0) + kp.x * bw;
+}
+
+function poseY(det, keypointIdx) {
+  const kp = det.pose_keypoints[keypointIdx];
+  if (!kp) return 0;
+  const bh = (det.bbox.y_max || 0) - (det.bbox.y_min || 0);
+  return (det.bbox.y_min || 0) + kp.y * bh;
+}
+
+function trailPoints(det, cam) {
+  if (!det.trail || !cam) return "";
+  const fw = cam.frame_width || 1920;
+  const fh = cam.frame_height || 1080;
+  return det.trail.map((t) => `${t.x * fw},${t.y * fh}`).join(" ");
+}
+
 function openCorrection(det, cam) {
   correction.global_track_id = det.global_track_id;
   correction.previous_identity_id = det.identity_id || "";
@@ -520,6 +657,12 @@ async function submitCorrection() {
 .live-tile-stale .live-tile-img {
   opacity: 0.4;
   filter: grayscale(60%);
+}
+.cts-blur {
+  filter: blur(12px);
+}
+.live-tile-stale .cts-blur {
+  filter: blur(12px) grayscale(60%);
 }
 .live-tile-stale-badge {
   position: absolute;

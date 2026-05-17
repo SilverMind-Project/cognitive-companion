@@ -30,12 +30,12 @@
         <v-list-subheader class="mt-2">Tracking (CTS)</v-list-subheader>
         <v-list-item rounded="lg" prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/cts/dashboard" />
         <v-list-item rounded="lg" prepend-icon="mdi-video-outline" title="Live View" to="/admin/cts/live" />
+        <v-list-item rounded="lg" prepend-icon="mdi-floor-plan" title="Floor Plan" to="/admin/cts/floor-plan" />
         <v-list-item rounded="lg" prepend-icon="mdi-cctv" title="Cameras" to="/admin/cts/cameras" />
         <v-list-item rounded="lg" prepend-icon="mdi-crosshairs-gps" title="Calibration" to="/admin/cts/calibration" />
         <v-list-item rounded="lg" prepend-icon="mdi-eye-off-outline" title="Privacy Zones" to="/admin/cts/privacy" />
         <v-list-item rounded="lg" prepend-icon="mdi-graph-outline" title="Camera Adjacency" to="/admin/cts/adjacency" />
         <v-list-item rounded="lg" prepend-icon="mdi-account-edit-outline" title="Identity Corrections" to="/admin/cts/identity-corrections" />
-        <v-list-item rounded="lg" prepend-icon="mdi-alert-circle-outline" title="Signals" to="/admin/cts/signals" />
         <v-list-item rounded="lg" prepend-icon="mdi-image-search-outline" title="Keyframes" to="/admin/cts/keyframes" />
         <v-list-item rounded="lg" prepend-icon="mdi-map-marker-radius" title="Presence Fusion" to="/admin/cts/presence" />
 
@@ -67,7 +67,7 @@
         prepend-icon="mdi-alert-circle"
         class="mr-3"
         :title="alertTooltip"
-        @click="$router.push('/admin/cts')"
+        @click="$router.push('/admin/alerts')"
       >
         {{ alertCount }} alert{{ alertCount !== 1 ? 's' : '' }}
       </v-btn>

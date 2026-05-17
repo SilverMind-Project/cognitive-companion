@@ -78,6 +78,9 @@ export const cts = {
     req("/calibration/adjacency", { method: "POST", body: JSON.stringify({ edges }) }),
   getAdjacency: () => req("/calibration/adjacency"),
 
+  // ── Overlap groups ──────────────────────────────────────────────────────────
+  getOverlapGroups: () => req("/overlap_groups"),
+
   // ── Dementia signals ────────────────────────────────────────────────────────
   getSignals: (params = {}) => {
     const qs = new URLSearchParams();
@@ -155,6 +158,14 @@ export const cts = {
     req("/gallery/enroll", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+
+  // ── Identity health + bulk enrollment ─────────────────────────────────────
+  getIdentityHealth: () => req("/identity/health"),
+  enrollBatch: (items) =>
+    req("/identity/enroll/batch", {
+      method: "POST",
+      body: JSON.stringify({ items }),
     }),
 
   // ── Identity corrections (M9) ──────────────────────────────────────────────

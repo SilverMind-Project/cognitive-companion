@@ -142,6 +142,20 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                         "x_mm": det.floor_point.x_mm,
                         "y_mm": det.floor_point.y_mm,
                     },
+                    "floor_x": det.floor_x or None,
+                    "floor_y": det.floor_y or None,
+                    "pose_keypoints": [
+                        {"x": kp.x, "y": kp.y, "score": kp.score}
+                        for kp in det.pose_keypoints
+                    ] or None,
+                    "trail": [
+                        {"x": t.x, "y": t.y} for t in det.trail
+                    ] or None,
+                    "evidence": {
+                        "top_prob": det.evidence.top_prob,
+                        "top2_prob": det.evidence.top2_prob,
+                        "face_anchor_used": det.evidence.face_anchor_used,
+                    } if det.HasField("evidence") else None,
                 }
             )
 

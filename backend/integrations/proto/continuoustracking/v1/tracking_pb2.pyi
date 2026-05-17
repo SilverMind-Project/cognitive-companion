@@ -38,7 +38,7 @@ class FrameRef(_message.Message):
     def __init__(self, minio_key: _Optional[str] = ..., width: _Optional[int] = ..., height: _Optional[int] = ..., frame_index: _Optional[int] = ..., capture_time_unix_ns: _Optional[int] = ...) -> None: ...
 
 class Detection(_message.Message):
-    __slots__ = ("detection_id", "bbox", "embedding", "confidence", "tracklet_id", "global_track_id", "floor_point")
+    __slots__ = ("detection_id", "bbox", "embedding", "confidence", "tracklet_id", "global_track_id", "floor_point", "pose_keypoints", "trail", "evidence", "floor_x", "floor_y")
     DETECTION_ID_FIELD_NUMBER: _ClassVar[int]
     BBOX_FIELD_NUMBER: _ClassVar[int]
     EMBEDDING_FIELD_NUMBER: _ClassVar[int]
@@ -46,6 +46,11 @@ class Detection(_message.Message):
     TRACKLET_ID_FIELD_NUMBER: _ClassVar[int]
     GLOBAL_TRACK_ID_FIELD_NUMBER: _ClassVar[int]
     FLOOR_POINT_FIELD_NUMBER: _ClassVar[int]
+    POSE_KEYPOINTS_FIELD_NUMBER: _ClassVar[int]
+    TRAIL_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_FIELD_NUMBER: _ClassVar[int]
+    FLOOR_X_FIELD_NUMBER: _ClassVar[int]
+    FLOOR_Y_FIELD_NUMBER: _ClassVar[int]
     detection_id: str
     bbox: BoundingBox
     embedding: _containers.RepeatedScalarFieldContainer[float]
@@ -53,7 +58,40 @@ class Detection(_message.Message):
     tracklet_id: str
     global_track_id: str
     floor_point: FloorPoint
-    def __init__(self, detection_id: _Optional[str] = ..., bbox: _Optional[_Union[BoundingBox, _Mapping]] = ..., embedding: _Optional[_Iterable[float]] = ..., confidence: _Optional[float] = ..., tracklet_id: _Optional[str] = ..., global_track_id: _Optional[str] = ..., floor_point: _Optional[_Union[FloorPoint, _Mapping]] = ...) -> None: ...
+    pose_keypoints: _containers.RepeatedCompositeFieldContainer[PoseKeypoint]
+    trail: _containers.RepeatedCompositeFieldContainer[TrailPoint]
+    evidence: PosteriorEvidence
+    floor_x: float
+    floor_y: float
+    def __init__(self, detection_id: _Optional[str] = ..., bbox: _Optional[_Union[BoundingBox, _Mapping]] = ..., embedding: _Optional[_Iterable[float]] = ..., confidence: _Optional[float] = ..., tracklet_id: _Optional[str] = ..., global_track_id: _Optional[str] = ..., floor_point: _Optional[_Union[FloorPoint, _Mapping]] = ..., pose_keypoints: _Optional[_Iterable[_Union[PoseKeypoint, _Mapping]]] = ..., trail: _Optional[_Iterable[_Union[TrailPoint, _Mapping]]] = ..., evidence: _Optional[_Union[PosteriorEvidence, _Mapping]] = ..., floor_x: _Optional[float] = ..., floor_y: _Optional[float] = ...) -> None: ...
+
+class PoseKeypoint(_message.Message):
+    __slots__ = ("x", "y", "score")
+    X_FIELD_NUMBER: _ClassVar[int]
+    Y_FIELD_NUMBER: _ClassVar[int]
+    SCORE_FIELD_NUMBER: _ClassVar[int]
+    x: float
+    y: float
+    score: float
+    def __init__(self, x: _Optional[float] = ..., y: _Optional[float] = ..., score: _Optional[float] = ...) -> None: ...
+
+class TrailPoint(_message.Message):
+    __slots__ = ("x", "y")
+    X_FIELD_NUMBER: _ClassVar[int]
+    Y_FIELD_NUMBER: _ClassVar[int]
+    x: float
+    y: float
+    def __init__(self, x: _Optional[float] = ..., y: _Optional[float] = ...) -> None: ...
+
+class PosteriorEvidence(_message.Message):
+    __slots__ = ("top_prob", "top2_prob", "face_anchor_used")
+    TOP_PROB_FIELD_NUMBER: _ClassVar[int]
+    TOP2_PROB_FIELD_NUMBER: _ClassVar[int]
+    FACE_ANCHOR_USED_FIELD_NUMBER: _ClassVar[int]
+    top_prob: float
+    top2_prob: float
+    face_anchor_used: bool
+    def __init__(self, top_prob: _Optional[float] = ..., top2_prob: _Optional[float] = ..., face_anchor_used: bool = ...) -> None: ...
 
 class BoundingBox(_message.Message):
     __slots__ = ("x_min", "y_min", "x_max", "y_max")

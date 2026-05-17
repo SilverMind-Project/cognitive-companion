@@ -21,6 +21,7 @@ class Room(Base):
     ha_area_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     floor: Mapped[str | None] = mapped_column(String(64), nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    floor_polygon: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
 
     sensors: Mapped[list[Sensor]] = relationship(back_populates="room")

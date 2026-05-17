@@ -13,12 +13,35 @@
       </v-btn>
     </div>
 
-    <v-alert v-if="edges.length === 0" type="info" variant="tonal" class="mb-4">
-      No adjacency edges defined. Add edges to help the tracker resolve cross-camera identity.
+    <!-- Existing edges from orchestrator -->
+    <v-card v-if="savedEdges.length > 0" class="mb-4" variant="flat" border>
+      <v-card-subtitle class="pt-3 pb-1">Saved in orchestrator</v-card-subtitle>
+      <v-data-table
+        :headers="headers"
+        :items="savedEdges"
+        item-value="_key"
+        density="compact"
+        hide-default-footer
+        :items-per-page="-1"
+      >
+        <template #item.transit="{ item }">
+          {{ item.min_transit_s }}s – {{ item.max_transit_s }}s
+        </template>
+        <template #item.overlap="{ item }">
+          <v-icon v-if="item.overlap" color="success" size="small">mdi-check</v-icon>
+          <span v-else class="text-medium-emphasis">—</span>
+        </template>
+      </v-data-table>
+    </v-card>
+
+    <v-alert v-else-if="!loadingEdges" type="info" variant="tonal" class="mb-4">
+      No adjacency edges saved yet. Add edges to help the tracker resolve cross-camera identity.
     </v-alert>
 
-    <v-card v-if="edges.length > 0" class="mb-4">
-      <v-data-table :headers="headers" :items="edges" item-value="_key">
+    <!-- Locally-staged edits -->
+    <v-card v-if="stagedEdges.length > 0" class="mb-4">
+      <v-card-subtitle class="pt-3 pb-1">Staged (unsaved)</v-card-subtitle>
+      <v-data-table :headers="editHeaders" :items="stagedEdges" item-value="_key" density="compact" hide-default-footer :items-per-page="-1">
         <template #item.transit="{ item }">
           {{ item.min_transit_s }}s – {{ item.max_transit_s }}s
         </template>
@@ -34,7 +57,7 @@
         color="primary"
         variant="flat"
         :loading="saving"
-        :disabled="edges.length === 0"
+        :disabled="stagedEdges.length === 0"
         prepend-icon="mdi-content-save"
         @click="saveAdjacency"
       >
@@ -43,29 +66,51 @@
     </div>
 
     <!-- Add / Edit edge dialog -->
-    <v-dialog v-model="dialog" max-width="460" persistent>
+    <v-dialog v-model="dialog" max-width="500" persistent>
       <v-card>
         <DialogHeader
           icon="mdi-graph"
           :label="editingIdx !== null ? 'Edit' : 'Create New'"
-          :title="editingIdx !== null ? 'Adjacency Edge' : 'Adjacency Edge'"
+          title="Adjacency Edge"
           @close="dialog = false"
         />
         <v-card-text>
-          <v-text-field
+          <v-autocomplete
             v-model="form.from"
-            label="From Camera ID"
+            :items="cameraOptions"
+            item-title="name"
+            item-value="id"
+            label="From Camera"
             variant="outlined"
             class="mb-3"
-            hint="Stable camera ID, e.g. hallway-cam-1"
+            hint="Camera the person departs from"
             persistent-hint
+            clearable
           />
-          <v-text-field
+          <v-autocomplete
             v-model="form.to"
-            label="To Camera ID"
+            :items="cameraOptions"
+            item-title="name"
+            item-value="id"
+            label="To Camera"
             variant="outlined"
             class="mb-3"
+            clearable
           />
+
+          <!-- Overlap-group hint -->
+          <v-alert
+            v-if="sameOverlapGroupHint"
+            type="info"
+            density="compact"
+            variant="tonal"
+            class="mb-3"
+          >
+            These cameras share overlap group <strong>{{ sameOverlapGroupHint }}</strong>. Consider
+            setting min transit = 0, max transit = 2 s.
+            <v-btn size="x-small" variant="text" class="ml-2" @click="applyGroupDefaults">Apply</v-btn>
+          </v-alert>
+
           <v-row dense>
             <v-col cols="6">
               <v-text-field
@@ -100,13 +145,13 @@
             density="compact"
             class="mt-3"
           >
-            Max transit must be ≥ min transit.
+            Max transit must be at least min transit.
           </v-alert>
         </v-card-text>
         <DialogFooter
           hint="Adjacency edges define which cameras are physically connected for person tracking across rooms."
           :confirm-label="editingIdx !== null ? 'Update' : 'Add'"
-          :confirm-disabled="form.max_transit_s < form.min_transit_s || !form.from || !form.to"
+          :confirm-disabled="form.max_transit_s < form.min_transit_s || !form.from || !form.to || form.from === form.to"
           @cancel="dialog = false"
           @confirm="commitEdge"
         />
@@ -118,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
@@ -126,7 +171,11 @@ import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 
-const edges = ref([]);
+const cameraOptions = ref([]);
+const overlapGroups = ref([]);
+const savedEdges = ref([]);
+const loadingEdges = ref(false);
+const stagedEdges = ref([]);
 const dialog = ref(false);
 const editingIdx = ref(null);
 const saving = ref(false);
@@ -134,19 +183,63 @@ const saving = ref(false);
 const headers = [
   { title: "From", key: "from" },
   { title: "To", key: "to" },
-  { title: "Transit Window", key: "transit" },
+  { title: "Transit", key: "transit" },
+  { title: "Overlap", key: "overlap" },
+];
+
+const editHeaders = [
+  ...headers,
   { title: "", key: "actions", sortable: false, align: "end" },
 ];
 
 const emptyForm = () => ({ from: "", to: "", min_transit_s: 0.5, max_transit_s: 30 });
 const form = ref(emptyForm());
 
-async function loadAdjacency() {
+// Overlap-group hint: returns group name if both selected cameras share a group.
+const sameOverlapGroupHint = computed(() => {
+  if (!form.value.from || !form.value.to) return null;
+  for (const grp of overlapGroups.value) {
+    const ids = grp.camera_ids || [];
+    if (ids.includes(form.value.from) && ids.includes(form.value.to)) {
+      return grp.name || `Group ${grp.id}`;
+    }
+  }
+  return null;
+});
+
+function applyGroupDefaults() {
+  form.value.min_transit_s = 0;
+  form.value.max_transit_s = 2;
+}
+
+async function loadCameras() {
   try {
-    // edge_count only from GET; edges are managed locally until saved
-    await cts.getAdjacency();
+    cameraOptions.value = await cts.getCameras();
   } catch {
-    // orchestrator may be offline in dev: silently ignore
+    // orchestrator may be offline in dev
+  }
+}
+
+async function loadOverlapGroups() {
+  try {
+    overlapGroups.value = await cts.getOverlapGroups();
+  } catch {
+    overlapGroups.value = [];
+  }
+}
+
+async function loadSavedEdges() {
+  loadingEdges.value = true;
+  try {
+    const data = await cts.getAdjacency();
+    savedEdges.value = (data.edges || []).map((e) => ({
+      ...e,
+      _key: `${e.from}->${e.to}`,
+    }));
+  } catch {
+    savedEdges.value = [];
+  } finally {
+    loadingEdges.value = false;
   }
 }
 
@@ -157,34 +250,33 @@ function openCreate() {
 }
 
 function openEdit(edge) {
-  editingIdx.value = edges.value.indexOf(edge);
+  editingIdx.value = stagedEdges.value.indexOf(edge);
   form.value = { ...edge };
   dialog.value = true;
 }
 
 function commitEdge() {
-  const edge = { ...form.value };
-  // synthetic key for v-data-table deduplication
-  edge._key = `${edge.from}->${edge.to}`;
+  const edge = { ...form.value, _key: `${form.value.from}->${form.value.to}` };
   if (editingIdx.value !== null) {
-    edges.value[editingIdx.value] = edge;
+    stagedEdges.value[editingIdx.value] = edge;
   } else {
-    edges.value.push(edge);
+    stagedEdges.value.push(edge);
   }
   dialog.value = false;
 }
 
 function removeEdge(edge) {
-  edges.value = edges.value.filter((e) => e !== edge);
+  stagedEdges.value = stagedEdges.value.filter((e) => e !== edge);
 }
 
 async function saveAdjacency() {
   saving.value = true;
   try {
-    // Strip synthetic _key before sending
-    const payload = edges.value.map(({ _key: _k, ...rest }) => rest);
+    const payload = stagedEdges.value.map(({ _key: _k, ...rest }) => rest);
     await cts.postAdjacency(payload);
     notify("Adjacency graph saved");
+    stagedEdges.value = [];
+    await loadSavedEdges();
   } catch (e) {
     notify(e.message, "error");
   } finally {
@@ -192,5 +284,9 @@ async function saveAdjacency() {
   }
 }
 
-onMounted(loadAdjacency);
+onMounted(() => {
+  loadCameras();
+  loadOverlapGroups();
+  loadSavedEdges();
+});
 </script>

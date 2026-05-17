@@ -79,6 +79,8 @@ async def list_global_tracks(
         pattern="^(committed|UNKNOWN)$",
     ),
     search: str | None = Query(None),
+    include_transient: bool = Query(False, description="Include tracks shorter than min_duration_s"),
+    min_duration_s: float = Query(10.0, ge=0.0, description="Hide UNKNOWN tracks shorter than this many seconds (ignored when include_transient=true)"),
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
@@ -86,9 +88,11 @@ async def list_global_tracks(
 
     Pagination via ``limit``/``offset``; filtering by ``camera_id``,
     ``status`` (committed / UNKNOWN), or free-text ``search`` over
-    identity display name.
+    identity display name. UNKNOWN tracks shorter than ``min_duration_s``
+    are hidden by default; set ``include_transient=true`` to reveal them.
     """
     cts_enabled()
+    effective_min_duration = 0.0 if include_transient else min_duration_s
     try:
         data = await client.get_global_tracks(
             open_only=open_only,
@@ -97,6 +101,7 @@ async def list_global_tracks(
             camera_id=camera_id,
             status=track_status,
             search=search,
+            min_duration_s=effective_min_duration if effective_min_duration > 0 else None,
         )
     except UpstreamError as exc:
         raise HTTPException(
@@ -447,6 +452,123 @@ async def apply_corrections_batch(
             results.append(
                 {
                     "global_track_id": item.global_track_id,
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
+    return {"results": results}
+
+
+# ---------------------------------------------------------------------------
+# GET /cts/identity/health
+# ---------------------------------------------------------------------------
+
+
+@router.get("/health")
+async def get_identity_health(
+    _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Lightweight health snapshot for the identity/ReID subsystem.
+
+    Never returns 5xx; upstream errors are surfaced in the ``issues`` list so
+    the caregiver UI can display a non-blocking banner.
+    """
+    cts_enabled()
+    issues: list[str] = []
+    gallery_size = 0
+    upstream_ok = False
+
+    try:
+        identities = await client.get_identities(active_only=False)
+        gallery_size = len(identities)
+        upstream_ok = True
+        if gallery_size == 0:
+            issues.append(
+                "No named identities in the ReID gallery — "
+                "use 'Enroll in gallery' on a keyframe to seed appearance embeddings."
+            )
+    except Exception:
+        logger.warning("cts_identity_health_upstream_error", exc_info=True)
+        issues.append(
+            "ReID gallery is unreachable. The tracking orchestrator may be down."
+        )
+
+    return {
+        "gallery_size": gallery_size,
+        "upstream_ok": upstream_ok,
+        "issues": issues,
+        "checked_at": datetime.now(UTC).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# POST /cts/identity/enroll/batch
+# ---------------------------------------------------------------------------
+
+
+class BatchEnrollItem(BaseModel):
+    tracklet_id: str = Field(..., min_length=1, max_length=128)
+    identity_id: str = Field(..., min_length=1, max_length=128)
+    display_name: str | None = Field(default=None, max_length=128)
+
+
+class BatchEnrollRequest(BaseModel):
+    items: list[BatchEnrollItem] = Field(..., min_length=1, max_length=50)
+
+
+@router.post("/enroll/batch")
+async def enroll_batch(
+    body: BatchEnrollRequest,
+    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Enroll multiple tracklets into the ReID gallery in a single request.
+
+    Each item is independent: one failure does not abort the batch.  Enrollment
+    is distinct from identity correction — it does not write to the revision log
+    and does not synthesise a ``tracking.revisions`` stream message.
+    """
+    cts_enabled()
+    results: list[dict[str, Any]] = []
+    for item in body.items:
+        try:
+            resp = await client.enroll_from_tracklet(
+                identity_id=item.identity_id,
+                tracklet_id=item.tracklet_id,
+                display_name=item.display_name,
+            )
+            results.append(
+                {
+                    "tracklet_id": item.tracklet_id,
+                    "identity_id": item.identity_id,
+                    "status": "ok",
+                    "enrolled_count": resp.get("enrolled_count", 0),
+                }
+            )
+        except UpstreamError as exc:
+            logger.warning(
+                "cts_enroll_batch_item_upstream_error",
+                tracklet_id=item.tracklet_id,
+                error=str(exc),
+            )
+            results.append(
+                {
+                    "tracklet_id": item.tracklet_id,
+                    "identity_id": item.identity_id,
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
+        except Exception as exc:
+            logger.exception(
+                "cts_enroll_batch_item_error",
+                tracklet_id=item.tracklet_id,
+            )
+            results.append(
+                {
+                    "tracklet_id": item.tracklet_id,
+                    "identity_id": item.identity_id,
                     "status": "error",
                     "error": str(exc),
                 }

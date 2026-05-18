@@ -8,12 +8,12 @@
       <v-img
         v-for="kf in frames"
         :key="kf.sample_id || kf.keyframe_id"
-        :src="frameUrl(kf.minio_key)"
+        :src="displaySrc(frameUrl(kf.minio_key))"
         width="100"
         height="75"
         cover
         rounded="lg"
-        :class="['keyframe-thumb', { 'cts-blur': blurMode }]"
+        class="keyframe-thumb"
         @click="$emit('click', kf)"
       />
     </div>
@@ -22,12 +22,13 @@
 </template>
 
 <script setup>
-import { useBlurMode } from "@/composables/useBlurMode";
+import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
 
 defineProps({ frames: { type: Array, default: () => [] } });
 defineEmits(["click"]);
 
 const { blurMode } = useBlurMode();
+const { displaySrc } = useDisplaySrc(blurMode);
 
 function frameUrl(minioKey) {
   if (!minioKey) return "";
@@ -45,8 +46,5 @@ function frameUrl(minioKey) {
 }
 .keyframe-thumb:hover {
   border-color: rgb(var(--v-theme-primary));
-}
-.cts-blur {
-  filter: blur(12px);
 }
 </style>

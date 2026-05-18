@@ -121,10 +121,10 @@ def no_room_state() -> PersonLocationState:
     return _make_state(room_name=None, room_id=None)
 
 
-@pytest.fixture
-def provider() -> CtsLocationProvider:
+def _make_provider(state: PersonLocationState | None = None) -> CtsLocationProvider:
+    repo = _StubRepository(state)
     return CtsLocationProvider(
-        location_repository=_StubRepository(),
+        location_repository_factory=lambda: repo,
         ttl_seconds=120,
     )
 
@@ -136,11 +136,9 @@ def provider() -> CtsLocationProvider:
 
 @pytest.mark.asyncio
 async def test_fresh_state_returns_present_room(
-    provider: CtsLocationProvider,
     fresh_state: PersonLocationState,
 ):
-    repo = _StubRepository(fresh_state)
-    provider._repo = repo
+    provider = _make_provider(fresh_state)
     at = datetime.now(UTC)
     result = await provider.probe("mom", at)
 
@@ -155,11 +153,9 @@ async def test_fresh_state_returns_present_room(
 
 @pytest.mark.asyncio
 async def test_stale_state_returns_stale(
-    provider: CtsLocationProvider,
     stale_state: PersonLocationState,
 ):
-    repo = _StubRepository(stale_state)
-    provider._repo = repo
+    provider = _make_provider(stale_state)
     at = datetime.now(UTC)
     result = await provider.probe("mom", at)
 
@@ -171,11 +167,9 @@ async def test_stale_state_returns_stale(
 
 @pytest.mark.asyncio
 async def test_no_room_returns_none(
-    provider: CtsLocationProvider,
     no_room_state: PersonLocationState,
 ):
-    repo = _StubRepository(no_room_state)
-    provider._repo = repo
+    provider = _make_provider(no_room_state)
     at = datetime.now(UTC)
     result = await provider.probe("mom", at)
 
@@ -183,8 +177,8 @@ async def test_no_room_returns_none(
 
 
 @pytest.mark.asyncio
-async def test_no_state_returns_none(provider: CtsLocationProvider):
-    provider._repo = _StubRepository(None)
+async def test_no_state_returns_none():
+    provider = _make_provider(None)
     at = datetime.now(UTC)
     result = await provider.probe("mom", at)
 

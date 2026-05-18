@@ -107,7 +107,7 @@ def _make_provider(
 ) -> NightAnchorProvider:
     return NightAnchorProvider(
         cache=cache,
-        location_repository=repo,
+        location_repository_factory=lambda: repo,
         light_entities=["light.bedroom"],
         bed_sensor_entity="binary_sensor.master_bedroom_bed_occupancy",
         anchor_room_id="bedroom",

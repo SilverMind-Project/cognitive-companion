@@ -8,6 +8,7 @@ depending on the TTL.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from backend.core.logging import get_logger
@@ -44,9 +45,10 @@ class CtsLocationProvider:
 
     Parameters
     ----------
-    location_repository:
-        Repository abstraction over ``PersonLocationState`` /
-        ``PersonLocationHistory``.
+    location_repository_factory:
+        Callable returning a fresh ``LocationRepository`` for each probe.
+        The provider creates and closes a repo per call so long-lived
+        SQLAlchemy sessions are never held across requests.
     ttl_seconds:
         Seconds after which ``last_seen_at`` is considered stale.
     name:
@@ -58,12 +60,12 @@ class CtsLocationProvider:
     def __init__(
         self,
         *,
-        location_repository: LocationRepository,
+        location_repository_factory: Callable[[], LocationRepository],
         ttl_seconds: int = 120,
         name: str = "cts_location",
         priority: int = 50,
     ) -> None:
-        self._repo = location_repository
+        self._repo_factory = location_repository_factory
         self._ttl_seconds = ttl_seconds
         self._name = name
         self._priority = priority
@@ -82,7 +84,19 @@ class CtsLocationProvider:
         at: datetime,
     ) -> PresenceSnapshot | None:
         """Probe the location repository for *person_id*."""
-        state = self._repo.get_state(person_id)
+        repo = self._repo_factory()
+        try:
+            return self._probe_with_repo(repo, person_id, at)
+        finally:
+            repo.close()
+
+    def _probe_with_repo(
+        self,
+        repo: LocationRepository,
+        person_id: str,
+        at: datetime,
+    ) -> PresenceSnapshot | None:
+        state = repo.get_state(person_id)
         if state is None:
             return None
 
@@ -121,7 +135,7 @@ class CtsLocationProvider:
             )
 
         dwell_minutes = _compute_dwell(
-            self._repo,
+            repo,
             person_id,
             state.current_room_name,
             at,

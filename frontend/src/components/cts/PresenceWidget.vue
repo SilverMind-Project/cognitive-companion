@@ -50,12 +50,12 @@
       <v-tooltip v-if="snapshot && snapshot.sources?.length" location="bottom">
         <template #activator="{ props: actProps }">
           <div v-bind="actProps" class="text-caption text-medium-emphasis mt-1" tabindex="0">
-            Sources: {{ snapshot.sources.map(s => s.name).join(" → ") }}
+            Sources: {{ snapshot.sources.map(s => sourceLabel(s.name)).join(" → ") }}
           </div>
         </template>
         <div>
           <div v-for="s in snapshot.sources" :key="s.name">
-            {{ s.name }} ({{ Math.round(s.confidence * 100) }}%)
+            {{ sourceLabel(s.name) }} ({{ Math.round(s.confidence * 100) }}%)
           </div>
           <div v-if="snapshot.notes" class="mt-1 font-italic">{{ snapshot.notes }}</div>
         </div>
@@ -81,6 +81,20 @@ const props = defineProps({
 });
 
 const personLabel = computed(() => props.personLabel || props.personId);
+
+// Maps internal provider names to human-readable labels shown in the Sources tooltip.
+const SOURCE_LABELS = {
+  cts_location: "Continuous Tracking System",
+  ha_bed_sensor: "Bed Sensor",
+  ha_device_tracker: "Phone Location",
+  night_anchor: "Night Mode (Light Sensor)",
+  stale_fallback: "Last Known Location",
+  unknown_sentinel: "No Data",
+};
+
+function sourceLabel(name) {
+  return SOURCE_LABELS[name] ?? name;
+}
 
 const snapshot = ref(null);
 const loading = ref(false);

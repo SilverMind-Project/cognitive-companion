@@ -32,12 +32,14 @@ from backend.services.presence.providers.unknown import (
     UnknownProvider,
 )
 
+LocationRepositoryFactory = Callable[[], LocationRepository]
+
 logger = get_logger(__name__)
 
 # Mapping from config discriminator to provider class + builder.
 _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
     "cts_location": lambda cfg, **kw: CtsLocationProvider(
-        location_repository=kw["location_repository"],
+        location_repository_factory=kw["location_repository_factory"],
         ttl_seconds=cfg.ttl_seconds,
         priority=cfg.priority,
     ),
@@ -59,7 +61,7 @@ _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
     ),
     "night_anchor": lambda cfg, **kw: NightAnchorProvider(
         cache=kw["cache"],
-        location_repository=kw["location_repository"],
+        location_repository_factory=kw["location_repository_factory"],
         light_entities=cfg.light_entities,
         bed_sensor_entity=cfg.bed_sensor_entity,
         anchor_room_id=cfg.anchor_room_id,
@@ -73,7 +75,7 @@ _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
         priority=cfg.priority,
     ),
     "stale_fallback": lambda cfg, **kw: StaleFallbackProvider(
-        location_repository=kw["location_repository"],
+        location_repository_factory=kw["location_repository_factory"],
         ttl_seconds=cfg.ttl_seconds,
         priority=cfg.priority,
     ),
@@ -85,7 +87,7 @@ def build_providers(
     config: PresenceConfig,
     *,
     cache: HaStateCache,
-    location_repository: LocationRepository,
+    location_repository_factory: LocationRepositoryFactory,
 ) -> list:  # list[PresenceProvider]
     """Build provider instances from *config*.
 
@@ -95,8 +97,11 @@ def build_providers(
         Validated ``PresenceConfig`` from :func:`load_presence_config`.
     cache:
         The ``HaStateCache`` for HA-backed providers.
-    location_repository:
-        The ``LocationRepository`` for CTS-backed providers.
+    location_repository_factory:
+        Callable returning a fresh ``LocationRepository`` per probe call.
+        CTS-backed providers (``cts_location``, ``night_anchor``,
+        ``stale_fallback``) use this to avoid holding a long-lived
+        SQLAlchemy session.
 
     Returns
     -------
@@ -116,7 +121,7 @@ def build_providers(
         provider = builder(
             provider_cfg,
             cache=cache,
-            location_repository=location_repository,
+            location_repository_factory=location_repository_factory,
         )
         providers.append(provider)
 

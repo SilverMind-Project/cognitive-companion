@@ -599,20 +599,19 @@ async def lifespan(app: FastAPI):
         await ha_state_cache.start()
         app.state.ha_state_cache = ha_state_cache
 
-        location_repository = SqlAlchemyLocationRepository(
-            cts_runtime._db_factory(),
-        )
+        def _location_repo_factory() -> SqlAlchemyLocationRepository:
+            return SqlAlchemyLocationRepository(cts_runtime._db_factory())
+
         providers = build_providers(
             presence_config,
             cache=ha_state_cache,
-            location_repository=location_repository,
+            location_repository_factory=_location_repo_factory,
         )
         presence_service = PresenceService(
             providers=providers,
             fusion_config=presence_config.fusion,
         )
         app.state.presence = presence_service
-        location_repository.close()
         logger.info(
             "presence_service_started",
             providers=[p.name for p in providers],

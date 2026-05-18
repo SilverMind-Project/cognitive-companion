@@ -96,10 +96,10 @@
             elevation="1"
           >
             <v-img
-              :src="keyframeImage(kf)"
+              :src="displaySrc(keyframeImage(kf))"
               height="180"
               cover
-              :class="['keyframe-image', { 'cts-blur': blurMode }]"
+              class="keyframe-image"
             >
               <template v-slot:placeholder>
                 <v-row class="fill-height ma-0" align="center" justify="center">
@@ -115,8 +115,12 @@
               </v-overlay>
               <v-overlay opacity="0.6" class="align-end" contained>
                 <div class="pa-2">
-                  <v-chip v-if="kf.signal_type" size="x-small" color="primary">
-                    {{ kf.signal_type.replace(/_/g, " ") }}
+                  <v-chip
+                    v-if="kf.signal_type || kf.tag_reason"
+                    size="x-small"
+                    :color="kf.signal_type ? 'primary' : 'secondary'"
+                  >
+                    {{ (kf.signal_type || kf.tag_reason).replace(/_/g, " ") }}
                   </v-chip>
                   <v-chip v-if="kf.severity" size="x-small" :color="severityColor(kf.severity)" class="ml-1">
                     {{ kf.severity }}
@@ -153,7 +157,7 @@
           title="Details"
           @close="detailDialog = false"
         />
-        <v-img :src="keyframeImage(selectedKeyframe)" height="400" cover :class="{ 'cts-blur': blurMode }" />
+        <v-img :src="displaySrc(keyframeImage(selectedKeyframe))" height="400" cover />
         <v-card-text>
           <v-row>
             <v-col cols="6">
@@ -166,13 +170,22 @@
             </v-col>
             <v-col cols="6">
               <div class="text-caption text-medium-emphasis">Signal Type</div>
-              <v-chip size="small" color="primary">
-                {{ selectedKeyframe.signal_type?.replace(/_/g, " ") || "—" }}
+              <v-chip
+                v-if="selectedKeyframe.signal_type || selectedKeyframe.tag_reason"
+                size="small"
+                :color="selectedKeyframe.signal_type ? 'primary' : 'secondary'"
+              >
+                {{ (selectedKeyframe.signal_type || selectedKeyframe.tag_reason).replace(/_/g, " ") }}
               </v-chip>
+              <span v-else class="text-body-2 text-medium-emphasis">—</span>
             </v-col>
             <v-col cols="6">
               <div class="text-caption text-medium-emphasis">Quality</div>
-              <v-progress-linear :model-value="selectedKeyframe.quality * 100" height="8" rounded />
+              <template v-if="selectedKeyframe.quality != null && selectedKeyframe.quality > 0">
+                <v-progress-linear :model-value="selectedKeyframe.quality * 100" height="8" rounded />
+                <div class="text-caption text-medium-emphasis mt-1">{{ Math.round(selectedKeyframe.quality * 100) }}%</div>
+              </template>
+              <span v-else class="text-body-2 text-medium-emphasis">—</span>
             </v-col>
           </v-row>
           <v-divider class="my-3" />
@@ -326,12 +339,13 @@ import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import { severityColor } from "../../composables/useCtsSeverity";
 import { formatDateTime } from "../../services/timezone.js";
-import { useBlurMode } from "../../composables/useBlurMode.js";
+import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
 
 const { blurMode } = useBlurMode();
+const { displaySrc } = useDisplaySrc(blurMode);
 
 const keyframes = ref([]);
 const selectedKeyframe = ref(null);
@@ -344,15 +358,27 @@ const filters = ref({
   limit: 50,
 });
 
-const signalTypes = [
+const signalTypes = ref([
   "pacing",
-  "room_revisit_rate",
   "bathroom_dwell_anomaly",
   "sundowning_index",
   "nighttime_movement",
   "stillness_anomaly",
   "absence",
-];
+]);
+
+async function refreshSignalTypes() {
+  // Augment the static list with signal types and tag_reasons seen in
+  // the current keyframe set so caregivers can filter by any value.
+  const seen = new Set(signalTypes.value);
+  for (const kf of keyframes.value) {
+    const val = kf.signal_type || kf.tag_reason;
+    if (val && !seen.has(val)) {
+      seen.add(val);
+      signalTypes.value.push(val);
+    }
+  }
+}
 
 const persons = computed(() => {
   const ids = new Set(keyframes.value.map((k) => k.person_id).filter(Boolean));
@@ -452,6 +478,7 @@ async function loadKeyframes() {
       limit: filters.value.limit,
     });
     keyframes.value = data.keyframes || [];
+    refreshSignalTypes();
   } catch (e) {
     console.error("Failed to load keyframes:", e);
   } finally {
@@ -557,8 +584,5 @@ async function submitEnroll() {
 .card-selected {
   outline: 2px solid rgb(var(--v-theme-primary));
   outline-offset: -2px;
-}
-.cts-blur {
-  filter: blur(12px);
 }
 </style>

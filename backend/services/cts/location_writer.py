@@ -53,17 +53,21 @@ class LocationWriter:
         self,
         repo_factory,
         authority: SourceAuthority | None = None,
+        camera_room_map: dict[str, str] | None = None,
     ) -> None:
         self._repo_factory = repo_factory
         self._authority = authority or SourceAuthority()
+        self._camera_room_map: dict[str, str] = camera_room_map or {}
 
     async def apply(self, event: dict[str, Any]) -> list[str]:
         """Apply one decoded tracking event. Returns the list of person_ids
         touched so the caller can broadcast location updates on the WS.
         """
         detections = event.get("detections") or []
-        room_name = event.get("room_name") or None
         camera_id = event.get("camera_id") or ""
+        # Fall back to the camera's configured room when the orchestrator
+        # omits room_name from the proto (common for single-camera deployments).
+        room_name = event.get("room_name") or self._camera_room_map.get(camera_id) or None
         event_time = (
             parse_ts(event.get("event_time")) if event.get("event_time") else datetime.now(UTC)
         )

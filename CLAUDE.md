@@ -14,7 +14,7 @@ Privacy-first, on-premise AI for senior care. Python 3.14 FastAPI backend, Vue 3
 
 ## Read before editing
 
-1. [AGENTS.md](AGENTS.md): canonical reference (architecture, plugin contracts, all 20 step types, all 7 channels, all 13 filters, CTS gateway, testing conventions, naming conventions, common tasks).
+1. [AGENTS.md](AGENTS.md): canonical reference (architecture, plugin contracts, all 20 step types, all 7 channels, all 13 filters, CTS gateway, per-person signal config, testing conventions, naming conventions, common tasks).
 2. `backend/main.py` lifespan: source of truth for service wiring and `app.state` keys.
 3. `backend/steps/base.py`: `StepHandler`, `StepMetadata`, `StepResult`, `TriggerContext`, `ServiceContainer`.
 4. `config/settings.yaml`: every tunable, plus the operator timezone.
@@ -22,6 +22,7 @@ Privacy-first, on-premise AI for senior care. Python 3.14 FastAPI backend, Vue 3
 6. `backend/services/cts/_types.py`: protocol definitions for CTS-injected services. Use these, not `Any`.
 7. `backend/services/cts/_time.py`: shared time utilities (`ns_to_iso`, `parse_ts`, `ensure_aware`). Never duplicate these.
 8. `backend/routers/cts_deps.py`: shared `cts_enabled()` dependency. Import it; don't redefine it.
+9. `backend/services/cts/signal_config.py`: `ALL_SIGNAL_KINDS`, `is_signal_enabled(cfg, kind, severity)`, `default_config_for_profile(profile)`. Import from here; never hardcode the 7 kind strings inline.
 
 ---
 
@@ -70,7 +71,7 @@ uv run --project backend python -m backend.steps._scaffold new <type_name> --cat
 - **Permissions are mandatory.** Every endpoint needs an `auth.yaml` entry. Tests override `get_auth_context`, not `require_permission`.
 - **Datetimes are timezone-aware.** Use `datetime.now(UTC)`. External datetimes pass through `backend.core.time.normalize_utc_datetime()`.
 - **Shared PostgreSQL.** The database host, port, user, password, and name come from `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` env vars. The shared `timescale/timescaledb-ha:pg18` instance hosts three databases: `cognitive_companion`, `continuous_tracking`, `semantic_memory`. Dev: `docker compose --profile standalone up -d` for a self-contained Postgres, or use the shared `docker-compose.db.yml` via `include`.
-- **CTS surface is isolated.** Don't write CTS tables outside `services/cts/`. Don't import `_upstream_base` from non-CTS code. Don't subscribe to `tracking.*` or `scene.*` streams outside `CTSRuntime`. Don't duplicate `_cts_enabled()` — import from `backend.routers.cts_deps`. Don't duplicate `ns_to_iso` or `parse_ts` — import from `backend.services.cts._time`. Use protocol types from `backend.services.cts._types` for injected service parameters; never `Any`.
+- **CTS surface is isolated.** Don't write CTS tables outside `services/cts/`. Don't import `_upstream_base` from non-CTS code. Don't subscribe to `tracking.*` or `scene.*` streams outside `CTSRuntime`. Don't duplicate `_cts_enabled()` — import from `backend.routers.cts_deps`. Don't duplicate `ns_to_iso` or `parse_ts` — import from `backend.services.cts._time`. Use protocol types from `backend.services.cts._types` for injected service parameters; never `Any`. Don't hardcode signal kind strings — import `ALL_SIGNAL_KINDS` from `backend.services.cts.signal_config`.
 - **No em-dashes in `.md` files.** Use colons, commas, semicolons.
 - **Template expressions use `{{ }}` syntax everywhere.** The Lark-based grammar in `backend/core/template_grammar.lark` is the single evaluator. Bare expressions (no braces) are not supported. JMESPath uses pipe syntax: `steps.foo.outputs.detections | length(@)`.
 - **Plugins declare their output schema.** Every data-emitting step handler must include `output_schema` in its `StepMetadata`. The contract tests in `backend/tests/steps/test_registry_contract.py` enforce this.
@@ -135,6 +136,7 @@ Triggers are decoupled from rules. A `Rule` stores `trigger_types: list[str]` (J
 | `telegram` | `TelegramTriggerService` polls for commands, matches rules with `"telegram"` in `trigger_types` |
 | `manual` | `POST /rules/{id}/execute`; works for any enabled rule |
 | `occupancy_duration` | RulesEngine with `trigger_type="occupancy_duration"` filter |
+| `dementia_signal` | `DementiaSignalSubscriber` calls `PipelineExecutor.fire_event` after dispatch gate; `get_matching_rules_for_event` runs rules with `trigger_types` containing `"dementia_signal"`. Event is a dict, not a Sensor ORM object; sensor-dependent filters are skipped. |
 
 A rule can respond to multiple trigger types simultaneously (e.g., both cron and sensor_event).
 
@@ -254,12 +256,13 @@ This project loads two skills at conversation start. Read them before making fro
 | Condition / expression evaluation | `backend/core/template_grammar.lark` → `template_ast.py` → `template_interpreter.py` |
 | Template rendering | `backend/core/template.py` |
 | CTS data flow | `backend/services/cts/runtime.py` and the four subscribers (tracking_event, identity_revision, dementia_signal, scene_sample) |
-| CTS shared utilities | `backend/services/cts/_time.py` (time), `backend/services/cts/_types.py` (protocols), `backend/routers/cts_deps.py` (router deps) |
+| CTS shared utilities | `backend/services/cts/_time.py` (time), `backend/services/cts/_types.py` (protocols), `backend/routers/cts_deps.py` (router deps), `backend/services/cts/signal_config.py` (per-person alert config + kind list) |
 | CTS stream consumer base | `backend/services/cts/stream_consumer.py` |
 | Presence fusion | `backend/services/presence/factory.py`, `service.py`, plus `config/presence.yaml` |
 | LLM model registry | `backend/integrations/llm/__init__.py` |
 | Notification routing | `backend/services/notification_dispatcher.py` and `config/notifications.yaml` |
-| Trigger dispatch | `backend/services/scheduler.py` (cron), `backend/services/rules_engine.py` (sensor/occupancy) |
+| Trigger dispatch | `backend/services/scheduler.py` (cron), `backend/services/rules_engine.py` (sensor/occupancy/dementia_signal via `get_matching_rules_for_event`) |
+| Per-person CTS alert config | `backend/services/cts/signal_config.py`, `HouseholdMember.cts_alert_config`, migration `0012_cts_alert_config` |
 | Import/export | `backend/services/rule_serializer.py`, `backend/schemas/rule_bundle.py` |
 | Plugin migrations | `backend/core/plugin_migrations.py` |
 | Cron expression handling | `backend/routers/pipeline.py` (preview endpoint), `frontend/src/components/pipeline/CronBuilder.vue` |

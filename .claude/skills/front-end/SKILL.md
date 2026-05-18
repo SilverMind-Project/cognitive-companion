@@ -145,6 +145,20 @@ This gets `--cc-surface-2` background from the global tonal card rule. No custom
 
 ## Data tables and pagination
 
+### Table visual wrapper (mandatory)
+
+Every `v-data-table` must be wrapped in `<v-card class="glass-card">`. This gives the table the frosted-glass surface, border, and shadow consistent with all other cards in the app.
+
+```html
+<v-card class="glass-card">
+  <v-data-table :headers="headers" :items="items" :loading="loading" item-value="id">
+    <!-- column templates -->
+  </v-data-table>
+</v-card>
+```
+
+For tables that are tool/workbench views (not CRUD list views), `density="compact" hide-default-footer :items-per-page="-1"` is acceptable when the dataset is small and pagination is unnecessary. These tables still use the `glass-card` wrapper.
+
 ### Server-side pagination (mandatory for all list views)
 
 Every `v-data-table` must use server-side pagination. The pattern:
@@ -376,6 +390,23 @@ if (!ok) return;
 7. **`toLocaleString()` for dates** — use `formatDateTime` from `@/services/timezone.js`.
 8. **`alert()` / `confirm()` in Vue** — use `useNotify()` / `useConfirm()`.
 9. **Extra fields in PATCH requests** — PATCH schemas have `extra="forbid"`. Only send fields defined in the Update schema.
+10. **Margin classes on Vuetify wrapper components inside slot templates** — `v-chip`, `v-btn`, and `v-avatar` render internal DOM wrappers that can absorb `mr-2`/`ml-2` classes, making the margin invisible. Always wrap these components in a `<div>` with the margin class when they appear in `#prepend` or `#append` slots:
+
+    ```html
+    <!-- WRONG — margin may land on an internal wrapper -->
+    <template #prepend>
+      <v-chip class="mr-2">Label</v-chip>
+    </template>
+
+    <!-- RIGHT — margin on a plain div is always visible -->
+    <template #prepend>
+      <div class="mr-2">
+        <v-chip>Label</v-chip>
+      </div>
+    </template>
+    ```
+
+    Simple elements (`v-icon`, `<span>`) do not have this issue and can take margin classes directly. In `#prepend` slots, use `mr-2` (push content right); in `#append` slots, use `ml-2` (push content left).
 
 ---
 

@@ -46,6 +46,6 @@ class UpstreamTimeout(UpstreamError):
 
 
 class UpstreamUnavailable(UpstreamError):
-    def __init__(self, service: str, status: int = 503) -> None:
+    def __init__(self, service: str, status: int = 503, body: str = "") -> None:
         self.code = UpstreamCode.UNAVAILABLE
-        super().__init__(service, status)
+        super().__init__(service, status, body)

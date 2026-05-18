@@ -394,13 +394,15 @@
                 :title="identityDisplayName(group.current_identity_id) || 'UNKNOWN'"
               >
                 <template #prepend>
-                  <v-chip
-                    :color="group.current_identity_id ? 'success' : 'warning'"
-                    size="x-small"
-                    variant="tonal"
-                  >
-                    {{ group.current_identity_id ? 'named' : 'UNKNOWN' }}
-                  </v-chip>
+                  <div class="mr-2">
+                    <v-chip
+                      :color="group.current_identity_id ? 'success' : 'warning'"
+                      size="x-small"
+                      variant="tonal"
+                    >
+                      {{ group.current_identity_id ? 'named' : 'UNKNOWN' }}
+                    </v-chip>
+                  </div>
                 </template>
                 <template #append>
                   <span class="text-caption text-medium-emphasis mr-2">

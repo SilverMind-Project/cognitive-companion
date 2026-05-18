@@ -23,7 +23,7 @@
         ref="svgEl"
         class="polygon-overlay"
         :viewBox="`0 0 ${svgW} ${svgH}`"
-        :style="`width:${svgW}px;height:${svgH}px`"
+        :style="`width:${svgW}px;height:${svgH}px;top:${svgOffY}px;left:${svgOffX}px`"
         @click.exact="onSvgClick"
         @dblclick="onDblClick"
       >
@@ -114,6 +114,8 @@ const imgEl = ref(null);
 const svgEl = ref(null);
 const svgW = ref(0);
 const svgH = ref(0);
+const svgOffX = ref(0);
+const svgOffY = ref(0);
 const svgReady = computed(() => svgW.value > 0 && svgH.value > 0);
 const pts = computed(() => props.modelValue);
 
@@ -122,8 +124,36 @@ let resizeObserver = null;
 function syncSize() {
   if (!imgEl.value) return;
   const r = imgEl.value.getBoundingClientRect();
-  svgW.value = Math.round(r.width);
-  svgH.value = Math.round(r.height);
+  const nw = imgEl.value.naturalWidth;
+  const nh = imgEl.value.naturalHeight;
+  if (!nw || !nh) {
+    svgW.value = Math.round(r.width);
+    svgH.value = Math.round(r.height);
+    svgOffX.value = 0;
+    svgOffY.value = 0;
+    return;
+  }
+  // Compute actual image content area inside the object-fit:contain element.
+  const naturalRatio = nw / nh;
+  const elRatio = r.width / r.height;
+  let contentW, contentH, offX, offY;
+  if (naturalRatio > elRatio) {
+    // Wider than container ratio: letterboxed (bars top/bottom).
+    contentW = r.width;
+    contentH = r.width / naturalRatio;
+    offX = 0;
+    offY = (r.height - contentH) / 2;
+  } else {
+    // Taller than container ratio: pillarboxed (bars left/right).
+    contentH = r.height;
+    contentW = r.height * naturalRatio;
+    offX = (r.width - contentW) / 2;
+    offY = 0;
+  }
+  svgW.value = Math.round(contentW);
+  svgH.value = Math.round(contentH);
+  svgOffX.value = Math.round(offX);
+  svgOffY.value = Math.round(offY);
 }
 
 function onImageLoad() {
@@ -236,8 +266,6 @@ onBeforeUnmount(() => {
 
 .polygon-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
   cursor: crosshair;
   pointer-events: all;
 }

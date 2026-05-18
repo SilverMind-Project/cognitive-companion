@@ -11,6 +11,7 @@ import backend.models  # noqa: F401
 from backend.integrations.proto.continuoustracking.v1 import (  # type: ignore[attr-defined]
     signals_pb2,
 )
+from backend.models.person import HouseholdMember
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.subscriber import DementiaSignalSubscriber
 
@@ -167,3 +168,89 @@ class TestHandle:
         assert decoded is not None
         ok = await sub.handle(decoded)
         assert ok is True
+
+
+class TestDispatchSuppression:
+    """Dispatch is suppressed when the person's cts_alert_config disables the kind."""
+
+    @pytest.mark.asyncio
+    async def test_dispatch_suppressed_when_kind_disabled(
+        self, store: SignalStore, db_factory
+    ):
+        """Signal is stored but pipeline.fire_event is NOT called when kind is disabled."""
+        db = db_factory()
+        member = HouseholdMember(
+            id="grandma",
+            name="Grandma",
+            cts_alert_config={"enabled_kinds": ["absence"], "min_severity": "info"},
+        )
+        db.add(member)
+        db.commit()
+        db.close()
+
+        pipeline = MagicMock()
+        pipeline.fire_event = AsyncMock()
+        sub = DementiaSignalSubscriber(
+            redis_url="redis://localhost:6379",
+            consumer_id="test",
+            store=store,
+            pipeline=pipeline,
+            db_factory=db_factory,
+        )
+        decoded = sub.decode(b"msg-1", _proto_fields(_proto_signal(kind=signals_pb2.DEMENTIA_SIGNAL_KIND_PACING)))
+        assert decoded is not None
+        ok = await sub.handle(decoded)
+        assert ok is True
+        # Signal should be persisted
+        results = await store.list_recent()
+        assert len(results) == 1
+        # But pipeline should NOT be fired
+        pipeline.fire_event.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_dispatch_allowed_when_kind_enabled(
+        self, store: SignalStore, db_factory
+    ):
+        """Pipeline is fired when the kind is in the person's enabled_kinds."""
+        db = db_factory()
+        member = HouseholdMember(
+            id="grandma",
+            name="Grandma",
+            cts_alert_config={"enabled_kinds": ["pacing", "absence"], "min_severity": "info"},
+        )
+        db.add(member)
+        db.commit()
+        db.close()
+
+        pipeline = MagicMock()
+        pipeline.fire_event = AsyncMock()
+        sub = DementiaSignalSubscriber(
+            redis_url="redis://localhost:6379",
+            consumer_id="test",
+            store=store,
+            pipeline=pipeline,
+            db_factory=db_factory,
+        )
+        decoded = sub.decode(b"msg-1", _proto_fields(_proto_signal(kind=signals_pb2.DEMENTIA_SIGNAL_KIND_PACING)))
+        assert decoded is not None
+        await sub.handle(decoded)
+        pipeline.fire_event.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_dispatch_allowed_when_no_member_config(
+        self, store: SignalStore, db_factory
+    ):
+        """Unknown person (no DB record) gets permissive default: dispatch proceeds."""
+        pipeline = MagicMock()
+        pipeline.fire_event = AsyncMock()
+        sub = DementiaSignalSubscriber(
+            redis_url="redis://localhost:6379",
+            consumer_id="test",
+            store=store,
+            pipeline=pipeline,
+            db_factory=db_factory,
+        )
+        decoded = sub.decode(b"msg-1", _proto_fields(_proto_signal(identity_id="unknown-person")))
+        assert decoded is not None
+        await sub.handle(decoded)
+        pipeline.fire_event.assert_awaited_once()

@@ -2,7 +2,7 @@
   <div>
     <div class="d-flex align-center mb-6">
       <div>
-        <h2 class="text-h4 font-weight-bold tracking-tight">CTS Dashboard</h2>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Continuous Tracking Dashboard</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
           Real-time tracking, signals, and dwell data for monitored persons.
         </div>

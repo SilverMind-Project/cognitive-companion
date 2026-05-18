@@ -14,9 +14,15 @@
     </div>
 
     <!-- Existing edges from orchestrator -->
-    <v-card v-if="savedEdges.length > 0" class="mb-4" variant="flat" border>
-      <v-card-subtitle class="pt-3 pb-1">Saved in orchestrator</v-card-subtitle>
+    <v-card class="glass-card mb-4">
+      <v-card-title class="d-flex align-center">
+        <span>Saved Edges</span>
+        <v-spacer />
+        <span class="text-caption text-medium-emphasis">{{ savedEdges.length }} edge{{ savedEdges.length === 1 ? '' : 's' }}</span>
+      </v-card-title>
+      <v-divider />
       <v-data-table
+        v-if="savedEdges.length > 0"
         :headers="savedHeaders"
         :items="savedEdges"
         item-value="_key"
@@ -32,25 +38,37 @@
           <span v-else class="text-medium-emphasis">—</span>
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="stageForEdit(item)" />
+          <div class="d-flex ga-1">
+            <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="stageForEdit(item)" />
+          </div>
         </template>
       </v-data-table>
+      <div v-else class="pa-6 text-center">
+        <v-icon size="40" color="medium-emphasis" class="mb-2">mdi-graph-outline</v-icon>
+        <div class="text-body-1 text-medium-emphasis">No adjacency edges</div>
+        <div class="text-caption text-medium-emphasis mt-1">
+          Add edges to help the tracker resolve cross-camera identity.
+        </div>
+      </div>
     </v-card>
 
-    <v-alert v-else-if="!loadingEdges" type="info" variant="tonal" class="mb-4">
-      No adjacency edges saved yet. Add edges to help the tracker resolve cross-camera identity.
-    </v-alert>
-
     <!-- Locally-staged edits -->
-    <v-card v-if="stagedEdges.length > 0" class="mb-4">
-      <v-card-subtitle class="pt-3 pb-1">Staged (unsaved)</v-card-subtitle>
+    <v-card v-if="stagedEdges.length > 0" class="glass-card mb-4">
+      <v-card-title class="d-flex align-center">
+        <span>Staged Edges</span>
+        <v-spacer />
+        <v-chip size="x-small" color="warning" variant="tonal">Unsaved</v-chip>
+      </v-card-title>
+      <v-divider />
       <v-data-table :headers="editHeaders" :items="stagedEdges" item-value="_key" density="compact" hide-default-footer :items-per-page="-1">
         <template #item.transit="{ item }">
           {{ item.min_transit_s }}s – {{ item.max_transit_s }}s
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
-          <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="removeEdge(item)" />
+          <div class="d-flex ga-1">
+            <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
+            <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="removeEdge(item)" />
+          </div>
         </template>
       </v-data-table>
     </v-card>

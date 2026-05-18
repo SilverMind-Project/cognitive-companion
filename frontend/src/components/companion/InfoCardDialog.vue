@@ -15,15 +15,16 @@
           {{ title }}
         </v-card-title>
         <template #append>
-          <v-chip
-            :color="countdown <= 5 ? 'error' : 'grey'"
-            size="small"
-            variant="tonal"
-            class="ml-1"
-          >
-            <v-icon start size="13">mdi-timer-outline</v-icon>
-            {{ countdown }}s
-          </v-chip>
+          <div class="ml-1">
+            <v-chip
+              :color="countdown <= 5 ? 'error' : 'grey'"
+              size="small"
+              variant="tonal"
+            >
+              <v-icon start size="13">mdi-timer-outline</v-icon>
+              {{ countdown }}s
+            </v-chip>
+          </div>
         </template>
       </v-card-item>
 

@@ -50,13 +50,15 @@
       <v-card v-else-if="screen === 'question'" key="question" class="quiz-card">
         <v-card-item class="pb-0">
           <template #prepend>
-            <v-chip
-              color="primary"
-              size="small"
-              variant="tonal"
-            >
-              {{ currentOrd + 1 }}&thinsp;/&thinsp;{{ totalQuestions }}
-            </v-chip>
+            <div class="mr-2">
+              <v-chip
+                color="primary"
+                size="small"
+                variant="tonal"
+              >
+                {{ currentOrd + 1 }}&thinsp;/&thinsp;{{ totalQuestions }}
+              </v-chip>
+            </div>
           </template>
           <v-card-title class="text-h6 font-weight-bold question-title text-wrap" style="line-height: 1.3">
             {{ questionText }}

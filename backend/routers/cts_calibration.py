@@ -1,12 +1,14 @@
 """CTS calibration endpoints: homography, privacy zones, and camera adjacency.
 
-Homography is computed with OpenCV's ``findHomography`` (RANSAC method).
-Residuals are validated server-side; the API returns 400 when the maximum
-per-point reprojection error exceeds 0.5 m (§5.20 gate 8).
+Homography computation runs in the tracking orchestrator (``continuous-tracking``),
+which is the authoritative spatial-processing service.  This BFF router is a thin
+proxy: it validates camera existence, persists the computed matrix to the CC
+database (for restart durability), and forwards errors from the orchestrator.
 
 Routes:
     POST /api/v1/cts/calibration/homography
     GET  /api/v1/cts/calibration/homography/{camera_id}
+    POST /api/v1/cts/calibration/auto/{camera_id}
     POST /api/v1/cts/calibration/privacy_zones
     GET  /api/v1/cts/calibration/privacy_zones/{camera_id}
     POST /api/v1/cts/calibration/adjacency
@@ -15,10 +17,11 @@ Routes:
 
 from __future__ import annotations
 
+import base64
 from typing import Any
 
-import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
@@ -26,11 +29,12 @@ from backend.core.database import get_db
 from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
+from backend.integrations.ingress_admin_client import IngressAdminClient
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.cts_camera import CtsCamera
 from backend.models.household_settings import HouseholdSettings
 from backend.routers.cts_deps import cts_enabled
-from backend.routers.dependencies import get_orchestrator_client
+from backend.routers.dependencies import get_ingress_admin_client, get_orchestrator_client
 from backend.schemas.cts_camera import (
     AdjacencyRequest,
     HomographyRequest,
@@ -42,69 +46,28 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/cts/calibration", tags=["cts-calibration"])
 
-# Validation thresholds (metres)
-_RESIDUAL_ERROR = 0.5
-_RESIDUAL_WARN = 0.25
-
-
-# ---------------------------------------------------------------------------
-# Homography math (pure function: unit-testable without FastAPI)
-# ---------------------------------------------------------------------------
-
-
-def compute_homography(
-    pixel_points: list[list[float]],
-    floor_points: list[list[float]],
-) -> tuple[list[list[float]], list[float]]:
-    """Fit a 3x3 homography and return (matrix, per-point residuals in metres).
-
-    Uses OpenCV ``findHomography`` with the RANSAC method for robustness
-    against outliers.  Each residual is the Euclidean distance (in metres)
-    between the back-projected point and the provided floor point.
-
-    Raises ``ImportError`` if ``opencv-python-headless`` is not installed.
-    Raises ``ValueError`` if fewer than 4 point pairs are provided.
-    """
-    import cv2
-
-    if len(pixel_points) < 4 or len(floor_points) < 4:
-        raise ValueError("At least 4 point pairs required to fit a homography")
-
-    src = np.array(pixel_points, dtype=np.float64)
-    dst = np.array(floor_points, dtype=np.float64)
-
-    H, _ = cv2.findHomography(src, dst, cv2.RANSAC, ransacReprojThreshold=5.0)
-    if H is None:
-        raise ValueError("findHomography did not converge: check that points are not collinear")
-
-    # Compute per-point reprojection error in floor-plan metres.
-    ones = np.ones((len(src), 1), dtype=np.float64)
-    src_h = np.hstack([src, ones])  # (N, 3)
-    proj_h = (H @ src_h.T).T  # (N, 3)
-    proj = proj_h[:, :2] / proj_h[:, 2:3]  # normalise homogeneous coords
-
-    residuals: list[float] = [
-        float(np.linalg.norm(proj[i] - dst[i])) for i in range(len(src))
-    ]
-
-    matrix: list[list[float]] = H.tolist()
-    return matrix, residuals
-
-
-def _residual_status(max_residual: float) -> str:
-    if max_residual <= _RESIDUAL_WARN:
-        return "ok"
-    if max_residual <= _RESIDUAL_ERROR:
-        return "warning"
-    return "error"
-
 
 def _upstream_to_http(exc: UpstreamError) -> HTTPException:
+    import json
+
     code_map = {503: status.HTTP_503_SERVICE_UNAVAILABLE, 504: status.HTTP_504_GATEWAY_TIMEOUT}
     http_code = code_map.get(exc.status, status.HTTP_502_BAD_GATEWAY)
+    # Try to forward the upstream's own error detail (code + message) so the UI
+    # shows an actionable description rather than the generic "upstream.unknown".
+    upstream_code = str(exc.code)
+    message = str(exc)
+    if exc.body:
+        try:
+            parsed = json.loads(exc.body)
+            detail = parsed.get("detail", parsed)
+            if isinstance(detail, dict):
+                upstream_code = detail.get("code", upstream_code)
+                message = detail.get("message", message)
+        except (ValueError, AttributeError):
+            pass
     return HTTPException(
         status_code=http_code,
-        detail={"code": str(exc.code), "service": exc.service, "message": str(exc)},
+        detail={"code": upstream_code, "service": exc.service, "message": message},
     )
 
 
@@ -121,10 +84,12 @@ async def post_homography(
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> HomographyResult:
-    """Fit a homography from calibration points, validate residuals, and push to orchestrator.
+    """Fit a homography from calibration points and persist it.
 
-    Returns 400 with ``error.code = "cts.calibration.residuals_too_high"``
-    when the maximum per-point error exceeds 0.5 m (§5.20 gate 8).
+    Delegates computation to the tracking orchestrator (``POST
+    /internal/calibration/homography/fit``), which runs OpenCV RANSAC
+    server-side.  Returns 400 when the maximum per-point reprojection
+    error exceeds 0.5 m.
     """
     cts_enabled()
 
@@ -132,60 +97,24 @@ async def post_homography(
     if not cam:
         raise NotFoundError("Camera", body.camera_id)
 
-    pixel_pts = [p.pixel for p in body.points]
-    floor_pts = [p.floor_m for p in body.points]
+    points_raw = [p.model_dump() for p in body.points]
 
     try:
-        matrix, residuals = compute_homography(pixel_pts, floor_pts)
-    except ImportError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "code": "cts.calibration.opencv_missing",
-                "message": "opencv-python-headless is not installed on this server.",
-            },
-        ) from None
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={"code": "cts.calibration.invalid_points", "message": str(exc)},
-        ) from exc
-
-    max_residual = max(residuals)
-
-    if max_residual > _RESIDUAL_ERROR:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "code": "cts.calibration.residuals_too_high",
-                "message": (
-                    f"Maximum reprojection error {max_residual:.3f} m exceeds "
-                    f"the {_RESIDUAL_ERROR} m threshold. Adjust calibration points."
-                ),
-                "max_residual_m": max_residual,
-                "residuals_m": residuals,
-            },
+        result = await orchestrator.fit_homography(
+            camera_id=body.camera_id,
+            points=points_raw,
         )
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        raise _upstream_to_http(exc) from exc
 
-    # Persist to camera row.
+    matrix: list[list[float]] = result["matrix"]
+    residuals: list[float] = result["residuals_m"]
+    max_residual: float = result["max_residual_m"]
+
+    # Persist the computed matrix to the CC database for restart durability.
     cam.homography = {"matrix": matrix}
     cam.homography_residuals = residuals
     db.commit()
-
-    # Push to orchestrator (non-fatal if orchestrator is unreachable).
-    try:
-        await orchestrator.post_homography(
-            camera_id=body.camera_id,
-            matrix=matrix,
-            points=[p.model_dump() for p in body.points],
-            meta={"max_residual_m": max_residual},
-        )
-    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
-        logger.warning(
-            "cts_homography_push_failed",
-            camera_id=body.camera_id,
-            error=str(exc),
-        )
 
     logger.info(
         "cts_homography_saved",
@@ -198,7 +127,110 @@ async def post_homography(
         matrix=matrix,
         residuals_m=residuals,
         max_residual_m=max_residual,
-        status=_residual_status(max_residual),
+        status=result.get("status", "ok"),
+    )
+
+
+class AutoCalibrateRequest(BaseModel):
+    """Request body for depth-based automatic homography estimation.
+
+    ``minio_key`` is optional.  When omitted the BFF fetches a fresh JPEG
+    snapshot from the RTSP ingress and passes it directly to the orchestrator,
+    so the button works even when no live tracking stream is running.
+    """
+
+    minio_key: str | None = Field(
+        default=None, min_length=1, description="MinIO object key (optional; omit to fetch a live snapshot)"
+    )
+    fov_deg: float = Field(
+        default=70.0,
+        ge=20.0,
+        le=180.0,
+        description="Camera horizontal field of view in degrees (default 70°, typical surveillance).",
+    )
+
+
+class AutoCalibrateResult(BaseModel):
+    """Result returned by the auto-calibrate endpoint."""
+
+    camera_id: str
+    matrix: list[list[float]]
+    confidence: float
+    inlier_count: int
+    sample_count: int
+    fov_deg: float
+    method: str
+    warning: str | None = None
+
+
+@router.post("/auto/{camera_id}", response_model=AutoCalibrateResult)
+async def post_auto_calibrate(
+    camera_id: str,
+    body: AutoCalibrateRequest,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
+    ingress: IngressAdminClient = Depends(get_ingress_admin_client),
+) -> AutoCalibrateResult:
+    """Estimate a homography automatically using monocular depth estimation.
+
+    When *minio_key* is omitted the BFF fetches a fresh JPEG from the RTSP
+    ingress and passes it to the orchestrator as base64, so the button is
+    usable immediately after loading a camera snapshot without waiting for a
+    live tracking stream to supply the key.
+
+    Returns 503 when the depth model is unavailable in Triton.
+    Returns 409 when no reliable floor plane can be detected.
+    """
+    cts_enabled()
+
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+
+    snapshot_b64: str | None = None
+    if body.minio_key is None:
+        try:
+            jpeg_bytes = await ingress.snapshot(camera_id=camera_id)
+            snapshot_b64 = base64.b64encode(jpeg_bytes).decode()
+        except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+            raise _upstream_to_http(exc) from exc
+
+    try:
+        result = await orchestrator.auto_calibrate(
+            camera_id=camera_id,
+            fov_deg=body.fov_deg,
+            minio_key=body.minio_key,
+            snapshot_bytes=snapshot_b64,
+        )
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        raise _upstream_to_http(exc) from exc
+
+    matrix: list[list[float]] = result["matrix"]
+
+    # Persist the auto-computed matrix to the CC database so it survives
+    # an orchestrator restart.  We store no residuals (they're not meaningful
+    # for the depth-based method) and mark the method in the JSON blob.
+    cam.homography = {"matrix": matrix, "method": "depth_auto"}
+    cam.homography_residuals = None
+    db.commit()
+
+    logger.info(
+        "cts_auto_calibration_saved",
+        camera_id=camera_id,
+        confidence=result.get("confidence"),
+        inlier_count=result.get("inlier_count"),
+    )
+
+    return AutoCalibrateResult(
+        camera_id=camera_id,
+        matrix=matrix,
+        confidence=result["confidence"],
+        inlier_count=result["inlier_count"],
+        sample_count=result["sample_count"],
+        fov_deg=result["fov_deg"],
+        method=result.get("method", "depth_auto"),
+        warning=result.get("warning"),
     )
 
 

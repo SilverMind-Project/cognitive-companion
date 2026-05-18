@@ -60,9 +60,9 @@
                 </span>
               </div>
               <!-- Mini polygon preview -->
-              <svg viewBox="0 0 100 60" class="zone-preview mt-2">
+              <svg viewBox="0 0 160 90" class="zone-preview mt-2">
                 <polygon
-                  :points="zone.polygon.map(([x, y]) => `${x * 100},${y * 60}`).join(' ')"
+                  :points="zone.polygon.map(([x, y]) => `${x * 160},${y * 90}`).join(' ')"
                   style="fill: var(--cc-brand-soft); stroke: var(--cc-brand); stroke-width: 1.5"
                 />
               </svg>

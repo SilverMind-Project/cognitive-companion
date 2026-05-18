@@ -56,6 +56,9 @@ class HouseholdMember(Base, TimestampMixin):
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
     alert_priority: Mapped[int] = mapped_column(Integer, default=5)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Per-person CTS alert configuration. Keys: enabled_kinds (list[str]), min_severity (str).
+    # NULL means "use the default profile" (all kinds, info severity).
+    cts_alert_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     sightings: Mapped[list[PersonSighting]] = relationship(back_populates="person")
     location_state: Mapped[PersonLocationState | None] = relationship(

@@ -50,9 +50,11 @@
         <v-list lines="two">
           <v-list-item v-for="(provider, idx) in sortedProviders" :key="provider.name + idx">
             <template #prepend>
-              <v-avatar :color="providerColor(provider.name)" size="36">
-                <v-icon size="20" color="white">{{ providerIcon(provider.name) }}</v-icon>
-              </v-avatar>
+              <div class="mr-2">
+                <v-avatar :color="providerColor(provider.name)" size="36">
+                  <v-icon size="20" color="white">{{ providerIcon(provider.name) }}</v-icon>
+                </v-avatar>
+              </div>
             </template>
             <v-list-item-title class="d-flex align-center ga-2">
               <span class="font-weight-medium">{{ provider.name }}</span>

@@ -579,6 +579,50 @@
                 />
               </template>
 
+              <!-- Dementia Signal filter -->
+              <template v-else-if="ctxForm.context_type === 'dementia_signal'">
+                <v-select
+                  v-model="ctxForm.config.kinds"
+                  :items="dementiaSignalKinds"
+                  label="Signal Kinds (empty = any)"
+                  multiple
+                  chips
+                  closable-chips
+                  variant="outlined"
+                  hint="Signal types to match. Leave empty to match all kinds."
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-autocomplete
+                  v-model="ctxForm.config.person_ids"
+                  :items="personIds"
+                  label="Persons (empty = any)"
+                  multiple
+                  chips
+                  closable-chips
+                  variant="outlined"
+                  hint="Person IDs to match. Leave empty to match any person."
+                  persistent-hint
+                  class="mb-3"
+                />
+                <v-select
+                  v-model="ctxForm.config.min_severity"
+                  :items="[{ title: 'Info (any)', value: 0.0 }, { title: 'Warning', value: 0.66 }, { title: 'Emergency', value: 1.0 }]"
+                  label="Minimum Severity"
+                  variant="outlined"
+                  class="mb-3"
+                />
+                <v-text-field
+                  v-model.number="ctxForm.config.cooldown_minutes"
+                  label="Cooldown (minutes)"
+                  variant="outlined"
+                  type="number"
+                  :min="0"
+                  hint="Suppress repeated matches within N minutes per person+kind. 0 = no cooldown."
+                  persistent-hint
+                />
+              </template>
+
               <!-- Fallback: raw JSON -->
               <template v-else>
                 <v-textarea
@@ -788,6 +832,17 @@ const triggerTypes = [
   { title: "Webhook", value: "webhook" },
   { title: "Occupancy Duration", value: "occupancy_duration" },
   { title: "Telegram Command", value: "telegram" },
+  { title: "Dementia Signal", value: "dementia_signal" },
+];
+
+const dementiaSignalKinds = [
+  "pacing",
+  "room_revisit_rate",
+  "bathroom_dwell_anomaly",
+  "sundowning_index",
+  "nighttime_movement",
+  "stillness_anomaly",
+  "absence",
 ];
 
 const contextTypeItems = [
@@ -801,6 +856,9 @@ const contextTypeItems = [
   { label: "Presence Status", value: "presence_status" },
   { label: "Scene Contains", value: "scene_contains" },
   { label: "Person Movement (Memory)", value: "person_movement_memory" },
+  { label: "Room Transition", value: "room_transition" },
+  { label: "Scene Trend", value: "scene_trend" },
+  { label: "Dementia Signal", value: "dementia_signal" },
 ];
 
 const dayItems = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];

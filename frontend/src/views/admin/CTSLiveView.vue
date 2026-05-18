@@ -173,7 +173,7 @@
                   :points="trailPoints(det, cameraForSlot(slot))"
                   fill="none"
                   :stroke="det.identity_id ? 'var(--cc-success)' : 'var(--cc-warning)'"
-                  stroke-width="2"
+                  :stroke-width="overlayStroke(cameraForSlot(slot), 1)"
                   opacity="0.5"
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -188,39 +188,39 @@
                   :height="(det.bbox.y_max || 0) - (det.bbox.y_min || 0)"
                   fill="none"
                   :stroke="bboxColor(det)"
-                  :stroke-width="isMultiCamera(det) ? 6 : 4"
-                  :stroke-dasharray="isMultiCamera(det) ? 'none' : 'none'"
+                  :stroke-width="overlayStroke(cameraForSlot(slot), isMultiCamera(det) ? 2 : 1)"
                   style="cursor: pointer"
                   @click="openCorrection(det, cameraForSlot(slot))"
                 />
                 <!-- Cross-camera badge: shown when same identity appears on multiple cameras -->
                 <g v-if="showBboxes && isMultiCamera(det)">
                   <circle
-                    :cx="(det.bbox.x_max || 0) - 28"
-                    :cy="(det.bbox.y_min || 0) + 28"
-                    r="14"
+                    :cx="(det.bbox.x_max || 0) - badgeRadius(cameraForSlot(slot)) * 1"
+                    :cy="(det.bbox.y_min || 0) + badgeRadius(cameraForSlot(slot)) * 1"
+                    :r="badgeRadius(cameraForSlot(slot))"
                     :fill="bboxColor(det)"
                     opacity="0.9"
                   />
                   <text
-                    :x="(det.bbox.x_max || 0) - 28"
-                    :y="(det.bbox.y_min || 0) + 28"
+                    :x="(det.bbox.x_max || 0) - badgeRadius(cameraForSlot(slot)) * 1"
+                    :y="(det.bbox.y_min || 0) + badgeRadius(cameraForSlot(slot)) * 1"
                     text-anchor="middle"
-                    font-size="36"
+                    :font-size="smallFontSize(cameraForSlot(slot))"
                     fill="white"
                     font-weight="bold"
+                    dominant-baseline="central"
                   >{{ multiCameraCount(det) }}</text>
                 </g>
 
                 <!-- Identity label -->
                 <text
                   v-if="showIdLabels"
-                  :x="(det.bbox.x_min || 0) + 8"
-                  :y="(det.bbox.y_min || 0) + 28"
+                  :x="(det.bbox.x_min || 0) + labelOffsetX(cameraForSlot(slot))"
+                  :y="(det.bbox.y_min || 0) + labelOffsetY(cameraForSlot(slot))"
                   fill="var(--cc-text-1)"
-                  font-size="36"
+                  :font-size="labelFontSize(cameraForSlot(slot))"
                   font-weight="bold"
-                  style="paint-order: stroke; stroke: rgba(0, 0, 0, 0.6); stroke-width: 3"
+                  :style="{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,0.6)', strokeWidth: overlayStroke(cameraForSlot(slot), 0.5) }"
                 >
                   {{ det.identity_id || "unknown" }}
                 </text>
@@ -238,7 +238,7 @@
                       :x2="poseX(det, b)"
                       :y2="poseY(det, b)"
                       stroke="rgba(255,200,50,0.85)"
-                      stroke-width="2"
+                      :stroke-width="overlayStroke(cameraForSlot(slot), .5)"
                       stroke-linecap="round"
                     />
                   </template>
@@ -247,7 +247,7 @@
                     :key="`kp${ki}`"
                     :cx="poseX(det, ki)"
                     :cy="poseY(det, ki)"
-                    r="3"
+                    :r="overlayStroke(cameraForSlot(slot), 1.5)"
                     :fill="kp.score > 0.4 ? 'rgba(255,200,50,1)' : 'transparent'"
                   />
                 </g>
@@ -256,29 +256,29 @@
                 <g v-if="showEvidence && det.evidence">
                   <!-- Background pill -->
                   <rect
-                    :x="(det.bbox.x_max || 0) - 80"
+                    :x="(det.bbox.x_max || 0) - evidencePillWidth(cameraForSlot(slot)) - 4"
                     :y="(det.bbox.y_min || 0) + 2"
-                    width="76"
-                    height="22"
-                    rx="6"
+                    :width="evidencePillWidth(cameraForSlot(slot)) + 4"
+                    :height="evidencePillHeight(cameraForSlot(slot))"
+                    :rx="Math.round(evidencePillHeight(cameraForSlot(slot)) * 0.27)"
                     fill="rgba(0,0,0,0.65)"
                   />
                   <!-- Top-1 bar -->
                   <rect
-                    :x="(det.bbox.x_max || 0) - 78"
-                    :y="(det.bbox.y_min || 0) + 5"
-                    :width="Math.round(72 * (det.evidence.top_prob || 0))"
-                    height="6"
-                    rx="3"
+                    :x="(det.bbox.x_max || 0) - evidencePillWidth(cameraForSlot(slot)) - 2"
+                    :y="(det.bbox.y_min || 0) + evidenceBarY(cameraForSlot(slot), 0)"
+                    :width="Math.round((evidencePillWidth(cameraForSlot(slot)) - 4) * (det.evidence.top_prob || 0))"
+                    :height="evidenceBarHeight(cameraForSlot(slot))"
+                    :rx="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.5)"
                     :fill="det.evidence.face_anchor_used ? '#a78bfa' : '#34d399'"
                   />
                   <!-- Top-2 bar -->
                   <rect
-                    :x="(det.bbox.x_max || 0) - 78"
-                    :y="(det.bbox.y_min || 0) + 14"
-                    :width="Math.round(72 * (det.evidence.top2_prob || 0))"
-                    height="4"
-                    rx="2"
+                    :x="(det.bbox.x_max || 0) - evidencePillWidth(cameraForSlot(slot)) - 2"
+                    :y="(det.bbox.y_min || 0) + evidenceBarY(cameraForSlot(slot), 1)"
+                    :width="Math.round((evidencePillWidth(cameraForSlot(slot)) - 4) * (det.evidence.top2_prob || 0))"
+                    :height="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.7)"
+                    :rx="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.35)"
                     fill="#94a3b8"
                   />
                 </g>
@@ -286,9 +286,9 @@
                 <!-- Face badge (crown) when face anchor was used -->
                 <text
                   v-if="showEvidence && det.evidence?.face_anchor_used"
-                  :x="(det.bbox.x_min || 0) + 4"
-                  :y="(det.bbox.y_min || 0) + 36"
-                  font-size="36"
+                  :x="(det.bbox.x_min || 0) + labelOffsetX(cameraForSlot(slot))"
+                  :y="(det.bbox.y_min || 0) + crownOffsetY(cameraForSlot(slot))"
+                  :font-size="labelFontSize(cameraForSlot(slot))"
                   style="user-select: none"
                 >👑</text>
               </g>
@@ -702,6 +702,51 @@ function trailPoints(det, cam) {
   const fw = cam.frame_width || 1920;
   const fh = cam.frame_height || 1080;
   return det.trail.map((t) => `${t.x * fw},${t.y * fh}`).join(" ");
+}
+
+// Scale visual SVG elements relative to the camera's native resolution so
+// fonts, strokes, and badges remain readable regardless of tile display size.
+// For a 1920 px viewBox shown on a ~400 px tile (scale ≈ 0.21):
+//   labelFont  = 1920 × 0.04  = 77 SVG units → 77 × 0.21 ≈ 16 CSS px
+//   smallFont  = 1920 × 0.025 = 48 SVG units → 48 × 0.21 ≈ 10 CSS px
+//   baseStroke = 1920 × 0.004 =  8 SVG units →  8 × 0.21 ≈  2 CSS px
+function labelFontSize(cam) {
+  return Math.round((cam?.frame_width || 1920) * 0.015);
+}
+function smallFontSize(cam) {
+  return Math.round((cam?.frame_width || 1920) * 0.01);
+}
+function overlayStroke(cam, multiplier = 1) {
+  return Math.max(1, Math.round((cam?.frame_width || 1920) * 0.005 * multiplier));
+}
+function badgeRadius(cam) {
+  return Math.round((cam?.frame_width || 1920) * 0.01);
+}
+function evidenceBarY(cam, row) {
+  // row 0 = top bar, row 1 = bottom bar; returns y offset from bbox top
+  const fs = smallFontSize(cam);
+  const gap = Math.round(fs * 0.5);
+  const barH = Math.round(fs * 0.8);
+  return 2 + row * (barH + gap);
+}
+function evidenceBarHeight(cam) {
+  return Math.round(smallFontSize(cam) * 0.8);
+}
+function evidencePillWidth(cam) {
+  return Math.round((cam?.frame_width || 1920) * 0.06);
+}
+function evidencePillHeight(cam) {
+  const fs = smallFontSize(cam);
+  return Math.round(fs * 1.8);
+}
+function labelOffsetY(cam) {
+  return Math.round(labelFontSize(cam) * 0.8);
+}
+function labelOffsetX(cam) {
+  return Math.round(labelFontSize(cam) * 0.22);
+}
+function crownOffsetY(cam) {
+  return Math.round(labelFontSize(cam) * 1.0);
 }
 
 function openCorrection(det, cam) {

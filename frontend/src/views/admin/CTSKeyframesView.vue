@@ -248,7 +248,9 @@
             <template #item="{ props: itemProps, item }">
               <v-list-item v-bind="itemProps" :subtitle="item.raw.is_enrolled ? 'Enrolled · ' + item.raw.embedding_count + ' embedding(s)' : 'Not yet enrolled'">
                 <template #append>
-                  <v-chip v-if="!item.raw.is_active" size="x-small" color="warning" class="ml-2">Inactive</v-chip>
+                  <div class="ml-2">
+                    <v-chip v-if="!item.raw.is_active" size="x-small" color="warning">Inactive</v-chip>
+                  </div>
                 </template>
               </v-list-item>
             </template>
@@ -304,7 +306,9 @@
                 :subtitle="item.raw.is_enrolled ? 'Enrolled · ' + item.raw.embedding_count + ' embedding(s)' : 'Not yet enrolled'"
               >
                 <template #append>
-                  <v-chip v-if="!item.raw.is_active" size="x-small" color="warning" class="ml-2">Inactive</v-chip>
+                  <div class="ml-2">
+                    <v-chip v-if="!item.raw.is_active" size="x-small" color="warning">Inactive</v-chip>
+                  </div>
                 </template>
               </v-list-item>
             </template>

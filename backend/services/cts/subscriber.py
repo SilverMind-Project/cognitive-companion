@@ -19,7 +19,8 @@ from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import signals_pb2
 from backend.services.cts import metrics
 from backend.services.cts._time import ns_to_iso
-from backend.services.cts._types import PipelineExecutor
+from backend.services.cts._types import DBSessionFactory, PipelineExecutor
+from backend.services.cts.signal_config import is_signal_enabled
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -60,6 +61,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
         consumer_id: str,
         store: SignalStore,
         pipeline: PipelineExecutor | None = None,
+        db_factory: DBSessionFactory | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -72,6 +74,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
         )
         self._store = store
         self._pipeline = pipeline
+        self._db_factory = db_factory
 
     # -- StreamConsumer abstract methods -------------------------------------
 
@@ -156,24 +159,32 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
             # Only fire pipeline events for new signals or severity escalations.
             # Re-upserts at equal/lower severity do NOT re-trigger notifications.
             if self._pipeline is not None:
-                try:
-                    await self._pipeline.fire_event(
-                        source="cts",
-                        kind="dementia_signal",
-                        payload={
-                            "row_id": row_id,
-                            "signal_id": signal.get("signal_id"),
-                            "signal_kind": kind,
-                            "person_id": signal["person_id"],
-                            "severity": signal["severity"],
-                            "window_start": signal["window_start"],
-                            "window_end": signal["window_end"],
-                            "action": action,
-                            "evidence": signal.get("context_json", {}),
-                        },
+                if not self._is_dispatch_enabled(signal["person_id"], kind, signal["severity"]):
+                    logger.info(
+                        "dementia_signal_dispatch_suppressed",
+                        person_id=signal["person_id"],
+                        signal_type=kind,
+                        severity=signal["severity"],
                     )
-                except Exception:
-                    logger.exception("dementia_signal_pipeline_fire_error")
+                else:
+                    try:
+                        await self._pipeline.fire_event(
+                            source="cts",
+                            kind="dementia_signal",
+                            payload={
+                                "row_id": row_id,
+                                "signal_id": signal.get("signal_id"),
+                                "signal_kind": kind,
+                                "person_id": signal["person_id"],
+                                "severity": signal["severity"],
+                                "window_start": signal["window_start"],
+                                "window_end": signal["window_end"],
+                                "action": action,
+                                "evidence": signal.get("context_json", {}),
+                            },
+                        )
+                    except Exception:
+                        logger.exception("dementia_signal_pipeline_fire_error")
         except Exception:
             logger.exception("dementia_signal_handle_error")
             metrics.cts_signals_dropped.labels(signal_kind=kind).inc()
@@ -181,5 +192,22 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
 
         return True
 
+    def _is_dispatch_enabled(self, person_id: str, signal_type: str, severity: str) -> bool:
+        """Check the person's cts_alert_config before dispatching to the pipeline.
 
+        Returns True (permissive) when no DB factory is configured or when the
+        person record cannot be found.
+        """
+        if self._db_factory is None:
+            return True
+        db = self._db_factory()
+        try:
+            from backend.models.person import HouseholdMember  # local import avoids cycle
+
+            member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
+            if member is None:
+                return True
+            return is_signal_enabled(member.cts_alert_config, signal_type, severity)
+        finally:
+            db.close()
 

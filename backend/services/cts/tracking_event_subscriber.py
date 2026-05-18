@@ -102,34 +102,36 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
         # MAP identities live on IdentityRevision sub-messages; the top
         # candidate's probability acts as the per-detection confidence.
-        identity_by_track: dict[str, tuple[str, float]] = {}
+        # display_name comes from the gallery candidate entry.
+        identity_by_track: dict[str, tuple[str, float, str]] = {}
         for revision in message.identity_revisions:
             if not revision.global_track_id or not revision.map_identity_id:
                 continue
-            confidence = next(
-                (
-                    float(c.probability)
-                    for c in revision.candidates
-                    if c.identity_id == revision.map_identity_id
-                ),
-                0.0,
+            matched = next(
+                (c for c in revision.candidates if c.identity_id == revision.map_identity_id),
+                None,
             )
+            confidence = float(matched.probability) if matched else 0.0
+            display_name = matched.display_name if (matched and matched.display_name) else revision.map_identity_id
             identity_by_track[revision.global_track_id] = (
                 revision.map_identity_id,
                 confidence,
+                display_name,
             )
 
         detections: list[dict[str, Any]] = []
         for det in message.detections:
-            identity_id, identity_conf = identity_by_track.get(
-                det.global_track_id, ("", 0.0)
+            identity_id, identity_conf, display_name = identity_by_track.get(
+                det.global_track_id, ("", 0.0, "")
             )
+            calibrated = det.floor_point.calibrated
             detections.append(
                 {
                     "id": det.detection_id,
                     "tracklet_id": det.tracklet_id,
                     "global_track_id": det.global_track_id,
-                    "identity_id": identity_id,
+                    "identity_id": identity_id or None,
+                    "display_name": display_name or None,
                     "identity_confidence": identity_conf,
                     "confidence": det.confidence,
                     "bbox": {
@@ -142,8 +144,9 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                         "x_mm": det.floor_point.x_mm,
                         "y_mm": det.floor_point.y_mm,
                     },
-                    "floor_x": det.floor_x or None,
-                    "floor_y": det.floor_y or None,
+                    "floor_calibrated": calibrated,
+                    "floor_x": det.floor_x if calibrated else None,
+                    "floor_y": det.floor_y if calibrated else None,
                     "pose_keypoints": [
                         {"x": kp.x, "y": kp.y, "score": kp.score}
                         for kp in det.pose_keypoints

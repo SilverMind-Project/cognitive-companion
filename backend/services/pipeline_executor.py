@@ -123,6 +123,7 @@ class PipelineExecutor:
         activity=None,
         signals=None,
         knowledge_delivery=None,
+        rules_engine=None,
     ) -> None:
         self._services = ServiceContainer(
             db_factory=db_session_factory,
@@ -143,6 +144,7 @@ class PipelineExecutor:
             signals=signals,
             knowledge_delivery=knowledge_delivery,
         )
+        self._rules_engine = rules_engine
 
     # Expose scheduler for injection after construction
     @property
@@ -185,10 +187,28 @@ class PipelineExecutor:
             kind=kind,
             payload_keys=sorted(payload.keys()) if payload else [],
         )
-        # In the future, this will look up rules with trigger_types
-        # containing *kind* and dispatch through RulesEngine. For now
-        # it serves as the integration point that satisfies the
-        # protocol contract.
+        if self._rules_engine is None:
+            return
+
+        event = {"kind": kind, "payload": payload}
+        db = self._services.db_factory()
+        try:
+            rules = self._rules_engine.get_matching_rules_for_event(event, kind, db)
+        finally:
+            db.close()
+
+        if not rules:
+            return
+
+        trigger = TriggerContext(trigger_type=kind)
+        for rule in rules:
+            rule_db = self._services.db_factory()
+            try:
+                await self.execute(rule, trigger, rule_db)
+            except Exception:
+                logger.exception("fire_event_rule_execute_error", rule=rule.name, kind=kind)
+            finally:
+                rule_db.close()
 
     async def execute(
         self,

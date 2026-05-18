@@ -112,7 +112,7 @@ class UpstreamClient:
                         ms=round(elapsed_ms, 2),
                     )
                     if r.status_code >= 500:
-                        raise UpstreamUnavailable(self.SERVICE_NAME, r.status_code)
+                        raise UpstreamUnavailable(self.SERVICE_NAME, r.status_code, r.text)
                     if r.status_code >= 400:
                         raise UpstreamError(self.SERVICE_NAME, r.status_code, r.text)
                     return r

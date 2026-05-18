@@ -257,7 +257,7 @@ class YourStepHandler(StepHandler):
 
 `StepResult` fields: `success`, `data` (merged into `pipeline_data`), `should_continue`, `next_step_id` (branching), `wait_until` (delayed resume).
 
-`TriggerContext.trigger_type` values: `sensor_event`, `cron`, `manual`, `webhook`, `telegram`, `occupancy_duration`, `resume`.
+`TriggerContext.trigger_type` values: `sensor_event`, `cron`, `manual`, `webhook`, `telegram`, `occupancy_duration`, `dementia_signal`, `resume`.
 
 ### 5.5 Pipeline data accumulation
 
@@ -462,7 +462,7 @@ In tests, use `RulesEngine(tz_name="UTC")` to keep timestamp comparisons aligned
 | `home_state` | Filter version of the `home_state` step: home, asleep, away, state_unknown. |
 | `presence_status` | Specific `PresenceStatus` value match. |
 | `presence_dwell` | Person has dwelled in a room at least `min_dwell_minutes`. |
-| `dementia_signal` | CTS signal kind, severity, time-of-day, and acknowledgement cooldown gate. Reads `DementiaSignal` rows. |
+| `dementia_signal` | CTS signal kind, severity, person IDs, time-of-day window, and acknowledgement cooldown gate. When evaluated from a `dementia_signal` trigger, `sensor` is the event dict (not a SQLAlchemy object); sensor-dependent filters (`room`, `room_transition`, `person_movement_memory`) are skipped automatically by `get_matching_rules_for_event`. |
 
 When a filter needs services (semantic memory, presence, signals), it accesses them through the `services: ServiceContainer | None` keyword passed by `RulesEngine`. Filters that don't need services accept `services=None` and ignore it.
 
@@ -519,13 +519,14 @@ CTS lives in `../continuous-tracking/`. Cognitive Companion is the BFF: all brow
 
 ### 10.2 CTS shared utilities
 
-Before editing any CTS code, know these three files:
+Before editing any CTS code, know these four files:
 
 | File | Purpose | Rule |
 | --- | --- | --- |
 | `backend/routers/cts_deps.py` | `cts_enabled()` | Import it; never redefine `_cts_enabled()` in a router. |
 | `backend/services/cts/_time.py` | `ns_to_iso()`, `parse_ts()`, `ensure_aware()` | Import them; never duplicate these helpers in a subscriber or service. |
 | `backend/services/cts/_types.py` | `ConnectionManager`, `PipelineExecutor`, `MinioClient`, `SceneAnalysisClient`, `SemanticMemoryClient` protocols + `DBSessionFactory` type alias | Use these protocol types for injected service parameters. Never `Any`. |
+| `backend/services/cts/signal_config.py` | `ALL_SIGNAL_KINDS`, `is_signal_enabled(cfg, kind, severity)`, `default_config_for_profile(profile)` | Import from here when checking per-person signal dispatch. Never hardcode the 7 kind strings inline. |
 
 ### 10.3 CTS routers (9 files)
 
@@ -551,7 +552,7 @@ All handlers call `cts_enabled()` (imported from `backend.routers.cts_deps`) and
 | --- | --- | --- |
 | `TrackingEventSubscriber` | `tracking.events` | Updates `PersonLocationState` and writes `PersonLocationHistory` via `LocationWriter` and `SourceAuthority` (CTS-precedence lock for `cts.lock_seconds`). Broadcasts `cts_live_frame` WebSocket messages for the live view. |
 | `IdentityRevisionSubscriber` | `tracking.revisions` | Soft-deletes superseded `PersonLocationHistory` rows via `IdentityRewriter` and inserts the corrected entries. |
-| `DementiaSignalSubscriber` | `tracking.signals` | Persists `DementiaSignal` rows via `SignalStore.upsert()` with severity-transition semantics: `new` and `escalation` fire pipeline events; `update` at equal severity does not re-alert. |
+| `DementiaSignalSubscriber` | `tracking.signals` | Persists `DementiaSignal` rows via `SignalStore.upsert()`. Before calling `pipeline.fire_event`, checks `HouseholdMember.cts_alert_config` for the person via `is_signal_enabled()` (`backend/services/cts/signal_config.py`). If the kind or severity is disabled for that person, the signal is stored but no pipeline event is fired. |
 | `SceneSampleSubscriber` | `scene.samples` | Decodes tagged keyframe `SceneSample` proto messages, pulls JPEG from MinIO, runs scene analysis (YOLO + Florence-2 + CLIP + hazards), and persists observations to semantic memory. |
 
 `StreamConsumer` (in `stream_consumer.py`) is the shared base class: consumer-group creation, `XAUTOCLAIM` reclaim, bounded semaphore, graceful shutdown. All four subscribers decode protobuf-encoded messages from the `backend/integrations/proto/continuoustracking/v1/` package, compiled from `.proto` sources in the `continuous-tracking/` repository.
@@ -562,7 +563,37 @@ All handlers call `cts_enabled()` (imported from `backend.routers.cts_deps`) and
 
 `PresenceService` (Block 3 chain in `config/presence.yaml`): provider order is `night_anchor`, `ha_bed_sensor`, `cts_location`, `ha_device_tracker`, plus stale fallback / unknown sentinel. Build with `services/presence/factory.py`. The `PresenceQueryHandler` step + `presence_status` / `presence_dwell` / `home_state` filters read this service.
 
-### 10.6 Don't
+### 10.6 Per-person CTS alert configuration
+
+`HouseholdMember.cts_alert_config` is a nullable JSONB column (migration `0012_cts_alert_config`) that controls which dementia signal kinds and minimum severity a person receives. `NULL` means all kinds at `info` severity (permissive default).
+
+```python
+# Shape of cts_alert_config
+{
+    "enabled_kinds": ["absence", "nighttime_movement", "stillness_anomaly"],
+    "min_severity": "info"   # "info" | "warning" | "emergency"
+}
+```
+
+Three built-in profiles (from `signal_config.py`):
+
+| Profile | `enabled_kinds` |
+| --- | --- |
+| `senior` | All 7 kinds |
+| `adult` | `absence`, `nighttime_movement`, `stillness_anomaly` |
+| `guest` | `absence` only |
+
+**Three-layer enforcement:**
+
+1. **Subscriber dispatch gate** (`DementiaSignalSubscriber._is_dispatch_enabled`): signals are always persisted to DB for history, but `pipeline.fire_event` is only called when `is_signal_enabled(member.cts_alert_config, kind, severity)` returns `True`.
+2. **API read filter** (`cts_signals.py:_filter_by_person_config`): `GET /cts/signals` and `GET /cts/signals/unacknowledged` load all household member configs in one query and filter the response list, keeping the Alerts UI quiet.
+3. **Pipeline rule gate** (`RulesEngine.get_matching_rules_for_event`): rules with `trigger_type="dementia_signal"` receive an event dict (not a `Sensor` ORM object). Sensor-dependent filters (`room`, `room_transition`, `person_movement_memory`) are skipped; other filters including `dementia_signal` are evaluated normally.
+
+`PipelineExecutor.fire_event(source, kind, payload)` calls `rules_engine.get_matching_rules_for_event(event, kind, db)` and executes each matched rule through the normal `PipelineExecutor.execute` path. `rules_engine` is injected at construction time from `backend/main.py`.
+
+The enrollment dialog in `PersonsView.vue` captures the alert profile (`Senior / Adult / Presence only / Custom`) when creating or editing a household member. Profile picker maps to `cts_alert_config` via `onProfileChange()` and is stored through the `HouseholdMemberCreate` / `HouseholdMemberUpdate` schemas.
+
+### 10.7 Don't
 
 - Don't write to CTS tables (`dementia_signals`, `cts_cameras`, etc.) outside the `services/cts/` package.
 - Don't import `_upstream_base` from non-CTS code (it does mTLS + EdDSA service JWTs; LAN clients use `_http_base`).
@@ -570,6 +601,7 @@ All handlers call `cts_enabled()` (imported from `backend.routers.cts_deps`) and
 - Don't bypass the BFF: there is no path from the browser or MCP to `rtsp-ingress` or `tracking-orchestrator` except through CC routers.
 - Don't duplicate `_cts_enabled()`, `_ns_to_iso()`, or `_parse_ts()`. Import from the shared modules.
 - Don't use `Any` for CTS-injected service parameters. Use the protocols in `backend/services.cts._types`.
+- Don't hardcode the 7 signal kind strings anywhere outside `signal_config.py`. Import `ALL_SIGNAL_KINDS` from there.
 
 ---
 
@@ -669,7 +701,7 @@ Fixtures (`backend/tests/conftest.py`): `db_engine`, `db_session`, `db_factory`,
 | Class-level property | Local subclass; never `type(obj).prop = property(...)`. Class mutation leaks. |
 | Filter | `RulesEngine(tz_name="UTC")` to keep timestamp comparisons aligned with the testcontainer's UTC values. |
 | `SignalStore` | Inject the conftest `db_factory` (returns plain `Session`). |
-| `DementiaSignalSubscriber` | Test `decode()` and `handle()` directly; no real Redis. |
+| `DementiaSignalSubscriber` | Test `decode()` and `handle()` directly; no real Redis. For dispatch suppression tests, insert a `HouseholdMember` with `cts_alert_config` using `db_factory` and pass it to the subscriber constructor. |
 | `DementiaSignalFilter` | `db_session` fixture for cooldown tests; `db=None` for non-cooldown. |
 | Integration | Tests under `backend/tests/integration/` use mocked HTTP via `unittest.mock.patch("backend.integrations.<module>.httpx.AsyncClient")`. |
 

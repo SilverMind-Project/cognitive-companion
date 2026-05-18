@@ -64,6 +64,11 @@ export const cts = {
       body: JSON.stringify({ camera_id, points }),
     }),
   getHomography: (camera_id) => req(`/calibration/homography/${camera_id}`),
+  autoCalibrate: (camera_id, body) =>
+    req(`/calibration/auto/${camera_id}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // ── Calibration: privacy zones ──────────────────────────────────────────────
   postPrivacyZones: (camera_id, zones) =>

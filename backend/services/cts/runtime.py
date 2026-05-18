@@ -136,6 +136,7 @@ class CTSRuntime:
             consumer_id=config.consumer_id,
             store=self.signal_store,
             pipeline=pipeline,
+            db_factory=db_factory,
         )
         self.scene_sample_subscriber = SceneSampleSubscriber(
             redis_url=config.redis_url,

@@ -15,6 +15,53 @@ class OrchestratorClient(UpstreamClient):
     SERVICE_NAME = "tracking_orchestrator"
     AUDIENCE = "tracking-orchestrator"
 
+    async def fit_homography(
+        self,
+        camera_id: str,
+        points: list[dict],
+    ) -> dict:
+        """Compute a homography from raw pixel↔floor-metre correspondences.
+
+        The orchestrator runs ``cv2.findHomography`` server-side and stores the
+        result in its in-memory calibration state.  Returns a dict with keys
+        ``matrix``, ``residuals_m``, ``max_residual_m``, and ``status``.
+
+        Raises :class:`UpstreamError` (HTTP 400) when residuals exceed the
+        0.5 m threshold, propagated as a FastAPI 400 to the UI.
+        """
+        r = await self._request(
+            "POST",
+            "/internal/calibration/homography/fit",
+            json={"camera_id": camera_id, "points": points},
+        )
+        return r.json()
+
+    async def auto_calibrate(
+        self,
+        camera_id: str,
+        fov_deg: float = 70.0,
+        minio_key: str | None = None,
+        snapshot_bytes: str | None = None,
+    ) -> dict:
+        """Run depth-based automatic homography estimation on a camera frame.
+
+        Exactly one of *minio_key* or *snapshot_bytes* (base64 JPEG) must be
+        provided.  Returns a dict with keys ``matrix``, ``confidence``,
+        ``inlier_count``, ``sample_count``, ``fov_deg``, ``method``, and
+        optionally ``warning``.
+        """
+        payload: dict = {"fov_deg": fov_deg}
+        if minio_key is not None:
+            payload["minio_key"] = minio_key
+        if snapshot_bytes is not None:
+            payload["snapshot_bytes"] = snapshot_bytes
+        r = await self._request(
+            "POST",
+            f"/internal/calibration/auto/{camera_id}",
+            json=payload,
+        )
+        return r.json()
+
     async def post_homography(
         self,
         camera_id: str,

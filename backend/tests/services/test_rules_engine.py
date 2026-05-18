@@ -423,3 +423,77 @@ class TestTimeRangeContextFilter:
         engine = self._engine_ny()
         result = engine._check_contexts(rule, sensor, now_et, db_session)
         assert result is True, "23:30 ET should match overnight 22:00-06:00 window"
+
+
+# ---------------------------------------------------------------------------
+# get_matching_rules_for_event (dementia signal dispatch)
+# ---------------------------------------------------------------------------
+
+
+class TestGetMatchingRulesForEvent:
+    def test_matches_rule_with_dementia_signal_trigger_type(self, db_session):
+        rule = _make_rule(db_session, trigger_types=["dementia_signal"])
+        engine = RulesEngine(tz_name="UTC")
+        event = {"kind": "dementia_signal", "payload": {"signal_kind": "pacing", "person_id": "grandma", "severity": "warning"}}
+        matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
+        assert len(matched) == 1
+        assert matched[0].id == rule.id
+
+    def test_excludes_rules_with_other_trigger_types(self, db_session):
+        _make_rule(db_session, name="sensor-rule", trigger_types=["sensor_event"])
+        engine = RulesEngine(tz_name="UTC")
+        event = {"kind": "dementia_signal", "payload": {}}
+        matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
+        assert matched == []
+
+    def test_excludes_disabled_rules(self, db_session):
+        rule = _make_rule(db_session, trigger_types=["dementia_signal"])
+        rule.enabled = False
+        db_session.commit()
+        engine = RulesEngine(tz_name="UTC")
+        event = {"kind": "dementia_signal", "payload": {}}
+        matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
+        assert matched == []
+
+    def test_dementia_signal_filter_evaluated_against_event(self, db_session):
+        rule = _make_rule(db_session, trigger_types=["dementia_signal"])
+        ctx = RuleContext(
+            rule_id=rule.id,
+            context_type="dementia_signal",
+            config_json={"kinds": ["pacing"]},
+        )
+        db_session.add(ctx)
+        db_session.commit()
+
+        engine = RulesEngine(tz_name="UTC")
+
+        # pacing event matches
+        pacing_event = {
+            "kind": "dementia_signal",
+            "payload": {"signal_kind": "pacing", "person_id": "grandma", "severity": "warning"},
+        }
+        assert engine.get_matching_rules_for_event(pacing_event, "dementia_signal", db_session)
+
+        # absence event does not match
+        absence_event = {
+            "kind": "dementia_signal",
+            "payload": {"signal_kind": "absence", "person_id": "grandma", "severity": "warning"},
+        }
+        assert not engine.get_matching_rules_for_event(absence_event, "dementia_signal", db_session)
+
+    def test_room_filter_is_skipped_for_event(self, db_session):
+        """Room filter requires a Sensor ORM row; it must be skipped without error."""
+        rule = _make_rule(db_session, trigger_types=["dementia_signal"])
+        ctx = RuleContext(
+            rule_id=rule.id,
+            context_type="room",
+            config_json={"room_name": "bedroom"},
+        )
+        db_session.add(ctx)
+        db_session.commit()
+
+        engine = RulesEngine(tz_name="UTC")
+        event = {"kind": "dementia_signal", "payload": {}}
+        # Should not raise, and should still match (room filter skipped)
+        matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
+        assert len(matched) == 1

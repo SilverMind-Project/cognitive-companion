@@ -111,7 +111,7 @@
     </v-window>
 
     <!-- Create/Edit Dialog -->
-    <v-dialog v-model="dialog" max-width="500" scrollable persistent>
+    <v-dialog v-model="dialog" max-width="560" scrollable persistent>
       <v-card>
         <DialogHeader
           icon="mdi-account-plus"
@@ -130,8 +130,61 @@
             class="mb-3"
           />
           <v-text-field v-model="form.name" label="Display Name" variant="outlined" class="mb-3" />
-          <v-switch v-model="form.is_guest" label="Guest (not a permanent member)" color="info" />
-          <v-switch v-model="form.is_active" label="Active" color="primary" v-if="editing" />
+          <v-switch v-model="form.is_guest" label="Guest (not a permanent member)" color="info" class="mb-1" @update:model-value="onGuestToggle" />
+          <v-switch v-model="form.is_active" label="Active" color="primary" v-if="editing" class="mb-2" />
+
+          <v-divider class="my-3" />
+          <div class="text-subtitle-2 font-weight-semibold mb-2">CTS Alert Profile</div>
+          <div class="text-body-2 text-medium-emphasis mb-3">
+            Controls which behavioural signals from the tracking system trigger alerts for this person.
+          </div>
+
+          <v-btn-toggle
+            v-model="alertProfile"
+            mandatory
+            density="compact"
+            color="primary"
+            class="mb-3"
+            @update:model-value="onProfileChange"
+          >
+            <v-btn value="senior" size="small">Senior</v-btn>
+            <v-btn value="adult" size="small">Adult</v-btn>
+            <v-btn value="guest" size="small">Presence only</v-btn>
+            <v-btn value="custom" size="small">Custom</v-btn>
+          </v-btn-toggle>
+
+          <div class="text-body-2 text-medium-emphasis mb-3">
+            <span v-if="alertProfile === 'senior'">All 7 signal types enabled (dementia monitoring).</span>
+            <span v-else-if="alertProfile === 'adult'">Presence and sleep/rest signals only.</span>
+            <span v-else-if="alertProfile === 'guest'">Absence alert only.</span>
+            <span v-else>Custom signal selection.</span>
+          </div>
+
+          <v-expand-transition>
+            <div v-if="alertProfile === 'custom'">
+              <div class="text-caption font-weight-medium text-medium-emphasis mb-1">PRESENCE</div>
+              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="absence" label="Absence" density="compact" hide-details class="mb-1" />
+
+              <div class="text-caption font-weight-medium text-medium-emphasis mt-2 mb-1">SLEEP / REST</div>
+              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="nighttime_movement" label="Nighttime movement" density="compact" hide-details class="mb-1" />
+              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="stillness_anomaly" label="Stillness anomaly" density="compact" hide-details class="mb-1" />
+
+              <div class="text-caption font-weight-medium text-medium-emphasis mt-2 mb-1">DEMENTIA-SPECIFIC</div>
+              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="pacing" label="Pacing" density="compact" hide-details class="mb-1" />
+              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="sundowning_index" label="Sundowning index" density="compact" hide-details class="mb-1" />
+              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="bathroom_dwell_anomaly" label="Bathroom dwell anomaly" density="compact" hide-details class="mb-1" />
+              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="room_revisit_rate" label="Room revisit rate" density="compact" hide-details class="mb-2" />
+            </div>
+          </v-expand-transition>
+
+          <v-select
+            v-model="form.cts_alert_config.min_severity"
+            :items="severityItems"
+            label="Minimum alert severity"
+            variant="outlined"
+            density="compact"
+            hide-details
+          />
         </v-card-text>
         <DialogFooter
           hint="Persons are recognized by the face identification service for presence and activity tracking."
@@ -371,6 +424,19 @@ import DialogFooter from "../../components/common/DialogFooter.vue";
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
 
+// -- Signal kind presets (mirrors backend signal_config.py) --
+const SIGNAL_PROFILES = {
+  senior: ["pacing", "room_revisit_rate", "bathroom_dwell_anomaly", "sundowning_index", "nighttime_movement", "stillness_anomaly", "absence"],
+  adult: ["absence", "nighttime_movement", "stillness_anomaly"],
+  guest: ["absence"],
+};
+
+const severityItems = [
+  { title: "Info (all)", value: "info" },
+  { title: "Warning and above", value: "warning" },
+  { title: "Emergency only", value: "emergency" },
+];
+
 // -- Members list --
 const members = ref([]);
 const loading = ref(false);
@@ -378,12 +444,14 @@ const dialog = ref(false);
 const editing = ref(false);
 const editId = ref(null);
 const activeTab = ref("members");
+const alertProfile = ref("senior");
 
 const emptyForm = () => ({
   id: "",
   name: "",
   is_guest: false,
   is_active: true,
+  cts_alert_config: { enabled_kinds: [...SIGNAL_PROFILES.senior], min_severity: "info" },
 });
 const form = ref(emptyForm());
 
@@ -473,19 +541,47 @@ async function loadMembers() {
   loading.value = false;
 }
 
+function _profileFromConfig(config) {
+  if (!config || !config.enabled_kinds) return "senior";
+  const kinds = new Set(config.enabled_kinds);
+  if (kinds.size === SIGNAL_PROFILES.senior.length && SIGNAL_PROFILES.senior.every(k => kinds.has(k))) return "senior";
+  if (kinds.size === SIGNAL_PROFILES.adult.length && SIGNAL_PROFILES.adult.every(k => kinds.has(k))) return "adult";
+  if (kinds.size === SIGNAL_PROFILES.guest.length && SIGNAL_PROFILES.guest.every(k => kinds.has(k))) return "guest";
+  return "custom";
+}
+
+function onProfileChange(profile) {
+  if (profile !== "custom") {
+    form.value.cts_alert_config.enabled_kinds = [...(SIGNAL_PROFILES[profile] || SIGNAL_PROFILES.senior)];
+  }
+}
+
+function onGuestToggle(isGuest) {
+  if (isGuest && alertProfile.value === "senior") {
+    alertProfile.value = "adult";
+    onProfileChange("adult");
+  }
+}
+
 function openCreate() {
   form.value = emptyForm();
+  alertProfile.value = "senior";
   editing.value = false;
   dialog.value = true;
 }
 
 function openEdit(item) {
+  const cfg = item.cts_alert_config
+    ? { ...item.cts_alert_config, enabled_kinds: [...(item.cts_alert_config.enabled_kinds || [])] }
+    : { enabled_kinds: [...SIGNAL_PROFILES.senior], min_severity: "info" };
   form.value = {
     id: item.id,
     name: item.name,
     is_guest: item.is_guest,
     is_active: item.is_active,
+    cts_alert_config: cfg,
   };
+  alertProfile.value = _profileFromConfig(cfg);
   editId.value = item.id;
   editing.value = true;
   dialog.value = true;

@@ -115,6 +115,104 @@ class RulesEngine:
 
         return True
 
+    def get_matching_rules_for_event(
+        self,
+        event: dict[str, Any],
+        trigger_type: str,
+        db: Session,
+    ) -> list[Rule]:
+        """Return enabled rules matching a dict-based event (e.g. dementia signals).
+
+        Unlike :meth:`get_matching_rules`, this method does not require a SQLAlchemy
+        Sensor row. It passes the event dict directly to context filters.
+        Filters in :data:`_SENSOR_DEPENDENT_FILTERS` are skipped because they
+        require a Sensor ORM object to evaluate.
+
+        Args:
+            event: Event dict shaped as ``{"kind": str, "payload": dict}``.
+            trigger_type: The trigger type string to match against
+                ``Rule.trigger_types`` (e.g. ``"dementia_signal"``).
+            db: Active database session.
+        """
+        now = datetime.now(self.tz)
+        rules = (
+            db.query(Rule)
+            .filter(
+                Rule.enabled.is_(True),
+                Rule.trigger_types.contains([trigger_type]),
+            )
+            .all()
+        )
+
+        matched: list[Rule] = []
+        for rule in rules:
+            if not self._check_contexts_for_event(rule, event, now, db):
+                logger.info(
+                    "rule_skipped_context",
+                    rule=rule.name,
+                    trigger_type=trigger_type,
+                )
+                continue
+            if not self._check_dependencies(rule, db, now):
+                logger.info(
+                    "rule_skipped_dependency",
+                    rule=rule.name,
+                    trigger_type=trigger_type,
+                )
+                continue
+            if not self._check_rate_limits(rule, db, now):
+                logger.info(
+                    "rule_skipped_rate_limit",
+                    rule=rule.name,
+                    trigger_type=trigger_type,
+                )
+                continue
+            matched.append(rule)
+
+        logger.info(
+            "rule_matching",
+            trigger_type=trigger_type,
+            total_rules=len(rules),
+            matched=len(matched),
+            matched_names=[r.name for r in matched],
+        )
+        return matched
+
+    def _check_contexts_for_event(
+        self,
+        rule: Rule,
+        event: dict[str, Any],
+        now: datetime,
+        db: Session | None = None,
+        services: Any = None,
+    ) -> bool:
+        """Evaluate rule contexts against a dict event.
+
+        Sensor-dependent filter types are skipped (they require a SQLAlchemy
+        Sensor row). All other filter types receive the event dict as their
+        ``sensor`` argument.
+        """
+        if not rule.contexts:
+            return True
+
+        by_type: dict[str, list[RuleContext]] = {}
+        for ctx in rule.contexts:
+            by_type.setdefault(ctx.context_type, []).append(ctx)
+
+        for ctx_type, contexts in by_type.items():
+            if ctx_type in self._SENSOR_DEPENDENT_FILTERS:
+                logger.warning(
+                    "event_context_skipped_sensor_dependent",
+                    rule=rule.name,
+                    context_type=ctx_type,
+                )
+                continue
+            if not any(
+                self._matches_context(ctx, event, now, db, services) for ctx in contexts
+            ):
+                return False
+        return True
+
     _SENSOR_DEPENDENT_FILTERS = frozenset({"room", "room_transition", "person_movement_memory"})
 
     def _check_contexts_for_cron(

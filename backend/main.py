@@ -391,6 +391,7 @@ async def lifespan(app: FastAPI):
         activity=activity_service,
         signals=signals_service,
         knowledge_delivery=knowledge_delivery,
+        rules_engine=rules_engine,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor

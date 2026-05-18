@@ -16,10 +16,13 @@ When ``cts.enabled=false`` every handler returns 404 with code
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
-from backend.core.database import get_session
+from backend.core.database import get_db, get_session
+from backend.models.person import HouseholdMember
 from backend.routers.cts_deps import cts_enabled
+from backend.services.cts.signal_config import is_signal_enabled
 from backend.services.cts.signal_store import SignalStore
 
 router = APIRouter(prefix="/cts/signals", tags=["cts-signals"])
@@ -28,6 +31,25 @@ router = APIRouter(prefix="/cts/signals", tags=["cts-signals"])
 def _get_signal_store() -> SignalStore:
     """Dependency: provide the SignalStore instance."""
     return SignalStore(db_factory=get_session)
+
+
+def _filter_by_person_config(
+    signals: list[dict],
+    db: Session,
+) -> list[dict]:
+    """Remove signals that are disabled by the person's cts_alert_config.
+
+    Loads all HouseholdMember configs in one query and applies the check
+    in Python so the signal store remains config-agnostic.
+    """
+    members = {m.id: m for m in db.query(HouseholdMember).all()}
+    result = []
+    for s in signals:
+        member = members.get(s.get("person_id", ""))
+        cfg = member.cts_alert_config if member is not None else None
+        if is_signal_enabled(cfg, s.get("signal_type", ""), s.get("severity", "info")):
+            result.append(s)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -44,8 +66,9 @@ async def list_signals(
     limit: int = Query(200, ge=1, le=1000, description="Max results"),
     _auth: AuthContext = Depends(require_permission("cts.signals.view")),
     store: SignalStore = Depends(_get_signal_store),
+    db: Session = Depends(get_db),
 ) -> dict:
-    """List recent dementia signals with optional filters."""
+    """List recent dementia signals, filtered by each person's alert config."""
     cts_enabled()
     signals = await store.list_recent(
         person_id=person_id,
@@ -54,6 +77,7 @@ async def list_signals(
         window_hours=window_hours,
         limit=limit,
     )
+    signals = _filter_by_person_config(signals, db)
     return {"signals": signals, "count": len(signals)}
 
 
@@ -92,8 +116,9 @@ async def list_unacknowledged(
     limit: int = Query(50, ge=1, le=500, description="Max results"),
     _auth: AuthContext = Depends(require_permission("cts.signals.view")),
     store: SignalStore = Depends(_get_signal_store),
+    db: Session = Depends(get_db),
 ) -> dict:
-    """Return unacknowledged signals (for alerting / dashboard)."""
+    """Return unacknowledged signals, filtered by each person's alert config."""
     cts_enabled()
     signals = await store.get_unacknowledged(
         person_id=person_id,
@@ -101,6 +126,7 @@ async def list_unacknowledged(
         window_hours=window_hours,
         limit=limit,
     )
+    signals = _filter_by_person_config(signals, db)
     return {"signals": signals, "count": len(signals)}
 
 

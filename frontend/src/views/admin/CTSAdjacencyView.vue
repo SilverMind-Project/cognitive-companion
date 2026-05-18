@@ -17,7 +17,7 @@
     <v-card v-if="savedEdges.length > 0" class="mb-4" variant="flat" border>
       <v-card-subtitle class="pt-3 pb-1">Saved in orchestrator</v-card-subtitle>
       <v-data-table
-        :headers="headers"
+        :headers="savedHeaders"
         :items="savedEdges"
         item-value="_key"
         density="compact"
@@ -30,6 +30,9 @@
         <template #item.overlap="{ item }">
           <v-icon v-if="item.overlap" color="success" size="small">mdi-check</v-icon>
           <span v-else class="text-medium-emphasis">—</span>
+        </template>
+        <template #item.actions="{ item }">
+          <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="stageForEdit(item)" />
         </template>
       </v-data-table>
     </v-card>
@@ -147,6 +150,19 @@
           >
             Max transit must be at least min transit.
           </v-alert>
+
+          <v-switch
+            v-model="form.overlap"
+            color="primary"
+            label="Field-of-view overlap"
+            density="compact"
+            class="mt-3"
+            hide-details
+          />
+          <div class="text-caption text-medium-emphasis mt-1">
+            Enable when cameras physically share a viewing zone (e.g. two cameras covering the same doorway).
+            The cross-camera resolver will treat detections as potentially simultaneous rather than sequential.
+          </div>
         </v-card-text>
         <DialogFooter
           hint="Adjacency edges define which cameras are physically connected for person tracking across rooms."
@@ -180,19 +196,24 @@ const dialog = ref(false);
 const editingIdx = ref(null);
 const saving = ref(false);
 
-const headers = [
+const baseHeaders = [
   { title: "From", key: "from" },
   { title: "To", key: "to" },
   { title: "Transit", key: "transit" },
   { title: "Overlap", key: "overlap" },
 ];
 
-const editHeaders = [
-  ...headers,
+const savedHeaders = [
+  ...baseHeaders,
   { title: "", key: "actions", sortable: false, align: "end" },
 ];
 
-const emptyForm = () => ({ from: "", to: "", min_transit_s: 0.5, max_transit_s: 30 });
+const editHeaders = [
+  ...baseHeaders,
+  { title: "", key: "actions", sortable: false, align: "end" },
+];
+
+const emptyForm = () => ({ from: "", to: "", min_transit_s: 0.5, max_transit_s: 30, overlap: false });
 const form = ref(emptyForm());
 
 // Overlap-group hint: returns group name if both selected cameras share a group.
@@ -252,6 +273,24 @@ function openCreate() {
 function openEdit(edge) {
   editingIdx.value = stagedEdges.value.indexOf(edge);
   form.value = { ...edge };
+  dialog.value = true;
+}
+
+function stageForEdit(savedEdge) {
+  // Move a saved (orchestrator) edge into the staged list so it can be edited.
+  // If it's already staged, just open the edit dialog for it.
+  const existingIdx = stagedEdges.value.findIndex(
+    (e) => e.from === savedEdge.from && e.to === savedEdge.to
+  );
+  if (existingIdx >= 0) {
+    editingIdx.value = existingIdx;
+    form.value = { ...stagedEdges.value[existingIdx] };
+  } else {
+    const staged = { ...savedEdge };
+    stagedEdges.value.push(staged);
+    editingIdx.value = stagedEdges.value.length - 1;
+    form.value = { ...staged };
+  }
   dialog.value = true;
 }
 

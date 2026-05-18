@@ -89,7 +89,7 @@ def test_build_providers_returns_sorted_list():
     cache = _StubHaStateCache()
     repo = _StubLocationRepository()
 
-    providers = build_providers(config, cache=cache, location_repository=repo)
+    providers = build_providers(config, cache=cache, location_repository_factory=lambda: repo)
 
     assert len(providers) == 3
     priorities = [p.priority for p in providers]
@@ -104,7 +104,7 @@ def test_build_providers_registers_ha_entities():
     cache = _StubHaStateCache()
     repo = _StubLocationRepository()
 
-    build_providers(config, cache=cache, location_repository=repo)
+    build_providers(config, cache=cache, location_repository_factory=lambda: repo)
 
     assert "binary_sensor.bed" in cache._registered
 
@@ -133,7 +133,7 @@ def test_build_providers_with_unknown_provider():
             build_providers(
                 config,
                 cache=_StubHaStateCache(),
-                location_repository=_StubLocationRepository(),
+                location_repository_factory=lambda: _StubLocationRepository(),
             )
     finally:
         factory._PROVIDER_BUILDERS.clear()
@@ -176,7 +176,7 @@ def test_build_all_provider_types():
     cache = _StubHaStateCache()
     repo = _StubLocationRepository()
 
-    providers = build_providers(config, cache=cache, location_repository=repo)
+    providers = build_providers(config, cache=cache, location_repository_factory=lambda: repo)
 
     assert len(providers) == 6
     names = [p.name for p in providers]

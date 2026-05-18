@@ -12,6 +12,7 @@ that no CTS code executes when the flag is off.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -90,7 +91,18 @@ class CTSRuntime:
         def _repo_factory() -> SqlAlchemyLocationRepository:
             return SqlAlchemyLocationRepository(db_factory())
 
-        self.location_writer = LocationWriter(repo_factory=_repo_factory, authority=self.authority)
+        # Build camera→room mapping from the CtsCamera table at startup.
+        # Cameras rarely change location, so this is loaded once and used
+        # by both LocationWriter (room_name fallback) and SceneSampleSubscriber.
+        camera_map = camera_room_map if camera_room_map is not None else {}
+        if not camera_map and db_factory is not None:
+            camera_map = _load_camera_room_map(db_factory)
+
+        self.location_writer = LocationWriter(
+            repo_factory=_repo_factory,
+            authority=self.authority,
+            camera_room_map=camera_map,
+        )
         self.identity_rewriter = IdentityRewriter(db_factory=db_factory, ws_manager=ws_manager)
         self.signal_store = SignalStore(db_factory=db_factory)
 
@@ -103,14 +115,6 @@ class CTSRuntime:
             pipeline=pipeline,
             get_triggers=_load_triggers,
         )
-
-        # Build camera→room mapping from the CtsCamera table at startup.
-        # Cameras rarely change location, so this is loaded once and passed
-        # to the scene sample subscriber for O(1) lookup without per-message
-        # DB sessions.
-        camera_map = camera_room_map if camera_room_map is not None else {}
-        if not camera_map and db_factory is not None:
-            camera_map = _load_camera_room_map(db_factory)
 
         self.tracking_event_subscriber = TrackingEventSubscriber(
             redis_url=config.redis_url,
@@ -161,17 +165,33 @@ class CTSRuntime:
     # -- lifecycle ----------------------------------------------------------
 
     async def start(self) -> None:
-        """Start all three subscribers as background tasks.
+        """Start all five CTS subscribers as background tasks.
 
         Idempotent: calling start twice is a no-op on already-running tasks.
         """
+        def _on_done(bundle_name: str) -> Callable[[asyncio.Task[None]], None]:
+            def _cb(task: asyncio.Task[None]) -> None:
+                if task.cancelled():
+                    return
+                exc = task.exception()
+                if exc is not None:
+                    logger.error(
+                        "cts_subscriber_task_failed",
+                        name=bundle_name,
+                        error=repr(exc),
+                        exc_info=exc,
+                    )
+            return _cb
+
         for bundle in self._bundles:
             if bundle.task is not None and not bundle.task.done():
                 continue
-            bundle.task = asyncio.create_task(
+            task = asyncio.create_task(
                 bundle.subscriber.start(),
                 name=f"cts-runtime-{bundle.name}",
             )
+            task.add_done_callback(_on_done(bundle.name))
+            bundle.task = task
         logger.info(
             "cts_runtime_started",
             subscribers=[b.name for b in self._bundles],

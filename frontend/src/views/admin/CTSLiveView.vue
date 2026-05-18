@@ -88,6 +88,25 @@
         </v-btn>
       </v-card-text>
 
+      <!-- Cross-camera presence panel: only shown when same identity seen on 2+ cameras -->
+      <div v-if="multiCameraIdentities.length > 0" class="px-4 pb-2">
+        <v-divider class="mb-2" />
+        <div class="d-flex align-center ga-2 flex-wrap">
+          <v-icon size="16" class="text-medium-emphasis">mdi-camera-flip-outline</v-icon>
+          <span class="text-caption text-medium-emphasis font-weight-medium">Cross-camera:</span>
+          <v-chip
+            v-for="entry in multiCameraIdentities"
+            :key="entry.identity_id"
+            size="x-small"
+            :style="{ borderColor: entry.color, borderWidth: '2px', borderStyle: 'solid' }"
+            variant="outlined"
+            :prepend-icon="entry.cameraCount > 2 ? 'mdi-camera-plus' : 'mdi-camera'"
+          >
+            {{ entry.identity_id }} · {{ entry.cameraCount }} cams
+          </v-chip>
+        </div>
+      </div>
+
       <v-divider />
 
       <div :class="gridClass" class="pa-4 ga-4 live-grid">
@@ -121,15 +140,15 @@
           >
             <img
               v-if="cameraForSlot(slot)?.frame_url"
-              :src="cameraForSlot(slot).frame_url"
-              :class="['live-tile-img', { 'cts-blur': blurMode }]"
+              :src="displaySrc(cameraForSlot(slot).frame_url)"
+              class="live-tile-img"
               alt=""
               @error="onFrameError($event, cameraForSlot(slot))"
             />
             <img
               v-else-if="snapshotUrls[cameraIdForSlot(slot)]"
-              :src="snapshotUrls[cameraIdForSlot(slot)]"
-              :class="['live-tile-img', { 'cts-blur': blurMode }]"
+              :src="displaySrc(snapshotUrls[cameraIdForSlot(slot)])"
+              class="live-tile-img"
               alt=""
             />
             <div
@@ -142,7 +161,7 @@
               v-if="cameraForSlot(slot)"
               :viewBox="`0 0 ${cameraForSlot(slot).frame_width || 1920} ${cameraForSlot(slot).frame_height || 1080}`"
               class="live-tile-overlay"
-              preserveAspectRatio="xMidYMid meet"
+              preserveAspectRatio="xMidYMid slice"
             >
               <g
                 v-for="(det, idx) in cameraForSlot(slot).detections"
@@ -168,17 +187,36 @@
                   :width="(det.bbox.x_max || 0) - (det.bbox.x_min || 0)"
                   :height="(det.bbox.y_max || 0) - (det.bbox.y_min || 0)"
                   fill="none"
-                  :stroke="det.identity_id ? 'var(--cc-success)' : 'var(--cc-warning)'"
-                  stroke-width="3"
+                  :stroke="bboxColor(det)"
+                  :stroke-width="isMultiCamera(det) ? 6 : 4"
+                  :stroke-dasharray="isMultiCamera(det) ? 'none' : 'none'"
                   style="cursor: pointer"
                   @click="openCorrection(det, cameraForSlot(slot))"
                 />
+                <!-- Cross-camera badge: shown when same identity appears on multiple cameras -->
+                <g v-if="showBboxes && isMultiCamera(det)">
+                  <circle
+                    :cx="(det.bbox.x_max || 0) - 28"
+                    :cy="(det.bbox.y_min || 0) + 28"
+                    r="14"
+                    :fill="bboxColor(det)"
+                    opacity="0.9"
+                  />
+                  <text
+                    :x="(det.bbox.x_max || 0) - 28"
+                    :y="(det.bbox.y_min || 0) + 28"
+                    text-anchor="middle"
+                    font-size="36"
+                    fill="white"
+                    font-weight="bold"
+                  >{{ multiCameraCount(det) }}</text>
+                </g>
 
                 <!-- Identity label -->
                 <text
                   v-if="showIdLabels"
                   :x="(det.bbox.x_min || 0) + 8"
-                  :y="(det.bbox.y_min || 0) + 20"
+                  :y="(det.bbox.y_min || 0) + 28"
                   fill="var(--cc-text-1)"
                   font-size="36"
                   font-weight="bold"
@@ -189,24 +227,28 @@
 
                 <!-- Pose stick figure -->
                 <g v-if="showPose && det.pose_keypoints && det.pose_keypoints.length === 17">
-                  <line
+                  <template
                     v-for="([a, b], li) in LIMB_PAIRS"
                     :key="li"
-                    :x1="poseX(det, a)"
-                    :y1="poseY(det, a)"
-                    :x2="poseX(det, b)"
-                    :y2="poseY(det, b)"
-                    stroke="rgba(255,200,50,0.85)"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
+                  >
+                    <line
+                      v-if="det.pose_keypoints[a]?.score > 0.2 && det.pose_keypoints[b]?.score > 0.2"
+                      :x1="poseX(det, a)"
+                      :y1="poseY(det, a)"
+                      :x2="poseX(det, b)"
+                      :y2="poseY(det, b)"
+                      stroke="rgba(255,200,50,0.85)"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                  </template>
                   <circle
                     v-for="(kp, ki) in det.pose_keypoints"
                     :key="`kp${ki}`"
                     :cx="poseX(det, ki)"
                     :cy="poseY(det, ki)"
                     r="3"
-                    :fill="kp.score > 0.5 ? 'rgba(255,200,50,1)' : 'transparent'"
+                    :fill="kp.score > 0.4 ? 'rgba(255,200,50,1)' : 'transparent'"
                   />
                 </g>
 
@@ -246,7 +288,7 @@
                   v-if="showEvidence && det.evidence?.face_anchor_used"
                   :x="(det.bbox.x_min || 0) + 4"
                   :y="(det.bbox.y_min || 0) + 36"
-                  font-size="28"
+                  font-size="36"
                   style="user-select: none"
                 >👑</text>
               </g>
@@ -313,7 +355,8 @@
 import { ref, computed, reactive, onMounted, onUnmounted, watch } from "vue";
 import { cts } from "@/services/cts";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket.js";
-import { useBlurMode } from "@/composables/useBlurMode.js";
+import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode.js";
+import { identityColor } from "@/composables/useIdentityColor.js";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
@@ -336,6 +379,7 @@ const showPose = ref(false);
 const showEvidence = ref(false);
 
 const { blurMode } = useBlurMode();
+const { displaySrc } = useDisplaySrc(blurMode);
 
 // COCO 17-keypoint limb pairs (0-indexed).
 const LIMB_PAIRS = [
@@ -453,6 +497,91 @@ const wsStatusColor = computed(() => {
   return "error";
 });
 
+// Cross-camera person detection: identity_id → Set of camera_ids where seen.
+const identityCameraMap = computed(() => {
+  const map = new Map(); // identity_id → Set<camera_id>
+  for (const [cameraId, cam] of Object.entries(cameras.value)) {
+    for (const det of cam.detections || []) {
+      const id = det.identity_id;
+      if (!id) continue;
+      if (!map.has(id)) map.set(id, new Set());
+      map.get(id).add(cameraId);
+    }
+  }
+  return map;
+});
+
+// List of identities seen on 2+ cameras, sorted by camera count desc.
+const multiCameraIdentities = computed(() => {
+  const result = [];
+  for (const [id, cams] of identityCameraMap.value.entries()) {
+    if (cams.size >= 2) {
+      result.push({ identity_id: id, cameraCount: cams.size, color: identityColor(id) });
+    }
+  }
+  return result.sort((a, b) => b.cameraCount - a.cameraCount);
+});
+
+function isMultiCamera(det) {
+  if (!det.identity_id) return false;
+  const cams = identityCameraMap.value.get(det.identity_id);
+  return cams ? cams.size >= 2 : false;
+}
+
+function multiCameraCount(det) {
+  if (!det.identity_id) return 0;
+  return identityCameraMap.value.get(det.identity_id)?.size ?? 0;
+}
+
+function bboxColor(det) {
+  if (!det.identity_id) return "var(--cc-warning)";
+  return isMultiCamera(det) ? identityColor(det.identity_id) : "var(--cc-success)";
+}
+
+// Per-tracklet keypoint EMA smoothing to reduce frame-to-frame jitter.
+// Each tracklet's 17 keypoints (x, y only) are blended with the previous
+// frame's values at alpha=0.35 so the skeleton overlay moves smoothly.
+const KEYPOINT_SMOOTH_ALPHA = 0.65;
+const keypointSmoothState = {};  // { tracklet_id: [{x, y} x 17] }
+
+function smoothKeypoints(detections) {
+  if (!detections) return detections;
+  const now = Date.now();
+  for (const d of detections) {
+    const tid = d.tracklet_id;
+    if (!tid || !d.pose_keypoints || d.pose_keypoints.length !== 17) continue;
+    const prev = keypointSmoothState[tid];
+    if (!prev || (now - prev._ts) > 2000) {
+      // First sighting or >2s gap: initialise with current values.
+      keypointSmoothState[tid] = {
+        _ts: now,
+        kps: d.pose_keypoints.map((kp) => ({ x: kp.x, y: kp.y })),
+      };
+      continue;
+    }
+    for (let i = 0; i < 17; i++) {
+      const pk = prev.kps[i];
+      const ck = d.pose_keypoints[i];
+      if (!ck || !pk) continue;
+      pk.x = pk.x + KEYPOINT_SMOOTH_ALPHA * (ck.x - pk.x);
+      pk.y = pk.y + KEYPOINT_SMOOTH_ALPHA * (ck.y - pk.y);
+      // Write smoothed values back to the detection for rendering.
+      ck.x = pk.x;
+      ck.y = pk.y;
+    }
+    prev._ts = now;
+  }
+  return detections;
+}
+
+// Clean up stale keypoint state every 30 s.
+setInterval(() => {
+  const cutoff = Date.now() - 30_000;
+  for (const [tid, state] of Object.entries(keypointSmoothState)) {
+    if (state._ts < cutoff) delete keypointSmoothState[tid];
+  }
+}, 30_000);
+
 function onMessage(msg) {
   if (msg.type === "cts_live_frame") {
     if (!msg.camera_id) {
@@ -465,6 +594,8 @@ function onMessage(msg) {
       has_minio_key: !!msg.minio_key,
       detection_count: msg.detections?.length ?? 0,
     });
+    // Apply temporal smoothing to pose keypoints before rendering.
+    msg.detections = smoothKeypoints(msg.detections);
     cameras.value = {
       ...cameras.value,
       [msg.camera_id]: {
@@ -658,12 +789,6 @@ async function submitCorrection() {
   opacity: 0.4;
   filter: grayscale(60%);
 }
-.cts-blur {
-  filter: blur(12px);
-}
-.live-tile-stale .cts-blur {
-  filter: blur(12px) grayscale(60%);
-}
 .live-tile-stale-badge {
   position: absolute;
   bottom: 6px;
@@ -671,7 +796,7 @@ async function submitCorrection() {
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.65);
   color: var(--cc-warning, #fb8c00);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 10px;

@@ -33,6 +33,8 @@
           <v-select
             v-model="selectedPerson"
             :items="personOptions"
+            item-title="title"
+            item-value="value"
             label="Person"
             prepend-inner-icon="mdi-account"
             density="compact"
@@ -253,6 +255,7 @@ import { cts } from "../../services/cts.js";
 import { api } from "../../services/api.js";
 import PresenceWidget from "../../components/cts/PresenceWidget.vue";
 import { severityColor, severityIcon } from "../../composables/useCtsSeverity";
+import { formatTimeOnly, formatDateTimeShort } from "../../services/timezone.js";
 
 const selectedPerson = ref(null);
 const selectedDate = ref(null);
@@ -265,10 +268,19 @@ const signalSummary = ref({});
 const trajectoryPoints = ref([]);
 const dwellRooms = ref([]);
 
-// Derive person list from signals (no separate persons endpoint needed here).
+// Person options: prefer enrolled household members (loaded on mount);
+// augment with any identity_ids seen in recent signals that aren't enrolled.
 const personOptions = computed(() => {
-  const ids = new Set(signals.value.map((s) => s.identity_id));
-  return Array.from(ids).sort();
+  const enrolled = trackedPersons.value.map((p) => ({
+    title: p.display_name || p.name || p.id,
+    value: p.id,
+  }));
+  const enrolledIds = new Set(enrolled.map((p) => p.value));
+  const fromSignals = signals.value
+    .map((s) => s.identity_id)
+    .filter((id) => id && !enrolledIds.has(id));
+  const extra = [...new Set(fromSignals)].map((id) => ({ title: id, value: id }));
+  return [...enrolled, ...extra];
 });
 
 // SVG trajectory helpers: map ground_x/y (meters) to SVG coords.
@@ -377,8 +389,7 @@ async function loadDwellSummary() {
 
 
 function formatTime(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return formatTimeOnly(iso);
 }
 
 function formatDuration(seconds) {

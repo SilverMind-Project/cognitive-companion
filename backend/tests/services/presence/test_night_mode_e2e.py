@@ -153,7 +153,7 @@ async def test_night_mode_anchor_23_30():
 
     # Build the service.
     config = _make_minimal_config()
-    providers = build_providers(config, cache=cache, location_repository=repo)
+    providers = build_providers(config, cache=cache, location_repository_factory=lambda: repo)
     service = PresenceService(providers=providers, fusion_config=config.fusion)
 
     # Query at 23:30.
@@ -191,7 +191,7 @@ async def test_night_mode_anchor_released_at_02_30():
 
     # Build the service.
     config = _make_minimal_config()
-    providers = build_providers(config, cache=cache, location_repository=repo)
+    providers = build_providers(config, cache=cache, location_repository_factory=lambda: repo)
     service = PresenceService(providers=providers, fusion_config=config.fusion)
 
     # At 02:30, bathroom motion is detected -> anchor releases.
@@ -243,7 +243,7 @@ async def test_night_mode_anchor_no_motion_stays_asleep():
 
     # Build the service.
     config = _make_minimal_config()
-    providers = build_providers(config, cache=cache, location_repository=repo)
+    providers = build_providers(config, cache=cache, location_repository_factory=lambda: repo)
     service = PresenceService(providers=providers, fusion_config=config.fusion)
 
     # Query at 02:30 (no motion detected).

@@ -10,6 +10,7 @@ can answer.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 
 from backend.core.logging import get_logger
@@ -32,8 +33,10 @@ class StaleFallbackProvider:
 
     Parameters
     ----------
-    location_repository:
-        Repository abstraction over ``PersonLocationState``.
+    location_repository_factory:
+        Callable returning a fresh ``LocationRepository`` for each probe.
+        The provider creates and closes a repo per call so long-lived
+        SQLAlchemy sessions are never held across requests.
     ttl_seconds:
         Seconds after which ``last_seen_at`` is considered stale.
     name:
@@ -45,12 +48,12 @@ class StaleFallbackProvider:
     def __init__(
         self,
         *,
-        location_repository: LocationRepository,
+        location_repository_factory: Callable[[], LocationRepository],
         ttl_seconds: int = 3600,
         name: str = "stale_fallback",
         priority: int = 10,
     ) -> None:
-        self._repo = location_repository
+        self._repo_factory = location_repository_factory
         self._ttl_seconds = ttl_seconds
         self._name = name
         self._priority = priority
@@ -75,7 +78,12 @@ class StaleFallbackProvider:
         no state row exists (yield to lower-priority providers) or
         when the data is fresh (yield to higher-priority providers).
         """
-        state = self._repo.get_state(person_id)
+        repo = self._repo_factory()
+        try:
+            state = repo.get_state(person_id)
+        finally:
+            repo.close()
+
         if state is None:
             # No state at all; yield to UnknownProvider.
             return None

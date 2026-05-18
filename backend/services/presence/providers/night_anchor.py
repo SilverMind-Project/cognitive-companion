@@ -20,6 +20,7 @@ as a follow-up.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 
 from backend.core.logging import get_logger
@@ -79,7 +80,7 @@ class NightAnchorProvider:
         self,
         *,
         cache: HaStateCache,
-        location_repository: LocationRepository,
+        location_repository_factory: Callable[[], LocationRepository],
         light_entities: list[str],
         bed_sensor_entity: str | None,
         anchor_room_id: str,
@@ -92,7 +93,7 @@ class NightAnchorProvider:
         priority: int = 90,
     ) -> None:
         self._cache = cache
-        self._repo = location_repository
+        self._repo_factory = location_repository_factory
         self._light_entities = light_entities
         self._bed_sensor_entity = bed_sensor_entity
         self._anchor_room_id = anchor_room_id
@@ -164,7 +165,11 @@ class NightAnchorProvider:
                 return None
 
         # Step 3: Last known room must be in the require list.
-        location_state = self._repo.get_state(person_id)
+        repo = self._repo_factory()
+        try:
+            location_state = repo.get_state(person_id)
+        finally:
+            repo.close()
         if location_state is None or location_state.current_room_name is None:
             return None
         if location_state.current_room_name.lower() not in self._require_last_room_in:

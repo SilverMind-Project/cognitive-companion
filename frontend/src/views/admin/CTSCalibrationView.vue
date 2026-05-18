@@ -48,8 +48,8 @@
               <img
                 v-if="snapshotUrl"
                 ref="imgEl"
-                :src="snapshotUrl"
-                :class="['snapshot-img', { 'cts-blur': blurMode }]"
+                :src="displaySrc(snapshotUrl)"
+                class="snapshot-img"
                 draggable="false"
                 @load="onImageLoad"
               />
@@ -206,11 +206,12 @@
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
-import { useBlurMode } from "../../composables/useBlurMode.js";
+import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { blurMode } = useBlurMode();
+const { displaySrc } = useDisplaySrc(blurMode);
 
 const cameras = ref([]);
 const selectedCameraId = ref(null);
@@ -328,9 +329,6 @@ onBeforeUnmount(() => {
   width: 100%;
   max-height: 420px;
   object-fit: contain;
-}
-.cts-blur {
-  filter: blur(12px);
 }
 
 .point-overlay {

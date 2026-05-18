@@ -144,9 +144,9 @@
               Snapshot
             </v-btn>
           </div>
-          <div :class="{ 'cts-blur-wrap': blurMode }">
+          <div>
             <PolygonOnSnapshot
-              :image-url="dialogSnapshotUrl"
+              :image-url="displaySrc(dialogSnapshotUrl)"
               :model-value="form.polygon"
               :min-points="3"
               @update:model-value="form.polygon = $event"
@@ -170,7 +170,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { cts } from "../../services/cts.js";
 import { useNotify } from "../../composables/useNotify.js";
-import { useBlurMode } from "../../composables/useBlurMode.js";
+import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 import PolygonOnSnapshot from "../../components/cts/PolygonOnSnapshot.vue";
@@ -178,6 +178,7 @@ import BlurToggle from "../../components/cts/BlurToggle.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { blurMode } = useBlurMode();
+const { displaySrc } = useDisplaySrc(blurMode);
 
 const cameras = ref([]);
 const selectedCameraId = ref(null);
@@ -305,7 +306,4 @@ onBeforeUnmount(() => {
   background: var(--cc-surface-3);
 }
 
-.cts-blur-wrap img {
-  filter: blur(12px);
-}
 </style>

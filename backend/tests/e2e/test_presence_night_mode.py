@@ -153,7 +153,7 @@ def _build_chain(
     providers = build_providers(
         config,
         cache=cache,  # type: ignore[arg-type]  # fake is structurally compatible
-        location_repository=location_repo,
+        location_repository_factory=lambda: location_repo,
     )
     return PresenceService(
         providers=providers,

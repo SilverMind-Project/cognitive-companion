@@ -690,6 +690,109 @@ function tileLinkEntries(cameraId) {
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// Identity caches — three layers, consulted in order:
+//
+//  1. global_track_id cache  (5 min TTL) — most stable; one GT per person per session.
+//  2. tracklet_id cache      (30 s TTL)  — covers same-tracklet identity drops.
+//  3. position cache         (5 s TTL)   — last resort when both IDs are empty
+//     (the ~2-frame window while BoT-SORT confirms a new local track before
+//     it gets a tracklet_id or is merged back into the GT).  Picks the cached
+//     entry whose bbox overlaps the current detection most.
+// ---------------------------------------------------------------------------
+
+const GLOBAL_TRACK_IDENTITY_TTL_MS = 300_000;
+const TRACKLET_IDENTITY_TTL_MS     =  30_000;
+const POSITION_IDENTITY_TTL_MS     =   5_000;
+const POSITION_IOU_MIN             =    0.25;  // require ≥25% bbox overlap
+
+const globalTrackIdentityCache = {};  // global_track_id → {identity_id, display_name, identity_confidence, lastSeenMs}
+const trackletIdentityCache    = {};  // tracklet_id      → {identity_id, display_name, identity_confidence, lastSeenMs}
+const positionIdentityCache    = {};  // camera_id        → [{bbox, identity_id, display_name, identity_confidence, lastSeenMs}]
+
+function _cacheEntry(d, nowMs) {
+  return { identity_id: d.identity_id, display_name: d.display_name, identity_confidence: d.identity_confidence, lastSeenMs: nowMs };
+}
+
+function _bboxIoU(a, b) {
+  const ix1 = Math.max(a.x_min, b.x_min), iy1 = Math.max(a.y_min, b.y_min);
+  const ix2 = Math.min(a.x_max, b.x_max), iy2 = Math.min(a.y_max, b.y_max);
+  if (ix2 <= ix1 || iy2 <= iy1) return 0;
+  const inter = (ix2 - ix1) * (iy2 - iy1);
+  const aA = (a.x_max - a.x_min) * (a.y_max - a.y_min);
+  const bA = (b.x_max - b.x_min) * (b.y_max - b.y_min);
+  return inter / (aA + bA - inter);
+}
+
+function _applyIdentity(d, entry, action, cameraId) {
+  console.debug("[cts_live] identity_cache", { action, camera_id: cameraId, global_track_id: d.global_track_id || "", tracklet_id: d.tracklet_id || "", identity_id: entry.identity_id });
+  return { ...d, identity_id: entry.identity_id, display_name: entry.display_name, identity_confidence: entry.identity_confidence };
+}
+
+function mergeIdentityCache(detections, cameraId = "unknown") {
+  if (!detections) return detections;
+  const nowMs = Date.now();
+
+  // --- Pass 1: populate caches from detections that already have an identity ---
+  const freshPositions = [];
+  for (const d of detections) {
+    if (!d.identity_id) continue;
+    const entry = _cacheEntry(d, nowMs);
+    if (d.global_track_id) globalTrackIdentityCache[d.global_track_id] = entry;
+    if (d.tracklet_id)     trackletIdentityCache[d.tracklet_id]         = entry;
+    if (d.bbox)            freshPositions.push({ bbox: d.bbox, ...entry });
+  }
+  if (freshPositions.length) positionIdentityCache[cameraId] = freshPositions;
+
+  // --- Pass 2: fill identity for detections that lack one ---
+  return detections.map((d) => {
+    if (d.identity_id) return d;
+
+    // 1. Global-track cache (most stable — session-lifetime key).
+    if (d.global_track_id) {
+      const c = globalTrackIdentityCache[d.global_track_id];
+      if (c && nowMs - c.lastSeenMs <= GLOBAL_TRACK_IDENTITY_TTL_MS)
+        return _applyIdentity(d, c, "gt_cache_hit", cameraId);
+    }
+
+    // 2. Tracklet cache (covers same-tracklet brief identity drops).
+    if (d.tracklet_id) {
+      const c = trackletIdentityCache[d.tracklet_id];
+      if (c && nowMs - c.lastSeenMs <= TRACKLET_IDENTITY_TTL_MS)
+        return _applyIdentity(d, c, "tracklet_cache_hit", cameraId);
+    }
+
+    // 3. Position cache — fires when both IDs are empty (new unconfirmed track).
+    //    Pick the cached bbox with the highest IoU to this detection's bbox.
+    if (d.bbox) {
+      const recent = (positionIdentityCache[cameraId] || [])
+        .filter(e => nowMs - e.lastSeenMs <= POSITION_IDENTITY_TTL_MS);
+      let bestIoU = POSITION_IOU_MIN, bestEntry = null;
+      for (const e of recent) {
+        const iou = _bboxIoU(d.bbox, e.bbox);
+        if (iou > bestIoU) { bestIoU = iou; bestEntry = e; }
+      }
+      if (bestEntry)
+        return _applyIdentity(d, bestEntry, "position_cache_hit", cameraId);
+    }
+
+    console.debug("[cts_live] identity_cache", { action: "cache_miss", camera_id: cameraId, global_track_id: d.global_track_id || "", tracklet_id: d.tracklet_id || "" });
+    return d;
+  });
+}
+
+setInterval(() => {
+  const gtCutoff = Date.now() - GLOBAL_TRACK_IDENTITY_TTL_MS;
+  const tCutoff  = Date.now() - TRACKLET_IDENTITY_TTL_MS;
+  for (const [k, v] of Object.entries(globalTrackIdentityCache)) { if (v.lastSeenMs < gtCutoff) delete globalTrackIdentityCache[k]; }
+  for (const [k, v] of Object.entries(trackletIdentityCache))    { if (v.lastSeenMs < tCutoff)  delete trackletIdentityCache[k]; }
+  // Position cache entries are rebuilt fresh each frame — just clear stale cameras.
+  for (const [k, v] of Object.entries(positionIdentityCache)) {
+    if (!v.length || Date.now() - Math.max(...v.map(e => e.lastSeenMs)) > POSITION_IDENTITY_TTL_MS * 2)
+      delete positionIdentityCache[k];
+  }
+}, TRACKLET_IDENTITY_TTL_MS);
+
 // Per-tracklet keypoint EMA smoothing to reduce frame-to-frame jitter.
 // Each tracklet's 17 keypoints (x, y only) are blended with the previous
 // frame's values at alpha=0.35 so the skeleton overlay moves smoothly.
@@ -748,6 +851,8 @@ function onMessage(msg) {
     });
     // Apply temporal smoothing to pose keypoints before rendering.
     msg.detections = smoothKeypoints(msg.detections);
+    // Fill in last-known identity for detections that lack one this frame.
+    msg.detections = mergeIdentityCache(msg.detections, msg.camera_id);
     cameras.value = {
       ...cameras.value,
       [msg.camera_id]: {

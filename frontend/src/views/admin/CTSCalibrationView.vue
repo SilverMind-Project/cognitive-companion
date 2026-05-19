@@ -28,11 +28,11 @@
       <v-card-text class="py-3">
         <div class="text-caption text-medium-emphasis mb-2 font-weight-medium">SETUP PREREQUISITES</div>
         <div class="d-flex flex-wrap ga-3">
+          <span>Floor plan image</span>
           <div class="prereq-item" :class="floorPlanReady ? 'prereq-ok' : 'prereq-warn'">
             <v-icon size="16" :color="floorPlanReady ? 'success' : 'warning'">
               {{ floorPlanReady ? 'mdi-check-circle' : 'mdi-alert-circle-outline' }}
             </v-icon>
-            <span>Floor plan image</span>
           </div>
           <div class="prereq-item" :class="scaleReady ? 'prereq-ok' : 'prereq-warn'">
             <v-icon size="16" :color="scaleReady ? 'success' : 'warning'">
@@ -142,22 +142,22 @@
                     <circle
                       :cx="pt.pixel[0]"
                       :cy="pt.pixel[1]"
-                      r="8"
+                      r="30"
                       fill="none"
                       stroke="var(--cc-brand)"
-                      stroke-width="2.5"
+                      stroke-width="3"
                     />
                     <circle
                       :cx="pt.pixel[0]"
                       :cy="pt.pixel[1]"
-                      r="2.5"
+                      r="12"
                       fill="var(--cc-brand)"
                     />
                     <text
-                      :x="pt.pixel[0] + 12"
-                      :y="pt.pixel[1] - 6"
+                      :x="pt.pixel[0] + 18"
+                      :y="pt.pixel[1] - 10"
                       fill="var(--cc-brand)"
-                      font-size="12"
+                      font-size="48"
                       font-weight="bold"
                     >{{ i + 1 }}</text>
                   </g>
@@ -166,23 +166,23 @@
                     <circle
                       :cx="pendingPixel[0]"
                       :cy="pendingPixel[1]"
-                      r="14"
+                      r="50"
                       fill="none"
                       stroke="#f59e0b"
-                      stroke-width="2"
+                      stroke-width="2.5"
                       stroke-dasharray="4 3"
                     />
                     <circle
                       :cx="pendingPixel[0]"
                       :cy="pendingPixel[1]"
-                      r="3"
+                      r="15"
                       fill="#f59e0b"
                     />
                     <text
-                      :x="pendingPixel[0] + 12"
-                      :y="pendingPixel[1] - 6"
+                      :x="pendingPixel[0] + 18"
+                      :y="pendingPixel[1] - 10"
                       fill="#f59e0b"
-                      font-size="12"
+                      font-size="48"
                       font-weight="bold"
                     >{{ points.length + 1 }}?</text>
                   </g>
@@ -298,42 +298,42 @@
               </v-card-title>
               <v-card-text class="pb-2">
                 <!-- SVG diagram -->
-                <svg viewBox="0 0 320 200" class="coord-diagram">
+                <svg viewBox="0 0 320 218" class="coord-diagram">
                   <!-- Floor plan rectangle -->
-                  <rect x="20" y="20" width="280" height="160" rx="4"
+                  <rect x="20" y="34" width="280" height="160" rx="4"
                     fill="rgba(99,102,241,0.07)" stroke="var(--cc-brand)" stroke-width="1.5" stroke-dasharray="6 3" />
-                  <text x="160" y="14" text-anchor="middle" fill="var(--cc-brand)" font-size="10" font-weight="600">
+                  <text x="160" y="12" text-anchor="middle" fill="var(--cc-brand)" font-size="10" font-weight="600">
                     Floor plan image
                   </text>
 
                   <!-- Origin -->
-                  <circle cx="20" cy="20" r="5" fill="var(--cc-brand)" />
-                  <text x="26" y="18" fill="var(--cc-brand)" font-size="10" font-weight="700">Origin (0, 0)</text>
-                  <text x="26" y="30" fill="var(--cc-text-secondary, #888)" font-size="9">
+                  <circle cx="20" cy="34" r="5" fill="var(--cc-brand)" />
+                  <text x="26" y="32" fill="var(--cc-brand)" font-size="10" font-weight="700">Origin (0, 0)</text>
+                  <text x="26" y="44" fill="var(--cc-text-secondary, #888)" font-size="9">
                     top-left corner
                   </text>
 
                   <!-- X axis -->
-                  <line x1="20" y1="20" x2="280" y2="20" stroke="var(--cc-brand)" stroke-width="1.5"
+                  <line x1="20" y1="34" x2="280" y2="34" stroke="var(--cc-brand)" stroke-width="1.5"
                     marker-end="url(#arrowX)" />
-                  <text x="290" y="24" fill="var(--cc-brand)" font-size="11" font-weight="700">X</text>
-                  <text x="145" y="16" text-anchor="middle" fill="var(--cc-brand)" font-size="9">→ increases right</text>
+                  <text x="290" y="38" fill="var(--cc-brand)" font-size="11" font-weight="700">X</text>
+                  <text x="145" y="30" text-anchor="middle" fill="var(--cc-brand)" font-size="9">→ increases right</text>
 
                   <!-- Y axis -->
-                  <line x1="20" y1="20" x2="20" y2="165" stroke="var(--cc-brand)" stroke-width="1.5"
+                  <line x1="20" y1="34" x2="20" y2="179" stroke="var(--cc-brand)" stroke-width="1.5"
                     marker-end="url(#arrowY)" />
-                  <text x="6" y="175" fill="var(--cc-brand)" font-size="11" font-weight="700">Y</text>
-                  <text x="12" y="100" text-anchor="middle" fill="var(--cc-brand)" font-size="9"
-                    transform="rotate(-90 12 100)">↓ increases downward</text>
+                  <text x="6" y="189" fill="var(--cc-brand)" font-size="11" font-weight="700">Y</text>
+                  <text x="12" y="106" text-anchor="middle" fill="var(--cc-brand)" font-size="9"
+                    transform="rotate(-90 12 106)">↓ increases downward</text>
 
                   <!-- Example point -->
-                  <circle cx="180" cy="120" r="5" fill="#10b981" />
+                  <circle cx="180" cy="134" r="5" fill="#10b981" />
                   <!-- X dashed measurement line -->
-                  <line x1="20" y1="120" x2="180" y2="120" stroke="#10b981" stroke-width="1" stroke-dasharray="4 3" />
-                  <text x="100" y="115" text-anchor="middle" fill="#10b981" font-size="10">X = 3.2 m</text>
+                  <line x1="20" y1="134" x2="180" y2="134" stroke="#10b981" stroke-width="1" stroke-dasharray="4 3" />
+                  <text x="100" y="129" text-anchor="middle" fill="#10b981" font-size="10">X = 3.2 m</text>
                   <!-- Y dashed measurement line -->
-                  <line x1="180" y1="20" x2="180" y2="120" stroke="#10b981" stroke-width="1" stroke-dasharray="4 3" />
-                  <text x="215" y="75" text-anchor="middle" fill="#10b981" font-size="10">Y = 2.5 m</text>
+                  <line x1="180" y1="34" x2="180" y2="134" stroke="#10b981" stroke-width="1" stroke-dasharray="4 3" />
+                  <text x="215" y="84" text-anchor="middle" fill="#10b981" font-size="10">Y = 2.5 m</text>
 
                   <!-- Arrow markers -->
                   <defs>

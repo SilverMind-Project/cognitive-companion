@@ -179,13 +179,14 @@
           @close="closeSnapshot"
         />
         <v-card-text class="pa-0">
-          <v-img v-if="snapshotUrl" :src="snapshotUrl" cover />
+          <v-img v-if="snapshotUrl" :src="displaySrc(snapshotUrl)" cover />
           <div v-else class="d-flex align-center justify-center pa-8">
             <v-progress-circular indeterminate />
           </div>
         </v-card-text>
         <v-divider />
         <v-card-actions class="px-6 py-3">
+          <BlurToggle class="mx-3" />
           <v-spacer />
           <v-btn variant="text" @click="closeSnapshot">Close</v-btn>
         </v-card-actions>
@@ -215,11 +216,15 @@ import { cts } from "../../services/cts.js";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
+import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
+import BlurToggle from "../../components/cts/BlurToggle.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
+const { blurMode } = useBlurMode();
+const { displaySrc } = useDisplaySrc(blurMode);
 
 const cameras = ref([]);
 const rooms = ref([]);

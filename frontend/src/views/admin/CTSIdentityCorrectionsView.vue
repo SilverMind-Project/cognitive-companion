@@ -22,6 +22,7 @@
       <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="refreshAll">
         Refresh
       </v-btn>
+      <BlurToggle />
     </div>
 
     <v-alert v-if="error" type="error" class="mb-4" closable @click:close="error = ''">
@@ -300,27 +301,15 @@
                   <!-- Keyframe previews -->
                   <v-col cols="6" md="3">
                     <div class="text-caption font-weight-medium mb-2">Keyframes</div>
-                    <div class="d-flex ga-2">
-                      <v-img
-                        v-if="item.latest_keyframe_minio_key"
-                        :src="frameUrl(item.latest_keyframe_minio_key)"
-                        width="80"
-                        height="60"
-                        cover
-                        rounded="md"
-                        class="keyframe-thumb"
-                      />
-                      <v-sheet
-                        v-else
-                        width="80"
-                        height="60"
-                        rounded="md"
-                        color="surface-variant"
-                        class="d-flex align-center justify-center"
-                      >
-                        <v-icon size="20" color="medium-emphasis">mdi-camera-off</v-icon>
-                      </v-sheet>
+                    <div v-if="keyframeLoading[item.global_track_id]" class="d-flex align-center ga-2">
+                      <v-progress-circular indeterminate size="16" width="2" />
+                      <span class="text-caption text-medium-emphasis">Loading...</span>
                     </div>
+                    <KeyframeStrip
+                      v-else
+                      :frames="expandedKeyframes[item.global_track_id] || []"
+                      @click="openKeyframeModal"
+                    />
                   </v-col>
                 </v-row>
 
@@ -502,6 +491,28 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Keyframe lightbox -->
+    <v-dialog v-model="keyframeDialogOpen" max-width="800">
+      <v-card v-if="selectedKeyframe" rounded="xl">
+        <v-img
+          :src="frameUrl(selectedKeyframe.minio_key)"
+          max-height="70vh"
+          contain
+          class="bg-black"
+        />
+        <v-card-text class="d-flex align-center ga-4">
+          <span v-if="selectedKeyframe.captured_at" class="text-caption text-medium-emphasis">
+            Captured: {{ formatRelative(selectedKeyframe.captured_at) }}
+          </span>
+          <span v-if="selectedKeyframe.tag_reason" class="text-caption text-medium-emphasis">
+            · {{ selectedKeyframe.tag_reason }}
+          </span>
+          <v-spacer />
+          <v-btn variant="text" size="small" @click="keyframeDialogOpen = false">Close</v-btn>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -510,12 +521,14 @@ import { cts } from "@/services/cts";
 import { formatRelative } from "@/composables/useFormatRelative";
 import { identityColor } from "@/composables/useIdentityColor";
 import IdentityInspectorDrawer from "@/components/cts/identity/IdentityInspectorDrawer.vue";
+import KeyframeStrip from "@/components/cts/identity/KeyframeStrip.vue";
+import BlurToggle from "@/components/cts/BlurToggle.vue";
 
 let searchTimer = null;
 
 export default {
   name: "CTSIdentityCorrectionsView",
-  components: { IdentityInspectorDrawer },
+  components: { IdentityInspectorDrawer, KeyframeStrip, BlurToggle },
   data() {
     return {
       error: "",
@@ -543,6 +556,11 @@ export default {
       // Bulk
       bulkDialogOpen: false,
       bulkSaving: false,
+      // Keyframes
+      expandedKeyframes: {},
+      keyframeLoading: {},
+      keyframeDialogOpen: false,
+      selectedKeyframe: null,
       // Camera filter options
       cameraOptions: [],
     };
@@ -609,6 +627,24 @@ export default {
   },
   mounted() {
     this.refreshAll();
+  },
+  watch: {
+    expanded(newVal, oldVal) {
+      const added = newVal.filter((v) => !oldVal.includes(v));
+      const removed = oldVal.filter((v) => !newVal.includes(v));
+      for (const item of added) {
+        const id = item?.global_track_id;
+        if (id) this.loadKeyframes(id);
+      }
+      for (const item of removed) {
+        const id = item?.global_track_id;
+        if (id && this.expandedKeyframes[id]) {
+          const next = { ...this.expandedKeyframes };
+          delete next[id];
+          this.expandedKeyframes = next;
+        }
+      }
+    },
   },
   methods: {
     formatRelative,
@@ -840,6 +876,27 @@ export default {
       } catch (err) {
         this.error = String(err.message || err);
       }
+    },
+    async loadKeyframes(globalTrackId) {
+      this.keyframeLoading = { ...this.keyframeLoading, [globalTrackId]: true };
+      try {
+        const data = await cts.getTrackKeyframes(globalTrackId);
+        this.expandedKeyframes = {
+          ...this.expandedKeyframes,
+          [globalTrackId]: data.keyframes || [],
+        };
+      } catch {
+        this.expandedKeyframes = {
+          ...this.expandedKeyframes,
+          [globalTrackId]: [],
+        };
+      } finally {
+        this.keyframeLoading = { ...this.keyframeLoading, [globalTrackId]: false };
+      }
+    },
+    openKeyframeModal(kf) {
+      this.selectedKeyframe = kf;
+      this.keyframeDialogOpen = true;
     },
     confirmBulkUnknown() {
       this.bulkDialogOpen = true;

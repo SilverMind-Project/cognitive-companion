@@ -32,7 +32,7 @@ export function useCtsWebSocket(onMessage) {
       status.value = "error";
     };
     ws.onclose = (ev) => {
-      console.debug("[cts_live] WS closed", { code: ev.code, reason: ev.reason, will_reconnect: !closed });
+      console.warn("[cts_live] WS closed", { code: ev.code, reason: ev.reason, will_reconnect: !closed });
       status.value = "closed";
       ws = null;
       if (!closed) {

@@ -93,20 +93,57 @@
 
     <!-- Tabs -->
     <v-tabs v-model="activeTab" color="primary" class="mb-4" density="compact" @update:model-value="onTabChange">
+      <v-tab value="people">
+        People
+      </v-tab>
       <v-tab value="active">
-        Active
+        Active tracks
         <v-chip size="x-small" variant="tonal" class="ml-1">{{ activeCount }}</v-chip>
       </v-tab>
       <v-tab value="recent">
         Recent 24h
       </v-tab>
       <v-tab value="decisions">
-        Decisions log
+        History
       </v-tab>
     </v-tabs>
 
+    <!-- Tab: People (person-centric timeline view) -->
+    <div v-if="activeTab === 'people'">
+      <div v-if="loadingPeople" class="d-flex justify-center pa-8">
+        <v-progress-circular indeterminate />
+      </div>
+      <template v-else>
+        <!-- Known identities -->
+        <div v-if="identities.length" class="d-flex flex-column ga-3 mb-6">
+          <PersonTrackCard
+            v-for="identity in identities"
+            :key="identity.identity_id"
+            :identity="identity"
+            :tracks="tracksByIdentity[identity.identity_id] || []"
+            @open-track="openInspector($event, 'correct')"
+            @correct-track="openInspector($event, 'correct')"
+            @merge-fragments="openFragmentMergeDialog"
+          />
+        </div>
+        <div v-else class="text-center pa-8 text-medium-emphasis">
+          No identities enrolled. Add people in the gallery first.
+        </div>
+
+        <!-- Unknown tracks -->
+        <v-card variant="flat" border rounded="lg" class="pa-4">
+          <UnknownTracksPanel
+            :tracks="unknownTracks"
+            :identities="identities"
+            @open-track="openInspector($event, 'correct')"
+            @assigned="onQuickAssign"
+          />
+        </v-card>
+      </template>
+    </div>
+
     <!-- Tab: Active / Recent tracks -->
-    <v-card v-if="activeTab !== 'decisions'" class="glass-card">
+    <v-card v-else-if="activeTab !== 'decisions'" class="glass-card">
       <v-data-table-server
         v-model="selected"
         v-model:expanded="expanded"
@@ -522,25 +559,30 @@ import { formatRelative } from "@/composables/useFormatRelative";
 import { identityColor } from "@/composables/useIdentityColor";
 import IdentityInspectorDrawer from "@/components/cts/identity/IdentityInspectorDrawer.vue";
 import KeyframeStrip from "@/components/cts/identity/KeyframeStrip.vue";
+import PersonTrackCard from "@/components/cts/identity/PersonTrackCard.vue";
+import UnknownTracksPanel from "@/components/cts/identity/UnknownTracksPanel.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
 
 let searchTimer = null;
 
 export default {
   name: "CTSIdentityCorrectionsView",
-  components: { IdentityInspectorDrawer, KeyframeStrip, BlurToggle },
+  components: { IdentityInspectorDrawer, KeyframeStrip, PersonTrackCard, UnknownTracksPanel, BlurToggle },
   data() {
     return {
       error: "",
       loading: false,
       loadingDecisions: false,
+      loadingPeople: false,
       tracks: [],
       totalTracks: 0,
       activeCount: 0,
       selected: [],
       expanded: [],
       identities: [],
-      activeTab: "active",
+      // People tab
+      allActiveTracks: [],
+      activeTab: "people",
       filters: { status: null, camera_id: null, search: "", sort: "recent" },
       showTransient: false,
       pagination: { page: 1, itemsPerPage: 24 },
@@ -566,6 +608,18 @@ export default {
     };
   },
   computed: {
+    tracksByIdentity() {
+      const byId = {};
+      for (const t of this.allActiveTracks) {
+        if (t.current_identity_id) {
+          (byId[t.current_identity_id] = byId[t.current_identity_id] || []).push(t);
+        }
+      }
+      return byId;
+    },
+    unknownTracks() {
+      return this.allActiveTracks.filter((t) => !t.current_identity_id);
+    },
     trackHeaders() {
       return [
         { title: "", key: "thumbnail", sortable: false, width: 72 },
@@ -627,6 +681,7 @@ export default {
   },
   mounted() {
     this.refreshAll();
+    this.loadPeopleTab();
   },
   watch: {
     expanded(newVal, oldVal) {
@@ -744,6 +799,41 @@ export default {
     async refreshAll() {
       await Promise.all([this.loadTracks(), this.loadIdentities()]);
     },
+    async loadPeopleTab() {
+      this.loadingPeople = true;
+      try {
+        const data = await cts.getGlobalTracks({
+          open_only: true,
+          limit: 200,
+          include_transient: false,
+          min_duration_s: 5,
+        });
+        this.allActiveTracks = data.tracks || [];
+      } catch (err) {
+        this.error = String(err.message || err);
+      } finally {
+        this.loadingPeople = false;
+      }
+    },
+    openFragmentMergeDialog(tracks) {
+      // Open the inspector for the first track in merge mode.
+      // The caregiver can then select which tracks to merge.
+      if (tracks.length) {
+        this.openInspector(tracks[0], "merge");
+      }
+    },
+    async onQuickAssign({ track, identity_id }) {
+      try {
+        await cts.applyCorrection({
+          global_track_id: track.global_track_id,
+          new_identity_id: identity_id,
+          reason: "quick_assign_people_tab",
+        });
+        await this.loadPeopleTab();
+      } catch (err) {
+        this.error = String(err.message || err);
+      }
+    },
     async loadTracks() {
       this.loading = true;
       try {
@@ -822,7 +912,10 @@ export default {
       this.selected = [];
       this.expanded = [];
       this.pagination.page = 1;
-      if (tab === "decisions") {
+      if (tab === "people") {
+        this.loadPeopleTab();
+        if (!this.identities.length) this.loadIdentities();
+      } else if (tab === "decisions") {
         this.loadDecisions();
       } else {
         this.loadTracks();

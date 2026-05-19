@@ -146,6 +146,7 @@ class OrchestratorClient(UpstreamClient):
         limit: int | None = None,
         offset: int | None = None,
         camera_id: str | None = None,
+        identity_id: str | None = None,
         status: str | None = None,
         search: str | None = None,
         min_duration_s: float | None = None,
@@ -157,6 +158,8 @@ class OrchestratorClient(UpstreamClient):
             params["offset"] = str(offset)
         if camera_id:
             params["camera_id"] = camera_id
+        if identity_id:
+            params["identity_id"] = identity_id
         if status:
             params["status"] = status
         if search:

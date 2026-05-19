@@ -34,7 +34,11 @@ router = APIRouter(tags=["cts-live"])
 @router.websocket("/ws/cts")
 async def cts_live_websocket(websocket: WebSocket) -> None:
     """Accept a live-view WebSocket and relay CTS broadcasts."""
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    logger.debug("cts_live_ws_connect_attempt", client=client_ip)
+
     if not settings.get("cts.enabled", False):
+        logger.warning("cts_live_ws_rejected_disabled", client=client_ip)
         await websocket.close(code=1008, reason="cts.disabled")
         return
 
@@ -43,27 +47,40 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
         or websocket.headers.get("sec-websocket-protocol", "").strip()
     )
     if not raw_key:
+        logger.warning("cts_live_ws_rejected_no_key", client=client_ip)
         await websocket.close(code=1008, reason="auth_required")
         return
 
     try:
         auth = _resolve_key(raw_key)
     except AuthenticationError:
+        logger.warning("cts_live_ws_rejected_auth_failed", client=client_ip)
         await websocket.close(code=1008, reason="auth_failed")
         return
 
     if not has_permission(auth, "GET", "/ws/cts"):
+        logger.warning(
+            "cts_live_ws_rejected_permission_denied",
+            client=client_ip, name=auth.name,
+        )
         await websocket.close(code=1008, reason="permission_denied")
         return
 
     manager: ConnectionManager | None = websocket.app.state.ws_manager
     if manager is None:
+        logger.error("cts_live_ws_rejected_no_manager", client=client_ip)
         await websocket.close(code=1011, reason="server_not_ready")
         return
 
     accepted = await manager.connect(websocket)
     if not accepted:
+        logger.warning(
+            "cts_live_ws_rejected_manager_full",
+            client=client_ip,
+        )
         return
+
+    logger.info("cts_live_ws_connected", client=client_ip, name=auth.name)
 
     try:
         # Keep the connection open; incoming client messages are a no-op for

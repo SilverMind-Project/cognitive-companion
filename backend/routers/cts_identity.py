@@ -73,6 +73,7 @@ async def list_global_tracks(
     limit: int | None = Query(None, ge=1, le=200),
     offset: int | None = Query(None, ge=0),
     camera_id: str | None = Query(None),
+    identity_id: str | None = Query(None, description="Filter to tracks assigned this identity"),
     track_status: str | None = Query(
         None,
         alias="status",
@@ -99,6 +100,7 @@ async def list_global_tracks(
             limit=limit,
             offset=offset,
             camera_id=camera_id,
+            identity_id=identity_id,
             status=track_status,
             search=search,
             min_duration_s=effective_min_duration if effective_min_duration > 0 else None,

@@ -151,6 +151,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                         {"x": kp.x, "y": kp.y, "score": kp.score}
                         for kp in det.pose_keypoints
                     ] or None,
+                    "posture": det.posture or None,
                     "trail": [
                         {"x": t.x, "y": t.y} for t in det.trail
                     ] or None,

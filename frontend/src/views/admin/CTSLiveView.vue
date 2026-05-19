@@ -77,6 +77,13 @@
           density="compact"
           hide-details
         />
+        <v-switch
+          v-model="showPosture"
+          color="primary"
+          label="Posture"
+          density="compact"
+          hide-details
+        />
         <BlurToggle />
         <v-spacer />
         <v-btn
@@ -131,6 +138,7 @@
           :key="slot"
           class="live-tile"
           variant="outlined"
+          :style="tileLinkStyle(cameraIdForSlot(slot))"
         >
           <v-card-text class="d-flex align-center ga-2 pa-2">
             <v-select
@@ -263,6 +271,21 @@
                   {{ otherCameraNames(det, cameraForSlot(slot)) }}
                 </text>
 
+                <!-- Posture label -->
+                <text
+                  v-if="showPosture && det.posture && det.posture !== 'unknown'"
+                  :x="(det.bbox.x_min || 0) + labelOffsetX(cameraForSlot(slot))"
+                  :y="postureLabelY(det, cameraForSlot(slot))"
+                  :fill="postureColor(det.posture)"
+                  :font-size="smallFontSize(cameraForSlot(slot))"
+                  font-weight="600"
+                  :style="{
+                    paintOrder: 'stroke',
+                    stroke: 'rgba(0,0,0,0.7)',
+                    strokeWidth: overlayStroke(cameraForSlot(slot), 0.5),
+                  }"
+                >{{ det.posture }}</text>
+
                 <!-- Pose stick figure -->
                 <g v-if="showPose && det.pose_keypoints && det.pose_keypoints.length === 17">
                   <template
@@ -337,6 +360,23 @@
             >
               <v-icon size="12" class="mr-1">mdi-clock-alert-outline</v-icon>
               Last seen {{ staleLabel(cameraForSlot(slot)) }}
+            </div>
+            <!-- Cross-camera link badges: one per linked identity on this tile -->
+            <div
+              v-if="tileLinkEntries(cameraIdForSlot(slot)).length"
+              class="live-tile-link-stack"
+            >
+              <div
+                v-for="entry in tileLinkEntries(cameraIdForSlot(slot))"
+                :key="entry.identity_id"
+                class="live-tile-link-badge"
+                :style="{ borderColor: entry.color, color: entry.color }"
+                :title="`GT linked: ${entry.display_name} also on ${entry.otherCameras.join(', ')}`"
+              >
+                <v-icon size="11" :color="entry.color">mdi-link-variant</v-icon>
+                <span class="live-tile-link-name">{{ entry.display_name }}</span>
+                <span class="live-tile-link-cams" :style="{ background: entry.color }">+{{ entry.otherCameras.length }}</span>
+              </div>
             </div>
           </div>
         </v-card>
@@ -415,6 +455,7 @@ const showIdLabels = ref(true);
 const showTrail = ref(false);
 const showPose = ref(false);
 const showEvidence = ref(false);
+const showPosture = ref(true);
 
 const { blurMode } = useBlurMode();
 const { displaySrc } = useDisplaySrc(blurMode);
@@ -592,6 +633,61 @@ function multiCameraTooltip(det) {
 function bboxColor(det) {
   if (!det.identity_id) return "var(--cc-warning)";
   return isMultiCamera(det) ? identityColor(det.identity_id) : "var(--cc-success)";
+}
+
+// Returns the dominant multi-camera identity color for a camera tile, or null.
+// "Dominant" = most cameras, tie-broken by identity_confidence.
+function tileDominantLinkColor(cameraId) {
+  if (!cameraId) return null;
+  const cam = cameras.value[cameraId];
+  if (!cam?.detections?.length) return null;
+  let best = null;
+  let bestScore = -1;
+  for (const det of cam.detections) {
+    if (!det.identity_id) continue;
+    const cams = identityCameraMap.value.get(det.identity_id);
+    if (!cams || cams.size < 2) continue;
+    const score = cams.size + (det.identity_confidence || 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = det.identity_id;
+    }
+  }
+  return best ? identityColor(best) : null;
+}
+
+// Box-shadow glow style applied to the tile card when it has a linked GT.
+function tileLinkStyle(cameraId) {
+  const color = tileDominantLinkColor(cameraId);
+  if (!color) return {};
+  return {
+    boxShadow: `0 0 0 2px ${color}cc, 0 0 14px ${color}55`,
+    transition: "box-shadow 0.4s ease",
+  };
+}
+
+// Returns one entry per multi-camera identity visible on this camera tile,
+// used to render the per-tile link badges.
+function tileLinkEntries(cameraId) {
+  if (!cameraId) return [];
+  const cam = cameras.value[cameraId];
+  if (!cam?.detections?.length) return [];
+  const seen = new Set();
+  const result = [];
+  for (const det of cam.detections) {
+    if (!det.identity_id || seen.has(det.identity_id)) continue;
+    const cams = identityCameraMap.value.get(det.identity_id);
+    if (!cams || cams.size < 2) continue;
+    seen.add(det.identity_id);
+    const others = [...cams].filter((c) => c !== cameraId);
+    result.push({
+      identity_id: det.identity_id,
+      display_name: det.display_name || det.identity_id,
+      color: identityColor(det.identity_id),
+      otherCameras: others,
+    });
+  }
+  return result;
 }
 
 // Per-tracklet keypoint EMA smoothing to reduce frame-to-frame jitter.
@@ -805,6 +901,25 @@ function crownOffsetY(cam) {
   return Math.round(labelFontSize(cam) * 1.0);
 }
 
+function postureColor(posture) {
+  const colors = {
+    standing: "#4ade80",
+    sitting: "#fbbf24",
+    walking: "#60a5fa",
+    lying: "#c084fc",
+  };
+  return colors[posture] || "var(--cc-text-2)";
+}
+
+function postureLabelY(det, cam) {
+  const fs = labelFontSize(cam);
+  let yOff = labelOffsetY(cam) + fs + 4;
+  if (showIdLabels.value && isMultiCamera(det)) {
+    yOff += smallFontSize(cam) + 4;
+  }
+  return (det.bbox.y_min || 0) + yOff;
+}
+
 function openCorrection(det, cam) {
   correction.global_track_id = det.global_track_id;
   correction.previous_identity_id = det.identity_id || "";
@@ -905,6 +1020,40 @@ async function submitCorrection() {
   display: flex;
   align-items: center;
   pointer-events: none;
+}
+.live-tile-link-stack {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+.live-tile-link-badge {
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 2px 7px 2px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.live-tile-link-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-tile-link-cams {
+  color: rgba(0, 0, 0, 0.85);
+  border-radius: 8px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 2px;
 }
 
 </style>

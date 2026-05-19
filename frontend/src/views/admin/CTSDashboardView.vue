@@ -11,10 +11,19 @@
 
     <!-- Current presence widgets -->
     <div class="mb-6">
-      <div class="text-subtitle-2 font-weight-bold mb-2">Current Presence</div>
+      <div class="d-flex align-center mb-2">
+        <div class="text-subtitle-2 font-weight-bold">Current Presence</div>
+        <div class="text-caption text-medium-emphasis ml-2">Click a card to filter the timeline</div>
+      </div>
       <v-row dense>
         <v-col v-for="person in trackedPersons" :key="person.id" cols="12" sm="6" md="4">
-          <PresenceWidget :person-id="person.id" :person-label="person.display_name" :poll-seconds="10" />
+          <PresenceWidget
+            :person-id="person.id"
+            :person-label="person.display_name"
+            :poll-seconds="10"
+            :selected="selectedPerson === person.id"
+            @click="onPresenceClick(person.id)"
+          />
         </v-col>
         <v-col v-if="!trackedPersons.length" cols="12">
           <v-card class="glass-card">
@@ -29,47 +38,57 @@
     <!-- Filters -->
     <v-card variant="tonal" class="mb-4 pa-3">
       <v-row dense align="center">
-        <v-col cols="12" sm="4">
-          <v-select
-            v-model="selectedPerson"
-            :items="personOptions"
-            item-title="title"
-            item-value="value"
-            label="Person"
-            prepend-inner-icon="mdi-account"
-            density="compact"
-            clearable
-            hide-details
-            @update:modelValue="onPersonChange"
-          />
+        <v-col cols="12" sm="auto" class="d-flex align-center">
+          <v-chip
+            v-if="selectedPerson"
+            color="primary"
+            variant="flat"
+            closable
+            @click:close="clearPerson"
+          >
+            <v-icon start size="18">mdi-account</v-icon>
+            {{ selectedPersonLabel }}
+          </v-chip>
+          <span v-else class="text-body-2 text-medium-emphasis">
+            <v-icon size="18" class="mr-1">mdi-account-multiple</v-icon>
+            All persons
+          </span>
         </v-col>
-        <v-col cols="12" sm="3">
+
+        <v-col cols="12" sm="auto">
           <v-text-field
             v-model="selectedDate"
-            label="Date (YYYY-MM-DD)"
+            type="date"
+            label="Date"
             prepend-inner-icon="mdi-calendar"
             density="compact"
             hide-details
             clearable
-            @change="loadDwellSummary"
+            @update:modelValue="loadDwellSummary"
           />
         </v-col>
-        <v-col cols="12" sm="2">
-          <v-select
-            v-model="windowHours"
-            :items="[6, 12, 24, 48, 168]"
-            label="Signal window (h)"
-            density="compact"
-            hide-details
-            @update:modelValue="loadSignals"
-          />
+
+        <v-col cols="12" sm="auto" class="d-flex align-center">
+          <div class="text-body-2 text-medium-emphasis mr-2">Signal window:</div>
+          <div class="d-flex ga-2">
+            <v-btn
+              v-for="opt in windowOptions"
+              :key="opt.value"
+              size="small"
+              :variant="windowHours === opt.value ? 'flat' : 'outlined'"
+              :color="windowHours === opt.value ? 'primary' : undefined"
+              @click="windowHours = opt.value; loadSignals()"
+            >{{ opt.label }}</v-btn>
+          </div>
         </v-col>
-        <v-col cols="12" sm="3" class="d-flex align-center">
+
+        <v-spacer />
+
+        <v-col cols="12" sm="auto">
           <v-btn
             prepend-icon="mdi-refresh"
             variant="tonal"
             :loading="loading"
-            block
             @click="refreshAll"
           >
             Refresh
@@ -237,6 +256,13 @@
               </svg>
               <div class="text-caption text-medium-emphasis mt-1 text-center">
                 {{ trajectoryPoints.length }} points · last seen {{ formatTime(trajectoryPoints[0]?.observed_at) }}
+                <v-chip
+                  v-if="latestPosture && latestPosture !== 'unknown'"
+                  :color="postureColor(latestPosture)"
+                  size="x-small"
+                  variant="flat"
+                  class="ml-2"
+                >{{ latestPosture }}</v-chip>
               </div>
             </div>
             <div v-else class="text-center text-medium-emphasis py-4">
@@ -255,7 +281,7 @@ import { cts } from "../../services/cts.js";
 import { api } from "../../services/api.js";
 import PresenceWidget from "../../components/cts/PresenceWidget.vue";
 import { severityColor, severityIcon } from "../../composables/useCtsSeverity";
-import { formatTimeOnly, formatDateTimeShort } from "../../services/timezone.js";
+import { formatTimeOnly } from "../../services/timezone.js";
 
 const selectedPerson = ref(null);
 const selectedDate = ref(null);
@@ -268,19 +294,18 @@ const signalSummary = ref({});
 const trajectoryPoints = ref([]);
 const dwellRooms = ref([]);
 
-// Person options: prefer enrolled household members (loaded on mount);
-// augment with any identity_ids seen in recent signals that aren't enrolled.
-const personOptions = computed(() => {
-  const enrolled = trackedPersons.value.map((p) => ({
-    title: p.display_name || p.name || p.id,
-    value: p.id,
-  }));
-  const enrolledIds = new Set(enrolled.map((p) => p.value));
-  const fromSignals = signals.value
-    .map((s) => s.identity_id)
-    .filter((id) => id && !enrolledIds.has(id));
-  const extra = [...new Set(fromSignals)].map((id) => ({ title: id, value: id }));
-  return [...enrolled, ...extra];
+const windowOptions = [
+  { label: "6h", value: 6 },
+  { label: "12h", value: 12 },
+  { label: "24h", value: 24 },
+  { label: "48h", value: 48 },
+  { label: "7d", value: 168 },
+];
+
+const selectedPersonLabel = computed(() => {
+  if (!selectedPerson.value) return "";
+  const person = trackedPersons.value.find((p) => p.id === selectedPerson.value);
+  return person?.display_name || person?.name || selectedPerson.value;
 });
 
 // SVG trajectory helpers: map ground_x/y (meters) to SVG coords.
@@ -297,6 +322,11 @@ const latestPoint = computed(() => {
   if (!trajectoryPoints.value.length) return null;
   const p = trajectoryPoints.value[0]; // already sorted desc
   return { svgX: toSvgX(p.ground_x), svgY: toSvgY(p.ground_y) };
+});
+
+const latestPosture = computed(() => {
+  if (!trajectoryPoints.value.length) return null;
+  return trajectoryPoints.value[0]?.posture || null;
 });
 
 function toSvgX(x) {
@@ -332,9 +362,20 @@ async function refreshAll() {
   }
 }
 
-function onPersonChange() {
+function onPresenceClick(personId) {
+  if (selectedPerson.value === personId) {
+    clearPerson();
+  } else {
+    selectedPerson.value = personId;
+  }
+  loadSignals();
+  loadSummary();
   loadTrajectory();
   loadDwellSummary();
+}
+
+function clearPerson() {
+  selectedPerson.value = null;
 }
 
 async function loadSignals() {
@@ -397,5 +438,15 @@ function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function postureColor(posture) {
+  const colors = {
+    standing: "teal",
+    sitting: "amber",
+    walking: "blue",
+    lying: "purple",
+  };
+  return colors[posture] || undefined;
 }
 </script>

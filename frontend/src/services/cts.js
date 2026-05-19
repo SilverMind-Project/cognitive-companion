@@ -181,8 +181,11 @@ export const cts = {
     if (params.limit) qs.set("limit", params.limit);
     if (params.offset) qs.set("offset", params.offset);
     if (params.camera_id) qs.set("camera_id", params.camera_id);
+    if (params.identity_id) qs.set("identity_id", params.identity_id);
     if (params.status) qs.set("status", params.status);
     if (params.search) qs.set("search", params.search);
+    if (params.include_transient !== undefined) qs.set("include_transient", params.include_transient);
+    if (params.min_duration_s !== undefined) qs.set("min_duration_s", params.min_duration_s);
     const q = qs.toString();
     return q ? req(`/identity/global_tracks?${q}`) : req("/identity/global_tracks");
   },

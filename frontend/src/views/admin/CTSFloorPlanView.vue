@@ -817,10 +817,13 @@ const scalePickerImageUrl = computed(() => _uploadBlobUrl || floorPlanUrl.value)
 
 // Pixel distance between the two scale points, measured in original image pixels.
 const scalePixelDistance = computed(() => {
-  if (scalePoints.value.length < 2 || !uploadWidth.value || !uploadHeight.value) return 0;
+  if (scalePoints.value.length < 2) return 0;
+  const w = uploadWidth.value || fpWidth.value || (scaleImgEl.value?.naturalWidth ?? 0);
+  const h = uploadHeight.value || fpHeight.value || (scaleImgEl.value?.naturalHeight ?? 0);
+  if (!w || !h) return 0;
   const [p1, p2] = scalePoints.value;
-  const dx = (p2[0] - p1[0]) * uploadWidth.value;
-  const dy = (p2[1] - p1[1]) * uploadHeight.value;
+  const dx = (p2[0] - p1[0]) * w;
+  const dy = (p2[1] - p1[1]) * h;
   return Math.sqrt(dx * dx + dy * dy);
 });
 
@@ -860,6 +863,10 @@ function onScaleImageLoad() {
   const r = scaleImgEl.value.getBoundingClientRect();
   const nw = uploadWidth.value || scaleImgEl.value.naturalWidth;
   const nh = uploadHeight.value || scaleImgEl.value.naturalHeight;
+  // Populate upload fields from saved data when no file was selected.
+  if (!uploadWidth.value && nw) uploadWidth.value = nw;
+  if (!uploadHeight.value && nh) uploadHeight.value = nh;
+  if (!uploadMpp.value && fpMpp.value) uploadMpp.value = fpMpp.value;
   if (!nw || !nh) {
     scaleImgRect.value = { width: r.width, height: r.height, offsetX: 0, offsetY: 0 };
     return;

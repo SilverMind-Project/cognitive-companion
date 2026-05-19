@@ -89,20 +89,36 @@
       </v-card-text>
 
       <!-- Cross-camera presence panel: only shown when same identity seen on 2+ cameras -->
-      <div v-if="multiCameraIdentities.length > 0" class="px-4 pb-2">
+      <div v-if="multiCameraIdentities.length > 0" class="px-4 pb-3 pt-1">
         <v-divider class="mb-2" />
-        <div class="d-flex align-center ga-2 flex-wrap">
-          <v-icon size="16" class="text-medium-emphasis">mdi-camera-flip-outline</v-icon>
-          <span class="text-caption text-medium-emphasis font-weight-medium">Cross-camera:</span>
+        <div class="d-flex align-center ga-2 mb-2">
+          <v-icon size="18" color="primary">mdi-camera-flip-outline</v-icon>
+          <span class="text-body-2 font-weight-medium">Cross-camera activity</span>
+          <v-chip size="x-small" color="primary" variant="flat" density="compact">
+            {{ multiCameraIdentities.length }} {{ multiCameraIdentities.length > 1 ? 'identities' : 'identity' }}
+          </v-chip>
+        </div>
+        <div class="d-flex flex-wrap ga-2">
           <v-chip
             v-for="entry in multiCameraIdentities"
             :key="entry.identity_id"
-            size="x-small"
-            :style="{ borderColor: entry.color, borderWidth: '2px', borderStyle: 'solid' }"
+            size="small"
+            :color="entry.color"
             variant="outlined"
-            :prepend-icon="entry.cameraCount > 2 ? 'mdi-camera-plus' : 'mdi-camera'"
           >
-            {{ entry.identity_id }} · {{ entry.cameraCount }} cams
+            <template #prepend>
+              <v-icon size="14" :color="entry.color">mdi-camera</v-icon>
+            </template>
+            <span class="font-weight-medium">{{ entry.identity_id }}</span>
+            <v-chip
+              size="x-small"
+              variant="flat"
+              :color="entry.color"
+              class="ml-1"
+              density="compact"
+            >
+              {{ entry.cameraCount }} cam{{ entry.cameraCount > 1 ? 's' : '' }}
+            </v-chip>
           </v-chip>
         </div>
       </div>
@@ -189,11 +205,21 @@
                   fill="none"
                   :stroke="bboxColor(det)"
                   :stroke-width="overlayStroke(cameraForSlot(slot), isMultiCamera(det) ? 2 : 1)"
+                  :opacity="isMultiCamera(det) ? undefined : 1"
                   style="cursor: pointer"
                   @click="openCorrection(det, cameraForSlot(slot))"
-                />
+                >
+                  <animate
+                    v-if="isMultiCamera(det)"
+                    attributeName="opacity"
+                    values="0.75;1;0.75"
+                    dur="2s"
+                    repeatCount="indefinite"
+                  />
+                </rect>
                 <!-- Cross-camera badge: shown when same identity appears on multiple cameras -->
                 <g v-if="showBboxes && isMultiCamera(det)">
+                  <title>{{ multiCameraTooltip(det) }}</title>
                   <circle
                     :cx="(det.bbox.x_max || 0) - badgeRadius(cameraForSlot(slot)) * 1"
                     :cy="(det.bbox.y_min || 0) + badgeRadius(cameraForSlot(slot)) * 1"
@@ -223,6 +249,18 @@
                   :style="{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,0.6)', strokeWidth: overlayStroke(cameraForSlot(slot), 0.5) }"
                 >
                   {{ det.identity_id || "unknown" }}
+                </text>
+                <!-- "Also on" camera label for multi-camera detections -->
+                <text
+                  v-if="showIdLabels && isMultiCamera(det)"
+                  :x="(det.bbox.x_min || 0) + labelOffsetX(cameraForSlot(slot))"
+                  :y="(det.bbox.y_min || 0) + labelOffsetY(cameraForSlot(slot)) + labelFontSize(cameraForSlot(slot)) + 4"
+                  fill="var(--cc-text-2)"
+                  :font-size="smallFontSize(cameraForSlot(slot))"
+                  font-weight="500"
+                  :style="{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,0.6)', strokeWidth: overlayStroke(cameraForSlot(slot), 0.5) }"
+                >
+                  {{ otherCameraNames(det, cameraForSlot(slot)) }}
                 </text>
 
                 <!-- Pose stick figure -->
@@ -531,6 +569,24 @@ function isMultiCamera(det) {
 function multiCameraCount(det) {
   if (!det.identity_id) return 0;
   return identityCameraMap.value.get(det.identity_id)?.size ?? 0;
+}
+
+function otherCameraNames(det, currentCam) {
+  if (!det.identity_id) return "";
+  const cams = identityCameraMap.value.get(det.identity_id);
+  if (!cams || cams.size < 2) return "";
+  const others = [...cams].filter((c) => c !== currentCam?.camera_id);
+  if (others.length === 0) return "";
+  return others.length > 2
+    ? `+${others.length} other cameras`
+    : `also on ${others.join(", ")}`;
+}
+
+function multiCameraTooltip(det) {
+  if (!det.identity_id) return "";
+  const cams = identityCameraMap.value.get(det.identity_id);
+  if (!cams) return "";
+  return `Seen on: ${[...cams].join(", ")}`;
 }
 
 function bboxColor(det) {
@@ -850,4 +906,5 @@ async function submitCorrection() {
   align-items: center;
   pointer-events: none;
 }
+
 </style>

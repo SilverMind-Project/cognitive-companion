@@ -186,6 +186,7 @@ export const cts = {
   getGlobalTracks: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.open_only !== undefined) qs.set("open_only", params.open_only);
+    if (params.since) qs.set("since", params.since);
     if (params.limit) qs.set("limit", params.limit);
     if (params.offset) qs.set("offset", params.offset);
     if (params.camera_id) qs.set("camera_id", params.camera_id);
@@ -224,7 +225,12 @@ export const cts = {
   getGlobalTrackDetail: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}`),
   getCoOccurringTracks: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}/co_occurring`),
   getTrackKeyframes: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}/keyframes`),
-  getTrackTrail: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}/trail`),
+  getTrackTrail: (id, { since } = {}) => {
+    const qs = new URLSearchParams();
+    if (since) qs.set("since", since);
+    const q = qs.toString();
+    return req(`/identity/global_tracks/${encodeURIComponent(id)}/trail${q ? "?" + q : ""}`);
+  },
 
   getRevisions: (params = {}) => {
     const qs = new URLSearchParams();

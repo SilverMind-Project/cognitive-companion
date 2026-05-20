@@ -70,7 +70,8 @@ class MergeRequest(BaseModel):
 @router.get("/global_tracks")
 async def list_global_tracks(
     open_only: bool = Query(True),
-    limit: int | None = Query(None, ge=1, le=200),
+    since: str | None = Query(None, description="ISO-8601 timestamp; include closed tracks last seen at or after this time"),
+    limit: int | None = Query(None, ge=1, le=500),
     offset: int | None = Query(None, ge=0),
     camera_id: str | None = Query(None),
     identity_id: str | None = Query(None, description="Filter to tracks assigned this identity"),
@@ -85,18 +86,21 @@ async def list_global_tracks(
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
-    """List current global tracks for the corrections review pane.
+    """List global tracks for the corrections review pane.
 
     Pagination via ``limit``/``offset``; filtering by ``camera_id``,
     ``status`` (committed / UNKNOWN), or free-text ``search`` over
     identity display name. UNKNOWN tracks shorter than ``min_duration_s``
     are hidden by default; set ``include_transient=true`` to reveal them.
+    Pass ``since`` + ``open_only=false`` to retrieve today's full history
+    including closed tracks.
     """
     cts_enabled()
     effective_min_duration = 0.0 if include_transient else min_duration_s
     try:
         data = await client.get_global_tracks(
             open_only=open_only,
+            since=since,
             limit=limit,
             offset=offset,
             camera_id=camera_id,
@@ -232,15 +236,17 @@ async def list_track_keyframes(
 @router.get("/global_tracks/{global_track_id}/trail")
 async def get_track_trail(
     global_track_id: str,
+    since: str | None = Query(None, description="ISO-8601 timestamp; return trajectory points observed at or after this time"),
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
-    """Return the last 5 minutes of floor-point trail for a global track."""
+    """Return posture trajectory points for a global track."""
     cts_enabled()
     try:
         trail_data = await client.list_recent_trajectory(
             global_track_id=global_track_id,
-            limit=300,
+            since=since,
+            limit=500,
         )
     except UpstreamError as exc:
         raise HTTPException(

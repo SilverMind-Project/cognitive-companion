@@ -143,6 +143,7 @@ class OrchestratorClient(UpstreamClient):
         self,
         *,
         open_only: bool = True,
+        since: str | None = None,
         limit: int | None = None,
         offset: int | None = None,
         camera_id: str | None = None,
@@ -152,6 +153,8 @@ class OrchestratorClient(UpstreamClient):
         min_duration_s: float | None = None,
     ) -> dict:
         params: dict[str, str] = {"open_only": str(open_only).lower()}
+        if since:
+            params["since"] = since
         if limit is not None:
             params["limit"] = str(limit)
         if offset is not None:

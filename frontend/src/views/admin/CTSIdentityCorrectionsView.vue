@@ -695,7 +695,7 @@ export default {
       selected: [],
       expanded: [],
       identities: [],
-      allActiveTracks: [],
+      allTodayTracks: [],
       activeTab: "people",
       timeRange: "active",   // "active" | "24h" — used by Tracks tab
       filters: { status: null, camera_id: null, search: "", sort: "recent" },
@@ -733,7 +733,7 @@ export default {
   computed: {
     tracksByIdentity() {
       const byId = {};
-      for (const t of this.allActiveTracks) {
+      for (const t of this.allTodayTracks) {
         if (t.current_identity_id) {
           (byId[t.current_identity_id] = byId[t.current_identity_id] || []).push(t);
         }
@@ -741,7 +741,7 @@ export default {
       return byId;
     },
     unknownTracks() {
-      return this.allActiveTracks.filter((t) => !t.current_identity_id);
+      return this.allTodayTracks.filter((t) => !t.current_identity_id && t.state === "active");
     },
     trackHeaders() {
       return [
@@ -1011,13 +1011,16 @@ export default {
     async loadPeopleTab() {
       this.loadingPeople = true;
       try {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
         const data = await cts.getGlobalTracks({
-          open_only: true,
-          limit: 200,
+          open_only: false,
+          since: todayStart.toISOString(),
+          limit: 500,
           include_transient: false,
           min_duration_s: 5,
         });
-        this.allActiveTracks = data.tracks || [];
+        this.allTodayTracks = data.tracks || [];
       } catch (err) {
         this.error = String(err.message || err);
       } finally {
@@ -1119,7 +1122,9 @@ export default {
     async loadTrail(globalTrackId) {
       this.trailLoading = { ...this.trailLoading, [globalTrackId]: true };
       try {
-        const data = await cts.getTrackTrail(globalTrackId);
+        const track = this.tracks.find((t) => t.global_track_id === globalTrackId);
+        const since = track?.started_at ?? undefined;
+        const data = await cts.getTrackTrail(globalTrackId, { since });
         this.expandedTrail = { ...this.expandedTrail, [globalTrackId]: data.points || [] };
       } catch {
         this.expandedTrail = { ...this.expandedTrail, [globalTrackId]: [] };

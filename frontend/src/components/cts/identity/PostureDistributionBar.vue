@@ -17,7 +17,7 @@
           :title="`${seg.label}: ${seg.pct.toFixed(0)}%`"
         />
       </div>
-      <div class="d-flex flex-wrap ga-3 mt-1">
+      <div v-if="!compact" class="d-flex flex-wrap ga-3 mt-1">
         <div
           v-for="seg in segments"
           :key="'leg-' + seg.posture"
@@ -61,8 +61,9 @@ export default {
   name: "PostureDistributionBar",
 
   props: {
-    points:  { type: Array,   default: () => [] },
-    loading: { type: Boolean, default: false },
+    points:   { type: Array,   default: () => [] },
+    loading:  { type: Boolean, default: false },
+    compact:  { type: Boolean, default: false },
   },
 
   computed: {

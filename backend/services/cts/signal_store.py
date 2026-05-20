@@ -120,6 +120,45 @@ class SignalStore:
         finally:
             db.close()
 
+    async def delete(self, signal_id: int) -> bool:
+        """Hard-delete a single dementia signal by row ID.
+
+        Returns ``True`` if a row was deleted, ``False`` if not found.
+        Note: the orchestrator may re-insert the same logical signal if it
+        republishes via the Redis stream; callers accept this risk.
+        """
+        db = self._db_factory()
+        try:
+            row = db.query(DementiaSignal).filter(DementiaSignal.id == signal_id).first()
+            if row is None:
+                return False
+            db.delete(row)
+            db.commit()
+            return True
+        finally:
+            db.close()
+
+    async def batch_delete(self, signal_ids: list[int]) -> int:
+        """Hard-delete multiple dementia signals by row IDs.
+
+        Returns the count of rows actually deleted.
+        """
+        if not signal_ids:
+            return 0
+        db = self._db_factory()
+        try:
+            rows = (
+                db.query(DementiaSignal)
+                .filter(DementiaSignal.id.in_(signal_ids))
+                .all()
+            )
+            for row in rows:
+                db.delete(row)
+            db.commit()
+            return len(rows)
+        finally:
+            db.close()
+
     async def acknowledge(self, signal_id: int) -> bool:
         """Mark a signal as acknowledged by a caregiver.
 
@@ -145,31 +184,36 @@ class SignalStore:
         signal_type: str | None = None,
         severity: str | None = None,
         window_hours: int = 24,
-        limit: int = 200,
-    ) -> list[dict[str, Any]]:
-        """Return recent dementia signals as serialisable dicts.
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Return recent dementia signals as serialisable dicts plus total count.
 
         Filters are applied with AND logic; ``None`` means "no filter".
+        Returns ``(rows, total)`` where *total* is the unsliced match count.
         """
         db = self._db_factory()
         try:
             now = datetime.now(UTC)
             since = now - timedelta(hours=window_hours)
 
-            q = select(DementiaSignal).where(
-                DementiaSignal.received_at >= since
-            )
+            base = select(DementiaSignal).where(DementiaSignal.received_at >= since)
             if person_id:
-                q = q.where(DementiaSignal.person_id == person_id)
+                base = base.where(DementiaSignal.person_id == person_id)
             if signal_type:
-                q = q.where(DementiaSignal.signal_type == signal_type)
+                base = base.where(DementiaSignal.signal_type == signal_type)
             if severity:
-                q = q.where(DementiaSignal.severity == severity)
+                base = base.where(DementiaSignal.severity == severity)
 
-            q = q.order_by(desc(DementiaSignal.received_at)).limit(limit)
-            rows = db.execute(q).scalars().all()
+            total: int = db.execute(
+                select(func.count()).select_from(base.subquery())
+            ).scalar_one()
 
-            return [self._to_dict(r) for r in rows]
+            rows = db.execute(
+                base.order_by(desc(DementiaSignal.received_at)).limit(limit).offset(offset)
+            ).scalars().all()
+
+            return [self._to_dict(r) for r in rows], total
         finally:
             db.close()
 

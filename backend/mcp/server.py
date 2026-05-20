@@ -1053,7 +1053,7 @@ async def get_recent_dementia_signals(
     store = SignalStore(db_factory=_svc.db_factory)
     results: list[dict] = []
     for sev in order[min_idx:]:
-        batch = await store.list_recent(
+        batch, _ = await store.list_recent(
             person_id=person_id,
             signal_type=signal_kind,
             severity=sev,

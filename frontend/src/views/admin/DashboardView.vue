@@ -77,23 +77,36 @@
     <!-- Room Occupancy -->
     <h3 class="text-h6 mt-6 mb-3">Room Occupancy</h3>
     <v-row>
-      <v-col cols="12" sm="6" md="4" v-for="(occ, sensorId) in occupancy" :key="sensorId">
+      <v-col cols="12" sm="6" md="4" v-for="(occ, roomKey) in occupancy" :key="roomKey">
         <v-card class="pa-4">
           <div class="d-flex align-center">
             <v-avatar :color="occ.occupied ? 'success' : 'grey'" size="40" variant="tonal" class="mr-3">
-              <v-icon>{{ occ.occupied ? 'mdi-account' : 'mdi-account-off' }}</v-icon>
+              <v-icon>{{ occ.occupied ? 'mdi-home-account' : 'mdi-home-outline' }}</v-icon>
             </v-avatar>
-            <div>
-              <div class="font-weight-bold">{{ occ.room }}</div>
+            <div class="flex-grow-1">
+              <div class="font-weight-bold">{{ occ.room_name }}</div>
               <div class="text-body-2 text-medium-emphasis">
                 {{ occ.occupied ? `Since ${formatTime(occ.since)}` : 'Unoccupied' }}
+              </div>
+              <div v-if="occ.person_ids && occ.person_ids.length" class="text-caption mt-1">
+                <v-chip
+                  v-for="pid in occ.person_ids"
+                  :key="pid"
+                  size="x-small"
+                  color="primary"
+                  variant="tonal"
+                  class="mr-1"
+                >{{ personName(pid) }}</v-chip>
+              </div>
+              <div class="text-caption text-disabled mt-1">
+                via {{ occ.source === 'cts' ? 'Camera' : occ.source === 'ha_sensor' ? 'Motion Sensor' : occ.source }}
               </div>
             </div>
           </div>
         </v-card>
       </v-col>
       <v-col v-if="Object.keys(occupancy).length === 0" cols="12">
-        <v-alert type="info" variant="tonal">No occupancy data available</v-alert>
+        <v-alert type="info" variant="tonal">No occupancy data available yet</v-alert>
       </v-col>
     </v-row>
 
@@ -143,6 +156,13 @@ const personLocations = ref([]);
 
 const formatTime = formatDateTimeShort;
 
+// Map person_id → display name built from person locations list.
+const personNameMap = ref({});
+
+function personName(personId) {
+  return personNameMap.value[personId] || personId;
+}
+
 function locStatusColor(status) {
   const map = { home: "success", away: "warning", unknown: "grey", sleeping: "info" };
   return map[status] || "grey";
@@ -168,7 +188,14 @@ async function loadData() {
     stats.value[3].value = activeAlerts.length;
     alerts.value = Array.isArray(alertData) ? alertData.slice(0, 5) : [];
     occupancy.value = occData.occupancy || {};
-    personLocations.value = Array.isArray(locData) ? locData : [];
+    const locList = Array.isArray(locData) ? locData : [];
+    personLocations.value = locList;
+    // Build id→name map so occupancy cards can show names instead of raw IDs.
+    const nameMap = {};
+    for (const loc of locList) {
+      if (loc.person_id && loc.person_name) nameMap[loc.person_id] = loc.person_name;
+    }
+    personNameMap.value = nameMap;
   } catch (e) {
     console.error("Failed to load dashboard data:", e);
   }

@@ -163,6 +163,8 @@ export const api = {
   },
   alertAction: (id, action) =>
     request(`/alerts/${id}/action`, { method: "POST", body: JSON.stringify(action) }),
+  deleteAlert: (id) =>
+    request(`/alerts/${id}`, { method: "DELETE" }),
 
   // Interactive Responses
   getInteractiveResponses: (params = {}) => {

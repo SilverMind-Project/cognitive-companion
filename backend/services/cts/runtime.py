@@ -102,6 +102,7 @@ class CTSRuntime:
             repo_factory=_repo_factory,
             authority=self.authority,
             camera_room_map=camera_map,
+            db_factory=db_factory,
         )
         self.identity_rewriter = IdentityRewriter(db_factory=db_factory, ws_manager=ws_manager)
         self.signal_store = SignalStore(db_factory=db_factory)

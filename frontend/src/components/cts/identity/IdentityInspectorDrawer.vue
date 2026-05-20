@@ -68,10 +68,10 @@
           <v-divider class="mb-3" />
 
           <!-- Co-occurring tracks -->
-          <CoOccurringPanel :tracks="coOccurring" />
+          <CoOccurringPanel :tracks="coOccurring" :identities="identities" />
 
           <!-- Face anchors -->
-          <FaceAnchorsTable :anchors="faceAnchors" />
+          <FaceAnchorsTable :anchors="faceAnchors" :identities="identities" />
 
           <!-- Trail -->
           <TrailMiniMap :points="trailPoints" />

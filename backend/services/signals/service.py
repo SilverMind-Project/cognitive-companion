@@ -75,7 +75,7 @@ class SignalsService:
         store = SignalStore(db_factory=self._db_factory)
         results: list[dict[str, Any]] = []
         for sev in accept:
-            part = await store.list_recent(
+            part, _ = await store.list_recent(
                 person_id=person_id,
                 signal_type=signal_kind,
                 severity=sev,

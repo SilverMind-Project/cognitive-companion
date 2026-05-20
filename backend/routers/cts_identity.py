@@ -143,8 +143,12 @@ async def get_global_track_detail(
             detail={"code": "cts.upstream_error", "message": str(exc)},
         ) from exc
 
-    # Enrich with posterior evidence from the revision log
-    posterior = _latest_posterior(global_track_id)
+    # Prefer the most recent evidence from the local revision log (already
+    # filtered to entries with non-null evidence).  Fall back to the posterior
+    # snapshot the orchestrator carries on every track object so the inspector
+    # always shows probability data when the orchestrator has it, even when no
+    # revision log entry has been written with evidence yet.
+    posterior = _latest_posterior(global_track_id) or track.get("last_posterior_jsonb")
     track["posterior"] = posterior
 
     return track

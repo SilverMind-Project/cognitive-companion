@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from backend.core.logging import get_logger
 from backend.integrations.homeassistant import HomeAssistantClient
 from backend.models.sensor import Sensor
+from backend.services.occupancy_writer import upsert_room_occupancy
 
 logger = get_logger(__name__)
 
@@ -81,6 +82,14 @@ class SensorPollingService:
         if state == "on":
             if sensor.id not in self._active_occupancy:
                 self._active_occupancy[sensor.id] = now
+                upsert_room_occupancy(
+                    db,
+                    room_name=room_name,
+                    occupied=True,
+                    source="ha_sensor",
+                    person_ids=[],
+                    since=now,
+                )
                 logger.info("occupancy_started", sensor=sensor.id, room=room_name)
             else:
                 start = self._active_occupancy[sensor.id]
@@ -89,6 +98,13 @@ class SensorPollingService:
                 await self._check_occupancy_rules(sensor, room_name, elapsed_minutes, db)
         elif state == "off" and sensor.id in self._active_occupancy:
             del self._active_occupancy[sensor.id]
+            upsert_room_occupancy(
+                db,
+                room_name=room_name,
+                occupied=False,
+                source="ha_sensor",
+                person_ids=[],
+            )
             logger.info("occupancy_ended", sensor=sensor.id, room=room_name)
 
     async def _check_occupancy_rules(

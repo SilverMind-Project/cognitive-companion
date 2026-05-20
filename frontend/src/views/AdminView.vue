@@ -48,7 +48,6 @@
         <v-list-subheader class="mt-2">People</v-list-subheader>
         <v-list-item rounded="lg" prepend-icon="mdi-account-group-outline" title="Members &amp; Enrollment" to="/admin/persons" />
         <v-list-item rounded="lg" prepend-icon="mdi-run" title="Activities" to="/admin/activities" />
-        <v-list-item rounded="lg" prepend-icon="mdi-timeline-text-outline" title="Timeline" to="/admin/timeline" />
         <v-list-item rounded="lg" prepend-icon="mdi-chart-box" title="Daily Reports" to="/admin/reports" />
         <v-list-item rounded="lg" prepend-icon="mdi-alert-circle-outline" title="Alerts" to="/admin/alerts" />
       </v-list>
@@ -183,8 +182,12 @@ async function pollAlerts() {
 onMounted(() => {
   pollAlerts();
   _alertTimer = setInterval(pollAlerts, 30000);
+  window.addEventListener("cc:alerts-changed", pollAlerts);
 });
-onBeforeUnmount(() => clearInterval(_alertTimer));
+onBeforeUnmount(() => {
+  clearInterval(_alertTimer);
+  window.removeEventListener("cc:alerts-changed", pollAlerts);
+});
 
 function notify(text, color = "success") {
   snackText.value = text;

@@ -18,9 +18,10 @@
         {{ cam.camera_id }}: {{ formatDuration(cam.dwell_seconds) }}
       </v-chip>
     </div>
-    <div class="text-caption text-medium-emphasis mt-1" v-if="lastSeenText">
-      <v-icon size="12" class="mr-1">mdi-clock-outline</v-icon>
-      Last seen {{ lastSeenText }}
+    <div class="d-flex flex-wrap ga-2 mt-1" v-if="lastSeenText">
+      <v-chip size="x-small" variant="tonal" prepend-icon="mdi-eye-outline">
+        Last seen {{ lastSeenText }}
+      </v-chip>
     </div>
   </div>
 </template>
@@ -35,8 +36,9 @@ export default {
   },
   computed: {
     durationText() {
-      if (!this.track.first_seen_at) return "—";
-      const started = new Date(this.track.first_seen_at);
+      const ts = this.track.started_at || this.track.first_seen_at;
+      if (!ts) return "—";
+      const started = new Date(ts);
       const ended = this.track.last_seen_at ? new Date(this.track.last_seen_at) : new Date();
       const sec = Math.round((ended - started) / 1000);
       return this.formatDuration(sec);

@@ -88,7 +88,7 @@
         <template v-slot:item.actions="{ item }">
           <v-btn
             v-if="!item.acknowledged_at"
-            size="x-small"
+            size="small"
             variant="text"
             color="primary"
             @click="acknowledge(item.id)"

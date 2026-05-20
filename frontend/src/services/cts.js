@@ -94,11 +94,19 @@ export const cts = {
     if (params.severity) qs.set("severity", params.severity);
     if (params.window_hours) qs.set("window_hours", params.window_hours);
     if (params.limit) qs.set("limit", params.limit);
+    if (params.offset != null) qs.set("offset", params.offset);
     const q = qs.toString();
     return q ? req(`/signals?${q}`) : req("/signals");
   },
   acknowledgeSignal: (signalId) =>
     req(`/signals/${signalId}/ack`, { method: "POST" }),
+  deleteSignal: (signalId) =>
+    req(`/signals/${signalId}`, { method: "DELETE" }),
+  batchDeleteSignals: (signalIds) =>
+    req("/signals/batch", {
+      method: "DELETE",
+      body: JSON.stringify({ signal_ids: signalIds }),
+    }),
   getUnacknowledged: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.person_id) qs.set("person_id", params.person_id);

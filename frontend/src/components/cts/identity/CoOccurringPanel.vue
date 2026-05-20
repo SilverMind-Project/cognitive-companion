@@ -15,7 +15,7 @@
           size="x-small"
           variant="tonal"
         >
-          {{ t.current_identity_id || "UNKNOWN" }}
+          {{ identityName(t.current_identity_id) }}
         </v-chip>
         <span class="text-caption text-medium-emphasis font-mono">
           {{ t.global_track_id.slice(0, 8) }}…
@@ -31,6 +31,20 @@ export default {
   name: "CoOccurringPanel",
   props: {
     tracks: { type: Array, default: () => [] },
+    identities: { type: Array, default: () => [] },
+  },
+  computed: {
+    identityMap() {
+      const m = {};
+      for (const id of this.identities) m[id.identity_id] = id.display_name || id.identity_id;
+      return m;
+    },
+  },
+  methods: {
+    identityName(id) {
+      if (!id) return "UNKNOWN";
+      return this.identityMap[id] || id.slice(0, 8) + "…";
+    },
   },
 };
 </script>

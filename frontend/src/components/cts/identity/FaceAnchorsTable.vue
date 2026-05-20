@@ -13,7 +13,7 @@
         <v-icon size="14" :color="fa.confidence > 0.7 ? 'success' : 'warning'">
           mdi-check-circle
         </v-icon>
-        <span class="text-caption">{{ fa.person_id || fa.identity_id }}</span>
+        <span class="text-caption">{{ identityName(fa.person_id || fa.identity_id) }}</span>
         <v-chip size="x-small" variant="tonal" :color="fa.confidence > 0.7 ? 'success' : 'warning'">
           {{ ((fa.confidence || 0) * 100).toFixed(0) }}%
         </v-chip>
@@ -28,6 +28,20 @@ export default {
   name: "FaceAnchorsTable",
   props: {
     anchors: { type: Array, default: () => [] },
+    identities: { type: Array, default: () => [] },
+  },
+  computed: {
+    identityMap() {
+      const m = {};
+      for (const id of this.identities) m[id.identity_id] = id.display_name || id.identity_id;
+      return m;
+    },
+  },
+  methods: {
+    identityName(id) {
+      if (!id) return "—";
+      return this.identityMap[id] || id.slice(0, 8) + "…";
+    },
   },
 };
 </script>

@@ -21,7 +21,7 @@
         <div class="unknown-thumb-wrap" @click="$emit('open-track', track)">
           <v-img
             v-if="track.latest_keyframe_minio_key"
-            :src="frameUrl(track.latest_keyframe_minio_key)"
+            :src="displaySrc(frameUrl(track.latest_keyframe_minio_key))"
             aspect-ratio="4/3"
             cover
             class="unknown-thumb"
@@ -64,8 +64,16 @@
 </template>
 
 <script>
+import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
+
 export default {
   name: "UnknownTracksPanel",
+
+  setup() {
+    const { blurMode } = useBlurMode();
+    const { displaySrc } = useDisplaySrc(blurMode);
+    return { displaySrc };
+  },
 
   props: {
     tracks: { type: Array, default: () => [] },

@@ -71,8 +71,9 @@ class TestListRecent:
     @pytest.mark.asyncio
     async def test_returns_inserted_signal(self, store: SignalStore):
         await store.insert(_BASE_SIGNAL)
-        results = await store.list_recent(window_hours=24)
+        results, total = await store.list_recent(window_hours=24)
         assert len(results) == 1
+        assert total == 1
         assert results[0]["person_id"] == "grandma"
         assert results[0]["signal_type"] == "pacing"
 
@@ -80,27 +81,39 @@ class TestListRecent:
     async def test_filter_by_person_id(self, store: SignalStore):
         await store.insert(_BASE_SIGNAL)
         await store.insert({**_BASE_SIGNAL, "person_id": "dad"})
-        results = await store.list_recent(person_id="grandma")
+        results, _ = await store.list_recent(person_id="grandma")
         assert all(r["person_id"] == "grandma" for r in results)
 
     @pytest.mark.asyncio
     async def test_filter_by_signal_type(self, store: SignalStore):
         await store.insert(_BASE_SIGNAL)
         await store.insert({**_BASE_SIGNAL, "signal_type": "sundowning"})
-        results = await store.list_recent(signal_type="pacing")
+        results, _ = await store.list_recent(signal_type="pacing")
         assert all(r["signal_type"] == "pacing" for r in results)
 
     @pytest.mark.asyncio
     async def test_filter_by_severity(self, store: SignalStore):
         await store.insert(_BASE_SIGNAL)
         await store.insert({**_BASE_SIGNAL, "severity": "emergency"})
-        results = await store.list_recent(severity="emergency")
+        results, _ = await store.list_recent(severity="emergency")
         assert all(r["severity"] == "emergency" for r in results)
 
     @pytest.mark.asyncio
     async def test_empty_when_no_signals(self, store: SignalStore):
-        results = await store.list_recent()
+        results, total = await store.list_recent()
         assert results == []
+        assert total == 0
+
+    @pytest.mark.asyncio
+    async def test_pagination_offset(self, store: SignalStore):
+        for _ in range(5):
+            await store.insert(_BASE_SIGNAL)
+        results, total = await store.list_recent(window_hours=24, limit=2, offset=0)
+        assert len(results) == 2
+        assert total == 5
+        results_p2, _ = await store.list_recent(window_hours=24, limit=2, offset=2)
+        assert len(results_p2) == 2
+        assert results[0]["id"] != results_p2[0]["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +137,7 @@ class TestAcknowledge:
     async def test_acknowledged_signal_has_timestamp(self, store: SignalStore):
         sid = await store.insert(_BASE_SIGNAL)
         await store.acknowledge(sid)
-        results = await store.list_recent()
+        results, _ = await store.list_recent()
         assert results[0]["acknowledged_at"] is not None
 
 

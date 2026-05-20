@@ -4,7 +4,7 @@ Alert management endpoints.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
@@ -46,6 +46,20 @@ def get_alert(
     if not alert:
         raise NotFoundError("Alert", alert_id)
     return alert
+
+
+@router.delete("/{alert_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("alerts:write")),
+) -> None:
+    """Hard-delete a rule alert by ID."""
+    alert = db.get(EmergencyAlert, alert_id)
+    if not alert:
+        raise NotFoundError("Alert", alert_id)
+    db.delete(alert)
+    db.commit()
 
 
 @router.post("/{alert_id}/action")

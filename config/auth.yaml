@@ -80,6 +80,7 @@ permission_map:
   caregiver:
     - "GET /api/v1/*"
     - "POST /api/v1/alerts/*/action"
+    - "DELETE /api/v1/alerts/*"
     - "POST /api/v1/persons/*/enroll"
     - "DELETE /api/v1/persons/*/enrollment"
     - "GET /api/v1/conversations/*"
@@ -90,6 +91,7 @@ permission_map:
     - "cts.view"
     - "cts.live.subscribe"
     - "cts.signals.view"
+    - "cts.signals.delete"
     - "cts.keyframes.view"
     - "GET /api/v1/cts/presence/*"
     - "GET /api/v1/cts/presence-config"
@@ -113,6 +115,7 @@ permission_map:
   caregiver_admin:
     - "GET /api/v1/*"
     - "POST /api/v1/alerts/*/action"
+    - "DELETE /api/v1/alerts/*"
     - "POST /api/v1/cts/identity/*"
     - "GET /api/v1/activities*"
     - "GET /ws/cts"
@@ -120,6 +123,7 @@ permission_map:
     - "cts.view"
     - "cts.live.subscribe"
     - "cts.signals.view"
+    - "cts.signals.delete"
     - "cts.keyframes.view"
     - "cts.cameras.read"
     - "cts.identity.correct"

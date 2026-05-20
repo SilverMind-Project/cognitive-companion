@@ -25,6 +25,7 @@ from backend.models.knowledge import (
     SeniorKnowledgeQuery,
 )
 from backend.models.media_cache import MediaCache
+from backend.models.occupancy import RoomOccupancyState
 from backend.models.person import (
     ActivitySession,
     ActivityTypeEnum,
@@ -74,6 +75,7 @@ __all__ = [
     "QuizResponse",
     "QuizSession",
     "Room",
+    "RoomOccupancyState",
     "Rule",
     "RuleContext",
     "RuleCronTrigger",

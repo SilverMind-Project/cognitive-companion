@@ -1,10 +1,13 @@
 """CTS dementia signals API endpoints.
 
-All handlers require ``cts.signals.view``.
+All read handlers require ``cts.signals.view``.
+Delete handlers require ``cts.signals.delete``.
 
 Routes:
-    GET    /api/v1/cts/signals                 : list recent signals
+    GET    /api/v1/cts/signals                 : list recent signals (paginated)
     POST   /api/v1/cts/signals/{signal_id}/ack : acknowledge a signal
+    DELETE /api/v1/cts/signals/{signal_id}     : hard-delete a single signal
+    DELETE /api/v1/cts/signals/batch           : hard-delete multiple signals
     GET    /api/v1/cts/signals/unacknowledged  : unacknowledged signals
     GET    /api/v1/cts/signals/summary         : 24h summary for dashboard
     GET    /api/v1/cts/signals/trend/{person_id}: per-day trend
@@ -15,7 +18,7 @@ When ``cts.enabled=false`` every handler returns 404 with code
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
@@ -63,22 +66,24 @@ async def list_signals(
     signal_type: str | None = Query(None, description="Filter by signal type"),
     severity: str | None = Query(None, description="Filter by severity"),
     window_hours: int = Query(24, ge=1, le=720, description="Lookback window in hours"),
-    limit: int = Query(200, ge=1, le=1000, description="Max results"),
+    limit: int = Query(50, ge=1, le=200, description="Page size"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
     _auth: AuthContext = Depends(require_permission("cts.signals.view")),
     store: SignalStore = Depends(_get_signal_store),
     db: Session = Depends(get_db),
 ) -> dict:
     """List recent dementia signals, filtered by each person's alert config."""
     cts_enabled()
-    signals = await store.list_recent(
+    signals, total = await store.list_recent(
         person_id=person_id,
         signal_type=signal_type,
         severity=severity,
         window_hours=window_hours,
         limit=limit,
+        offset=offset,
     )
     signals = _filter_by_person_config(signals, db)
-    return {"signals": signals, "count": len(signals)}
+    return {"signals": signals, "count": len(signals), "total": total, "offset": offset, "limit": limit}
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +106,44 @@ async def acknowledge_signal(
             detail={"code": "signal.not_found", "message": f"Signal {signal_id} not found."},
         )
     return {"acknowledged": True, "signal_id": signal_id}
+
+
+# ---------------------------------------------------------------------------
+# Delete (single + batch)
+# ---------------------------------------------------------------------------
+
+
+@router.delete("/batch", status_code=status.HTTP_200_OK)
+async def batch_delete_signals(
+    signal_ids: list[int] = Body(..., embed=True, description="Row IDs to delete"),
+    _auth: AuthContext = Depends(require_permission("cts.signals.delete")),
+    store: SignalStore = Depends(_get_signal_store),
+) -> dict:
+    """Hard-delete multiple dementia signals.  Returns deleted count."""
+    cts_enabled()
+    if len(signal_ids) > 500:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "signal.batch_too_large", "message": "Batch limit is 500 IDs."},
+        )
+    deleted = await store.batch_delete(signal_ids)
+    return {"deleted": deleted}
+
+
+@router.delete("/{signal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_signal(
+    signal_id: int,
+    _auth: AuthContext = Depends(require_permission("cts.signals.delete")),
+    store: SignalStore = Depends(_get_signal_store),
+) -> None:
+    """Hard-delete a single dementia signal by row ID."""
+    cts_enabled()
+    ok = await store.delete(signal_id)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "signal.not_found", "message": f"Signal {signal_id} not found."},
+        )
 
 
 # ---------------------------------------------------------------------------

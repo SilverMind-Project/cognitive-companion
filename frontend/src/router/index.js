@@ -74,8 +74,7 @@ const routes = [
       },
       {
         path: "timeline",
-        name: "admin-timeline",
-        component: () => import("../views/admin/PersonTimelineView.vue"),
+        redirect: { name: "admin-activities", query: { view: "timeline" } },
       },
       {
         path: "reports",

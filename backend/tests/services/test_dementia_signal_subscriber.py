@@ -120,7 +120,7 @@ class TestHandle:
         ok = await subscriber.handle(decoded)
         assert ok is True
 
-        results = await store.list_recent()
+        results, _ = await store.list_recent()
         assert len(results) == 1
         assert results[0]["signal_type"] == "pacing"
         assert results[0]["person_id"] == "grandma"
@@ -202,7 +202,7 @@ class TestDispatchSuppression:
         ok = await sub.handle(decoded)
         assert ok is True
         # Signal should be persisted
-        results = await store.list_recent()
+        results, _ = await store.list_recent()
         assert len(results) == 1
         # But pipeline should NOT be fired
         pipeline.fire_event.assert_not_awaited()

@@ -257,6 +257,42 @@ export const cts = {
     return ws;
   },
 
+  // ── Bbox annotations (M4) ──────────────────────────────────────────────────
+  getKeyframeBboxes: (keyframeId) =>
+    req(`/identity/keyframes/${encodeURIComponent(keyframeId)}/bboxes`),
+  overrideBbox: (annotationId, bbox) =>
+    req(`/identity/bboxes/${encodeURIComponent(annotationId)}/override`, {
+      method: "PUT",
+      body: JSON.stringify(bbox),
+    }),
+  applyBboxCorrection: (annotationId, identityId, reason) =>
+    req("/identity/corrections", {
+      method: "POST",
+      body: JSON.stringify({
+        global_track_id: "",
+        annotation_id: annotationId,
+        new_identity_id: identityId,
+        reason: reason || "manual_bbox_tag",
+      }),
+    }),
+
+  // ── Tracklet unmerge (M5) ──────────────────────────────────────────────
+  unmergeTracklet: (globalTrackId, trackletId) =>
+    req("/identity/unmerge_tracklet", {
+      method: "POST",
+      body: JSON.stringify({ tracklet_id: trackletId }),
+    }),
+
+  // ── Global track merge (M6) ────────────────────────────────────────────
+  mergeGlobalTracks: (sourceGlobalTrackId, targetGlobalTrackId) =>
+    req("/identity/global_tracks/merge", {
+      method: "POST",
+      body: JSON.stringify({
+        source_global_track_id: sourceGlobalTrackId,
+        target_global_track_id: targetGlobalTrackId,
+      }),
+    }),
+
   // ── Presence (Block 9) ────────────────────────────────────────────────────
   /**
    * Fetch the fused presence snapshot for one person.

@@ -148,76 +148,15 @@
       </v-row>
     </v-card>
 
-    <!-- Keyframe Detail Dialog -->
-    <v-dialog v-model="detailDialog" max-width="800">
-      <v-card v-if="selectedKeyframe">
-        <DialogHeader
-          icon="mdi-image-search"
-          label="Keyframe"
-          title="Details"
-          @close="detailDialog = false"
-        />
-        <v-img :src="displaySrc(keyframeImage(selectedKeyframe))" height="400" cover />
-        <v-card-text>
-          <v-row>
-            <v-col cols="6">
-              <div class="text-caption text-medium-emphasis">Person</div>
-              <div class="font-weight-medium">{{ selectedKeyframe.person_id }}</div>
-            </v-col>
-            <v-col cols="6">
-              <div class="text-caption text-medium-emphasis">Captured</div>
-              <div class="font-weight-medium">{{ formatTime(selectedKeyframe.captured_at) }}</div>
-            </v-col>
-            <v-col cols="6">
-              <div class="text-caption text-medium-emphasis">Signal Type</div>
-              <v-chip
-                v-if="selectedKeyframe.signal_type || selectedKeyframe.tag_reason"
-                size="small"
-                :color="selectedKeyframe.signal_type ? 'primary' : 'secondary'"
-              >
-                {{ (selectedKeyframe.signal_type || selectedKeyframe.tag_reason).replace(/_/g, " ") }}
-              </v-chip>
-              <span v-else class="text-body-2 text-medium-emphasis">—</span>
-            </v-col>
-            <v-col cols="6">
-              <div class="text-caption text-medium-emphasis">Quality</div>
-              <template v-if="selectedKeyframe.quality != null && selectedKeyframe.quality > 0">
-                <v-progress-linear :model-value="selectedKeyframe.quality * 100" height="8" rounded />
-                <div class="text-caption text-medium-emphasis mt-1">{{ Math.round(selectedKeyframe.quality * 100) }}%</div>
-              </template>
-              <span v-else class="text-body-2 text-medium-emphasis">—</span>
-            </v-col>
-          </v-row>
-          <v-divider class="my-3" />
-          <div class="text-subtitle-2 mb-2">Annotations</div>
-          <v-chip-group orientation="horizontal" wrap>
-            <v-chip
-              v-for="reason in selectedKeyframe.reasons || []"
-              :key="reason"
-              size="small"
-              variant="tonal"
-              color="blue"
-            >
-              {{ reason }}
-            </v-chip>
-          </v-chip-group>
-        </v-card-text>
-        <v-divider />
-        <v-card-actions class="px-6 py-3">
-          <v-btn
-            v-if="selectedKeyframe?.tracklet_id"
-            variant="tonal"
-            color="primary"
-            prepend-icon="mdi-account-plus"
-            @click="openEnroll(selectedKeyframe)"
-          >
-            Enroll in gallery
-          </v-btn>
-          <v-spacer />
-          <v-btn variant="text" @click="detailDialog = false">Close</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <!-- Keyframe Annotation Dialog -->
+    <KeyframeAnnotationDialog
+      v-model="keyframeDialog"
+      :image-url="selectedKeyframe ? keyframeImage(selectedKeyframe) : ''"
+      :keyframe-id="selectedKeyframe?.keyframe_id || selectedKeyframe?.sample_id || ''"
+      :identities="availableIdentities"
+      @saved="onAnnotationSaved"
+      @error="notify.error($event)"
+    />
 
     <!-- Gallery Enrollment Dialog -->
     <v-dialog v-model="enrollDialog" max-width="480" persistent>
@@ -344,17 +283,21 @@ import { cts } from "../../services/cts.js";
 import { severityColor } from "../../composables/useCtsSeverity";
 import { formatDateTime } from "../../services/timezone.js";
 import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
+import { useNotify } from "../../composables/useNotify.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
+import KeyframeAnnotationDialog from "../../components/cts/keyframes/KeyframeAnnotationDialog.vue";
 
 const { blurMode } = useBlurMode();
 const { displaySrc } = useDisplaySrc(blurMode);
+const { notify } = useNotify();
 
 const keyframes = ref([]);
 const selectedKeyframe = ref(null);
 const loading = ref(false);
-const detailDialog = ref(false);
+const keyframeDialog = ref(false);
+const availableIdentities = ref([]);
 
 const filters = ref({
   person_id: null,
@@ -494,9 +437,15 @@ function keyframeImage(kf) {
   return kf.image_url || "";
 }
 
-function viewKeyframe(kf) {
+async function viewKeyframe(kf) {
   selectedKeyframe.value = kf;
-  detailDialog.value = true;
+  try {
+    const identities = await cts.getIdentities().catch(() => ({ identities: [] }));
+    availableIdentities.value = identities?.identities || [];
+  } catch {
+    availableIdentities.value = [];
+  }
+  keyframeDialog.value = true;
 }
 
 async function retain(kf) {
@@ -510,6 +459,12 @@ async function retain(kf) {
 
 function formatTime(iso) {
   return formatDateTime(iso) || "";
+}
+
+// ── Annotation saved callback ───────────────────────────────────────────────
+
+function onAnnotationSaved() {
+  notify.success("Annotations saved");
 }
 
 // ── Gallery enrollment ──────────────────────────────────────────────────────

@@ -10,7 +10,7 @@
       </div>
       <v-spacer />
       <v-btn
-        v-if="selected.length"
+        v-if="selected.length && !mergeMode"
         variant="tonal"
         color="warning"
         prepend-icon="mdi-checkbox-multiple-marked"
@@ -154,6 +154,31 @@
         </v-chip-group>
         <v-spacer />
         <span class="text-caption text-medium-emphasis">{{ totalTracks }} track{{ totalTracks === 1 ? "" : "s" }}</span>
+      </div>
+
+      <!-- Merge mode toolbar -->
+      <div v-if="timeRange === 'active'" class="d-flex align-center ga-3 mb-3">
+        <v-btn
+          :color="mergeMode ? 'warning' : 'default'"
+          :variant="mergeMode ? 'flat' : 'outlined'"
+          size="small"
+          prepend-icon="mdi-merge"
+          @click="toggleMergeMode"
+        >
+          {{ mergeMode ? 'Cancel merge' : 'Select to merge' }}
+        </v-btn>
+        <v-btn
+          v-if="mergeMode && selected.length === 2"
+          color="error"
+          size="small"
+          prepend-icon="mdi-call-merge"
+          @click="openMergeDialog"
+        >
+          Merge 2 tracks
+        </v-btn>
+        <span v-if="mergeMode" class="text-caption text-medium-emphasis">
+          Select exactly 2 tracks to merge. The first selected will be the default target.
+        </span>
       </div>
 
       <v-card class="glass-card">
@@ -331,7 +356,7 @@
                       <KeyframeStrip
                         v-else
                         :frames="expandedKeyframes[item.global_track_id] || []"
-                        @click="openKeyframeModal"
+                        @click="openKeyframeBboxEditor"
                       />
                       <div class="d-flex flex-wrap ga-3 mt-2 text-caption text-medium-emphasis">
                         <span><span class="font-weight-medium text-on-surface">Started:</span> {{ formatRelative(item.started_at) }}</span>
@@ -608,6 +633,8 @@
         :identities="identities"
         @apply="onDrawerApply"
         @close="drawerOpen = false"
+        @keyframe-click="openKeyframeBboxEditor"
+        @refresh="loadTracks"
       />
     </v-navigation-drawer>
 
@@ -627,27 +654,58 @@
       </v-card>
     </v-dialog>
 
-    <!-- Keyframe lightbox -->
-    <v-dialog v-model="keyframeDialogOpen" max-width="800">
-      <v-card v-if="selectedKeyframe" rounded="xl">
-        <v-img
-          :src="displaySrc(frameUrl(selectedKeyframe.minio_key))"
-          max-height="70vh"
-          contain
-          class="bg-black"
-        />
-        <v-card-text class="d-flex align-center ga-4">
-          <span v-if="selectedKeyframe.captured_at" class="text-caption text-medium-emphasis">
-            Captured: {{ formatRelative(selectedKeyframe.captured_at) }}
-          </span>
-          <span v-if="selectedKeyframe.tag_reason" class="text-caption text-medium-emphasis">
-            · {{ selectedKeyframe.tag_reason }}
-          </span>
-          <v-spacer />
-          <v-btn variant="text" size="small" @click="keyframeDialogOpen = false">Close</v-btn>
+    <!-- Merge confirmation dialog -->
+    <v-dialog v-model="mergeDialog" max-width="500">
+      <v-card rounded="xl">
+        <v-card-title>Merge Global Tracks</v-card-title>
+        <v-card-text>
+          <p>Select which track to keep (target). The other will be tombstoned.</p>
+          <template v-if="selected.length === 2">
+            <v-radio-group v-model="mergeTarget">
+              <v-radio
+                v-for="gt in selected"
+                :key="gt.global_track_id"
+                :value="gt.global_track_id"
+              >
+                <template #label>
+                  <div>
+                    <span class="font-weight-medium">{{ identityLabel(gt) }}</span>
+                    <span class="text-caption text-medium-emphasis ml-2">
+                      ({{ (gt.tracklet_ids || []).length }} tracklets, {{ trackDuration(gt) }})
+                    </span>
+                  </div>
+                </template>
+              </v-radio>
+            </v-radio-group>
+          </template>
+          <v-alert type="warning" variant="tonal" density="compact" class="mt-4">
+            All trajectory, dwell, and signal data from the source track will be re-attributed to the target. This cannot be automatically reversed.
+          </v-alert>
         </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="mergeDialog = false">Cancel</v-btn>
+          <v-btn
+            color="error"
+            :disabled="!mergeTarget"
+            :loading="merging"
+            @click="executeMerge"
+          >
+            Merge
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Keyframe Annotation Dialog -->
+    <KeyframeAnnotationDialog
+      v-model="keyframeBboxDialog"
+      :image-url="bboxEditorImageUrl"
+      :keyframe-id="bboxEditorKeyframe?.sample_id || bboxEditorKeyframe?.keyframe_id || ''"
+      :identities="identities"
+      @saved="onAnnotationSaved"
+      @error="error = $event"
+    />
   </div>
 </template>
 
@@ -658,6 +716,7 @@ import { identityColor } from "@/composables/useIdentityColor";
 import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
 import IdentityInspectorDrawer from "@/components/cts/identity/IdentityInspectorDrawer.vue";
 import KeyframeStrip from "@/components/cts/identity/KeyframeStrip.vue";
+import KeyframeAnnotationDialog from "@/components/cts/keyframes/KeyframeAnnotationDialog.vue";
 import PersonTrackCard from "@/components/cts/identity/PersonTrackCard.vue";
 import PostureDistributionBar from "@/components/cts/identity/PostureDistributionBar.vue";
 import UnknownTracksPanel from "@/components/cts/identity/UnknownTracksPanel.vue";
@@ -677,6 +736,7 @@ export default {
   components: {
     IdentityInspectorDrawer,
     KeyframeStrip,
+    KeyframeAnnotationDialog,
     PersonTrackCard,
     PostureDistributionBar,
     UnknownTracksPanel,
@@ -716,15 +776,20 @@ export default {
       // Bulk
       bulkDialogOpen: false,
       bulkSaving: false,
+      // Merge mode
+      mergeMode: false,
+      mergeDialog: false,
+      mergeTarget: null,
+      merging: false,
       // Keyframes (expanded rows)
       expandedKeyframes: {},
       keyframeLoading: {},
       // Trail / posture (expanded rows)
       expandedTrail: {},
       trailLoading: {},
-      // Lightbox
-      keyframeDialogOpen: false,
-      selectedKeyframe: null,
+      // Bbox annotation editor
+      keyframeBboxDialog: false,
+      bboxEditorKeyframe: null,
       // Camera options (populated from loaded tracks)
       cameraOptions: [],
     };
@@ -739,6 +804,12 @@ export default {
         }
       }
       return byId;
+    },
+    bboxEditorImageUrl() {
+      const kf = this.bboxEditorKeyframe;
+      if (!kf) return "";
+      if (kf.image_url) return kf.image_url;
+      return this.frameUrl(kf.minio_key);
     },
     unknownTracks() {
       return this.allTodayTracks.filter((t) => !t.current_identity_id && t.state === "active");
@@ -1137,6 +1208,7 @@ export default {
     onTabChange(tab) {
       this.selected = [];
       this.expanded = [];
+      this.mergeMode = false;
       this.pagination.page = 1;
       if (tab === "people") {
         this.loadPeopleTab();
@@ -1237,10 +1309,46 @@ export default {
       }
     },
 
-    // ── Lightbox ─────────────────────────────────────────────────────────────
-    openKeyframeModal(kf) {
-      this.selectedKeyframe   = kf;
-      this.keyframeDialogOpen = true;
+    // ── Merge ────────────────────────────────────────────────────────────────
+    toggleMergeMode() {
+      this.mergeMode = !this.mergeMode;
+      if (!this.mergeMode) this.selected = [];
+    },
+    openMergeDialog() {
+      this.mergeTarget = this.selected[0]?.global_track_id || null;
+      this.mergeDialog = true;
+    },
+    async executeMerge() {
+      if (!this.mergeTarget) return;
+      const source = this.selected.find((gt) => gt.global_track_id !== this.mergeTarget);
+      if (!source) return;
+      this.merging = true;
+      try {
+        await cts.mergeGlobalTracks(source.global_track_id, this.mergeTarget);
+        this.mergeDialog = false;
+        this.mergeMode = false;
+        this.selected = [];
+        await this.loadTracks();
+      } catch (err) {
+        this.error = String(err.message || err);
+      } finally {
+        this.merging = false;
+      }
+    },
+
+    // ── Keyframe Annotation Editor ───────────────────────────────────────────
+    openKeyframeBboxEditor(kf) {
+      if (!kf) return;
+      this.bboxEditorKeyframe = kf;
+      if (!this.identities.length) {
+        cts.getIdentities()
+          .then((d) => { this.identities = d.identities || []; })
+          .catch(() => {});
+      }
+      this.keyframeBboxDialog = true;
+    },
+    onAnnotationSaved() {
+      this.loadTracks();
     },
   },
 };

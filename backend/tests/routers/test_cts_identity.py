@@ -27,6 +27,7 @@ def _build_app(db_engine: Engine, cts_enabled: bool = True, orchestrator=None):
     def _session():
         return Session()
 
+    from backend.routers import cts_deps
     from backend.routers import cts_identity as cts_identity_mod
 
     app = FastAPI()
@@ -37,7 +38,7 @@ def _build_app(db_engine: Engine, cts_enabled: bool = True, orchestrator=None):
         key="x", name="tester", permissions=["*"]
     )
 
-    settings_patch = patch.object(cts_identity_mod, "settings", cfg)
+    settings_patch = patch.object(cts_deps, "settings", cfg)
     session_patch = patch.object(cts_identity_mod, "get_session", _session)
     settings_patch.start()
     session_patch.start()

@@ -36,6 +36,8 @@ from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 from backend.models.person import PersonLocationHistory
 from backend.routers.cts_deps import cts_enabled
 from backend.routers.dependencies import get_orchestrator_client
+from backend.schemas.cts_bbox import BboxAnnotationResponse, BboxOverrideRequest
+from backend.services.cts.bbox_annotation_service import BboxAnnotationService
 
 logger = get_logger(__name__)
 
@@ -48,11 +50,14 @@ router = APIRouter(prefix="/cts/identity", tags=["cts-identity"])
 
 
 class CorrectionRequest(BaseModel):
-    global_track_id: str = Field(..., min_length=1, max_length=128)
+    global_track_id: str = Field(default="", min_length=0, max_length=128)
     new_identity_id: str | None = Field(default=None, max_length=128)
     reason: str = Field(default="manual", max_length=512)
     display_name: str | None = Field(default=None, max_length=128)
     evidence: dict[str, Any] = Field(default_factory=dict)
+    # M4: optional bbox-level correction — passed when the correction originates
+    # from the BboxCanvas tagging flow. Wired into gallery update in M5.
+    annotation_id: str | None = Field(default=None, max_length=128)
 
 
 class MergeRequest(BaseModel):
@@ -298,8 +303,29 @@ async def apply_correction(
     success the orchestrator publishes an ``IdentityRevision`` on
     ``tracking.revisions``; the CC subscriber picks it up and rewrites the
     local history within one stream-read cycle (typically <200 ms).
+
+    When ``annotation_id`` is set (M4 bbox tagging flow) and ``global_track_id``
+    is empty, the call is recorded as a bbox-level correction without proxying
+    to the orchestrator. Full gallery-update wiring lands in M5.
     """
     cts_enabled()
+
+    # Bbox-level correction: record only for now; gallery update wired in M5.
+    if body.annotation_id and not body.global_track_id:
+        logger.info(
+            "cts_bbox_correction_recorded",
+            actor=auth.name,
+            annotation_id=body.annotation_id,
+            new_identity_id=body.new_identity_id,
+            reason=body.reason,
+        )
+        return {
+            "revision_id": None,
+            "annotation_id": body.annotation_id,
+            "new_identity_id": body.new_identity_id,
+            "status": "recorded",
+        }
+
     try:
         resp = await client.manual_identity_override(
             global_track_id=body.global_track_id,
@@ -469,6 +495,41 @@ async def apply_corrections_batch(
                 }
             )
     return {"results": results}
+
+
+# ---------------------------------------------------------------------------
+# GET /cts/identity/keyframes/{keyframe_id}/bboxes
+# ---------------------------------------------------------------------------
+
+
+@router.get("/keyframes/{keyframe_id}/bboxes", response_model=list[BboxAnnotationResponse])
+async def get_keyframe_bboxes(
+    keyframe_id: str,
+    _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> list[BboxAnnotationResponse]:
+    """Return bounding-box annotations for a keyframe."""
+    cts_enabled()
+    svc = BboxAnnotationService(client)
+    return await svc.get_for_keyframe(keyframe_id)
+
+
+# ---------------------------------------------------------------------------
+# PUT /cts/identity/bboxes/{annotation_id}/override
+# ---------------------------------------------------------------------------
+
+
+@router.put("/bboxes/{annotation_id}/override", response_model=BboxAnnotationResponse)
+async def override_bbox(
+    annotation_id: str,
+    body: BboxOverrideRequest,
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> BboxAnnotationResponse:
+    """Persist a user-drawn bounding box override."""
+    cts_enabled()
+    svc = BboxAnnotationService(client)
+    return await svc.save_override(annotation_id, body, override_by=auth.name)
 
 
 # ---------------------------------------------------------------------------
@@ -714,6 +775,78 @@ async def list_revisions(
         "count": len(by_revision),
         "window_hours": window_hours,
     }
+
+
+# ---------------------------------------------------------------------------
+# POST /cts/identity/unmerge_tracklet
+# ---------------------------------------------------------------------------
+
+
+class UnmergeTrackletRequest(BaseModel):
+    tracklet_id: str = Field(..., min_length=1, max_length=128)
+
+
+@router.post("/unmerge_tracklet", status_code=200)
+async def unmerge_tracklet(
+    body: UnmergeTrackletRequest,
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Detach a tracklet from its current global track.
+
+    Proxies ``POST /internal/corrections/unmerge_tracklet`` on the
+    tracking-orchestrator.  Returns ``tracklet_id``,
+    ``original_global_track_id``, and ``new_global_track_id``.
+    """
+    cts_enabled()
+    try:
+        data = await client.unmerge_tracklet(
+            tracklet_id=body.tracklet_id,
+            requested_by=auth.user_id,
+        )
+    except UpstreamError as exc:
+        raise HTTPException(
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "cts.upstream_error", "message": str(exc)},
+        ) from exc
+    return data
+
+
+# ---------------------------------------------------------------------------
+# POST /cts/identity/global_tracks/merge
+# ---------------------------------------------------------------------------
+
+
+class MergeGlobalTracksRequest(BaseModel):
+    source_global_track_id: str = Field(..., min_length=1, max_length=128)
+    target_global_track_id: str = Field(..., min_length=1, max_length=128)
+
+
+@router.post("/global_tracks/merge", status_code=200)
+async def merge_global_tracks(
+    body: MergeGlobalTracksRequest,
+    auth: AuthContext = Depends(require_permission("cts.identity.correct")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Merge source global track into target.
+
+    Proxies ``POST /internal/corrections/merge_global_tracks`` on the
+    tracking-orchestrator.  Returns ``source_id``, ``target_id``, and
+    ``merged_at``.
+    """
+    cts_enabled()
+    try:
+        data = await client.merge_global_tracks(
+            source_id=body.source_global_track_id,
+            target_id=body.target_global_track_id,
+            merged_by=auth.user_id,
+        )
+    except UpstreamError as exc:
+        raise HTTPException(
+            status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "cts.upstream_error", "message": str(exc)},
+        ) from exc
+    return data
 
 
 # ---------------------------------------------------------------------------

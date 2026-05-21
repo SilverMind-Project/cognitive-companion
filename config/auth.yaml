@@ -130,6 +130,11 @@ permission_map:
     - "cts.identity.correct.batch"
     - "cts.identity.read_enriched"
     - "cts.replay"
+    # M3: bbox annotation endpoints
+    - "PUT /api/v1/cts/identity/bboxes/*/override"
+    - "GET /api/v1/cts/identity/keyframes/*/bboxes"
+    # M6: global track merge
+    - "POST /api/v1/cts/identity/global_tracks/merge"
 
   operator:
     - "*"

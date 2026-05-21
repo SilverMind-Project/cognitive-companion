@@ -280,6 +280,50 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("POST", f"/internal/keyframes/{sample_id}/retain")
         return r.json()
 
+    async def unmerge_tracklet(
+        self,
+        *,
+        tracklet_id: str,
+        requested_by: str = "caregiver",
+    ) -> dict:
+        """Detach a tracklet from its current global track.
+
+        Proxies ``POST /internal/corrections/unmerge_tracklet`` on the
+        orchestrator.  Returns a dict with ``tracklet_id``,
+        ``original_global_track_id``, and ``new_global_track_id``.
+        """
+        r = await self._request(
+            "POST",
+            "/internal/corrections/unmerge_tracklet",
+            json={"tracklet_id": tracklet_id, "requested_by": requested_by},
+        )
+        return r.json()
+
+    async def merge_global_tracks(
+        self,
+        *,
+        source_id: str,
+        target_id: str,
+        merged_by: str,
+    ) -> dict:
+        """Merge source global track into target.
+
+        Proxies ``POST /internal/corrections/merge_global_tracks`` on the
+        orchestrator.  Returns a dict with ``source_id``, ``target_id``,
+        and ``merged_at``.
+        """
+        r = await self._request(
+            "POST",
+            "/internal/corrections/merge_global_tracks",
+            json={
+                "source_id": source_id,
+                "target_id": target_id,
+                "merged_by": merged_by,
+            },
+            timeout=30.0,
+        )
+        return r.json()
+
     # -- Dashboard methods (M8) ----------------------------------------------
 
     async def get_dashboard_signals(
@@ -327,4 +371,37 @@ class OrchestratorClient(UpstreamClient):
         if date:
             params["date"] = date
         r = await self._request("GET", "/internal/dashboard/dwell_summary", params=params)
+        return r.json()
+
+    # -- Bbox annotation methods -----------------------------------------------
+
+    async def get_keyframe_bboxes(self, keyframe_id: str) -> list[dict]:
+        """Return YOLO bounding-box annotations for a tagged keyframe."""
+        r = await self._request(
+            "GET", f"/internal/keyframes/{keyframe_id}/bboxes"
+        )
+        return r.json().get("bboxes", [])
+
+    async def override_bbox(
+        self,
+        *,
+        annotation_id: str,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        override_by: str,
+    ) -> dict:
+        """Persist a user-drawn bounding-box override."""
+        r = await self._request(
+            "PUT",
+            f"/internal/bboxes/{annotation_id}/override",
+            json={
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2,
+                "override_by": override_by,
+            },
+        )
         return r.json()

@@ -26,6 +26,36 @@
           <!-- Keyframe strip -->
           <KeyframeStrip :frames="keyframes" @click="$emit('keyframe-click', $event)" />
 
+          <!-- Tracklet list -->
+          <div v-if="trackletList.length > 0" class="mb-3">
+            <v-divider class="mb-3" />
+            <div class="text-subtitle-2 mb-2">Tracklets ({{ trackletList.length }})</div>
+            <v-list dense class="tracklet-list rounded-lg">
+              <v-list-item
+                v-for="tl in trackletList"
+                :key="tl.tracklet_id"
+                :title="tl.tracklet_id.slice(0, 8) + '...'"
+                :subtitle="tl.camera_id"
+              >
+                <template #prepend>
+                  <v-icon size="small">mdi-cctv</v-icon>
+                </template>
+                <template #append>
+                  <v-btn
+                    icon
+                    size="x-small"
+                    color="warning"
+                    variant="text"
+                    :title="'Unmerge tracklet ' + tl.tracklet_id.slice(0, 8)"
+                    @click="confirmUnmerge(tl)"
+                  >
+                    <v-icon>mdi-link-variant-off</v-icon>
+                  </v-btn>
+                </template>
+              </v-list-item>
+            </v-list>
+          </div>
+
           <!-- Correction form -->
           <div class="mb-3">
             <v-autocomplete
@@ -78,11 +108,25 @@
         </template>
       </v-card-text>
     </v-card>
+
+    <!-- Confirm dialog for unmerge -->
+    <v-dialog v-model="confirmDialog" max-width="400">
+      <v-card rounded="xl">
+        <v-card-title>{{ confirmTitle }}</v-card-title>
+        <v-card-text>{{ confirmText }}</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="onCancel">{{ cancelLabel || "Cancel" }}</v-btn>
+          <v-btn color="warning" @click="onConfirm">{{ confirmLabel || "Unmerge" }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script>
 import { cts } from "@/services/cts";
+import { useConfirm } from "@/composables/useConfirm";
 import TrackSummaryHeader from "./TrackSummaryHeader.vue";
 import PosteriorBar from "./PosteriorBar.vue";
 import KeyframeStrip from "./KeyframeStrip.vue";
@@ -105,7 +149,11 @@ export default {
     mode: { type: String, default: "correct" },
     identities: { type: Array, default: () => [] },
   },
-  emits: ["apply", "close", "keyframe-click"],
+  emits: ["apply", "close", "keyframe-click", "refresh"],
+  setup() {
+    const { showConfirm, confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, onConfirm, onCancel } = useConfirm();
+    return { showConfirm, confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, onConfirm, onCancel };
+  },
   data() {
     return {
       loading: false,
@@ -116,6 +164,7 @@ export default {
       faceAnchors: [],
       trailPoints: [],
       error: "",
+      unmerging: false,
       form: {
         from_identity_id: "",
         new_identity_id: "",
@@ -128,6 +177,15 @@ export default {
       return this.identities.map((id) => ({
         identity_id: id.identity_id,
         label: id.display_name || id.identity_id,
+      }));
+    },
+    trackletList() {
+      const gt = this.trackDetail || this.track;
+      if (!gt || !gt.tracklet_ids) return [];
+      const cameraIds = gt.camera_ids || [];
+      return gt.tracklet_ids.map((tid, i) => ({
+        tracklet_id: tid,
+        camera_id: cameraIds[i] || cameraIds[0] || "unknown",
       }));
     },
   },
@@ -178,6 +236,25 @@ export default {
       this.faceAnchors = detailValue?.posterior?.face_anchors || [];
       this.trailPoints = (trailValue?.points || []).flatMap((p) => p.points || [p]);
       this.loading = false;
+    },
+    async confirmUnmerge(tracklet) {
+      const ok = await this.showConfirm(
+        "Unmerge Tracklet",
+        `Detach tracklet ${tracklet.tracklet_id.slice(0, 8)}... from this global track? This cannot be undone automatically.`,
+      );
+      if (!ok) return;
+      await this.doUnmerge(tracklet);
+    },
+    async doUnmerge(tracklet) {
+      this.unmerging = true;
+      try {
+        await cts.unmergeTracklet(this.track.global_track_id, tracklet.tracklet_id);
+        this.$emit("refresh");
+      } catch (e) {
+        this.error = `Unmerge failed: ${e.message}`;
+      } finally {
+        this.unmerging = false;
+      }
     },
   },
 };

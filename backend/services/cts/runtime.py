@@ -12,9 +12,11 @@ that no CTS code executes when the flag is off.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+import logging
 from dataclasses import dataclass
 from typing import Any
+
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
 
 from backend.core.logging import get_logger
 from backend.models.cts_camera import CtsCamera
@@ -170,29 +172,33 @@ class CTSRuntime:
         """Start all five CTS subscribers as background tasks.
 
         Idempotent: calling start twice is a no-op on already-running tasks.
+
+        Each subscriber is wrapped with tenacity retry: 5 attempts, 60 s
+        between attempts, then logged and abandoned if still failing.
         """
-        def _on_done(bundle_name: str) -> Callable[[asyncio.Task[None]], None]:
-            def _cb(task: asyncio.Task[None]) -> None:
-                if task.cancelled():
-                    return
-                exc = task.exception()
-                if exc is not None:
-                    logger.error(
-                        "cts_subscriber_task_failed",
-                        name=bundle_name,
-                        error=repr(exc),
-                        exc_info=exc,
-                    )
-            return _cb
+
+        async def _run_with_retry(bundle: _SubscriberBundle) -> None:
+            @retry(
+                stop=stop_after_attempt(5),
+                wait=wait_fixed(60),
+                before_sleep=before_sleep_log(logger, logging.WARNING),
+                reraise=True,
+            )
+            async def _start() -> None:
+                await bundle.subscriber.start()
+
+            try:
+                await _start()
+            except Exception:
+                logger.error("cts_subscriber_retries_exhausted", name=bundle.name)
 
         for bundle in self._bundles:
             if bundle.task is not None and not bundle.task.done():
                 continue
             task = asyncio.create_task(
-                bundle.subscriber.start(),
+                _run_with_retry(bundle),
                 name=f"cts-runtime-{bundle.name}",
             )
-            task.add_done_callback(_on_done(bundle.name))
             bundle.task = task
         logger.info(
             "cts_runtime_started",

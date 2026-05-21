@@ -23,6 +23,7 @@ This service delegates all persistence to the injected
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -188,10 +189,8 @@ class LocationWriter:
                 )
         except Exception:
             logger.exception("cts_occupancy_sync_error")
-            try:
+            with contextlib.suppress(Exception):
                 db.rollback()
-            except Exception:
-                pass
         finally:
             db.close()
 

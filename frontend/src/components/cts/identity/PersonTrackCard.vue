@@ -140,7 +140,7 @@
           </div>
 
           <div
-            v-for="track in sortedTracks"
+            v-for="track in paginatedTracks"
             :key="track.global_track_id"
             class="segment-row"
             :class="{ 'segment-row--closed': track.state !== 'active' }"
@@ -219,6 +219,31 @@
               />
             </div>
           </div>
+
+          <!-- Segment pagination -->
+          <div class="d-flex align-center justify-space-between mt-3 gap-3 flex-wrap">
+            <div class="d-flex align-center ga-2">
+              <v-select
+                v-model="itemsPerPage"
+                :items="itemsPerPageOptions"
+                density="compact"
+                variant="outlined"
+                hide-details
+                style="max-width: 72px"
+                aria-label="Tracks per page"
+              />
+              <span class="text-caption text-medium-emphasis">{{ showingRange }}</span>
+            </div>
+            <v-pagination
+              v-if="totalSegmentPages > 1"
+              v-model="segmentPage"
+              :length="totalSegmentPages"
+              size="x-small"
+              density="compact"
+              variant="tonal"
+              :total-visible="5"
+            />
+          </div>
         </div>
       </div>
     </v-expand-transition>
@@ -252,12 +277,15 @@ export default {
 
   data() {
     return {
-      expanded:      false,
-      trailPoints:   [],
-      trailsByTrack: {},
-      trailLoading:  false,
-      now:           Date.now(),
-      _nowTimer:     null,
+      expanded:        false,
+      trailPoints:     [],
+      trailsByTrack:   {},
+      trailLoading:    false,
+      now:             Date.now(),
+      _nowTimer:       null,
+      segmentPage:       1,
+      itemsPerPage:      5,
+      itemsPerPageOptions: [5, 10, 15, 20],
     };
   },
 
@@ -274,6 +302,19 @@ export default {
     trackColor()  { return identityColor(this.identity.identity_id); },
     sortedTracks() {
       return [...this.tracks].sort((a, b) => new Date(a.started_at) - new Date(b.started_at));
+    },
+    totalSegmentPages() {
+      return Math.max(1, Math.ceil(this.sortedTracks.length / this.itemsPerPage));
+    },
+    paginatedTracks() {
+      const start = (this.segmentPage - 1) * this.itemsPerPage;
+      return this.sortedTracks.slice(start, start + this.itemsPerPage);
+    },
+    showingRange() {
+      if (!this.sortedTracks.length) return "No tracks";
+      const start = (this.segmentPage - 1) * this.itemsPerPage + 1;
+      const end = Math.min(start + this.itemsPerPage - 1, this.sortedTracks.length);
+      return `${start}–${end} of ${this.sortedTracks.length}`;
     },
     fragmentCount() { return this.tracks.length; },
     isActive() { return this.tracks.some((t) => t.state === "active"); },
@@ -424,6 +465,12 @@ export default {
       if (val && !this.trailPoints.length) {
         this.loadAllTrails();
       }
+    },
+    sortedTracks() {
+      this.segmentPage = 1;
+    },
+    itemsPerPage() {
+      this.segmentPage = 1;
     },
   },
 

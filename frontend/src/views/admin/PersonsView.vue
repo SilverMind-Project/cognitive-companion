@@ -299,7 +299,7 @@
     </v-dialog>
 
     <!-- Detail Drawer: Location History + Sightings -->
-    <v-navigation-drawer v-model="detailDrawer" location="right" temporary width="500">
+    <v-navigation-drawer v-model="detailDrawer" location="right" temporary width="500" class="cc-drawer-right">
       <v-card flat class="h-100 d-flex flex-column">
         <v-card-title class="d-flex align-center">
           <v-icon class="mr-2">mdi-account-circle</v-icon>
@@ -327,9 +327,9 @@
           <v-tab value="sightings">Sightings</v-tab>
         </v-tabs>
 
-        <v-window v-model="detailTab" class="flex-grow-1 overflow-y-auto">
+        <v-window v-model="detailTab" class="flex-grow-1 detail-window">
           <!-- Location History -->
-          <v-window-item value="history">
+          <v-window-item value="history" class="h-100 overflow-y-auto">
             <v-card-text>
               <div class="d-flex align-center mb-3">
                 <v-select
@@ -367,7 +367,7 @@
           </v-window-item>
 
           <!-- Sightings -->
-          <v-window-item value="sightings">
+          <v-window-item value="sightings" class="h-100 overflow-y-auto">
             <v-card-text>
               <v-list density="compact" v-if="sightings.length">
                 <v-list-item v-for="s in sightings" :key="s.id" class="px-0">
@@ -699,5 +699,23 @@ onMounted(() => {
 <style scoped>
 .tracking-tight {
   letter-spacing: -0.018em;
+}
+
+/* Right-side drawer: pin to viewport, clear app bar, independent scroll */
+.cc-drawer-right {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+}
+.cc-drawer-right :deep(.v-navigation-drawer__content) {
+  flex: 1 1 0;
+  min-height: 0;
+  padding-top: 64px;
+}
+
+/* Allow the tab window to shrink and scroll inside the flex column */
+.detail-window {
+  min-height: 0;
 }
 </style>

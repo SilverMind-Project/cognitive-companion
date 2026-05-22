@@ -1,112 +1,115 @@
 <template>
   <div>
-    <v-card flat>
+    <v-card flat class="h-100 d-flex flex-column">
       <v-card-title class="d-flex align-center">
         {{ mode === "merge" ? "Merge Identity" : "Correct Identity" }}
         <v-spacer />
         <v-btn icon="mdi-close" variant="text" size="small" @click="$emit('close')" />
       </v-card-title>
-      <v-card-text>
+
+      <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
         <!-- Loading -->
         <div v-if="loading" class="d-flex justify-center py-4">
           <v-progress-circular indeterminate size="32" color="primary" />
         </div>
 
         <template v-else>
-          <v-alert v-if="error" type="warning" density="compact" class="mb-3">
+          <v-alert v-if="error" type="warning" density="compact" class="ma-4 mb-0">
             {{ error }}
           </v-alert>
 
-          <!-- Track summary -->
-          <TrackSummaryHeader :track="trackDetail || track" />
+          <v-card-text>
+            <!-- Track summary -->
+            <TrackSummaryHeader :track="trackDetail || track" />
 
-          <!-- Posterior bar -->
-          <PosteriorBar :posterior="trackDetail?.posterior || null" />
+            <!-- Posterior bar -->
+            <PosteriorBar :posterior="trackDetail?.posterior || null" />
 
-          <!-- Keyframe strip -->
-          <KeyframeStrip :frames="keyframes" @click="$emit('keyframe-click', $event)" />
+            <!-- Keyframe strip -->
+            <KeyframeStrip :frames="keyframes" @click="$emit('keyframe-click', $event)" />
 
-          <!-- Tracklet list -->
-          <div v-if="trackletList.length > 0" class="mb-3">
+            <!-- Tracklet list -->
+            <div v-if="trackletList.length > 0" class="mb-3">
+              <v-divider class="mb-3" />
+              <div class="text-subtitle-2 mb-2">Tracklets ({{ trackletList.length }})</div>
+              <v-list dense class="tracklet-list rounded-lg">
+                <v-list-item
+                  v-for="tl in trackletList"
+                  :key="tl.tracklet_id"
+                  :title="tl.tracklet_id.slice(0, 8) + '...'"
+                  :subtitle="tl.camera_id"
+                >
+                  <template #prepend>
+                    <v-icon size="small">mdi-cctv</v-icon>
+                  </template>
+                  <template #append>
+                    <v-btn
+                      icon
+                      size="x-small"
+                      color="warning"
+                      variant="text"
+                      :title="'Unmerge tracklet ' + tl.tracklet_id.slice(0, 8)"
+                      @click="confirmUnmerge(tl)"
+                    >
+                      <v-icon>mdi-link-variant-off</v-icon>
+                    </v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </div>
+
+            <!-- Correction form -->
+            <div class="mb-3">
+              <v-autocomplete
+                v-if="mode === 'merge'"
+                v-model="form.from_identity_id"
+                :items="identityItems"
+                item-title="label"
+                item-value="identity_id"
+                label="From identity"
+                variant="outlined"
+                density="compact"
+                class="mb-3"
+                clearable
+              />
+              <v-autocomplete
+                v-model="form.new_identity_id"
+                :items="identityItems"
+                item-title="label"
+                item-value="identity_id"
+                :label="mode === 'merge' ? 'To identity' : 'New identity'"
+                variant="outlined"
+                density="compact"
+                class="mb-3"
+                clearable
+                :hint="mode === 'correct' ? 'Leave blank to mark as UNKNOWN' : ''"
+                persistent-hint
+              />
+              <v-text-field
+                v-model="form.reason"
+                label="Reason"
+                variant="outlined"
+                density="compact"
+                class="mb-3"
+              />
+              <v-btn block variant="flat" color="primary" :loading="saving" @click="$emit('apply', form)">
+                Apply
+              </v-btn>
+            </div>
+
             <v-divider class="mb-3" />
-            <div class="text-subtitle-2 mb-2">Tracklets ({{ trackletList.length }})</div>
-            <v-list dense class="tracklet-list rounded-lg">
-              <v-list-item
-                v-for="tl in trackletList"
-                :key="tl.tracklet_id"
-                :title="tl.tracklet_id.slice(0, 8) + '...'"
-                :subtitle="tl.camera_id"
-              >
-                <template #prepend>
-                  <v-icon size="small">mdi-cctv</v-icon>
-                </template>
-                <template #append>
-                  <v-btn
-                    icon
-                    size="x-small"
-                    color="warning"
-                    variant="text"
-                    :title="'Unmerge tracklet ' + tl.tracklet_id.slice(0, 8)"
-                    @click="confirmUnmerge(tl)"
-                  >
-                    <v-icon>mdi-link-variant-off</v-icon>
-                  </v-btn>
-                </template>
-              </v-list-item>
-            </v-list>
-          </div>
 
-          <!-- Correction form -->
-          <div class="mb-3">
-            <v-autocomplete
-              v-if="mode === 'merge'"
-              v-model="form.from_identity_id"
-              :items="identityItems"
-              item-title="label"
-              item-value="identity_id"
-              label="From identity"
-              variant="outlined"
-              density="compact"
-              class="mb-3"
-              clearable
-            />
-            <v-autocomplete
-              v-model="form.new_identity_id"
-              :items="identityItems"
-              item-title="label"
-              item-value="identity_id"
-              :label="mode === 'merge' ? 'To identity' : 'New identity'"
-              variant="outlined"
-              density="compact"
-              class="mb-3"
-              clearable
-              :hint="mode === 'correct' ? 'Leave blank to mark as UNKNOWN' : ''"
-              persistent-hint
-            />
-            <v-text-field
-              v-model="form.reason"
-              label="Reason"
-              variant="outlined"
-              density="compact"
-              class="mb-3"
-            />
-            <v-btn block variant="flat" color="primary" :loading="saving" @click="$emit('apply', form)">
-              Apply
-            </v-btn>
-          </div>
+            <!-- Co-occurring tracks -->
+            <CoOccurringPanel :tracks="coOccurring" :identities="identities" />
 
-          <v-divider class="mb-3" />
+            <!-- Face anchors -->
+            <FaceAnchorsTable :anchors="faceAnchors" :identities="identities" />
 
-          <!-- Co-occurring tracks -->
-          <CoOccurringPanel :tracks="coOccurring" :identities="identities" />
-
-          <!-- Face anchors -->
-          <FaceAnchorsTable :anchors="faceAnchors" :identities="identities" />
-
-          <!-- Trail -->
-          <TrailMiniMap :points="trailPoints" />
+            <!-- Trail -->
+            <TrailMiniMap :points="trailPoints" />
+          </v-card-text>
         </template>
-      </v-card-text>
+      </div>
     </v-card>
 
     <!-- Confirm dialog for unmerge -->
@@ -259,3 +262,4 @@ export default {
   },
 };
 </script>
+

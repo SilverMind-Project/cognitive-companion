@@ -228,6 +228,10 @@ kbd {
   font-weight: 600;
 }
 
+.v-list-item--active {
+  background-color: var(--cc-brand-softer) !important;
+}
+
 .v-list-subheader {
   font-size: 11px;
   letter-spacing: 0.06em;

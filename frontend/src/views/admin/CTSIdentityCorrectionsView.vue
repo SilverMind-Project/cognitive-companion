@@ -625,7 +625,7 @@
     </v-card>
 
     <!-- Inspector drawer -->
-    <v-navigation-drawer v-model="drawerOpen" location="right" width="480" temporary>
+    <v-navigation-drawer v-model="drawerOpen" location="right" width="480" temporary class="cc-drawer-right">
       <IdentityInspectorDrawer
         v-if="inspectorTrack"
         :track="inspectorTrack"
@@ -1470,5 +1470,18 @@ export default {
   max-width: 260px;
   height: 8px;
   border-radius: 4px;
+}
+
+/* Right-side drawer: pin to viewport, clear app bar, independent scroll */
+.cc-drawer-right {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+}
+.cc-drawer-right :deep(.v-navigation-drawer__content) {
+  flex: 1 1 0;
+  min-height: 0;
+  padding-top: 64px;
 }
 </style>

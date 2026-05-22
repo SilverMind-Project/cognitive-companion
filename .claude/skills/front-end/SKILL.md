@@ -141,6 +141,61 @@ Use `<v-card variant="tonal">` for grouped sub-sections inside a dialog:
 
 This gets `--cc-surface-2` background from the global tonal card rule. No custom classes needed.
 
+### Right-side drawer pattern
+
+Right-side drawers overlay the main content and must scroll independently from the page. Every `v-navigation-drawer` with `location="right" temporary` follows this structure:
+
+```html
+<v-navigation-drawer v-model="open" location="right" temporary width="480" class="cc-drawer-right">
+  <v-card flat class="h-100 d-flex flex-column">
+    <v-card-title class="d-flex align-center">
+      Drawer Title
+      <v-spacer />
+      <v-btn icon="mdi-close" variant="text" size="small" @click="open = false" />
+    </v-card-title>
+    <!-- optional conditional content (alerts, metadata) -->
+    <v-card-text v-if="condition" class="pb-0">...</v-card-text>
+    <!-- optional tabs -->
+    <v-tabs v-model="tab" color="primary" density="compact" class="px-4">...</v-tabs>
+    <!-- scrollable body -->
+    <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
+      <v-card-text>
+        ...
+      </v-card-text>
+    </div>
+  </v-card>
+</v-navigation-drawer>
+```
+
+**Required CSS** (scoped to the view):
+
+```css
+.cc-drawer-right {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+}
+.cc-drawer-right :deep(.v-navigation-drawer__content) {
+  flex: 1 1 0;
+  min-height: 0;
+  padding-top: 64px;
+}
+```
+
+**Rules:**
+
+- Use `width` between `480`–`500` for content-heavy drawers, `400`–`440` for simple forms
+- Always wrap content in `<v-card flat class="h-100 d-flex flex-column">` — this gives the drawer a frosted-glass card surface and sets up the flex column layout
+- The `v-card` is the single root element inside the drawer; dialogs (confirm, etc.) go as siblings *outside* the card
+- The title is a plain `<v-card-title>` — no custom background, border, or sticky positioning needed. It sits naturally at the top of the card as a fixed flex child
+- Add `padding-top: 64px` on `.v-navigation-drawer__content` — this clears the app bar so content is not cut off
+- Override `.v-navigation-drawer__content` with `flex: 1 1 0; min-height: 0` so the content area fills the drawer and handles its own overflow
+- The scrollable area uses `flex-grow-1 overflow-y-auto` with `min-height: 0` so it shrinks correctly inside the flex column
+- Content inside the scrollable area should use `<v-card-text>` for proper padding and to match the card surface
+- Tabs, if needed, go before the scrollable area as a natural-height flex child
+- Optional conditional content (status alerts, location metadata) can use `<v-card-text class="pb-0">` before the tabs
+
 ---
 
 ## Data tables and pagination

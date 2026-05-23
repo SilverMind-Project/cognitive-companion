@@ -25,8 +25,8 @@ _warned_once = False
 @cache
 def _private_key() -> tuple[str | None, str | None]:
     """Return (pem, kid) from settings, or (None, None) in dev mode."""
-    pem: str | None = settings.get("cts.jwt.private_key_pem")
-    kid: str | None = settings.get("cts.jwt.kid", "cts-svc-key-1")
+    pem = settings.as_str("cts.jwt.private_key_pem")
+    kid = settings.as_str("cts.jwt.kid", allow_empty=False)
     return pem, kid
 
 

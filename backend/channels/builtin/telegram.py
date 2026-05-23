@@ -52,12 +52,12 @@ class TelegramChannel(NotificationChannel):
         if not services.telegram_client.configured:
             return False
 
-        targets = settings.get("notifications.telegram.targets", [])
+        targets = settings.as_list("notifications.telegram.targets")
         if not targets:
             logger.warning("telegram_no_targets")
             return False
 
-        max_side = settings.get("notifications.telegram.max_image_side", 1920)
+        max_side = settings.as_int("notifications.telegram.max_image_side")
         any_sent = False
 
         # Resolve the list of URLs to send (image_urls supersedes image_url)

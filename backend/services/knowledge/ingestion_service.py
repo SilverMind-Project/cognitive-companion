@@ -379,8 +379,8 @@ class KnowledgeIngestionService:
             db.flush()
 
             # Chunk source text
-            chunk_size = settings.get("knowledge.chunk_size_tokens", 400)
-            chunk_overlap = settings.get("knowledge.chunk_overlap_tokens", 60)
+            chunk_size = settings.as_int("knowledge.chunk_size_tokens")
+            chunk_overlap = settings.as_int("knowledge.chunk_overlap_tokens")
             # Approximate: 1 token ≈ 4 characters
             char_size = chunk_size * 4
             char_overlap = chunk_overlap * 4

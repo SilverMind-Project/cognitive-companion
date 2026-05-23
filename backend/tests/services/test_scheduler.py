@@ -420,10 +420,8 @@ def test_cron_trigger_uses_app_timezone(
     db_session.commit()
 
     with patch(
-        "backend.services.scheduler.settings.get",
-        side_effect=lambda key, default=None: (
-            "America/New_York" if key == "app.timezone" else default
-        ),
+        "backend.services.scheduler.settings.as_str",
+        side_effect=lambda key: "America/New_York",
     ):
         s = Scheduler(aggregator, db_factory, pipeline_executor)
         s.configure()
@@ -447,8 +445,8 @@ def test_cron_trigger_uses_utc_when_configured(
     db_session.commit()
 
     with patch(
-        "backend.services.scheduler.settings.get",
-        side_effect=lambda key, default=None: "UTC" if key == "app.timezone" else default,
+        "backend.services.scheduler.settings.as_str",
+        side_effect=lambda key: "UTC",
     ):
         s = Scheduler(aggregator, db_factory, pipeline_executor)
         s.configure()
@@ -468,10 +466,8 @@ def test_reload_rules_preserves_app_timezone(
     db_session.commit()
 
     with patch(
-        "backend.services.scheduler.settings.get",
-        side_effect=lambda key, default=None: (
-            "America/Chicago" if key == "app.timezone" else default
-        ),
+        "backend.services.scheduler.settings.as_str",
+        side_effect=lambda key: "America/Chicago",
     ):
         s = Scheduler(aggregator, db_factory, pipeline_executor)
         s.configure()

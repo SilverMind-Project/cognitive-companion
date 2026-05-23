@@ -373,6 +373,12 @@ export const api = {
     return request(`/media/buffer${qs ? "?" + qs : ""}`, { contract: "media.buffer" });
   },
 
+  // Pipeline image sources
+  getSampleImage: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/pipeline/image-sources/sample${qs ? "?" + qs : ""}`);
+  },
+
   // Admin
   reloadConfig: () => request("/admin/config/reload", { method: "POST" }),
   getTelegramTriggerDefaults: () => request("/admin/telegram/trigger-defaults"),

@@ -67,8 +67,10 @@ class _FakeSettings:
     def __init__(self, values: dict[str, Any]) -> None:
         self._values = values
 
-    def get(self, key: str, default: Any = None) -> Any:
-        return self._values.get(key, default)
+    def as_dict(self, key: str) -> dict[str, Any]:
+        value = self._values[key]
+        assert isinstance(value, dict)
+        return value
 
 
 @pytest.fixture
@@ -160,15 +162,17 @@ async def test_dispatch_rule_override_wins(fake_registry, default_settings) -> N
 
 
 @pytest.mark.asyncio
-async def test_dispatch_falls_back_to_websocket(
+async def test_dispatch_missing_level_default_raises(
     fake_registry, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(nd_module, "settings", _FakeSettings({}))
-    ws = fake_registry("websocket", _RecordingChannel())
+    monkeypatch.setattr(
+        nd_module, "settings", _FakeSettings({"notifications.notification_defaults": {}})
+    )
+    fake_registry("websocket", _RecordingChannel())
 
     dispatcher = NotificationDispatcher()
-    await dispatcher.dispatch(alert_level="info", message="hi", room_name="Den")
-    assert len(ws.calls) == 1
+    with pytest.raises(KeyError, match=r"notifications\.notification_defaults\.info"):
+        await dispatcher.dispatch(alert_level="info", message="hi", room_name="Den")
 
 
 @pytest.mark.asyncio

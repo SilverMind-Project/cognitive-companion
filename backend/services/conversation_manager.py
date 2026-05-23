@@ -19,8 +19,8 @@ class ConversationManager:
 
     def __init__(self, db_session_factory) -> None:
         self.db_session_factory = db_session_factory
-        self.ttl_minutes = settings.get("conversation.history_ttl_minutes", 120)
-        self.max_turns = settings.get("conversation.max_turns", 50)
+        self.ttl_minutes = settings.as_int("conversation.history_ttl_minutes")
+        self.max_turns = settings.as_int("conversation.max_turns")
 
     def create_session(self) -> int:
         """Create a new conversation session and return its ID."""

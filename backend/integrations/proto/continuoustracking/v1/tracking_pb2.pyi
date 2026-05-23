@@ -6,7 +6,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class TrackingEvent(_message.Message):
-    __slots__ = ("camera_id", "event_time_unix_ns", "frame_ref", "detections", "identity_revisions", "room_name", "event_id")
+    __slots__ = ("camera_id", "event_time_unix_ns", "frame_ref", "detections", "identity_revisions", "room_name", "event_id", "identity_snapshots")
     CAMERA_ID_FIELD_NUMBER: _ClassVar[int]
     EVENT_TIME_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
     FRAME_REF_FIELD_NUMBER: _ClassVar[int]
@@ -14,6 +14,7 @@ class TrackingEvent(_message.Message):
     IDENTITY_REVISIONS_FIELD_NUMBER: _ClassVar[int]
     ROOM_NAME_FIELD_NUMBER: _ClassVar[int]
     EVENT_ID_FIELD_NUMBER: _ClassVar[int]
+    IDENTITY_SNAPSHOTS_FIELD_NUMBER: _ClassVar[int]
     camera_id: str
     event_time_unix_ns: int
     frame_ref: FrameRef
@@ -21,7 +22,8 @@ class TrackingEvent(_message.Message):
     identity_revisions: _containers.RepeatedCompositeFieldContainer[IdentityRevision]
     room_name: str
     event_id: str
-    def __init__(self, camera_id: _Optional[str] = ..., event_time_unix_ns: _Optional[int] = ..., frame_ref: _Optional[_Union[FrameRef, _Mapping]] = ..., detections: _Optional[_Iterable[_Union[Detection, _Mapping]]] = ..., identity_revisions: _Optional[_Iterable[_Union[IdentityRevision, _Mapping]]] = ..., room_name: _Optional[str] = ..., event_id: _Optional[str] = ...) -> None: ...
+    identity_snapshots: _containers.RepeatedCompositeFieldContainer[IdentitySnapshot]
+    def __init__(self, camera_id: _Optional[str] = ..., event_time_unix_ns: _Optional[int] = ..., frame_ref: _Optional[_Union[FrameRef, _Mapping]] = ..., detections: _Optional[_Iterable[_Union[Detection, _Mapping]]] = ..., identity_revisions: _Optional[_Iterable[_Union[IdentityRevision, _Mapping]]] = ..., room_name: _Optional[str] = ..., event_id: _Optional[str] = ..., identity_snapshots: _Optional[_Iterable[_Union[IdentitySnapshot, _Mapping]]] = ...) -> None: ...
 
 class FrameRef(_message.Message):
     __slots__ = ("minio_key", "width", "height", "frame_index", "capture_time_unix_ns")
@@ -142,6 +144,24 @@ class IdentityRevision(_message.Message):
     reason: str
     evidence_json: str
     def __init__(self, global_track_id: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[IdentityCandidate, _Mapping]]] = ..., map_identity_id: _Optional[str] = ..., posterior_entropy: _Optional[float] = ..., revision_time_unix_ns: _Optional[int] = ..., revision_id: _Optional[str] = ..., tracklet_ids: _Optional[_Iterable[str]] = ..., previous_identity_id: _Optional[str] = ..., new_identity_id: _Optional[str] = ..., reason: _Optional[str] = ..., evidence_json: _Optional[str] = ...) -> None: ...
+
+class IdentitySnapshot(_message.Message):
+    __slots__ = ("global_track_id", "identity_id", "top_probability", "second_probability", "posterior_entropy", "direct_face_evidence", "evidence_json")
+    GLOBAL_TRACK_ID_FIELD_NUMBER: _ClassVar[int]
+    IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
+    TOP_PROBABILITY_FIELD_NUMBER: _ClassVar[int]
+    SECOND_PROBABILITY_FIELD_NUMBER: _ClassVar[int]
+    POSTERIOR_ENTROPY_FIELD_NUMBER: _ClassVar[int]
+    DIRECT_FACE_EVIDENCE_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_JSON_FIELD_NUMBER: _ClassVar[int]
+    global_track_id: str
+    identity_id: str
+    top_probability: float
+    second_probability: float
+    posterior_entropy: float
+    direct_face_evidence: bool
+    evidence_json: str
+    def __init__(self, global_track_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., top_probability: _Optional[float] = ..., second_probability: _Optional[float] = ..., posterior_entropy: _Optional[float] = ..., direct_face_evidence: bool = ..., evidence_json: _Optional[str] = ...) -> None: ...
 
 class IdentityCandidate(_message.Message):
     __slots__ = ("identity_id", "display_name", "probability")

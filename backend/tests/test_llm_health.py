@@ -5,7 +5,7 @@ Covers:
 - Warning path: configured model absent from /v1/models response
 - Error path (connection): httpx.ConnectError raised
 - Error path (timeout): httpx.TimeoutException raised
-- Empty config: settings.get("llm.models") returns []
+- Empty config: settings.as_list("llm.models") returns []
 - Timeout value: httpx.AsyncClient is constructed with timeout=10.0
 """
 
@@ -51,7 +51,7 @@ class TestLlmModelsHealthSuccess:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock(return_value=mock_resp)
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
@@ -71,7 +71,7 @@ class TestLlmModelsHealthSuccess:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock(return_value=mock_resp)
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
@@ -94,7 +94,7 @@ class TestLlmModelsHealthWarning:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock(return_value=mock_resp)
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
@@ -113,7 +113,7 @@ class TestLlmModelsHealthWarning:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock(return_value=mock_resp)
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
@@ -132,7 +132,7 @@ class TestLlmModelsHealthWarning:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock(return_value=mock_resp)
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
@@ -152,7 +152,7 @@ class TestLlmModelsHealthError:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock(
                 side_effect=httpx.ConnectError("Connection refused")
@@ -171,7 +171,7 @@ class TestLlmModelsHealthError:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock(
                 side_effect=httpx.ConnectError("Connection refused")
@@ -189,11 +189,9 @@ class TestLlmModelsHealthError:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
-            mock_client_instance.get = AsyncMock(
-                side_effect=httpx.TimeoutException("timed out")
-            )
+            mock_client_instance.get = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
             mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
@@ -207,11 +205,9 @@ class TestLlmModelsHealthError:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
-            mock_client_instance.get = AsyncMock(
-                side_effect=httpx.ConnectError("refused")
-            )
+            mock_client_instance.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)
             mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
@@ -227,15 +223,7 @@ class TestLlmModelsHealthEmptyConfig:
     async def test_empty_models_list_returns_empty_array(self):
         """Empty config: settings returns [] → endpoint returns []."""
         with patch("backend.routers.admin.settings") as mock_settings:
-            mock_settings.get.return_value = []
-            result = await llm_models_health()
-
-        assert result == []
-
-    async def test_none_models_returns_empty_array(self):
-        """None config (absent key): settings returns None → endpoint returns []."""
-        with patch("backend.routers.admin.settings") as mock_settings:
-            mock_settings.get.return_value = None
+            mock_settings.as_list.return_value = []
             result = await llm_models_health()
 
         assert result == []
@@ -257,7 +245,7 @@ class TestLlmModelsHealthTimeoutValue:
             patch("backend.routers.admin.settings") as mock_settings,
             patch("httpx.AsyncClient") as mock_client_cls,
         ):
-            mock_settings.get.return_value = [_MODEL_CFG]
+            mock_settings.as_list.return_value = [_MODEL_CFG]
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock(return_value=mock_resp)
             mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client_instance)

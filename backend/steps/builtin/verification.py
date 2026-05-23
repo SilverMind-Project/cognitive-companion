@@ -168,7 +168,7 @@ class VerificationHandler(StepHandler):
 
             window_start = None
             window_end = None
-            local_tz = ZoneInfo(settings.get("app.timezone", "America/New_York"))
+            local_tz = ZoneInfo(settings.as_str("app.timezone"))
             if cond.get("window_start"):
                 window_start = self._reanchor_to_local_today(
                     datetime.fromisoformat(cond["window_start"]), local_tz

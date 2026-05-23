@@ -80,9 +80,13 @@ class NotificationDispatcher:
         if override_channels:
             channels = override_channels
         else:
-            notif_cfg = settings.get("notifications.notification_defaults", {})
-            level_cfg = notif_cfg.get(alert_level, {})
-            channels = level_cfg.get("channels", ["websocket"])
+            notif_cfg = settings.as_dict("notifications.notification_defaults")
+            if alert_level not in notif_cfg:
+                raise KeyError(f"notifications.notification_defaults.{alert_level}")
+            level_cfg = notif_cfg[alert_level]
+            if "channels" not in level_cfg:
+                raise KeyError(f"notifications.notification_defaults.{alert_level}.channels")
+            channels = level_cfg["channels"]
 
         results: dict[str, bool] = {}
 

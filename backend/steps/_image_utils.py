@@ -3,90 +3,85 @@
 scene_analysis, llm_call, and notification all share the same
 "trigger / additional / both" branching pattern.  This module extracts
 that logic so it lives in one place.
+
+The legacy :func:`resolve_image_sources` is now a thin wrapper around
+:func:`~backend.steps._pipeline_images.resolve_pipeline_image_refs`.
+New callers that need structured :class:`PipelineImageRef` objects
+should import from ``_pipeline_images`` directly.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
-from backend.steps.base import TriggerContext
+from backend.steps._pipeline_images import (
+    image_refs_to_urls,
+    resolve_pipeline_image_refs,
+)
+from backend.steps.base import ServiceContainer, TriggerContext
+
+if TYPE_CHECKING:
+    from backend.integrations.minio_client import MinioClient
+    from backend.services.event_aggregator import EventAggregator
 
 
 async def resolve_image_sources(
     config: dict,
     trigger: TriggerContext,
-    event_aggregator: Any,
+    event_aggregator: EventAggregator | None,
     *,
     config_prefix: str = "",
     default_max_images: int = 5,
     default_images_per_sensor: int = 1,
     sort_by_sensor: bool = False,
+    pipeline_data: Mapping[str, object] | None = None,
+    minio_client: MinioClient | None = None,
 ) -> list[str]:
-    """Collect image paths from trigger media and/or additional cameras.
+    """Collect image URLs from trigger media and/or additional cameras.
 
     Config keys read (prefixed with *config_prefix*):
 
-    * ``<prefix>image_source`` — ``"trigger"`` | ``"additional"`` | ``"both"``
-    * ``<prefix>trigger_images_count`` — max trigger frames (0 = unlimited)
+    * ``<prefix>image_source`` -- ``"trigger"`` | ``"additional"`` | ``"both"``
+    * ``<prefix>trigger_images_count`` -- max trigger frames (0 = unlimited)
     * ``<prefix>additional_sensor_ids`` / ``<prefix>additional_room_names``
-    * ``<prefix>image_time_filter`` — ``{"since_minutes": N, ...}``
-    * ``<prefix>max_images`` — overall cap (default: *default_max_images*)
-    * ``<prefix>images_per_sensor`` — per-sensor cap
-    * ``<prefix>sensor_frame_limits`` — per-sensor overrides
+    * ``<prefix>image_time_filter`` -- ``{"since_minutes": N, ...}``
+    * ``<prefix>max_images`` -- overall cap (default: *default_max_images*)
+    * ``<prefix>images_per_sensor`` -- per-sensor cap
+    * ``<prefix>sensor_frame_limits`` -- per-sensor overrides
+
+    New in pipeline-image-crop: also accepts *pipeline_data* and
+    *minio_client* so that ``image_source="pipeline"`` and
+    ``image_source="cts_window"`` sources work.
     """
-    def _cfg(key: str) -> Any:
-        return config.get(f"{config_prefix}{key}")
+    # Build a prefixed config view for the shared resolver.
+    if config_prefix:
+        prefixed: dict[str, object] = {}
+        for k, v in config.items():
+            if k.startswith(config_prefix):
+                prefixed[k[len(config_prefix):]] = v
+    else:
+        prefixed = dict(config)
 
-    image_source: str = _cfg("image_source") or "trigger"
-    max_images: int = int(_cfg("max_images") or default_max_images)
-    media_paths: list[str] = []
+    # Preserve explicit defaults so the shared resolver sees them even
+    # when the key is not in the config dict.
+    prefixed.setdefault("image_source", "trigger")
 
-    # -- trigger frames -------------------------------------------------------
-    if image_source in ("trigger", "both"):
-        frames = list(trigger.media_paths)
-        trigger_count = _cfg("trigger_images_count")
-        if trigger_count and trigger_count > 0:
-            frames = frames[-trigger_count:]
-        media_paths.extend(frames)
+    services = ServiceContainer(
+        db_factory=lambda: None,
+        event_aggregator=event_aggregator,
+        minio_client=minio_client,
+    )
 
-    # -- additional cameras ---------------------------------------------------
-    if image_source in ("additional", "both") and event_aggregator:
-        additional_sensors: list[str] = _cfg("additional_sensor_ids") or []
-        additional_rooms: list[str] = _cfg("additional_room_names") or []
-        time_filter: dict = _cfg("image_time_filter") or {}
-        images_per_sensor: int = int(_cfg("images_per_sensor") or default_images_per_sensor)
-        sensor_frame_limits: dict = _cfg("sensor_frame_limits") or {}
-        time_kwargs = {
-            "since_minutes": time_filter.get("since_minutes"),
-            "time_start": time_filter.get("time_start"),
-            "time_end": time_filter.get("time_end"),
-        }
+    refs = await resolve_pipeline_image_refs(
+        prefixed,
+        pipeline_data or {},
+        trigger,
+        services,
+        default_image_source="trigger",
+        default_max_images=default_max_images,
+        default_images_per_sensor=default_images_per_sensor,
+        sort_by_sensor=sort_by_sensor,
+    )
 
-        if additional_rooms:
-            extra = await event_aggregator.query_recent_media(
-                sensor_ids=additional_sensors if additional_sensors else None,
-                room_names=additional_rooms,
-                limit=max_images,
-                **time_kwargs,
-            )
-            media_paths.extend(extra)
-        elif additional_sensors:
-            extra = await event_aggregator.query_media_by_sensor(
-                sensor_ids_ordered=additional_sensors,
-                images_per_sensor=images_per_sensor,
-                sensor_frame_limits=sensor_frame_limits,
-                max_images=max_images,
-                chronological=sort_by_sensor,
-                **time_kwargs,
-            )
-            media_paths.extend(extra)
-        elif image_source == "additional":
-            extra = await event_aggregator.query_recent_media(
-                sensor_ids=None,
-                room_names=None,
-                limit=max_images,
-                **time_kwargs,
-            )
-            media_paths.extend(extra)
-
-    return media_paths[:max_images]
+    return image_refs_to_urls(refs, minio_client=minio_client)

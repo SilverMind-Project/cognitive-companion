@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from backend.core.config import DEFAULT_CONFIG_DIR, SettingNotFoundError, Settings
+from backend.core.config import (
+    DEFAULT_CONFIG_DIR,
+    ConfigFileNotFoundError,
+    SettingNotFoundError,
+    Settings,
+    SettingTypeError,
+)
 
 
 @pytest.fixture
@@ -73,6 +79,35 @@ class TestFromDict:
             s.get_required("a.c")
 
 
+class TestTypedAccessors:
+    def test_scalar_accessors_return_typed_values(self) -> None:
+        s = Settings.from_dict({"a": {"name": "cc", "count": 3, "ratio": 0.5, "enabled": True}})
+
+        assert s.as_str("a.name") == "cc"
+        assert s.as_int("a.count") == 3
+        assert s.as_float("a.ratio") == 0.5
+        assert s.as_bool("a.enabled") is True
+
+    def test_section_accessors_are_relative_to_prefix(self) -> None:
+        s = Settings.from_dict({"memory_query": {"cache": {"enabled": True, "ttl_seconds": 30}}})
+        cache = s.section("memory_query.cache")
+
+        assert cache.as_bool("enabled") is True
+        assert cache.as_int("ttl_seconds") == 30
+
+    def test_wrong_type_raises_with_key_name(self) -> None:
+        s = Settings.from_dict({"a": {"count": "3"}})
+
+        with pytest.raises(SettingTypeError, match=r"a\.count"):
+            s.as_int("a.count")
+
+    def test_non_empty_string_rejects_empty_value(self) -> None:
+        s = Settings.from_dict({"service": {"url": ""}})
+
+        with pytest.raises(SettingNotFoundError, match=r"service\.url"):
+            s.as_str("service.url", allow_empty=False)
+
+
 class TestLoadFromYaml:
     def test_basic_get(self, config_dir: Path) -> None:
         s = Settings(config_dir=config_dir, env={})
@@ -110,11 +145,11 @@ class TestEnvInterpolation:
 
 
 class TestMissingFiles:
-    def test_missing_yaml_files_are_tolerated(self, tmp_path: Path) -> None:
-        # Empty config dir: all three files missing.
+    def test_missing_yaml_files_raise(self, tmp_path: Path) -> None:
         s = Settings(config_dir=tmp_path, env={})
-        assert s.get("anything") is None
-        assert s.raw() == {"auth": {}, "notifications": {}}
+
+        with pytest.raises(ConfigFileNotFoundError):
+            s.raw()
 
     def test_empty_yaml_file(self, tmp_path: Path) -> None:
         (tmp_path / "settings.yaml").write_text("")

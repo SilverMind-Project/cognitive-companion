@@ -148,7 +148,7 @@ class DailyReportHandler(StepHandler):
                 return StepResult(data={output_key: []})
 
             generate_summary = config.get("generate_summary_text", False)
-            tz_name = settings.get("app.timezone", "UTC")
+            tz_name = settings.as_str("app.timezone")
 
             results = []
             for pid in person_ids:

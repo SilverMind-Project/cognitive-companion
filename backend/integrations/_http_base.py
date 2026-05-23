@@ -49,17 +49,17 @@ class HttpUpstreamClient:
         self._base_url: str = (
             base_url
             if base_url is not None
-            else settings.get_required(f"{self.SETTINGS_PREFIX}.url")
+            else settings.as_str(f"{self.SETTINGS_PREFIX}.url")
         ).rstrip("/")
-        self._timeout: float = float(
+        self._timeout: float = (
             timeout
             if timeout is not None
-            else settings.get_required(f"{self.SETTINGS_PREFIX}.timeout")
+            else settings.as_float(f"{self.SETTINGS_PREFIX}.timeout")
         )
         self.enabled: bool = (
             bool(enabled)
             if enabled is not None
-            else bool(settings.get_required(f"{self.SETTINGS_PREFIX}.enabled"))
+            else settings.as_bool(f"{self.SETTINGS_PREFIX}.enabled")
         )
         self._client: httpx.AsyncClient | None = None
         self._client_lock: asyncio.Lock = asyncio.Lock()

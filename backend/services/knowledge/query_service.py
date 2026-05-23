@@ -72,8 +72,8 @@ class KnowledgeQueryService:
             )
 
         # 2. Vector search
-        top_k = settings.get("knowledge.retrieval_top_k", 8)
-        min_sim = settings.get("knowledge.min_similarity", 0.55)
+        top_k = settings.as_int("knowledge.retrieval_top_k")
+        min_sim = settings.as_float("knowledge.min_similarity")
 
         db: Session = self._db_factory()
         try:
@@ -156,7 +156,7 @@ class KnowledgeQueryService:
         """Call the configured LLM with a constrained prompt."""
         if self._llm_registry is None:
             return ""
-        answer_model_id = settings.get("knowledge.answer_model", "gemma4_26b")
+        answer_model_id = settings.as_str("knowledge.answer_model")
         try:
             provider = self._llm_registry.get_provider(answer_model_id)
         except Exception:

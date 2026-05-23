@@ -31,8 +31,11 @@ from backend.core.logging import get_logger
 
 __all__ = [
     "DEFAULT_CONFIG_DIR",
+    "ConfigFileNotFoundError",
     "SettingNotFoundError",
+    "SettingTypeError",
     "Settings",
+    "SettingsSection",
     "settings",
 ]
 
@@ -50,12 +53,61 @@ logger = get_logger(__name__)
 _MISSING = object()
 
 
+class ConfigFileNotFoundError(FileNotFoundError):
+    """Raised when a required YAML config file is missing."""
+
+
 class SettingNotFoundError(KeyError):
     """Raised when a required config value is missing."""
 
     def __init__(self, dotted_key: str) -> None:
         super().__init__(f"Required setting not found: {dotted_key}")
         self.dotted_key = dotted_key
+
+
+class SettingTypeError(TypeError):
+    """Raised when a setting exists but has an unexpected type."""
+
+    def __init__(self, dotted_key: str, expected: str, actual: Any) -> None:
+        super().__init__(f"Setting {dotted_key!r} must be {expected}; got {type(actual).__name__}")
+        self.dotted_key = dotted_key
+        self.expected = expected
+        self.actual = actual
+
+
+class SettingsSection:
+    """Typed view over a nested settings section."""
+
+    def __init__(self, settings: Settings, prefix: str) -> None:
+        self._settings = settings
+        self._prefix = prefix
+
+    def key(self, name: str) -> str:
+        return f"{self._prefix}.{name}" if name else self._prefix
+
+    def require(self, name: str = "") -> Any:
+        return self._settings.require(self.key(name))
+
+    def section(self, name: str) -> SettingsSection:
+        return self._settings.section(self.key(name))
+
+    def as_str(self, name: str = "", *, allow_empty: bool = True) -> str:
+        return self._settings.as_str(self.key(name), allow_empty=allow_empty)
+
+    def as_int(self, name: str = "") -> int:
+        return self._settings.as_int(self.key(name))
+
+    def as_float(self, name: str = "") -> float:
+        return self._settings.as_float(self.key(name))
+
+    def as_bool(self, name: str = "") -> bool:
+        return self._settings.as_bool(self.key(name))
+
+    def as_dict(self, name: str = "") -> dict[str, Any]:
+        return self._settings.as_dict(self.key(name))
+
+    def as_list(self, name: str = "") -> list[Any]:
+        return self._settings.as_list(self.key(name))
 
 
 def _interpolate(value: Any, env: Mapping[str, str]) -> Any:
@@ -76,12 +128,10 @@ def _interpolate(value: Any, env: Mapping[str, str]) -> Any:
 def _load_yaml_file(path: Path, env: Mapping[str, str]) -> dict:
     """Read a YAML file and apply env interpolation.
 
-    Returns an empty dict if the file is missing (logged as a warning) or if
-    the file parses to ``None`` (empty file).
+    Returns an empty dict if the file parses to ``None`` (empty file).
     """
     if not path.exists():
-        logger.warning("config_file_missing", path=str(path))
-        return {}
+        raise ConfigFileNotFoundError(path)
     logger.info("config_file_loading", path=str(path))
     with open(path) as f:
         raw = yaml.safe_load(f) or {}
@@ -95,7 +145,7 @@ class Settings:
     :meth:`from_dict` to skip disk I/O entirely::
 
         s = Settings.from_dict({"llm": {"model": "fake"}})
-        assert s.get("llm.model") == "fake"
+        assert s.as_str("llm.model") == "fake"
     """
 
     def __init__(
@@ -149,7 +199,7 @@ class Settings:
     def get(self, dotted_key: str, default: Any = None) -> Any:
         """Retrieve a nested value using dot notation.
 
-        >>> settings.get("llm.vision.model")
+        >>> settings.as_str("llm.vision.model")
         'nvidia/Cosmos-Reason2-8B'
 
         Returns *default* if any segment of the path is missing or traverses
@@ -159,12 +209,61 @@ class Settings:
         value = self._lookup(dotted_key, default=_MISSING)
         return default if value is _MISSING else value
 
-    def get_required(self, dotted_key: str) -> Any:
+    def require(self, dotted_key: str) -> Any:
         """Retrieve a nested value and raise when it is missing."""
         self._ensure_loaded()
         value = self._lookup(dotted_key, default=_MISSING)
         if value is _MISSING:
             raise SettingNotFoundError(dotted_key)
+        return value
+
+    def get_required(self, dotted_key: str) -> Any:
+        """Backward-compatible alias for :meth:`require`."""
+        return self.require(dotted_key)
+
+    def section(self, dotted_key: str) -> SettingsSection:
+        """Return a typed view over a nested mapping."""
+        value = self.require(dotted_key)
+        if not isinstance(value, dict):
+            raise SettingTypeError(dotted_key, "a mapping", value)
+        return SettingsSection(self, dotted_key)
+
+    def as_str(self, dotted_key: str, *, allow_empty: bool = True) -> str:
+        value = self.require(dotted_key)
+        if not isinstance(value, str):
+            raise SettingTypeError(dotted_key, "a string", value)
+        if not allow_empty and not value:
+            raise SettingNotFoundError(dotted_key)
+        return value
+
+    def as_int(self, dotted_key: str) -> int:
+        value = self.require(dotted_key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise SettingTypeError(dotted_key, "an integer", value)
+        return value
+
+    def as_float(self, dotted_key: str) -> float:
+        value = self.require(dotted_key)
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            raise SettingTypeError(dotted_key, "a number", value)
+        return float(value)
+
+    def as_bool(self, dotted_key: str) -> bool:
+        value = self.require(dotted_key)
+        if not isinstance(value, bool):
+            raise SettingTypeError(dotted_key, "a boolean", value)
+        return value
+
+    def as_dict(self, dotted_key: str) -> dict[str, Any]:
+        value = self.require(dotted_key)
+        if not isinstance(value, dict):
+            raise SettingTypeError(dotted_key, "a mapping", value)
+        return value
+
+    def as_list(self, dotted_key: str) -> list[Any]:
+        value = self.require(dotted_key)
+        if not isinstance(value, list):
+            raise SettingTypeError(dotted_key, "a list", value)
         return value
 
     def raw(self) -> dict:
@@ -175,7 +274,7 @@ class Settings:
     # -- dunder sugar ---------------------------------------------------------
 
     def __getitem__(self, key: str) -> Any:
-        return self.get_required(key)
+        return self.require(key)
 
     def __contains__(self, key: str) -> bool:
         self._ensure_loaded()

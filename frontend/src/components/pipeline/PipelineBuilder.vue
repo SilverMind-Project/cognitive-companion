@@ -73,6 +73,7 @@ let dragOriginalOrder = null;
 const STEP_META = {
   person_identification:  { icon: "mdi-face-recognition",          color: "indigo" },
   scene_analysis:         { icon: "mdi-image-search",               color: "teal" },
+  image_crop:             { icon: "mdi-crop",                       color: "teal" },
   object_trend_analysis:  { icon: "mdi-chart-line",                 color: "teal" },
   semantic_memory_query:  { icon: "mdi-database-search-outline",    color: "teal" },
   semantic_memory_write:  { icon: "mdi-database-plus-outline",      color: "indigo" },

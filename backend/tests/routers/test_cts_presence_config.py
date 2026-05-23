@@ -64,9 +64,11 @@ def presence_service() -> PresenceService:
 async def test_get_config_disabled_returns_404(presence_service: PresenceService):
     """When cts.enabled=False, return 404."""
     mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": False,
-    }.get(key, default))
+    mock_settings.as_bool = MagicMock(
+        side_effect=lambda key: {
+            "cts.enabled": False,
+        }[key]
+    )
 
     app = FastAPI()
     register_exception_handlers(app)
@@ -76,7 +78,7 @@ async def test_get_config_disabled_returns_404(presence_service: PresenceService
     app.include_router(router, prefix="/api/v1")
     app.state.presence = presence_service
 
-    with patch("backend.routers.cts_presence.settings", mock_settings):
+    with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/v1/cts/presence-config")
@@ -90,9 +92,11 @@ async def test_get_config_disabled_returns_404(presence_service: PresenceService
 async def test_get_config_happy_path(presence_service: PresenceService):
     """GET returns sanitized provider list with priority-sorted summaries."""
     mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": True,
-    }.get(key, default))
+    mock_settings.as_bool = MagicMock(
+        side_effect=lambda key: {
+            "cts.enabled": True,
+        }[key]
+    )
 
     app = FastAPI()
     register_exception_handlers(app)
@@ -102,7 +106,7 @@ async def test_get_config_happy_path(presence_service: PresenceService):
     app.include_router(router, prefix="/api/v1")
     app.state.presence = presence_service
 
-    with patch("backend.routers.cts_presence.settings", mock_settings):
+    with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/v1/cts/presence-config")
@@ -130,9 +134,11 @@ async def test_get_config_happy_path(presence_service: PresenceService):
 async def test_reload_disabled_returns_404(presence_service: PresenceService):
     """When cts.enabled=False, return 404."""
     mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": False,
-    }.get(key, default))
+    mock_settings.as_bool = MagicMock(
+        side_effect=lambda key: {
+            "cts.enabled": False,
+        }[key]
+    )
 
     app = FastAPI()
     register_exception_handlers(app)
@@ -142,7 +148,7 @@ async def test_reload_disabled_returns_404(presence_service: PresenceService):
     app.include_router(router, prefix="/api/v1")
     app.state.presence = presence_service
 
-    with patch("backend.routers.cts_presence.settings", mock_settings):
+    with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post("/api/v1/cts/presence-config/reload")
@@ -161,9 +167,11 @@ async def test_reload_with_valid_yaml(presence_service: PresenceService, tmp_pat
     copyfile(fixture, target)
 
     mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": True,
-    }.get(key, default))
+    mock_settings.as_bool = MagicMock(
+        side_effect=lambda key: {
+            "cts.enabled": True,
+        }[key]
+    )
 
     # Patch load_presence_config to read from tmp_path.
     mock_fusion = MagicMock()
@@ -182,8 +190,9 @@ async def test_reload_with_valid_yaml(presence_service: PresenceService, tmp_pat
         app.include_router(router, prefix="/api/v1")
         app.state.presence = presence_service
         app.state.ha_state_cache = MagicMock()  # needed by reload endpoint
+        app.state.cts_runtime = MagicMock(_db_factory=MagicMock(return_value=MagicMock()))
 
-        with patch("backend.routers.cts_presence.settings", mock_settings):
+        with patch("backend.routers.cts_deps.settings", mock_settings):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 resp = await client.post("/api/v1/cts/presence-config/reload")
@@ -198,9 +207,11 @@ async def test_reload_with_valid_yaml(presence_service: PresenceService, tmp_pat
 async def test_reload_with_invalid_yaml(presence_service: PresenceService):
     """POST with invalid YAML → 422 with parse error; running fuser unchanged."""
     mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": True,
-    }.get(key, default))
+    mock_settings.as_bool = MagicMock(
+        side_effect=lambda key: {
+            "cts.enabled": True,
+        }[key]
+    )
 
     # Make load_presence_config raise.
     def _raise(*args, **kwargs):
@@ -215,7 +226,7 @@ async def test_reload_with_invalid_yaml(presence_service: PresenceService):
         app.include_router(router, prefix="/api/v1")
         app.state.presence = presence_service
 
-        with patch("backend.routers.cts_presence.settings", mock_settings):
+        with patch("backend.routers.cts_deps.settings", mock_settings):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 resp = await client.post("/api/v1/cts/presence-config/reload")

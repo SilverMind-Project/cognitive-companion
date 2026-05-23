@@ -148,6 +148,7 @@ const STEP_LABELS = {
   semantic_memory_write: "Memory Write",
   verification: "Verify Activity",
   wait: "Wait",
+  image_crop: "Crop Image",
 };
 
 function humanize(type) {
@@ -303,6 +304,15 @@ const detailChips = computed(() => {
 
   if (type === "semantic_memory_write") {
     if (cfg.source_key) chip(`source: ${cfg.source_key}`, "mdi-link-variant", "blue-grey");
+  }
+
+  if (type === "image_crop") {
+    const source = cfg.image_source || "trigger";
+    chip(source, "mdi-image-outline", "teal");
+    const regionCount = cfg.regions?.length || 0;
+    if (regionCount > 0) chip(`${regionCount} region${regionCount > 1 ? "s" : ""}`, "mdi-crop", "green");
+    const maxImgs = cfg.max_images ?? 1;
+    if (maxImgs > 0) chip(`max ${maxImgs}`, "mdi-image-multiple-outline", "teal");
   }
 
   return chips;

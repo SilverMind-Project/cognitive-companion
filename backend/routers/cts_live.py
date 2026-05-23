@@ -37,7 +37,7 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
     client_ip = websocket.client.host if websocket.client else "unknown"
     logger.debug("cts_live_ws_connect_attempt", client=client_ip)
 
-    if not settings.get("cts.enabled", False):
+    if not settings.as_bool("cts.enabled"):
         logger.warning("cts_live_ws_rejected_disabled", client=client_ip)
         await websocket.close(code=1008, reason="cts.disabled")
         return

@@ -35,7 +35,7 @@ class GeminiToolAdapter:
         Returns plain dicts accepted by the google-genai SDK as
         ``FunctionDeclarationDict`` within ``Tool(function_declarations=[...])``.
         """
-        allowed = settings.get("mcp.gemini_tools", [])
+        allowed = settings.as_list("mcp.gemini_tools")
         declarations: list[dict[str, Any]] = []
 
         for schema in self._schemas:

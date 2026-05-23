@@ -19,7 +19,7 @@ Usage::
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from pydantic import BaseModel, ConfigDict
 
 from backend.integrations.llm.base import (
     LLMProvider,
@@ -80,13 +80,15 @@ def register_provider(provider_type: str, module_path: str, class_name: str) -> 
 
 # Maps settings YAML provider type -> config section dotted key
 _SETTINGS_SECTION: dict[str, str] = {
-     "ollama": "llm.logic",
+    "ollama": "llm.logic",
 }
 
 
 def _build_provider_from_config(section: dict) -> LLMProvider:
     """Build a single provider from a config section dict."""
-    provider_type = section.get("provider", "")
+    provider_type = section["provider"]
+    if not isinstance(provider_type, str) or not provider_type:
+        raise ValueError("LLM provider config requires a non-empty 'provider' value")
     config: dict = {}
     for key, value in section.items():
         if key in (
@@ -150,14 +152,14 @@ def get_provider(provider_type: str) -> LLMProvider:
         available = ", ".join(sorted(_SETTINGS_SECTION))
         raise ValueError(f"Unknown LLM provider type {provider_type!r}. Available: {available}")
 
-    section: dict = settings.get(section_key) or {}
+    section = settings.as_dict(section_key)
 
     # Pool mode
     if "providers" in section and isinstance(section["providers"], list):
         from backend.integrations.llm.chain import LLMProviderPool
 
         providers = [_build_provider_from_config(p) for p in section["providers"]]
-        strategy = section.get("strategy", "round_robin")
+        strategy = section["strategy"]
         return LLMProviderPool(providers=providers, strategy=strategy)
 
     # Chain mode (primary + fallback)
@@ -169,7 +171,7 @@ def get_provider(provider_type: str) -> LLMProvider:
         if "fallback" in section and isinstance(section["fallback"], dict):
             fallback = _build_provider_from_config(section["fallback"])
             chain_providers.append(fallback)
-        retry_count = section.get("retry_count", 2)
+        retry_count = section["retry_count"]
         return LLMProviderChain(providers=chain_providers, retry_count=retry_count)
 
     # Simple mode
@@ -190,23 +192,24 @@ def get_provider(provider_type: str) -> LLMProvider:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class LLMModelConfig:
+class LLMModelConfig(BaseModel):
     """Static configuration for a named LLM model entry in settings.yaml."""
+
+    model_config = ConfigDict(extra="forbid")
 
     id: str
     name: str
     api_type: str  # "openai" | "ollama"
     base_url: str
     model: str
-    capabilities: list[str] = field(default_factory=lambda: ["text"])
-    max_tokens: int = 4096
-    timeout: float = 60.0
-    guided_decoding: bool = False  # vLLM-style guided_json enforcement
-    max_retries: int = 3
-    supports_thinking: bool = False  # model honours <think>…</think> format
-    temperature: float | None = None  # None = use server default
-    top_p: float | None = None  # None = use server default
+    capabilities: list[str]
+    max_tokens: int
+    timeout: float
+    guided_decoding: bool
+    max_retries: int
+    supports_thinking: bool
+    temperature: float | None
+    top_p: float | None
 
 
 class LLMModelRegistry:
@@ -256,29 +259,12 @@ class LLMModelRegistry:
         """Parse ``llm.models`` from application settings and populate the registry."""
         from backend.core.config import settings
 
-        models_raw: list[dict] = settings.get("llm.models") or []
+        models_raw = settings.as_list("llm.models")
+        self._configs.clear()
+        self._instances.clear()
         for entry in models_raw:
-            model_id = entry.get("id")
-            if not model_id:
-                continue
-            raw_temperature = entry.get("temperature")
-            raw_top_p = entry.get("top_p")
-            cfg = LLMModelConfig(
-                id=model_id,
-                name=entry.get("name", model_id),
-                api_type=entry.get("api_type", "openai"),
-                base_url=entry.get("base_url", ""),
-                model=entry.get("model", ""),
-                capabilities=list(entry.get("capabilities", ["text"])),
-                max_tokens=int(entry.get("max_tokens", 4096)),
-                timeout=float(entry.get("timeout", 60)),
-                guided_decoding=bool(entry.get("guided_decoding", False)),
-                max_retries=int(entry.get("max_retries", 3)),
-                supports_thinking=bool(entry.get("supports_thinking", False)),
-                temperature=float(raw_temperature) if raw_temperature is not None else None,
-                top_p=float(raw_top_p) if raw_top_p is not None else None,
-            )
-            self._configs[model_id] = cfg
+            cfg = LLMModelConfig.model_validate(entry)
+            self._configs[cfg.id] = cfg
 
     def get_provider(self, model_id: str) -> LLMProvider | None:
         """Return a (cached) :class:`LLMProvider` for *model_id*, or ``None``."""

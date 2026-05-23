@@ -230,7 +230,7 @@ class TelegramTriggerService:
             return per_rule
         return [
             str(c)
-            for c in (settings.get("notifications.telegram.trigger_allowed_chat_ids") or [])
+            for c in settings.as_list("notifications.telegram.trigger_allowed_chat_ids")
             if c
         ]
 

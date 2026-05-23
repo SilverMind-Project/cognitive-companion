@@ -57,32 +57,32 @@ async def app_info():
     Includes service status information for the admin dashboard tiles.
     """
     return {
-        "name": settings.get("app.name", "Cognitive Companion"),
-        "version": settings.get("app.version", __version__),
-        "timezone": settings.get("app.timezone", "UTC"),
+        "name": settings.as_str("app.name"),
+        "version": settings.as_str("app.version"),
+        "timezone": settings.as_str("app.timezone"),
         "services": {
             "person_id": {
-                "enabled": bool(settings.get("person_id.url")),
+                "enabled": bool(settings.as_str("person_id.url")),
                 "health_url": "/admin/health/person-id",
             },
             "scene_analysis": {
-                "enabled": bool(settings.get("scene_analysis.url")),
+                "enabled": bool(settings.as_str("scene_analysis.url")),
                 "health_url": "/admin/health/scene-analysis",
             },
             "semantic_memory": {
-                "enabled": bool(settings.get("semantic_memory.url")),
+                "enabled": bool(settings.as_str("semantic_memory.url")),
                 "health_url": "/admin/health/semantic-memory",
             },
             "tts": {
-                "enabled": bool(settings.get("tts.url")),
+                "enabled": bool(settings.as_str("tts.url")),
                 "health_url": "/admin/health/tts",
             },
             "tracking_orchestrator": {
-                "enabled": bool(settings.get("tracking_orchestrator.url")),
+                "enabled": bool(settings.as_str("tracking_orchestrator.url")),
                 "health_url": "/admin/health/tracking-orchestrator",
             },
             "triton": {
-                "enabled": bool(settings.get("embedding.triton_url")),
+                "enabled": bool(settings.as_str("embedding.triton_url")),
                 "health_url": "/admin/health/triton",
             },
         },
@@ -106,7 +106,7 @@ async def person_id_health():
 @router.get("/health/tts")
 async def tts_health():
     """Proxy health check to the TTS service."""
-    tts_url = settings.get("tts.url") or ""
+    tts_url = settings.as_str("tts.url")
     if not tts_url:
         return {"configured": False, "status": "not_configured"}
     base = tts_url.rstrip("/")
@@ -141,24 +141,24 @@ async def _proxy_health(url: str, timeout: float = 5.0) -> dict:
 @router.get("/health/tracking-orchestrator")
 async def tracking_orchestrator_health():
     """Proxy health check to the Tracking Orchestrator service."""
-    url = settings.get("tracking_orchestrator.url") or ""
-    timeout = float(settings.get("tracking_orchestrator.timeout") or 5)
+    url = settings.as_str("tracking_orchestrator.url")
+    timeout = settings.as_float("tracking_orchestrator.timeout")
     return await _proxy_health(url, timeout)
 
 
 @router.get("/health/scene-analysis")
 async def scene_analysis_health():
     """Proxy health check to the Scene Analysis service."""
-    url = settings.get("scene_analysis.url") or ""
-    timeout = float(settings.get("scene_analysis.timeout") or 5)
+    url = settings.as_str("scene_analysis.url")
+    timeout = settings.as_float("scene_analysis.timeout")
     return await _proxy_health(url, timeout)
 
 
 @router.get("/health/semantic-memory")
 async def semantic_memory_health():
     """Proxy health check to the Semantic Memory service."""
-    url = settings.get("semantic_memory.url") or ""
-    timeout = float(settings.get("semantic_memory.timeout") or 5)
+    url = settings.as_str("semantic_memory.url")
+    timeout = settings.as_float("semantic_memory.timeout")
     return await _proxy_health(url, timeout)
 
 
@@ -169,7 +169,7 @@ async def triton_health():
     Converts the configured gRPC URL (port 8701) to an HTTP URL (port 8700)
     and hits Triton's built-in /v2/health/ready endpoint.
     """
-    triton_url: str = settings.get("embedding.triton_url") or ""
+    triton_url: str = settings.as_str("embedding.triton_url")
     if not triton_url:
         return {"configured": False, "status": "not_configured"}
     # Derive HTTP health URL: replace gRPC port 8701 with HTTP port 8700.
@@ -189,7 +189,7 @@ async def triton_health():
 @router.get("/health/llm-models")
 async def llm_models_health() -> list[dict]:
     """Concurrently check the health of all configured LLM models."""
-    models: list[dict] = settings.get("llm.models") or []
+    models = settings.as_list("llm.models")
 
     async def check_model(model: dict) -> dict:
         model_id = model.get("id", "")
@@ -252,7 +252,7 @@ def telegram_trigger_defaults(
     Empty strings (produced by unset env vars) are excluded so the caller
     always receives a clean list of real chat IDs.
     """
-    raw_ids: list = settings.get("notifications.telegram.trigger_allowed_chat_ids") or []
+    raw_ids = settings.as_list("notifications.telegram.trigger_allowed_chat_ids")
     return {
         "allowed_chat_ids": [str(c) for c in raw_ids if c],
     }

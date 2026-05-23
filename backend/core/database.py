@@ -164,12 +164,12 @@ class Database:
     def __init__(self, url: str) -> None:
         self._url: str = url
 
-        pool_size = settings.get("database.pool_size", 5)
-        max_overflow = settings.get("database.max_overflow", 10)
-        pool_timeout = settings.get("database.pool_timeout", 30)
-        pool_recycle = settings.get("database.pool_recycle", 3600)
-        pool_pre_ping = settings.get("database.pool_pre_ping", True)
-        echo = settings.get("database.echo", False)
+        pool_size = settings.as_int("database.pool_size")
+        max_overflow = settings.as_int("database.max_overflow")
+        pool_timeout = settings.as_int("database.pool_timeout")
+        pool_recycle = settings.as_int("database.pool_recycle")
+        pool_pre_ping = settings.as_bool("database.pool_pre_ping")
+        echo = settings.as_bool("database.echo")
 
         # StaticPool (SQLite default) and NullPool don't accept pool_size/max_overflow/pool_timeout.
         # Build the engine with pool params first; if the pool type rejects them, retry without.
@@ -291,7 +291,7 @@ _default_database: Database | None = None
 
 
 def _resolve_url(url: str | None) -> str:
-    resolved = url or settings.get("database.url")
+    resolved = url or settings.as_str("database.url")
     if not resolved:
         raise RuntimeError(
             "database.url is not configured. "

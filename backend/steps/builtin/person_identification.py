@@ -6,7 +6,12 @@ from sqlalchemy import select
 
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.models.sensor import Sensor
+from backend.services.person_tracking import CameraFrameContext
 from backend.steps import StepRegistry
+from backend.steps._pipeline_images import (
+    image_refs_to_urls,
+    resolve_pipeline_image_refs,
+)
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -52,6 +57,39 @@ class PersonIdentificationHandler(StepHandler):
                         "default": False,
                         "description": "Persist room transitions to semantic memory.",
                     },
+                    "image_source": {
+                        "type": "string",
+                        "enum": ["trigger", "additional", "both", "pipeline", "cts_window"],
+                        "default": "trigger",
+                    },
+                    "pipeline_image_path": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Dotted path to image URLs or image refs from a previous step.",
+                    },
+                    "cts_frames_path": {
+                        "type": "string",
+                        "default": "steps.cts_window_poll_1.outputs.frames",
+                    },
+                    "record_presence": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "When false, PersonLocationState and PersonLocationHistory are not updated.",
+                    },
+                    "record_sightings": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "When false, PersonSighting rows are not written.",
+                    },
+                    "presence_room_source": {
+                        "type": "string",
+                        "enum": ["trigger", "source_image", "custom"],
+                        "default": "trigger",
+                    },
+                    "presence_room_name": {
+                        "type": "string",
+                        "default": "",
+                    },
                 },
             },
             default_config={
@@ -61,6 +99,23 @@ class PersonIdentificationHandler(StepHandler):
                 "include_motion": False,
                 "save_guest_images": False,
                 "write_movements_to_memory": False,
+                "image_source": "trigger",
+                "pipeline_image_path": "",
+                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+                "record_presence": True,
+                "record_sightings": True,
+                "presence_room_source": "trigger",
+                "presence_room_name": "",
+            },
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "person_detections": {"type": "array", "items": {"type": "object"}},
+                    "room_transitions": {"type": "array", "items": {"type": "object"}},
+                    "annotated_image": {"type": "string"},
+                    "semantic_memory_movement_ids": {"type": "array", "items": {"type": "integer"}},
+                    "skip_reason": {"type": "string"},
+                },
             },
         )
 
@@ -100,21 +155,54 @@ class PersonIdentificationHandler(StepHandler):
             return StepResult(data={"person_detections": [], "room_transitions": []})
 
         config = step.config_json or {}
-        media_paths = list(trigger.media_paths)
 
-        # Gather additional camera images if aggregator available.
-        additional_sensors = config.get("additional_sensor_ids", [])
-        if additional_sensors and services.event_aggregator:
-            for sid in additional_sensors:
-                extra = await services.event_aggregator.get_recent_images(sid, limit=3)
-                media_paths.extend(extra)
+        # Resolve image refs via the shared layer.
+        image_refs = await resolve_pipeline_image_refs(
+            config,
+            pipeline_data,
+            trigger,
+            services,
+            default_image_source="trigger",
+            default_max_images=10,
+        )
 
-        room_name = trigger.room_name or "Unknown"
+        if not image_refs:
+            return StepResult(data={"person_detections": [], "room_transitions": []})
+
+        media_paths = image_refs_to_urls(image_refs, minio_client=services.minio_client)
+        if not media_paths:
+            return StepResult(data={"person_detections": [], "room_transitions": []})
+
+        # Determine presence room per config.
+        presence_room_source = config.get("presence_room_source", "trigger")
+        custom_room = config.get("presence_room_name", "")
+        default_room = trigger.room_name or "Unknown"
+
+        # Build CameraFrameContext per ref.
+        frame_contexts: list[CameraFrameContext] = []
+        for ref in image_refs:
+            ref_sensor_id = ref.source_sensor_id or ref.source_camera_id or trigger.sensor_id or "unknown"
+
+            if presence_room_source == "source_image":
+                ctx_room = ref.source_room_name or default_room
+            elif presence_room_source == "custom":
+                ctx_room = custom_room or default_room
+            else:
+                ctx_room = default_room
+
+            sensor_cfg = self._load_sensor_config(services, ref.source_sensor_id)
+
+            frame_contexts.append(
+                CameraFrameContext(
+                    sensor_id=ref_sensor_id,
+                    room_name=ctx_room,
+                    media_path=ref.url or ref.object_name or "",
+                    sensor_config=sensor_cfg,
+                )
+            )
+
         sensor_id = trigger.sensor_id or "unknown"
-
-        # Fetch the sensor's camera-topology config so the tracking service
-        # can map raw movement directions to semantic room transitions.
-        sensor_config = self._load_sensor_config(services, trigger.sensor_id)
+        room_name = trigger.room_name or "Unknown"
 
         camera_result = await services.person_tracking.process_camera_event(
             sensor_id=sensor_id,
@@ -122,18 +210,31 @@ class PersonIdentificationHandler(StepHandler):
             room_name=room_name,
             include_annotated_image=config.get("include_annotated_image", False),
             save_guest_images=config.get("save_guest_images", False),
-            sensor_config=sensor_config,
+            sensor_config=self._load_sensor_config(services, trigger.sensor_id),
+            frame_contexts=frame_contexts,
+            record_sightings=config.get("record_sightings", True),
+            record_presence=config.get("record_presence", True),
         )
 
         detections = camera_result.detections
 
-        # Enrich each detection dict with the source_media_path so that downstream
-        # steps can correlate the bbox with the exact frame it was detected in.
+        # Enrich detection dicts with source metadata.
         detection_dicts = []
         for det in detections:
             d = det.dict()
             if det.frame_index is not None and det.frame_index < len(media_paths):
                 d["source_media_path"] = media_paths[det.frame_index]
+            if det.frame_index is not None and det.frame_index < len(image_refs):
+                ref = image_refs[det.frame_index]
+                d["source_sensor_id"] = ref.source_sensor_id
+                d["source_camera_id"] = ref.source_camera_id
+                d["source_room_name"] = ref.source_room_name
+                d["source_object_name"] = ref.object_name
+                meta = dict(ref.metadata) if ref.metadata else {}
+                if "region_id" in meta:
+                    d["crop_region_id"] = meta["region_id"]
+                if "region_name" in meta:
+                    d["crop_region_name"] = meta["region_name"]
             detection_dicts.append(d)
 
         result_data: dict = {

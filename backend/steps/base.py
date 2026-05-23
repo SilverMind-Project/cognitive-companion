@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from backend.integrations.ha_state_cache import HaStateCache
     from backend.integrations.homeassistant import HomeAssistantClient
     from backend.integrations.llm import LLMModelRegistry
+    from backend.integrations.minio_client import MinioClient
     from backend.integrations.person_id_client import PersonIDClient
     from backend.integrations.scene_analysis_client import SceneAnalysisClient
     from backend.integrations.semantic_memory_client import SemanticMemoryClient
@@ -113,6 +114,7 @@ class ServiceContainer:
     activity: ActivityService | None = None
     signals: SignalsService | None = None
     knowledge_delivery: KnowledgeDeliveryService | None = None
+    minio_client: MinioClient | None = None
 
 
 # ---------------------------------------------------------------------------

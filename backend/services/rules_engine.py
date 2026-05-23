@@ -27,7 +27,7 @@ class RulesEngine:
     """Determines which rules should fire for a given sensor event."""
 
     def __init__(self, tz_name: str | None = None) -> None:
-        self.tz = ZoneInfo(tz_name or settings.get("app.timezone", "America/New_York"))
+        self.tz = ZoneInfo(tz_name or settings.as_str("app.timezone"))
 
     # -- public API -----------------------------------------------------------
 

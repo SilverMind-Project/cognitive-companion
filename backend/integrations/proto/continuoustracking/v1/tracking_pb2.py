@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$continuoustracking/v1/tracking.proto\x12\x15\x63ontinuoustracking.v1\"\x92\x02\n\rTrackingEvent\x12\x11\n\tcamera_id\x18\x01 \x01(\t\x12\x1a\n\x12\x65vent_time_unix_ns\x18\x02 \x01(\x06\x12\x32\n\tframe_ref\x18\x03 \x01(\x0b\x32\x1f.continuoustracking.v1.FrameRef\x12\x34\n\ndetections\x18\x04 \x03(\x0b\x32 .continuoustracking.v1.Detection\x12\x43\n\x12identity_revisions\x18\x05 \x03(\x0b\x32\'.continuoustracking.v1.IdentityRevision\x12\x11\n\troom_name\x18\x06 \x01(\t\x12\x10\n\x08\x65vent_id\x18\x07 \x01(\t\"o\n\x08\x46rameRef\x12\x11\n\tminio_key\x18\x01 \x01(\t\x12\r\n\x05width\x18\x02 \x01(\x05\x12\x0e\n\x06height\x18\x03 \x01(\x05\x12\x13\n\x0b\x66rame_index\x18\x04 \x01(\x03\x12\x1c\n\x14\x63\x61pture_time_unix_ns\x18\x05 \x01(\x06\"\xbe\x03\n\tDetection\x12\x14\n\x0c\x64\x65tection_id\x18\x01 \x01(\t\x12\x30\n\x04\x62\x62ox\x18\x02 \x01(\x0b\x32\".continuoustracking.v1.BoundingBox\x12\x11\n\tembedding\x18\x03 \x03(\x02\x12\x12\n\nconfidence\x18\x04 \x01(\x02\x12\x13\n\x0btracklet_id\x18\x05 \x01(\t\x12\x17\n\x0fglobal_track_id\x18\x06 \x01(\t\x12\x36\n\x0b\x66loor_point\x18\x07 \x01(\x0b\x32!.continuoustracking.v1.FloorPoint\x12;\n\x0epose_keypoints\x18\t \x03(\x0b\x32#.continuoustracking.v1.PoseKeypoint\x12\x30\n\x05trail\x18\n \x03(\x0b\x32!.continuoustracking.v1.TrailPoint\x12:\n\x08\x65vidence\x18\x0b \x01(\x0b\x32(.continuoustracking.v1.PosteriorEvidence\x12\x0f\n\x07\x66loor_x\x18\x0c \x01(\x02\x12\x0f\n\x07\x66loor_y\x18\r \x01(\x02\x12\x0f\n\x07posture\x18\x0e \x01(\t\"3\n\x0cPoseKeypoint\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\r\n\x05score\x18\x03 \x01(\x02\"\"\n\nTrailPoint\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\"R\n\x11PosteriorEvidence\x12\x10\n\x08top_prob\x18\x01 \x01(\x02\x12\x11\n\ttop2_prob\x18\x02 \x01(\x02\x12\x18\n\x10\x66\x61\x63\x65_anchor_used\x18\x03 \x01(\x08\"I\n\x0b\x42oundingBox\x12\r\n\x05x_min\x18\x01 \x01(\x05\x12\r\n\x05y_min\x18\x02 \x01(\x05\x12\r\n\x05x_max\x18\x03 \x01(\x05\x12\r\n\x05y_max\x18\x04 \x01(\x05\"<\n\nFloorPoint\x12\x0c\n\x04x_mm\x18\x01 \x01(\x03\x12\x0c\n\x04y_mm\x18\x02 \x01(\x03\x12\x12\n\ncalibrated\x18\x03 \x01(\x08\"\xc5\x02\n\x10IdentityRevision\x12\x17\n\x0fglobal_track_id\x18\x01 \x01(\t\x12<\n\ncandidates\x18\x02 \x03(\x0b\x32(.continuoustracking.v1.IdentityCandidate\x12\x17\n\x0fmap_identity_id\x18\x03 \x01(\t\x12\x19\n\x11posterior_entropy\x18\x04 \x01(\x02\x12\x1d\n\x15revision_time_unix_ns\x18\x05 \x01(\x06\x12\x13\n\x0brevision_id\x18\x06 \x01(\t\x12\x14\n\x0ctracklet_ids\x18\x07 \x03(\t\x12\x1c\n\x14previous_identity_id\x18\x08 \x01(\t\x12\x17\n\x0fnew_identity_id\x18\t \x01(\t\x12\x0e\n\x06reason\x18\n \x01(\t\x12\x15\n\revidence_json\x18\x0b \x01(\t\"S\n\x11IdentityCandidate\x12\x13\n\x0bidentity_id\x18\x01 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x02 \x01(\t\x12\x13\n\x0bprobability\x18\x03 \x01(\x02\x42OZMgithub.com/SilverMind-Project/continuous-tracking/proto/continuoustracking/v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$continuoustracking/v1/tracking.proto\x12\x15\x63ontinuoustracking.v1\"\xdb\x02\n\rTrackingEvent\x12\x11\n\tcamera_id\x18\x01 \x01(\t\x12\x1a\n\x12\x65vent_time_unix_ns\x18\x02 \x01(\x06\x12\x32\n\tframe_ref\x18\x03 \x01(\x0b\x32\x1f.continuoustracking.v1.FrameRef\x12\x34\n\ndetections\x18\x04 \x03(\x0b\x32 .continuoustracking.v1.Detection\x12G\n\x12identity_revisions\x18\x05 \x03(\x0b\x32\'.continuoustracking.v1.IdentityRevisionB\x02\x18\x01\x12\x11\n\troom_name\x18\x06 \x01(\t\x12\x10\n\x08\x65vent_id\x18\x07 \x01(\t\x12\x43\n\x12identity_snapshots\x18\x08 \x03(\x0b\x32\'.continuoustracking.v1.IdentitySnapshot\"o\n\x08\x46rameRef\x12\x11\n\tminio_key\x18\x01 \x01(\t\x12\r\n\x05width\x18\x02 \x01(\x05\x12\x0e\n\x06height\x18\x03 \x01(\x05\x12\x13\n\x0b\x66rame_index\x18\x04 \x01(\x03\x12\x1c\n\x14\x63\x61pture_time_unix_ns\x18\x05 \x01(\x06\"\xbe\x03\n\tDetection\x12\x14\n\x0c\x64\x65tection_id\x18\x01 \x01(\t\x12\x30\n\x04\x62\x62ox\x18\x02 \x01(\x0b\x32\".continuoustracking.v1.BoundingBox\x12\x11\n\tembedding\x18\x03 \x03(\x02\x12\x12\n\nconfidence\x18\x04 \x01(\x02\x12\x13\n\x0btracklet_id\x18\x05 \x01(\t\x12\x17\n\x0fglobal_track_id\x18\x06 \x01(\t\x12\x36\n\x0b\x66loor_point\x18\x07 \x01(\x0b\x32!.continuoustracking.v1.FloorPoint\x12;\n\x0epose_keypoints\x18\t \x03(\x0b\x32#.continuoustracking.v1.PoseKeypoint\x12\x30\n\x05trail\x18\n \x03(\x0b\x32!.continuoustracking.v1.TrailPoint\x12:\n\x08\x65vidence\x18\x0b \x01(\x0b\x32(.continuoustracking.v1.PosteriorEvidence\x12\x0f\n\x07\x66loor_x\x18\x0c \x01(\x02\x12\x0f\n\x07\x66loor_y\x18\r \x01(\x02\x12\x0f\n\x07posture\x18\x0e \x01(\t\"3\n\x0cPoseKeypoint\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\x12\r\n\x05score\x18\x03 \x01(\x02\"\"\n\nTrailPoint\x12\t\n\x01x\x18\x01 \x01(\x02\x12\t\n\x01y\x18\x02 \x01(\x02\"R\n\x11PosteriorEvidence\x12\x10\n\x08top_prob\x18\x01 \x01(\x02\x12\x11\n\ttop2_prob\x18\x02 \x01(\x02\x12\x18\n\x10\x66\x61\x63\x65_anchor_used\x18\x03 \x01(\x08\"I\n\x0b\x42oundingBox\x12\r\n\x05x_min\x18\x01 \x01(\x05\x12\r\n\x05y_min\x18\x02 \x01(\x05\x12\r\n\x05x_max\x18\x03 \x01(\x05\x12\r\n\x05y_max\x18\x04 \x01(\x05\"<\n\nFloorPoint\x12\x0c\n\x04x_mm\x18\x01 \x01(\x03\x12\x0c\n\x04y_mm\x18\x02 \x01(\x03\x12\x12\n\ncalibrated\x18\x03 \x01(\x08\"\xc5\x02\n\x10IdentityRevision\x12\x17\n\x0fglobal_track_id\x18\x01 \x01(\t\x12<\n\ncandidates\x18\x02 \x03(\x0b\x32(.continuoustracking.v1.IdentityCandidate\x12\x17\n\x0fmap_identity_id\x18\x03 \x01(\t\x12\x19\n\x11posterior_entropy\x18\x04 \x01(\x02\x12\x1d\n\x15revision_time_unix_ns\x18\x05 \x01(\x06\x12\x13\n\x0brevision_id\x18\x06 \x01(\t\x12\x14\n\x0ctracklet_ids\x18\x07 \x03(\t\x12\x1c\n\x14previous_identity_id\x18\x08 \x01(\t\x12\x17\n\x0fnew_identity_id\x18\t \x01(\t\x12\x0e\n\x06reason\x18\n \x01(\t\x12\x15\n\revidence_json\x18\x0b \x01(\t\"\xc5\x01\n\x10IdentitySnapshot\x12\x17\n\x0fglobal_track_id\x18\x01 \x01(\t\x12\x13\n\x0bidentity_id\x18\x02 \x01(\t\x12\x17\n\x0ftop_probability\x18\x03 \x01(\x02\x12\x1a\n\x12second_probability\x18\x04 \x01(\x02\x12\x19\n\x11posterior_entropy\x18\x05 \x01(\x02\x12\x1c\n\x14\x64irect_face_evidence\x18\x06 \x01(\x08\x12\x15\n\revidence_json\x18\x07 \x01(\t\"S\n\x11IdentityCandidate\x12\x13\n\x0bidentity_id\x18\x01 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x02 \x01(\t\x12\x13\n\x0bprobability\x18\x03 \x01(\x02\x42OZMgithub.com/SilverMind-Project/continuous-tracking/proto/continuoustracking/v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,24 +32,28 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'continuoustracking.v1.track
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZMgithub.com/SilverMind-Project/continuous-tracking/proto/continuoustracking/v1'
+  _globals['_TRACKINGEVENT'].fields_by_name['identity_revisions']._loaded_options = None
+  _globals['_TRACKINGEVENT'].fields_by_name['identity_revisions']._serialized_options = b'\030\001'
   _globals['_TRACKINGEVENT']._serialized_start=64
-  _globals['_TRACKINGEVENT']._serialized_end=338
-  _globals['_FRAMEREF']._serialized_start=340
-  _globals['_FRAMEREF']._serialized_end=451
-  _globals['_DETECTION']._serialized_start=454
-  _globals['_DETECTION']._serialized_end=900
-  _globals['_POSEKEYPOINT']._serialized_start=902
-  _globals['_POSEKEYPOINT']._serialized_end=953
-  _globals['_TRAILPOINT']._serialized_start=955
-  _globals['_TRAILPOINT']._serialized_end=989
-  _globals['_POSTERIOREVIDENCE']._serialized_start=991
-  _globals['_POSTERIOREVIDENCE']._serialized_end=1073
-  _globals['_BOUNDINGBOX']._serialized_start=1075
-  _globals['_BOUNDINGBOX']._serialized_end=1148
-  _globals['_FLOORPOINT']._serialized_start=1150
-  _globals['_FLOORPOINT']._serialized_end=1210
-  _globals['_IDENTITYREVISION']._serialized_start=1213
-  _globals['_IDENTITYREVISION']._serialized_end=1538
-  _globals['_IDENTITYCANDIDATE']._serialized_start=1540
-  _globals['_IDENTITYCANDIDATE']._serialized_end=1623
+  _globals['_TRACKINGEVENT']._serialized_end=411
+  _globals['_FRAMEREF']._serialized_start=413
+  _globals['_FRAMEREF']._serialized_end=524
+  _globals['_DETECTION']._serialized_start=527
+  _globals['_DETECTION']._serialized_end=973
+  _globals['_POSEKEYPOINT']._serialized_start=975
+  _globals['_POSEKEYPOINT']._serialized_end=1026
+  _globals['_TRAILPOINT']._serialized_start=1028
+  _globals['_TRAILPOINT']._serialized_end=1062
+  _globals['_POSTERIOREVIDENCE']._serialized_start=1064
+  _globals['_POSTERIOREVIDENCE']._serialized_end=1146
+  _globals['_BOUNDINGBOX']._serialized_start=1148
+  _globals['_BOUNDINGBOX']._serialized_end=1221
+  _globals['_FLOORPOINT']._serialized_start=1223
+  _globals['_FLOORPOINT']._serialized_end=1283
+  _globals['_IDENTITYREVISION']._serialized_start=1286
+  _globals['_IDENTITYREVISION']._serialized_end=1611
+  _globals['_IDENTITYSNAPSHOT']._serialized_start=1614
+  _globals['_IDENTITYSNAPSHOT']._serialized_end=1811
+  _globals['_IDENTITYCANDIDATE']._serialized_start=1813
+  _globals['_IDENTITYCANDIDATE']._serialized_end=1896
 # @@protoc_insertion_point(module_scope)

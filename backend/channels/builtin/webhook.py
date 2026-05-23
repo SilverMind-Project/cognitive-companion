@@ -23,7 +23,7 @@ class WebhookChannel(NotificationChannel):
 
     def __init__(self) -> None:
         self._client = httpx.AsyncClient()
-        self._default_timeout = settings.get("notifications.webhook.timeout_seconds", 10.0)
+        self._default_timeout = settings.as_float("notifications.webhook.timeout_seconds")
 
     @classmethod
     def metadata(cls) -> ChannelMetadata:
@@ -49,7 +49,7 @@ class WebhookChannel(NotificationChannel):
 
         url = config.get("webhook_url")
         if not url:
-            url = settings.get("notifications.webhook.url")
+            url = settings.as_str("notifications.webhook.url")
 
         if not url:
             logger.warning("webhook_channel_skipped", reason="No webhook URL available")
@@ -68,9 +68,9 @@ class WebhookChannel(NotificationChannel):
                 "image_url": image_url,
             }
 
-        headers = settings.get("notifications.webhook.headers", {})
+        headers = settings.as_dict("notifications.webhook.headers")
         timeout = float(
-            settings.get("notifications.webhook.timeout_seconds", self._default_timeout)
+            settings.as_float("notifications.webhook.timeout_seconds")
         )
 
         try:

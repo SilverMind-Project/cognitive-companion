@@ -83,6 +83,16 @@ class PersonDetection:
         }
 
 
+@dataclass(frozen=True)
+class CameraFrameContext:
+    """Per-frame metadata for image source routing and presence recording."""
+
+    sensor_id: str
+    room_name: str
+    media_path: str
+    sensor_config: dict | None = None
+
+
 @dataclass
 class CameraEventResult:
     """Bundled output of :meth:`PersonTrackingService.process_camera_event`.
@@ -120,9 +130,9 @@ class PersonTrackingService:
         self._ha = ha_client
         self._ws_manager = ws_manager
         self._authority = authority or SourceAuthority()
-        self._stale_minutes: int = settings.get("person_tracking.location_stale_minutes", 30)
-        self._ha_propagation: bool = settings.get("person_tracking.ha_propagation", True)
-        self._min_confidence: float = settings.get("person_id.min_confidence", 0.5)
+        self._stale_minutes: int = settings.as_int("person_tracking.location_stale_minutes")
+        self._ha_propagation: bool = settings.as_bool("person_tracking.ha_propagation")
+        self._min_confidence: float = settings.as_float("person_id.min_confidence")
 
     # ------------------------------------------------------------------
     # Primary camera-event processing
@@ -136,6 +146,10 @@ class PersonTrackingService:
         include_annotated_image: bool = False,
         save_guest_images: bool = False,
         sensor_config: dict | None = None,
+        *,
+        frame_contexts: list[CameraFrameContext] | None = None,
+        record_sightings: bool = True,
+        record_presence: bool = True,
     ) -> CameraEventResult:
         """Process a camera event through the person-id service.
 
@@ -177,7 +191,7 @@ class PersonTrackingService:
         if not images_b64:
             return CameraEventResult(detections=[], room_transitions=[])
 
-        include_motion = settings.get("person_id.include_motion", True)
+        include_motion = settings.as_bool("person_id.include_motion")
         batch_result = await self._person_id.identify_batch(
             images_b64,
             include_motion=include_motion,
@@ -210,47 +224,66 @@ class PersonTrackingService:
 
         detections = list(best.values())
 
-        # Infer room transitions via camera topology map.
-        transitions: list[RoomTransition] = []
-        transition_by_person: dict[str, RoomTransition] = {}
-        for det in detections:
-            t = infer_room_transition(
-                person_id=det.person_id,
-                person_name=det.name,
-                sensor_id=sensor_id,
-                direction_raw=det.direction,
-                confidence=det.confidence,
-                sensor_config=sensor_config,
-            )
-            if t is not None:
-                transitions.append(t)
-                transition_by_person[det.person_id] = t
+        # Build default frame contexts when not provided.
+        if frame_contexts is None:
+            frame_contexts = [
+                CameraFrameContext(sensor_id=sensor_id, room_name=room_name, media_path=mp, sensor_config=sensor_config)
+                for mp in media_paths
+            ]
+
+        def _ctx_for_det(det_idx: int | None) -> CameraFrameContext:
+            if det_idx is not None and 0 <= det_idx < len(frame_contexts):
+                return frame_contexts[det_idx]
+            return CameraFrameContext(sensor_id=sensor_id, room_name=room_name, media_path="", sensor_config=sensor_config)
 
         # Persist sightings and location state.
+        transition_by_person: dict[str, RoomTransition] = {}
         db: Session = self._db_factory()
         try:
             for det in detections:
-                await self._record_sighting(
-                    db=db,
+                ctx = _ctx_for_det(det.frame_index)
+                det_sensor_id = ctx.sensor_id or sensor_id
+                det_room_name = ctx.room_name or room_name
+                det_sensor_cfg = ctx.sensor_config or sensor_config
+
+                # Re-infer room transitions with the per-frame sensor config and room.
+                det_transition = infer_room_transition(
                     person_id=det.person_id,
-                    sensor_id=sensor_id,
-                    room_name=room_name,
+                    person_name=det.name,
+                    sensor_id=det_sensor_id,
+                    direction_raw=det.direction,
                     confidence=det.confidence,
-                    direction=det.direction,
-                    bbox=det.bbox,
-                    source="camera",
+                    sensor_config=det_sensor_cfg,
                 )
-                await self._update_location_state(
-                    db=db,
-                    person_id=det.person_id,
-                    room_name=room_name,
-                    sensor_id=sensor_id,
-                    confidence=det.confidence,
-                    source="camera",
-                    room_transition=transition_by_person.get(det.person_id),
-                )
+                if det_transition is not None:
+                    transition_by_person[det.person_id] = det_transition
+
+                if record_sightings:
+                    await self._record_sighting(
+                        db=db,
+                        person_id=det.person_id,
+                        sensor_id=det_sensor_id,
+                        room_name=det_room_name,
+                        confidence=det.confidence,
+                        direction=det.direction,
+                        bbox=det.bbox,
+                        source="camera",
+                    )
+                if record_presence:
+                    await self._update_location_state(
+                        db=db,
+                        person_id=det.person_id,
+                        room_name=det_room_name,
+                        sensor_id=det_sensor_id,
+                        confidence=det.confidence,
+                        source="camera",
+                        room_transition=transition_by_person.get(det.person_id),
+                    )
         finally:
             db.close()
+
+        # Update room transitions list with re-inferred transitions.
+        transitions = list(transition_by_person.values())
 
         return CameraEventResult(detections=detections, room_transitions=transitions)
 

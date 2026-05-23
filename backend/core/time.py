@@ -74,7 +74,7 @@ def to_app_timezone(utc_dt: datetime) -> datetime:
         The same instant expressed in the timezone configured under
         ``app.timezone`` in ``settings.yaml``.
     """
-    app_tz_name = settings.get("app.timezone", "America/New_York")
+    app_tz_name = settings.as_str("app.timezone")
     app_tz = ZoneInfo(app_tz_name)
     return utc_dt.astimezone(app_tz)
 

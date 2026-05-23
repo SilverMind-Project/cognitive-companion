@@ -167,9 +167,8 @@ describe("BboxCanvas", () => {
     const canvas = wrapper.find("canvas");
     await canvas.trigger("mousedown", { clientX: 100, clientY: 100 });
 
-    // After selecting a box, the popover should appear
-    // (mocked BboxTagPopover renders a .mock-popover div)
-    expect(wrapper.find(".mock-popover").exists()).toBe(true);
+    // After selecting a box, the popover should appear (BboxTagPopover is teleported to body)
+    expect(wrapper.findComponent({ name: "BboxTagPopover" }).exists()).toBe(true);
   });
 
   it("coordinate conversion toCanvas and toOrig are inverse", () => {

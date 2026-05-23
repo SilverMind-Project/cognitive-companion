@@ -33,7 +33,7 @@ def _upsert_device_key_sensors() -> None:
     """
     from backend.models.sensor import Sensor
 
-    device_keys = settings.get("auth.device_keys")
+    device_keys = settings.as_list("auth.device_keys")
     if not device_keys:
         return
 
@@ -127,7 +127,7 @@ async def lifespan(app: FastAPI):
 
     # -- Realtime LLM provider (lazy - only connects when needed) ----------
     realtime_provider = None
-    realtime_api_key = settings.get("llm.realtime.api_key")
+    realtime_api_key = settings.as_str("llm.realtime.api_key")
     if realtime_api_key:
         from backend.integrations.llm.gemini_live import GeminiLiveProvider
 
@@ -172,11 +172,11 @@ async def lifespan(app: FastAPI):
     from backend.services.knowledge.query_service import KnowledgeQueryService
     from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 
-    layouts_file = settings.get("knowledge.layouts_file", "config/knowledge_layouts.yaml")
+    layouts_file = settings.as_str("knowledge.layouts_file")
     layout_registry = LayoutRegistry.load(layouts_file)
     app.state.layout_registry = layout_registry
 
-    voice_config_file = settings.get("knowledge.voice_config_file", "config/knowledge_voice.yaml")
+    voice_config_file = settings.as_str("knowledge.voice_config_file")
     voice_instructions = VoiceInstructionConfig.load(voice_config_file)
     app.state.voice_instructions = voice_instructions
 
@@ -264,23 +264,23 @@ async def lifespan(app: FastAPI):
                 logger.warning(
                     "semantic_memory_startup_unreachable",
                     hint="Semantic Memory is configured in settings but unreachable. "
-                         "Memory queries, scene_contains filters, and semantic_memory_write "
-                         "steps will return empty results.",
+                    "Memory queries, scene_contains filters, and semantic_memory_write "
+                    "steps will return empty results.",
                 )
         except Exception:
             logger.warning(
                 "semantic_memory_startup_unreachable",
                 hint="Semantic Memory health check failed. "
-                     "Memory-dependent features will degrade gracefully.",
+                "Memory-dependent features will degrade gracefully.",
             )
 
     # -- Memory query service (Block 4) ------------------------------------
     from backend.services.memory_query import MemoryQueryService
 
-    memory_query_config = settings.get("memory_query", {})
-    mq_cache_enabled = memory_query_config.get("cache.enabled", False)
-    mq_cache_ttl = memory_query_config.get("cache.ttl_seconds", 30)
-    mq_cache_maxsize = memory_query_config.get("cache.maxsize", 256)
+    memory_cache_config = settings.section("memory_query.cache")
+    mq_cache_enabled = memory_cache_config.as_bool("enabled")
+    mq_cache_ttl = memory_cache_config.as_int("ttl_seconds")
+    mq_cache_maxsize = memory_cache_config.as_int("maxsize")
     memory_query_service = MemoryQueryService(
         client=semantic_memory_client,
         cache_enabled=mq_cache_enabled,
@@ -302,7 +302,7 @@ async def lifespan(app: FastAPI):
     from backend.services.cts.source_authority import SourceAuthority
 
     shared_authority = SourceAuthority(
-        cts_lock_s=float(settings.get("cts.lock_seconds", 60)),
+        cts_lock_s=settings.as_float("cts.lock_seconds"),
     )
     app.state.source_authority = shared_authority
 
@@ -325,9 +325,9 @@ async def lifespan(app: FastAPI):
     async def _noop_callback(sensor_id: str, media_paths: list[str]):
         pass
 
-    aggregator_config = settings.get("event_aggregator", {})
+    aggregator_config = settings.as_dict("event_aggregator")
     event_aggregator = EventAggregator(
-        config=aggregator_config if isinstance(aggregator_config, dict) else {},
+        config=aggregator_config,
         db_session_factory=get_session,
         minio_client=minio_client,
         process_callback=_noop_callback,
@@ -391,6 +391,7 @@ async def lifespan(app: FastAPI):
         activity=activity_service,
         signals=signals_service,
         knowledge_delivery=knowledge_delivery,
+        minio_client=minio_client,
         rules_engine=rules_engine,
         # scheduler bridge injected below after scheduler is created
     )
@@ -467,7 +468,9 @@ async def lifespan(app: FastAPI):
     # -- Scheduler ---------------------------------------------------------
     from backend.services.scheduler import SchedulerBridge, setup_scheduler
 
-    scheduler = setup_scheduler(event_aggregator, get_session, pipeline_executor, rules_engine=rules_engine)
+    scheduler = setup_scheduler(
+        event_aggregator, get_session, pipeline_executor, rules_engine=rules_engine
+    )
     app.state.scheduler = scheduler
 
     # Inject scheduler bridge into pipeline executor for wait/resume
@@ -480,7 +483,7 @@ async def lifespan(app: FastAPI):
     # Add HA sensor polling job
     from apscheduler.triggers.interval import IntervalTrigger
 
-    poll_interval = settings.get("homeassistant.poll_interval_seconds", 30)
+    poll_interval = settings.as_int("homeassistant.poll_interval_seconds")
     scheduler.add_job(
         sensor_polling.poll,
         trigger=IntervalTrigger(seconds=poll_interval),
@@ -490,7 +493,7 @@ async def lifespan(app: FastAPI):
     )
 
     # Add person tracking polling job (correlates HA presence with person IDs)
-    if settings.get("person_tracking.enabled", False):
+    if settings.as_bool("person_tracking.enabled"):
         scheduler.add_job(
             person_tracking.poll_ha_presence_sensors,
             trigger=IntervalTrigger(seconds=poll_interval),
@@ -521,7 +524,7 @@ async def lifespan(app: FastAPI):
 
         await telegram_client.setup_polling()
 
-        tg_poll_interval = settings.get("notifications.telegram.trigger_poll_interval_seconds", 5)
+        tg_poll_interval = settings.as_int("notifications.telegram.trigger_poll_interval_seconds")
         scheduler.add_job(
             telegram_trigger.poll,
             trigger=IntervalTrigger(seconds=tg_poll_interval),
@@ -546,9 +549,7 @@ async def lifespan(app: FastAPI):
 
     # -- CTS gateway clients + runtime (gated by cts.enabled) --------------
     cts_runtime = None
-    if settings.get("cts.enabled", False):
-        import socket
-
+    if settings.as_bool("cts.enabled"):
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
         from backend.services.cts.runtime import CTSRuntime, CTSRuntimeConfig
@@ -556,13 +557,13 @@ async def lifespan(app: FastAPI):
         app.state.ingress_admin_client = IngressAdminClient()
         app.state.orchestrator_client = OrchestratorClient()
 
-        redis_url = settings.get("redis.url")
-        consumer_id = settings.get("cts.consumer_id", socket.gethostname())
+        redis_url = settings.as_str("redis.url", allow_empty=False)
+        consumer_id = settings.as_str("cts.consumer_id", allow_empty=False)
         cts_runtime = CTSRuntime(
             config=CTSRuntimeConfig(
                 redis_url=redis_url,
                 consumer_id=consumer_id,
-                cts_lock_s=float(settings.get("cts.lock_seconds")),
+                cts_lock_s=settings.as_float("cts.lock_seconds"),
             ),
             db_factory=get_session,
             ws_manager=ws_manager,
@@ -646,7 +647,10 @@ async def lifespan(app: FastAPI):
     # Close integration HTTP clients (connection pools)
     if hasattr(app.state, "scene_analysis_client") and app.state.scene_analysis_client is not None:
         await app.state.scene_analysis_client.close()
-    if hasattr(app.state, "semantic_memory_client") and app.state.semantic_memory_client is not None:
+    if (
+        hasattr(app.state, "semantic_memory_client")
+        and app.state.semantic_memory_client is not None
+    ):
         await app.state.semantic_memory_client.close()
     logger.info("Shutting down Cognitive Companion v2")
 
@@ -663,7 +667,7 @@ def create_app() -> FastAPI:
     )
 
     # CORS
-    origins = settings.get("cors.origins", ["http://localhost:5173"])
+    origins = settings.as_list("cors.origins")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -709,6 +713,7 @@ def create_app() -> FastAPI:
         occupancy,
         persons,
         pipeline,
+        pipeline_images,
         quizzes,
         rooms,
         rules,
@@ -739,6 +744,7 @@ def create_app() -> FastAPI:
     app.include_router(activities.router, prefix=api)
     app.include_router(webhooks.router, prefix=api)
     app.include_router(pipeline.router, prefix=api)
+    app.include_router(pipeline_images.router, prefix=api)
     # Knowledge repository routers
     app.include_router(knowledge.router, prefix=api)
     app.include_router(info_cards.router, prefix=api)
@@ -771,6 +777,7 @@ def create_app() -> FastAPI:
     @app.get("/api/v1/health")
     async def health():
         from backend._version import __version__
+
         return {"status": "ok", "version": __version__}
 
     # Mount the MCP protocol server (streamable HTTP transport)

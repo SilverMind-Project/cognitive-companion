@@ -52,6 +52,7 @@ llm:
       max_tokens: 16000
       timeout: 120
       guided_decoding: true
+      max_retries: 3
       supports_thinking: true
       temperature: 0.7
       top_p: 0.9
@@ -65,6 +66,7 @@ llm:
       max_tokens: 32000
       timeout: 120
       guided_decoding: false
+      max_retries: 3
       supports_thinking: true
       temperature: 0.7
       top_p: 0.9
@@ -78,6 +80,7 @@ llm:
       max_tokens: 32000
       timeout: 180
       guided_decoding: false
+      max_retries: 3
       supports_thinking: true
       temperature: 0.7
       top_p: 0.9

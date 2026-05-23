@@ -24,7 +24,7 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
         self.prompt_queue: asyncio.Queue[tuple[str, Callable | None, float, str | None, dict[str, Any]]] = asyncio.Queue()
-        self.max_connections: int = settings.get("websocket.max_connections", 10)
+        self.max_connections: int = settings.as_int("websocket.max_connections")
         # Guards the active_connections list against concurrent connect /
         # disconnect / broadcast operations.  Without the lock, two simultaneous
         # upgrade requests could both pass the max-connections check before

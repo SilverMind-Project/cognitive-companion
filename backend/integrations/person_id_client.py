@@ -96,9 +96,9 @@ class PersonIDClient:
     """Async HTTP client for the standalone Person Identification Service."""
 
     def __init__(self) -> None:
-        self.base_url: str = (settings.get("person_id.url") or "http://localhost:8100").rstrip("/")
-        self.timeout: int = settings.get("person_id.timeout", 30)
-        self.enabled: bool = settings.get("person_id.enabled", False)
+        self.base_url: str = settings.as_str("person_id.url").rstrip("/")
+        self.timeout: int = settings.as_int("person_id.timeout")
+        self.enabled: bool = settings.as_bool("person_id.enabled")
 
     # -- Health ---------------------------------------------------------------
 

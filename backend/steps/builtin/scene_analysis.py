@@ -100,9 +100,26 @@ class SceneAnalysisHandler(StepHandler):
                     },
                     "image_source": {
                         "type": "string",
-                        "enum": ["trigger", "additional", "both"],
+                        "enum": ["trigger", "additional", "both", "pipeline", "cts_window"],
                         "default": "trigger",
                         "description": "Which images to analyse.",
+                    },
+                    "pipeline_image_path": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Dotted pipeline_data path to a prior step image output.",
+                    },
+                    "pipeline_image_url_field": {
+                        "type": "string",
+                        "default": "url",
+                    },
+                    "pipeline_image_object_name_field": {
+                        "type": "string",
+                        "default": "object_name",
+                    },
+                    "cts_frames_path": {
+                        "type": "string",
+                        "default": "steps.cts_window_poll_1.outputs.frames",
                     },
                     "max_images": {
                         "type": "integer",
@@ -165,6 +182,24 @@ class SceneAnalysisHandler(StepHandler):
                 "sensor_frame_limits": {},
                 "image_time_filter": {},
                 "write_to_memory": False,
+                "pipeline_image_path": "",
+                "pipeline_image_url_field": "url",
+                "pipeline_image_object_name_field": "object_name",
+                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+            },
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "scene_images": {"type": "array", "items": {"type": "object"}},
+                    "scene_detections": {"type": "array", "items": {"type": "object"}},
+                    "scene_description": {"type": "string"},
+                    "scene_embedding": {"type": "array", "items": {"type": "number"}},
+                    "scene_hazards": {"type": "array", "items": {"type": "object"}},
+                    "scene_detector_available": {"type": "boolean"},
+                    "scene_describer_available": {"type": "boolean"},
+                    "scene_embedder_available": {"type": "boolean"},
+                    "scene_memory_observation_id": {"type": ["integer", "null"]},
+                },
             },
         )
 
@@ -184,7 +219,11 @@ class SceneAnalysisHandler(StepHandler):
 
         config = step.config_json or {}
         media_paths = await resolve_image_sources(
-            config, trigger, services.event_aggregator,
+            config,
+            trigger,
+            services.event_aggregator,
+            pipeline_data=pipeline_data,
+            minio_client=services.minio_client,
             default_max_images=int(config.get("max_images", 1)),
         )
 

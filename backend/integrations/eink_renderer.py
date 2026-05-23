@@ -36,20 +36,20 @@ class EInkRenderer:
         _backend_dir = Path(__file__).resolve().parents[1]
 
         # Read paths from settings.yaml, fall back to defaults
-        template_dir = settings.get("image.template_dir")
-        output_dir = settings.get("image.output_dir")
-        font_dir = settings.get("image.font_dir")
+        template_dir = settings.as_str("image.template_dir")
+        output_dir = settings.as_str("image.output_dir")
+        font_dir = settings.as_str("image.font_dir")
 
         self._templates_dir = (
             Path(template_dir) if template_dir else _backend_dir / "assets" / "images" / "templates"
         )
         self._images_dir = Path(output_dir) if output_dir else _backend_dir / "assets" / "images"
         self._fonts_dir = Path(font_dir) if font_dir else _backend_dir / "assets" / "fonts"
-        self._default_font = settings.get("image.default_font")
-        self._default_template = settings.get("image.default_template")
-        self._default_expiry = settings.get("image.default_expiry_minutes")
-        self._display_width = settings.get("image.display_width")
-        self._display_height = settings.get("image.display_height")
+        self._default_font = settings.as_str("image.default_font")
+        self._default_template = settings.as_str("image.default_template")
+        self._default_expiry = settings.as_int("image.default_expiry_minutes")
+        self._display_width = settings.as_int("image.display_width")
+        self._display_height = settings.as_int("image.display_height")
 
     # ------------------------------------------------------------------
     # Public API
@@ -415,8 +415,7 @@ class EInkRenderer:
             return sensor_ids
 
         # Check notification config for default targets
-        eink_cfg = settings.get("notifications.eink", {})
-        default_targets = eink_cfg.get("default_targets", []) if eink_cfg else []
+        default_targets = settings.section("notifications.eink").as_list("default_targets")
         if default_targets:
             return default_targets
 

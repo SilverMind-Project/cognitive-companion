@@ -97,7 +97,7 @@ class TelegramClient:
         self._configure()
 
     def _configure(self) -> None:
-        token = settings.get("notifications.telegram.bot_token", "")
+        token = settings.as_str("notifications.telegram.bot_token")
         if not token:
             logger.warning("telegram_not_configured", reason="missing bot_token")
             return

@@ -9,12 +9,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
+from backend.integrations.minio_client import MinioClient
 from backend.integrations.scene_analysis_client import (
     SceneAnalysisClient,
     SceneAnalyzeResult,
     SceneDetection,
     SceneHazardAlert,
 )
+from backend.steps._testing import assert_output_conforms_to_schema
 from backend.steps.base import ServiceContainer, TriggerContext
 from backend.steps.builtin.scene_analysis import SceneAnalysisHandler
 
@@ -56,11 +60,13 @@ def _make_trigger(
 def _make_services(
     scene_analysis_client=None,
     event_aggregator=None,
+    minio_client=None,
 ) -> ServiceContainer:
     return ServiceContainer(
         db_factory=MagicMock(),
         scene_analysis_client=scene_analysis_client,
         event_aggregator=event_aggregator,
+        minio_client=minio_client,
     )
 
 
@@ -593,3 +599,178 @@ class TestImageSource:
             )
         # Only the last 1 frame should be used
         client.analyze.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Downstream image source (Milestone 4)
+# ---------------------------------------------------------------------------
+
+
+def _mock_minio(objects: dict | None = None) -> MagicMock:
+    """Fake MinioClient that serves objects from an in-memory dict."""
+    minio = MagicMock(spec=MinioClient)
+    store = objects or {}
+    minio.objects = store
+
+    async def _get_object(key):
+        return store.get(key)
+
+    minio.async_get_object = _get_object
+
+    def _presigned(key, expiration=3600):
+        return f"http://minio.local/bucket/{key}?sig=test"
+
+    minio.generate_presigned_url = _presigned
+    minio.extract_object_name = lambda url: url.split("/bucket/", 1)[1].split("?", 1)[0]
+    return minio
+
+
+class TestDownstreamImageSource:
+    """Verify scene_analysis can consume crop / CTS / pipeline image outputs."""
+
+    @pytest.mark.asyncio
+    async def test_pipeline_image_source_reads_crop_images_path(self):
+        """When image_source=pipeline and pipeline_image_path points to
+        images[], each URL is fetched and analysed."""
+        client = _mock_client()
+        minio = _mock_minio({"pipeline/crops/100/1/stove_0.jpg": _FAKE_JPEG})
+        services = _make_services(scene_analysis_client=client, minio_client=minio)
+
+        pipeline_data = {
+            "steps": {
+                "crop_stove": {
+                    "outputs": {
+                        "images": [
+                            "http://minio.local/bucket/pipeline/crops/100/1/stove_0.jpg?sig=test",
+                        ]
+                    }
+                }
+            }
+        }
+
+        config = {
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.crop_stove.outputs.images",
+        }
+        with _patch_http():
+            result = await _HANDLER.execute(
+                _make_step(config),
+                _FakeExecution(),
+                pipeline_data,
+                _make_trigger(),
+                services,
+            )
+        assert result.data["scene_detections"] is not None
+
+    @pytest.mark.asyncio
+    async def test_pipeline_source_missing_path_returns_empty_result(self):
+        """A pipeline_image_path that resolves to nothing returns empty."""
+        client = _mock_client()
+        minio = _mock_minio()
+        services = _make_services(scene_analysis_client=client, minio_client=minio)
+
+        config = {
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.nonexistent.outputs.images",
+        }
+        result = await _HANDLER.execute(
+            _make_step(config), _FakeExecution(), {}, _make_trigger(), services,
+        )
+        assert result.data["scene_images"] == []
+
+    @pytest.mark.asyncio
+    async def test_cts_window_source_reads_minio_keys(self):
+        """CTS frame dicts with minio_key are resolved through MinIO."""
+        client = _mock_client()
+        minio = _mock_minio({"cts/cam1/frame.jpg": _FAKE_JPEG})
+        services = _make_services(scene_analysis_client=client, minio_client=minio)
+
+        pipeline_data = {
+            "steps": {
+                "cts_window_poll_1": {
+                    "outputs": {
+                        "frames": [
+                            {
+                                "minio_key": "cts/cam1/frame.jpg",
+                                "camera_id": "cam1",
+                                "room_name": "Living Room",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        config = {
+            "image_source": "cts_window",
+            "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+        }
+        with _patch_http():
+            result = await _HANDLER.execute(
+                _make_step(config),
+                _FakeExecution(),
+                pipeline_data,
+                _make_trigger(),
+                services,
+            )
+        # The presigned URL should have been generated
+        assert len(result.data["scene_images"]) == 1
+        assert "cts/cam1/frame.jpg" in result.data["scene_images"][0]["image_path"]
+
+    @pytest.mark.asyncio
+    async def test_pipeline_image_source_reads_cropped_image_refs(self):
+        """When pipeline_image_path points to cropped_images[], object_names are used."""
+        client = _mock_client()
+        minio = _mock_minio({"pipeline/crops/100/1/stove.jpg": _FAKE_JPEG})
+        services = _make_services(scene_analysis_client=client, minio_client=minio)
+
+        pipeline_data = {
+            "steps": {
+                "crop_stove": {
+                    "outputs": {
+                        "cropped_images": [
+                            {
+                                "url": "http://minio/old.jpg",
+                                "object_name": "pipeline/crops/100/1/stove.jpg",
+                                "region_id": "stove",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        config = {
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.crop_stove.outputs.cropped_images",
+        }
+        with _patch_http():
+            result = await _HANDLER.execute(
+                _make_step(config),
+                _FakeExecution(),
+                pipeline_data,
+                _make_trigger(),
+                services,
+            )
+        # The cropped_images dict has url, so it passes through
+        assert len(result.data["scene_images"]) == 1
+        image_path = result.data["scene_images"][0]["image_path"]
+        # The URL from cropped_images entry is used
+        assert "minio/old.jpg" in image_path
+
+    def test_output_conforms_to_schema(self):
+        """SceneAnalysis metadata declares all output keys."""
+        from backend.steps.base import StepResult
+
+        result = StepResult(
+            data={
+                "scene_images": [],
+                "scene_detections": [],
+                "scene_description": "",
+                "scene_embedding": [],
+                "scene_hazards": [],
+                "scene_detector_available": False,
+                "scene_describer_available": False,
+                "scene_embedder_available": False,
+                "scene_memory_observation_id": None,
+            },
+        )
+        assert_output_conforms_to_schema(_HANDLER, result)

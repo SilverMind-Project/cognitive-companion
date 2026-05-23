@@ -23,6 +23,7 @@ import GenericPluginConfig, { stepDefaults as genericDefaults, stepTabs as gener
 import CtsWindowPollConfig, { stepDefaults as ctsWpDefaults, stepTabs as ctsWpTabs } from "./CtsWindowPollConfig.vue";
 import RecameraMediaPollConfig, { stepDefaults as rcmpDefaults, stepTabs as rcmpTabs } from "./RecameraMediaPollConfig.vue";
 import InfoCardConfig, { stepDefaults as infoCardDefaults, stepTabs as infoCardTabs } from "./InfoCardConfig.vue";
+import ImageCropConfig, { stepDefaults as imageCropDefaults, stepTabs as imageCropTabs } from "./ImageCropConfig.vue";
 
 export const stepConfigMap = {
   wait:                { component: WaitConfig,                defaults: waitDefaults,    tabs: waitTabs },
@@ -46,6 +47,7 @@ export const stepConfigMap = {
   cts_window_poll:     { component: CtsWindowPollConfig,       defaults: ctsWpDefaults,   tabs: ctsWpTabs },
   recamera_media_poll: { component: RecameraMediaPollConfig,   defaults: rcmpDefaults,    tabs: rcmpTabs },
   info_card:           { component: InfoCardConfig,            defaults: infoCardDefaults, tabs: infoCardTabs },
+  image_crop:          { component: ImageCropConfig,           defaults: imageCropDefaults, tabs: imageCropTabs },
 };
 import SchemaForm from "./_shared/SchemaForm.vue";
 
@@ -119,6 +121,7 @@ export const STEP_ICONS = {
   cts_window_poll: "mdi-camera-burst",
   recamera_media_poll: "mdi-camera-wireless-outline",
   info_card: "mdi-card-text-outline",
+  image_crop: "mdi-crop",
 };
 
 export const STEP_LABELS = {
@@ -130,4 +133,5 @@ export const STEP_LABELS = {
   daily_report: "Generate Daily Report",
   object_trend_analysis: "Room Trend Query",
   scene_analysis: "Scene Analysis",
+  image_crop: "Crop Image",
 };

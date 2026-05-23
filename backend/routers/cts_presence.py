@@ -100,8 +100,7 @@ def _snapshot_to_out(snapshot: PresenceSnapshot) -> PresenceSnapshotOut:
         last_seen_at=snapshot.last_seen_at.isoformat() if snapshot.last_seen_at else None,
         dwell_minutes=snapshot.dwell_minutes,
         sources=[
-            _PresenceSourceOut(name=s.name, confidence=s.confidence)
-            for s in snapshot.sources
+            _PresenceSourceOut(name=s.name, confidence=s.confidence) for s in snapshot.sources
         ],
         inferred_at=snapshot.inferred_at.isoformat(),
         notes=snapshot.notes,
@@ -236,15 +235,27 @@ async def reload_presence_config(request: Request) -> PresenceConfigOut:
                 detail={"code": "ha_cache.unavailable", "message": "HaStateCache not initialized."},
             )
 
+        cts_runtime = getattr(request.app.state, "cts_runtime", None)
+        db_factory = getattr(cts_runtime, "_db_factory", None) or getattr(
+            request.app.state, "db_factory", None
+        )
+        if db_factory is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": "db_factory.unavailable",
+                    "message": "Database session factory not initialized.",
+                },
+            )
+
+        def _location_repo_factory() -> SqlAlchemyLocationRepository:
+            return SqlAlchemyLocationRepository(db_factory())
+
         # Build new provider chain.
         new_providers = build_providers(
             new_config,
             cache=ha_cache,
-            location_repository=SqlAlchemyLocationRepository(
-                request.app.state.db_factory()
-                if hasattr(request.app.state, "db_factory")
-                else None
-            ),
+            location_repository_factory=_location_repo_factory,
         )
 
         # Swap atomically.
@@ -276,8 +287,7 @@ async def get_presence(
     at: str | None = Query(
         None,
         description=(
-            "ISO-8601 datetime for deterministic testing. "
-            "Defaults to current time when absent."
+            "ISO-8601 datetime for deterministic testing. Defaults to current time when absent."
         ),
     ),
 ) -> PresenceSnapshotOut:

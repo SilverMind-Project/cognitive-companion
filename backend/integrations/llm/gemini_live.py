@@ -22,9 +22,9 @@ class GeminiLiveProvider(RealtimeLLMProvider):
     """Manages a Gemini Live session for real-time audio interaction."""
 
     def __init__(self) -> None:
-        self.api_key: str = settings.get("llm.realtime.api_key")
-        self.model: str = settings.get("llm.realtime.model")
-        self.keepalive_interval: int = settings.get("llm.realtime.keepalive_interval", 25)
+        self.api_key: str = settings.as_str("llm.realtime.api_key", allow_empty=False)
+        self.model: str = settings.as_str("llm.realtime.model", allow_empty=False)
+        self.keepalive_interval: int = settings.as_int("llm.realtime.keepalive_interval")
         self._client: Any = None
 
     @property
@@ -110,7 +110,7 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         If ``conversation_history`` is provided, it's appended to the system
         instruction so context survives reconnects.
         """
-        base_instruction = system_instruction or settings.get("llm.realtime.system_instruction", "")
+        base_instruction = system_instruction or settings.as_str("llm.realtime.system_instruction")
 
         if conversation_history:
             base_instruction += (

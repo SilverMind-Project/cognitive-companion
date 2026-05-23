@@ -23,10 +23,10 @@ from backend.services.knowledge.layout_registry import (
 logger = get_logger(__name__)
 
 ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
-    settings.get("knowledge.allowed_mime_types", ["image/jpeg", "image/png"])
+    settings.as_list("knowledge.allowed_mime_types")
 )
-MAX_UPLOAD_BYTES: int = settings.get("knowledge.max_upload_bytes", 15728640)
-MAX_PIXELS: int = settings.get("knowledge.max_pixels", 40000000)
+MAX_UPLOAD_BYTES: int = settings.as_int("knowledge.max_upload_bytes")
+MAX_PIXELS: int = settings.as_int("knowledge.max_pixels")
 
 
 @dataclass(frozen=True, slots=True)

@@ -91,7 +91,7 @@ async def recamera_upload(
     sensor_id = auth.sensor_id or "unknown"
 
     # -- Label filter ---------------------------------------------------------
-    cam_config: dict = settings.get(f"cameras.{sensor_id}") or {}
+    cam_config = settings.as_dict("cameras").get(sensor_id, {})
     label_filter_config: dict | None = cam_config.get("label_filter")
     detected_labels = payload.data.labels
 

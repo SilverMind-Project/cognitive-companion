@@ -43,10 +43,10 @@ class UpstreamClient:
     AUDIENCE: str = ""
 
     def __init__(self) -> None:
-        cfg: dict[str, Any] = settings.get(f"cts.upstream.{self.SERVICE_NAME}") or {}
-        self._base: str = cfg.get("url", "").rstrip("/")
-        self._timeout: float = float(cfg.get("timeout_s", 5.0))
-        self._ssl_ctx: ssl.SSLContext | bool = self._build_ssl(cfg)
+        cfg = settings.section(f"cts.upstream.{self.SERVICE_NAME}")
+        self._base: str = cfg.as_str("url").rstrip("/")
+        self._timeout: float = cfg.as_float("timeout_s")
+        self._ssl_ctx: ssl.SSLContext | bool = self._build_ssl(cfg.as_dict())
 
     # ------------------------------------------------------------------
     # Internal helpers

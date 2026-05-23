@@ -123,6 +123,7 @@ class PipelineExecutor:
         activity=None,
         signals=None,
         knowledge_delivery=None,
+        minio_client=None,
         rules_engine=None,
     ) -> None:
         self._services = ServiceContainer(
@@ -143,6 +144,7 @@ class PipelineExecutor:
             activity=activity,
             signals=signals,
             knowledge_delivery=knowledge_delivery,
+            minio_client=minio_client,
         )
         self._rules_engine = rules_engine
 
@@ -242,7 +244,7 @@ class PipelineExecutor:
         db.add(event_log)
         db.flush()
 
-        local_tz = ZoneInfo(settings.get("app.timezone", "America/New_York"))
+        local_tz = ZoneInfo(settings.as_str("app.timezone"))
         now_local = datetime.now(local_tz)
         now_utc = datetime.now(UTC)
 

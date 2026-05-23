@@ -98,27 +98,24 @@ async def test_scene_intel_service_with_none_clients():
 # ---------------------------------------------------------------------------
 
 
-def test_wiring_memory_query_with_config_defaults():
-    """Simulate main.py wiring: MemoryQueryService with config defaults."""
+def test_wiring_memory_query_uses_nested_cache_config():
+    """Simulate main.py wiring: MemoryQueryService reads the nested cache section."""
+    from backend.core.config import Settings
     from backend.services.memory_query import MemoryQueryService
 
-    # Simulate settings.get("memory_query", {}) returning empty dict
-    # (no config → defaults)
-    memory_query_config = {}
-    cache_enabled = memory_query_config.get("cache.enabled", False)
-    cache_ttl = memory_query_config.get("cache.ttl_seconds", 30)
-    cache_maxsize = memory_query_config.get("cache.maxsize", 256)
+    cache_config = Settings.from_dict(
+        {"memory_query": {"cache": {"enabled": True, "ttl_seconds": 45, "maxsize": 32}}}
+    ).section("memory_query.cache")
 
     svc = MemoryQueryService(
         client=None,  # semantic_memory_client is None in test
-        cache_enabled=cache_enabled,
-        cache_ttl_seconds=cache_ttl,
-        cache_maxsize=cache_maxsize,
+        cache_enabled=cache_config.as_bool("enabled"),
+        cache_ttl_seconds=cache_config.as_int("ttl_seconds"),
+        cache_maxsize=cache_config.as_int("maxsize"),
     )
 
-    # Should work without raising
     assert svc._client is None
-    assert svc._cache is None  # cache_enabled=False
+    assert svc._cache is not None
 
 
 def test_wiring_scene_intel():

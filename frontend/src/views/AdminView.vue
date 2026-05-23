@@ -66,7 +66,7 @@
             <v-list-item
               rounded="lg"
               :prepend-icon="pinned ? 'mdi-pin-off-outline' : 'mdi-pin-outline'"
-              :title="pinned ? 'Auto-hide' : 'Pin open'"
+              :title="pinned ? 'Auto hide' : 'Keep open'"
               @click="togglePin"
             />
           </v-list>

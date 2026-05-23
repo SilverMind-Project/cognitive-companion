@@ -75,13 +75,32 @@ class LLMCallHandler(StepHandler):
                     },
                     "image_source": {
                         "type": "string",
-                        "enum": ["none", "trigger", "additional", "both"],
+                        "enum": ["none", "trigger", "additional", "both", "pipeline", "cts_window"],
                         "default": "none",
                         "description": (
                             "'trigger' = frames that triggered this pipeline, "
                             "'additional' = extra cameras only, "
-                            "'both' = trigger frames + additional cameras."
+                            "'both' = trigger frames + additional cameras, "
+                            "'pipeline' = prior step output, "
+                            "'cts_window' = CTS window poll frames."
                         ),
+                    },
+                    "pipeline_image_path": {
+                        "type": "string",
+                        "default": "",
+                        "description": "Dotted pipeline_data path to a prior step image output.",
+                    },
+                    "pipeline_image_url_field": {
+                        "type": "string",
+                        "default": "url",
+                    },
+                    "pipeline_image_object_name_field": {
+                        "type": "string",
+                        "default": "object_name",
+                    },
+                    "cts_frames_path": {
+                        "type": "string",
+                        "default": "steps.cts_window_poll_1.outputs.frames",
                     },
                     "max_images": {
                         "type": "integer",
@@ -237,14 +256,18 @@ class LLMCallHandler(StepHandler):
                 "include_context": [],
                 "image_source": "none",
                 "max_images": 5,
+                "trigger_images_count": 0,
                 "additional_sensor_ids": [],
                 "additional_room_names": [],
                 "images_per_sensor": 3,
                 "sensor_frame_limits": {},
                 "sort_by_sensor_then_time": False,
-                "trigger_images_count": 0,
                 "use_annotated_image": False,
                 "image_time_filter": {},
+                "pipeline_image_path": "",
+                "pipeline_image_url_field": "url",
+                "pipeline_image_object_name_field": "object_name",
+                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
                 "response_format": "text",
                 "response_schema": "",
                 "response_json_schema": "",
@@ -255,6 +278,17 @@ class LLMCallHandler(StepHandler):
                 "temperature": None,
                 "top_p": None,
                 "max_tokens": None,
+            },
+            output_schema={
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "llm_response": {},
+                    "logic_response": {},
+                    "vision_response": {},
+                    "translation": {},
+                    "notification_suppressed": {"type": "boolean"},
+                },
             },
         )
 
@@ -378,7 +412,11 @@ class LLMCallHandler(StepHandler):
         if has_vision and image_source != "none":
             sort_by_sensor: bool = bool(config.get("sort_by_sensor_then_time", False))
             media_paths = await resolve_image_sources(
-                config, trigger, services.event_aggregator,
+                config,
+                trigger,
+                services.event_aggregator,
+                pipeline_data=pipeline_data,
+                minio_client=services.minio_client,
                 default_max_images=5,
                 default_images_per_sensor=3,
                 sort_by_sensor=sort_by_sensor,

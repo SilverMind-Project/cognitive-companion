@@ -45,15 +45,15 @@ class TTSClient:
     """Async TTS client compatible with OpenAI /v1/audio/speech endpoint."""
 
     def __init__(self) -> None:
-        base_url = settings.get("tts.url") or ""
+        base_url = settings.as_str("tts.url")
         if base_url and "/v1" not in base_url:
             base_url = base_url.rstrip("/") + "/v1"
         self.base_url = base_url.rstrip("/")
-        self.default_model = settings.get("tts.default_model")
-        self.default_voice = settings.get("tts.default_voice")
-        self.default_speed = settings.get("tts.default_speed", 0.85)
-        self.default_language = settings.get("tts.default_language")
-        self.default_style = settings.get("tts.default_style") or None
+        self.default_model = settings.as_str("tts.default_model")
+        self.default_voice = settings.as_str("tts.default_voice")
+        self.default_speed = settings.as_float("tts.default_speed")
+        self.default_language = settings.as_str("tts.default_language")
+        self.default_style = settings.as_str("tts.default_style") or None
 
     @property
     def configured(self) -> bool:

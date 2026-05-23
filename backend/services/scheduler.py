@@ -44,7 +44,7 @@ def _app_timezone() -> ZoneInfo:
     regardless of the server's system timezone.  APScheduler handles DST
     transitions automatically when a ``ZoneInfo`` object is supplied.
     """
-    return ZoneInfo(settings.get("app.timezone", "UTC"))
+    return ZoneInfo(settings.as_str("app.timezone"))
 
 
 class Scheduler:

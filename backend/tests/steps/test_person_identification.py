@@ -14,6 +14,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from backend.integrations.minio_client import MinioClient
 from backend.models.sensor import Sensor
 from backend.services.camera_topology import RoomTransition
 from backend.services.person_tracking import CameraEventResult, PersonDetection
@@ -48,7 +51,7 @@ def _make_trigger(
         trigger_type="sensor_event",
         sensor_id=sensor_id,
         room_name=room_name,
-        media_paths=media_paths or ["frame0.jpg"],
+        media_paths=media_paths or ["http://minio/frame0.jpg"],
     )
 
 
@@ -92,11 +95,13 @@ def _make_services(
     db_factory=None,
     person_tracking=None,
     event_aggregator=None,
+    minio_client=None,
 ) -> ServiceContainer:
     return ServiceContainer(
         db_factory=db_factory or MagicMock(return_value=MagicMock()),
         person_tracking=person_tracking,
         event_aggregator=event_aggregator,
+        minio_client=minio_client,
     )
 
 
@@ -263,17 +268,17 @@ class TestResultData:
     async def test_source_media_path_annotated_on_detections(self):
         det = _make_detection(frame_index=0)
         person_tracking = _make_person_tracking(detections=[det])
-        trigger = _make_trigger(media_paths=["frame0.jpg", "frame1.jpg"])
+        trigger = _make_trigger(media_paths=["http://minio/frame0.jpg", "http://minio/frame1.jpg"])
         services = _make_services(person_tracking=person_tracking)
 
         result = await _HANDLER.execute(_make_step(), _FakeExecution(), {}, trigger, services)
 
-        assert result.data["person_detections"][0]["source_media_path"] == "frame0.jpg"
+        assert result.data["person_detections"][0]["source_media_path"] == "http://minio/frame0.jpg"
 
     async def test_source_media_path_skipped_when_frame_index_out_of_range(self):
         det = _make_detection(frame_index=99)
         person_tracking = _make_person_tracking(detections=[det])
-        trigger = _make_trigger(media_paths=["frame0.jpg"])
+        trigger = _make_trigger(media_paths=["http://minio/frame0.jpg"])
         services = _make_services(person_tracking=person_tracking)
 
         result = await _HANDLER.execute(_make_step(), _FakeExecution(), {}, trigger, services)
@@ -394,15 +399,229 @@ class TestCallForwarding:
     async def test_unknown_sensor_id_uses_fallback(self):
         """trigger.sensor_id=None should produce sensor_id='unknown' in the call."""
         person_tracking = _make_person_tracking()
-        db_mock = MagicMock()
-        db_mock.execute.return_value.scalar_one_or_none.return_value = None
-        db_mock.close = MagicMock()
-        services = _make_services(db_factory=lambda: db_mock, person_tracking=person_tracking)
+        services = _make_services(person_tracking=person_tracking)
 
         trigger = _make_trigger(sensor_id=None)
-        # sensor_id=None triggers the early return in _load_sensor_config
-        # so db_mock.execute should NOT be called.
         await _HANDLER.execute(_make_step(), _FakeExecution(), {}, trigger, services)
 
         call_kwargs = person_tracking.process_camera_event.call_args.kwargs
         assert call_kwargs["sensor_id"] == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Downstream image source + presence recording (Milestone 5)
+# ---------------------------------------------------------------------------
+
+
+def _mock_minio() -> MagicMock:
+    minio = MagicMock(spec=MinioClient)
+    minio.generate_presigned_url = lambda k, expiration=3600: f"http://minio/bucket/{k}?sig=test"
+    minio.extract_object_name = lambda u: u.split("/bucket/", 1)[1].split("?", 1)[0] if "/bucket/" in u else u
+    return minio
+
+
+class TestDownstreamImageSources:
+    @pytest.mark.asyncio
+    async def test_pipeline_image_source_uses_crop_output_images(self):
+        person_tracking = _make_person_tracking(detections=[_make_detection()])
+        services = _make_services(person_tracking=person_tracking, minio_client=_mock_minio())
+
+        pipeline_data = {
+            "steps": {
+                "crop_stove": {
+                    "outputs": {
+                        "images": ["http://minio/crops/stove.jpg"],
+                    }
+                }
+            }
+        }
+        config = {
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.crop_stove.outputs.images",
+        }
+        result = await _HANDLER.execute(
+            _make_step(config), _FakeExecution(), pipeline_data, _make_trigger(), services,
+        )
+        assert len(result.data["person_detections"]) == 1
+        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
+        assert call_kwargs["media_paths"] == ["http://minio/crops/stove.jpg"]
+
+    @pytest.mark.asyncio
+    async def test_cts_window_image_source_uses_minio_key_frames(self):
+        person_tracking = _make_person_tracking(detections=[_make_detection()])
+        minio = _mock_minio()
+        services = _make_services(person_tracking=person_tracking, minio_client=minio)
+
+        pipeline_data = {
+            "steps": {
+                "cts_window_poll_1": {
+                    "outputs": {
+                        "frames": [
+                            {
+                                "minio_key": "cts/cam1/frame.jpg",
+                                "camera_id": "cam1",
+                                "room_name": "Living Room",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        config = {
+            "image_source": "cts_window",
+            "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+            "presence_room_source": "source_image",
+        }
+        result = await _HANDLER.execute(
+            _make_step(config), _FakeExecution(), pipeline_data, _make_trigger(), services,
+        )
+        assert len(result.data["person_detections"]) == 1
+        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
+        assert call_kwargs["frame_contexts"] is not None
+        assert call_kwargs["frame_contexts"][0].room_name == "Living Room"
+
+    @pytest.mark.asyncio
+    async def test_detection_includes_crop_region_metadata(self):
+        det = _make_detection(frame_index=0)
+        person_tracking = _make_person_tracking(detections=[det])
+        services = _make_services(person_tracking=person_tracking, minio_client=_mock_minio())
+
+        pipeline_data = {
+            "steps": {
+                "crop_stove": {
+                    "outputs": {
+                        "cropped_images": [
+                            {
+                                "url": "http://minio/crops/stove.jpg",
+                                "object_name": "pipeline/crops/stove.jpg",
+                                "region_id": "stove",
+                                "region_name": "Stove area",
+                                "source_sensor_id": "kitchen_cam",
+                                "source_room_name": "Kitchen",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        config = {
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.crop_stove.outputs.cropped_images",
+        }
+        result = await _HANDLER.execute(
+            _make_step(config), _FakeExecution(), pipeline_data, _make_trigger(), services,
+        )
+        d = result.data["person_detections"][0]
+        assert d.get("crop_region_id") == "stove"
+        assert d.get("crop_region_name") == "Stove area"
+        assert d.get("source_sensor_id") == "kitchen_cam"
+
+
+class TestPresenceRecording:
+    @pytest.mark.asyncio
+    async def test_record_presence_false_passes_flag_to_tracking_service(self):
+        person_tracking = _make_person_tracking(detections=[_make_detection()])
+        services = _make_services(person_tracking=person_tracking)
+
+        config = {"record_presence": False, "image_source": "trigger"}
+        await _HANDLER.execute(
+            _make_step(config), _FakeExecution(), {}, _make_trigger(), services,
+        )
+        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
+        assert call_kwargs["record_presence"] is False
+
+    @pytest.mark.asyncio
+    async def test_record_sightings_false_passes_flag_to_tracking_service(self):
+        person_tracking = _make_person_tracking(detections=[_make_detection()])
+        services = _make_services(person_tracking=person_tracking)
+
+        config = {"record_sightings": False, "image_source": "trigger"}
+        await _HANDLER.execute(
+            _make_step(config), _FakeExecution(), {}, _make_trigger(), services,
+        )
+        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
+        assert call_kwargs["record_sightings"] is False
+
+    @pytest.mark.asyncio
+    async def test_presence_room_source_custom_uses_configured_room(self):
+        person_tracking = _make_person_tracking(detections=[_make_detection()])
+        services = _make_services(person_tracking=person_tracking)
+
+        config = {
+            "presence_room_source": "custom",
+            "presence_room_name": "Living Room",
+            "image_source": "trigger",
+        }
+        trigger = _make_trigger(room_name="Kitchen")
+        await _HANDLER.execute(
+            _make_step(config), _FakeExecution(), {}, trigger, services,
+        )
+        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
+        ctx = call_kwargs["frame_contexts"][0]
+        assert ctx.room_name == "Living Room"
+
+    @pytest.mark.asyncio
+    async def test_presence_room_source_source_image_uses_ref_room(self):
+        person_tracking = _make_person_tracking(detections=[_make_detection()])
+        minio = _mock_minio()
+        services = _make_services(person_tracking=person_tracking, minio_client=minio)
+
+        pipeline_data = {
+            "steps": {
+                "cts_window_poll_1": {
+                    "outputs": {
+                        "frames": [
+                            {
+                                "minio_key": "cts/cam1/frame.jpg",
+                                "camera_id": "cam1",
+                                "room_name": "Bedroom",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        config = {
+            "image_source": "cts_window",
+            "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+            "presence_room_source": "source_image",
+        }
+        trigger = _make_trigger(room_name="Kitchen")
+        await _HANDLER.execute(
+            _make_step(config), _FakeExecution(), pipeline_data, trigger, services,
+        )
+        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
+        ctx = call_kwargs["frame_contexts"][0]
+        # source_image room takes precedence over trigger room
+        assert ctx.room_name == "Bedroom"
+
+    @pytest.mark.asyncio
+    async def test_default_config_preserves_trigger_source(self):
+        person_tracking = _make_person_tracking(detections=[_make_detection()])
+        services = _make_services(person_tracking=person_tracking)
+
+        trigger = _make_trigger(sensor_id="cam-kitchen", room_name="Kitchen")
+        await _HANDLER.execute(
+            _make_step(), _FakeExecution(), {}, trigger, services,
+        )
+        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
+        # Default: sensor_id and room_name from trigger
+        assert call_kwargs["sensor_id"] == "cam-kitchen"
+        assert call_kwargs["room_name"] == "Kitchen"
+
+
+class TestOutputSchema:
+    def test_output_conforms_to_schema(self):
+        from backend.steps._testing import assert_output_conforms_to_schema
+        from backend.steps.base import StepResult
+
+        result = StepResult(
+            data={
+                "person_detections": [],
+                "room_transitions": [],
+                "annotated_image": None,
+                "semantic_memory_movement_ids": None,
+                "skip_reason": None,
+            },
+        )
+        assert_output_conforms_to_schema(_HANDLER, result)

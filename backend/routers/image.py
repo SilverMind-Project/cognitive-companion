@@ -56,7 +56,7 @@ def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> Re
     e-ink display can skip its pixel-refresh cycle.
     """
     eink_renderer = request.app.state.eink_renderer
-    refresh_window_minutes: int = settings.get("image.refresh_window_minutes", 60)
+    refresh_window_minutes: int = settings.as_int("image.refresh_window_minutes")
 
     state = db.execute(
         select(ActiveImageState).where(ActiveImageState.sensor_id == sensor_id)

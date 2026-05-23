@@ -49,7 +49,7 @@ async def get_status(
             subscribers = cts_runtime.status()["subscribers"]
 
     return {
-        "enabled": bool(settings.get("cts.enabled", False)),
+        "enabled": settings.as_bool("cts.enabled"),
         "orchestrator": orchestrator,
         "subscribers": subscribers,
     }
@@ -61,9 +61,9 @@ async def get_features(
 ) -> dict:
     """Return feature-flag toggles for the frontend to gate UI sections."""
     return {
-        "calibration": bool(settings.get("cts_ui.calibration_enabled", True)),
-        "live_view": bool(settings.get("cts_ui.live_view_enabled", False)),
-        "signals_dashboard": bool(settings.get("cts_ui.dashboard_enabled", True)),
+        "calibration": settings.as_bool("cts_ui.calibration_enabled"),
+        "live_view": settings.as_bool("cts_ui.live_view_enabled"),
+        "signals_dashboard": settings.as_bool("cts_ui.dashboard_enabled"),
     }
 
 

@@ -28,8 +28,8 @@ class HomeAssistantClient:
     """Async client for the Home Assistant REST API."""
 
     def __init__(self) -> None:
-        self.base_url: str = (settings.get("homeassistant.url") or "").rstrip("/")
-        self.token: str = settings.get("homeassistant.token") or ""
+        self.base_url: str = settings.as_str("homeassistant.url").rstrip("/")
+        self.token: str = settings.as_str("homeassistant.token")
         self._headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",

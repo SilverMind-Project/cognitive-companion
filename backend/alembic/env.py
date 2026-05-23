@@ -36,7 +36,7 @@ if config.config_file_name is not None:
 # in sync so that both modes see the same URL.
 url = config.get_main_option("sqlalchemy.url")
 if not url:
-    url = settings.get("database.url")
+    url = settings.as_str("database.url")
     config.set_main_option("sqlalchemy.url", url)
 config.set_section_option(
     config.config_ini_section, "sqlalchemy.url", url

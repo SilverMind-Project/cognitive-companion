@@ -315,7 +315,7 @@ class TestDispatch:
             patch("backend.services.telegram_trigger.settings") as mock_settings,
             patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec,
         ):
-            mock_settings.get.return_value = []
+            mock_settings.as_list.return_value = []
             await svc._dispatch(_cmd(command="/remind", chat_id="123"))
         mock_exec.assert_not_awaited()
 
@@ -340,7 +340,7 @@ class TestDispatch:
             patch("backend.services.telegram_trigger.settings") as mock_settings,
             patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec,
         ):
-            mock_settings.get.return_value = ["456"]
+            mock_settings.as_list.return_value = ["456"]
             await svc._dispatch(_cmd(command="/remind", chat_id="456"))
         mock_exec.assert_awaited_once()
 
@@ -353,7 +353,7 @@ class TestDispatch:
             patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec,
         ):
             # System has "999"; per-rule only has "123".
-            mock_settings.get.return_value = ["999"]
+            mock_settings.as_list.return_value = ["999"]
             # "123" is in per-rule → must pass.
             await svc._dispatch(_cmd(command="/remind", chat_id="123"))
             assert mock_exec.await_count == 1
@@ -378,7 +378,7 @@ class TestDispatch:
             patch("backend.services.telegram_trigger.settings") as mock_settings,
             patch.object(svc, "_execute_rule", new_callable=AsyncMock) as mock_exec,
         ):
-            mock_settings.get.return_value = []
+            mock_settings.as_list.return_value = []
             await svc._dispatch(_cmd(command="/remind", chat_id="123"))
         mock_exec.assert_not_awaited()
 

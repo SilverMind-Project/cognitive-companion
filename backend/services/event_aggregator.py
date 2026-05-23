@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -27,20 +28,37 @@ logger = get_logger(__name__)
 ProcessCallback = Callable[[str, list[str]], Awaitable[Any]]
 
 
+class EventAggregatorConfig(BaseModel):
+    """Validated event aggregator settings from ``event_aggregator`` config."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    batch_size: int
+    window_seconds: float
+    cooldown_seconds: float
+    media_retention_minutes: int
+
+
 class EventAggregator:
     """Collects per-sensor media events, batches them, and triggers processing."""
 
     def __init__(
         self,
-        config: dict[str, Any],
+        config: EventAggregatorConfig | dict[str, Any],
         db_session_factory: Callable[[], Session],
         minio_client: MinioClient,
         process_callback: ProcessCallback,
     ) -> None:
-        self.batch_size: int = config.get("batch_size", 5)
-        self.window_seconds: float = config.get("window_seconds", 30.0)
-        self.cooldown_seconds: float = config.get("cooldown_seconds", 60.0)
-        self.media_retention_minutes: int = config.get("media_retention_minutes", 30)
+        resolved_config = (
+            config
+            if isinstance(config, EventAggregatorConfig)
+            else EventAggregatorConfig.model_validate(config)
+        )
+
+        self.batch_size = resolved_config.batch_size
+        self.window_seconds = resolved_config.window_seconds
+        self.cooldown_seconds = resolved_config.cooldown_seconds
+        self.media_retention_minutes = resolved_config.media_retention_minutes
 
         self._db_session_factory = db_session_factory
         self._minio = minio_client

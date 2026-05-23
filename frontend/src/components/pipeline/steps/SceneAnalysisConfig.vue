@@ -40,8 +40,10 @@
       :model-value="modelValue.image_source"
       :items="[
         { title: 'Trigger frames', value: 'trigger' },
-        { title: 'Selected cameras', value: 'additional' },
-        { title: 'Trigger + selected cameras', value: 'both' },
+        { title: 'Selected reCameras', value: 'additional' },
+        { title: 'Trigger plus selected reCameras', value: 'both' },
+        { title: 'Pipeline step output', value: 'pipeline' },
+        { title: 'CTS window frames', value: 'cts_window' },
       ]"
       item-title="title"
       item-value="value"
@@ -49,6 +51,28 @@
       class="mb-4"
       @update:model-value="emit('update:modelValue', { ...modelValue, image_source: $event })"
     />
+
+    <template v-if="modelValue.image_source === 'pipeline'">
+      <v-text-field
+        :model-value="modelValue.pipeline_image_path"
+        label="Pipeline Image Path"
+        hint="Dotted path to upstream step output, e.g. steps.crop_stove.outputs.images"
+        persistent-hint
+        class="mb-4"
+        @update:model-value="emit('update:modelValue', { ...modelValue, pipeline_image_path: $event })"
+      />
+    </template>
+
+    <template v-if="modelValue.image_source === 'cts_window'">
+      <v-text-field
+        :model-value="modelValue.cts_frames_path"
+        label="CTS Frames Path"
+        hint="Dotted path to CTS window frames, e.g. steps.cts_window_poll_1.outputs.frames"
+        persistent-hint
+        class="mb-4"
+        @update:model-value="emit('update:modelValue', { ...modelValue, cts_frames_path: $event })"
+      />
+    </template>
 
     <v-text-field
       :model-value="modelValue.max_images"
@@ -112,6 +136,10 @@ export const stepDefaults = {
   images_per_sensor: 1,
   sensor_frame_limits: {},
   image_time_filter: {},
+  pipeline_image_path: "",
+  pipeline_image_url_field: "url",
+  pipeline_image_object_name_field: "object_name",
+  cts_frames_path: "steps.cts_window_poll_1.outputs.frames",
 };
 export const stepTabs = [
   { key: "images", label: "Images", icon: "mdi-camera-outline" },

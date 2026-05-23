@@ -61,9 +61,11 @@ def presence_service() -> PresenceService:
 async def test_cts_disabled_returns_404():
     """When cts.enabled=False, return 404 with cts.disabled code."""
     mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": False,
-    }.get(key, default))
+    mock_settings.as_bool = MagicMock(
+        side_effect=lambda key: {
+            "cts.enabled": False,
+        }[key]
+    )
 
     app = FastAPI()
     register_exception_handlers(app)
@@ -73,10 +75,10 @@ async def test_cts_disabled_returns_404():
     app.include_router(router, prefix="/api/v1")
     app.state.presence = None
 
-    with patch("backend.routers.cts_presence.settings", mock_settings):
+    with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/mom")
+            resp = await client.get("/api/v1/cts/presence/mom")
 
     assert resp.status_code == 404
     body = resp.json()
@@ -95,9 +97,11 @@ async def test_person_not_in_repo_returns_unknown(presence_service: PresenceServ
     presence_service._providers = [mock_provider]
 
     mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": True,
-    }.get(key, default))
+    mock_settings.as_bool = MagicMock(
+        side_effect=lambda key: {
+            "cts.enabled": True,
+        }[key]
+    )
 
     app = FastAPI()
     register_exception_handlers(app)
@@ -107,10 +111,10 @@ async def test_person_not_in_repo_returns_unknown(presence_service: PresenceServ
     app.include_router(router, prefix="/api/v1")
     app.state.presence = presence_service
 
-    with patch("backend.routers.cts_presence.settings", mock_settings):
+    with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/mom")
+            resp = await client.get("/api/v1/cts/presence/mom")
 
     assert resp.status_code == 200
     body = resp.json()
@@ -122,9 +126,11 @@ async def test_person_not_in_repo_returns_unknown(presence_service: PresenceServ
 async def test_person_in_repo_returns_present_room(presence_service: PresenceService):
     """When a provider returns a snapshot, return it with correct fields."""
     mock_settings = MagicMock()
-    mock_settings.get = MagicMock(side_effect=lambda key, default=None: {
-        "cts.enabled": True,
-    }.get(key, default))
+    mock_settings.as_bool = MagicMock(
+        side_effect=lambda key: {
+            "cts.enabled": True,
+        }[key]
+    )
 
     app = FastAPI()
     register_exception_handlers(app)
@@ -134,10 +140,10 @@ async def test_person_in_repo_returns_present_room(presence_service: PresenceSer
     app.include_router(router, prefix="/api/v1")
     app.state.presence = presence_service
 
-    with patch("backend.routers.cts_presence.settings", mock_settings):
+    with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/mom")
+            resp = await client.get("/api/v1/cts/presence/mom")
 
     assert resp.status_code == 200
     body = resp.json()

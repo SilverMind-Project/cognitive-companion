@@ -65,7 +65,7 @@ class ContentGenerationService:
     ) -> ParaphraseSuggestion:
         """Generate a paraphrased info card from a knowledge document's source_text."""
         doc = self._get_document(document_id)
-        model_id = model_id or settings.get("knowledge.paraphrase_model")
+        model_id = model_id or settings.as_str("knowledge.paraphrase_model")
         provider = self._require_provider(model_id)
 
         prompt = _PARAPHRASE_PROMPT.format(source_text=doc.source_text[:8000])
@@ -85,7 +85,7 @@ class ContentGenerationService:
     ) -> QuizSuggestion:
         """Generate a quiz draft from a knowledge document's source_text."""
         doc = self._get_document(document_id)
-        model_id = model_id or settings.get("knowledge.quiz_generation_model", "gemma4_26b")
+        model_id = model_id or settings.as_str("knowledge.quiz_generation_model")
         provider = self._require_provider(model_id)
 
         q_type_instruction = (
@@ -113,7 +113,7 @@ class ContentGenerationService:
     ) -> str:
         """Generate a voice instruction for an info card or quiz."""
         doc = self._get_document(document_id)
-        model_id = model_id or settings.get("knowledge.paraphrase_model", "gemma4_26b")
+        model_id = model_id or settings.as_str("knowledge.paraphrase_model")
         provider = self._require_provider(model_id)
 
         prompt = _VOICE_INSTRUCTION_PROMPT.format(
@@ -137,7 +137,7 @@ class ContentGenerationService:
         """Regenerate a single quiz question."""
         _validate_question_type(question_type)
         doc = self._get_document(document_id)
-        model_id = model_id or settings.get("knowledge.quiz_generation_model", "gemma4_26b")
+        model_id = model_id or settings.as_str("knowledge.quiz_generation_model")
         provider = self._require_provider(model_id)
 
         prompt = _REGENERATE_QUESTION_PROMPT.format(
@@ -154,7 +154,7 @@ class ContentGenerationService:
         self, question_text: str, expected_answer: str, senior_response: str
     ) -> bool:
         """Grade an open-ended quiz response against the expected answer."""
-        model_id = settings.get("knowledge.quiz_generation_model", "gemma4_26b")
+        model_id = settings.as_str("knowledge.quiz_generation_model")
         provider = self._require_provider(model_id)
 
         prompt = _GRADING_PROMPT.format(

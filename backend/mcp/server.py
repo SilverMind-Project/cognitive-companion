@@ -509,7 +509,7 @@ async def get_eink_display_status(sensor_id: str | None = None) -> list[dict]:
 @_register
 async def get_local_datetime() -> dict:
     """Get the current local date and time for the household's timezone."""
-    tz_name = settings.get("app.timezone", "America/New_York")
+    tz_name = settings.as_str("app.timezone")
     tz = ZoneInfo(tz_name)
     now = datetime.now(tz)
     return {
@@ -817,7 +817,7 @@ async def get_daily_report(
 
     from backend.core.config import settings
 
-    tz_name = settings.get("app.timezone", "UTC")
+    tz_name = settings.as_str("app.timezone")
     report = _svc.daily_report.generate_daily_report(
         person_id=person_id,
         date=date,
@@ -965,7 +965,7 @@ async def get_tracking_status() -> dict:
     with ``enabled`` set to ``False`` when the feature flag is off so
     downstream agents can branch cleanly.
     """
-    if not settings.get("cts.enabled", False):
+    if not settings.as_bool("cts.enabled"):
         return {"enabled": False, "subscribers": []}
 
     runtime = _svc.cts_runtime

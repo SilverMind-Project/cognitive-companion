@@ -97,7 +97,7 @@ def setup_logging(
     from backend.core.config import settings
 
     if level is None:
-        level_name = settings.get("logging.level", "INFO").upper()
+        level_name = settings.as_str("logging.level").upper()
         resolved_level = getattr(logging, level_name, logging.INFO)
     elif isinstance(level, str):
         resolved_level = getattr(logging, level.upper(), logging.INFO)

@@ -24,7 +24,7 @@ def cts_enabled() -> None:
     flag is a hard gating boundary: zero CTS code executes when
     ``cts.enabled`` is ``False``.
     """
-    if not settings.get("cts.enabled", False):
+    if not settings.as_bool("cts.enabled"):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={

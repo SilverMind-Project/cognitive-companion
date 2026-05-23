@@ -271,11 +271,11 @@ def get_minio_client() -> MinioClient:
         return _instance
 
     _instance = MinioClient(
-        endpoint=settings.get("minio.endpoint", "minio.nanai.khoofia.com"),
-        access_key=settings.get("minio.access_key", "minioadmin"),
-        secret_key=settings.get("minio.secret_key", "minioadmin"),
-        bucket=settings.get("minio.bucket", "cognitive-companion"),
-        secure=settings.get("minio.secure", False),
+        endpoint=settings.as_str("minio.endpoint", allow_empty=False),
+        access_key=settings.as_str("minio.access_key", allow_empty=False),
+        secret_key=settings.as_str("minio.secret_key", allow_empty=False),
+        bucket=settings.as_str("minio.bucket", allow_empty=False),
+        secure=settings.as_bool("minio.secure"),
     )
     _instance.ensure_bucket()
     return _instance

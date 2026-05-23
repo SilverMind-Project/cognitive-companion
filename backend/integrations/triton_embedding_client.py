@@ -30,11 +30,11 @@ class TritonEmbeddingClient:
     """
 
     def __init__(self) -> None:
-        self._dim: int = settings.get_required("embedding.dim")
-        self._triton_url: str = settings.get_required("embedding.triton_url")
-        self._model_name: str = settings.get_required("embedding.model_name")
-        self._tokenizer_path: str = settings.get_required("embedding.tokenizer_path")
-        self._max_seq_len: int = settings.get_required("embedding.max_seq_len")
+        self._dim: int = settings.as_int("embedding.dim")
+        self._triton_url: str = settings.as_str("embedding.triton_url", allow_empty=False)
+        self._model_name: str = settings.as_str("embedding.model_name", allow_empty=False)
+        self._tokenizer_path: str = settings.as_str("embedding.tokenizer_path", allow_empty=False)
+        self._max_seq_len: int = settings.as_int("embedding.max_seq_len")
         self._embedder: TextEmbedder | None = None
 
     @property
@@ -74,7 +74,7 @@ class TritonEmbeddingClient:
         """Embed a batch of text chunks, respecting ``embedding.batch_size``."""
         if not texts:
             return []
-        batch_size: int = settings.get_required("embedding.batch_size")
+        batch_size: int = settings.as_int("embedding.batch_size")
         all_embeddings: list[list[float]] = []
         try:
             embedder = await self._ensure_embedder()

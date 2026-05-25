@@ -38,10 +38,7 @@ def list_groups(
 ) -> list[dict]:
     cts_enabled()
     rows = db.execute(
-        text(
-            "SELECT id, name, camera_ids, created_at "
-            "FROM cts_camera_overlap_groups ORDER BY id"
-        )
+        text("SELECT id, name, camera_ids, created_at FROM cts_camera_overlap_groups ORDER BY id")
     ).fetchall()
     return [
         {

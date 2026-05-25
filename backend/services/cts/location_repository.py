@@ -169,11 +169,7 @@ class SqlAlchemyLocationRepository:
         # Auto-create a HouseholdMember row for CTS-discovered identities so
         # the FK constraint on PersonLocationState is satisfied and the
         # identity appears on the dashboard without manual provisioning.
-        member = (
-            self._db.query(HouseholdMember)
-            .filter(HouseholdMember.id == person_id)
-            .first()
-        )
+        member = self._db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
         if member is None:
             is_guest = person_id == "unknown" or person_id.startswith("unknown_")
             member = HouseholdMember(
@@ -275,10 +271,7 @@ class SqlAlchemyLocationRepository:
             query = query.filter(
                 PersonLocationHistory.room_name == room_name,
             )
-        return (
-            query.order_by(PersonLocationHistory.entered_at.desc())
-            .first()
-        )
+        return query.order_by(PersonLocationHistory.entered_at.desc()).first()
 
     def commit(self) -> None:
         self._db.commit()
@@ -400,9 +393,7 @@ class InMemoryLocationRepository:
         require_no_superseded: bool = False,
     ) -> int:
         candidates = [
-            h
-            for h in reversed(self._history)
-            if h.person_id == person_id and h.exited_at is None
+            h for h in reversed(self._history) if h.person_id == person_id and h.exited_at is None
         ]
         if require_no_superseded:
             candidates = [h for h in candidates if h.superseded_by_revision_id is None]

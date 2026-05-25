@@ -993,9 +993,7 @@ class TestCanonicalStepNamespace:
         assert "vision_analysis" in steps
         assert steps["vision_analysis"]["outputs"]["vision_response"] == "ok"
 
-    async def test_event_log_snapshot_contains_canonical_step_data(
-        self, db_session, db_factory
-    ):
+    async def test_event_log_snapshot_contains_canonical_step_data(self, db_session, db_factory):
         """Event log snapshot must include the canonical steps namespace."""
         rule = _make_rule(db_session)
         _make_step(db_session, rule, order=1, step_type="llm_call", label="llm_call_1")
@@ -1011,9 +1009,8 @@ class TestCanonicalStepNamespace:
             execution = await executor.execute(rule, trigger, db_session)
 
         from backend.models.event import EventLog
-        event_log = db_session.query(EventLog).filter(
-            EventLog.id == execution.event_log_id
-        ).first()
+
+        event_log = db_session.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
         assert event_log is not None
         db_session.refresh(event_log)
 
@@ -1022,9 +1019,7 @@ class TestCanonicalStepNamespace:
         assert len(payload["steps"]) == 1
         assert "llm_call_1" in payload["steps"]
 
-    async def test_two_steps_with_same_output_key_both_survive(
-        self, db_session, db_factory
-    ):
+    async def test_two_steps_with_same_output_key_both_survive(self, db_session, db_factory):
         """Two steps that write the same output key must each be accessible via their label."""
         rule = _make_rule(db_session)
         _make_step(db_session, rule, order=1, step_type="llm_call", label="step_a")
@@ -1086,8 +1081,13 @@ class TestInteractivePromptResumeIntegration:
         from backend.models.pipeline import WorkflowExecution
 
         rule = _make_rule(db_session)
-        prompt_step = _make_step(db_session, rule, order=1, step_type="interactive_prompt",
-                                  config={"output_key": "interactive_response", "auto_escalate": False})
+        prompt_step = _make_step(
+            db_session,
+            rule,
+            order=1,
+            step_type="interactive_prompt",
+            config={"output_key": "interactive_response", "auto_escalate": False},
+        )
         next_step = _make_step(db_session, rule, order=2, step_type="notification")
         db_session.commit()
         db_session.refresh(prompt_step)
@@ -1099,8 +1099,12 @@ class TestInteractivePromptResumeIntegration:
             status="waiting",
             current_step_id=prompt_step.id,
             pipeline_data_json={
-                "trigger": {"sensor_id": "cam1", "room_name": "Kitchen",
-                            "media_paths": [], "media_type": "image"},
+                "trigger": {
+                    "sensor_id": "cam1",
+                    "room_name": "Kitchen",
+                    "media_paths": [],
+                    "media_type": "image",
+                },
                 "steps": {},
             },
         )
@@ -1135,15 +1139,23 @@ class TestInteractivePromptResumeIntegration:
         assert len(seen_data) == 1
         prompt_label = prompt_step.label
         assert prompt_label in seen_data[0]["steps"]
-        assert seen_data[0]["steps"][prompt_label]["outputs"]["interactive_response"]["action"] == "escalate"
+        assert (
+            seen_data[0]["steps"][prompt_label]["outputs"]["interactive_response"]["action"]
+            == "escalate"
+        )
 
     async def test_resume_stays_waiting_when_no_response(self, db_session, db_factory):
         """If no InteractiveResponse exists yet, resume() must keep the execution waiting."""
         from backend.models.pipeline import WorkflowExecution
 
         rule = _make_rule(db_session)
-        prompt_step = _make_step(db_session, rule, order=1, step_type="interactive_prompt",
-                                  config={"output_key": "interactive_response"})
+        prompt_step = _make_step(
+            db_session,
+            rule,
+            order=1,
+            step_type="interactive_prompt",
+            config={"output_key": "interactive_response"},
+        )
         db_session.commit()
         db_session.refresh(prompt_step)
 

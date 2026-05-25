@@ -47,14 +47,10 @@ class HttpUpstreamClient:
         enabled: bool | None = None,
     ) -> None:
         self._base_url: str = (
-            base_url
-            if base_url is not None
-            else settings.as_str(f"{self.SETTINGS_PREFIX}.url")
+            base_url if base_url is not None else settings.as_str(f"{self.SETTINGS_PREFIX}.url")
         ).rstrip("/")
         self._timeout: float = (
-            timeout
-            if timeout is not None
-            else settings.as_float(f"{self.SETTINGS_PREFIX}.timeout")
+            timeout if timeout is not None else settings.as_float(f"{self.SETTINGS_PREFIX}.timeout")
         )
         self.enabled: bool = (
             bool(enabled)
@@ -122,9 +118,7 @@ class HttpUpstreamClient:
             )
             return None
 
-    async def _post_json(
-        self, path: str, *, json: dict, headers: dict | None = None
-    ) -> Any | None:
+    async def _post_json(self, path: str, *, json: dict, headers: dict | None = None) -> Any | None:
         """POST a JSON body. Returns None on any error."""
         if not self.configured:
             return None

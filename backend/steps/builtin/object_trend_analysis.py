@@ -68,32 +68,24 @@ class ObjectTrendAnalysisHandler(StepHandler):
                         "type": "array",
                         "items": {"type": "string"},
                         "default": [],
-                        "description": (
-                            "Room IDs to query. Empty = use the trigger room."
-                        ),
+                        "description": ("Room IDs to query. Empty = use the trigger room."),
                     },
                     "include_snapshots_hours": {
                         "type": "integer",
                         "minimum": 0,
                         "default": 0,
-                        "description": (
-                            "If > 0, fetch raw hourly snapshots for LLM context."
-                        ),
+                        "description": ("If > 0, fetch raw hourly snapshots for LLM context."),
                     },
                     "severity_threshold": {
                         "type": "string",
                         "enum": ["ok", "info", "warning", "critical"],
                         "default": "info",
-                        "description": (
-                            "Anomalies below this severity are stripped."
-                        ),
+                        "description": ("Anomalies below this severity are stripped."),
                     },
                     "output_key": {
                         "type": "string",
                         "default": "room_trends",
-                        "description": (
-                            "Key under which the result map is written."
-                        ),
+                        "description": ("Key under which the result map is written."),
                     },
                 },
             },
@@ -202,7 +194,9 @@ def _format_trend_context(ctx: RoomTrendContext) -> dict:
     if ctx.snapshots:
         room_data["snapshots"] = [
             {
-                "period_start": s.period_start.astimezone(UTC).isoformat() if s.period_start else None,
+                "period_start": s.period_start.astimezone(UTC).isoformat()
+                if s.period_start
+                else None,
                 "unique_object_count": s.unique_object_count,
                 "object_counts": s.object_counts,
                 "persistent_objects": s.persistent_objects,
@@ -228,7 +222,9 @@ def _build_summary(trends: dict, max_severity: str) -> str:
         persistent = data.get("persistent_objects", [])
         novel = data.get("novel_objects", [])
 
-        segments = [f"{room_id}: {severity.upper() if severity != 'ok' else 'OK'} clutter (z={clutter:.1f}, {direction} trend)"]
+        segments = [
+            f"{room_id}: {severity.upper() if severity != 'ok' else 'OK'} clutter (z={clutter:.1f}, {direction} trend)"
+        ]
         if persistent:
             segments.append(f"Persistent: {', '.join(persistent[:5])}")
         if novel:

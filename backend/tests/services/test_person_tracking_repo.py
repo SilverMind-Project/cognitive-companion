@@ -73,9 +73,7 @@ async def test_first_sighting_writes_state_and_history(service, db_factory) -> N
     db = db_factory()
     try:
         state = (
-            db.query(PersonLocationState)
-            .filter(PersonLocationState.person_id == "grandma")
-            .one()
+            db.query(PersonLocationState).filter(PersonLocationState.person_id == "grandma").one()
         )
         assert state.current_room_name == "Kitchen"
         assert state.last_sensor_id == "recamera:cam-kitchen"
@@ -140,9 +138,7 @@ async def test_room_change_closes_previous_history(service, db_factory) -> None:
     db = db_factory()
     try:
         state = (
-            db.query(PersonLocationState)
-            .filter(PersonLocationState.person_id == "grandma")
-            .one()
+            db.query(PersonLocationState).filter(PersonLocationState.person_id == "grandma").one()
         )
         assert state.current_room_name == "Living Room"
         assert state.last_sensor_id == "recamera:cam-living"

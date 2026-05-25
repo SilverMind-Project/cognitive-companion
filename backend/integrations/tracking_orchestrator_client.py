@@ -377,9 +377,7 @@ class OrchestratorClient(UpstreamClient):
 
     async def get_keyframe_bboxes(self, keyframe_id: str) -> list[dict]:
         """Return YOLO bounding-box annotations for a tagged keyframe."""
-        r = await self._request(
-            "GET", f"/internal/keyframes/{keyframe_id}/bboxes"
-        )
+        r = await self._request("GET", f"/internal/keyframes/{keyframe_id}/bboxes")
         return r.json().get("bboxes", [])
 
     async def override_bbox(

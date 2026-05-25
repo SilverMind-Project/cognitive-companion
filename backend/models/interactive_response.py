@@ -23,13 +23,9 @@ class InteractiveResponse(Base):
     __tablename__ = "interactive_responses"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    execution_id: Mapped[int] = mapped_column(
-        ForeignKey("workflow_executions.id"), index=True
-    )
+    execution_id: Mapped[int] = mapped_column(ForeignKey("workflow_executions.id"), index=True)
     step_id: Mapped[int] = mapped_column(ForeignKey("pipeline_steps.id"), index=True)
-    channel: Mapped[str] = mapped_column(
-        String(64)
-    )  # pwa_popup_text, pwa_realtime_ai, timeout
+    channel: Mapped[str] = mapped_column(String(64))  # pwa_popup_text, pwa_realtime_ai, timeout
     action: Mapped[str] = mapped_column(String(32))  # escalate, dismiss
     timestamp: Mapped[datetime] = mapped_column(UTCDateTime())
     raw_response_json: Mapped[dict] = mapped_column(JSON, default=dict)

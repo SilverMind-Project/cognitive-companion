@@ -127,7 +127,9 @@ def test_build_providers_with_unknown_provider():
         # Remove ha_bed_sensor to test the unknown-provider path.
         factory._PROVIDER_BUILDERS.pop("ha_bed_sensor")
         config = PresenceConfig(
-            providers=[{"name": "ha_bed_sensor", "entity_id": "x", "person_id": "y", "room_id": "z"}],
+            providers=[
+                {"name": "ha_bed_sensor", "entity_id": "x", "person_id": "y", "room_id": "z"}
+            ],
         )
         with pytest.raises(ValueError, match="ha_bed_sensor"):
             build_providers(

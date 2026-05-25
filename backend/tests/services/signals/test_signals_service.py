@@ -74,9 +74,7 @@ class TestListRecent:
     @pytest.mark.asyncio
     async def test_filter_by_person_id(self, svc: SignalsService):
         await SignalStore(db_factory=svc._db_factory).insert(_BASE_SIGNAL)
-        await SignalStore(db_factory=svc._db_factory).insert(
-            {**_BASE_SIGNAL, "person_id": "dad"}
-        )
+        await SignalStore(db_factory=svc._db_factory).insert({**_BASE_SIGNAL, "person_id": "dad"})
         results = await svc.list_recent(person_id="grandma", window_minutes=60)
         assert all(r["person_id"] == "grandma" for r in results)
 

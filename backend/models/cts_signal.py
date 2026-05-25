@@ -60,6 +60,4 @@ class DementiaSignal(Base):
     acknowledged_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     # When the signal was received by Cognitive Companion.
-    received_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), server_default=func.now()
-    )
+    received_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())

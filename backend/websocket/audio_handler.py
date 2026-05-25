@@ -239,7 +239,10 @@ class AudioSessionHandler:
                                         text = f"[quiz session {sid}] {text}"
 
                                 # Detect voice_instruction change: reconnect inline
-                                if voice_instruction and voice_instruction != self._current_voice_instruction:
+                                if (
+                                    voice_instruction
+                                    and voice_instruction != self._current_voice_instruction
+                                ):
                                     self._current_voice_instruction = voice_instruction
                                     logger.info("ws_voice_instruction_changed")
                                     if self.provider is not None:
@@ -513,7 +516,6 @@ class AudioSessionHandler:
             data: Raw message data from WebSocket
         """
 
-
         try:
             # Validate payload using Pydantic schema
             message = InteractiveResponseMessage(**data)
@@ -529,10 +531,12 @@ class AudioSessionHandler:
 
             if interactive_service is None:
                 logger.error("interactive_response_service_not_configured")
-                await self.ws.send_json({
-                    "type": "error",
-                    "message": "Interactive response service not configured",
-                })
+                await self.ws.send_json(
+                    {
+                        "type": "error",
+                        "message": "Interactive response service not configured",
+                    }
+                )
                 return
 
             # Record the response
@@ -547,12 +551,14 @@ class AudioSessionHandler:
 
             # Send acknowledgment to client
             if response is not None:
-                await self.ws.send_json({
-                    "type": "interactive_response_ack",
-                    "execution_id": message.execution_id,
-                    "step_id": message.step_id,
-                    "status": "success",
-                })
+                await self.ws.send_json(
+                    {
+                        "type": "interactive_response_ack",
+                        "execution_id": message.execution_id,
+                        "step_id": message.step_id,
+                        "status": "success",
+                    }
+                )
                 logger.info(
                     "interactive_response_handled",
                     execution_id=message.execution_id,
@@ -561,12 +567,14 @@ class AudioSessionHandler:
                 )
             else:
                 # Duplicate response - still send success ack (idempotent)
-                await self.ws.send_json({
-                    "type": "interactive_response_ack",
-                    "execution_id": message.execution_id,
-                    "step_id": message.step_id,
-                    "status": "duplicate",
-                })
+                await self.ws.send_json(
+                    {
+                        "type": "interactive_response_ack",
+                        "execution_id": message.execution_id,
+                        "step_id": message.step_id,
+                        "status": "duplicate",
+                    }
+                )
                 logger.info(
                     "interactive_response_duplicate_ack",
                     execution_id=message.execution_id,
@@ -580,10 +588,12 @@ class AudioSessionHandler:
                 error=str(e),
                 data=data,
             )
-            await self.ws.send_json({
-                "type": "error",
-                "message": f"Invalid interactive_response payload: {e}",
-            })
+            await self.ws.send_json(
+                {
+                    "type": "error",
+                    "message": f"Invalid interactive_response payload: {e}",
+                }
+            )
 
         except ValueError as e:
             # Invalid action or other value error
@@ -592,10 +602,12 @@ class AudioSessionHandler:
                 error=str(e),
                 data=data,
             )
-            await self.ws.send_json({
-                "type": "error",
-                "message": str(e),
-            })
+            await self.ws.send_json(
+                {
+                    "type": "error",
+                    "message": str(e),
+                }
+            )
 
         except Exception as e:
             # Unexpected error - log and send error response
@@ -604,10 +616,12 @@ class AudioSessionHandler:
                 error=str(e),
                 data=data,
             )
-            await self.ws.send_json({
-                "type": "error",
-                "message": "Failed to process interactive response",
-            })
+            await self.ws.send_json(
+                {
+                    "type": "error",
+                    "message": "Failed to process interactive response",
+                }
+            )
 
     async def _handle_quiz_answer(self, data: dict) -> None:
         """Handle quiz_answer WebSocket message from the PWA."""

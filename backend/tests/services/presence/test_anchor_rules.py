@@ -43,28 +43,32 @@ def now():
 
 
 def test_equality_true(now):
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="off",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="off",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     pred = compile_predicate("light.bedroom == off")
     assert pred.evaluate(cache, now) is True
     assert pred.entity_ids == ("light.bedroom",)
 
 
 def test_equality_false(now):
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="on",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="on",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     pred = compile_predicate("light.bedroom == off")
     assert pred.evaluate(cache, now) is False
 
@@ -82,27 +86,31 @@ def test_equality_missing_entity(now):
 
 
 def test_negation_true(now):
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="on",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="on",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     pred = compile_predicate("light.bedroom != off")
     assert pred.evaluate(cache, now) is True
 
 
 def test_negation_false(now):
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="off",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="off",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     pred = compile_predicate("light.bedroom != off")
     assert pred.evaluate(cache, now) is False
 
@@ -113,40 +121,46 @@ def test_negation_false(now):
 
 
 def test_motion_outside_detected(now):
-    cache = _StubCache({
-        "binary_sensor.hallway_motion": HaState(
-            entity_id="binary_sensor.hallway_motion",
-            state="on",
-            attributes={},
-            last_changed=now - timedelta(minutes=2),
-        ),
-    })
+    cache = _StubCache(
+        {
+            "binary_sensor.hallway_motion": HaState(
+                entity_id="binary_sensor.hallway_motion",
+                state="on",
+                attributes={},
+                last_changed=now - timedelta(minutes=2),
+            ),
+        }
+    )
     pred = compile_predicate("motion outside bedroom in last 5m")
     assert pred.evaluate(cache, now) is True
 
 
 def test_motion_inside_not_detected(now):
-    cache = _StubCache({
-        "binary_sensor.bedroom_motion": HaState(
-            entity_id="binary_sensor.bedroom_motion",
-            state="on",
-            attributes={},
-            last_changed=now - timedelta(minutes=2),
-        ),
-    })
+    cache = _StubCache(
+        {
+            "binary_sensor.bedroom_motion": HaState(
+                entity_id="binary_sensor.bedroom_motion",
+                state="on",
+                attributes={},
+                last_changed=now - timedelta(minutes=2),
+            ),
+        }
+    )
     pred = compile_predicate("motion outside bedroom in last 5m")
     assert pred.evaluate(cache, now) is False
 
 
 def test_motion_too_old_not_detected(now):
-    cache = _StubCache({
-        "binary_sensor.hallway_motion": HaState(
-            entity_id="binary_sensor.hallway_motion",
-            state="on",
-            attributes={},
-            last_changed=now - timedelta(minutes=10),
-        ),
-    })
+    cache = _StubCache(
+        {
+            "binary_sensor.hallway_motion": HaState(
+                entity_id="binary_sensor.hallway_motion",
+                state="on",
+                attributes={},
+                last_changed=now - timedelta(minutes=10),
+            ),
+        }
+    )
     pred = compile_predicate("motion outside bedroom in last 5m")
     assert pred.evaluate(cache, now) is False
 

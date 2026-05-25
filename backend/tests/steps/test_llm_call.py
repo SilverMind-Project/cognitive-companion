@@ -86,7 +86,9 @@ def _mock_minio(objects: dict | None = None):
         return store.get(key)
 
     minio.async_get_object = _get
-    minio.generate_presigned_url = lambda k, expiration=3600: f"http://minio.local/bucket/{k}?sig=test"
+    minio.generate_presigned_url = lambda k, expiration=3600: (
+        f"http://minio.local/bucket/{k}?sig=test"
+    )
     minio.extract_object_name = lambda u: u.split("/bucket/", 1)[1].split("?", 1)[0]
     return minio
 
@@ -139,7 +141,11 @@ class TestPipelineImageSource:
             "prompt": "What do you see?",
         }
         await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), pipeline_data, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            pipeline_data,
+            _make_trigger(),
+            services,
         )
         provider.call.assert_called_once()
         call_kwargs = provider.call.call_args.kwargs
@@ -178,7 +184,11 @@ class TestPipelineImageSource:
             "prompt": "Describe the scene.",
         }
         await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), pipeline_data, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            pipeline_data,
+            _make_trigger(),
+            services,
         )
         provider.call.assert_called_once()
         call_kwargs = provider.call.call_args.kwargs
@@ -199,7 +209,11 @@ class TestPipelineImageSource:
             "prompt": "Hello",
         }
         await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), {}, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            {},
+            _make_trigger(),
+            services,
         )
         provider.call.assert_called_once()
         call_kwargs = provider.call.call_args.kwargs
@@ -222,10 +236,16 @@ class TestAnnotatedImage:
             "prompt": "Who is this?",
         }
         pipeline_data = {"annotated_image": "base64_fake_annotated_image_data"}
-        trigger = _make_trigger(media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"])
+        trigger = _make_trigger(
+            media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"]
+        )
 
         await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), pipeline_data, trigger, services,
+            _make_step(config),
+            _FakeExecution(),
+            pipeline_data,
+            trigger,
+            services,
         )
         provider.call.assert_called_once()
         call_kwargs = provider.call.call_args.kwargs

@@ -24,6 +24,7 @@ def _now_utc():
 
 def _now_local():
     from zoneinfo import ZoneInfo
+
     return datetime(2024, 1, 15, 7, 0, 0, tzinfo=ZoneInfo("America/New_York"))
 
 
@@ -109,16 +110,26 @@ def test_build_initial_system_ordinal_suffix_variants():
 
     tz = ZoneInfo("UTC")
     cases = {
-        1: "1st", 2: "2nd", 3: "3rd", 4: "4th",
-        11: "11th", 12: "12th", 13: "13th",
-        21: "21st", 22: "22nd", 23: "23rd",
+        1: "1st",
+        2: "2nd",
+        3: "3rd",
+        4: "4th",
+        11: "11th",
+        12: "12th",
+        13: "13th",
+        21: "21st",
+        22: "22nd",
+        23: "23rd",
         31: "31st",
     }
     for day, expected in cases.items():
         data = build_initial_pipeline_data(
             trigger_type="cron",
-            sensor_id=None, room_name=None,
-            media_paths=[], media_type="image", webhook_payload=None,
+            sensor_id=None,
+            room_name=None,
+            media_paths=[],
+            media_type="image",
+            webhook_payload=None,
             now_utc=_now_utc(),
             now_local=datetime(2024, 1, day, 12, 0, 0, tzinfo=tz),
             timezone_name="UTC",
@@ -207,7 +218,13 @@ def _empty_data() -> dict:
 
 def test_apply_step_result_writes_label_key():
     data = _empty_data()
-    apply_step_result(data, step_id=12, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "hello"})
+    apply_step_result(
+        data,
+        step_id=12,
+        step_type="llm_call",
+        label="llm_call_1",
+        result_data={"llm_response": "hello"},
+    )
 
     assert "llm_call_1" in data["steps"]
     entry = data["steps"]["llm_call_1"]
@@ -218,8 +235,20 @@ def test_apply_step_result_writes_label_key():
 
 def test_apply_step_result_two_steps_both_survive():
     data = _empty_data()
-    apply_step_result(data, step_id=10, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "first"})
-    apply_step_result(data, step_id=11, step_type="llm_call", label="llm_call_2", result_data={"llm_response": "second"})
+    apply_step_result(
+        data,
+        step_id=10,
+        step_type="llm_call",
+        label="llm_call_1",
+        result_data={"llm_response": "first"},
+    )
+    apply_step_result(
+        data,
+        step_id=11,
+        step_type="llm_call",
+        label="llm_call_2",
+        result_data={"llm_response": "second"},
+    )
 
     assert data["steps"]["llm_call_1"]["outputs"]["llm_response"] == "first"
     assert data["steps"]["llm_call_2"]["outputs"]["llm_response"] == "second"
@@ -228,7 +257,9 @@ def test_apply_step_result_two_steps_both_survive():
 def test_apply_step_result_outputs_deep_copied():
     data = _empty_data()
     result_data = {"nested": {"value": 1}}
-    apply_step_result(data, step_id=1, step_type="llm_call", label="llm_call_1", result_data=result_data)
+    apply_step_result(
+        data, step_id=1, step_type="llm_call", label="llm_call_1", result_data=result_data
+    )
 
     result_data["nested"]["value"] = 999
     assert data["steps"]["llm_call_1"]["outputs"]["nested"]["value"] == 1
@@ -236,14 +267,26 @@ def test_apply_step_result_outputs_deep_copied():
 
 def test_apply_step_result_no_top_level_aliases():
     data = _empty_data()
-    apply_step_result(data, step_id=1, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "hello"})
+    apply_step_result(
+        data,
+        step_id=1,
+        step_type="llm_call",
+        label="llm_call_1",
+        result_data={"llm_response": "hello"},
+    )
 
     assert "llm_response" not in data
 
 
 def test_apply_step_result_cooloff_promoted_to_top_level():
     data = _empty_data()
-    apply_step_result(data, step_id=1, step_type="condition", label="condition_1", result_data={"_cooloff_triggered": True})
+    apply_step_result(
+        data,
+        step_id=1,
+        step_type="condition",
+        label="condition_1",
+        result_data={"_cooloff_triggered": True},
+    )
 
     assert data.get("_cooloff_triggered") is True
     assert data["steps"]["condition_1"]["outputs"]["_cooloff_triggered"] is True
@@ -251,15 +294,21 @@ def test_apply_step_result_cooloff_promoted_to_top_level():
 
 def test_apply_step_result_cooloff_not_promoted_when_absent():
     data = _empty_data()
-    apply_step_result(data, step_id=1, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "x"})
+    apply_step_result(
+        data, step_id=1, step_type="llm_call", label="llm_call_1", result_data={"llm_response": "x"}
+    )
 
     assert "_cooloff_triggered" not in data
 
 
 def test_apply_step_result_overwrite_same_label():
     data = _empty_data()
-    apply_step_result(data, step_id=5, step_type="llm_call", label="llm_call_1", result_data={"x": 1})
-    apply_step_result(data, step_id=5, step_type="llm_call", label="llm_call_1", result_data={"x": 2})
+    apply_step_result(
+        data, step_id=5, step_type="llm_call", label="llm_call_1", result_data={"x": 1}
+    )
+    apply_step_result(
+        data, step_id=5, step_type="llm_call", label="llm_call_1", result_data={"x": 2}
+    )
 
     assert data["steps"]["llm_call_1"]["outputs"]["x"] == 2
 
@@ -271,7 +320,12 @@ def test_apply_step_result_overwrite_same_label():
 
 def test_apply_interactive_response_writes_output_key():
     data = _empty_data()
-    payload = {"channel": "pwa_popup_text", "action": "escalate", "timestamp": "2024-01-01T00:00:00", "raw_response": {}}
+    payload = {
+        "channel": "pwa_popup_text",
+        "action": "escalate",
+        "timestamp": "2024-01-01T00:00:00",
+        "raw_response": {},
+    }
     apply_interactive_response(
         data,
         step_id=5,
@@ -290,7 +344,12 @@ def test_apply_interactive_response_writes_output_key():
 
 def test_apply_interactive_response_auto_escalate_on_escalate():
     data = _empty_data()
-    payload = {"channel": "pwa_popup_text", "action": "escalate", "timestamp": "x", "raw_response": {}}
+    payload = {
+        "channel": "pwa_popup_text",
+        "action": "escalate",
+        "timestamp": "x",
+        "raw_response": {},
+    }
     apply_interactive_response(
         data,
         step_id=5,
@@ -326,7 +385,12 @@ def test_apply_interactive_response_auto_escalate_on_timeout():
 
 def test_apply_interactive_response_no_auto_escalate_on_dismiss():
     data = _empty_data()
-    payload = {"channel": "pwa_popup_text", "action": "dismiss", "timestamp": "x", "raw_response": {}}
+    payload = {
+        "channel": "pwa_popup_text",
+        "action": "dismiss",
+        "timestamp": "x",
+        "raw_response": {},
+    }
     apply_interactive_response(
         data,
         step_id=5,
@@ -344,7 +408,12 @@ def test_apply_interactive_response_no_auto_escalate_on_dismiss():
 
 def test_apply_interactive_response_auto_escalate_disabled():
     data = _empty_data()
-    payload = {"channel": "pwa_popup_text", "action": "escalate", "timestamp": "x", "raw_response": {}}
+    payload = {
+        "channel": "pwa_popup_text",
+        "action": "escalate",
+        "timestamp": "x",
+        "raw_response": {},
+    }
     apply_interactive_response(
         data,
         step_id=5,

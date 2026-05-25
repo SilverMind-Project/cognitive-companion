@@ -226,9 +226,7 @@ class ContentGenerationService:
         except Exception:
             return QuizSuggestion(title=f"Quiz: {fallback_title}")
 
-    def _parse_single_question(
-        self, response: str, question_type: str
-    ) -> QuizQuestionSuggestion:
+    def _parse_single_question(self, response: str, question_type: str) -> QuizQuestionSuggestion:
         """Parse a single regenerated question."""
         _validate_question_type(question_type)
         try:

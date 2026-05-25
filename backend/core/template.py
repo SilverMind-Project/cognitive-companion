@@ -36,7 +36,7 @@ def _try_parse_json(value: Any) -> Any:
     if stripped and stripped[0] in ("{", "["):
         try:
             return json.loads(stripped)
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             pass
     return value
 
@@ -61,7 +61,7 @@ def resolve_path(path: str, data: Mapping[str, Any] | Any) -> Any:
         elif isinstance(current, (list, tuple)):
             try:
                 current = current[int(segment)]
-            except (ValueError, IndexError):
+            except ValueError, IndexError:
                 return None
         else:
             current = getattr(current, segment, None)
@@ -106,9 +106,7 @@ def evaluate_condition(expr: str, pipeline_data: Mapping[str, Any]) -> bool:
     result = evaluate_expression(expr, pipeline_data)
     if isinstance(result, bool):
         return result
-    raise TemplateTypeError(
-        f"Expected boolean result, got {type(result).__name__}: {result!r}"
-    )
+    raise TemplateTypeError(f"Expected boolean result, got {type(result).__name__}: {result!r}")
 
 
 def render_template(

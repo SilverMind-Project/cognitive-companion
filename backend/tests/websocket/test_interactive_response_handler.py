@@ -210,9 +210,7 @@ class TestInteractiveResponseHandler:
 
         # Service raises exception
         interactive_service = AsyncMock()
-        interactive_service.record_response = AsyncMock(
-            side_effect=Exception("Database error")
-        )
+        interactive_service.record_response = AsyncMock(side_effect=Exception("Database error"))
         ws.app.state.interactive_response_service = interactive_service
 
         handler = AudioSessionHandler(

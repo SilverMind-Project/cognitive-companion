@@ -14,5 +14,6 @@ def __getattr__(name: str):
     """Lazy import to avoid circular import issues."""
     if name in __all__:
         from backend.mcp import server
+
         return getattr(server, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

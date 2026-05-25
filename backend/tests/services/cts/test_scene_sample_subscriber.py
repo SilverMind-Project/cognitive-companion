@@ -45,7 +45,9 @@ def _make_analysis_result():
                 name="stove_unattended",
                 severity="warning",
                 description="Stove appears unattended with cookware on burner.",
-                detection=SceneDetection(label="stove", confidence=0.9, bbox=[10, 20, 30, 40], class_id=1),
+                detection=SceneDetection(
+                    label="stove", confidence=0.9, bbox=[10, 20, 30, 40], class_id=1
+                ),
             ),
         ],
         detector_available=True,
@@ -98,9 +100,14 @@ class TestSceneSampleHandle:
         memory.configured = True
         memory.create_observation = AsyncMock(
             return_value=ObservationRecord(
-                id=42, room_id="kitchen", description="test",
-                object_list=["stove"], hazard_flags=["stove_unattended"],
-                observed_at=None, source="scene_intel", created_at=None,
+                id=42,
+                room_id="kitchen",
+                description="test",
+                object_list=["stove"],
+                hazard_flags=["stove_unattended"],
+                observed_at=None,
+                source="scene_intel",
+                created_at=None,
             )
         )
 
@@ -160,8 +167,14 @@ class TestSceneSampleHandle:
         memory.configured = True
         memory.create_observation = AsyncMock(
             return_value=ObservationRecord(
-                id=1, room_id="", description="", object_list=[],
-                hazard_flags=[], observed_at=None, source="scene_intel", created_at=None,
+                id=1,
+                room_id="",
+                description="",
+                object_list=[],
+                hazard_flags=[],
+                observed_at=None,
+                source="scene_intel",
+                created_at=None,
             )
         )
 
@@ -210,9 +223,7 @@ class TestSceneSampleHandle:
         minio = MagicMock()
         minio.async_get_object = AsyncMock(return_value=b"")
 
-        sub = SceneSampleSubscriber(
-            redis_url="redis://x", consumer_id="t1", minio_client=minio
-        )
+        sub = SceneSampleSubscriber(redis_url="redis://x", consumer_id="t1", minio_client=minio)
 
         sample = {"keyframe_id": "kf-001", "camera_id": "cam-kitchen", "minio_key": "kf.jpg"}
         result = await sub.handle(sample)
@@ -230,8 +241,14 @@ class TestSceneSampleHandle:
         memory.configured = True
         memory.create_observation = AsyncMock(
             return_value=ObservationRecord(
-                id=1, room_id="", description="", object_list=[],
-                hazard_flags=[], observed_at=None, source="scene_intel", created_at=None,
+                id=1,
+                room_id="",
+                description="",
+                object_list=[],
+                hazard_flags=[],
+                observed_at=None,
+                source="scene_intel",
+                created_at=None,
             )
         )
 

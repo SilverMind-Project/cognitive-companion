@@ -20,9 +20,7 @@ class IngressAdminClient(UpstreamClient):
         return r.json().get("streams", [])
 
     async def test_connection(self, *, rtsp_url: str) -> dict:
-        r = await self._request(
-            "POST", "/internal/test-connection", json={"rtsp_url": rtsp_url}
-        )
+        r = await self._request("POST", "/internal/test-connection", json={"rtsp_url": rtsp_url})
         return r.json()
 
     async def reload_camera(self, *, camera_id: str) -> None:

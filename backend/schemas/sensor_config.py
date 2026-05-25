@@ -38,24 +38,27 @@ class MovementMap(BaseModel):
     model_config = {"extra": "forbid", "populate_by_name": True}
 
     left_to_right: MovementMapEntry | None = Field(
-        default=None, alias="left-to-right",
-        description='Direction: person moving left to right across the camera view.'
+        default=None,
+        alias="left-to-right",
+        description="Direction: person moving left to right across the camera view.",
     )
     right_to_left: MovementMapEntry | None = Field(
-        default=None, alias="right-to-left",
-        description='Direction: person moving right to left across the camera view.'
+        default=None,
+        alias="right-to-left",
+        description="Direction: person moving right to left across the camera view.",
     )
     towards_camera: MovementMapEntry | None = Field(
-        default=None, alias="towards-camera",
-        description='Direction: person walking towards the camera.'
+        default=None,
+        alias="towards-camera",
+        description="Direction: person walking towards the camera.",
     )
     away_from_camera: MovementMapEntry | None = Field(
-        default=None, alias="away-from-camera",
-        description='Direction: person walking away from the camera.'
+        default=None,
+        alias="away-from-camera",
+        description="Direction: person walking away from the camera.",
     )
     stationary: MovementMapEntry | None = Field(
-        default=None, alias="stationary",
-        description='Direction: person standing still.'
+        default=None, alias="stationary", description="Direction: person standing still."
     )
 
     def to_json_dict(self) -> dict:

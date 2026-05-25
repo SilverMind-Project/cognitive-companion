@@ -108,9 +108,16 @@ class TestBboxAnnotationEndpoints:
     def test_override_bbox_updates_row(self):
         mock_client = AsyncMock()
         mock_client.override_bbox.return_value = _sample_bbox_response(
-            x1=50.0, y1=60.0, x2=150.0, y2=250.0,
-            override_x1=50.0, override_y1=60.0, override_x2=150.0, override_y2=250.0,
-            override_by="tester", override_at=_NOW_ISO,
+            x1=50.0,
+            y1=60.0,
+            x2=150.0,
+            y2=250.0,
+            override_x1=50.0,
+            override_y1=60.0,
+            override_x2=150.0,
+            override_y2=250.0,
+            override_by="tester",
+            override_at=_NOW_ISO,
         )
 
         client, patchers = _build_app(orchestrator=mock_client)
@@ -129,7 +136,10 @@ class TestBboxAnnotationEndpoints:
             assert data["override_at"] is not None
             mock_client.override_bbox.assert_called_once_with(
                 annotation_id="bb-001",
-                x1=50.0, y1=60.0, x2=150.0, y2=250.0,
+                x1=50.0,
+                y1=60.0,
+                x2=150.0,
+                y2=250.0,
                 override_by="tester",
             )
         finally:

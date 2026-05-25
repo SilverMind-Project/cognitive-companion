@@ -207,9 +207,7 @@ class RulesEngine:
                     context_type=ctx_type,
                 )
                 continue
-            if not any(
-                self._matches_context(ctx, event, now, db, services) for ctx in contexts
-            ):
+            if not any(self._matches_context(ctx, event, now, db, services) for ctx in contexts):
                 return False
         return True
 
@@ -238,16 +236,19 @@ class RulesEngine:
                     context_type=ctx_type,
                 )
                 continue
-            if not any(
-                self._matches_context(ctx, None, now, db, services) for ctx in contexts
-            ):
+            if not any(self._matches_context(ctx, None, now, db, services) for ctx in contexts):
                 return False
         return True
 
     # -- context checking (via FilterRegistry) --------------------------------
 
     def _check_contexts(
-        self, rule: Rule, sensor: Sensor, now: datetime, db: Session | None = None, services: Any = None
+        self,
+        rule: Rule,
+        sensor: Sensor,
+        now: datetime,
+        db: Session | None = None,
+        services: Any = None,
     ) -> bool:
         """Contexts act as filters.
 
@@ -267,7 +268,12 @@ class RulesEngine:
         return True
 
     def _matches_context(
-        self, ctx: RuleContext, sensor: Sensor, now: datetime, db: Session | None = None, services: Any = None
+        self,
+        ctx: RuleContext,
+        sensor: Sensor,
+        now: datetime,
+        db: Session | None = None,
+        services: Any = None,
     ) -> bool:
         """Delegate context evaluation to the FilterRegistry.
 

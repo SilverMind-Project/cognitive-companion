@@ -156,7 +156,9 @@ def validate_bundle(bundle: RuleBundle, current_app_version: str) -> ImportRepor
                     description=f"Unknown step type: {step_bundle.step_type}",
                 )
             )
-            report.errors.append(f"Step '{step_bundle.label}': unknown type '{step_bundle.step_type}'")
+            report.errors.append(
+                f"Step '{step_bundle.label}': unknown type '{step_bundle.step_type}'"
+            )
             report.status = "error"
             continue
 
@@ -211,10 +213,8 @@ def validate_bundle(bundle: RuleBundle, current_app_version: str) -> ImportRepor
         for i, ce in enumerate(bundle.rule.cron_expressions):
             try:
                 _CronTrigger.from_crontab(ce.expression)
-            except (ValueError, TypeError):
-                report.errors.append(
-                    f"Cron expression {i}: '{ce.expression}' is not valid"
-                )
+            except ValueError, TypeError:
+                report.errors.append(f"Cron expression {i}: '{ce.expression}' is not valid")
                 report.status = "error"
 
     return report
@@ -247,5 +247,5 @@ def _version_gt(a: str, b: str) -> bool:
         a_parts = tuple(int(x) for x in a.split("."))
         b_parts = tuple(int(x) for x in b.split("."))
         return a_parts > b_parts
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return a != b

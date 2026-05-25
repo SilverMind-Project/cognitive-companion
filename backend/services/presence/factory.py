@@ -67,9 +67,7 @@ _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
         anchor_room_id=cfg.anchor_room_id,
         anchor_room_name=cfg.anchor_room_name,
         require_last_room_in=cfg.require_last_room_in,
-        release_predicates=[
-            compile_predicate(expr) for expr in cfg.release_predicates
-        ],
+        release_predicates=[compile_predicate(expr) for expr in cfg.release_predicates],
         confidence=cfg.confidence,
         min_dark_minutes=cfg.min_dark_minutes,
         priority=cfg.priority,

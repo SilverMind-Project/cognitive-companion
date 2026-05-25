@@ -92,9 +92,7 @@ Provider = Annotated[
 class FusionConfig(BaseModel):
     """Fusion rule configuration."""
 
-    rule: Literal["highest_priority_above_floor"] = (
-        "highest_priority_above_floor"
-    )
+    rule: Literal["highest_priority_above_floor"] = "highest_priority_above_floor"
     confidence_floor: float = 0.4
 
 

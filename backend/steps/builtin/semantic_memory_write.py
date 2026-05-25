@@ -156,16 +156,12 @@ class SemanticMemoryWriteHandler(StepHandler):
 
             if isinstance(detections, list):
                 object_list = [
-                    d.get("label", "") if isinstance(d, dict) else ""
-                    for d in detections
+                    d.get("label", "") if isinstance(d, dict) else "" for d in detections
                 ]
                 object_list = [o for o in object_list if o]
 
             if isinstance(hazards, list):
-                hazard_flags = [
-                    h.get("name", "") if isinstance(h, dict) else ""
-                    for h in hazards
-                ]
+                hazard_flags = [h.get("name", "") if isinstance(h, dict) else "" for h in hazards]
                 hazard_flags = [h for h in hazard_flags if h]
 
         # -- Build movement transitions from pipeline_data --------------------
@@ -182,9 +178,7 @@ class SemanticMemoryWriteHandler(StepHandler):
                             person_id=transition.get("person_id", "unknown"),
                             from_room_id=transition.get("from_room_id", "unknown"),
                             to_room_id=transition.get("to_room_id", "unknown"),
-                            direction_semantic=transition.get(
-                                "direction_semantic", "any"
-                            ),
+                            direction_semantic=transition.get("direction_semantic", "any"),
                             confidence=transition.get("confidence", 0.8),
                         )
                     )

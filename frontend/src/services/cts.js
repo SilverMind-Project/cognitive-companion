@@ -58,10 +58,20 @@ export const cts = {
   reloadCamera: (id) => req(`/cameras/${id}/reload`, { method: "POST" }),
 
   // ── Calibration: homography ─────────────────────────────────────────────────
-  postHomography: (camera_id, points) =>
+  postHomography: (camera_id, points, imageWidth, imageHeight) =>
     req("/calibration/homography", {
       method: "POST",
-      body: JSON.stringify({ camera_id, points }),
+      body: JSON.stringify({
+        camera_id,
+        points,
+        image_width: imageWidth,
+        image_height: imageHeight,
+      }),
+    }),
+  previewHomography: (points) =>
+    req("/calibration/homography/preview", {
+      method: "POST",
+      body: JSON.stringify({ points }),
     }),
   getHomography: (camera_id) => req(`/calibration/homography/${camera_id}`),
   autoCalibrate: (camera_id, body) =>
@@ -84,6 +94,10 @@ export const cts = {
   getAdjacency: () => req("/calibration/adjacency"),
 
   // ── Overlap groups ──────────────────────────────────────────────────────────
+  getVisibilityPolygons: () => req("/calibration/visibility_polygons"),
+  recomputeVisibilityPolygons: () =>
+    req("/calibration/visibility_polygons/recompute", { method: "POST" }),
+  getInferredAdjacency: () => req("/calibration/adjacency/inferred"),
   getOverlapGroups: () => req("/overlap_groups"),
 
   // ── Dementia signals ────────────────────────────────────────────────────────

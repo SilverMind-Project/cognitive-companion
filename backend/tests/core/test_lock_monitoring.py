@@ -70,6 +70,7 @@ def test_lock_monitoring_detects_for_update_in_statement():
             elif event_name == "after_cursor_execute":
                 after_callback = fn
             return fn
+
         return decorator
 
     with patch("backend.core.database.event.listens_for", side_effect=mock_listens_for):
@@ -87,7 +88,9 @@ def test_lock_monitoring_detects_for_update_in_statement():
     # Call before_execute without FOR UPDATE - use fresh context
     mock_context2 = Mock()
     # Ensure the mock doesn't have the attribute initially
-    delattr(mock_context2, "_lock_start_time") if hasattr(mock_context2, "_lock_start_time") else None
+    delattr(mock_context2, "_lock_start_time") if hasattr(
+        mock_context2, "_lock_start_time"
+    ) else None
     before_callback(None, None, statement_without_lock, None, mock_context2, False)
     # The callback should not set _lock_start_time for non-FOR UPDATE queries
     # Note: Mock objects may have attributes set by default, so we check the logic worked
@@ -100,7 +103,9 @@ def test_lock_monitoring_ignores_regular_queries(db_with_monitoring):
 
     # Execute a regular SELECT query
     with db_with_monitoring.engine.connect() as conn:
-        conn.execute(text("CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, value TEXT)"))
+        conn.execute(
+            text("CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, value TEXT)")
+        )
         conn.execute(text("INSERT INTO test_table (id, value) VALUES (1, 'test')"))
         conn.commit()
 
@@ -133,6 +138,7 @@ def test_lock_monitoring_tracks_metrics_with_mocked_query():
             elif event_name == "after_cursor_execute":
                 after_callback = fn
             return fn
+
         return decorator
 
     with (
@@ -173,6 +179,7 @@ def test_lock_monitoring_logs_waits_over_100ms():
             elif event_name == "after_cursor_execute":
                 after_callback = fn
             return fn
+
         return decorator
 
     with (
@@ -215,6 +222,7 @@ def test_lock_monitoring_does_not_log_waits_under_100ms():
             elif event_name == "after_cursor_execute":
                 after_callback = fn
             return fn
+
         return decorator
 
     with (
@@ -254,6 +262,7 @@ def test_lock_contention_metrics_accumulate():
             elif event_name == "after_cursor_execute":
                 after_callback = fn
             return fn
+
         return decorator
 
     with (
@@ -280,6 +289,7 @@ def test_reset_lock_contention_metrics():
     """Test that reset_lock_contention_metrics clears all metrics."""
     # Set some dummy values
     from backend.core.database import _lock_contention_metrics
+
     _lock_contention_metrics["total_lock_waits"] = 10
     _lock_contention_metrics["total_wait_time_ms"] = 500.0
     _lock_contention_metrics["max_wait_time_ms"] = 200.0
@@ -302,6 +312,7 @@ def test_get_lock_contention_metrics_computes_average():
     reset_lock_contention_metrics()
 
     from backend.core.database import _lock_contention_metrics
+
     _lock_contention_metrics["total_lock_waits"] = 4
     _lock_contention_metrics["total_wait_time_ms"] = 400.0
 
@@ -335,6 +346,7 @@ def test_lock_monitoring_tracks_max_wait_time():
             elif event_name == "after_cursor_execute":
                 after_callback = fn
             return fn
+
         return decorator
 
     with patch("backend.core.database.event.listens_for", side_effect=mock_listens_for):
@@ -385,6 +397,7 @@ def test_lock_monitoring_truncates_long_statements():
             elif event_name == "after_cursor_execute":
                 after_callback = fn
             return fn
+
         return decorator
 
     with (
@@ -398,9 +411,11 @@ def test_lock_monitoring_truncates_long_statements():
         mock_time.side_effect = [0.0, 0.15]
         mock_context = Mock()
 
-        long_query = "SELECT * FROM test_table WHERE " + " OR ".join(
-            f"id = {i}" for i in range(100)
-        ) + " FOR UPDATE"
+        long_query = (
+            "SELECT * FROM test_table WHERE "
+            + " OR ".join(f"id = {i}" for i in range(100))
+            + " FOR UPDATE"
+        )
 
         before_callback(None, None, long_query, None, mock_context, False)
         after_callback(None, None, long_query, None, mock_context, False)
@@ -430,6 +445,7 @@ def test_lock_monitoring_tracks_waits_over_100ms_count():
             elif event_name == "after_cursor_execute":
                 after_callback = fn
             return fn
+
         return decorator
 
     with patch("backend.core.database.event.listens_for", side_effect=mock_listens_for):
@@ -461,4 +477,3 @@ def test_lock_monitoring_tracks_waits_over_100ms_count():
     metrics = get_lock_contention_metrics()
     assert metrics["total_lock_waits"] == 3
     assert metrics["waits_over_100ms"] == 2  # Only queries 2 and 3
-

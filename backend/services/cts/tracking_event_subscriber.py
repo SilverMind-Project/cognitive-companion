@@ -72,7 +72,9 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
     # -- StreamConsumer abstract methods ------------------------------------
 
-    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> dict[str, Any] | None:
+    def decode(
+        self, message_id: bytes, fields: dict[bytes | str, bytes | str]
+    ) -> dict[str, Any] | None:
         """Decode the proto envelope into the LocationWriter event dict."""
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
@@ -112,7 +114,11 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 None,
             )
             confidence = float(matched.probability) if matched else 0.0
-            display_name = matched.display_name if (matched and matched.display_name) else revision.map_identity_id
+            display_name = (
+                matched.display_name
+                if (matched and matched.display_name)
+                else revision.map_identity_id
+            )
             identity_by_track[revision.global_track_id] = (
                 revision.map_identity_id,
                 confidence,
@@ -148,18 +154,18 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                     "floor_x": det.floor_x if calibrated else None,
                     "floor_y": det.floor_y if calibrated else None,
                     "pose_keypoints": [
-                        {"x": kp.x, "y": kp.y, "score": kp.score}
-                        for kp in det.pose_keypoints
-                    ] or None,
+                        {"x": kp.x, "y": kp.y, "score": kp.score} for kp in det.pose_keypoints
+                    ]
+                    or None,
                     "posture": det.posture or None,
-                    "trail": [
-                        {"x": t.x, "y": t.y} for t in det.trail
-                    ] or None,
+                    "trail": [{"x": t.x, "y": t.y} for t in det.trail] or None,
                     "evidence": {
                         "top_prob": det.evidence.top_prob,
                         "top2_prob": det.evidence.top2_prob,
                         "face_anchor_used": det.evidence.face_anchor_used,
-                    } if det.HasField("evidence") else None,
+                    }
+                    if det.HasField("evidence")
+                    else None,
                 }
             )
 
@@ -253,5 +259,3 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 logger.exception("tracking_event_bucketizer_ingest_error")
 
         return True
-
-

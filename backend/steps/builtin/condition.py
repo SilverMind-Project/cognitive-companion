@@ -46,7 +46,11 @@ class ConditionHandler(StepHandler):
                             "built-in functions: exists(), contains(), icontains(), "
                             "length(), lower(), upper(), keys(), values()."
                         ),
-                        "x-ui": {"widget": "template-textarea", "rows": 3, "supports_template": True},
+                        "x-ui": {
+                            "widget": "template-textarea",
+                            "rows": 3,
+                            "supports_template": True,
+                        },
                     },
                     "trigger_cooloff": {
                         "type": "boolean",

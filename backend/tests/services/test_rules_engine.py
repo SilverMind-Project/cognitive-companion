@@ -145,9 +145,7 @@ class TestRulesEngineRateLimits:
         db_session.commit()
 
         # Patch datetime.now so the engine's internal "now" matches ref_time.
-        with unittest.mock.patch(
-            "backend.services.rules_engine.datetime"
-        ) as mock_dt:
+        with unittest.mock.patch("backend.services.rules_engine.datetime") as mock_dt:
             mock_dt.now.return_value = ref_time
             matched = _engine_utc().get_matching_rules(sensor, db_session)
         assert matched == []
@@ -434,7 +432,10 @@ class TestGetMatchingRulesForEvent:
     def test_matches_rule_with_dementia_signal_trigger_type(self, db_session):
         rule = _make_rule(db_session, trigger_types=["dementia_signal"])
         engine = RulesEngine(tz_name="UTC")
-        event = {"kind": "dementia_signal", "payload": {"signal_kind": "pacing", "person_id": "grandma", "severity": "warning"}}
+        event = {
+            "kind": "dementia_signal",
+            "payload": {"signal_kind": "pacing", "person_id": "grandma", "severity": "warning"},
+        }
         matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
         assert len(matched) == 1
         assert matched[0].id == rule.id

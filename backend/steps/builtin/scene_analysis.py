@@ -386,7 +386,6 @@ def _empty_result() -> dict:
     }
 
 
-
 async def _fetch_image(url: str) -> bytes | None:
     """Fetch image bytes from an HTTP(S) URL (e.g. presigned MinIO).
 

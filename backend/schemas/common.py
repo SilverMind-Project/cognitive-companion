@@ -41,7 +41,9 @@ def _to_utc_iso(v: datetime | None) -> str | None:
 UTCDatetime = Annotated[AwareDatetime, PlainSerializer(_to_utc_iso, when_used="json")]
 
 #: Nullable variant of UTCDatetime.
-OptionalUTCDatetime = Annotated[AwareDatetime | None, PlainSerializer(_to_utc_iso, when_used="json")]
+OptionalUTCDatetime = Annotated[
+    AwareDatetime | None, PlainSerializer(_to_utc_iso, when_used="json")
+]
 
 
 # ── Shared base classes ──────────────────────────────────────────────────

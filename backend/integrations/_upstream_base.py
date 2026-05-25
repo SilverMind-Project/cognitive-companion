@@ -84,9 +84,7 @@ class UpstreamClient:
         kw["headers"] = headers
 
         if not self._base:
-            raise UpstreamUnavailable(
-                self.SERVICE_NAME, 503
-            )
+            raise UpstreamUnavailable(self.SERVICE_NAME, 503)
 
         @retry(
             retry=retry_if_exception_type((UpstreamTimeout, UpstreamUnavailable)),

@@ -126,7 +126,9 @@ class TestCoreMatching:
         )
         assert result is False
 
-    def test_no_match_when_direction_semantic_is_null(self, room_filter, db_session, person_fixture):
+    def test_no_match_when_direction_semantic_is_null(
+        self, room_filter, db_session, person_fixture
+    ):
         """Legacy rows with no direction_semantic must not match."""
         _add_history(
             db_session,

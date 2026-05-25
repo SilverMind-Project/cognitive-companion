@@ -162,7 +162,7 @@ class _SceneAnalyzePayload(BaseModel):
         for item in value:
             try:
                 parsed.append(float(item))
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
         return parsed
 

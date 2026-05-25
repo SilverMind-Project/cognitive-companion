@@ -444,8 +444,12 @@ class TestMultiImageAggregation:
 
     async def test_hazards_aggregated_across_images(self):
         det = SceneDetection(label="fire", confidence=0.9, bbox=[0, 0, 10, 10], class_id=99)
-        hazard1 = SceneHazardAlert(name="fire", severity="critical", description="Fire!", detection=det)
-        hazard2 = SceneHazardAlert(name="smoke", severity="warning", description="Smoke!", detection=det)
+        hazard1 = SceneHazardAlert(
+            name="fire", severity="critical", description="Fire!", detection=det
+        )
+        hazard2 = SceneHazardAlert(
+            name="smoke", severity="warning", description="Smoke!", detection=det
+        )
         client = AsyncMock(spec=SceneAnalysisClient)
         client.configured = True
         client.analyze = AsyncMock(
@@ -491,7 +495,9 @@ class TestMultiImageAggregation:
         mock_http.__aexit__ = AsyncMock(return_value=None)
         mock_http.get = _fake_get
 
-        with patch("backend.steps.builtin.scene_analysis.httpx.AsyncClient", return_value=mock_http):
+        with patch(
+            "backend.steps.builtin.scene_analysis.httpx.AsyncClient", return_value=mock_http
+        ):
             result = await _HANDLER.execute(
                 _make_step({"max_images": 2}),
                 _FakeExecution(),
@@ -674,7 +680,11 @@ class TestDownstreamImageSource:
             "pipeline_image_path": "steps.nonexistent.outputs.images",
         }
         result = await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), {}, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            {},
+            _make_trigger(),
+            services,
         )
         assert result.data["scene_images"] == []
 

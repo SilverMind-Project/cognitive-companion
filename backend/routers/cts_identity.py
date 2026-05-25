@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -34,7 +34,7 @@ from backend.integrations._upstream_base import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 from backend.models.person import PersonLocationHistory
-from backend.routers.cts_deps import cts_enabled
+from backend.routers.cts_deps import cts_enabled, inject_image_urls
 from backend.routers.dependencies import get_orchestrator_client
 from backend.schemas.cts_bbox import BboxAnnotationResponse, BboxOverrideRequest
 from backend.services.cts.bbox_annotation_service import BboxAnnotationService
@@ -75,7 +75,10 @@ class MergeRequest(BaseModel):
 @router.get("/global_tracks")
 async def list_global_tracks(
     open_only: bool = Query(True),
-    since: str | None = Query(None, description="ISO-8601 timestamp; include closed tracks last seen at or after this time"),
+    since: str | None = Query(
+        None,
+        description="ISO-8601 timestamp; include closed tracks last seen at or after this time",
+    ),
     limit: int | None = Query(None, ge=1, le=500),
     offset: int | None = Query(None, ge=0),
     camera_id: str | None = Query(None),
@@ -86,8 +89,14 @@ async def list_global_tracks(
         pattern="^(committed|UNKNOWN)$",
     ),
     search: str | None = Query(None),
-    include_transient: bool = Query(False, description="Include tracks shorter than min_duration_s"),
-    min_duration_s: float = Query(10.0, ge=0.0, description="Hide UNKNOWN tracks shorter than this many seconds (ignored when include_transient=true)"),
+    include_transient: bool = Query(
+        False, description="Include tracks shorter than min_duration_s"
+    ),
+    min_duration_s: float = Query(
+        10.0,
+        ge=0.0,
+        description="Hide UNKNOWN tracks shorter than this many seconds (ignored when include_transient=true)",
+    ),
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
@@ -214,6 +223,7 @@ async def list_co_occurring_tracks(
 @router.get("/global_tracks/{global_track_id}/keyframes")
 async def list_track_keyframes(
     global_track_id: str,
+    request: Request,
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
@@ -230,6 +240,7 @@ async def list_track_keyframes(
             status_code=exc.status or status.HTTP_502_BAD_GATEWAY,
             detail={"code": "cts.upstream_error", "message": str(exc)},
         ) from exc
+    keyframes = inject_image_urls(keyframes, request)
     return {"keyframes": keyframes, "count": len(keyframes)}
 
 
@@ -241,7 +252,10 @@ async def list_track_keyframes(
 @router.get("/global_tracks/{global_track_id}/trail")
 async def get_track_trail(
     global_track_id: str,
-    since: str | None = Query(None, description="ISO-8601 timestamp; return trajectory points observed at or after this time"),
+    since: str | None = Query(
+        None,
+        description="ISO-8601 timestamp; return trajectory points observed at or after this time",
+    ),
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
@@ -563,9 +577,7 @@ async def get_identity_health(
             )
     except Exception:
         logger.warning("cts_identity_health_upstream_error", exc_info=True)
-        issues.append(
-            "ReID gallery is unreachable. The tracking orchestrator may be down."
-        )
+        issues.append("ReID gallery is unreachable. The tracking orchestrator may be down.")
 
     return {
         "gallery_size": gallery_size,

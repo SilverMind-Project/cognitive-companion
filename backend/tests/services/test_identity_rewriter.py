@@ -90,9 +90,7 @@ def rewriter(db_factory):
 
 class TestRewrite:
     @pytest.mark.asyncio
-    async def test_stamps_revision_id_and_inserts_new_row(
-        self, rewriter, db_factory
-    ):
+    async def test_stamps_revision_id_and_inserts_new_row(self, rewriter, db_factory):
         _seed_history(db_factory, "grandma", "kitchen")
         result = await rewriter.apply(_revision())
         assert result["rewritten"] == 1

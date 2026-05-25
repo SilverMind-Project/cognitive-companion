@@ -51,9 +51,7 @@ class TestQueryServiceNoClient:
 
     @pytest.mark.asyncio
     async def test_no_client_returns_no_answer(self):
-        svc = KnowledgeQueryService(
-            db_factory=None, embedding_client=None, llm_model_registry=None
-        )
+        svc = KnowledgeQueryService(db_factory=None, embedding_client=None, llm_model_registry=None)
         answer = await svc.answer("test query")
         assert answer.answered_via == "no_answer"
         assert answer.query_text == "test query"
@@ -61,6 +59,7 @@ class TestQueryServiceNoClient:
     def test_log_query_no_db(self):
         def _failing_factory():
             raise RuntimeError("no DB available")
+
         svc = KnowledgeQueryService(db_factory=_failing_factory)
         answer = KnowledgeAnswer(
             query_text="q",

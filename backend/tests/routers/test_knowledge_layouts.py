@@ -1,4 +1,5 @@
 """Integration tests for knowledge layouts router."""
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -21,9 +22,13 @@ def client(layout_registry):
     # Override auth
     async def override_auth():
         from backend.core.auth import AuthContext
-        return AuthContext(key="test", name="Test", permissions=["*"], device_type=None, sensor_id=None)
+
+        return AuthContext(
+            key="test", name="Test", permissions=["*"], device_type=None, sensor_id=None
+        )
 
     from backend.core.auth import get_auth_context
+
     app.dependency_overrides[get_auth_context] = override_auth
 
     # Store registry on app state

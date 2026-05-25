@@ -167,8 +167,12 @@ async def test_confidence_floor_bottom_wins_with_sources():
 async def test_tie_break_newer_last_seen_wins():
     """Two providers same priority, both return non-None;
     the one with newer last_seen_at wins."""
-    older = _make_snapshot(room_name="older", confidence=0.8, last_seen_at=datetime(2026, 5, 4, 10, 0, 0, tzinfo=UTC))
-    newer = _make_snapshot(room_name="newer", confidence=0.8, last_seen_at=datetime(2026, 5, 4, 12, 0, 0, tzinfo=UTC))
+    older = _make_snapshot(
+        room_name="older", confidence=0.8, last_seen_at=datetime(2026, 5, 4, 10, 0, 0, tzinfo=UTC)
+    )
+    newer = _make_snapshot(
+        room_name="newer", confidence=0.8, last_seen_at=datetime(2026, 5, 4, 12, 0, 0, tzinfo=UTC)
+    )
     older_provider = _StubProvider(older, priority=50)
     newer_provider = _StubProvider(newer, priority=50)
     service = PresenceService(

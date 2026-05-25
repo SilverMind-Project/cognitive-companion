@@ -332,7 +332,9 @@ class TestInteractivePromptHandlerExecute:
         assert "interactive_response" in result.data
         assert result.data["interactive_response"]["channel"] == "error"
         assert result.data["interactive_response"]["action"] == "dismiss"
-        assert "No channels configured" in result.data["interactive_response"]["raw_response"]["error"]
+        assert (
+            "No channels configured" in result.data["interactive_response"]["raw_response"]["error"]
+        )
 
         # Verify NO channels were sent
         mock_notification_dispatcher.connection_manager.broadcast.assert_not_called()
@@ -383,7 +385,10 @@ class TestInteractivePromptHandlerExecute:
         assert "interactive_response" in result.data
         assert result.data["interactive_response"]["channel"] == "error"
         assert result.data["interactive_response"]["action"] == "dismiss"
-        assert "Template rendering failed" in result.data["interactive_response"]["raw_response"]["error"]
+        assert (
+            "Template rendering failed"
+            in result.data["interactive_response"]["raw_response"]["error"]
+        )
 
         # Verify NO channels were sent
         mock_notification_dispatcher.connection_manager.broadcast.assert_not_called()
@@ -414,7 +419,9 @@ class TestInteractivePromptHandlerExecute:
         trigger = FakeTriggerContext()
 
         # Make popup send fail
-        mock_notification_dispatcher.connection_manager.broadcast.side_effect = Exception("WebSocket error")
+        mock_notification_dispatcher.connection_manager.broadcast.side_effect = Exception(
+            "WebSocket error"
+        )
 
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
@@ -476,8 +483,12 @@ class TestInteractivePromptHandlerExecute:
         trigger = FakeTriggerContext()
 
         # Make both channels fail
-        mock_notification_dispatcher.connection_manager.broadcast.side_effect = Exception("WebSocket error")
-        mock_notification_dispatcher.connection_manager.send_backend_task.side_effect = Exception("Voice error")
+        mock_notification_dispatcher.connection_manager.broadcast.side_effect = Exception(
+            "WebSocket error"
+        )
+        mock_notification_dispatcher.connection_manager.send_backend_task.side_effect = Exception(
+            "Voice error"
+        )
 
         services = FakeServiceContainer(
             db_factory=Mock(return_value=mock_db_session),
@@ -498,7 +509,10 @@ class TestInteractivePromptHandlerExecute:
         assert "interactive_response" in result.data
         assert result.data["interactive_response"]["channel"] == "error"
         assert result.data["interactive_response"]["action"] == "dismiss"
-        assert "All channels failed to send" in result.data["interactive_response"]["raw_response"]["error"]
+        assert (
+            "All channels failed to send"
+            in result.data["interactive_response"]["raw_response"]["error"]
+        )
 
         # Verify both channels were attempted
         mock_notification_dispatcher.connection_manager.broadcast.assert_called_once()
@@ -552,7 +566,10 @@ class TestInteractivePromptHandlerExecute:
         assert "interactive_response" in result.data
         assert result.data["interactive_response"]["channel"] == "error"
         assert result.data["interactive_response"]["action"] == "dismiss"
-        assert "Timeout scheduling failed" in result.data["interactive_response"]["raw_response"]["error"]
+        assert (
+            "Timeout scheduling failed"
+            in result.data["interactive_response"]["raw_response"]["error"]
+        )
 
     @pytest.mark.asyncio
     async def test_execute_with_template_variables(

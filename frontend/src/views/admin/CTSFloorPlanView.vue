@@ -34,6 +34,14 @@
         >
           Floor Plan
         </v-btn>
+        <v-btn
+          size="small"
+          :variant="mode === 'coverage' ? 'flat' : 'outlined'"
+          :color="mode === 'coverage' ? 'primary' : undefined"
+          @click="mode = 'coverage'"
+        >
+          Coverage
+        </v-btn>
       </div>
       <v-btn
         v-if="mode === 'live'"
@@ -406,6 +414,110 @@
       </v-row>
     </template>
 
+    <!-- ── Coverage panel ──────────────────────────────────────────────────── -->
+    <template v-else-if="mode === 'coverage'">
+      <v-card class="glass-card">
+        <v-card-title class="d-flex align-center">
+          Camera Coverage
+          <v-spacer />
+          <v-btn
+            variant="tonal"
+            size="small"
+            prepend-icon="mdi-refresh"
+            :loading="coverageLoading"
+            @click="loadCoverage"
+            class="mr-2"
+          >
+            Refresh
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+
+        <div class="d-flex align-center flex-wrap ga-4 px-4 py-2 text-caption text-medium-emphasis">
+          <span class="d-flex align-center ga-1">
+            <span class="coverage-legend-swatch" style="border-color:#2196f3;background:rgba(33,150,243,0.18)" />
+            Calibrated
+          </span>
+          <span class="d-flex align-center ga-1">
+            <span class="coverage-legend-swatch" style="border-color:#9e9e9e;background:rgba(200,200,200,0.1);border-style:dotted" />
+            Not calibrated
+          </span>
+        </div>
+        <v-divider />
+
+        <v-card-text class="pa-0">
+          <div class="coverage-canvas-wrap">
+            <img
+              v-if="floorPlanUrl"
+              :src="floorPlanUrl"
+              class="coverage-fp-img"
+              ref="coverageImgRef"
+              @load="onCoverageImgLoad"
+              alt="Floor plan"
+              draggable="false"
+            />
+
+            <svg
+              v-if="coverageImgReady && floorPlanUrl"
+              class="coverage-svg-overlay"
+              :viewBox="`0 0 ${coverageImgW} ${coverageImgH}`"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <g v-for="cam in coverageCameras" :key="cam.camera_id">
+                <polygon
+                  v-if="cam.visibility_polygon"
+                  :points="toCoverageSvgPoints(cam.visibility_polygon)"
+                  fill="rgba(33,150,243,0.18)"
+                  stroke="#2196f3"
+                  stroke-width="2"
+                />
+                <text
+                  v-if="cam.visibility_polygon"
+                  :x="coverageCentroid(cam.visibility_polygon)[0]"
+                  :y="coverageCentroid(cam.visibility_polygon)[1]"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                  font-size="12"
+                  font-family="system-ui, sans-serif"
+                  fill="white"
+                  paint-order="stroke"
+                  stroke="rgba(0,0,0,0.7)"
+                  stroke-width="3"
+                  style="pointer-events:none"
+                >{{ cam.camera_name }}</text>
+              </g>
+            </svg>
+
+            <div v-if="!floorPlanUrl" class="coverage-empty d-flex flex-column align-center justify-center">
+              <v-icon size="48" color="medium-emphasis">mdi-floor-plan</v-icon>
+              <div class="text-body-2 text-medium-emphasis mt-2">
+                Upload a floor plan first.
+              </div>
+              <v-btn variant="tonal" size="small" class="mt-3" @click="mode = 'upload'">
+                Go to Floor Plan
+              </v-btn>
+            </div>
+          </div>
+
+          <div v-if="uncalibratedCoverage.length > 0" class="px-4 py-3">
+            <v-alert type="warning" density="compact" variant="tonal">
+              <strong>{{ uncalibratedCoverage.length }} camera(s) not shown</strong>
+              &mdash; no homography calibration yet:
+              {{ uncalibratedCoverage.map(c => c.camera_name).join(', ') }}.
+              <v-btn
+                variant="text"
+                size="x-small"
+                class="ml-1"
+                :to="{ name: 'CTSCalibration' }"
+              >
+                Calibrate &rarr;
+              </v-btn>
+            </v-alert>
+          </div>
+        </v-card-text>
+      </v-card>
+    </template>
+
     <!-- ── Live view ─────────────────────────────────────────────────────── -->
     <template v-else>
       <v-row>
@@ -659,11 +771,12 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount, ref, shallowRef, computed } from "vue";
+import { onMounted, onBeforeUnmount, ref, shallowRef, computed, watch } from "vue";
 import { identityColor } from "@/composables/useIdentityColor";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket";
 import { useNotify } from "@/composables/useNotify";
 import { household } from "@/services/household";
+import { cts } from "@/services/cts";
 import PolygonOnSnapshot from "@/components/cts/PolygonOnSnapshot.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
@@ -711,6 +824,14 @@ const CAMERA_STALE_MS = 10_000;
 // ── Mode ──────────────────────────────────────────────────────────────────
 const mode = ref("live");
 
+// ── Coverage tab state ────────────────────────────────────────────────────
+const coverageLoading = ref(false);
+const coverageCameras = ref([]);
+const coverageImgRef = ref(null);
+const coverageImgReady = ref(false);
+const coverageImgW = ref(0);
+const coverageImgH = ref(0);
+
 // ── WS ───────────────────────────────────────────────────────────────────
 function onWsMessage(msg) {
   if (msg?.type === "cts_live_frame") onLiveFrame(msg);
@@ -744,6 +865,56 @@ const activeCameras = computed(() => {
 
 const uncalibratedWarning = computed(() =>
   activePersons.value.some((p) => !p.calibrated)
+);
+
+const uncalibratedCoverage = computed(() =>
+  coverageCameras.value.filter((c) => !c.visibility_polygon)
+);
+
+// ── Coverage tab functions ─────────────────────────────────────────────────
+function onCoverageImgLoad() {
+  if (!coverageImgRef.value) return;
+  coverageImgW.value = coverageImgRef.value.naturalWidth;
+  coverageImgH.value = coverageImgRef.value.naturalHeight;
+  coverageImgReady.value = true;
+}
+
+async function loadCoverage() {
+  coverageLoading.value = true;
+  try {
+    const data = await cts.getVisibilityPolygons();
+    coverageCameras.value = data.cameras || [];
+  } catch (e) {
+    notify(e.message, "error");
+  } finally {
+    coverageLoading.value = false;
+  }
+}
+
+function toCoverageSvgPoints(polygon) {
+  if (!coverageImgW.value || !coverageImgH.value) return "";
+  return polygon
+    .map(([x, y]) => `${(x * coverageImgW.value).toFixed(1)},${(y * coverageImgH.value).toFixed(1)}`)
+    .join(" ");
+}
+
+function coverageCentroid(polygon) {
+  if (!polygon || !polygon.length) return [0, 0];
+  const sumX = polygon.reduce((s, [x]) => s + x, 0);
+  const sumY = polygon.reduce((s, [, y]) => s + y, 0);
+  return [
+    (sumX / polygon.length) * coverageImgW.value,
+    (sumY / polygon.length) * coverageImgH.value,
+  ];
+}
+
+watch(
+  () => mode.value,
+  (newMode) => {
+    if (newMode === "coverage" && coverageCameras.value.length === 0) {
+      loadCoverage();
+    }
+  }
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1163,5 +1334,40 @@ onBeforeUnmount(() => {
   top: 0;
   left: 0;
   pointer-events: none;
+}
+
+.coverage-canvas-wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--cc-surface-2);
+  min-height: 300px;
+}
+
+.coverage-fp-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.coverage-svg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.coverage-empty {
+  min-height: 300px;
+}
+
+.coverage-legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid;
+  border-radius: 3px;
+  vertical-align: middle;
 }
 </style>

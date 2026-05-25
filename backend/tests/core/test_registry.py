@@ -94,6 +94,7 @@ class TestRealRegistries:
         cls = StepRegistry.get_class("wait")
         assert cls is not None
         from backend.steps.base import StepHandler
+
         assert issubclass(cls, StepHandler)
 
     def test_channel_registry_discover_and_get(self):

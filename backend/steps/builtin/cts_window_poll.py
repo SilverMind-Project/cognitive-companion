@@ -192,7 +192,7 @@ class CtsWindowPollHandler(StepHandler):
                 for f in cam_frames:
                     try:
                         evt_ts = datetime.fromisoformat(f.get("event_time", ""))
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         continue
                     if evt_ts.timestamp() >= window_start:
                         if rooms and f.get("room_name") not in rooms:
@@ -206,7 +206,7 @@ class CtsWindowPollHandler(StepHandler):
         for f in frames:
             try:
                 ts = datetime.fromisoformat(f["event_time"]).timestamp()
-            except (ValueError, KeyError, TypeError):
+            except ValueError, KeyError, TypeError:
                 continue
             if last_kept is None or (ts - last_kept) >= sample_period_s:
                 downsampled.append(f)
@@ -222,7 +222,11 @@ class CtsWindowPollHandler(StepHandler):
                         f.get("minio_key", ""),
                     )
                     if result:
-                        f["scene_caption"] = result if isinstance(result, str) else getattr(result, "caption", str(result))
+                        f["scene_caption"] = (
+                            result
+                            if isinstance(result, str)
+                            else getattr(result, "caption", str(result))
+                        )
                 except Exception:
                     logger.exception("cts_window_poll_scene_error", minio_key=f.get("minio_key"))
 
@@ -253,7 +257,8 @@ class CtsWindowPollHandler(StepHandler):
                     "detection_count": detection_count,
                     "rooms": sorted(rooms_seen),
                 },
-                "partial": bucketizer is None or (len(downsampled) < len(frames) if frames else False),
+                "partial": bucketizer is None
+                or (len(downsampled) < len(frames) if frames else False),
             }
         )
 

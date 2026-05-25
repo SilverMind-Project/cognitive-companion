@@ -76,7 +76,7 @@ def _enrich_with_signals(keyframes: list[dict], person_ids: set[str]) -> list[di
             continue
         try:
             captured_at = datetime.fromisoformat(captured_str)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
 
         window_start = captured_at - timedelta(hours=_SIGNAL_WINDOW_HOURS)

@@ -206,9 +206,7 @@ class InteractiveResponseService:
             db: Session = self.db_factory()
             try:
                 execution = (
-                    db.query(WorkflowExecution)
-                    .filter(WorkflowExecution.id == execution_id)
-                    .first()
+                    db.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
                 )
                 if execution is None:
                     logger.warning(

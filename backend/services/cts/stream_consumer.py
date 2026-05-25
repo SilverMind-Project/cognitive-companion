@@ -55,17 +55,13 @@ class StreamConsumer[T](ABC):
         self._pending: set[asyncio.Task[object]] = set()
 
     @abstractmethod
-    def decode(
-        self, message_id: bytes, fields: dict[bytes | str, bytes | str]
-    ) -> T | None: ...
+    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> T | None: ...
 
     @abstractmethod
     async def handle(self, msg: T) -> bool: ...
 
     async def start(self) -> None:
-        self._redis = aioredis.from_url(
-            self._cfg.redis_url, decode_responses=False
-        )
+        self._redis = aioredis.from_url(self._cfg.redis_url, decode_responses=False)
         await self._ensure_group()
         logger.info(
             "cts_stream_consumer_started",
@@ -115,9 +111,7 @@ class StreamConsumer[T](ABC):
         for message_id, fields in messages:
             msg = self.decode(message_id, fields)  # type: ignore[arg-type]
             if msg is None:
-                await self._redis.xack(
-                    self._cfg.stream, self._cfg.group, message_id
-                )
+                await self._redis.xack(self._cfg.stream, self._cfg.group, message_id)
                 continue
             task = asyncio.create_task(self._run_one(message_id, msg))
             self._pending.add(task)
@@ -136,9 +130,7 @@ class StreamConsumer[T](ABC):
                 )
                 ok = False
         if ok:
-            await self._redis.xack(
-                self._cfg.stream, self._cfg.group, message_id
-            )
+            await self._redis.xack(self._cfg.stream, self._cfg.group, message_id)
 
     async def _reclaim(self) -> list[tuple[bytes, dict[bytes, bytes]]] | None:
         assert self._redis is not None

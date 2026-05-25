@@ -177,8 +177,7 @@ class LayoutRegistry:
         fmt = entry.get("format", "webp")
         if fmt not in FORMATS:
             raise ValueError(
-                f"Layout '{layout_id}' slot '{slot_id}' surface '{surface}': "
-                f"unknown format '{fmt}'"
+                f"Layout '{layout_id}' slot '{slot_id}' surface '{surface}': unknown format '{fmt}'"
             )
         return ImageVariantSpec(
             target_width=entry["target_width"],

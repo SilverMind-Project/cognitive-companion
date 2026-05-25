@@ -76,9 +76,11 @@ async def list_info_cards(
         count_stmt = count_stmt.where(InfoCard.document_id == document_id)
 
     total = db.execute(count_stmt).scalar() or 0
-    cards = db.execute(
-        stmt.order_by(InfoCard.created_at.desc()).offset(offset).limit(limit)
-    ).scalars().all()
+    cards = (
+        db.execute(stmt.order_by(InfoCard.created_at.desc()).offset(offset).limit(limit))
+        .scalars()
+        .all()
+    )
 
     _ = request.app.state.minio_client  # ensure MinIO is available
     return {
@@ -168,6 +170,7 @@ async def approve_info_card(
     card.status = "approved"
     card.version += 1
     from datetime import UTC, datetime
+
     card.approved_at = datetime.now(UTC)
     card.approved_by = getattr(request.state, "auth_context", None)
     if card.approved_by and hasattr(card.approved_by, "name"):
@@ -233,6 +236,7 @@ async def suggest_info_card(
     """Generate a paraphrased info card draft via LLM."""
     if document_id is None:
         from backend.core.exceptions import ValidationError
+
         raise ValidationError("document_id is required")
 
     content_gen = request.app.state.knowledge_content_gen
@@ -266,9 +270,7 @@ async def set_info_card_slot(
     layout_registry = request.app.state.layout_registry
     layout = layout_registry.get_required(card.layout_id)
     if slot_index >= len(layout.image_slots):
-        raise ValidationError(
-            f"Layout '{layout.id}' has no slot at index {slot_index}"
-        )
+        raise ValidationError(f"Layout '{layout.id}' has no slot at index {slot_index}")
 
     minio = request.app.state.minio_client
     pipeline = request.app.state.image_pipeline
@@ -286,6 +288,7 @@ async def set_info_card_slot(
         original_object_name = object_name
     elif source_image_id is not None:
         from backend.models.knowledge import KnowledgeDocumentImage
+
         src = db.execute(
             select(KnowledgeDocumentImage).where(KnowledgeDocumentImage.id == source_image_id)
         ).scalar_one_or_none()

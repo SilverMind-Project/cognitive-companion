@@ -1,5 +1,4 @@
-"""Unit tests for :class:`~backend.steps.builtin.activity_session_end.ActivitySessionEndHandler`.
-"""
+"""Unit tests for :class:`~backend.steps.builtin.activity_session_end.ActivitySessionEndHandler`."""
 
 from __future__ import annotations
 
@@ -152,10 +151,12 @@ class TestExecute:
 
     async def test_custom_output_key(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "output_key": "sleep_result",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "output_key": "sleep_result",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -169,11 +170,13 @@ class TestExecute:
 
     async def test_writes_person_activity(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "person_id": "grandma",
-            "write_activity_record": True,
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "person_id": "grandma",
+                "write_activity_record": True,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -188,10 +191,12 @@ class TestExecute:
 
     async def test_skips_person_activity_when_disabled(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "write_activity_record": False,
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "write_activity_record": False,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -218,7 +223,9 @@ class TestExecute:
 
     async def test_person_id_from_template(self):
         svc = _make_mock_service()
-        step = _make_step({"activity_type": "sleep", "person_id": "{{person_detections.0.person_id}}"})
+        step = _make_step(
+            {"activity_type": "sleep", "person_id": "{{person_detections.0.person_id}}"}
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -273,11 +280,13 @@ class TestBlock7Delegation:
         mock_svc = MagicMock()
         mock_svc.close_session = MagicMock(return_value=_make_mock_close_result())
         mock_svc.record = AsyncMock()
-        step = _make_step({
-            "activity_type": "sleep",
-            "person_id": "grandma",
-            "write_activity_record": True,
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "person_id": "grandma",
+                "write_activity_record": True,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -299,11 +308,13 @@ class TestBlock7Delegation:
         legacy_svc.close_session = MagicMock(return_value=_make_mock_close_result())
         legacy_svc.person_tracking = MagicMock()
         legacy_svc.person_tracking.record_activity = AsyncMock()
-        step = _make_step({
-            "activity_type": "sleep",
-            "person_id": "grandma",
-            "write_activity_record": True,
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "person_id": "grandma",
+                "write_activity_record": True,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),

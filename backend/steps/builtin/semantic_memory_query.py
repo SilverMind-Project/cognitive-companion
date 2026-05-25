@@ -38,7 +38,15 @@ logger = get_logger(__name__)
 
 
 def _empty_output(output_key: str) -> dict:
-    return {output_key: {"recent_objects": [], "recent_hazards": [], "observations": [], "summary": "No memory context available.", "observations_count": 0}}
+    return {
+        output_key: {
+            "recent_objects": [],
+            "recent_hazards": [],
+            "observations": [],
+            "summary": "No memory context available.",
+            "observations_count": 0,
+        }
+    }
 
 
 @StepRegistry.register
@@ -126,7 +134,11 @@ class SemanticMemoryQueryHandler(StepHandler):
         trigger: TriggerContext,
         services: ServiceContainer,
     ) -> StepResult:
-        output_key: str = step.config_json.get("output_key", "memory_context") if step.config_json else "memory_context"
+        output_key: str = (
+            step.config_json.get("output_key", "memory_context")
+            if step.config_json
+            else "memory_context"
+        )
 
         if not services.memory_query:
             return StepResult(data=_empty_output(output_key))

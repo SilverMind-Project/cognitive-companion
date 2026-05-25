@@ -660,6 +660,7 @@ class PipelineExecutor:
 
         except Exception as e:
             import contextlib
+
             # Rollback any failed transaction before attempting cleanup writes.
             with contextlib.suppress(Exception):
                 db.rollback()

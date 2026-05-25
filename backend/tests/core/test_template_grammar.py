@@ -28,10 +28,20 @@ def scene_data() -> dict:
         {"label": "chair", "confidence": 0.88, "class_id": 56},
     ]
     hazards = [
-        {"name": "stove_unattended", "severity": "medium", "description": "Cooking appliance detected."},
-        {"name": "medication_access", "severity": "low", "description": "Medication-like container."},
+        {
+            "name": "stove_unattended",
+            "severity": "medium",
+            "description": "Cooking appliance detected.",
+        },
+        {
+            "name": "medication_access",
+            "severity": "low",
+            "description": "Medication-like container.",
+        },
     ]
-    description_img1 = "The image shows a woman in a pink sari standing in a kitchen next to a refrigerator."
+    description_img1 = (
+        "The image shows a woman in a pink sari standing in a kitchen next to a refrigerator."
+    )
     description_img2 = "An empty living room with a chair."
     return {
         "steps": {
@@ -96,7 +106,7 @@ class TestParseExpression:
         assert ast is not None
 
     def test_comparison(self):
-        ast = parse_expression('steps.foo.outputs.count > 3')
+        ast = parse_expression("steps.foo.outputs.count > 3")
         assert ast is not None
 
     def test_boolean_and(self):
@@ -104,7 +114,7 @@ class TestParseExpression:
         assert ast is not None
 
     def test_boolean_or(self):
-        ast = parse_expression('x == 1 or y == 2')
+        ast = parse_expression("x == 1 or y == 2")
         assert ast is not None
 
     def test_not(self):
@@ -181,6 +191,7 @@ class TestEvaluateCondition:
 
     def test_non_bool_raises(self):
         from backend.core.template_interpreter import TemplateTypeError
+
         with pytest.raises(TemplateTypeError):
             evaluate_condition("42", {})
 
@@ -213,7 +224,9 @@ class TestFunctions:
 
 class TestRenderTemplate:
     def test_simple_path(self):
-        result = render_template("Count: {{ steps.s1.outputs.count }}", {"steps": {"s1": {"outputs": {"count": 5}}}})
+        result = render_template(
+            "Count: {{ steps.s1.outputs.count }}", {"steps": {"s1": {"outputs": {"count": 5}}}}
+        )
         assert result == "Count: 5"
 
     def test_unresolved_left_asis(self):
@@ -235,7 +248,12 @@ class TestRenderTemplate:
 
 class TestComplexPathResolution:
     def test_missing_key_returns_none(self):
-        assert evaluate_expression("steps.foo.outputs.nonexistent", {"steps": {"foo": {"outputs": {"bar": 1}}}}) is None
+        assert (
+            evaluate_expression(
+                "steps.foo.outputs.nonexistent", {"steps": {"foo": {"outputs": {"bar": 1}}}}
+            )
+            is None
+        )
 
     def test_none_result_in_comparison(self):
         data = {"steps": {"s1": {"outputs": {"present": "yes"}}}}
@@ -304,11 +322,16 @@ class TestRealisticPipelineData:
         assert evaluate_condition(expr, scene_data) is True
 
     def test_detector_available(self, scene_data):
-        assert evaluate_condition("steps.scene_analysis_1.outputs.scene_detector_available", scene_data) is True
+        assert (
+            evaluate_condition(
+                "steps.scene_analysis_1.outputs.scene_detector_available", scene_data
+            )
+            is True
+        )
 
     def test_combined_expression(self, scene_data):
         expr = (
-            'steps.scene_analysis_1.outputs.scene_detector_available '
+            "steps.scene_analysis_1.outputs.scene_detector_available "
             'and contains(lower(steps.scene_analysis_1.outputs.scene_description), "kitchen")'
         )
         assert evaluate_condition(expr, scene_data) is True
@@ -324,7 +347,9 @@ class TestJMESPathPipes:
         assert evaluate_expression("items | length(@)", data) == 0
 
     def test_pipe_with_path(self):
-        data = {"steps": {"s1": {"outputs": {"detections": [{"label": "person"}, {"label": "chair"}]}}}}
+        data = {
+            "steps": {"s1": {"outputs": {"detections": [{"label": "person"}, {"label": "chair"}]}}}
+        }
         assert evaluate_expression("steps.s1.outputs.detections | length(@)", data) == 2
 
 

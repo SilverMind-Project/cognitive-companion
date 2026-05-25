@@ -103,7 +103,8 @@ def _mock_memory_query(
         _SEVERITY_ORDER = {"ok": 0, "info": 1, "warning": 2, "critical": 3}
         threshold_level = _SEVERITY_ORDER.get(severity_threshold, 1)
         filtered_anomalies = [
-            a for a in raw.anomalies
+            a
+            for a in raw.anomalies
             if _SEVERITY_ORDER.get(a.get("severity", "ok"), 0) >= threshold_level
         ]
         # Build snapshots if requested
@@ -371,7 +372,9 @@ class TestExecute:
         execution = _FakeExecution()
         trigger = _make_trigger()
 
-        async def room_trends_with_snapshots(room_id, *, include_snapshots_hours=0, severity_threshold="info"):
+        async def room_trends_with_snapshots(
+            room_id, *, include_snapshots_hours=0, severity_threshold="info"
+        ):
             raw = {"Kitchen": _mock_trend_result(room_id="Kitchen")}.get(room_id)
             if raw is None:
                 return None

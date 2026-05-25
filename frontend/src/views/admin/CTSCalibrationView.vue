@@ -137,28 +137,109 @@
                   :viewBox="`0 0 ${imgContentRect.naturalWidth} ${imgContentRect.naturalHeight}`"
                   :style="`width:${imgContentRect.width}px;height:${imgContentRect.height}px;top:${imgContentRect.offsetY}px;left:${imgContentRect.offsetX}px`"
                 >
-                  <!-- Completed points — pixel[0]/pixel[1] are raw camera pixel coords -->
-                  <g v-for="(pt, i) in points" :key="i">
+                  <!-- Distribution guide: faint quadrant zones, shown until 4 points are placed -->
+                  <g v-if="points.length < 4">
+                    <rect
+                      x="0" y="0"
+                      :width="imgContentRect.naturalWidth / 2"
+                      :height="imgContentRect.naturalHeight / 2"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.18)"
+                      stroke-width="2"
+                      stroke-dasharray="12 6"
+                    />
+                    <rect
+                      :x="imgContentRect.naturalWidth / 2" y="0"
+                      :width="imgContentRect.naturalWidth / 2"
+                      :height="imgContentRect.naturalHeight / 2"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.18)"
+                      stroke-width="2"
+                      stroke-dasharray="12 6"
+                    />
+                    <rect
+                      x="0" :y="imgContentRect.naturalHeight / 2"
+                      :width="imgContentRect.naturalWidth / 2"
+                      :height="imgContentRect.naturalHeight / 2"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.18)"
+                      stroke-width="2"
+                      stroke-dasharray="12 6"
+                    />
+                    <rect
+                      :x="imgContentRect.naturalWidth / 2"
+                      :y="imgContentRect.naturalHeight / 2"
+                      :width="imgContentRect.naturalWidth / 2"
+                      :height="imgContentRect.naturalHeight / 2"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.18)"
+                      stroke-width="2"
+                      stroke-dasharray="12 6"
+                    />
+                    <text
+                      :x="imgContentRect.naturalWidth * 0.25"
+                      :y="imgContentRect.naturalHeight * 0.25"
+                      text-anchor="middle" dominant-baseline="middle"
+                      fill="rgba(255,255,255,0.35)" font-size="36"
+                      :opacity="pointInQuadrant(0) ? 0 : 1"
+                    >Place point here</text>
+                    <text
+                      :x="imgContentRect.naturalWidth * 0.75"
+                      :y="imgContentRect.naturalHeight * 0.25"
+                      text-anchor="middle" dominant-baseline="middle"
+                      fill="rgba(255,255,255,0.35)" font-size="36"
+                      :opacity="pointInQuadrant(1) ? 0 : 1"
+                    >Place point here</text>
+                    <text
+                      :x="imgContentRect.naturalWidth * 0.25"
+                      :y="imgContentRect.naturalHeight * 0.75"
+                      text-anchor="middle" dominant-baseline="middle"
+                      fill="rgba(255,255,255,0.35)" font-size="36"
+                      :opacity="pointInQuadrant(2) ? 0 : 1"
+                    >Place point here</text>
+                    <text
+                      :x="imgContentRect.naturalWidth * 0.75"
+                      :y="imgContentRect.naturalHeight * 0.75"
+                      text-anchor="middle" dominant-baseline="middle"
+                      fill="rgba(255,255,255,0.35)" font-size="36"
+                      :opacity="pointInQuadrant(3) ? 0 : 1"
+                    >Place point here</text>
+                  </g>
+                  <!-- Completed points — draggable with residual coloring -->
+                  <g
+                    v-for="(pt, i) in points"
+                    :key="i"
+                    style="cursor:grab"
+                    @mousedown.stop="startCameraDrag(i, $event)"
+                    @click.stop
+                  >
+                    <circle
+                      :cx="pt.pixel[0]"
+                      :cy="pt.pixel[1]"
+                      r="40"
+                      fill="transparent"
+                    />
                     <circle
                       :cx="pt.pixel[0]"
                       :cy="pt.pixel[1]"
                       r="30"
                       fill="none"
-                      stroke="var(--cc-brand)"
+                      :stroke="pointColor(i)"
                       stroke-width="3"
                     />
                     <circle
                       :cx="pt.pixel[0]"
                       :cy="pt.pixel[1]"
                       r="12"
-                      fill="var(--cc-brand)"
+                      :fill="pointColor(i)"
                     />
                     <text
                       :x="pt.pixel[0] + 18"
                       :y="pt.pixel[1] - 10"
-                      fill="var(--cc-brand)"
+                      :fill="pointColor(i)"
                       font-size="48"
                       font-weight="bold"
+                      style="pointer-events:none"
                     >{{ i + 1 }}</text>
                   </g>
                   <!-- Pending camera point -->
@@ -241,27 +322,60 @@
                     :viewBox="`0 0 ${fpImgRect.width} ${fpImgRect.height}`"
                     :style="`width:${fpImgRect.width}px;height:${fpImgRect.height}px`"
                   >
-                    <g v-for="(pt, i) in points" :key="i">
+                    <!-- Live coverage preview polygon -->
+                    <polygon
+                      v-if="previewCoveragePolygon"
+                      :points="previewCoveragePolygon"
+                      fill="rgba(99,102,241,0.12)"
+                      :stroke="previewStatus === 'ok' ? '#4caf50' : previewStatus === 'warning' ? '#ff9800' : '#f44336'"
+                      stroke-width="2"
+                      stroke-dasharray="8 4"
+                    />
+                    <text
+                      v-if="previewCoveragePolygon && previewStatus"
+                      x="8"
+                      y="20"
+                      :fill="previewStatus === 'ok' ? '#4caf50' : previewStatus === 'warning' ? '#ff9800' : '#f44336'"
+                      font-size="13"
+                      font-weight="700"
+                    >
+                      preview · {{ previewStatus }}
+                    </text>
+                    <!-- Draggable floor plan points with residual coloring -->
+                    <g
+                      v-for="(pt, i) in points"
+                      :key="i"
+                      style="cursor:grab"
+                      @mousedown.stop="startFloorDrag(i, $event)"
+                      @click.stop
+                    >
+                      <circle
+                        :cx="(pt.floor_m[0] / (fpWidth * fpMpp)) * fpImgRect.width"
+                        :cy="(pt.floor_m[1] / (fpHeight * fpMpp)) * fpImgRect.height"
+                        r="16"
+                        fill="transparent"
+                      />
                       <circle
                         :cx="(pt.floor_m[0] / (fpWidth * fpMpp)) * fpImgRect.width"
                         :cy="(pt.floor_m[1] / (fpHeight * fpMpp)) * fpImgRect.height"
                         r="8"
                         fill="none"
-                        stroke="var(--cc-brand)"
+                        :stroke="pointColor(i)"
                         stroke-width="2.5"
                       />
                       <circle
                         :cx="(pt.floor_m[0] / (fpWidth * fpMpp)) * fpImgRect.width"
                         :cy="(pt.floor_m[1] / (fpHeight * fpMpp)) * fpImgRect.height"
                         r="2.5"
-                        fill="var(--cc-brand)"
+                        :fill="pointColor(i)"
                       />
                       <text
                         :x="(pt.floor_m[0] / (fpWidth * fpMpp)) * fpImgRect.width + 12"
                         :y="(pt.floor_m[1] / (fpHeight * fpMpp)) * fpImgRect.height - 6"
-                        fill="var(--cc-brand)"
+                        :fill="pointColor(i)"
                         font-size="12"
                         font-weight="bold"
+                        style="pointer-events:none"
                       >{{ i + 1 }}</text>
                     </g>
                     <!-- Awaiting-click indicator: pulsing crosshair target -->
@@ -465,7 +579,7 @@
                     <td>{{ r.toFixed(4) }}</td>
                     <td>
                       <v-chip size="x-small" :color="r < 0.05 ? 'success' : r < 0.15 ? 'warning' : 'error'">
-                        {{ r < 0.05 ? 'good' : r < 0.15 ? 'fair' : 'poor' }}
+                        {{ r < 0.05 ? 'excellent' : r < 0.15 ? 'acceptable' : 'poor' }}
                       </v-chip>
                     </td>
                   </tr>
@@ -576,7 +690,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { cts } from "../../services/cts.js";
 import { household } from "../../services/household.js";
 import { useNotify } from "../../composables/useNotify.js";
@@ -614,6 +728,15 @@ const points = ref([]);
 const calibrating = ref(false);
 const result = ref(null);
 
+// ── Live preview state ─────────────────────────────────────────────────────
+const previewMatrix = ref(null);
+const previewResiduals = ref([]);
+const previewStatus = ref(null);
+let _previewDebounceTimer = null;
+
+// ── Drag state ─────────────────────────────────────────────────────────────
+const dragState = ref(null);
+
 // ── Auto-calibration state ────────────────────────────────────────────────
 // Track the most recent MinIO key received via WebSocket for the selected camera.
 // This key is sent to the auto-calibrate endpoint so the orchestrator can
@@ -630,6 +753,170 @@ const inputMode = ref("pick");
 // ── Computed ──────────────────────────────────────────────────────────────
 const floorPlanReady = computed(() => !!(floorPlanUrl.value));
 const scaleReady = computed(() => !!(fpMpp.value && fpWidth.value && fpHeight.value));
+
+// ── Point color helper ─────────────────────────────────────────────────────
+function pointColor(i) {
+  const residuals = result.value?.residuals_m ?? previewResiduals.value;
+  if (!residuals || residuals.length <= i) return "var(--cc-brand)";
+  const r = residuals[i];
+  if (r < 0.05) return "#4caf50";
+  if (r < 0.15) return "#ff9800";
+  return "#f44336";
+}
+
+// ── Point-in-quadrant helper ───────────────────────────────────────────────
+function pointInQuadrant(q) {
+  if (!imgContentRect.value) return false;
+  const W = imgContentRect.value.naturalWidth;
+  const H = imgContentRect.value.naturalHeight;
+  return points.value.some(({ pixel: [px, py] }) => {
+    const inRight = px >= W / 2;
+    const inBottom = py >= H / 2;
+    if (q === 0) return !inRight && !inBottom;
+    if (q === 1) return inRight && !inBottom;
+    if (q === 2) return !inRight && inBottom;
+    if (q === 3) return inRight && inBottom;
+    return false;
+  });
+}
+
+// ── Project point through homography matrix ─────────────────────────────────
+function _projectPoint(H, px, py) {
+  const hw = H[0][0] * px + H[0][1] * py + H[0][2];
+  const hh = H[1][0] * px + H[1][1] * py + H[1][2];
+  const hw3 = H[2][0] * px + H[2][1] * py + H[2][2];
+  if (Math.abs(hw3) < 1e-9) return null;
+  return [hw / hw3, hh / hw3];
+}
+
+// ── Preview coverage polygon computed ───────────────────────────────────────
+const previewCoveragePolygon = computed(() => {
+  if (!previewMatrix.value) return null;
+  if (!imgContentRect.value) return null;
+  if (!fpImgRect.value) return null;
+  if (!fpMpp.value || !fpWidth.value || !fpHeight.value) return null;
+
+  const H = previewMatrix.value;
+  const W = imgContentRect.value.naturalWidth;
+  const Ht = imgContentRect.value.naturalHeight;
+  const n = 20;
+
+  const boundary = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / n;
+    boundary.push([W * t, 0]);
+    boundary.push([W, Ht * t]);
+    boundary.push([W * (1 - t), Ht]);
+    boundary.push([0, Ht * (1 - t)]);
+  }
+
+  const floorPts = [];
+  for (const [px, py] of boundary) {
+    const fm = _projectPoint(H, px, py);
+    if (fm === null) return null;
+    floorPts.push(fm);
+  }
+
+  const totalW_m = fpWidth.value * fpMpp.value;
+  const totalH_m = fpHeight.value * fpMpp.value;
+
+  const svgPts = floorPts.map(([fx, fy]) => {
+    const x = (fx / totalW_m) * fpImgRect.value.width;
+    const y = (fy / totalH_m) * fpImgRect.value.height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  return svgPts.join(" ");
+});
+
+// ── Preview scheduling ─────────────────────────────────────────────────────
+function schedulePreview() {
+  if (points.value.length < 4) {
+    previewMatrix.value = null;
+    previewResiduals.value = [];
+    previewStatus.value = null;
+    return;
+  }
+  clearTimeout(_previewDebounceTimer);
+  _previewDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await cts.previewHomography(points.value);
+      previewMatrix.value = res.matrix;
+      previewResiduals.value = res.residuals_m;
+      previewStatus.value = res.status;
+    } catch {
+      previewMatrix.value = null;
+    }
+  }, 400);
+}
+
+watch(points, schedulePreview, { deep: true });
+
+// ── Drag: camera pane ──────────────────────────────────────────────────────
+function startCameraDrag(i, e) {
+  e.preventDefault();
+  e.stopPropagation();
+  dragState.value = { pane: "camera", idx: i };
+  window.addEventListener("mousemove", onCameraDragMove);
+  window.addEventListener("mouseup", stopCameraDrag);
+}
+
+function onCameraDragMove(e) {
+  if (!dragState.value || dragState.value.pane !== "camera") return;
+  if (!imgEl.value || !imgContentRect.value) return;
+
+  const r = imgEl.value.getBoundingClientRect();
+  const { offsetX, offsetY, width: cw, height: ch, naturalWidth: nw, naturalHeight: nh } = imgContentRect.value;
+
+  const relX = Math.max(0, Math.min(cw, e.clientX - r.left - offsetX));
+  const relY = Math.max(0, Math.min(ch, e.clientY - r.top - offsetY));
+
+  const px = Math.round(relX / cw * nw);
+  const py = Math.round(relY / ch * nh);
+
+  const updated = points.value.map((pt, idx) =>
+    idx === dragState.value.idx ? { ...pt, pixel: [px, py] } : pt
+  );
+  points.value = updated;
+}
+
+function stopCameraDrag() {
+  dragState.value = null;
+  window.removeEventListener("mousemove", onCameraDragMove);
+  window.removeEventListener("mouseup", stopCameraDrag);
+}
+
+// ── Drag: floor plan pane ──────────────────────────────────────────────────
+function startFloorDrag(i, e) {
+  e.preventDefault();
+  e.stopPropagation();
+  dragState.value = { pane: "floor", idx: i };
+  window.addEventListener("mousemove", onFloorDragMove);
+  window.addEventListener("mouseup", stopFloorDrag);
+}
+
+function onFloorDragMove(e) {
+  if (!dragState.value || dragState.value.pane !== "floor") return;
+  if (!fpImgEl.value || !fpImgRect.value) return;
+
+  const r = fpImgEl.value.getBoundingClientRect();
+  const xn = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+  const yn = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+
+  const floorX = parseFloat((xn * fpWidth.value * fpMpp.value).toFixed(3));
+  const floorY = parseFloat((yn * fpHeight.value * fpMpp.value).toFixed(3));
+
+  const updated = points.value.map((pt, idx) =>
+    idx === dragState.value.idx ? { ...pt, floor_m: [floorX, floorY] } : pt
+  );
+  points.value = updated;
+}
+
+function stopFloorDrag() {
+  dragState.value = null;
+  window.removeEventListener("mousemove", onFloorDragMove);
+  window.removeEventListener("mouseup", stopFloorDrag);
+}
 
 // ── Load ──────────────────────────────────────────────────────────────────
 async function loadCameras() {
@@ -779,10 +1066,19 @@ function clearPoints() {
 // ── Calibrate ─────────────────────────────────────────────────────────────
 async function runCalibration() {
   if (points.value.length < 4) return;
+  if (!imgContentRect.value) {
+    notify("Load a camera snapshot first", "warning");
+    return;
+  }
   calibrating.value = true;
   result.value = null;
   try {
-    result.value = await cts.postHomography(selectedCameraId.value, points.value);
+    result.value = await cts.postHomography(
+      selectedCameraId.value,
+      points.value,
+      imgContentRect.value.naturalWidth,
+      imgContentRect.value.naturalHeight,
+    );
     existingCalibration.value = true;
     notify("Calibration saved");
   } catch (e) {
@@ -837,6 +1133,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (snapshotUrl.value) URL.revokeObjectURL(snapshotUrl.value);
+  stopCameraDrag();
+  stopFloorDrag();
+  clearTimeout(_previewDebounceTimer);
 });
 </script>
 

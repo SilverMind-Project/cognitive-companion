@@ -56,9 +56,7 @@ class _StubClient:
         self.get_trends_count += 1
         return self._trends.get(room_id)
 
-    async def get_snapshots(
-        self, room_id: str, since_hours: int = 24
-    ) -> list[TrendSnapshot]:
+    async def get_snapshots(self, room_id: str, since_hours: int = 24) -> list[TrendSnapshot]:
         self.get_snapshots_count += 1
         return list(self._snapshots)
 

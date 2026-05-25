@@ -37,9 +37,7 @@ def upgrade() -> None:
     # Backfill: match existing room_name to rooms.name (case-insensitive).
     # Unmatched rows keep room_id = NULL.
     conn = op.get_bind()
-    rooms = conn.execute(
-        sa.text("SELECT id, name FROM rooms")
-    ).fetchall()
+    rooms = conn.execute(sa.text("SELECT id, name FROM rooms")).fetchall()
     for room in rooms:
         conn.execute(
             sa.text(

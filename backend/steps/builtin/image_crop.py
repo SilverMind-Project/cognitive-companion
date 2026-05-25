@@ -55,7 +55,10 @@ class ImageCropHandler(StepHandler):
                         "default": "trigger",
                     },
                     "pipeline_image_path": {"type": "string", "default": ""},
-                    "cts_frames_path": {"type": "string", "default": "steps.cts_window_poll_1.outputs.frames"},
+                    "cts_frames_path": {
+                        "type": "string",
+                        "default": "steps.cts_window_poll_1.outputs.frames",
+                    },
                     "max_images": {"type": "integer", "minimum": 1, "default": 1},
                     "trigger_images_count": {"type": "integer", "minimum": 0, "default": 0},
                     "additional_sensor_ids": {
@@ -91,8 +94,18 @@ class ImageCropHandler(StepHandler):
                         "default": [],
                     },
                     "output_format": {"type": "string", "enum": ["jpeg"], "default": "jpeg"},
-                    "jpeg_quality": {"type": "integer", "minimum": 1, "maximum": 100, "default": 90},
-                    "retention_minutes": {"type": "integer", "minimum": 5, "maximum": 1440, "default": 60},
+                    "jpeg_quality": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 90,
+                    },
+                    "retention_minutes": {
+                        "type": "integer",
+                        "minimum": 5,
+                        "maximum": 1440,
+                        "default": 60,
+                    },
                 },
             },
             default_config={
@@ -193,25 +206,31 @@ class ImageCropHandler(StepHandler):
         for source_index, ref in enumerate(refs[:max_images]):
             image_bytes = await fetch_image_bytes(ref, services.minio_client)
             if image_bytes is None:
-                skipped.append({
-                    "reason": "fetch_failed",
-                    "source_index": source_index,
-                    "source_url": ref.url,
-                    "source_object_name": ref.object_name,
-                })
+                skipped.append(
+                    {
+                        "reason": "fetch_failed",
+                        "source_index": source_index,
+                        "source_url": ref.url,
+                        "source_object_name": ref.object_name,
+                    }
+                )
                 continue
 
             try:
                 img = Image.open(BytesIO(image_bytes))
                 img.load()
             except Exception:
-                logger.warning("image_decode_error", ref_url=ref.url, ref_object_name=ref.object_name)
-                skipped.append({
-                    "reason": "decode_failed",
-                    "source_index": source_index,
-                    "source_url": ref.url,
-                    "source_object_name": ref.object_name,
-                })
+                logger.warning(
+                    "image_decode_error", ref_url=ref.url, ref_object_name=ref.object_name
+                )
+                skipped.append(
+                    {
+                        "reason": "decode_failed",
+                        "source_index": source_index,
+                        "source_url": ref.url,
+                        "source_object_name": ref.object_name,
+                    }
+                )
                 continue
 
             original_width, original_height = img.size
@@ -236,15 +255,22 @@ class ImageCropHandler(StepHandler):
                 crop_h = bottom - top
 
                 if crop_w < _MIN_CROP_PX or crop_h < _MIN_CROP_PX:
-                    skipped.append({
-                        "reason": "region_too_small",
-                        "source_index": source_index,
-                        "region_id": region_id,
-                        "region_name": region_name,
-                        "crop_width": crop_w,
-                        "crop_height": crop_h,
-                        "clamped_bounds": {"left": left, "top": top, "right": right, "bottom": bottom},
-                    })
+                    skipped.append(
+                        {
+                            "reason": "region_too_small",
+                            "source_index": source_index,
+                            "region_id": region_id,
+                            "region_name": region_name,
+                            "crop_width": crop_w,
+                            "crop_height": crop_h,
+                            "clamped_bounds": {
+                                "left": left,
+                                "top": top,
+                                "right": right,
+                                "bottom": bottom,
+                            },
+                        }
+                    )
                     continue
 
                 cropped = img.crop((left, top, right, bottom))
@@ -265,12 +291,14 @@ class ImageCropHandler(StepHandler):
                     )
                 except Exception:
                     logger.exception("crop_upload_error", object_name=object_name)
-                    skipped.append({
-                        "reason": "upload_failed",
-                        "source_index": source_index,
-                        "region_id": region_id,
-                        "object_name": object_name,
-                    })
+                    skipped.append(
+                        {
+                            "reason": "upload_failed",
+                            "source_index": source_index,
+                            "region_id": region_id,
+                            "object_name": object_name,
+                        }
+                    )
                     continue
 
                 self._register_media_cache(

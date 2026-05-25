@@ -162,14 +162,10 @@ class DementiaSignalFilter(ContextFilter):
     @staticmethod
     def _severity_rank(severity: str) -> float:
         """Map severity label to a numeric rank for comparison."""
-        return {"info": 0.33, "warning": 0.66, "emergency": 1.0}.get(
-            severity.lower(), 0.0
-        )
+        return {"info": 0.33, "warning": 0.66, "emergency": 1.0}.get(severity.lower(), 0.0)
 
     @staticmethod
-    def _time_of_day_matches(
-        time_config: dict, window_end: str | datetime
-    ) -> bool:
+    def _time_of_day_matches(time_config: dict, window_end: str | datetime) -> bool:
         """Check if window_end falls within the configured time window."""
         start_str = time_config.get("start", "00:00")
         end_str = time_config.get("end", "23:59")
@@ -189,7 +185,7 @@ class DementiaSignalFilter(ContextFilter):
             else:
                 # Crosses midnight.
                 return event_time >= start or event_time <= end
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return False
 
     @staticmethod

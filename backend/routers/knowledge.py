@@ -55,7 +55,9 @@ async def create_document(
 ):
     ingestion = _get_ingestion(request)
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
-    created_by = request.state.auth_context.name if hasattr(request.state, "auth_context") else "caregiver"
+    created_by = (
+        request.state.auth_context.name if hasattr(request.state, "auth_context") else "caregiver"
+    )
     doc = await ingestion.create_document(
         title=title,
         source_text=source_text,
@@ -81,7 +83,9 @@ async def list_documents(
     docs, total = ingestion.list_documents(status=status, tag=tag, q=q, limit=limit, offset=offset)
     return {
         "items": [
-            KnowledgeDocumentListOut.model_validate(_doc_list_out(d, request.app.state.minio_client))
+            KnowledgeDocumentListOut.model_validate(
+                _doc_list_out(d, request.app.state.minio_client)
+            )
             for d in docs
         ],
         "total": total,

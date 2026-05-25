@@ -36,10 +36,7 @@ class _StubRepository:
         room_name: str | None = None,
     ) -> PersonLocationHistory | None:
         candidates = [
-            h
-            for h in reversed(self._history)
-            if h.person_id == person_id
-            and h.exited_at is None
+            h for h in reversed(self._history) if h.person_id == person_id and h.exited_at is None
         ]
         if room_name is not None:
             candidates = [h for h in candidates if h.room_name == room_name]
@@ -148,7 +145,9 @@ async def test_fresh_state_returns_present_room(
     assert result.confidence == 0.85
     assert result.last_seen_at == fresh_state.last_seen_at
     assert result.sources == (PresenceSource(name="cts_location", confidence=0.85),)
-    assert result.dwell_minutes is not None or result.dwell_minutes is None  # dwell may be None if no history
+    assert (
+        result.dwell_minutes is not None or result.dwell_minutes is None
+    )  # dwell may be None if no history
 
 
 @pytest.mark.asyncio

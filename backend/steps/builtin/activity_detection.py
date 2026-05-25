@@ -182,7 +182,7 @@ class ActivityDetectionHandler(StepHandler):
             resolved = render_template(confidence_raw, pipeline_data, trigger_vars).strip()
             try:
                 confidence = max(0.0, min(1.0, float(resolved)))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 logger.warning("activity_detection_bad_confidence", raw=confidence_raw)
                 confidence = 0.8
         else:
@@ -194,6 +194,7 @@ class ActivityDetectionHandler(StepHandler):
         if config.get("capture_scene_description", False):
             scene_key = config.get("scene_description_key", "vision_response") or "vision_response"
             from backend.services.pipeline_data_manager import resolve_pipeline_value
+
             scene_value = resolve_pipeline_value(pipeline_data, scene_key)
             if scene_value is not None:
                 metadata["scene_description"] = scene_value
@@ -210,7 +211,7 @@ class ActivityDetectionHandler(StepHandler):
                     logger.warning(
                         "activity_detection_metadata_extra_not_dict", rendered=rendered[:120]
                     )
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError, ValueError:
                 logger.warning(
                     "activity_detection_metadata_extra_invalid_json", rendered=rendered[:120]
                 )

@@ -92,12 +92,8 @@ class TestEmbedQuery:
         """When Triton is unreachable, embed_query raises TritonEmbeddingError."""
         client = TritonEmbeddingClient()
 
-        with patch(
-            "backend.integrations.triton_embedding_client.TritonGrpcClient"
-        ) as mock_grpc:
-            mock_grpc.return_value.__aenter__ = AsyncMock(
-                side_effect=OSError("connection refused")
-            )
+        with patch("backend.integrations.triton_embedding_client.TritonGrpcClient") as mock_grpc:
+            mock_grpc.return_value.__aenter__ = AsyncMock(side_effect=OSError("connection refused"))
 
             with pytest.raises(TritonEmbeddingError, match="Failed to embed query"):
                 await client.embed_query("hello")
@@ -142,12 +138,8 @@ class TestEmbedChunks:
         """When Triton is unreachable, embed_chunks raises TritonEmbeddingError."""
         client = TritonEmbeddingClient()
 
-        with patch(
-            "backend.integrations.triton_embedding_client.TritonGrpcClient"
-        ) as mock_grpc:
-            mock_grpc.return_value.__aenter__ = AsyncMock(
-                side_effect=OSError("connection refused")
-            )
+        with patch("backend.integrations.triton_embedding_client.TritonGrpcClient") as mock_grpc:
+            mock_grpc.return_value.__aenter__ = AsyncMock(side_effect=OSError("connection refused"))
 
             with pytest.raises(TritonEmbeddingError, match="Failed to embed chunks"):
                 await client.embed_chunks(["a"])

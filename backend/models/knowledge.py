@@ -116,9 +116,7 @@ class KnowledgeDocumentChunk(Base):
 
     document: Mapped[KnowledgeDocument] = relationship("KnowledgeDocument", back_populates="chunks")
 
-    __table_args__ = (
-        UniqueConstraint("document_id", "chunk_index", name="uq_kdc_doc_chunk"),
-    )
+    __table_args__ = (UniqueConstraint("document_id", "chunk_index", name="uq_kdc_doc_chunk"),)
 
 
 class InfoCard(Base):
@@ -190,9 +188,7 @@ class InfoCardImageSlot(Base):
 
     info_card: Mapped[InfoCard] = relationship("InfoCard", back_populates="image_slots")
 
-    __table_args__ = (
-        UniqueConstraint("info_card_id", "slot_index", name="uq_icis_card_slot"),
-    )
+    __table_args__ = (UniqueConstraint("info_card_id", "slot_index", name="uq_icis_card_slot"),)
 
 
 class Quiz(Base):
@@ -268,16 +264,14 @@ class QuizQuestion(Base):
     expected_answer: Mapped[str] = mapped_column(
         Text, nullable=False, default="", server_default=""
     )
-    explanation: Mapped[str] = mapped_column(
-        Text, nullable=False, default="", server_default=""
+    explanation: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    image_slot: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
     )
-    image_slot: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict, server_default="{}")
 
     quiz: Mapped[Quiz] = relationship("Quiz", back_populates="questions")
 
-    __table_args__ = (
-        UniqueConstraint("quiz_id", "ord", name="uq_qq_quiz_ord"),
-    )
+    __table_args__ = (UniqueConstraint("quiz_id", "ord", name="uq_qq_quiz_ord"),)
 
 
 class QuizSession(Base):
@@ -348,9 +342,7 @@ class QuizResponse(Base):
     )
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    __table_args__ = (
-        UniqueConstraint("session_id", "question_id", name="uq_qr_session_question"),
-    )
+    __table_args__ = (UniqueConstraint("session_id", "question_id", name="uq_qr_session_question"),)
 
 
 class InfoCardDelivery(Base):
@@ -400,9 +392,7 @@ class SeniorKnowledgeQuery(Base):
     channel: Mapped[str] = mapped_column(Text, nullable=False)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    __table_args__ = (
-        Index("idx_senior_kq_asked_at", "asked_at", postgresql_using="btree"),
-    )
+    __table_args__ = (Index("idx_senior_kq_asked_at", "asked_at", postgresql_using="btree"),)
 
 
 # B-tree indices for timestamp-sorted queries (declared outside the model for

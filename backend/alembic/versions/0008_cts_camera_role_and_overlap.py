@@ -31,10 +31,7 @@ def upgrade() -> None:
     # Backfill: cameras with face_id_enabled=True get 'face_capable'
     conn = op.get_bind()
     conn.execute(
-        sa.text(
-            "UPDATE cts_cameras SET role = 'face_capable' "
-            "WHERE face_id_enabled = TRUE"
-        ),
+        sa.text("UPDATE cts_cameras SET role = 'face_capable' WHERE face_id_enabled = TRUE"),
     )
 
     op.create_table(

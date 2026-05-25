@@ -78,7 +78,6 @@ class DailyReportService:
         """
         db = self._db_session_factory()
         try:
-
             # Compute UTC range for the date
             tz = ZoneInfo(tz_name)
             day_start = datetime(int(date[:4]), int(date[5:7]), int(date[8:]), tzinfo=tz)
@@ -96,8 +95,12 @@ class DailyReportService:
                 "sleep": self._aggregate_sleep(db, person_id, day_start_utc, day_end_utc),
                 "meals": self._aggregate_meals(db, person_id, day_start_utc, day_end_utc),
                 "medication": self._aggregate_medication(db, person_id, day_start_utc, day_end_utc),
-                "bathroom_visits": self._aggregate_bathroom(db, person_id, day_start_utc, day_end_utc),
-                "door_events": self._aggregate_door_events(db, person_id, day_start_utc, day_end_utc),
+                "bathroom_visits": self._aggregate_bathroom(
+                    db, person_id, day_start_utc, day_end_utc
+                ),
+                "door_events": self._aggregate_door_events(
+                    db, person_id, day_start_utc, day_end_utc
+                ),
                 "exercise": self._aggregate_exercise(db, person_id, day_start_utc, day_end_utc),
                 "room_time": self._aggregate_room_time(db, person_id, day_start_utc, day_end_utc),
                 "summary_text": None,
@@ -134,9 +137,7 @@ class DailyReportService:
         finally:
             db.close()
 
-    def _aggregate_sleep(
-        self, db: Session, person_id: str, start: datetime, end: datetime
-    ) -> dict:
+    def _aggregate_sleep(self, db: Session, person_id: str, start: datetime, end: datetime) -> dict:
         """Aggregate sleep data from activity sessions.
 
         Sleep sessions are attributed to the day they close (not the day they open),
@@ -160,7 +161,9 @@ class DailyReportService:
         session_count = len(sessions)
 
         # Simple quality score based on continuity (no disruptions)
-        quality_score = min(1.0, total_minutes / 480) if session_count > 0 else 0.0  # 8 hours target
+        quality_score = (
+            min(1.0, total_minutes / 480) if session_count > 0 else 0.0
+        )  # 8 hours target
 
         return {
             "total_minutes": total_minutes,
@@ -169,26 +172,32 @@ class DailyReportService:
             "disruptions": max(0, session_count - 1),  # Multiple sessions = potential disruptions
         }
 
-    def _aggregate_meals(
-        self, db: Session, person_id: str, start: datetime, end: datetime
-    ) -> dict:
+    def _aggregate_meals(self, db: Session, person_id: str, start: datetime, end: datetime) -> dict:
         """Aggregate meal data from activity sessions."""
         from backend.models.person import ActivitySession
 
         meal_types = ["meal_prep", "meal_eating"]
-        sessions = db.execute(
-            select(ActivitySession).where(
-                and_(
-                    ActivitySession.person_id == person_id,
-                    ActivitySession.activity_type.in_(meal_types),
-                    ActivitySession.status == "closed",
-                    or_(
-                        and_(ActivitySession.opened_at >= start, ActivitySession.opened_at < end),
-                        and_(ActivitySession.closed_at >= start, ActivitySession.closed_at < end),
-                    ),
+        sessions = (
+            db.execute(
+                select(ActivitySession).where(
+                    and_(
+                        ActivitySession.person_id == person_id,
+                        ActivitySession.activity_type.in_(meal_types),
+                        ActivitySession.status == "closed",
+                        or_(
+                            and_(
+                                ActivitySession.opened_at >= start, ActivitySession.opened_at < end
+                            ),
+                            and_(
+                                ActivitySession.closed_at >= start, ActivitySession.closed_at < end
+                            ),
+                        ),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         prep_count = sum(1 for s in sessions if s.activity_type == "meal_prep")
         eating_count = sum(1 for s in sessions if s.activity_type == "meal_eating")
@@ -208,19 +217,27 @@ class DailyReportService:
         """Aggregate medication data from activity sessions."""
         from backend.models.person import ActivitySession
 
-        sessions = db.execute(
-            select(ActivitySession).where(
-                and_(
-                    ActivitySession.person_id == person_id,
-                    ActivitySession.activity_type == "medication",
-                    ActivitySession.status == "closed",
-                    or_(
-                        and_(ActivitySession.opened_at >= start, ActivitySession.opened_at < end),
-                        and_(ActivitySession.closed_at >= start, ActivitySession.closed_at < end),
-                    ),
+        sessions = (
+            db.execute(
+                select(ActivitySession).where(
+                    and_(
+                        ActivitySession.person_id == person_id,
+                        ActivitySession.activity_type == "medication",
+                        ActivitySession.status == "closed",
+                        or_(
+                            and_(
+                                ActivitySession.opened_at >= start, ActivitySession.opened_at < end
+                            ),
+                            and_(
+                                ActivitySession.closed_at >= start, ActivitySession.closed_at < end
+                            ),
+                        ),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         doses_taken = len(sessions)
         # Doses due would come from config/settings - placeholder
@@ -240,19 +257,27 @@ class DailyReportService:
         """Aggregate bathroom visit data from activity sessions."""
         from backend.models.person import ActivitySession
 
-        sessions = db.execute(
-            select(ActivitySession).where(
-                and_(
-                    ActivitySession.person_id == person_id,
-                    ActivitySession.activity_type == "bathroom",
-                    ActivitySession.status == "closed",
-                    or_(
-                        and_(ActivitySession.opened_at >= start, ActivitySession.opened_at < end),
-                        and_(ActivitySession.closed_at >= start, ActivitySession.closed_at < end),
-                    ),
+        sessions = (
+            db.execute(
+                select(ActivitySession).where(
+                    and_(
+                        ActivitySession.person_id == person_id,
+                        ActivitySession.activity_type == "bathroom",
+                        ActivitySession.status == "closed",
+                        or_(
+                            and_(
+                                ActivitySession.opened_at >= start, ActivitySession.opened_at < end
+                            ),
+                            and_(
+                                ActivitySession.closed_at >= start, ActivitySession.closed_at < end
+                            ),
+                        ),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         visit_count = len(sessions)
         total_minutes = sum(s.duration_minutes or 0 for s in sessions)
@@ -296,19 +321,27 @@ class DailyReportService:
         """Aggregate exercise data from activity sessions."""
         from backend.models.person import ActivitySession
 
-        sessions = db.execute(
-            select(ActivitySession).where(
-                and_(
-                    ActivitySession.person_id == person_id,
-                    ActivitySession.activity_type == "exercise",
-                    ActivitySession.status == "closed",
-                    or_(
-                        and_(ActivitySession.opened_at >= start, ActivitySession.opened_at < end),
-                        and_(ActivitySession.closed_at >= start, ActivitySession.closed_at < end),
-                    ),
+        sessions = (
+            db.execute(
+                select(ActivitySession).where(
+                    and_(
+                        ActivitySession.person_id == person_id,
+                        ActivitySession.activity_type == "exercise",
+                        ActivitySession.status == "closed",
+                        or_(
+                            and_(
+                                ActivitySession.opened_at >= start, ActivitySession.opened_at < end
+                            ),
+                            and_(
+                                ActivitySession.closed_at >= start, ActivitySession.closed_at < end
+                            ),
+                        ),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         session_count = len(sessions)
         total_minutes = sum(s.duration_minutes or 0 for s in sessions)
@@ -399,11 +432,13 @@ class DailyReportService:
             sleep_score = max(0, 30 - abs(sleep_minutes - 600) / 20)  # Target 10 hours
         else:
             sleep_score = 0
-            alerts.append({
-                "type": "sleep_deprivation",
-                "severity": "warning",
-                "message": "No sleep data recorded. Target: 8-12 hours.",
-            })
+            alerts.append(
+                {
+                    "type": "sleep_deprivation",
+                    "severity": "warning",
+                    "message": "No sleep data recorded. Target: 8-12 hours.",
+                }
+            )
         score_components.append(sleep_score)
 
         # Medication adherence score (30 points max)
@@ -413,11 +448,13 @@ class DailyReportService:
         score_components.append(med_score)
 
         if adherence_pct < 50:
-            alerts.append({
-                "type": "medication_missed",
-                "severity": "critical",
-                "message": f"Low medication adherence: {adherence_pct:.0f}%",
-            })
+            alerts.append(
+                {
+                    "type": "medication_missed",
+                    "severity": "critical",
+                    "message": f"Low medication adherence: {adherence_pct:.0f}%",
+                }
+            )
 
         # Activity score (20 points max)
         exercise = report.get("exercise", {})
@@ -429,20 +466,20 @@ class DailyReportService:
         bathroom = report.get("bathroom_visits", {})
         visit_count = bathroom.get("visit_count", 0) or 0
         if visit_count > 10:  # Potential incontinence issue
-            alerts.append({
-                "type": "bathroom_frequency",
-                "severity": "warning",
-                "message": f"High bathroom visit count: {visit_count}",
-            })
+            alerts.append(
+                {
+                    "type": "bathroom_frequency",
+                    "severity": "warning",
+                    "message": f"High bathroom visit count: {visit_count}",
+                }
+            )
         score_components.append(20)  # Base score, no penalty logic yet
 
         wellness_score = sum(score_components)
 
         return round(wellness_score, 1), alerts
 
-    def _upsert_report_db(
-        self, db: Session, person_id: str, date: str, report: dict
-    ) -> None:
+    def _upsert_report_db(self, db: Session, person_id: str, date: str, report: dict) -> None:
         """Upsert report record in database.
 
         Ensures the HouseholdMember exists before inserting the DailyReport

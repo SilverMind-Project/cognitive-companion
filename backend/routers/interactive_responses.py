@@ -38,9 +38,13 @@ async def get_interactive_responses(
     if action:
         filters.append(InteractiveResponse.action == action)
     if date_from:
-        filters.append(InteractiveResponse.created_at >= datetime.combine(date_from, datetime.min.time()))
+        filters.append(
+            InteractiveResponse.created_at >= datetime.combine(date_from, datetime.min.time())
+        )
     if date_to:
-        filters.append(InteractiveResponse.created_at < datetime.combine(date_to, datetime.max.time()))
+        filters.append(
+            InteractiveResponse.created_at < datetime.combine(date_to, datetime.max.time())
+        )
 
     if filters:
         query = query.filter(and_(*filters))

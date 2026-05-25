@@ -27,7 +27,7 @@ from sqlalchemy import Engine, create_engine, event, func
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-from backend.core.config import settings
+from backend.core.config import SettingNotFoundError, settings
 from backend.core.logging import get_logger
 from backend.core.time import UTCDateTime
 
@@ -110,12 +110,16 @@ def _install_lock_monitoring(engine: Engine) -> None:
     """
 
     @event.listens_for(engine, "before_cursor_execute")
-    def _before_execute(conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool) -> None:
+    def _before_execute(
+        conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool
+    ) -> None:
         if "FOR UPDATE" in statement.upper():
             context._lock_start_time = time.time()
 
     @event.listens_for(engine, "after_cursor_execute")
-    def _after_execute(conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool) -> None:
+    def _after_execute(
+        conn: Any, cursor: Any, statement: str, parameters: Any, context: Any, executemany: bool
+    ) -> None:
         if hasattr(context, "_lock_start_time"):
             wait_time_ms = (time.time() - context._lock_start_time) * 1000
 
@@ -138,7 +142,9 @@ def get_lock_contention_metrics() -> dict[str, Any]:
     """Return a snapshot of current lock contention metrics."""
     metrics = _lock_contention_metrics.copy()
     total = metrics["total_lock_waits"]
-    metrics["avg_wait_time_ms"] = round(metrics["total_wait_time_ms"] / total, 2) if total > 0 else 0.0
+    metrics["avg_wait_time_ms"] = (
+        round(metrics["total_wait_time_ms"] / total, 2) if total > 0 else 0.0
+    )
     return metrics
 
 
@@ -291,13 +297,15 @@ _default_database: Database | None = None
 
 
 def _resolve_url(url: str | None) -> str:
-    resolved = url or settings.as_str("database.url")
-    if not resolved:
+    if url:
+        return url
+    try:
+        return settings.as_str("database.url")
+    except SettingNotFoundError as exc:
         raise RuntimeError(
             "database.url is not configured. "
             "Set it in config/settings.yaml or via the POSTGRES_* environment variables."
-        )
-    return resolved
+        ) from exc
 
 
 def _ensure_default(url: str | None = None) -> Database:

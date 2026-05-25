@@ -83,7 +83,9 @@ class HAActionHandler(StepHandler):
 
         domain = render_template(config.get("domain", ""), pipeline_data, trigger_vars).strip()
         service = render_template(config.get("service", ""), pipeline_data, trigger_vars).strip()
-        entity_id = render_template(config.get("entity_id", ""), pipeline_data, trigger_vars).strip()
+        entity_id = render_template(
+            config.get("entity_id", ""), pipeline_data, trigger_vars
+        ).strip()
 
         # Resolve template expressions in string values of the data dict
         raw_data = config.get("data", {}) or {}

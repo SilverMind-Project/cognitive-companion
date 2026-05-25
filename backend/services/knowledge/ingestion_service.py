@@ -171,11 +171,13 @@ class KnowledgeIngestionService:
                 )
 
             total = db.execute(count_stmt).scalar() or 0
-            docs = db.execute(
-                stmt.order_by(KnowledgeDocument.created_at.desc())
-                .offset(offset)
-                .limit(limit)
-            ).scalars().all()
+            docs = (
+                db.execute(
+                    stmt.order_by(KnowledgeDocument.created_at.desc()).offset(offset).limit(limit)
+                )
+                .scalars()
+                .all()
+            )
             for doc in docs:
                 _ = doc.images
                 _ = doc.chunks
@@ -254,7 +256,7 @@ class KnowledgeIngestionService:
             _ = doc.images
             _ = doc.chunks
             return doc
-        except (NotFoundError, ValidationError):
+        except NotFoundError, ValidationError:
             db.rollback()
             raise
         except Exception:
@@ -278,7 +280,7 @@ class KnowledgeIngestionService:
             _ = doc.images
             _ = doc.chunks
             return doc
-        except (NotFoundError, ValidationError):
+        except NotFoundError, ValidationError:
             db.rollback()
             raise
         except Exception:
@@ -302,7 +304,7 @@ class KnowledgeIngestionService:
             _ = doc.images
             _ = doc.chunks
             return doc
-        except (NotFoundError, ValidationError):
+        except NotFoundError, ValidationError:
             db.rollback()
             raise
         except Exception:
@@ -328,18 +330,24 @@ class KnowledgeIngestionService:
                 raise NotFoundError("Knowledge document", doc_id)
 
             # Block if active deliverables reference this doc
-            active_cards = db.execute(
-                select(func.count(InfoCard.id)).where(
-                    InfoCard.document_id == doc_id,
-                    InfoCard.status.in_(["draft", "caregiver_review", "approved"]),
-                )
-            ).scalar() or 0
-            active_quizzes = db.execute(
-                select(func.count(Quiz.id)).where(
-                    Quiz.document_id == doc_id,
-                    Quiz.status.in_(["draft", "caregiver_review", "approved"]),
-                )
-            ).scalar() or 0
+            active_cards = (
+                db.execute(
+                    select(func.count(InfoCard.id)).where(
+                        InfoCard.document_id == doc_id,
+                        InfoCard.status.in_(["draft", "caregiver_review", "approved"]),
+                    )
+                ).scalar()
+                or 0
+            )
+            active_quizzes = (
+                db.execute(
+                    select(func.count(Quiz.id)).where(
+                        Quiz.document_id == doc_id,
+                        Quiz.status.in_(["draft", "caregiver_review", "approved"]),
+                    )
+                ).scalar()
+                or 0
+            )
             if active_cards > 0 or active_quizzes > 0:
                 raise ConflictError(
                     f"Cannot delete document {doc_id}: "
@@ -349,7 +357,7 @@ class KnowledgeIngestionService:
 
             db.delete(doc)
             db.commit()
-        except (NotFoundError, ConflictError):
+        except NotFoundError, ConflictError:
             db.rollback()
             raise
         except Exception:
@@ -446,11 +454,15 @@ class KnowledgeIngestionService:
 
         db: Session = self._db_factory()
         try:
-            docs = db.execute(
-                select(KnowledgeDocument).where(
-                    KnowledgeDocument.status == "uploaded"
-                ).limit(20)
-            ).scalars().all()
+            docs = (
+                db.execute(
+                    select(KnowledgeDocument)
+                    .where(KnowledgeDocument.status == "uploaded")
+                    .limit(20)
+                )
+                .scalars()
+                .all()
+            )
 
             count = 0
             for doc in docs:
@@ -488,11 +500,14 @@ class KnowledgeIngestionService:
             ext = _extension_for(content_type)
             # Determine next ord if not provided
             if ord is None:
-                max_ord = db.execute(
-                    select(func.coalesce(func.max(KnowledgeDocumentImage.ord), -1)).where(
-                        KnowledgeDocumentImage.document_id == doc_id
-                    )
-                ).scalar() or -1
+                max_ord = (
+                    db.execute(
+                        select(func.coalesce(func.max(KnowledgeDocumentImage.ord), -1)).where(
+                            KnowledgeDocumentImage.document_id == doc_id
+                        )
+                    ).scalar()
+                    or -1
+                )
                 ord = max_ord + 1
 
             object_name = f"knowledge/{doc_id}/img-{ord}.{ext}"
@@ -517,7 +532,7 @@ class KnowledgeIngestionService:
             db.commit()
             db.refresh(img_row)
             return img_row
-        except (NotFoundError, ValidationError):
+        except NotFoundError, ValidationError:
             db.rollback()
             raise
         except Exception:
@@ -526,7 +541,9 @@ class KnowledgeIngestionService:
         finally:
             db.close()
 
-    def update_image(self, img_id: int, alt_text: str | None = None, ord: int | None = None) -> KnowledgeDocumentImage:
+    def update_image(
+        self, img_id: int, alt_text: str | None = None, ord: int | None = None
+    ) -> KnowledgeDocumentImage:
         db: Session = self._db_factory()
         try:
             img_row = db.execute(

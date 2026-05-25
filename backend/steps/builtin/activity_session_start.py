@@ -153,7 +153,7 @@ class ActivitySessionStartHandler(StepHandler):
             resolved = render_template(confidence_raw, pipeline_data, trigger_vars).strip()
             try:
                 confidence = max(0.0, min(1.0, float(resolved)))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 logger.warning("session_start_bad_confidence", raw=confidence_raw)
                 confidence = 0.85
         else:
@@ -165,7 +165,7 @@ class ActivitySessionStartHandler(StepHandler):
             tpl_resolved = render_template(str(timeout_raw), pipeline_data, trigger_vars).strip()
             try:
                 timeout_minutes = int(tpl_resolved)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 logger.warning("session_start_bad_timeout", raw=timeout_raw)
 
         metadata_extra_tpl = config.get("metadata_extra", "").strip()
@@ -178,7 +178,7 @@ class ActivitySessionStartHandler(StepHandler):
                 extra = json.loads(rendered)
                 if isinstance(extra, dict):
                     metadata.update(extra)
-            except (json.JSONDecodeError, ValueError):
+            except json.JSONDecodeError, ValueError:
                 logger.warning("session_start_metadata_extra_invalid", rendered=rendered[:120])
 
         output_key = (config.get("output_key", "session") or "session").strip() or "session"

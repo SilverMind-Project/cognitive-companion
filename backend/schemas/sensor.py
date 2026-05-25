@@ -14,6 +14,7 @@ def _validate_movement_map_in_config(config_json: dict[str, Any] | None) -> dict
     movement_map = config_json.get("movement_map")
     if movement_map is not None:
         from backend.schemas.sensor_config import MovementMap
+
         MovementMap.model_validate(movement_map)
     return config_json
 

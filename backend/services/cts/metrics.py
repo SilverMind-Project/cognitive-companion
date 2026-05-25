@@ -32,8 +32,7 @@ cts_signals_decode_errors = Counter(
 
 cts_signals_dropped = Counter(
     "cts_signals_dropped_total",
-    "Total tracking.signals messages dropped (decode failure, missing fields,"
-    " or storage error).",
+    "Total tracking.signals messages dropped (decode failure, missing fields, or storage error).",
     [SIGNAL_KIND_LABEL],
 )
 

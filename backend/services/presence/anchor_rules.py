@@ -152,7 +152,8 @@ def compile_predicate(expr: str) -> AnchorPredicate:
     # --- Patterns 1 & 2: entity_id == value / entity_id != value ---
     # Split on == or != (but not === or !==).
     eq_match = re.match(
-        r"^\s*(\S+)\s*(!=|==)\s*(\S+)\s*$", stripped,
+        r"^\s*(\S+)\s*(!=|==)\s*(\S+)\s*$",
+        stripped,
     )
     if eq_match:
         entity_id = eq_match.group(1)

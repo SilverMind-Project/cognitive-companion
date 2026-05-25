@@ -1,4 +1,5 @@
 """Tests for ImagePipeline."""
+
 from io import BytesIO
 
 import pytest

@@ -57,7 +57,9 @@ def validate_step_config(
 
     errors: list[TemplateError] = []
 
-    for _field_name, errors_for_field in _validate_fields(step_type, config, known_labels, step_registry):
+    for _field_name, errors_for_field in _validate_fields(
+        step_type, config, known_labels, step_registry
+    ):
         errors.extend(errors_for_field)
 
     return errors

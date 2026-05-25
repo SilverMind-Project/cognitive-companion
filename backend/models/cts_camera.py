@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, Float, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -41,6 +42,20 @@ class CtsCamera(Base):
     # (top-down or overview), or mixed (partial face visibility).
     role: Mapped[str] = mapped_column(String(32), default="surveillance")
 
+    # Physical camera parameters — all optional.
+    # horizontal_fov_deg: horizontal field of view in degrees (20-180).
+    #   Used by depth-based auto-calibration to estimate focal length.
+    # mounting_height_m: camera lens height above the floor in metres.
+    #   Reserved for M7 depth-based footpoint correction.
+    # tilt_deg: downward pitch angle. 0 = horizontal, -90 = pointing straight down.
+    horizontal_fov_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mounting_height_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tilt_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Native pixel dimensions of the frame used during the last homography calibration.
+    snapshot_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    snapshot_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # MinIO object key for the floor-plan image (optional).
     floor_plan_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
@@ -50,6 +65,11 @@ class CtsCamera(Base):
 
     # Per-point reprojection error from the last homography fit (meters).
     homography_residuals: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # Normalised [0,1] visibility polygon derived from the homography matrix.
+    # Each element is [x_norm, y_norm] where x=0 is the left edge of the floor plan
+    # and x=1 is the right edge.  Populated automatically when homography is saved.
+    visibility_polygon: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     # List of privacy-zone dicts [{zone_id, name, polygon, policy, enabled}].
     privacy_zones: Mapped[list | None] = mapped_column(JSON, nullable=True)

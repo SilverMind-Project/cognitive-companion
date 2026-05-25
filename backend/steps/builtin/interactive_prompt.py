@@ -241,18 +241,20 @@ class InteractivePromptHandler(StepHandler):
 
             if ws_manager:
                 try:
-                    await ws_manager.broadcast({
-                        "type": "interactive_prompt",
-                        "execution_id": execution.id,
-                        "step_id": step.id,
-                        "message": rendered_popup_message,
-                        "title": popup_title,
-                        "icon": popup_icon,
-                        "escalate_button_text": escalate_button_text,
-                        "dismiss_button_text": dismiss_button_text,
-                        "countdown_seconds": countdown_seconds,
-                        "server_timestamp": server_timestamp,
-                    })
+                    await ws_manager.broadcast(
+                        {
+                            "type": "interactive_prompt",
+                            "execution_id": execution.id,
+                            "step_id": step.id,
+                            "message": rendered_popup_message,
+                            "title": popup_title,
+                            "icon": popup_icon,
+                            "escalate_button_text": escalate_button_text,
+                            "dismiss_button_text": dismiss_button_text,
+                            "countdown_seconds": countdown_seconds,
+                            "server_timestamp": server_timestamp,
+                        }
+                    )
                     popup_sent = True
                     logger.info(
                         "interactive_prompt_sent",
@@ -308,12 +310,14 @@ class InteractivePromptHandler(StepHandler):
                     # Signal frontend to auto-enable microphone so the user
                     # can respond to Gemini Live without tapping the mic.
                     try:
-                        await ws_manager.broadcast({
-                            "type": "enable_microphone",
-                            "reason": "interactive_prompt_voice",
-                            "execution_id": execution.id,
-                            "step_id": step.id,
-                        })
+                        await ws_manager.broadcast(
+                            {
+                                "type": "enable_microphone",
+                                "reason": "interactive_prompt_voice",
+                                "execution_id": execution.id,
+                                "step_id": step.id,
+                            }
+                        )
                     except Exception as broadcast_error:
                         logger.error(
                             "interactive_prompt_enable_mic_error",

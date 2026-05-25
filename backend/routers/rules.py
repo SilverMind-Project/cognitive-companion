@@ -41,6 +41,7 @@ router = APIRouter(prefix="/rules", tags=["rules"])
 
 def _app_version() -> str:
     from importlib.metadata import version
+
     return version("cognitive-companion")
 
 
@@ -107,11 +108,11 @@ def create_rule(
 
     rule = Rule(**data)
     if cron_trigger_ids:
-        cron_triggers = (
-            db.query(CronTrigger).filter(CronTrigger.id.in_(cron_trigger_ids)).all()
-        )
+        cron_triggers = db.query(CronTrigger).filter(CronTrigger.id.in_(cron_trigger_ids)).all()
         if len(cron_triggers) != len(cron_trigger_ids):
-            raise NotFoundError("CronTrigger", str(set(cron_trigger_ids) - {t.id for t in cron_triggers}))
+            raise NotFoundError(
+                "CronTrigger", str(set(cron_trigger_ids) - {t.id for t in cron_triggers})
+            )
         rule.cron_triggers = cron_triggers
         if "cron" not in rule.trigger_types:
             rule.trigger_types = [*rule.trigger_types, "cron"]
@@ -162,11 +163,11 @@ def update_rule(
         setattr(rule, key, value)
 
     if cron_trigger_ids is not None:
-        cron_triggers = (
-            db.query(CronTrigger).filter(CronTrigger.id.in_(cron_trigger_ids)).all()
-        )
+        cron_triggers = db.query(CronTrigger).filter(CronTrigger.id.in_(cron_trigger_ids)).all()
         if len(cron_triggers) != len(cron_trigger_ids):
-            raise NotFoundError("CronTrigger", str(set(cron_trigger_ids) - {t.id for t in cron_triggers}))
+            raise NotFoundError(
+                "CronTrigger", str(set(cron_trigger_ids) - {t.id for t in cron_triggers})
+            )
         rule.cron_triggers = cron_triggers
         if cron_triggers and "cron" not in rule.trigger_types:
             rule.trigger_types = [*rule.trigger_types, "cron"]
@@ -269,7 +270,9 @@ def _generate_default_label(db: Session, rule_id: int, step_type: str) -> str:
         n += 1
 
 
-def _assert_label_unique(db: Session, rule_id: int, label: str, exclude_step_id: int | None = None) -> None:
+def _assert_label_unique(
+    db: Session, rule_id: int, label: str, exclude_step_id: int | None = None
+) -> None:
     q = db.query(PipelineStep).filter(
         PipelineStep.rule_id == rule_id,
         PipelineStep.label == label,

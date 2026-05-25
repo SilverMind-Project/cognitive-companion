@@ -194,9 +194,7 @@ class NightAnchorProvider:
         # All conditions met → ASLEEP.
         dwell_minutes: float | None = None
         if location_state.last_seen_at is not None:
-            dwell_minutes = (
-                (at - location_state.last_seen_at).total_seconds() / 60.0
-            )
+            dwell_minutes = (at - location_state.last_seen_at).total_seconds() / 60.0
 
         sources_parts = [
             PresenceSource(name=self._name, confidence=self._confidence),

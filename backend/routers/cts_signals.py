@@ -83,7 +83,13 @@ async def list_signals(
         offset=offset,
     )
     signals = _filter_by_person_config(signals, db)
-    return {"signals": signals, "count": len(signals), "total": total, "offset": offset, "limit": limit}
+    return {
+        "signals": signals,
+        "count": len(signals),
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 # ---------------------------------------------------------------------------

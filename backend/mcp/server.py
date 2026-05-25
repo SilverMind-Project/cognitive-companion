@@ -20,10 +20,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 _original_path = sys.path.copy()
-_collision_paths = [
-    p for p in sys.path
-    if p == "" or _os.path.basename(p.rstrip("/")) == "backend"
-]
+_collision_paths = [p for p in sys.path if p == "" or _os.path.basename(p.rstrip("/")) == "backend"]
 for _p in _collision_paths:
     if _p in sys.path:
         sys.path.remove(_p)
@@ -912,13 +909,15 @@ async def submit_user_response(
         # is dismissed when the user responds via voice.
         if _svc.ws_manager:
             try:
-                await _svc.ws_manager.broadcast({
-                    "type": "interactive_response",
-                    "execution_id": execution_id,
-                    "step_id": step_id,
-                    "action": action,
-                    "channel": "pwa_realtime_ai",
-                })
+                await _svc.ws_manager.broadcast(
+                    {
+                        "type": "interactive_response",
+                        "execution_id": execution_id,
+                        "step_id": step_id,
+                        "action": action,
+                        "channel": "pwa_realtime_ai",
+                    }
+                )
             except Exception as broadcast_err:
                 logger.error(
                     "submit_user_response_broadcast_error",
@@ -987,9 +986,7 @@ async def get_person_location(person_id: str) -> dict:
     db: Session = _svc.db_factory()
     try:
         state = (
-            db.query(PersonLocationState)
-            .filter(PersonLocationState.person_id == person_id)
-            .first()
+            db.query(PersonLocationState).filter(PersonLocationState.person_id == person_id).first()
         )
         if state is None:
             return {"person_id": person_id, "found": False}
@@ -1101,6 +1098,7 @@ async def query_knowledge_base(query: str) -> dict:
     or tell the senior you don't know.
     """
     import time
+
     t0 = time.monotonic()
 
     if _svc.knowledge_query is None:
@@ -1118,14 +1116,16 @@ async def query_knowledge_base(query: str) -> dict:
 
     # Broadcast popup to companion PWA
     if _svc.ws_manager and result.answered_via == "rag":
-        await _svc.ws_manager.broadcast({
-            "type": "knowledge_answer",
-            "query_id": -1,  # filled by log_query return; -1 is ok for ws
-            "query_text": result.query_text,
-            "answer_text": result.answer_text,
-            "source_document_ids": list(result.source_document_ids),
-            "server_timestamp": datetime.now(UTC).isoformat(),
-        })
+        await _svc.ws_manager.broadcast(
+            {
+                "type": "knowledge_answer",
+                "query_id": -1,  # filled by log_query return; -1 is ok for ws
+                "query_text": result.query_text,
+                "answer_text": result.answer_text,
+                "source_document_ids": list(result.source_document_ids),
+                "server_timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
     return {
         "answer": result.answer_text,
@@ -1157,6 +1157,7 @@ async def submit_quiz_answer(
     Always call this after the senior responds; do not skip ahead.
     """
     import time
+
     t0 = time.monotonic()
 
     if _svc.knowledge_delivery is None:
@@ -1233,44 +1234,50 @@ async def list_plugin_metadata(
     if kind is None or kind == "step":
         StepRegistry.discover()
         for meta in StepRegistry.all_metadata():
-            results.append({
-                "kind": "step",
-                "type_name": meta.type_name,
-                "display_name": meta.display_name,
-                "category": meta.category,
-                "icon": meta.icon,
-                "description": meta.description,
-                "config_schema": meta.config_schema,
-                "default_config": meta.default_config,
-                "output_schema": meta.output_schema,
-                "schema_version": meta.schema_version,
-                "deprecated": meta.deprecated,
-                "tags": list(meta.tags),
-            })
+            results.append(
+                {
+                    "kind": "step",
+                    "type_name": meta.type_name,
+                    "display_name": meta.display_name,
+                    "category": meta.category,
+                    "icon": meta.icon,
+                    "description": meta.description,
+                    "config_schema": meta.config_schema,
+                    "default_config": meta.default_config,
+                    "output_schema": meta.output_schema,
+                    "schema_version": meta.schema_version,
+                    "deprecated": meta.deprecated,
+                    "tags": list(meta.tags),
+                }
+            )
 
     if kind is None or kind == "filter":
         FilterRegistry.discover()
         for meta in FilterRegistry.all_metadata():
-            results.append({
-                "kind": "filter",
-                "type_name": meta.filter_type,
-                "display_name": meta.display_name,
-                "description": meta.description,
-                "config_schema": meta.config_schema,
-                "schema_version": meta.schema_version,
-            })
+            results.append(
+                {
+                    "kind": "filter",
+                    "type_name": meta.filter_type,
+                    "display_name": meta.display_name,
+                    "description": meta.description,
+                    "config_schema": meta.config_schema,
+                    "schema_version": meta.schema_version,
+                }
+            )
 
     if kind is None or kind == "channel":
         ChannelRegistry.discover()
         for meta in ChannelRegistry.all_metadata():
-            results.append({
-                "kind": "channel",
-                "type_name": meta.channel_name,
-                "display_name": meta.display_name,
-                "description": meta.description,
-                "config_schema": meta.config_schema,
-                "schema_version": meta.schema_version,
-            })
+            results.append(
+                {
+                    "kind": "channel",
+                    "type_name": meta.channel_name,
+                    "display_name": meta.display_name,
+                    "description": meta.description,
+                    "config_schema": meta.config_schema,
+                    "schema_version": meta.schema_version,
+                }
+            )
 
     return results
 

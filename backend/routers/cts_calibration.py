@@ -37,14 +37,79 @@ from backend.routers.cts_deps import cts_enabled
 from backend.routers.dependencies import get_ingress_admin_client, get_orchestrator_client
 from backend.schemas.cts_camera import (
     AdjacencyRequest,
+    CameraVisibilityPolygon,
+    HomographyPreviewRequest,
+    HomographyPreviewResult,
     HomographyRequest,
     HomographyResult,
+    InferredAdjacencyResponse,
+    InferredEdgeOut,
+    InferredOverlapGroupOut,
     PrivacyZonesRequest,
+    VisibilityPolygonsResponse,
 )
+from backend.services.cts_visibility import compute_visibility_from_homography
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/cts/calibration", tags=["cts-calibration"])
+
+
+def _refresh_visibility_polygon(
+    cam: CtsCamera,
+    db: Session,
+) -> None:
+    """Derive the visibility polygon from the camera's current homography and persist it.
+
+    Called after every homography save (manual or auto).  Silently no-ops if:
+    - no homography is stored
+    - snapshot dimensions are not stored (pre-M1 calibration)
+    - the floor plan scale is not configured yet
+    - the projection is degenerate (compute_visibility_from_homography returns None)
+    """
+    if not cam.homography or not cam.snapshot_width or not cam.snapshot_height:
+        return
+
+    matrix = cam.homography.get("matrix")
+    if not matrix:
+        return
+
+    settings = db.get(HouseholdSettings, 1)
+    if not settings:
+        return
+
+    mpp: float | None = settings.floor_meters_per_pixel
+    fp_w_px: int | None = settings.floor_plan_width
+    fp_h_px: int | None = settings.floor_plan_height
+
+    if not mpp or not fp_w_px or not fp_h_px:
+        return
+
+    fp_width_m = fp_w_px * mpp
+    fp_height_m = fp_h_px * mpp
+
+    polygon = compute_visibility_from_homography(
+        matrix=matrix,
+        image_width=cam.snapshot_width,
+        image_height=cam.snapshot_height,
+        floor_plan_width_m=fp_width_m,
+        floor_plan_height_m=fp_height_m,
+    )
+
+    if polygon is not None:
+        cam.visibility_polygon = polygon
+        logger.info(
+            "cts_visibility_polygon_derived",
+            camera_id=cam.id,
+            point_count=len(polygon),
+        )
+    else:
+        logger.warning(
+            "cts_visibility_polygon_degenerate",
+            camera_id=cam.id,
+            snapshot_dims=f"{cam.snapshot_width}x{cam.snapshot_height}",
+            fp_dims_m=f"{fp_width_m:.2f}x{fp_height_m:.2f}",
+        )
 
 
 def _upstream_to_http(exc: UpstreamError) -> HTTPException:
@@ -63,7 +128,7 @@ def _upstream_to_http(exc: UpstreamError) -> HTTPException:
             if isinstance(detail, dict):
                 upstream_code = detail.get("code", upstream_code)
                 message = detail.get("message", message)
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             pass
     return HTTPException(
         status_code=http_code,
@@ -74,6 +139,35 @@ def _upstream_to_http(exc: UpstreamError) -> HTTPException:
 # ---------------------------------------------------------------------------
 # Homography endpoints
 # ---------------------------------------------------------------------------
+
+
+@router.post("/homography/preview", response_model=HomographyPreviewResult)
+async def post_homography_preview(
+    body: HomographyPreviewRequest,
+    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+    orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
+) -> HomographyPreviewResult:
+    """Fit a homography from calibration points and return the result without saving.
+
+    Used by the calibration UI for live preview: called debounced as the operator
+    places and adjusts points.
+    """
+    cts_enabled()
+    points_raw = [p.model_dump() for p in body.points]
+    try:
+        result = await orchestrator.fit_homography(
+            camera_id="",  # preview: no camera association
+            points=points_raw,
+        )
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        raise _upstream_to_http(exc) from exc
+
+    return HomographyPreviewResult(
+        matrix=result["matrix"],
+        residuals_m=result["residuals_m"],
+        max_residual_m=result["max_residual_m"],
+        status=result.get("status", "ok"),
+    )
 
 
 @router.post("/homography", response_model=HomographyResult)
@@ -114,11 +208,15 @@ async def post_homography(
     # Persist the computed matrix to the CC database for restart durability.
     cam.homography = {"matrix": matrix}
     cam.homography_residuals = residuals
+    cam.snapshot_width = body.image_width
+    cam.snapshot_height = body.image_height
+    _refresh_visibility_polygon(cam, db)
     db.commit()
 
     logger.info(
         "cts_homography_saved",
         camera_id=body.camera_id,
+        snapshot_dims=f"{body.image_width}x{body.image_height}",
         max_residual_m=round(max_residual, 4),
     )
 
@@ -140,13 +238,19 @@ class AutoCalibrateRequest(BaseModel):
     """
 
     minio_key: str | None = Field(
-        default=None, min_length=1, description="MinIO object key (optional; omit to fetch a live snapshot)"
+        default=None,
+        min_length=1,
+        description="MinIO object key (optional; omit to fetch a live snapshot)",
     )
-    fov_deg: float = Field(
-        default=70.0,
+    fov_deg: float | None = Field(
+        default=None,
         ge=20.0,
         le=180.0,
-        description="Camera horizontal field of view in degrees (default 70°, typical surveillance).",
+        description=(
+            "Camera horizontal FOV in degrees. "
+            "Omit to use the value stored on the camera. "
+            "Falls back to 70° if neither is set."
+        ),
     )
 
 
@@ -196,10 +300,13 @@ async def post_auto_calibrate(
         except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
             raise _upstream_to_http(exc) from exc
 
+    # Resolution order: request body → stored camera FOV → system default.
+    effective_fov = body.fov_deg or cam.horizontal_fov_deg or 70.0
+
     try:
         result = await orchestrator.auto_calibrate(
             camera_id=camera_id,
-            fov_deg=body.fov_deg,
+            fov_deg=effective_fov,
             minio_key=body.minio_key,
             snapshot_bytes=snapshot_b64,
         )
@@ -213,11 +320,24 @@ async def post_auto_calibrate(
     # for the depth-based method) and mark the method in the JSON blob.
     cam.homography = {"matrix": matrix, "method": "depth_auto"}
     cam.homography_residuals = None
+    if result.get("image_width"):
+        cam.snapshot_width = int(result["image_width"])
+    if result.get("image_height"):
+        cam.snapshot_height = int(result["image_height"])
+    _refresh_visibility_polygon(cam, db)
     db.commit()
 
     logger.info(
         "cts_auto_calibration_saved",
         camera_id=camera_id,
+        effective_fov_deg=effective_fov,
+        fov_source=(
+            "request"
+            if body.fov_deg
+            else "camera_stored"
+            if cam.horizontal_fov_deg
+            else "system_default"
+        ),
         confidence=result.get("confidence"),
         inlier_count=result.get("inlier_count"),
     )
@@ -247,14 +367,90 @@ def get_homography(
     if not cam.homography:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "cts.calibration.no_homography",
-                    "message": f"Camera '{camera_id}' has not been calibrated yet."},
+            detail={
+                "code": "cts.calibration.no_homography",
+                "message": f"Camera '{camera_id}' has not been calibrated yet.",
+            },
         )
     return {
         "camera_id": camera_id,
         "matrix": cam.homography.get("matrix"),
         "residuals_m": cam.homography_residuals,
     }
+
+
+# ---------------------------------------------------------------------------
+# Visibility polygons endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/visibility_polygons", response_model=VisibilityPolygonsResponse)
+def get_visibility_polygons(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+) -> VisibilityPolygonsResponse:
+    """Return all enabled cameras with their floor-plan visibility polygons.
+
+    Used by the Coverage tab in CTSFloorPlanView and the adjacency map in
+    CTSAdjacencyView.  Cameras without a polygon have ``visibility_polygon=null``.
+    """
+    from sqlalchemy import select
+
+    cts_enabled()
+
+    cameras = (
+        db.execute(
+            select(CtsCamera)
+            .where(CtsCamera.enabled == True)  # noqa: E712
+            .order_by(CtsCamera.id)
+        )
+        .scalars()
+        .all()
+    )
+
+    settings = db.get(HouseholdSettings, 1)
+    mpp: float | None = settings.floor_meters_per_pixel if settings else None
+    fp_w: int | None = settings.floor_plan_width if settings else None
+    fp_h: int | None = settings.floor_plan_height if settings else None
+
+    items = [
+        CameraVisibilityPolygon(
+            camera_id=cam.id,
+            camera_name=cam.name,
+            has_homography=cam.homography is not None,
+            visibility_polygon=cam.visibility_polygon,
+        )
+        for cam in cameras
+    ]
+
+    return VisibilityPolygonsResponse(
+        cameras=items,
+        floor_meters_per_pixel=mpp,
+        floor_plan_width_px=fp_w,
+        floor_plan_height_px=fp_h,
+    )
+
+
+@router.post("/visibility_polygons/recompute", status_code=status.HTTP_204_NO_CONTENT)
+def post_recompute_visibility_polygons(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+) -> None:
+    """Recompute visibility polygons for all calibrated cameras.
+
+    Safe to call at any time — idempotent.  Skips cameras with missing
+    snapshot dimensions or unconfigured floor plan scale.
+    """
+    from sqlalchemy import select
+
+    cts_enabled()
+    cameras = db.execute(select(CtsCamera).where(CtsCamera.homography.is_not(None))).scalars().all()
+    updated = 0
+    for cam in cameras:
+        _refresh_visibility_polygon(cam, db)
+        updated += 1
+    db.commit()
+    logger.info("cts_visibility_polygons_recomputed", camera_count=updated)
 
 
 # ---------------------------------------------------------------------------
@@ -316,6 +512,56 @@ def get_privacy_zones(
 
 # ---------------------------------------------------------------------------
 # Adjacency endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/adjacency/inferred", response_model=InferredAdjacencyResponse)
+def get_inferred_adjacency(
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+) -> InferredAdjacencyResponse:
+    """Infer adjacency edges from stored visibility polygons (read-only, not persisted).
+
+    The caller decides which edges to adopt by calling ``POST /adjacency``.
+    """
+    from sqlalchemy import select
+
+    from backend.services.cts_adjacency_inference import infer_adjacency
+
+    cts_enabled()
+
+    cameras = (
+        db.execute(
+            select(CtsCamera).where(CtsCamera.enabled == True)  # noqa: E712
+        )
+        .scalars()
+        .all()
+    )
+
+    cam_dicts = [{"id": c.id, "visibility_polygon": c.visibility_polygon} for c in cameras]
+    result = infer_adjacency(cam_dicts)
+
+    return InferredAdjacencyResponse(
+        edges=[
+            InferredEdgeOut(
+                **{"from": e.from_camera, "to": e.to_camera},
+                min_transit_s=e.min_transit_s,
+                max_transit_s=e.max_transit_s,
+                overlap=e.overlap,
+                iou=e.iou,
+            )
+            for e in result.edges
+        ],
+        overlap_groups=[
+            InferredOverlapGroupOut(camera_ids=g.camera_ids, iou=g.iou)
+            for g in result.overlap_groups
+        ],
+        skipped_camera_ids=result.skipped_camera_ids,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Adjacency (persisted) endpoints
 # ---------------------------------------------------------------------------
 
 

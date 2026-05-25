@@ -80,7 +80,11 @@ class TestNormalizeStringUrl:
 class TestNormalizeMinioKeyDict:
     def test_minio_key_returns_object_ref(self):
         refs = normalize_image_value(
-            {"minio_key": "cts/frames/cam1/20260523_120000.jpg", "camera_id": "cam1", "room_name": "Kitchen"},
+            {
+                "minio_key": "cts/frames/cam1/20260523_120000.jpg",
+                "camera_id": "cam1",
+                "room_name": "Kitchen",
+            },
             default_source_type="cts_window",
         )
         assert len(refs) == 1
@@ -90,15 +94,21 @@ class TestNormalizeMinioKeyDict:
         assert refs[0].source_room_name == "Kitchen"
 
     def test_url_key_dict(self):
-        refs = normalize_image_value({"url": "http://example.com/img.jpg"}, default_source_type="pipeline")
+        refs = normalize_image_value(
+            {"url": "http://example.com/img.jpg"}, default_source_type="pipeline"
+        )
         assert refs[0].url == "http://example.com/img.jpg"
 
     def test_image_url_key_dict(self):
-        refs = normalize_image_value({"image_url": "http://example.com/img.jpg"}, default_source_type="pipeline")
+        refs = normalize_image_value(
+            {"image_url": "http://example.com/img.jpg"}, default_source_type="pipeline"
+        )
         assert refs[0].url == "http://example.com/img.jpg"
 
     def test_object_name_key_dict(self):
-        refs = normalize_image_value({"object_name": "pipeline/crops/123/stove.jpg"}, default_source_type="pipeline")
+        refs = normalize_image_value(
+            {"object_name": "pipeline/crops/123/stove.jpg"}, default_source_type="pipeline"
+        )
         assert refs[0].object_name == "pipeline/crops/123/stove.jpg"
 
 
@@ -187,7 +197,9 @@ class TestNormalizeEdgeCases:
 class TestResolveTriggerSource:
     @pytest.mark.asyncio
     async def test_uses_trigger_media_paths(self):
-        trigger = _make_trigger(media_paths=["http://minio/trigger1.jpg", "http://minio/trigger2.jpg"])
+        trigger = _make_trigger(
+            media_paths=["http://minio/trigger1.jpg", "http://minio/trigger2.jpg"]
+        )
         services = _make_services()
 
         refs = await resolve_pipeline_image_refs(

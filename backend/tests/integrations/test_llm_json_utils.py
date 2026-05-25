@@ -37,12 +37,12 @@ class TestCleanLLMJson:
         assert clean_llm_json(input_text) == '{"inner": "```not a fence```"}'
 
     def test_array_json(self):
-        input_text = '```json\n[1, 2, 3]\n```'
-        assert clean_llm_json(input_text) == '[1, 2, 3]'
+        input_text = "```json\n[1, 2, 3]\n```"
+        assert clean_llm_json(input_text) == "[1, 2, 3]"
 
     def test_whitespace_only_fence(self):
-        input_text = '```json\n\n\n```'
-        assert clean_llm_json(input_text) == ''
+        input_text = "```json\n\n\n```"
+        assert clean_llm_json(input_text) == ""
 
 
 class TestParseLLMJson:
@@ -55,15 +55,15 @@ class TestParseLLMJson:
         assert result == {"key": "value"}
 
     def test_invalid_json_returns_string(self):
-        result = parse_llm_json('not json at all')
-        assert result == 'not json at all'
+        result = parse_llm_json("not json at all")
+        assert result == "not json at all"
 
     def test_empty_string_returns_empty_string(self):
         result = parse_llm_json("")
         assert result == ""
 
     def test_array_parsed(self):
-        result = parse_llm_json('[1, 2, 3]')
+        result = parse_llm_json("[1, 2, 3]")
         assert result == [1, 2, 3]
 
     def test_nested_json_parsed(self):
@@ -73,13 +73,13 @@ class TestParseLLMJson:
 
     def test_invalid_json_with_fence_returns_original(self):
         """When fences match but content is invalid JSON, original string is returned."""
-        result = parse_llm_json('```json\n{broken json\n```')
-        assert result == '```json\n{broken json\n```'
+        result = parse_llm_json("```json\n{broken json\n```")
+        assert result == "```json\n{broken json\n```"
 
     def test_malformed_fence_returns_original(self):
         """When only opening fence exists (no closing), original is returned."""
-        result = parse_llm_json('```json\n{broken json')
-        assert result == '```json\n{broken json'
+        result = parse_llm_json("```json\n{broken json")
+        assert result == "```json\n{broken json"
 
     def test_whitespace_around_valid_json_parsed(self):
         result = parse_llm_json('  {"key": "value"}  ')

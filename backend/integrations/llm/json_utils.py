@@ -36,5 +36,5 @@ def parse_llm_json(text: str) -> dict | list | str:
     cleaned = clean_llm_json(text)
     try:
         return json.loads(cleaned)
-    except (json.JSONDecodeError, TypeError):
+    except json.JSONDecodeError, TypeError:
         return text

@@ -36,9 +36,7 @@ class PresenceDwellFilter(ContextFilter):
                         "type": "string",
                         "enum": ["present_room", "asleep"],
                         "default": "",
-                        "description": (
-                            "Optional status filter. Empty = any status."
-                        ),
+                        "description": ("Optional status filter. Empty = any status."),
                     },
                     "min_minutes": {
                         "type": "integer",

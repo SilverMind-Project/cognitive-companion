@@ -23,9 +23,7 @@ def on_room_renamed(db: Session, room_id: int, new_name: str) -> int:
 
     Returns the number of cameras updated.
     """
-    cameras = (
-        db.query(CtsCamera).filter(CtsCamera.room_id == room_id).all()
-    )
+    cameras = db.query(CtsCamera).filter(CtsCamera.room_id == room_id).all()
     for cam in cameras:
         cam.room_name = new_name
     if cameras:
@@ -45,9 +43,7 @@ def on_room_deleted(db: Session, room_id: int) -> int:
     ``room_name`` is preserved as a tombstone so downstream consumers
     still see a meaningful string.
     """
-    cameras = (
-        db.query(CtsCamera).filter(CtsCamera.room_id == room_id).all()
-    )
+    cameras = db.query(CtsCamera).filter(CtsCamera.room_id == room_id).all()
     for cam in cameras:
         cam.room_id = None
     if cameras:

@@ -401,9 +401,7 @@ class SemanticMemoryClient(HttpUpstreamClient):
 
     # -- Observations --------------------------------------------------------
 
-    async def create_observation(
-        self, obs: ObservationCreate
-    ) -> ObservationRecord | None:
+    async def create_observation(self, obs: ObservationCreate) -> ObservationRecord | None:
         """POST /api/v1/observations."""
         body: dict[str, Any] = {
             "room_id": obs.room_id,
@@ -457,9 +455,7 @@ class SemanticMemoryClient(HttpUpstreamClient):
 
     # -- Movements -----------------------------------------------------------
 
-    async def create_movement(
-        self, movement: MovementCreate
-    ) -> MovementRecord | None:
+    async def create_movement(self, movement: MovementCreate) -> MovementRecord | None:
         """POST /api/v1/movements."""
         body: dict[str, Any] = {
             "person_id": movement.person_id,
@@ -555,9 +551,7 @@ class SemanticMemoryClient(HttpUpstreamClient):
                 results.append(payload.to_result())
         return results
 
-    async def get_snapshots(
-        self, room_id: str, since_hours: int = 24
-    ) -> list[TrendSnapshot]:
+    async def get_snapshots(self, room_id: str, since_hours: int = 24) -> list[TrendSnapshot]:
         """GET /api/v1/trends/{room_id}/snapshots?since_hours=N."""
         data = await self._get_json(
             f"/api/v1/trends/{room_id}/snapshots",
@@ -621,7 +615,7 @@ def _coerce_str_int_dict(value: object) -> dict[str, int]:
             continue
         try:
             parsed[key] = int(raw_count)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
     return parsed
 

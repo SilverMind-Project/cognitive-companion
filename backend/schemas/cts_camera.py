@@ -42,6 +42,29 @@ class CtsCameraFields(BaseModel):
     face_id_min_confidence: float | None = None
     role: str = Field(default="surveillance", pattern="^(face_capable|surveillance|mixed)$")
 
+    horizontal_fov_deg: float | None = Field(
+        default=None,
+        ge=20.0,
+        le=180.0,
+        description=(
+            "Horizontal field of view in degrees. "
+            "Used by auto-calibration to estimate focal length. "
+            "Enter HFOV, not diagonal FOV."
+        ),
+    )
+    mounting_height_m: float | None = Field(
+        default=None,
+        ge=0.1,
+        le=10.0,
+        description="Camera mounting height above the floor in metres.",
+    )
+    tilt_deg: float | None = Field(
+        default=None,
+        ge=-90.0,
+        le=0.0,
+        description="Downward tilt angle in degrees. 0 = horizontal, -90 = pointing straight down.",
+    )
+
 
 class CtsCameraCreate(CtsCameraFields):
     model_config = {"extra": "forbid"}
@@ -58,6 +81,9 @@ class CtsCameraUpdate(BaseModel):
     face_id_enabled: bool | None = None
     face_id_min_confidence: float | None = None
     role: str | None = Field(default=None, pattern="^(face_capable|surveillance|mixed)$")
+    horizontal_fov_deg: float | None = Field(default=None, ge=20.0, le=180.0)
+    mounting_height_m: float | None = Field(default=None, ge=0.1, le=10.0)
+    tilt_deg: float | None = Field(default=None, ge=-90.0, le=0.0)
 
     model_config = {"extra": "forbid"}
 
@@ -68,6 +94,9 @@ class CtsCameraOut(CtsCameraFields, OutSchema):
     homography_residuals: list[float] | None
     privacy_zone_count: int
     health: dict | None
+    snapshot_width: int | None = None
+    snapshot_height: int | None = None
+    visibility_polygon: list[list[float]] | None = None
     created_at: UTCDatetime
     updated_at: UTCDatetime
 
@@ -85,6 +114,12 @@ class CalibrationPoint(BaseModel):
 class HomographyRequest(BaseModel):
     camera_id: str = Field(..., min_length=1)
     points: list[CalibrationPoint] = Field(..., min_length=4)
+    image_width: int = Field(
+        ..., ge=1, description="Native pixel width of the calibration snapshot."
+    )
+    image_height: int = Field(
+        ..., ge=1, description="Native pixel height of the calibration snapshot."
+    )
 
 
 class HomographyResult(BaseModel):
@@ -93,6 +128,43 @@ class HomographyResult(BaseModel):
     residuals_m: list[float]
     max_residual_m: float
     status: str  # "ok" | "warning" | "error"
+
+
+class HomographyPreviewRequest(BaseModel):
+    """Fit H from point pairs and return the matrix without saving."""
+
+    points: list[CalibrationPoint] = Field(..., min_length=4)
+
+    model_config = {"extra": "forbid"}
+
+
+class HomographyPreviewResult(BaseModel):
+    matrix: list[list[float]]
+    residuals_m: list[float]
+    max_residual_m: float
+    status: str  # "ok" | "warning" | "error"
+
+
+class InferredEdgeOut(BaseModel):
+    from_camera: str = Field(..., alias="from")
+    to_camera: str = Field(..., alias="to")
+    min_transit_s: float
+    max_transit_s: float
+    overlap: bool
+    iou: float
+
+    model_config = {"populate_by_name": True}
+
+
+class InferredOverlapGroupOut(BaseModel):
+    camera_ids: list[str]
+    iou: float
+
+
+class InferredAdjacencyResponse(BaseModel):
+    edges: list[InferredEdgeOut]
+    overlap_groups: list[InferredOverlapGroupOut]
+    skipped_camera_ids: list[str]
 
 
 class PrivacyZoneIn(BaseModel):
@@ -116,6 +188,20 @@ class PrivacyZoneIn(BaseModel):
 class PrivacyZonesRequest(BaseModel):
     camera_id: str = Field(..., min_length=1)
     zones: list[PrivacyZoneIn]
+
+
+class CameraVisibilityPolygon(BaseModel):
+    camera_id: str
+    camera_name: str
+    has_homography: bool
+    visibility_polygon: list[list[float]] | None
+
+
+class VisibilityPolygonsResponse(BaseModel):
+    cameras: list[CameraVisibilityPolygon]
+    floor_meters_per_pixel: float | None
+    floor_plan_width_px: int | None
+    floor_plan_height_px: int | None
 
 
 class AdjacencyEdgeIn(BaseModel):

@@ -106,7 +106,9 @@ async def test_no_state_returns_none():
 async def test_fresh_state_returns_none():
     """Fresh state (within TTL) -> None (yield to higher-priority providers)."""
     fresh_time = datetime.now(UTC) - timedelta(seconds=60)
-    result = await _make_provider(_make_state(last_seen_at=fresh_time)).probe("mom", datetime.now(UTC))
+    result = await _make_provider(_make_state(last_seen_at=fresh_time)).probe(
+        "mom", datetime.now(UTC)
+    )
     assert result is None
 
 
@@ -114,7 +116,9 @@ async def test_fresh_state_returns_none():
 async def test_stale_state_returns_snapshot():
     """Stale state (past TTL) -> STALE snapshot."""
     stale_time = datetime.now(UTC) - timedelta(hours=2)
-    result = await _make_provider(_make_state(last_seen_at=stale_time)).probe("mom", datetime.now(UTC))
+    result = await _make_provider(_make_state(last_seen_at=stale_time)).probe(
+        "mom", datetime.now(UTC)
+    )
 
     assert result is not None
     assert result.status == PresenceStatus.STALE

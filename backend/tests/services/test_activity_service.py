@@ -135,6 +135,7 @@ class TestRecord:
     @pytest.mark.asyncio
     async def test_record_propagates_exception(self, activity_service, monkeypatch):
         """Should re-raise exceptions from person_tracking.record_activity."""
+
         async def _fail(*args, **kwargs):
             raise RuntimeError("DB error")
 

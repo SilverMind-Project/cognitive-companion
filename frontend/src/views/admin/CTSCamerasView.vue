@@ -128,6 +128,57 @@
             persistent-hint
             density="compact"
           />
+          <v-divider class="mb-3" />
+          <div class="text-subtitle-2 font-weight-medium mb-1">Physical Parameters</div>
+          <div class="text-caption text-medium-emphasis mb-3">
+            Optional. Improves automatic homography calibration accuracy.
+          </div>
+          <v-text-field
+            v-model.number="form.horizontal_fov_deg"
+            label="Horizontal FOV (degrees)"
+            variant="outlined"
+            type="number"
+            min="20"
+            max="180"
+            step="1"
+            density="compact"
+            class="mb-3"
+            clearable
+            hint="Enter your camera's horizontal field of view (HFOV). If the spec sheet lists diagonal FOV, multiply by ~0.8 for 16:9 sensors. Typical range: 60°–130°. Examples: Reolink 823A ≈ 87°, Hikvision DS-2CD series ≈ 103°, Wyze Cam v3 ≈ 110°."
+            persistent-hint
+          />
+          <v-row dense class="mb-1">
+            <v-col cols="6">
+              <v-text-field
+                v-model.number="form.mounting_height_m"
+                label="Mounting height (m)"
+                variant="outlined"
+                type="number"
+                min="0.1"
+                max="10"
+                step="0.1"
+                density="compact"
+                clearable
+                hint="Camera lens height above the floor."
+                persistent-hint
+              />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field
+                v-model.number="form.tilt_deg"
+                label="Tilt (°, must be ≤ 0)"
+                variant="outlined"
+                type="number"
+                min="-90"
+                max="0"
+                step="1"
+                density="compact"
+                clearable
+                hint="0 = horizontal, −90 = pointing straight down."
+                persistent-hint
+              />
+            </v-col>
+          </v-row>
         </v-card-text>
         <DialogFooter
           hint="Cameras feed the continuous tracking system for presence and activity detection."
@@ -264,6 +315,9 @@ const emptyForm = () => ({
   face_id_enabled: true,
   face_id_min_confidence: null,
   role: "surveillance",
+  horizontal_fov_deg: null,
+  mounting_height_m: null,
+  tilt_deg: null,
 });
 
 const form = ref(emptyForm());
@@ -310,6 +364,9 @@ function openEdit(cam) {
     face_id_enabled: cam.face_id_enabled !== false,
     face_id_min_confidence: cam.face_id_min_confidence ?? null,
     role: cam.role || "surveillance",
+    horizontal_fov_deg: cam.horizontal_fov_deg ?? null,
+    mounting_height_m: cam.mounting_height_m ?? null,
+    tilt_deg: cam.tilt_deg ?? null,
   };
   dialog.value = true;
 }

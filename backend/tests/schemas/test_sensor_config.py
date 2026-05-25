@@ -10,7 +10,13 @@ from backend.schemas.sensor_config import MovementMap, MovementMapEntry, validat
 
 class TestMovementMapEntry:
     def test_valid_entry(self):
-        entry = MovementMapEntry(semantic="entering", from_room_id=1, from_room_name="Hallway", to_room_id=2, to_room_name="Kitchen")
+        entry = MovementMapEntry(
+            semantic="entering",
+            from_room_id=1,
+            from_room_name="Hallway",
+            to_room_id=2,
+            to_room_name="Kitchen",
+        )
         assert entry.semantic == "entering"
         assert entry.from_room_id == 1
 
@@ -26,10 +32,30 @@ class TestMovementMapEntry:
 class TestMovementMap:
     def test_valid_full_map(self):
         data = {
-            "left-to-right": {"semantic": "entering", "from_room_id": 2, "from_room_name": "Hallway", "to_room_id": 1, "to_room_name": "Kitchen"},
-            "right-to-left": {"semantic": "exiting", "from_room_id": 1, "from_room_name": "Kitchen", "to_room_id": 2, "to_room_name": "Hallway"},
-            "towards-camera": {"semantic": "approaching_exit", "from_room_id": 1, "from_room_name": "Kitchen"},
-            "away-from-camera": {"semantic": "entering_depth", "to_room_id": 1, "to_room_name": "Kitchen"},
+            "left-to-right": {
+                "semantic": "entering",
+                "from_room_id": 2,
+                "from_room_name": "Hallway",
+                "to_room_id": 1,
+                "to_room_name": "Kitchen",
+            },
+            "right-to-left": {
+                "semantic": "exiting",
+                "from_room_id": 1,
+                "from_room_name": "Kitchen",
+                "to_room_id": 2,
+                "to_room_name": "Hallway",
+            },
+            "towards-camera": {
+                "semantic": "approaching_exit",
+                "from_room_id": 1,
+                "from_room_name": "Kitchen",
+            },
+            "away-from-camera": {
+                "semantic": "entering_depth",
+                "to_room_id": 1,
+                "to_room_name": "Kitchen",
+            },
         }
         parsed = MovementMap.model_validate(data)
         assert parsed.left_to_right.semantic == "entering"
@@ -72,6 +98,7 @@ class TestSensorSchemaValidation:
 
     def test_create_with_valid_movement_map(self):
         from backend.schemas.sensor import SensorCreate
+
         s = SensorCreate(
             id="cam_01",
             name="Kitchen Cam",
@@ -87,6 +114,7 @@ class TestSensorSchemaValidation:
 
     def test_create_with_typo_direction_rejected(self):
         from backend.schemas.sensor import SensorCreate
+
         with pytest.raises(ValidationError):
             SensorCreate(
                 id="cam_01",
@@ -100,6 +128,7 @@ class TestSensorSchemaValidation:
 
     def test_create_with_invalid_semantic_rejected(self):
         from backend.schemas.sensor import SensorCreate
+
         with pytest.raises(ValidationError):
             SensorCreate(
                 id="cam_01",
@@ -113,11 +142,13 @@ class TestSensorSchemaValidation:
 
     def test_create_without_movement_map_is_ok(self):
         from backend.schemas.sensor import SensorCreate
+
         s = SensorCreate(id="cam_01", name="Kitchen Cam", config_json={"foo": "bar"})
         assert s.config_json == {"foo": "bar"}
 
     def test_update_with_valid_movement_map(self):
         from backend.schemas.sensor import SensorUpdate
+
         s = SensorUpdate(
             config_json={
                 "movement_map": {

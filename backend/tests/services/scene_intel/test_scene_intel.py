@@ -80,15 +80,11 @@ class _StubMemoryClient:
             observation_id=1,
         )
 
-    async def create_observation(
-        self, obs: ObservationCreate
-    ) -> ObservationRecord | None:
+    async def create_observation(self, obs: ObservationCreate) -> ObservationRecord | None:
         self.create_observation_calls.append(obs)
         return self._observation
 
-    async def create_movement(
-        self, movement: MovementCreate
-    ) -> MovementRecord | None:
+    async def create_movement(self, movement: MovementCreate) -> MovementRecord | None:
         self.create_movement_calls.append(movement)
         return self._movement
 
@@ -129,7 +125,9 @@ async def test_analyze_and_persist_with_detections_and_hazards():
                 name="stove_on",
                 severity="warning",
                 description="Stove is on with no person nearby",
-                detection=SceneDetection(label="stove", confidence=0.8, bbox=[50, 50, 150, 150, 0.8], class_id=1),
+                detection=SceneDetection(
+                    label="stove", confidence=0.8, bbox=[50, 50, 150, 150, 0.8], class_id=1
+                ),
             ),
         ],
     )
@@ -296,18 +294,14 @@ async def test_movement_persistence_failure_logged():
 
     # Memory client that succeeds on observation but fails on movement.
     memory_client = _StubMemoryClient()
-    memory_client.create_movement = AsyncMock(
-        side_effect=RuntimeError("network error")
-    )
+    memory_client.create_movement = AsyncMock(side_effect=RuntimeError("network error"))
 
     svc = SceneIntelService(
         scene_client=scene_client,
         memory_client=memory_client,
     )
 
-    transitions = (
-        RoomTransition(person_id="mom", from_room_id="bedroom", to_room_id="kitchen"),
-    )
+    transitions = (RoomTransition(person_id="mom", from_room_id="bedroom", to_room_id="kitchen"),)
 
     # Should not raise.
     intel = await svc.persist(
@@ -342,7 +336,9 @@ async def test_persist_uses_source_param():
 async def test_analyze_and_persist_composition():
     """analyze_and_persist composes analyze + persist correctly."""
     scene_result = SceneAnalyzeResult(
-        detections=[SceneDetection(label="cup", confidence=0.9, bbox=[0, 0, 50, 50, 0.9], class_id=2)],
+        detections=[
+            SceneDetection(label="cup", confidence=0.9, bbox=[0, 0, 50, 50, 0.9], class_id=2)
+        ],
         description="A cup on the table",
     )
     scene_client = _StubSceneClient(result=scene_result)

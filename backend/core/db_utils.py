@@ -52,8 +52,7 @@ def parse_postgres_url(url: str) -> PostgresConnectionParams:
 
     if not match:
         raise ValueError(
-            "Invalid PostgreSQL URL format. Expected: "
-            "postgresql://user:password@host:port/database"
+            "Invalid PostgreSQL URL format. Expected: postgresql://user:password@host:port/database"
         )
 
     user, password, host, port_str, database = match.groups()
@@ -150,7 +149,7 @@ def validate_postgres_params(params: dict[str, Any]) -> list[str]:
             port = int(params["port"])
             if not (1 <= port <= 65535):
                 errors.append(f"Port must be between 1 and 65535, got: {port}")
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             errors.append(f"Invalid port value: {params['port']}")
 
     # Validate host (basic check for valid characters)

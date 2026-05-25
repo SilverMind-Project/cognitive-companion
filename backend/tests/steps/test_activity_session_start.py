@@ -1,5 +1,4 @@
-"""Unit tests for :class:`~backend.steps.builtin.activity_session_start.ActivitySessionStartHandler`.
-"""
+"""Unit tests for :class:`~backend.steps.builtin.activity_session_start.ActivitySessionStartHandler`."""
 
 from __future__ import annotations
 
@@ -89,7 +88,9 @@ class TestMetadata:
 class TestExecute:
     async def test_opens_new_session(self):
         svc = _make_mock_service()
-        step = _make_step({"activity_type": "sleep", "person_id": "grandma", "room_name": "Bedroom"})
+        step = _make_step(
+            {"activity_type": "sleep", "person_id": "grandma", "room_name": "Bedroom"}
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -120,11 +121,13 @@ class TestExecute:
 
     async def test_custom_output_key(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "bathroom",
-            "person_id": "grandma",
-            "output_key": "bathroom_session",
-        })
+        step = _make_step(
+            {
+                "activity_type": "bathroom",
+                "person_id": "grandma",
+                "output_key": "bathroom_session",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -138,10 +141,12 @@ class TestExecute:
 
     async def test_template_person_id(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "person_id": "{{person_detections.0.person_id}}",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "person_id": "{{person_detections.0.person_id}}",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -155,10 +160,12 @@ class TestExecute:
 
     async def test_template_room_name(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "room_name": "{{room_transitions.0.to_room}}",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "room_name": "{{room_transitions.0.to_room}}",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -172,10 +179,12 @@ class TestExecute:
 
     async def test_template_timeout(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "timeout_minutes": "{{config.sleep_timeout}}",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "timeout_minutes": "{{config.sleep_timeout}}",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -226,10 +235,12 @@ class TestExecute:
 
     async def test_confidence_from_template(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "confidence": "{{detection.confidence}}",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "confidence": "{{detection.confidence}}",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -242,10 +253,12 @@ class TestExecute:
 
     async def test_confidence_invalid_defaults(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "confidence": "not_a_number",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "confidence": "not_a_number",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -259,10 +272,12 @@ class TestExecute:
 
     async def test_metadata_extra_json(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "metadata_extra": '{"source": "camera", "door": "front"}',
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "metadata_extra": '{"source": "camera", "door": "front"}',
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -276,10 +291,12 @@ class TestExecute:
 
     async def test_metadata_extra_template(self):
         svc = _make_mock_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "metadata_extra": '{"reason": "{{logic_response.reason}}"}',
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "metadata_extra": '{"reason": "{{logic_response.reason}}"}',
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),

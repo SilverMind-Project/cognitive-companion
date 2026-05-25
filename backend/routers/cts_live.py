@@ -61,7 +61,8 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
     if not has_permission(auth, "GET", "/ws/cts"):
         logger.warning(
             "cts_live_ws_rejected_permission_denied",
-            client=client_ip, name=auth.name,
+            client=client_ip,
+            name=auth.name,
         )
         await websocket.close(code=1008, reason="permission_denied")
         return

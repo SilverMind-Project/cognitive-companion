@@ -38,7 +38,9 @@ def make_sensor(**kwargs) -> Sensor:
     return Sensor(**defaults)
 
 
-def make_household_member(person_id: str = "test-person", name: str = "Test Person", **kwargs) -> HouseholdMember:
+def make_household_member(
+    person_id: str = "test-person", name: str = "Test Person", **kwargs
+) -> HouseholdMember:
     """Create a HouseholdMember with sensible defaults."""
     defaults: dict = {
         "id": person_id,

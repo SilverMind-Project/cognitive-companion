@@ -282,7 +282,7 @@ class HomeAssistantClient:
         if state:
             try:
                 return float(state["state"])
-            except (ValueError, KeyError):
+            except ValueError, KeyError:
                 return None
         return None
 
@@ -410,9 +410,7 @@ class HomeAssistantClient:
         """
         if not self.configured:
             logger.warning("ha_websocket_not_configured")
-            raise RuntimeError(
-                "Home Assistant is not configured (url/token missing)"
-            )
+            raise RuntimeError("Home Assistant is not configured (url/token missing)")
 
         entity_set = set(entity_ids)
         session = _HaWsSession(
@@ -460,7 +458,7 @@ def _parse_template_list(raw: str) -> list[str]:
         result = ast.literal_eval(raw.strip())
         if isinstance(result, list):
             return [str(x) for x in result]
-    except (ValueError, SyntaxError):
+    except ValueError, SyntaxError:
         pass
     return []
 
@@ -469,7 +467,7 @@ def _parse_ts(ts_str: str) -> datetime | None:
     """Parse an ISO timestamp string."""
     try:
         return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return None
 
 
@@ -570,17 +568,11 @@ class _HaWsSession:
                 msg2 = await ws.receive_text()
                 auth_req = _parse_ws_message(msg2)
                 if auth_req and auth_req.get("type") == "auth_required":
-                    await ws.send_text(
-                        _format_ws_message(
-                            type="auth", access_token=self._token
-                        )
-                    )
+                    await ws.send_text(_format_ws_message(type="auth", access_token=self._token))
                     msg3 = await ws.receive_text()
                     auth_msg = _parse_ws_message(msg3)
                     if auth_msg is None or auth_msg.get("type") != "auth_ok":
-                        raise RuntimeError(
-                            f"HA WebSocket auth failed: {auth_msg}"
-                        )
+                        raise RuntimeError(f"HA WebSocket auth failed: {auth_msg}")
 
             # Subscribe to state_changed events
             sub_msg = _format_ws_message(
@@ -596,9 +588,7 @@ class _HaWsSession:
             # Event dispatch loop
             while not self._stop.is_set():
                 try:
-                    msg = await asyncio.wait_for(
-                        ws.receive_text(), timeout=30.0
-                    )
+                    msg = await asyncio.wait_for(ws.receive_text(), timeout=30.0)
                     self._handle_message(msg)
                 except TimeoutError:
                     # Keep-alive ping — do nothing, loop continues
@@ -679,7 +669,7 @@ def _parse_ws_message(raw: str) -> dict[str, Any] | None:
 
     try:
         return json.loads(raw)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 

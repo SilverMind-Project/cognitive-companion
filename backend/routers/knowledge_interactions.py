@@ -35,17 +35,21 @@ async def list_queries(
 ):
     stmt = select(SeniorKnowledgeQuery)
     if date_from:
-        stmt = stmt.where(SeniorKnowledgeQuery.asked_at >= datetime.combine(date_from, datetime.min.time()))
+        stmt = stmt.where(
+            SeniorKnowledgeQuery.asked_at >= datetime.combine(date_from, datetime.min.time())
+        )
     if date_to:
-        stmt = stmt.where(SeniorKnowledgeQuery.asked_at < datetime.combine(date_to, datetime.max.time()))
+        stmt = stmt.where(
+            SeniorKnowledgeQuery.asked_at < datetime.combine(date_to, datetime.max.time())
+        )
     if answered_via:
         stmt = stmt.where(SeniorKnowledgeQuery.answered_via == answered_via)
     if q:
         stmt = stmt.where(SeniorKnowledgeQuery.query_text.ilike(f"%{q}%"))
 
-    rows = db.execute(
-        stmt.order_by(SeniorKnowledgeQuery.asked_at.desc()).limit(limit)
-    ).scalars().all()
+    rows = (
+        db.execute(stmt.order_by(SeniorKnowledgeQuery.asked_at.desc()).limit(limit)).scalars().all()
+    )
     return [
         {
             "id": r.id,
@@ -75,15 +79,15 @@ async def list_quiz_sessions(
 ):
     stmt = select(QuizSession)
     if date_from:
-        stmt = stmt.where(QuizSession.started_at >= datetime.combine(date_from, datetime.min.time()))
+        stmt = stmt.where(
+            QuizSession.started_at >= datetime.combine(date_from, datetime.min.time())
+        )
     if date_to:
         stmt = stmt.where(QuizSession.started_at < datetime.combine(date_to, datetime.max.time()))
     if status:
         stmt = stmt.where(QuizSession.status == status)
 
-    rows = db.execute(
-        stmt.order_by(QuizSession.started_at.desc()).limit(limit)
-    ).scalars().all()
+    rows = db.execute(stmt.order_by(QuizSession.started_at.desc()).limit(limit)).scalars().all()
 
     # Batch-fetch response counts
     session_ids = [s.id for s in rows]
@@ -129,9 +133,11 @@ async def get_quiz_session_detail(
     if session is None:
         raise NotFoundError("Quiz session", session_id)
 
-    responses = db.execute(
-        select(QuizResponse).where(QuizResponse.session_id == session_id)
-    ).scalars().all()
+    responses = (
+        db.execute(select(QuizResponse).where(QuizResponse.session_id == session_id))
+        .scalars()
+        .all()
+    )
 
     return {
         "id": session.id,
@@ -142,7 +148,9 @@ async def get_quiz_session_detail(
         "status": session.status,
         "current_question_ord": session.current_question_ord,
         "started_at": session.started_at.isoformat() if session.started_at else None,
-        "last_activity_at": session.last_activity_at.isoformat() if session.last_activity_at else None,
+        "last_activity_at": session.last_activity_at.isoformat()
+        if session.last_activity_at
+        else None,
         "completed_at": session.completed_at.isoformat() if session.completed_at else None,
         "responses": [
             {
@@ -174,13 +182,17 @@ async def list_info_card_deliveries(
 ):
     stmt = select(InfoCardDelivery)
     if date_from:
-        stmt = stmt.where(InfoCardDelivery.delivered_at >= datetime.combine(date_from, datetime.min.time()))
+        stmt = stmt.where(
+            InfoCardDelivery.delivered_at >= datetime.combine(date_from, datetime.min.time())
+        )
     if date_to:
-        stmt = stmt.where(InfoCardDelivery.delivered_at < datetime.combine(date_to, datetime.max.time()))
+        stmt = stmt.where(
+            InfoCardDelivery.delivered_at < datetime.combine(date_to, datetime.max.time())
+        )
 
-    rows = db.execute(
-        stmt.order_by(InfoCardDelivery.delivered_at.desc()).limit(limit)
-    ).scalars().all()
+    rows = (
+        db.execute(stmt.order_by(InfoCardDelivery.delivered_at.desc()).limit(limit)).scalars().all()
+    )
 
     return [
         {
@@ -215,59 +227,70 @@ async def get_tag_analytics(
     doc_tags = set()
     docs = db.execute(select(KnowledgeDocument.tags)).scalars().all()
     for tag_list in docs:
-        for t in (tag_list or []):
+        for t in tag_list or []:
             doc_tags.add(t)
 
     quiz_tags = set()
     quizzes = db.execute(select(Quiz.tags)).scalars().all()
     for tag_list in quizzes:
-        for t in (tag_list or []):
+        for t in tag_list or []:
             quiz_tags.add(t)
 
     all_tags = sorted(doc_tags | quiz_tags)
 
     result = []
     for tag in all_tags:
-        doc_count = db.execute(
-            select(func.count(KnowledgeDocument.id)).where(
-                KnowledgeDocument.tags.contains([tag])
-            )
-        ).scalar() or 0
+        doc_count = (
+            db.execute(
+                select(func.count(KnowledgeDocument.id)).where(
+                    KnowledgeDocument.tags.contains([tag])
+                )
+            ).scalar()
+            or 0
+        )
 
-        quiz_count = db.execute(
-            select(func.count(Quiz.id)).where(Quiz.tags.contains([tag]))
-        ).scalar() or 0
+        quiz_count = (
+            db.execute(select(func.count(Quiz.id)).where(Quiz.tags.contains([tag]))).scalar() or 0
+        )
 
         # Avg quiz score: find sessions for quizzes with this tag
-        quiz_ids = db.execute(
-            select(Quiz.id).where(Quiz.tags.contains([tag]))
-        ).scalars().all()
+        quiz_ids = db.execute(select(Quiz.id).where(Quiz.tags.contains([tag]))).scalars().all()
 
         avg_score = None
         if quiz_ids:
-            session_ids = db.execute(
-                select(QuizSession.id).where(
-                    QuizSession.quiz_id.in_(quiz_ids),
-                    QuizSession.status == "completed",
+            session_ids = (
+                db.execute(
+                    select(QuizSession.id).where(
+                        QuizSession.quiz_id.in_(quiz_ids),
+                        QuizSession.status == "completed",
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             if session_ids:
-                responses = db.execute(
-                    select(QuizResponse.is_correct).where(
-                        QuizResponse.session_id.in_(session_ids),
-                        QuizResponse.is_correct.isnot(None),
+                responses = (
+                    db.execute(
+                        select(QuizResponse.is_correct).where(
+                            QuizResponse.session_id.in_(session_ids),
+                            QuizResponse.is_correct.isnot(None),
+                        )
                     )
-                ).scalars().all()
+                    .scalars()
+                    .all()
+                )
                 if responses:
-                    avg_score = round(
-                        sum(1 for r in responses if r) / len(responses) * 100, 1
-                    )
+                    avg_score = round(sum(1 for r in responses if r) / len(responses) * 100, 1)
 
-        result.append({
-            "tag": tag,
-            "document_count": doc_count,
-            "quiz_count": quiz_count,
-            "avg_quiz_score_pct": avg_score,
-        })
+        result.append(
+            {
+                "tag": tag,
+                "document_count": doc_count,
+                "quiz_count": quiz_count,
+                "avg_quiz_score_pct": avg_score,
+            }
+        )
 
-    return {"tags": sorted(result, key=lambda x: x["document_count"] + x["quiz_count"], reverse=True)}
+    return {
+        "tags": sorted(result, key=lambda x: x["document_count"] + x["quiz_count"], reverse=True)
+    }

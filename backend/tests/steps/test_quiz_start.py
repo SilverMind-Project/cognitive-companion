@@ -80,7 +80,9 @@ class TestQuizStartStepExecute:
     async def test_execute_with_missing_knowledge_delivery_returns_error(self):
         """Missing service returns StepResult error."""
         handler = QuizStartStep()
-        step = FakePipelineStep(id=1, step_type="quiz_start", config_json={"quiz_id": 1, "dedupe_hours": 0})
+        step = FakePipelineStep(
+            id=1, step_type="quiz_start", config_json={"quiz_id": 1, "dedupe_hours": 0}
+        )
         execution = FakeWorkflowExecution(id=200, status="running")
         quiz = FakeQuiz(id=1, title="Quiz", status="approved", questions=[])
         mock_db = Mock()

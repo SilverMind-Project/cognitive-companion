@@ -78,7 +78,9 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
 
     # -- StreamConsumer abstract methods -------------------------------------
 
-    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> dict[str, Any] | None:
+    def decode(
+        self, message_id: bytes, fields: dict[bytes | str, bytes | str]
+    ) -> dict[str, Any] | None:
         """Decode the proto envelope into the SignalStore dict shape."""
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
@@ -210,4 +212,3 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
             return is_signal_enabled(member.cts_alert_config, signal_type, severity)
         finally:
             db.close()
-

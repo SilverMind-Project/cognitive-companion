@@ -47,8 +47,7 @@ class PresenceStatusFilter(ContextFilter):
                     "room_name": {
                         "type": "string",
                         "description": (
-                            "Optional room filter -- only meaningful when "
-                            "status is 'present_room'."
+                            "Optional room filter -- only meaningful when status is 'present_room'."
                         ),
                     },
                 },

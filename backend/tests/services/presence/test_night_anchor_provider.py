@@ -126,14 +126,16 @@ def _make_provider(
 @pytest.mark.asyncio
 async def test_lights_on_returns_none(now):
     """Lights on -> None."""
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="on",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="on",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     provider = _make_provider(_StubCache(), cache)
     result = await provider.probe("mom", now)
     assert result is None
@@ -142,20 +144,22 @@ async def test_lights_on_returns_none(now):
 @pytest.mark.asyncio
 async def test_bed_sensor_off_returns_none(now):
     """Lights off, bed sensor off -> None (no fallback in v0)."""
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="off",
-            attributes={},
-            last_changed=now - timedelta(minutes=30),
-        ),
-        "binary_sensor.master_bedroom_bed_occupancy": HaState(
-            entity_id="binary_sensor.master_bedroom_bed_occupancy",
-            state="off",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="off",
+                attributes={},
+                last_changed=now - timedelta(minutes=30),
+            ),
+            "binary_sensor.master_bedroom_bed_occupancy": HaState(
+                entity_id="binary_sensor.master_bedroom_bed_occupancy",
+                state="off",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     provider = _make_provider(_StubCache(), cache)
     result = await provider.probe("mom", now)
     assert result is None
@@ -174,20 +178,22 @@ async def test_wrong_room_returns_none(now):
 async def test_anchor_activates(now):
     """Lights off, bed sensor on, last room bedroom -> ASLEEP."""
     last_seen = now - timedelta(minutes=35)
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="off",
-            attributes={},
-            last_changed=now - timedelta(minutes=35),
-        ),
-        "binary_sensor.master_bedroom_bed_occupancy": HaState(
-            entity_id="binary_sensor.master_bedroom_bed_occupancy",
-            state="on",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="off",
+                attributes={},
+                last_changed=now - timedelta(minutes=35),
+            ),
+            "binary_sensor.master_bedroom_bed_occupancy": HaState(
+                entity_id="binary_sensor.master_bedroom_bed_occupancy",
+                state="on",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     repo = _StubRepository(_make_state(last_seen_at=last_seen))
     provider = _make_provider(cache, repo)
     result = await provider.probe("mom", now)
@@ -228,20 +234,22 @@ async def test_no_state_returns_none(now):
 @pytest.mark.asyncio
 async def test_no_release_predicates_anchors(now):
     """release_predicates=[] -> anchor activates (never releases on its own)."""
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="off",
-            attributes={},
-            last_changed=now - timedelta(minutes=30),
-        ),
-        "binary_sensor.master_bedroom_bed_occupancy": HaState(
-            entity_id="binary_sensor.master_bedroom_bed_occupancy",
-            state="on",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="off",
+                attributes={},
+                last_changed=now - timedelta(minutes=30),
+            ),
+            "binary_sensor.master_bedroom_bed_occupancy": HaState(
+                entity_id="binary_sensor.master_bedroom_bed_occupancy",
+                state="on",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     repo = _StubRepository(_make_state())
     provider = _make_provider(
         cache,
@@ -256,20 +264,22 @@ async def test_no_release_predicates_anchors(now):
 @pytest.mark.asyncio
 async def test_confidence_propagated(now):
     """Confidence is propagated from constructor."""
-    cache = _StubCache({
-        "light.bedroom": HaState(
-            entity_id="light.bedroom",
-            state="off",
-            attributes={},
-            last_changed=now - timedelta(minutes=30),
-        ),
-        "binary_sensor.master_bedroom_bed_occupancy": HaState(
-            entity_id="binary_sensor.master_bedroom_bed_occupancy",
-            state="on",
-            attributes={},
-            last_changed=now,
-        ),
-    })
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom",
+                state="off",
+                attributes={},
+                last_changed=now - timedelta(minutes=30),
+            ),
+            "binary_sensor.master_bedroom_bed_occupancy": HaState(
+                entity_id="binary_sensor.master_bedroom_bed_occupancy",
+                state="on",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
     repo = _StubRepository(_make_state())
     provider = _make_provider(
         cache,

@@ -123,9 +123,7 @@ class TestListSignals:
     def test_filter_by_person_id(self, client_and_store):
         client, store = client_and_store
         asyncio.run(store.insert(_BASE_SIGNAL))
-        asyncio.run(
-            store.insert({**_BASE_SIGNAL, "person_id": "dad"})
-        )
+        asyncio.run(store.insert({**_BASE_SIGNAL, "person_id": "dad"}))
         r = client.get("/api/v1/cts/signals", params={"person_id": "grandma"})
         assert r.status_code == 200
         assert all(s["person_id"] == "grandma" for s in r.json()["signals"])

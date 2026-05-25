@@ -41,9 +41,7 @@ def evaluate_condition(expr: str, pipeline_data: Mapping[str, Any]) -> bool:
     result = evaluate_expression(expr, pipeline_data)
     if isinstance(result, bool):
         return result
-    raise TemplateTypeError(
-        f"Expected boolean result, got {type(result).__name__}: {result!r}"
-    )
+    raise TemplateTypeError(f"Expected boolean result, got {type(result).__name__}: {result!r}")
 
 
 # -- AST evaluation -----------------------------------------------------------
@@ -107,6 +105,7 @@ def _register(name: str) -> Any:
     def decorator(fn: Any) -> Any:
         _FUNCTIONS[name] = fn
         return fn
+
     return decorator
 
 
@@ -166,9 +165,7 @@ def _eval_func(node: FuncCall, data: Mapping[str, Any]) -> Any:
     try:
         return fn(*args)
     except Exception as e:
-        raise TemplateSyntaxError(
-            f"Error calling {node.name}(...): {e}"
-        ) from e
+        raise TemplateSyntaxError(f"Error calling {node.name}(...): {e}") from e
 
 
 # -- Comparison / boolean evaluation ------------------------------------------

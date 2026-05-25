@@ -64,9 +64,7 @@ class HaStateCache:
         """Return the cached state or *default* on miss."""
         return self._states.get(entity_id) or default
 
-    def history(
-        self, entity_id: str, *, max_items: int = 32
-    ) -> tuple[HaState, ...]:
+    def history(self, entity_id: str, *, max_items: int = 32) -> tuple[HaState, ...]:
         """Return recent states for *entity_id*, newest first."""
         dq = self._history.get(entity_id)
         if dq is None:

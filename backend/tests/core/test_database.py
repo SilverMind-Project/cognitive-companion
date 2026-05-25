@@ -91,6 +91,7 @@ class TestResolveUrl:
     def test_raises_when_url_not_configured(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """_resolve_url raises RuntimeError when database.url is absent."""
         from backend.core.config import Settings
+
         monkeypatch.setattr(db_module, "settings", Settings.from_dict({}))
         with pytest.raises(RuntimeError, match=r"database\.url is not configured"):
             db_module._resolve_url(None)
@@ -128,9 +129,7 @@ class TestModuleFacade:
             next(gen)
         reset_default_database()
 
-    def test_init_db_with_explicit_url_replaces_default(
-        self, postgres_url: str
-    ) -> None:
+    def test_init_db_with_explicit_url_replaces_default(self, postgres_url: str) -> None:
         reset_default_database()
 
         init_db(postgres_url, run_migrations=False)

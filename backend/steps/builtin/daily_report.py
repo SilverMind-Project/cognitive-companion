@@ -53,31 +53,25 @@ class DailyReportHandler(StepHandler):
                         "type": "integer",
                         "default": 0,
                         "description": (
-                            "Days offset from today for the report date. "
-                            "0 = today, -1 = yesterday."
+                            "Days offset from today for the report date. 0 = today, -1 = yesterday."
                         ),
                     },
                     "generate_summary_text": {
                         "type": "boolean",
                         "default": False,
-                        "description": (
-                            "When true, generates an LLM prose summary of the day."
-                        ),
+                        "description": ("When true, generates an LLM prose summary of the day."),
                     },
                     "summary_model_id": {
                         "type": "string",
                         "default": "",
                         "description": (
-                            "LLM model ID to use for summary generation. "
-                            "Defaults to gemma4_26b."
+                            "LLM model ID to use for summary generation. Defaults to gemma4_26b."
                         ),
                     },
                     "notify_on_complete": {
                         "type": "boolean",
                         "default": False,
-                        "description": (
-                            "When true, sends a notification when reports are ready."
-                        ),
+                        "description": ("When true, sends a notification when reports are ready."),
                     },
                     "output_key": {
                         "type": "string",
@@ -108,7 +102,9 @@ class DailyReportHandler(StepHandler):
         services: ServiceContainer,
     ) -> StepResult:
         config = step.config_json or {}
-        output_key = (config.get("output_key", "daily_reports") or "daily_reports").strip() or "daily_reports"
+        output_key = (
+            config.get("output_key", "daily_reports") or "daily_reports"
+        ).strip() or "daily_reports"
 
         if not services.daily_report_service:
             logger.warning("daily_report_no_service")
@@ -122,7 +118,7 @@ class DailyReportHandler(StepHandler):
             offset_raw = config.get("report_date_offset_days", 0)
             try:
                 offset_days = int(offset_raw) if offset_raw is not None else 0
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 offset_days = 0
 
             report_date = (datetime.now(UTC) + timedelta(days=offset_days)).strftime("%Y-%m-%d")

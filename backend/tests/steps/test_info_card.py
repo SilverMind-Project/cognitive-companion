@@ -83,7 +83,12 @@ class TestInfoCardStepExecute:
         step = FakePipelineStep(id=1, step_type="info_card", config_json={"info_card_id": 1})
         execution = FakeWorkflowExecution(id=100, status="running")
         card = FakeInfoCard(
-            id=1, title="Test", body_text="Body", layout_id="text_only", status="approved", image_slots=[]
+            id=1,
+            title="Test",
+            body_text="Body",
+            layout_id="text_only",
+            status="approved",
+            image_slots=[],
         )
         mock_db = Mock()
         mock_db.execute.return_value.scalar_one_or_none.return_value = card
@@ -139,7 +144,14 @@ class TestInfoCardStepExecute:
         handler = InfoCardStep()
         step = FakePipelineStep(id=4, step_type="info_card", config_json={"info_card_id": 1})
         execution = FakeWorkflowExecution(id=103, status="running")
-        card = FakeInfoCard(id=1, title="Test", body_text="Body", layout_id="text_only", status="draft", image_slots=[])
+        card = FakeInfoCard(
+            id=1,
+            title="Test",
+            body_text="Body",
+            layout_id="text_only",
+            status="draft",
+            image_slots=[],
+        )
         mock_db = Mock()
         mock_db.execute.return_value.scalar_one_or_none.return_value = card
         delivery_svc = Mock()
@@ -158,11 +170,19 @@ class TestInfoCardStepExecute:
         """Approved card delivery returns success with delivery_id. speak=False when voice not in channels."""
         handler = InfoCardStep()
         step = FakePipelineStep(
-            id=5, step_type="info_card", config_json={"info_card_id": 1, "channels": ["pwa"]}, rule_id=10
+            id=5,
+            step_type="info_card",
+            config_json={"info_card_id": 1, "channels": ["pwa"]},
+            rule_id=10,
         )
         execution = FakeWorkflowExecution(id=104, status="running")
         card = FakeInfoCard(
-            id=1, title="Test", body_text="Body", layout_id="text_only", status="approved", image_slots=[]
+            id=1,
+            title="Test",
+            body_text="Body",
+            layout_id="text_only",
+            status="approved",
+            image_slots=[],
         )
         mock_db = Mock()
         mock_db.execute.return_value.scalar_one_or_none.return_value = card
@@ -231,12 +251,21 @@ class TestInfoCardStepExecute:
         step = FakePipelineStep(
             id=6,
             step_type="info_card",
-            config_json={"info_card_id": 1, "channels": ["pwa", "voice"], "voice_instruction": "custom"},
+            config_json={
+                "info_card_id": 1,
+                "channels": ["pwa", "voice"],
+                "voice_instruction": "custom",
+            },
             rule_id=10,
         )
         execution = FakeWorkflowExecution(id=105, status="running")
         card = FakeInfoCard(
-            id=1, title="Test", body_text="Body", layout_id="text_only", status="approved", image_slots=[]
+            id=1,
+            title="Test",
+            body_text="Body",
+            layout_id="text_only",
+            status="approved",
+            image_slots=[],
         )
         mock_db = Mock()
         mock_db.execute.return_value.scalar_one_or_none.return_value = card

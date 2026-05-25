@@ -19,12 +19,14 @@ def _rename_field_v2_to_v3(config: dict) -> dict:
 
 _MIGRATIONS = (
     ConfigMigration(
-        from_version=1, to_version=2,
+        from_version=1,
+        to_version=2,
         description="Add new_field default",
         apply=_add_field_v1_to_v2,
     ),
     ConfigMigration(
-        from_version=2, to_version=3,
+        from_version=2,
+        to_version=3,
         description="Rename old_field to renamed_field",
         apply=_rename_field_v2_to_v3,
     ),

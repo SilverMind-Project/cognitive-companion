@@ -38,7 +38,12 @@ def upgrade() -> None:
     op.create_table(
         "conversation_sessions",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("started_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "started_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("ended_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -58,8 +63,18 @@ def upgrade() -> None:
         sa.Column("homography_residuals", sa.JSON(), nullable=True),
         sa.Column("privacy_zones", sa.JSON(), nullable=True),
         sa.Column("health_json", sa.JSON(), nullable=True),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_cts_cameras_name"), "cts_cameras", ["name"], unique=False)
@@ -78,20 +93,52 @@ def upgrade() -> None:
         sa.Column("z_score", sa.Float(), nullable=True),
         sa.Column("context_json", sa.JSON(), nullable=True),
         sa.Column("acknowledged_at", backend.core.time.UTCDateTime(), nullable=True),
-        sa.Column("received_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "received_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_cts_dementia_signals_person_id"), "cts_dementia_signals", ["person_id"], unique=False)
-    op.create_index(op.f("ix_cts_dementia_signals_severity"), "cts_dementia_signals", ["severity"], unique=False)
-    op.create_index(op.f("ix_cts_dementia_signals_signal_type"), "cts_dementia_signals", ["signal_type"], unique=False)
-    op.create_index(op.f("ix_cts_dementia_signals_window_end"), "cts_dementia_signals", ["window_end"], unique=False)
-    op.create_index(op.f("ix_cts_dementia_signals_window_start"), "cts_dementia_signals", ["window_start"], unique=False)
+    op.create_index(
+        op.f("ix_cts_dementia_signals_person_id"),
+        "cts_dementia_signals",
+        ["person_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_cts_dementia_signals_severity"), "cts_dementia_signals", ["severity"], unique=False
+    )
+    op.create_index(
+        op.f("ix_cts_dementia_signals_signal_type"),
+        "cts_dementia_signals",
+        ["signal_type"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_cts_dementia_signals_window_end"),
+        "cts_dementia_signals",
+        ["window_end"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_cts_dementia_signals_window_start"),
+        "cts_dementia_signals",
+        ["window_start"],
+        unique=False,
+    )
 
     # -- emergency_alerts -----------------------------------------------------
     op.create_table(
         "emergency_alerts",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("timestamp", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "timestamp",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("alert_type", sa.String(length=64), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("sensor_id", sa.String(length=128), nullable=True),
@@ -109,7 +156,12 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=256), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("enabled", sa.Boolean(), nullable=False),
-        sa.Column("trigger_types", sa.JSON(), nullable=False, server_default=sa.text("'[\"sensor_event\"]'")),
+        sa.Column(
+            "trigger_types",
+            sa.JSON(),
+            nullable=False,
+            server_default=sa.text("'[\"sensor_event\"]'"),
+        ),
         sa.Column("primary_sensor_id", sa.String(length=128), nullable=True),
         sa.Column("webhook_config", sa.JSON(), nullable=True),
         sa.Column("occupancy_config", sa.JSON(), nullable=True),
@@ -118,7 +170,12 @@ def upgrade() -> None:
         sa.Column("max_daily_triggers", sa.Integer(), nullable=False),
         sa.Column("max_concurrent_executions", sa.Integer(), nullable=False),
         sa.Column("execution_timeout_minutes", sa.Integer(), nullable=False),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("updated_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -132,7 +189,12 @@ def upgrade() -> None:
         sa.Column("expression", sa.String(length=128), nullable=False),
         sa.Column("timezone", sa.String(length=64), nullable=False, server_default="UTC"),
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("updated_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -142,11 +204,15 @@ def upgrade() -> None:
         "rule_cron_triggers",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("rule_id", sa.Integer(), sa.ForeignKey("rules.id"), nullable=False),
-        sa.Column("cron_trigger_id", sa.Integer(), sa.ForeignKey("cron_triggers.id"), nullable=False),
+        sa.Column(
+            "cron_trigger_id", sa.Integer(), sa.ForeignKey("cron_triggers.id"), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_rule_cron_triggers_rule_id", "rule_cron_triggers", ["rule_id"])
-    op.create_index("ix_rule_cron_triggers_cron_trigger_id", "rule_cron_triggers", ["cron_trigger_id"])
+    op.create_index(
+        "ix_rule_cron_triggers_cron_trigger_id", "rule_cron_triggers", ["cron_trigger_id"]
+    )
 
     # -- pipeline_steps -------------------------------------------------------
     op.create_table(
@@ -176,9 +242,19 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("current_step_id", sa.Integer(), nullable=True),
         sa.Column("pipeline_data_json", sa.JSON(), nullable=False),
-        sa.Column("started_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "started_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("completed_at", backend.core.time.UTCDateTime(), nullable=True),
-        sa.Column("updated_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "updated_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("resume_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
         sa.Column("version", sa.Integer(), nullable=False),
@@ -186,14 +262,23 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["rule_id"], ["rules.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_workflow_executions_rule_id"), "workflow_executions", ["rule_id"], unique=False)
-    op.create_index(op.f("ix_workflow_executions_status"), "workflow_executions", ["status"], unique=False)
+    op.create_index(
+        op.f("ix_workflow_executions_rule_id"), "workflow_executions", ["rule_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_workflow_executions_status"), "workflow_executions", ["status"], unique=False
+    )
 
     # -- event_logs (needs rules + workflow_executions) -----------------------
     op.create_table(
         "event_logs",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("timestamp", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "timestamp",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("rule_id", sa.Integer(), nullable=True),
         sa.Column("rule_name", sa.String(length=256), nullable=True),
         sa.Column("sensor_id", sa.String(length=128), nullable=True),
@@ -208,14 +293,17 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_event_logs_rule_name"), "event_logs", ["rule_name"], unique=False)
-    op.create_index("ix_event_logs_rule_status_ts", "event_logs", ["rule_id", "status", "timestamp"], unique=False)
+    op.create_index(
+        "ix_event_logs_rule_status_ts",
+        "event_logs",
+        ["rule_id", "status", "timestamp"],
+        unique=False,
+    )
     op.create_index(op.f("ix_event_logs_status"), "event_logs", ["status"], unique=False)
     op.create_index(op.f("ix_event_logs_timestamp"), "event_logs", ["timestamp"], unique=False)
 
     # Add FK from workflow_executions to event_logs (depends on event_logs)
-    op.create_foreign_key(
-        None, "workflow_executions", "event_logs", ["event_log_id"], ["id"]
-    )
+    op.create_foreign_key(None, "workflow_executions", "event_logs", ["event_log_id"], ["id"])
 
     # -- household_members ----------------------------------------------------
     op.create_table(
@@ -225,7 +313,12 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("is_guest", sa.Boolean(), nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=True),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("updated_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -238,7 +331,12 @@ def upgrade() -> None:
         sa.Column("ha_area_id", sa.String(length=128), nullable=True),
         sa.Column("floor", sa.String(length=64), nullable=True),
         sa.Column("metadata_json", sa.JSON(), nullable=True),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_rooms_name"), "rooms", ["name"], unique=True)
@@ -255,7 +353,12 @@ def upgrade() -> None:
         sa.Column("font_filename", sa.String(length=256), nullable=False),
         sa.Column("regions_json", sa.JSON(), nullable=False),
         sa.Column("is_default", sa.Boolean(), nullable=False),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("updated_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -269,14 +372,26 @@ def upgrade() -> None:
         sa.Column("template_id", sa.Integer(), nullable=True),
         sa.Column("rendered_text", sa.Text(), nullable=True),
         sa.Column("expires_at", backend.core.time.UTCDateTime(), nullable=True),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("last_served_hash", sa.String(length=64), nullable=True),
         sa.Column("last_served_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.ForeignKeyConstraint(["template_id"], ["image_templates.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_active_image_state_sensor_id"), "active_image_state", ["sensor_id"], unique=True)
+    op.create_index(
+        op.f("ix_active_image_state_sensor_id"), "active_image_state", ["sensor_id"], unique=True
+    )
 
     # -- activity_sessions ----------------------------------------------------
     op.create_table(
@@ -301,17 +416,36 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["room_id"], ["rooms.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_activity_sessions_activity_type"), "activity_sessions", ["activity_type"], unique=False)
-    op.create_index(op.f("ix_activity_sessions_observation_id"), "activity_sessions", ["observation_id"], unique=False)
-    op.create_index(op.f("ix_activity_sessions_opened_at"), "activity_sessions", ["opened_at"], unique=False)
-    op.create_index(op.f("ix_activity_sessions_person_id"), "activity_sessions", ["person_id"], unique=False)
+    op.create_index(
+        op.f("ix_activity_sessions_activity_type"),
+        "activity_sessions",
+        ["activity_type"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_activity_sessions_observation_id"),
+        "activity_sessions",
+        ["observation_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_activity_sessions_opened_at"), "activity_sessions", ["opened_at"], unique=False
+    )
+    op.create_index(
+        op.f("ix_activity_sessions_person_id"), "activity_sessions", ["person_id"], unique=False
+    )
 
     # -- conversation_turns ---------------------------------------------------
     op.create_table(
         "conversation_turns",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("session_id", sa.Integer(), nullable=False),
-        sa.Column("timestamp", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "timestamp",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("actor", sa.String(length=32), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=True),
@@ -354,7 +488,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("person_id", "report_date", name="uix_person_date"),
     )
-    op.create_index(op.f("ix_daily_reports_person_id"), "daily_reports", ["person_id"], unique=False)
+    op.create_index(
+        op.f("ix_daily_reports_person_id"), "daily_reports", ["person_id"], unique=False
+    )
 
     # -- person_activities ----------------------------------------------------
     op.create_table(
@@ -364,7 +500,12 @@ def upgrade() -> None:
         sa.Column("activity_type", sa.String(length=64), nullable=False),
         sa.Column("room_id", sa.Integer(), nullable=True),
         sa.Column("room_name", sa.String(length=128), nullable=True),
-        sa.Column("detected_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "detected_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("confidence", sa.Float(), nullable=False),
         sa.Column("source_event_id", sa.Integer(), nullable=True),
         sa.Column("metadata_json", sa.JSON(), nullable=True),
@@ -376,11 +517,27 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["source_event_id"], ["event_logs.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_person_activities_activity_type"), "person_activities", ["activity_type"], unique=False)
-    op.create_index(op.f("ix_person_activities_detected_at"), "person_activities", ["detected_at"], unique=False)
-    op.create_index(op.f("ix_person_activities_observation_id"), "person_activities", ["observation_id"], unique=False)
-    op.create_index(op.f("ix_person_activities_person_id"), "person_activities", ["person_id"], unique=False)
-    op.create_index(op.f("ix_person_activities_session_id"), "person_activities", ["session_id"], unique=False)
+    op.create_index(
+        op.f("ix_person_activities_activity_type"),
+        "person_activities",
+        ["activity_type"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_activities_detected_at"), "person_activities", ["detected_at"], unique=False
+    )
+    op.create_index(
+        op.f("ix_person_activities_observation_id"),
+        "person_activities",
+        ["observation_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_activities_person_id"), "person_activities", ["person_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_person_activities_session_id"), "person_activities", ["session_id"], unique=False
+    )
 
     # -- person_location_history ----------------------------------------------
     op.create_table(
@@ -402,10 +559,30 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["room_id"], ["rooms.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_person_location_history_entered_at"), "person_location_history", ["entered_at"], unique=False)
-    op.create_index(op.f("ix_person_location_history_global_track_id"), "person_location_history", ["global_track_id"], unique=False)
-    op.create_index(op.f("ix_person_location_history_person_id"), "person_location_history", ["person_id"], unique=False)
-    op.create_index(op.f("ix_person_location_history_superseded_by_revision_id"), "person_location_history", ["superseded_by_revision_id"], unique=False)
+    op.create_index(
+        op.f("ix_person_location_history_entered_at"),
+        "person_location_history",
+        ["entered_at"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_location_history_global_track_id"),
+        "person_location_history",
+        ["global_track_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_location_history_person_id"),
+        "person_location_history",
+        ["person_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_location_history_superseded_by_revision_id"),
+        "person_location_history",
+        ["superseded_by_revision_id"],
+        unique=False,
+    )
 
     # -- person_location_state ------------------------------------------------
     op.create_table(
@@ -418,12 +595,22 @@ def upgrade() -> None:
         sa.Column("last_sensor_id", sa.String(length=128), nullable=True),
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("confidence", sa.Float(), nullable=False),
-        sa.Column("updated_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "updated_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["current_room_id"], ["rooms.id"]),
         sa.ForeignKeyConstraint(["person_id"], ["household_members.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_person_location_state_person_id"), "person_location_state", ["person_id"], unique=True)
+    op.create_index(
+        op.f("ix_person_location_state_person_id"),
+        "person_location_state",
+        ["person_id"],
+        unique=True,
+    )
 
     # -- person_sightings -----------------------------------------------------
     op.create_table(
@@ -433,7 +620,12 @@ def upgrade() -> None:
         sa.Column("sensor_id", sa.String(length=128), nullable=False),
         sa.Column("room_id", sa.Integer(), nullable=True),
         sa.Column("room_name", sa.String(length=128), nullable=True),
-        sa.Column("timestamp", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "timestamp",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("confidence", sa.Float(), nullable=False),
         sa.Column("direction", sa.String(length=32), nullable=True),
         sa.Column("bbox_json", sa.JSON(), nullable=True),
@@ -442,9 +634,15 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["room_id"], ["rooms.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_person_sightings_person_id"), "person_sightings", ["person_id"], unique=False)
-    op.create_index(op.f("ix_person_sightings_sensor_id"), "person_sightings", ["sensor_id"], unique=False)
-    op.create_index(op.f("ix_person_sightings_timestamp"), "person_sightings", ["timestamp"], unique=False)
+    op.create_index(
+        op.f("ix_person_sightings_person_id"), "person_sightings", ["person_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_person_sightings_sensor_id"), "person_sightings", ["sensor_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_person_sightings_timestamp"), "person_sightings", ["timestamp"], unique=False
+    )
 
     # -- rule_contexts --------------------------------------------------------
     op.create_table(
@@ -482,7 +680,12 @@ def upgrade() -> None:
         sa.Column("ha_entity_id", sa.String(length=256), nullable=True),
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column("config_json", sa.JSON(), nullable=True),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["room_id"], ["rooms.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -498,15 +701,37 @@ def upgrade() -> None:
         sa.Column("action", sa.String(length=32), nullable=False),
         sa.Column("timestamp", backend.core.time.UTCDateTime(), nullable=False),
         sa.Column("raw_response_json", sa.JSON(), nullable=False),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["execution_id"], ["workflow_executions.id"]),
         sa.ForeignKeyConstraint(["step_id"], ["pipeline_steps.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_interactive_responses_created_at"), "interactive_responses", ["created_at"], unique=False)
-    op.create_index(op.f("ix_interactive_responses_execution_id"), "interactive_responses", ["execution_id"], unique=False)
-    op.create_index("ix_interactive_responses_execution_step", "interactive_responses", ["execution_id", "step_id"], unique=True)
-    op.create_index(op.f("ix_interactive_responses_step_id"), "interactive_responses", ["step_id"], unique=False)
+    op.create_index(
+        op.f("ix_interactive_responses_created_at"),
+        "interactive_responses",
+        ["created_at"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_interactive_responses_execution_id"),
+        "interactive_responses",
+        ["execution_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_interactive_responses_execution_step",
+        "interactive_responses",
+        ["execution_id", "step_id"],
+        unique=True,
+    )
+    op.create_index(
+        op.f("ix_interactive_responses_step_id"), "interactive_responses", ["step_id"], unique=False
+    )
 
     # -- media_cache ----------------------------------------------------------
     op.create_table(
@@ -515,12 +740,19 @@ def upgrade() -> None:
         sa.Column("object_name", sa.String(length=512), nullable=False),
         sa.Column("presigned_url", sa.Text(), nullable=True),
         sa.Column("sensor_id", sa.String(length=128), nullable=True),
-        sa.Column("captured_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "captured_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("expires_at", backend.core.time.UTCDateTime(), nullable=False),
         sa.Column("deleted", sa.Boolean(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_media_cache_captured_at"), "media_cache", ["captured_at"], unique=False)
+    op.create_index(
+        op.f("ix_media_cache_captured_at"), "media_cache", ["captured_at"], unique=False
+    )
     op.create_index(op.f("ix_media_cache_expires_at"), "media_cache", ["expires_at"], unique=False)
     op.create_index(op.f("ix_media_cache_object_name"), "media_cache", ["object_name"], unique=True)
     op.create_index(op.f("ix_media_cache_sensor_id"), "media_cache", ["sensor_id"], unique=False)
@@ -534,8 +766,18 @@ def upgrade() -> None:
         sa.Column("tags", sa.ARRAY(sa.Text()), server_default="{}", nullable=False),
         sa.Column("status", sa.String(32), server_default="uploaded", nullable=False),
         sa.Column("created_by", sa.Text(), nullable=False),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("archived_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.CheckConstraint(
             "status IN ('uploaded','chunked','approved','archived')",
@@ -548,7 +790,12 @@ def upgrade() -> None:
     op.create_table(
         "knowledge_document_images",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("document_id", sa.BigInteger(), sa.ForeignKey("knowledge_documents.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "document_id",
+            sa.BigInteger(),
+            sa.ForeignKey("knowledge_documents.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("minio_object_name", sa.Text(), nullable=False),
         sa.Column("mime_type", sa.Text(), nullable=False),
         sa.Column("width", sa.Integer(), nullable=True),
@@ -562,7 +809,12 @@ def upgrade() -> None:
     op.create_table(
         "knowledge_document_chunks",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("document_id", sa.BigInteger(), sa.ForeignKey("knowledge_documents.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "document_id",
+            sa.BigInteger(),
+            sa.ForeignKey("knowledge_documents.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("chunk_index", sa.Integer(), nullable=False),
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column("embedding", Vector(768), nullable=False),
@@ -576,7 +828,12 @@ def upgrade() -> None:
     op.create_table(
         "info_cards",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("document_id", sa.BigInteger(), sa.ForeignKey("knowledge_documents.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "document_id",
+            sa.BigInteger(),
+            sa.ForeignKey("knowledge_documents.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("layout_id", sa.Text(), server_default="text_only", nullable=False),
         sa.Column("title", sa.Text(), nullable=False),
         sa.Column("body_text", sa.Text(), nullable=False),
@@ -586,8 +843,18 @@ def upgrade() -> None:
         sa.Column("version", sa.Integer(), server_default="1", nullable=False),
         sa.Column("approved_by", sa.Text(), nullable=True),
         sa.Column("approved_at", backend.core.time.UTCDateTime(), nullable=True),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "status IN ('draft','caregiver_review','approved','archived')",
             name="ck_info_cards_status",
@@ -599,9 +866,19 @@ def upgrade() -> None:
     op.create_table(
         "info_card_image_slots",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("info_card_id", sa.BigInteger(), sa.ForeignKey("info_cards.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "info_card_id",
+            sa.BigInteger(),
+            sa.ForeignKey("info_cards.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("slot_index", sa.Integer(), nullable=False),
-        sa.Column("source_image_id", sa.BigInteger(), sa.ForeignKey("knowledge_document_images.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "source_image_id",
+            sa.BigInteger(),
+            sa.ForeignKey("knowledge_document_images.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("original_object_name", sa.Text(), nullable=False),
         sa.Column("alt_text", sa.Text(), server_default="", nullable=False),
         sa.Column("variants", JSONB(), server_default=sa.text("'{}'::jsonb"), nullable=False),
@@ -613,9 +890,19 @@ def upgrade() -> None:
     op.create_table(
         "quizzes",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("document_id", sa.BigInteger(), sa.ForeignKey("knowledge_documents.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "document_id",
+            sa.BigInteger(),
+            sa.ForeignKey("knowledge_documents.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("title", sa.Text(), nullable=False),
-        sa.Column("question_layout_id", sa.Text(), server_default="quiz_with_optional_image", nullable=False),
+        sa.Column(
+            "question_layout_id",
+            sa.Text(),
+            server_default="quiz_with_optional_image",
+            nullable=False,
+        ),
         sa.Column("intro_voice_template", sa.Text(), server_default="", nullable=False),
         sa.Column("voice_instruction", sa.Text(), server_default="", nullable=False),
         sa.Column("tags", sa.ARRAY(sa.Text()), server_default="{}", nullable=False),
@@ -623,8 +910,18 @@ def upgrade() -> None:
         sa.Column("version", sa.Integer(), server_default="1", nullable=False),
         sa.Column("approved_by", sa.Text(), nullable=True),
         sa.Column("approved_at", backend.core.time.UTCDateTime(), nullable=True),
-        sa.Column("created_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "status IN ('draft','caregiver_review','approved','archived')",
             name="ck_quizzes_status",
@@ -636,7 +933,12 @@ def upgrade() -> None:
     op.create_table(
         "quiz_questions",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("quiz_id", sa.BigInteger(), sa.ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "quiz_id",
+            sa.BigInteger(),
+            sa.ForeignKey("quizzes.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("ord", sa.Integer(), nullable=False),
         sa.Column("question_type", sa.String(32), nullable=False),
         sa.Column("question_text", sa.Text(), nullable=False),
@@ -656,14 +958,39 @@ def upgrade() -> None:
     op.create_table(
         "quiz_sessions",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("quiz_id", sa.BigInteger(), sa.ForeignKey("quizzes.id", ondelete="RESTRICT"), nullable=False),
-        sa.Column("rule_id", sa.BigInteger(), sa.ForeignKey("rules.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("execution_id", sa.BigInteger(), sa.ForeignKey("workflow_executions.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "quiz_id",
+            sa.BigInteger(),
+            sa.ForeignKey("quizzes.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+        sa.Column(
+            "rule_id",
+            sa.BigInteger(),
+            sa.ForeignKey("rules.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "execution_id",
+            sa.BigInteger(),
+            sa.ForeignKey("workflow_executions.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("senior_id", sa.Text(), nullable=True),
         sa.Column("status", sa.String(32), server_default="started", nullable=False),
         sa.Column("current_question_ord", sa.Integer(), server_default="0", nullable=False),
-        sa.Column("started_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
-        sa.Column("last_activity_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "started_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "last_activity_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("completed_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.CheckConstraint(
             "status IN ('started','in_progress','completed','abandoned','timed_out')",
@@ -676,8 +1003,18 @@ def upgrade() -> None:
     op.create_table(
         "quiz_responses",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("session_id", sa.BigInteger(), sa.ForeignKey("quiz_sessions.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("question_id", sa.BigInteger(), sa.ForeignKey("quiz_questions.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column(
+            "session_id",
+            sa.BigInteger(),
+            sa.ForeignKey("quiz_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "question_id",
+            sa.BigInteger(),
+            sa.ForeignKey("quiz_questions.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
         sa.Column("question_ord", sa.Integer(), nullable=False),
         sa.Column("question_text", sa.Text(), nullable=False),
         sa.Column("chosen_choice_id", sa.Text(), nullable=True),
@@ -685,7 +1022,12 @@ def upgrade() -> None:
         sa.Column("open_ended_text", sa.Text(), nullable=True),
         sa.Column("is_correct", sa.Boolean(), nullable=True),
         sa.Column("channel", sa.Text(), nullable=False),
-        sa.Column("answered_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "answered_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("latency_ms", sa.Integer(), nullable=True),
         sa.UniqueConstraint("session_id", "question_id", name="uq_qr_session_question"),
         sa.PrimaryKeyConstraint("id"),
@@ -695,11 +1037,31 @@ def upgrade() -> None:
     op.create_table(
         "info_card_deliveries",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("info_card_id", sa.BigInteger(), sa.ForeignKey("info_cards.id", ondelete="RESTRICT"), nullable=False),
-        sa.Column("rule_id", sa.BigInteger(), sa.ForeignKey("rules.id", ondelete="SET NULL"), nullable=True),
-        sa.Column("execution_id", sa.BigInteger(), sa.ForeignKey("workflow_executions.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "info_card_id",
+            sa.BigInteger(),
+            sa.ForeignKey("info_cards.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+        sa.Column(
+            "rule_id",
+            sa.BigInteger(),
+            sa.ForeignKey("rules.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "execution_id",
+            sa.BigInteger(),
+            sa.ForeignKey("workflow_executions.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("channels", sa.ARRAY(sa.Text()), nullable=False),
-        sa.Column("delivered_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "delivered_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("viewed_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.Column("dismissed_at", backend.core.time.UTCDateTime(), nullable=True),
         sa.Column("dismissed_by", sa.Text(), nullable=True),
@@ -710,11 +1072,18 @@ def upgrade() -> None:
     op.create_table(
         "senior_knowledge_queries",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
-        sa.Column("asked_at", backend.core.time.UTCDateTime(), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "asked_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column("senior_id", sa.Text(), nullable=True),
         sa.Column("query_text", sa.Text(), nullable=False),
         sa.Column("answer_text", sa.Text(), server_default="", nullable=False),
-        sa.Column("source_document_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False),
+        sa.Column(
+            "source_document_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False
+        ),
         sa.Column("source_chunk_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False),
         sa.Column("top_similarity", sa.Float(), nullable=True),
         sa.Column("answered_via", sa.Text(), nullable=False),
@@ -724,9 +1093,13 @@ def upgrade() -> None:
     )
 
     # -- knowledge indices ----------------------------------------------------
-    op.create_index("idx_senior_kq_asked_at", "senior_knowledge_queries", ["asked_at"], unique=False)
+    op.create_index(
+        "idx_senior_kq_asked_at", "senior_knowledge_queries", ["asked_at"], unique=False
+    )
     op.create_index("idx_quiz_sessions_started_at", "quiz_sessions", ["started_at"], unique=False)
-    op.create_index("idx_info_deliveries_at", "info_card_deliveries", ["delivered_at"], unique=False)
+    op.create_index(
+        "idx_info_deliveries_at", "info_card_deliveries", ["delivered_at"], unique=False
+    )
 
     # Vector similarity search: the primary RAG query does
     #   ORDER BY kdc.embedding <=> :vec  (cosine distance, nearest-neighbour)
@@ -738,7 +1111,9 @@ def upgrade() -> None:
     )
 
     # The RAG query filters kd.status = 'approved' on the JOIN side.
-    op.create_index("idx_knowledge_documents_status", "knowledge_documents", ["status"], unique=False)
+    op.create_index(
+        "idx_knowledge_documents_status", "knowledge_documents", ["status"], unique=False
+    )
 
     # -- seed data: info_card image template ----------------------------------
     op.execute(
@@ -843,10 +1218,19 @@ def downgrade() -> None:
     op.drop_table("person_sightings")
     op.drop_index(op.f("ix_person_location_state_person_id"), table_name="person_location_state")
     op.drop_table("person_location_state")
-    op.drop_index(op.f("ix_person_location_history_superseded_by_revision_id"), table_name="person_location_history")
-    op.drop_index(op.f("ix_person_location_history_person_id"), table_name="person_location_history")
-    op.drop_index(op.f("ix_person_location_history_global_track_id"), table_name="person_location_history")
-    op.drop_index(op.f("ix_person_location_history_entered_at"), table_name="person_location_history")
+    op.drop_index(
+        op.f("ix_person_location_history_superseded_by_revision_id"),
+        table_name="person_location_history",
+    )
+    op.drop_index(
+        op.f("ix_person_location_history_person_id"), table_name="person_location_history"
+    )
+    op.drop_index(
+        op.f("ix_person_location_history_global_track_id"), table_name="person_location_history"
+    )
+    op.drop_index(
+        op.f("ix_person_location_history_entered_at"), table_name="person_location_history"
+    )
     op.drop_table("person_location_history")
     op.drop_index(op.f("ix_person_activities_session_id"), table_name="person_activities")
     op.drop_index(op.f("ix_person_activities_person_id"), table_name="person_activities")

@@ -181,7 +181,9 @@ class PersonIdentificationHandler(StepHandler):
         # Build CameraFrameContext per ref.
         frame_contexts: list[CameraFrameContext] = []
         for ref in image_refs:
-            ref_sensor_id = ref.source_sensor_id or ref.source_camera_id or trigger.sensor_id or "unknown"
+            ref_sensor_id = (
+                ref.source_sensor_id or ref.source_camera_id or trigger.sensor_id or "unknown"
+            )
 
             if presence_room_source == "source_image":
                 ctx_room = ref.source_room_name or default_room

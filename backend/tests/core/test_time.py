@@ -140,14 +140,18 @@ class TestDSTTransitions:
         before_dst = datetime(2026, 3, 8, 1, 30, 0, tzinfo=ZoneInfo("America/New_York"))
         after_dst = datetime(2026, 3, 8, 3, 30, 0, tzinfo=ZoneInfo("America/New_York"))
 
-        db_session.add_all([
-            _TimestampRow(occurred_at=before_dst),
-            _TimestampRow(occurred_at=after_dst),
-        ])
+        db_session.add_all(
+            [
+                _TimestampRow(occurred_at=before_dst),
+                _TimestampRow(occurred_at=after_dst),
+            ]
+        )
         db_session.commit()
         db_session.expire_all()
 
-        loaded = db_session.execute(select(_TimestampRow).order_by(_TimestampRow.id)).scalars().all()
+        loaded = (
+            db_session.execute(select(_TimestampRow).order_by(_TimestampRow.id)).scalars().all()
+        )
 
         assert loaded[0].occurred_at.tzinfo == UTC
         assert loaded[1].occurred_at.tzinfo == UTC

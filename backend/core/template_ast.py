@@ -178,7 +178,9 @@ def _transform_literal(tree: Tree) -> Literal:
     if kind == "string":
         return Literal(kind="string", value=token.value[1:-1])  # strip quotes
     if kind == "number":
-        return Literal(kind="number", value=float(token.value) if "." in token.value else int(token.value))
+        return Literal(
+            kind="number", value=float(token.value) if "." in token.value else int(token.value)
+        )
     if kind == "boolean":
         return Literal(kind="boolean", value=token.value == "true")
     if kind == "null":
@@ -217,4 +219,3 @@ def _transform_binop(tree: Tree) -> ASTNode:
         result = BinOp(op=op, left=result, right=next_node)
         i += 1
     return result
-

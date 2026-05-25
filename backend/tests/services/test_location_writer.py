@@ -106,9 +106,7 @@ class TestRoomChange:
         db = db_factory()
         try:
             history = (
-                db.query(PersonLocationHistory)
-                .order_by(PersonLocationHistory.entered_at)
-                .all()
+                db.query(PersonLocationHistory).order_by(PersonLocationHistory.entered_at).all()
             )
             assert len(history) == 2
             assert history[0].room_name == "kitchen"
@@ -152,9 +150,7 @@ class TestSourceAuthority:
 
         # Replay a stale event from 5 minutes ago: should not overwrite.
         stale = datetime.now(UTC) - timedelta(minutes=5)
-        await writer.apply(
-            _event("grandma", "bathroom", event_time=stale)
-        )
+        await writer.apply(_event("grandma", "bathroom", event_time=stale))
 
         db = db_factory()
         try:

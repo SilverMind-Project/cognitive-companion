@@ -233,7 +233,8 @@ class MemoryQueryService:
         # Apply severity threshold filtering.
         threshold_level = _SEVERITY_ORDER.get(severity_threshold, 1)
         filtered_anomalies = [
-            a for a in result.anomalies
+            a
+            for a in result.anomalies
             if _SEVERITY_ORDER.get(a.get("severity", "ok"), 0) >= threshold_level
         ]
 
@@ -314,16 +315,12 @@ class MemoryQueryService:
             if room_id:
                 parts.append(f"In the past {since_minutes} min in {room_id}:")
             if recent_objects:
-                obj_strs = [
-                    f"{r.label} ({r.observation_count}x)" for r in recent_objects
-                ]
+                obj_strs = [f"{r.label} ({r.observation_count}x)" for r in recent_objects]
                 parts.append(", ".join(obj_strs))
             if recent_hazards:
                 hazard_names: set[str] = set()
                 for h in recent_hazards:
                     hazard_names.update(h.hazard_flags)
-                parts.append(
-                    f"{len(hazard_names)} hazard(s): {', '.join(sorted(hazard_names))}."
-                )
+                parts.append(f"{len(hazard_names)} hazard(s): {', '.join(sorted(hazard_names))}.")
             return " ".join(parts)
         return "No memory context available."

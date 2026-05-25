@@ -33,7 +33,7 @@ def parse_ts(value: str | datetime | None) -> datetime:
         return value if value.tzinfo else value.replace(tzinfo=UTC)
     try:
         dt = datetime.fromisoformat(value)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return datetime.now(UTC)
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 

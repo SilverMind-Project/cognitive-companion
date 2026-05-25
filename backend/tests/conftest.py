@@ -102,6 +102,7 @@ def _postgres_container():
 
     # Disable the Ryuk reaper -- we own the container lifecycle entirely.
     from testcontainers.core.config import testcontainers_config
+
     testcontainers_config.ryuk_disabled = True
 
     container = PostgresContainer("timescale/timescaledb-ha:pg18").with_name(_CONTAINER_NAME)

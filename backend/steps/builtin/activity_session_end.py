@@ -25,7 +25,6 @@ from backend.steps.base import (
 logger = get_logger(__name__)
 
 
-
 @StepRegistry.register
 class ActivitySessionEndHandler(StepHandler):
     @classmethod
@@ -47,16 +46,13 @@ class ActivitySessionEndHandler(StepHandler):
                     "activity_type": {
                         "type": "string",
                         "default": "",
-                        "description": (
-                            "Activity type to close. Supports {{template}} syntax."
-                        ),
+                        "description": ("Activity type to close. Supports {{template}} syntax."),
                     },
                     "person_id": {
                         "type": "string",
                         "default": "",
                         "description": (
-                            "Person to close the session for. "
-                            "Supports {{template}} syntax."
+                            "Person to close the session for. Supports {{template}} syntax."
                         ),
                     },
                     "write_activity_record": {
@@ -112,7 +108,9 @@ class ActivitySessionEndHandler(StepHandler):
         )
 
         write_activity = config.get("write_activity_record", True)
-        output_key = (config.get("output_key", "closed_session") or "closed_session").strip() or "closed_session"
+        output_key = (
+            config.get("output_key", "closed_session") or "closed_session"
+        ).strip() or "closed_session"
 
         if services.activity:
             try:

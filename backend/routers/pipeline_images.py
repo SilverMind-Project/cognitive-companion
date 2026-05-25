@@ -52,7 +52,9 @@ async def get_sample_image(
 
 async def _recamera_sample(minio_client, sensor_id: str | None) -> dict:
     if not sensor_id:
-        raise HTTPException(status_code=400, detail="sensor_id is required for recamera source_type")
+        raise HTTPException(
+            status_code=400, detail="sensor_id is required for recamera source_type"
+        )
 
     db = get_session()
     try:
@@ -102,7 +104,9 @@ async def _cts_sample(minio_client, ingress, camera_id: str | None) -> dict:
         jpeg_bytes = await ingress.snapshot(camera_id=camera_id)
     except Exception:
         logger.exception("cts_sample_snapshot_error", camera_id=camera_id)
-        raise HTTPException(status_code=502, detail=f"Failed to capture snapshot from camera {camera_id}") from None
+        raise HTTPException(
+            status_code=502, detail=f"Failed to capture snapshot from camera {camera_id}"
+        ) from None
 
     if not jpeg_bytes:
         raise HTTPException(status_code=404, detail=f"No snapshot available for camera {camera_id}")

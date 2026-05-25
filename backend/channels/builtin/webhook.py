@@ -60,7 +60,7 @@ class WebhookChannel(NotificationChannel):
             # if one was defined, or fallback textual message.
             # We try parsing the payload to send JSON natively.
             payload = json.loads(message)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             payload = {
                 "message": message,
                 "alert_level": alert_level,
@@ -69,9 +69,7 @@ class WebhookChannel(NotificationChannel):
             }
 
         headers = settings.as_dict("notifications.webhook.headers")
-        timeout = float(
-            settings.as_float("notifications.webhook.timeout_seconds")
-        )
+        timeout = float(settings.as_float("notifications.webhook.timeout_seconds"))
 
         try:
             response = await self._client.post(

@@ -70,10 +70,14 @@ async def enroll_tracklet(
     """
     cts_enabled()
 
-    member = db.query(HouseholdMember).filter(
-        HouseholdMember.id == body.identity_id,
-        HouseholdMember.is_active.is_(True),
-    ).first()
+    member = (
+        db.query(HouseholdMember)
+        .filter(
+            HouseholdMember.id == body.identity_id,
+            HouseholdMember.is_active.is_(True),
+        )
+        .first()
+    )
     if member is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

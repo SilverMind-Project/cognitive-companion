@@ -59,7 +59,7 @@ async def resolve_image_sources(
         prefixed: dict[str, object] = {}
         for k, v in config.items():
             if k.startswith(config_prefix):
-                prefixed[k[len(config_prefix):]] = v
+                prefixed[k[len(config_prefix) :]] = v
     else:
         prefixed = dict(config)
 

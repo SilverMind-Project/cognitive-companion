@@ -21,8 +21,9 @@ def _ensure_person(db, person_id="person123"):
 _UNSET = object()
 
 
-def _make_location_entry(db, person_id="person123", room_name="bedroom",
-                         entered_at=None, exited_at=_UNSET):
+def _make_location_entry(
+    db, person_id="person123", room_name="bedroom", entered_at=None, exited_at=_UNSET
+):
     """Create a PersonLocationHistory entry.
 
     Pass ``exited_at=None`` for an open (no-exit) entry, or omit it for
@@ -48,8 +49,7 @@ def _make_location_entry(db, person_id="person123", room_name="bedroom",
     return entry
 
 
-def _make_activity(db, person_id="person123", activity_type="bathroom",
-                   detected_at=None):
+def _make_activity(db, person_id="person123", activity_type="bathroom", detected_at=None):
     """Create a PersonActivity entry."""
     from backend.models.person import PersonActivity
 

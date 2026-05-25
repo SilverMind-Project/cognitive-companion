@@ -162,11 +162,7 @@ class Scheduler:
                 .filter(RuleCronTrigger.cron_trigger_id == cron_trigger_id)
                 .all()
             ]
-            rules = (
-                db.query(Rule)
-                .filter(Rule.id.in_(rule_ids), Rule.enabled.is_(True))
-                .all()
-            )
+            rules = db.query(Rule).filter(Rule.id.in_(rule_ids), Rule.enabled.is_(True)).all()
 
             logger.info(
                 "cron_trigger_fired",
@@ -177,13 +173,18 @@ class Scheduler:
             )
 
             for rule in rules:
-                if self._rules_engine is not None and not self._rules_engine.get_matching_rules_for_cron(rule, db):
+                if (
+                    self._rules_engine is not None
+                    and not self._rules_engine.get_matching_rules_for_cron(rule, db)
+                ):
                     continue
 
                 media_paths: list[str] = []
                 aggregator = self._pipeline_executor.event_aggregator
                 if rule.primary_sensor_id and aggregator:
-                    media_paths = await aggregator.get_recent_images(rule.primary_sensor_id, limit=3)
+                    media_paths = await aggregator.get_recent_images(
+                        rule.primary_sensor_id, limit=3
+                    )
 
                 trigger = TriggerContext(
                     trigger_type="cron",
@@ -242,7 +243,9 @@ class Scheduler:
                 job_id = f"cron_{ct.id}"
                 trigger_tz = ZoneInfo(ct.timezone) if ct.timezone else app_tz
                 try:
-                    trigger = ApschedulerCronTrigger.from_crontab(ct.expression, timezone=trigger_tz)
+                    trigger = ApschedulerCronTrigger.from_crontab(
+                        ct.expression, timezone=trigger_tz
+                    )
                 except ValueError:
                     logger.warning(
                         "invalid_cron_expression",

@@ -81,9 +81,7 @@ class TestDecode:
         assert result["z_score"] == pytest.approx(2.5)
         assert result["context_json"] == {"camera_id": "hallway-1"}
 
-    def test_optional_baseline_and_z_score_become_none(
-        self, subscriber: DementiaSignalSubscriber
-    ):
+    def test_optional_baseline_and_z_score_become_none(self, subscriber: DementiaSignalSubscriber):
         message = _proto_signal(has_baseline=False, baseline=0.0, has_z_score=False, z_score=0.0)
         result = subscriber.decode(b"msg-1", _proto_fields(message))
         assert result is not None
@@ -144,9 +142,7 @@ class TestHandle:
         assert call_kwargs["payload"]["signal_kind"] == "pacing"
 
     @pytest.mark.asyncio
-    async def test_handle_returns_false_on_store_error(
-        self, subscriber: DementiaSignalSubscriber
-    ):
+    async def test_handle_returns_false_on_store_error(self, subscriber: DementiaSignalSubscriber):
         subscriber._store = MagicMock()
         subscriber._store.insert = AsyncMock(side_effect=RuntimeError("db down"))
         decoded = subscriber.decode(b"msg-1", _proto_fields(_proto_signal()))
@@ -174,9 +170,7 @@ class TestDispatchSuppression:
     """Dispatch is suppressed when the person's cts_alert_config disables the kind."""
 
     @pytest.mark.asyncio
-    async def test_dispatch_suppressed_when_kind_disabled(
-        self, store: SignalStore, db_factory
-    ):
+    async def test_dispatch_suppressed_when_kind_disabled(self, store: SignalStore, db_factory):
         """Signal is stored but pipeline.fire_event is NOT called when kind is disabled."""
         db = db_factory()
         member = HouseholdMember(
@@ -197,7 +191,9 @@ class TestDispatchSuppression:
             pipeline=pipeline,
             db_factory=db_factory,
         )
-        decoded = sub.decode(b"msg-1", _proto_fields(_proto_signal(kind=signals_pb2.DEMENTIA_SIGNAL_KIND_PACING)))
+        decoded = sub.decode(
+            b"msg-1", _proto_fields(_proto_signal(kind=signals_pb2.DEMENTIA_SIGNAL_KIND_PACING))
+        )
         assert decoded is not None
         ok = await sub.handle(decoded)
         assert ok is True
@@ -208,9 +204,7 @@ class TestDispatchSuppression:
         pipeline.fire_event.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_dispatch_allowed_when_kind_enabled(
-        self, store: SignalStore, db_factory
-    ):
+    async def test_dispatch_allowed_when_kind_enabled(self, store: SignalStore, db_factory):
         """Pipeline is fired when the kind is in the person's enabled_kinds."""
         db = db_factory()
         member = HouseholdMember(
@@ -231,15 +225,15 @@ class TestDispatchSuppression:
             pipeline=pipeline,
             db_factory=db_factory,
         )
-        decoded = sub.decode(b"msg-1", _proto_fields(_proto_signal(kind=signals_pb2.DEMENTIA_SIGNAL_KIND_PACING)))
+        decoded = sub.decode(
+            b"msg-1", _proto_fields(_proto_signal(kind=signals_pb2.DEMENTIA_SIGNAL_KIND_PACING))
+        )
         assert decoded is not None
         await sub.handle(decoded)
         pipeline.fire_event.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_dispatch_allowed_when_no_member_config(
-        self, store: SignalStore, db_factory
-    ):
+    async def test_dispatch_allowed_when_no_member_config(self, store: SignalStore, db_factory):
         """Unknown person (no DB record) gets permissive default: dispatch proceeds."""
         pipeline = MagicMock()
         pipeline.fire_event = AsyncMock()

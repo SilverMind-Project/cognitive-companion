@@ -93,6 +93,7 @@ async def cancel_execution(
 
     # Remove scheduled resume job if one exists
     import contextlib
+
     scheduler: SchedulerBridge | None = request.app.state.scheduler
     if scheduler:
         with contextlib.suppress(Exception):

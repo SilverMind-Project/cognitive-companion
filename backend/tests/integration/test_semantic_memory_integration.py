@@ -342,7 +342,9 @@ class TestPersonMovementMemoryFilter:
             "within_minutes": 60,
         }
 
-        result = await PersonMovementMemoryFilter().evaluate(config, trigger, now, services=services)
+        result = await PersonMovementMemoryFilter().evaluate(
+            config, trigger, now, services=services
+        )
 
         assert result is True
 
@@ -360,7 +362,9 @@ class TestPersonMovementMemoryFilter:
             "within_minutes": 60,
         }
 
-        result = await PersonMovementMemoryFilter().evaluate(config, trigger, now, services=services)
+        result = await PersonMovementMemoryFilter().evaluate(
+            config, trigger, now, services=services
+        )
 
         assert result is False
 

@@ -33,6 +33,4 @@ class RuleCronTrigger(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"), nullable=False)
-    cron_trigger_id: Mapped[int] = mapped_column(
-        ForeignKey("cron_triggers.id"), nullable=False
-    )
+    cron_trigger_id: Mapped[int] = mapped_column(ForeignKey("cron_triggers.id"), nullable=False)

@@ -163,12 +163,9 @@ class SceneTrendFilter(ContextFilter):
         room_name: str | None = config.get("room_name")
 
         # Find all location entries for the person within the window.
-        stmt = (
-            select(PersonLocationHistory)
-            .where(
-                PersonLocationHistory.person_id == person_id,
-                PersonLocationHistory.entered_at <= cutoff,
-            )
+        stmt = select(PersonLocationHistory).where(
+            PersonLocationHistory.person_id == person_id,
+            PersonLocationHistory.entered_at <= cutoff,
         )
         if room_name:
             stmt = stmt.where(PersonLocationHistory.room_name.ilike(room_name))
@@ -201,12 +198,9 @@ class SceneTrendFilter(ContextFilter):
 
         from backend.models.person import PersonLocationHistory
 
-        stmt = (
-            select(func.count(PersonLocationHistory.id))
-            .where(
-                PersonLocationHistory.person_id == person_id,
-                PersonLocationHistory.entered_at >= cutoff,
-            )
+        stmt = select(func.count(PersonLocationHistory.id)).where(
+            PersonLocationHistory.person_id == person_id,
+            PersonLocationHistory.entered_at >= cutoff,
         )
         if room_name:
             stmt = stmt.where(PersonLocationHistory.room_name.ilike(room_name))
@@ -236,9 +230,7 @@ class SceneTrendFilter(ContextFilter):
         )
         return count >= min_count
 
-    def _check_no_recent_activity(
-        self, db: Session, person_id: str, cutoff: datetime
-    ) -> bool:
+    def _check_no_recent_activity(self, db: Session, person_id: str, cutoff: datetime) -> bool:
         """Person has no location history or activity in the window."""
         from backend.models.person import PersonActivity, PersonLocationHistory
 

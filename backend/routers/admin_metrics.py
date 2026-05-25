@@ -82,4 +82,5 @@ def cts_metrics_endpoint(
 
 def _prometheus_response():
     from fastapi.responses import Response
+
     return Response(content=generate_latest(), media_type="text/plain; charset=utf-8")

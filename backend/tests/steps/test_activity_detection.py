@@ -118,11 +118,13 @@ class TestExecute:
     async def test_records_activity_via_activity_service(self):
         """Should call services.activity.record when available."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "meal_eating",
-            "person_id": "grandma",
-            "confidence": 0.85,
-        })
+        step = _make_step(
+            {
+                "activity_type": "meal_eating",
+                "person_id": "grandma",
+                "confidence": 0.85,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -156,10 +158,12 @@ class TestExecute:
     async def test_template_person_id(self):
         """Should resolve {{template}} syntax for person_id."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "person_id": "{{person_detections.0.person_id}}",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "person_id": "{{person_detections.0.person_id}}",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -173,10 +177,12 @@ class TestExecute:
     async def test_template_room_name(self):
         """Should resolve {{template}} syntax for room_name."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "bathroom",
-            "room_name": "{{room_transitions.0.to_room}}",
-        })
+        step = _make_step(
+            {
+                "activity_type": "bathroom",
+                "room_name": "{{room_transitions.0.to_room}}",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -218,10 +224,12 @@ class TestExecute:
     async def test_confidence_clamped(self):
         """Should clamp confidence to [0, 1]."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "confidence": 1.5,
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "confidence": 1.5,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -235,10 +243,12 @@ class TestExecute:
     async def test_confidence_from_template(self):
         """Should resolve confidence from template."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "confidence": "{{detection.confidence}}",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "confidence": "{{detection.confidence}}",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -252,10 +262,12 @@ class TestExecute:
     async def test_confidence_invalid_defaults(self):
         """Should default to 0.8 when confidence template fails."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "confidence": "not_a_number",
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "confidence": "not_a_number",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -269,11 +281,13 @@ class TestExecute:
     async def test_captures_scene_description(self):
         """Should capture scene_description from pipeline_data when enabled."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "meal_eating",
-            "capture_scene_description": True,
-            "scene_description_key": "vision_response",
-        })
+        step = _make_step(
+            {
+                "activity_type": "meal_eating",
+                "capture_scene_description": True,
+                "scene_description_key": "vision_response",
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -288,10 +302,12 @@ class TestExecute:
     async def test_metadata_extra_json(self):
         """Should merge extra metadata from JSON string."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "metadata_extra": '{"source": "camera", "door": "front"}',
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "metadata_extra": '{"source": "camera", "door": "front"}',
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -307,10 +323,12 @@ class TestExecute:
     async def test_trigger_cooloff_flag(self):
         """Should include _cooloff_triggered when trigger_cooloff is True."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "trigger_cooloff": True,
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "trigger_cooloff": True,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -323,10 +341,12 @@ class TestExecute:
     async def test_no_cooloff_when_disabled(self):
         """Should not include _cooloff_triggered when trigger_cooloff is False."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "trigger_cooloff": False,
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "trigger_cooloff": False,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(),
@@ -372,12 +392,14 @@ class TestBlock7Delegation:
     async def test_delegation_to_activity_service(self):
         """Should call services.activity.record() with correct kwargs."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "medication_taken",
-            "person_id": "grandma",
-            "room_name": "Living Room",
-            "confidence": 0.9,
-        })
+        step = _make_step(
+            {
+                "activity_type": "medication_taken",
+                "person_id": "grandma",
+                "room_name": "Living Room",
+                "confidence": 0.9,
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(event_log_id=99),
@@ -398,13 +420,15 @@ class TestBlock7Delegation:
     async def test_delegation_with_metadata(self):
         """Should pass metadata to services.activity.record()."""
         svc = _make_mock_activity_service()
-        step = _make_step({
-            "activity_type": "sleep",
-            "person_id": "grandma",
-            "capture_scene_description": True,
-            "scene_description_key": "vision_response",
-            "metadata_extra": '{"note": "VLM detected bed"}',
-        })
+        step = _make_step(
+            {
+                "activity_type": "sleep",
+                "person_id": "grandma",
+                "capture_scene_description": True,
+                "scene_description_key": "vision_response",
+                "metadata_extra": '{"note": "VLM detected bed"}',
+            }
+        )
         result = await handler.execute(
             step=step,
             execution=_FakeExecution(event_log_id=42),

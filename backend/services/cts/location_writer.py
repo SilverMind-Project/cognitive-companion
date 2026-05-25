@@ -193,4 +193,3 @@ class LocationWriter:
                 db.rollback()
         finally:
             db.close()
-

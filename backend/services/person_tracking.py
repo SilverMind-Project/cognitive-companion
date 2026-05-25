@@ -227,14 +227,21 @@ class PersonTrackingService:
         # Build default frame contexts when not provided.
         if frame_contexts is None:
             frame_contexts = [
-                CameraFrameContext(sensor_id=sensor_id, room_name=room_name, media_path=mp, sensor_config=sensor_config)
+                CameraFrameContext(
+                    sensor_id=sensor_id,
+                    room_name=room_name,
+                    media_path=mp,
+                    sensor_config=sensor_config,
+                )
                 for mp in media_paths
             ]
 
         def _ctx_for_det(det_idx: int | None) -> CameraFrameContext:
             if det_idx is not None and 0 <= det_idx < len(frame_contexts):
                 return frame_contexts[det_idx]
-            return CameraFrameContext(sensor_id=sensor_id, room_name=room_name, media_path="", sensor_config=sensor_config)
+            return CameraFrameContext(
+                sensor_id=sensor_id, room_name=room_name, media_path="", sensor_config=sensor_config
+            )
 
         # Persist sightings and location state.
         transition_by_person: dict[str, RoomTransition] = {}

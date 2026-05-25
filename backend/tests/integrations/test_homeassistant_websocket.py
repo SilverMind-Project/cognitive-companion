@@ -165,9 +165,7 @@ async def test_reconnect_refetches_state_via_rest() -> None:
         nonlocal fetch_count
         fetch_count += 1
         # Simulate REST snapshot delivering a state event.
-        await self._on_state_changed(
-            _make_event("binary_sensor.bed_occupancy", "on")
-        )
+        await self._on_state_changed(_make_event("binary_sensor.bed_occupancy", "on"))
 
     mock_subscription = _make_mock_subscription()
 
@@ -186,9 +184,7 @@ async def test_reconnect_refetches_state_via_rest() -> None:
         )
         async with subscription:
             # Simulate initial state fetch delivering an event.
-            await on_state_changed(
-                _make_event("binary_sensor.bed_occupancy", "on")
-            )
+            await on_state_changed(_make_event("binary_sensor.bed_occupancy", "on"))
             await asyncio.sleep(0.01)
 
     # Verify events arrived (from the simulated REST snapshot).
@@ -231,9 +227,7 @@ async def test_non_subscribed_entities_filtered() -> None:
             # Only events for subscribed entities reach the callback.
             # (In the real code, _handle_message checks
             #  entity_id not in self._entity_ids and returns early.)
-            await on_state_changed(
-                _make_event("binary_sensor.bed_occupancy", "on")
-            )
+            await on_state_changed(_make_event("binary_sensor.bed_occupancy", "on"))
 
     # Only the subscribed entity's event should have arrived.
     assert len(callback_events) == 1

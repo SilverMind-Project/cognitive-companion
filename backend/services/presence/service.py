@@ -199,8 +199,7 @@ class PresenceService:
         rule_fn = _FUSION_RULES.get(self._fusion_config.rule)
         if rule_fn is None:
             raise ValueError(
-                f"Unknown fusion rule {self._fusion_config.rule!r}. "
-                f"Known: {sorted(_FUSION_RULES)}"
+                f"Unknown fusion rule {self._fusion_config.rule!r}. Known: {sorted(_FUSION_RULES)}"
             )
 
         return await rule_fn(

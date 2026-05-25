@@ -36,7 +36,7 @@ def resolve_person_id(config: dict, pipeline_data: dict) -> str | None:
     if isinstance(persons, list) and persons:
         first = persons[0]
         if isinstance(first, dict):
-            return (first.get("id") or first.get("person_id") or None)
+            return first.get("id") or first.get("person_id") or None
 
     candidate = pipeline_data.get("person_id")
     return candidate if isinstance(candidate, str) and candidate else None

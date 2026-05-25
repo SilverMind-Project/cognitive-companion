@@ -47,7 +47,6 @@ class DailyReportStatus(StrEnum):
 
 
 class HouseholdMember(Base, TimestampMixin):
-
     __tablename__ = "household_members"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -233,9 +232,7 @@ class ActivitySession(Base):
     observation_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
 
     # Relationships
-    person: Mapped[HouseholdMember] = relationship(
-        back_populates="activity_sessions"
-    )
+    person: Mapped[HouseholdMember] = relationship(back_populates="activity_sessions")
 
 
 class DailyReport(Base):
@@ -315,6 +312,4 @@ class DailyReport(Base):
     )
 
     # Relationships
-    person: Mapped[HouseholdMember] = relationship(
-        back_populates="daily_reports"
-    )
+    person: Mapped[HouseholdMember] = relationship(back_populates="daily_reports")

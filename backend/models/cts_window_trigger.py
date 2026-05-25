@@ -50,9 +50,7 @@ class RuleCtsWindowTrigger(Base):
     __tablename__ = "rule_cts_window_triggers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    rule_id: Mapped[int] = mapped_column(
-        ForeignKey("rules.id", ondelete="CASCADE"), nullable=False
-    )
+    rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id", ondelete="CASCADE"), nullable=False)
     cts_window_trigger_id: Mapped[str] = mapped_column(
         ForeignKey("cts_window_triggers.id", ondelete="CASCADE"), nullable=False
     )

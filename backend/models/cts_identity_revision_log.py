@@ -29,6 +29,8 @@ class CtsIdentityRevisionLog(Base):
     applied_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), server_default=func.now(), nullable=False
     )
-    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # auto | manual_correct | manual_merge
+    kind: Mapped[str] = mapped_column(
+        String(32), nullable=False
+    )  # auto | manual_correct | manual_merge
     rewritten_rows: Mapped[int] = mapped_column(Integer, default=0)
     evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)

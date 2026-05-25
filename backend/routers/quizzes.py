@@ -77,9 +77,11 @@ async def list_quizzes(
         count_stmt = count_stmt.where(Quiz.tags.contains([tag]))
 
     total = db.execute(count_stmt).scalar() or 0
-    quizzes = db.execute(
-        stmt.order_by(Quiz.created_at.desc()).offset(offset).limit(limit)
-    ).scalars().all()
+    quizzes = (
+        db.execute(stmt.order_by(Quiz.created_at.desc()).offset(offset).limit(limit))
+        .scalars()
+        .all()
+    )
 
     return {
         "items": [
@@ -159,6 +161,7 @@ async def approve_quiz(
     quiz.status = "approved"
     quiz.version += 1
     from datetime import UTC, datetime
+
     quiz.approved_at = datetime.now(UTC)
     quiz.approved_by = getattr(request.state, "auth_context", None)
     if quiz.approved_by and hasattr(quiz.approved_by, "name"):
@@ -231,11 +234,14 @@ async def create_question(
 
     ord_val = body.ord
     if ord_val is None:
-        max_ord = db.execute(
-            select(func.coalesce(func.max(QuizQuestion.ord), -1)).where(
-                QuizQuestion.quiz_id == quiz_id
-            )
-        ).scalar() or -1
+        max_ord = (
+            db.execute(
+                select(func.coalesce(func.max(QuizQuestion.ord), -1)).where(
+                    QuizQuestion.quiz_id == quiz_id
+                )
+            ).scalar()
+            or -1
+        )
         ord_val = max_ord + 1
 
     q = QuizQuestion(
@@ -328,6 +334,7 @@ async def suggest_quiz(
     """Generate a quiz draft via LLM from a knowledge document."""
     if document_id is None:
         from backend.core.exceptions import ValidationError
+
         raise ValidationError("document_id is required")
 
     content_gen = request.app.state.knowledge_content_gen
@@ -365,6 +372,7 @@ async def suggest_voice_instruction(
     """Generate a voice instruction suggestion via LLM."""
     if document_id is None:
         from backend.core.exceptions import ValidationError
+
         raise ValidationError("document_id is required")
 
     content_gen = request.app.state.knowledge_content_gen
@@ -394,6 +402,7 @@ async def regenerate_question(
     doc_id = quiz.document_id if quiz else None
     if doc_id is None:
         from backend.core.exceptions import ValidationError
+
         raise ValidationError("Quiz has no linked document for content generation")
 
     content_gen = request.app.state.knowledge_content_gen

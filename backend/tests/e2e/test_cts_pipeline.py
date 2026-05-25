@@ -146,9 +146,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
     consumer = f"e2e-{socket.gethostname()}"
 
     # ----- Stage 1: publish two TrackingEvent protos -----------------
-    for i, (room, identity) in enumerate(
-        [("Kitchen", "grandma"), ("Bedroom", "grandma")]
-    ):
+    for i, (room, identity) in enumerate([("Kitchen", "grandma"), ("Bedroom", "grandma")]):
         await redis_client.xadd(
             stream,
             _make_event_fields(
@@ -194,9 +192,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
     db = db_factory()
     try:
         state = (
-            db.query(PersonLocationState)
-            .filter(PersonLocationState.person_id == "grandma")
-            .one()
+            db.query(PersonLocationState).filter(PersonLocationState.person_id == "grandma").one()
         )
         assert state.current_room_name == "Bedroom"
         assert state.last_sensor_id == "cts:cam-overhead"
@@ -235,9 +231,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
     # ----- Stage 6: identity correction round trip -------------------
     revisions_stream = "tracking.revisions"
     revisions_group = "cognitive-companion-revisions"
-    await redis_client.xgroup_create(
-        revisions_stream, revisions_group, id="0", mkstream=True
-    )
+    await redis_client.xgroup_create(revisions_stream, revisions_group, id="0", mkstream=True)
 
     await redis_client.xadd(
         revisions_stream,
@@ -305,9 +299,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
         assert all(row.global_track_id == "gt-grandma" for row in caregiver_rows)
 
         caregiver_state = (
-            db.query(PersonLocationState)
-            .filter(PersonLocationState.person_id == "caregiver")
-            .one()
+            db.query(PersonLocationState).filter(PersonLocationState.person_id == "caregiver").one()
         )
         assert caregiver_state.current_room_name == "Bedroom"
     finally:

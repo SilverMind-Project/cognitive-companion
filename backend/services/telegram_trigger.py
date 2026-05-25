@@ -229,9 +229,7 @@ class TelegramTriggerService:
         if per_rule:
             return per_rule
         return [
-            str(c)
-            for c in settings.as_list("notifications.telegram.trigger_allowed_chat_ids")
-            if c
+            str(c) for c in settings.as_list("notifications.telegram.trigger_allowed_chat_ids") if c
         ]
 
     async def _execute_rule(

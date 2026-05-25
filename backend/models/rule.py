@@ -27,12 +27,8 @@ class Rule(Base, TimestampMixin):
     # Trigger configuration -- decoupled from cron schedules (see cron_trigger.py).
     # trigger_types replaces the old single trigger_type column.
     # Valid values: sensor_event, cron, manual, webhook, occupancy_duration, telegram, cts_window, dementia_signal.
-    trigger_types: Mapped[list[str]] = mapped_column(
-        JSONB, default=lambda: ["sensor_event"]
-    )
-    primary_sensor_id: Mapped[str | None] = mapped_column(
-        String(128), nullable=True
-    )
+    trigger_types: Mapped[list[str]] = mapped_column(JSONB, default=lambda: ["sensor_event"])
+    primary_sensor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Webhook trigger configuration
     webhook_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)

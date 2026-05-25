@@ -500,8 +500,6 @@ async def test_cancel_pending_response_job_not_found(
     await service.cancel_pending_response(execution_id=123, step_id=456)
 
 
-
-
 # ---------------------------------------------------------------------------
 # Ownership model: service does NOT write pipeline_data_json
 # ---------------------------------------------------------------------------
@@ -530,9 +528,9 @@ async def test_record_response_does_not_write_pipeline_data(
 
     db: Session = db_factory()
     try:
-        execution = db.query(WorkflowExecution).filter(
-            WorkflowExecution.id == test_execution.id
-        ).first()
+        execution = (
+            db.query(WorkflowExecution).filter(WorkflowExecution.id == test_execution.id).first()
+        )
         assert execution is not None
         pipeline_data = execution.pipeline_data_json
         # The service must not have written interactive_response into pipeline_data

@@ -55,7 +55,9 @@ def _looks_like_url(value: str) -> bool:
     return value.startswith(_URL_SCHEME_PREFIXES)
 
 
-def _normalize_dict(value: Mapping[str, object], *, default_source_type: str) -> list[PipelineImageRef]:
+def _normalize_dict(
+    value: Mapping[str, object], *, default_source_type: str
+) -> list[PipelineImageRef]:
     """Normalize a single dict value into PipelineImageRef(s).
 
     Handles CTS frame dicts (``minio_key``), crop output dicts
@@ -99,7 +101,14 @@ def _normalize_dict(value: Mapping[str, object], *, default_source_type: str) ->
         ref_kwargs["url"] = value["image_url"]
 
     # -- Preserve remaining metadata fields ----------------------------------
-    meta_fields = ("region_id", "region_name", "source_object_name", "output_width", "output_height", "crop_box")
+    meta_fields = (
+        "region_id",
+        "region_name",
+        "source_object_name",
+        "output_width",
+        "output_height",
+        "crop_box",
+    )
     extra_meta: dict[str, object] = {k: value[k] for k in meta_fields if k in value}
     if extra_meta:
         existing_meta = dict(ref_kwargs.get("metadata", {}))
@@ -116,10 +125,16 @@ def _normalize_dict(value: Mapping[str, object], *, default_source_type: str) ->
             else:
                 ref_kwargs["object_name"] = maybe_image
 
-    return [PipelineImageRef(**{k: v for k, v in ref_kwargs.items() if k in PipelineImageRef.__dataclass_fields__})]  # type: ignore[arg-type]
+    return [
+        PipelineImageRef(
+            **{k: v for k, v in ref_kwargs.items() if k in PipelineImageRef.__dataclass_fields__}
+        )
+    ]  # type: ignore[arg-type]
 
 
-def normalize_image_value(value: object, *, default_source_type: str = "unknown") -> list[PipelineImageRef]:
+def normalize_image_value(
+    value: object, *, default_source_type: str = "unknown"
+) -> list[PipelineImageRef]:
     """Convert an input value into a list of :class:`PipelineImageRef`.
 
     Accepted shapes:
@@ -276,7 +291,9 @@ async def resolve_pipeline_image_refs(
 # ---------------------------------------------------------------------------
 
 
-def image_refs_to_urls(refs: list[PipelineImageRef], minio_client: MinioClient | None = None) -> list[str]:
+def image_refs_to_urls(
+    refs: list[PipelineImageRef], minio_client: MinioClient | None = None
+) -> list[str]:
     """Extract URLs from a list of :class:`PipelineImageRef`.
 
     When *minio_client* is provided, refs that only carry an
@@ -297,7 +314,9 @@ def image_refs_to_urls(refs: list[PipelineImageRef], minio_client: MinioClient |
 # ---------------------------------------------------------------------------
 
 
-async def fetch_image_bytes(ref: PipelineImageRef, minio_client: MinioClient | None) -> bytes | None:
+async def fetch_image_bytes(
+    ref: PipelineImageRef, minio_client: MinioClient | None
+) -> bytes | None:
     """Fetch raw image bytes for *ref* from MinIO or via HTTP.
 
     Prefers MinIO direct access (by ``object_name``, or by extracting the

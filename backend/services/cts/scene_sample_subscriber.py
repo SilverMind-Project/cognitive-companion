@@ -57,7 +57,9 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
 
     # -- StreamConsumer abstract methods ----------------------------------
 
-    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> dict[str, Any] | None:
+    def decode(
+        self, message_id: bytes, fields: dict[bytes | str, bytes | str]
+    ) -> dict[str, Any] | None:
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
             logger.warning("scene_sample_missing_payload", message_id=message_id)
@@ -81,7 +83,9 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
             "captured_at": ns_to_iso(message.captured_at_unix_ns),
             "tag_reason": scene_pb2.TagReason.Name(message.tag_reason),
             "annotations_json": message.annotations_json or "{}",
-            "expires_at": ns_to_iso(message.expires_at_unix_ns) if message.expires_at_unix_ns else None,
+            "expires_at": ns_to_iso(message.expires_at_unix_ns)
+            if message.expires_at_unix_ns
+            else None,
         }
 
     async def handle(self, sample: dict[str, Any]) -> bool:
@@ -133,9 +137,7 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
                 description = result.description or ""
                 object_list = [d.label for d in (result.detections or [])]
                 embedding = result.embedding or []
-                hazard_flags = [
-                    h.name for h in (result.hazards or [])
-                ]
+                hazard_flags = [h.name for h in (result.hazards or [])]
             except Exception:
                 logger.exception(
                     "scene_sample_analysis_error",
@@ -181,6 +183,3 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
             logger.debug("scene_sample_memory_skipped", camera_id=camera_id)
 
         return True
-
-
-

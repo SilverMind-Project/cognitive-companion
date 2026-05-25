@@ -5,7 +5,6 @@ Revises: 0012_cts_alert_config
 Create Date: 2026-05-18
 """
 
-
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 

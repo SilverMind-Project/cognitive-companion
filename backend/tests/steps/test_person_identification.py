@@ -416,7 +416,9 @@ class TestCallForwarding:
 def _mock_minio() -> MagicMock:
     minio = MagicMock(spec=MinioClient)
     minio.generate_presigned_url = lambda k, expiration=3600: f"http://minio/bucket/{k}?sig=test"
-    minio.extract_object_name = lambda u: u.split("/bucket/", 1)[1].split("?", 1)[0] if "/bucket/" in u else u
+    minio.extract_object_name = lambda u: (
+        u.split("/bucket/", 1)[1].split("?", 1)[0] if "/bucket/" in u else u
+    )
     return minio
 
 
@@ -440,7 +442,11 @@ class TestDownstreamImageSources:
             "pipeline_image_path": "steps.crop_stove.outputs.images",
         }
         result = await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), pipeline_data, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            pipeline_data,
+            _make_trigger(),
+            services,
         )
         assert len(result.data["person_detections"]) == 1
         call_kwargs = person_tracking.process_camera_event.call_args.kwargs
@@ -473,7 +479,11 @@ class TestDownstreamImageSources:
             "presence_room_source": "source_image",
         }
         result = await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), pipeline_data, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            pipeline_data,
+            _make_trigger(),
+            services,
         )
         assert len(result.data["person_detections"]) == 1
         call_kwargs = person_tracking.process_camera_event.call_args.kwargs
@@ -509,7 +519,11 @@ class TestDownstreamImageSources:
             "pipeline_image_path": "steps.crop_stove.outputs.cropped_images",
         }
         result = await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), pipeline_data, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            pipeline_data,
+            _make_trigger(),
+            services,
         )
         d = result.data["person_detections"][0]
         assert d.get("crop_region_id") == "stove"
@@ -525,7 +539,11 @@ class TestPresenceRecording:
 
         config = {"record_presence": False, "image_source": "trigger"}
         await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), {}, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            {},
+            _make_trigger(),
+            services,
         )
         call_kwargs = person_tracking.process_camera_event.call_args.kwargs
         assert call_kwargs["record_presence"] is False
@@ -537,7 +555,11 @@ class TestPresenceRecording:
 
         config = {"record_sightings": False, "image_source": "trigger"}
         await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), {}, _make_trigger(), services,
+            _make_step(config),
+            _FakeExecution(),
+            {},
+            _make_trigger(),
+            services,
         )
         call_kwargs = person_tracking.process_camera_event.call_args.kwargs
         assert call_kwargs["record_sightings"] is False
@@ -554,7 +576,11 @@ class TestPresenceRecording:
         }
         trigger = _make_trigger(room_name="Kitchen")
         await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), {}, trigger, services,
+            _make_step(config),
+            _FakeExecution(),
+            {},
+            trigger,
+            services,
         )
         call_kwargs = person_tracking.process_camera_event.call_args.kwargs
         ctx = call_kwargs["frame_contexts"][0]
@@ -588,7 +614,11 @@ class TestPresenceRecording:
         }
         trigger = _make_trigger(room_name="Kitchen")
         await _HANDLER.execute(
-            _make_step(config), _FakeExecution(), pipeline_data, trigger, services,
+            _make_step(config),
+            _FakeExecution(),
+            pipeline_data,
+            trigger,
+            services,
         )
         call_kwargs = person_tracking.process_camera_event.call_args.kwargs
         ctx = call_kwargs["frame_contexts"][0]
@@ -602,7 +632,11 @@ class TestPresenceRecording:
 
         trigger = _make_trigger(sensor_id="cam-kitchen", room_name="Kitchen")
         await _HANDLER.execute(
-            _make_step(), _FakeExecution(), {}, trigger, services,
+            _make_step(),
+            _FakeExecution(),
+            {},
+            trigger,
+            services,
         )
         call_kwargs = person_tracking.process_camera_event.call_args.kwargs
         # Default: sensor_id and room_name from trigger

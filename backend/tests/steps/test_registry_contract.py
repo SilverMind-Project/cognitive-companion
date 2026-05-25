@@ -80,6 +80,7 @@ def test_step_default_config_validates_against_config_schema(handler, meta):
 def test_step_type_name_matches_slug_pattern(handler, meta):
     """type_name must be lower_snake_case."""
     import re
+
     assert re.match(r"^[a-z][a-z0-9_]*$", meta.type_name), (
         f"{meta.type_name}: type_name must match ^[a-z][a-z0-9_]*$"
     )
@@ -113,9 +114,7 @@ def test_step_output_schema_is_valid_jsonschema(handler, meta):
 @pytest.mark.parametrize(("handler", "meta"), _all_step_handlers())
 def test_step_ui_hints_version_is_positive(handler, meta):
     """ui_hints_version must be a positive integer."""
-    assert meta.ui_hints_version >= 1, (
-        f"{meta.type_name}: ui_hints_version must be >= 1"
-    )
+    assert meta.ui_hints_version >= 1, f"{meta.type_name}: ui_hints_version must be >= 1"
 
 
 # -- Filter contract tests -------------------------------------------------
@@ -141,6 +140,7 @@ def test_filter_config_schema_is_valid_jsonschema(_filter, meta):
 @pytest.mark.parametrize(("_filter", "meta"), _all_filters())
 def test_filter_type_name_matches_slug_pattern(_filter, meta):
     import re
+
     assert re.match(r"^[a-z][a-z0-9_]*$", meta.filter_type), (
         f"{meta.filter_type}: filter_type must match ^[a-z][a-z0-9_]*$"
     )
@@ -148,9 +148,7 @@ def test_filter_type_name_matches_slug_pattern(_filter, meta):
 
 @pytest.mark.parametrize(("_filter", "meta"), _all_filters())
 def test_filter_schema_version_is_positive(_filter, meta):
-    assert meta.schema_version >= 1, (
-        f"{meta.filter_type}: schema_version must be >= 1"
-    )
+    assert meta.schema_version >= 1, f"{meta.filter_type}: schema_version must be >= 1"
 
 
 # -- Channel contract tests ------------------------------------------------
@@ -176,6 +174,7 @@ def test_channel_config_schema_is_valid_jsonschema(_channel, meta):
 @pytest.mark.parametrize(("_channel", "meta"), _all_channels())
 def test_channel_name_matches_slug_pattern(_channel, meta):
     import re
+
     assert re.match(r"^[a-z][a-z0-9_]*$", meta.channel_name), (
         f"{meta.channel_name}: channel_name must match ^[a-z][a-z0-9_]*$"
     )
@@ -183,6 +182,4 @@ def test_channel_name_matches_slug_pattern(_channel, meta):
 
 @pytest.mark.parametrize(("_channel", "meta"), _all_channels())
 def test_channel_schema_version_is_positive(_channel, meta):
-    assert meta.schema_version >= 1, (
-        f"{meta.channel_name}: schema_version must be >= 1"
-    )
+    assert meta.schema_version >= 1, f"{meta.channel_name}: schema_version must be >= 1"

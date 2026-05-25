@@ -148,9 +148,7 @@ class TestLocationWriter:
         writer = LocationWriter(lambda: repo)
 
         det = _make_detection(identity_id="")
-        await writer.apply(
-            _make_event(detections=[det])
-        )
+        await writer.apply(_make_event(detections=[det]))
 
         assert len(repo._states) == 0
         assert len(repo._history) == 0

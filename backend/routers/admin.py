@@ -284,12 +284,14 @@ async def channel_audit(
                 step_channels = [step_channels]
             unknown = [ch for ch in step_channels if ch not in registered]
             if unknown:
-                issues.append({
-                    "step_id": row.id,
-                    "step_type": row.step_type,
-                    "rule_id": row.rule_id,
-                    "unknown_channels": unknown,
-                })
+                issues.append(
+                    {
+                        "step_id": row.id,
+                        "step_type": row.step_type,
+                        "rule_id": row.rule_id,
+                        "unknown_channels": unknown,
+                    }
+                )
 
         return {
             "registered_channels": sorted(registered),

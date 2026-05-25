@@ -141,13 +141,17 @@ class ActivityTimelineService:
         """Get PersonActivity events."""
         from backend.models.person import PersonActivity
 
-        stmt = select(PersonActivity).where(
-            and_(
-                PersonActivity.person_id == person_id,
-                PersonActivity.detected_at >= (start_time or datetime.min.replace(tzinfo=UTC)),
-                PersonActivity.detected_at <= (end_time or datetime.max.replace(tzinfo=UTC)),
+        stmt = (
+            select(PersonActivity)
+            .where(
+                and_(
+                    PersonActivity.person_id == person_id,
+                    PersonActivity.detected_at >= (start_time or datetime.min.replace(tzinfo=UTC)),
+                    PersonActivity.detected_at <= (end_time or datetime.max.replace(tzinfo=UTC)),
+                )
             )
-        ).order_by(PersonActivity.detected_at.desc())
+            .order_by(PersonActivity.detected_at.desc())
+        )
 
         activities = db.execute(stmt).scalars().all()
 
@@ -186,9 +190,7 @@ class ActivityTimelineService:
         ]
         if end_time:
             conditions.append(ActivitySession.closed_at <= end_time)
-        stmt = select(ActivitySession).where(*conditions).order_by(
-            ActivitySession.opened_at.desc()
-        )
+        stmt = select(ActivitySession).where(*conditions).order_by(ActivitySession.opened_at.desc())
 
         sessions = db.execute(stmt).scalars().all()
 
@@ -198,7 +200,9 @@ class ActivityTimelineService:
             events.append(
                 TimelineEvent(
                     timestamp=s.opened_at,
-                    event_type="session_opened" if s.status == "open" else "session_opened_historic",
+                    event_type="session_opened"
+                    if s.status == "open"
+                    else "session_opened_historic",
                     person_id=s.person_id,
                     person_name=None,
                     activity_type=s.activity_type,
@@ -225,7 +229,9 @@ class ActivityTimelineService:
                         metadata={
                             "session_id": s.id,
                             "duration_minutes": s.duration_minutes,
-                            "closed_via": s.metadata_json.get("closed_via", "unknown") if s.metadata_json else "unknown",
+                            "closed_via": s.metadata_json.get("closed_via", "unknown")
+                            if s.metadata_json
+                            else "unknown",
                         },
                         source="session",
                     )
@@ -243,16 +249,22 @@ class ActivityTimelineService:
         """Get PersonLocationHistory room transition events."""
         from backend.models.person import PersonLocationHistory
 
-        stmt = select(PersonLocationHistory).where(
-            and_(
-                PersonLocationHistory.person_id == person_id,
-                PersonLocationHistory.entered_at >= (start_time or datetime.min.replace(tzinfo=UTC)),
-                or_(
-                    PersonLocationHistory.exited_at >= (start_time or datetime.min.replace(tzinfo=UTC)),
-                    PersonLocationHistory.exited_at.is_(None),
-                ),
+        stmt = (
+            select(PersonLocationHistory)
+            .where(
+                and_(
+                    PersonLocationHistory.person_id == person_id,
+                    PersonLocationHistory.entered_at
+                    >= (start_time or datetime.min.replace(tzinfo=UTC)),
+                    or_(
+                        PersonLocationHistory.exited_at
+                        >= (start_time or datetime.min.replace(tzinfo=UTC)),
+                        PersonLocationHistory.exited_at.is_(None),
+                    ),
+                )
             )
-        ).order_by(PersonLocationHistory.entered_at.desc())
+            .order_by(PersonLocationHistory.entered_at.desc())
+        )
 
         histories = db.execute(stmt).scalars().all()
 
@@ -285,13 +297,17 @@ class ActivityTimelineService:
         """Get PersonSighting detection events."""
         from backend.models.person import PersonSighting
 
-        stmt = select(PersonSighting).where(
-            and_(
-                PersonSighting.person_id == person_id,
-                PersonSighting.timestamp >= (start_time or datetime.min.replace(tzinfo=UTC)),
-                PersonSighting.timestamp <= (end_time or datetime.max.replace(tzinfo=UTC)),
+        stmt = (
+            select(PersonSighting)
+            .where(
+                and_(
+                    PersonSighting.person_id == person_id,
+                    PersonSighting.timestamp >= (start_time or datetime.min.replace(tzinfo=UTC)),
+                    PersonSighting.timestamp <= (end_time or datetime.max.replace(tzinfo=UTC)),
+                )
             )
-        ).order_by(PersonSighting.timestamp.desc())
+            .order_by(PersonSighting.timestamp.desc())
+        )
 
         sightings = db.execute(stmt).scalars().all()
 

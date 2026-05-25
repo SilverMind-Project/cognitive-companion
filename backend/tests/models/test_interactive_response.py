@@ -300,9 +300,7 @@ class TestJSONField:
         assert retrieved.raw_response_json == raw_response
         assert retrieved.raw_response_json["metadata"]["keywords"] == ["fell", "down"]
 
-    def test_json_field_default_empty_dict(
-        self, db_session, workflow_execution, pipeline_step
-    ):
+    def test_json_field_default_empty_dict(self, db_session, workflow_execution, pipeline_step):
         """Test that raw_response_json defaults to empty dict."""
         response = InteractiveResponse(
             execution_id=workflow_execution.id,
@@ -316,9 +314,7 @@ class TestJSONField:
 
         assert response.raw_response_json == {}
 
-    def test_json_field_stores_empty_dict(
-        self, db_session, workflow_execution, pipeline_step
-    ):
+    def test_json_field_stores_empty_dict(self, db_session, workflow_execution, pipeline_step):
         """Test that raw_response_json can explicitly store empty dict."""
         response = InteractiveResponse(
             execution_id=workflow_execution.id,
@@ -341,9 +337,7 @@ class TestJSONField:
 
 
 class TestTimezoneAwareDatetime:
-    def test_timestamp_preserves_utc_timezone(
-        self, db_session, workflow_execution, pipeline_step
-    ):
+    def test_timestamp_preserves_utc_timezone(self, db_session, workflow_execution, pipeline_step):
         """Test that timestamp field preserves UTC timezone information."""
         timestamp = datetime(2024, 1, 15, 10, 30, 15, tzinfo=UTC)
 
@@ -364,9 +358,7 @@ class TestTimezoneAwareDatetime:
         assert retrieved.timestamp.tzinfo is not None
         assert retrieved.timestamp == timestamp
 
-    def test_created_at_is_timezone_aware(
-        self, db_session, workflow_execution, pipeline_step
-    ):
+    def test_created_at_is_timezone_aware(self, db_session, workflow_execution, pipeline_step):
         """Test that created_at field is timezone-aware."""
         response = InteractiveResponse(
             execution_id=workflow_execution.id,
@@ -503,9 +495,7 @@ class TestQueryAndRetrieval:
         assert len(responses) == 2
         assert {r.step_id for r in responses} == {pipeline_step.id, step2.id}
 
-    def test_query_by_execution_and_step(
-        self, db_session, workflow_execution, pipeline_step
-    ):
+    def test_query_by_execution_and_step(self, db_session, workflow_execution, pipeline_step):
         """Test querying response by execution_id and step_id."""
         response = InteractiveResponse(
             execution_id=workflow_execution.id,

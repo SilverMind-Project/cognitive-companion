@@ -88,7 +88,7 @@ async def test_cache_history_newest_first():
 
     hist = cache.history("binary_sensor.motion")
     assert len(hist) == 2
-    assert hist[0].state == "on"   # newest
+    assert hist[0].state == "on"  # newest
     assert hist[1].state == "off"  # oldest
 
 

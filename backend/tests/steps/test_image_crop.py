@@ -121,7 +121,11 @@ class TestMissingServices:
     async def test_no_minio_returns_failure(self):
         handler = ImageCropHandler()
         result = await handler.execute(
-            _FakeStep(), _FakeExecution(), {}, _make_trigger(), _make_services(minio_client=None),
+            _FakeStep(),
+            _FakeExecution(),
+            {},
+            _make_trigger(),
+            _make_services(minio_client=None),
         )
 
         assert result.success is False
@@ -136,12 +140,18 @@ class TestNoRegions:
         fake_minio = _FakeMinio()
         fake_minio.objects["recamera/test.jpg"] = _make_test_image()
 
-        trigger = _make_trigger(media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"])
+        trigger = _make_trigger(
+            media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"]
+        )
         handler = ImageCropHandler()
 
         step = _FakeStep(config_json={"image_source": "trigger", "regions": []})
         result = await handler.execute(
-            step, _FakeExecution(), {}, trigger, _make_services(minio_client=fake_minio),
+            step,
+            _FakeExecution(),
+            {},
+            trigger,
+            _make_services(minio_client=fake_minio),
         )
 
         assert result.success
@@ -158,12 +168,18 @@ class TestTriggerImageCrop:
         test_jpg = _make_test_image(200, 150)
         fake_minio.objects["recamera/test.jpg"] = test_jpg
 
-        trigger = _make_trigger(media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"])
+        trigger = _make_trigger(
+            media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"]
+        )
         handler = ImageCropHandler()
 
         step = _FakeStep(config_json={"image_source": "trigger", "regions": _STANDARD_REGIONS})
         result = await handler.execute(
-            step, _FakeExecution(), {}, trigger, _make_services(minio_client=fake_minio),
+            step,
+            _FakeExecution(),
+            {},
+            trigger,
+            _make_services(minio_client=fake_minio),
         )
 
         assert result.success
@@ -224,7 +240,11 @@ class TestTriggerImageCrop:
             }
         )
         result = await handler.execute(
-            step, _FakeExecution(), pipeline_data, trigger, _make_services(minio_client=fake_minio),
+            step,
+            _FakeExecution(),
+            pipeline_data,
+            trigger,
+            _make_services(minio_client=fake_minio),
         )
 
         assert result.data["count"] == 1
@@ -254,7 +274,9 @@ class TestTriggerImageCrop:
                                 "source_room_name": "Kitchen",
                             }
                         ],
-                        "images": ["http://minio.local/bucket/pipeline/crops/100/1/stove_0.jpg?sig=test"],
+                        "images": [
+                            "http://minio.local/bucket/pipeline/crops/100/1/stove_0.jpg?sig=test"
+                        ],
                     }
                 }
             }
@@ -268,7 +290,11 @@ class TestTriggerImageCrop:
             }
         )
         result = await handler.execute(
-            step, _FakeExecution(), pipeline_data, trigger, _make_services(minio_client=fake_minio),
+            step,
+            _FakeExecution(),
+            pipeline_data,
+            trigger,
+            _make_services(minio_client=fake_minio),
         )
 
         assert result.data["count"] == 1
@@ -282,23 +308,39 @@ class TestMultipleRegions:
         fake_minio = _FakeMinio()
         fake_minio.objects["recamera/test.jpg"] = _make_test_image(400, 300)
 
-        trigger = _make_trigger(media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"])
+        trigger = _make_trigger(
+            media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"]
+        )
         handler = ImageCropHandler()
 
         regions = [
             {"id": "top_left", "name": "Top Left", "x": 0.0, "y": 0.0, "width": 0.5, "height": 0.5},
-            {"id": "bottom_right", "name": "Bottom Right", "x": 0.5, "y": 0.5, "width": 0.5, "height": 0.5},
+            {
+                "id": "bottom_right",
+                "name": "Bottom Right",
+                "x": 0.5,
+                "y": 0.5,
+                "width": 0.5,
+                "height": 0.5,
+            },
         ]
 
         step = _FakeStep(config_json={"image_source": "trigger", "regions": regions})
         result = await handler.execute(
-            step, _FakeExecution(), {}, trigger, _make_services(minio_client=fake_minio),
+            step,
+            _FakeExecution(),
+            {},
+            trigger,
+            _make_services(minio_client=fake_minio),
         )
 
         assert result.data["count"] == 2
         assert len(result.data["images"]) == 2
         assert len(result.data["cropped_images"]) == 2
-        assert {ci["region_id"] for ci in result.data["cropped_images"]} == {"top_left", "bottom_right"}
+        assert {ci["region_id"] for ci in result.data["cropped_images"]} == {
+            "top_left",
+            "bottom_right",
+        }
 
 
 class TestClamping:
@@ -307,17 +349,30 @@ class TestClamping:
         fake_minio = _FakeMinio()
         fake_minio.objects["recamera/test.jpg"] = _make_test_image(200, 150)
 
-        trigger = _make_trigger(media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"])
+        trigger = _make_trigger(
+            media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"]
+        )
         handler = ImageCropHandler()
 
         # Region goes beyond image edges.
         regions = [
-            {"id": "overflow", "name": "Overflow", "x": -0.5, "y": -0.5, "width": 2.0, "height": 2.0},
+            {
+                "id": "overflow",
+                "name": "Overflow",
+                "x": -0.5,
+                "y": -0.5,
+                "width": 2.0,
+                "height": 2.0,
+            },
         ]
 
         step = _FakeStep(config_json={"image_source": "trigger", "regions": regions})
         result = await handler.execute(
-            step, _FakeExecution(), {}, trigger, _make_services(minio_client=fake_minio),
+            step,
+            _FakeExecution(),
+            {},
+            trigger,
+            _make_services(minio_client=fake_minio),
         )
 
         # Should still succeed — clamped to full image.
@@ -333,7 +388,9 @@ class TestTinyRegionSkip:
         fake_minio = _FakeMinio()
         fake_minio.objects["recamera/test.jpg"] = _make_test_image(200, 150)
 
-        trigger = _make_trigger(media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"])
+        trigger = _make_trigger(
+            media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"]
+        )
         handler = ImageCropHandler()
 
         # Tiny region (ratio 0.01 on a 200px image = 2px → below 8px minimum).
@@ -343,7 +400,11 @@ class TestTinyRegionSkip:
 
         step = _FakeStep(config_json={"image_source": "trigger", "regions": regions})
         result = await handler.execute(
-            step, _FakeExecution(), {}, trigger, _make_services(minio_client=fake_minio),
+            step,
+            _FakeExecution(),
+            {},
+            trigger,
+            _make_services(minio_client=fake_minio),
         )
 
         assert result.data["count"] == 0
@@ -358,12 +419,18 @@ class TestMediaCacheRegistration:
         fake_minio.objects["recamera/test.jpg"] = _make_test_image(200, 150)
         mock_db = _make_mock_db()
 
-        trigger = _make_trigger(media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"])
+        trigger = _make_trigger(
+            media_paths=["http://minio.local/bucket/recamera/test.jpg?sig=test"]
+        )
         handler = ImageCropHandler()
 
         step = _FakeStep(config_json={"image_source": "trigger", "regions": _STANDARD_REGIONS})
         result = await handler.execute(
-            step, _FakeExecution(), {}, trigger, _make_services(minio_client=fake_minio, db_factory=lambda: mock_db),
+            step,
+            _FakeExecution(),
+            {},
+            trigger,
+            _make_services(minio_client=fake_minio, db_factory=lambda: mock_db),
         )
 
         assert result.data["count"] == 1
@@ -400,7 +467,11 @@ class TestFetchFailed:
 
         step = _FakeStep(config_json={"image_source": "trigger", "regions": _STANDARD_REGIONS})
         result = await handler.execute(
-            step, _FakeExecution(), {}, trigger, _make_services(minio_client=fake_minio),
+            step,
+            _FakeExecution(),
+            {},
+            trigger,
+            _make_services(minio_client=fake_minio),
         )
 
         assert result.data["count"] == 0

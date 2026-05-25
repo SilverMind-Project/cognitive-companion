@@ -37,7 +37,6 @@ class KnowledgeDocumentImageOut(OutSchema):
     presigned_url: str | None = None
 
 
-
 class KnowledgeDocumentOut(OutSchema):
     id: int
     title: str
@@ -52,7 +51,6 @@ class KnowledgeDocumentOut(OutSchema):
     chunk_count: int = 0
 
 
-
 class KnowledgeDocumentListOut(OutSchema):
     id: int
     title: str
@@ -62,7 +60,6 @@ class KnowledgeDocumentListOut(OutSchema):
     created_at: UTCDatetime
     updated_at: UTCDatetime
     image_count: int = 0
-
 
 
 # -- Knowledge Document Image -------------------------------------------------

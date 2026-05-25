@@ -22,9 +22,7 @@ from backend.services.knowledge.layout_registry import (
 
 logger = get_logger(__name__)
 
-ALLOWED_MIME_TYPES: frozenset[str] = frozenset(
-    settings.as_list("knowledge.allowed_mime_types")
-)
+ALLOWED_MIME_TYPES: frozenset[str] = frozenset(settings.as_list("knowledge.allowed_mime_types"))
 MAX_UPLOAD_BYTES: int = settings.as_int("knowledge.max_upload_bytes")
 MAX_PIXELS: int = settings.as_int("knowledge.max_pixels")
 
@@ -131,9 +129,7 @@ class ImagePipeline:
                 f"Allowed: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
             )
         if len(data) > MAX_UPLOAD_BYTES:
-            raise ValueError(
-                f"File size {len(data)} exceeds maximum {MAX_UPLOAD_BYTES} bytes"
-            )
+            raise ValueError(f"File size {len(data)} exceeds maximum {MAX_UPLOAD_BYTES} bytes")
         img = Image.open(BytesIO(data))
         w, h = img.size
         if w * h > MAX_PIXELS:
@@ -179,9 +175,7 @@ def _find_slot(layout, slot_id: str):
 
 
 def _content_type_for(fmt: str) -> str:
-    return {"webp": "image/webp", "jpeg": "image/jpeg", "png": "image/png"}.get(
-        fmt, "image/png"
-    )
+    return {"webp": "image/webp", "jpeg": "image/jpeg", "png": "image/png"}.get(fmt, "image/png")
 
 
 def _pillow_format(fmt: str) -> str:

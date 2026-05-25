@@ -102,9 +102,7 @@ class PresenceQueryHandler(StepHandler):
                         "type": "integer",
                         "minimum": 1,
                         "default": 30,
-                        "description": (
-                            "Lookback for dementia signals, in minutes."
-                        ),
+                        "description": ("Lookback for dementia signals, in minutes."),
                     },
                     "output_key": {
                         "type": "string",
@@ -188,9 +186,7 @@ class PresenceQueryHandler(StepHandler):
             "presence_status": snapshot.status.value,
             "presence_room_name": snapshot.room_name,
             "presence_dwell_minutes": snapshot.dwell_minutes,
-            "presence_at_home": snapshot.status.value in (
-                "present_room", "present_home", "asleep"
-            ),
+            "presence_at_home": snapshot.status.value in ("present_room", "present_home", "asleep"),
             "presence_asleep": snapshot.status.value == "asleep",
             "presence_away": snapshot.status.value == "away",
         }

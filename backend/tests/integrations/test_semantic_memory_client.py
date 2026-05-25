@@ -167,7 +167,9 @@ class TestCreateObservation:
 
     async def test_asserts_observed_at_has_offset(self):
         """observed_at body field must be ISO-8601 with offset."""
-        ctx, http_client = _make_http_mock({"id": 1, "room_id": "r1", "observed_at": "2026-01-01T00:00:00+00:00"})
+        ctx, http_client = _make_http_mock(
+            {"id": 1, "room_id": "r1", "observed_at": "2026-01-01T00:00:00+00:00"}
+        )
         client = _make_client()
         with patch(_HTTPX_TARGET, return_value=ctx):
             await client.create_observation(ObservationCreate(room_id="r1"))
@@ -217,7 +219,9 @@ class TestSearchObservations:
 
     async def test_asserts_query_embedding_is_plain_list(self):
         """query_embedding payload must be a plain list[float]."""
-        ctx, http_client = _make_http_mock([{"id": 1, "room_id": "r1", "observed_at": "2026-01-01T00:00:00+00:00"}])
+        ctx, http_client = _make_http_mock(
+            [{"id": 1, "room_id": "r1", "observed_at": "2026-01-01T00:00:00+00:00"}]
+        )
         client = _make_client()
         with patch(_HTTPX_TARGET, return_value=ctx):
             await client.search_observations(

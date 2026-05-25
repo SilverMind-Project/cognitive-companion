@@ -89,9 +89,7 @@ class HaBedSensorProvider:
         if state is None or state.state != "on":
             return None
 
-        dwell_minutes = (
-            (at - state.last_changed).total_seconds() / 60.0
-        )
+        dwell_minutes = (at - state.last_changed).total_seconds() / 60.0
 
         return PresenceSnapshot(
             person_id=person_id,

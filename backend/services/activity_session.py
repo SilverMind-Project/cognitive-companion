@@ -260,9 +260,7 @@ class ActivitySessionService:
             ).scalar_one_or_none()
 
             if not session:
-                raise ValueError(
-                    f"No open session found for {person_id} / {activity_type}"
-                )
+                raise ValueError(f"No open session found for {person_id} / {activity_type}")
 
             # Compute duration
             duration_seconds = (ended_at - session.opened_at).total_seconds()
@@ -426,9 +424,7 @@ class ActivitySessionService:
         finally:
             db.close()
 
-    def get_sessions_for_day(
-        self, person_id: str, date: str, tz_name: str = "UTC"
-    ) -> list[dict]:
+    def get_sessions_for_day(self, person_id: str, date: str, tz_name: str = "UTC") -> list[dict]:
         """Get all closed sessions for a person on a specific date.
 
         Args:
@@ -452,16 +448,26 @@ class ActivitySessionService:
             day_start_utc = day_start.astimezone(UTC)
             day_end_utc = day_end.astimezone(UTC)
 
-            stmt = select(ActivitySession).where(
-                and_(
-                    ActivitySession.person_id == person_id,
-                    ActivitySession.status == "closed",
-                    or_(
-                        and_(ActivitySession.opened_at >= day_start_utc, ActivitySession.opened_at < day_end_utc),
-                        and_(ActivitySession.closed_at >= day_start_utc, ActivitySession.closed_at < day_end_utc),
-                    ),
+            stmt = (
+                select(ActivitySession)
+                .where(
+                    and_(
+                        ActivitySession.person_id == person_id,
+                        ActivitySession.status == "closed",
+                        or_(
+                            and_(
+                                ActivitySession.opened_at >= day_start_utc,
+                                ActivitySession.opened_at < day_end_utc,
+                            ),
+                            and_(
+                                ActivitySession.closed_at >= day_start_utc,
+                                ActivitySession.closed_at < day_end_utc,
+                            ),
+                        ),
+                    )
                 )
-            ).order_by(ActivitySession.opened_at.desc())
+                .order_by(ActivitySession.opened_at.desc())
+            )
 
             sessions = db.execute(stmt).scalars().all()
 
@@ -475,7 +481,9 @@ class ActivitySessionService:
                     "closed_at": s.closed_at,
                     "duration_minutes": s.duration_minutes,
                     "status": s.status,
-                    "closed_via": s.metadata_json.get("closed_via", "unknown") if s.metadata_json else "unknown",
+                    "closed_via": s.metadata_json.get("closed_via", "unknown")
+                    if s.metadata_json
+                    else "unknown",
                 }
                 for s in sessions
             ]

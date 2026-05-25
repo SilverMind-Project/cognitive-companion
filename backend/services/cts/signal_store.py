@@ -67,9 +67,7 @@ class SignalStore:
 
             if signal_id:
                 existing = (
-                    db.query(DementiaSignal)
-                    .filter(DementiaSignal.signal_id == signal_id)
-                    .first()
+                    db.query(DementiaSignal).filter(DementiaSignal.signal_id == signal_id).first()
                 )
             else:
                 existing = None
@@ -84,8 +82,12 @@ class SignalStore:
                     window_start=parse_ts(signal_data["window_start"]),
                     window_end=parse_ts(signal_data["window_end"]),
                     value=float(signal_data["value"]),
-                    baseline=float(signal_data["baseline"]) if signal_data.get("baseline") is not None else None,
-                    z_score=float(signal_data["z_score"]) if signal_data.get("z_score") is not None else None,
+                    baseline=float(signal_data["baseline"])
+                    if signal_data.get("baseline") is not None
+                    else None,
+                    z_score=float(signal_data["z_score"])
+                    if signal_data.get("z_score") is not None
+                    else None,
                     context_json=signal_data.get("context_json"),
                     algorithm_version=signal_data.get("algorithm_version"),
                 )
@@ -99,14 +101,10 @@ class SignalStore:
             existing.severity = new_severity
             existing.value = float(signal_data["value"])
             existing.baseline = (
-                float(signal_data["baseline"])
-                if signal_data.get("baseline") is not None
-                else None
+                float(signal_data["baseline"]) if signal_data.get("baseline") is not None else None
             )
             existing.z_score = (
-                float(signal_data["z_score"])
-                if signal_data.get("z_score") is not None
-                else None
+                float(signal_data["z_score"]) if signal_data.get("z_score") is not None else None
             )
             existing.context_json = signal_data.get("context_json")
             existing.algorithm_version = signal_data.get("algorithm_version")
@@ -147,11 +145,7 @@ class SignalStore:
             return 0
         db = self._db_factory()
         try:
-            rows = (
-                db.query(DementiaSignal)
-                .filter(DementiaSignal.id.in_(signal_ids))
-                .all()
-            )
+            rows = db.query(DementiaSignal).filter(DementiaSignal.id.in_(signal_ids)).all()
             for row in rows:
                 db.delete(row)
             db.commit()
@@ -205,13 +199,15 @@ class SignalStore:
             if severity:
                 base = base.where(DementiaSignal.severity == severity)
 
-            total: int = db.execute(
-                select(func.count()).select_from(base.subquery())
-            ).scalar_one()
+            total: int = db.execute(select(func.count()).select_from(base.subquery())).scalar_one()
 
-            rows = db.execute(
-                base.order_by(desc(DementiaSignal.received_at)).limit(limit).offset(offset)
-            ).scalars().all()
+            rows = (
+                db.execute(
+                    base.order_by(desc(DementiaSignal.received_at)).limit(limit).offset(offset)
+                )
+                .scalars()
+                .all()
+            )
 
             return [self._to_dict(r) for r in rows], total
         finally:
@@ -342,7 +338,6 @@ class SignalStore:
             db.close()
 
     # -- Helpers -------------------------------------------------------------
-
 
     @staticmethod
     def _to_dict(row: DementiaSignal) -> dict[str, Any]:

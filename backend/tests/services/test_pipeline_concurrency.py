@@ -387,9 +387,7 @@ class TestVersionConflictDetection:
                 other_session = db_factory()
                 try:
                     other_exec = (
-                        other_session.query(WorkflowExecution)
-                        .filter_by(id=execution.id)
-                        .one()
+                        other_session.query(WorkflowExecution).filter_by(id=execution.id).one()
                     )
                     other_exec.pipeline_data_json["concurrent"] = "update"
                     other_session.commit()
@@ -414,9 +412,7 @@ class TestVersionConflictDetection:
 class TestConcurrencyIntegration:
     """Integration tests for concurrent pipeline execution."""
 
-    async def test_multiple_steps_with_concurrent_updates(
-        self, db_session: Session, db_factory
-    ):
+    async def test_multiple_steps_with_concurrent_updates(self, db_session: Session, db_factory):
         """Multiple steps must handle concurrent updates correctly."""
         rule = _make_rule(db_session)
         _make_step(db_session, rule, order=1, step_type="step_a")

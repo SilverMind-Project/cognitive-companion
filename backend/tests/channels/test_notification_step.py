@@ -251,7 +251,9 @@ class TestNotificationHandlerExecute:
         }
 
         handler = NotificationHandler()
-        await handler.execute(step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services)
+        await handler.execute(
+            step, FakeWorkflowExecution(), pipeline_data, FakeTriggerContext(), services
+        )
 
         call_kwargs = dispatcher.dispatch.call_args[1]
         assert call_kwargs["message"] == "translated alert"

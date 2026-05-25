@@ -276,7 +276,12 @@ class TestAnalyze:
                 "embedding": [0.1, "bad", 0.3],
                 "hazards": [
                     _ANALYZE_RESPONSE["hazards"][0],
-                    {"name": "broken", "severity": "warning", "description": "bad", "detection": {}},
+                    {
+                        "name": "broken",
+                        "severity": "warning",
+                        "description": "bad",
+                        "detection": {},
+                    },
                 ],
                 "detector_available": True,
                 "describer_available": True,

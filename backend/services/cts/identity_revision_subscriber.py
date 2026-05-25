@@ -50,7 +50,9 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
 
     # -- StreamConsumer abstract methods -------------------------------------
 
-    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> dict[str, Any] | None:
+    def decode(
+        self, message_id: bytes, fields: dict[bytes | str, bytes | str]
+    ) -> dict[str, Any] | None:
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
             logger.warning("revision_missing_payload", message_id=message_id)

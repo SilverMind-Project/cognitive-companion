@@ -39,7 +39,14 @@ class PersonMovementMemoryFilter(ContextFilter):
                     },
                     "semantic": {
                         "type": "string",
-                        "enum": ["entering", "exiting", "approaching_exit", "entering_depth", "stationary", "any"],
+                        "enum": [
+                            "entering",
+                            "exiting",
+                            "approaching_exit",
+                            "entering_depth",
+                            "stationary",
+                            "any",
+                        ],
                         "default": "any",
                         "description": "Semantic direction to match.",
                     },

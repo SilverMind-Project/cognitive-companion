@@ -147,9 +147,7 @@ def _build_chain(
     PresenceService
         A fully wired service ready for ``get()`` calls.
     """
-    config = load_presence_config(
-        "backend/tests/fixtures/presence_test.yaml"
-    )
+    config = load_presence_config("backend/tests/fixtures/presence_test.yaml")
     providers = build_providers(
         config,
         cache=cache,  # type: ignore[arg-type]  # fake is structurally compatible
@@ -260,9 +258,7 @@ async def test_night_mode_release():
     at = _now_at(22, 5)  # 22:05 — 5 min after asleep scenario
 
     # Seed location state: mom now in bathroom, 1 min ago (fresh, within 120s TTL).
-    _seed_bedroom_state(
-        repo, person_id="mom", room_name="bathroom", minutes_ago=1, at=at
-    )
+    _seed_bedroom_state(repo, person_id="mom", room_name="bathroom", minutes_ago=1, at=at)
 
     # Seed HA cache: lights still off, bed sensor OFF (person got out of bed).
     cache.set_state("light.master_bedroom", "off")

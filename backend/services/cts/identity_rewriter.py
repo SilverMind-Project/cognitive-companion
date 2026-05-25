@@ -87,13 +87,9 @@ class IdentityRewriter:
             if previous_identity_id:
                 # Scope to the prior identity so we never rewrite the rows we
                 # inserted for ``new_identity_id`` on an earlier pass.
-                query = query.filter(
-                    PersonLocationHistory.person_id == previous_identity_id
-                )
+                query = query.filter(PersonLocationHistory.person_id == previous_identity_id)
             if global_track_id:
-                query = query.filter(
-                    PersonLocationHistory.global_track_id == global_track_id
-                )
+                query = query.filter(PersonLocationHistory.global_track_id == global_track_id)
 
             affected = query.all()
             rewritten = 0
@@ -258,4 +254,3 @@ def _upsert_revision_log(
         },
     )
     db.execute(stmt)
-

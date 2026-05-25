@@ -119,9 +119,11 @@ def _make_trend(
 async def test_get_recent_scene_objects_with_data():
     from backend.mcp.server import get_recent_scene_objects
 
-    client = _make_mock_client({
-        "get_recent_objects": [_make_presence("mug", 5, 15)],
-    })
+    client = _make_mock_client(
+        {
+            "get_recent_objects": [_make_presence("mug", 5, 15)],
+        }
+    )
     _svc.semantic_memory_client = client
 
     result = await get_recent_scene_objects(room_id="kitchen", minutes=60)
@@ -150,12 +152,14 @@ async def test_get_recent_scene_objects_no_client():
 async def test_get_scene_observations_with_data():
     from backend.mcp.server import get_scene_observations
 
-    client = _make_mock_client({
-        "search_observations": [
-            _make_hit(id_=1, description="A person sitting"),
-            _make_hit(id_=2, description="A door open", hazards=["door_unsafe"]),
-        ],
-    })
+    client = _make_mock_client(
+        {
+            "search_observations": [
+                _make_hit(id_=1, description="A person sitting"),
+                _make_hit(id_=2, description="A door open", hazards=["door_unsafe"]),
+            ],
+        }
+    )
     _svc.semantic_memory_client = client
 
     result = await get_scene_observations(room_id="living_room", limit=5)
@@ -183,11 +187,13 @@ async def test_get_scene_observations_no_client():
 async def test_get_person_movements_with_data():
     from backend.mcp.server import get_person_movements
 
-    client = _make_mock_client({
-        "get_transitions": [
-            _make_transition(to_room="kitchen", semantic="entering"),
-        ],
-    })
+    client = _make_mock_client(
+        {
+            "get_transitions": [
+                _make_transition(to_room="kitchen", semantic="entering"),
+            ],
+        }
+    )
     _svc.semantic_memory_client = client
 
     result = await get_person_movements(person_id="p1", minutes=60)
@@ -216,9 +222,11 @@ async def test_get_person_movements_no_client():
 async def test_get_room_trend_with_data():
     from backend.mcp.server import get_room_trend
 
-    client = _make_mock_client({
-        "get_room_trends": _make_trend(clutter=0.7, severity="warning"),
-    })
+    client = _make_mock_client(
+        {
+            "get_room_trends": _make_trend(clutter=0.7, severity="warning"),
+        }
+    )
     _svc.semantic_memory_client = client
 
     result = await get_room_trend(room_id="kitchen")
@@ -258,9 +266,11 @@ async def test_get_room_trend_no_client():
 async def test_search_similar_scenes_with_data():
     from backend.mcp.server import search_similar_scenes
 
-    client = _make_mock_client({
-        "search_observations": [_make_hit(description="Person on floor")],
-    })
+    client = _make_mock_client(
+        {
+            "search_observations": [_make_hit(description="Person on floor")],
+        }
+    )
     _svc.semantic_memory_client = client
 
     result = await search_similar_scenes(query_text="person sitting", limit=3)
@@ -281,9 +291,11 @@ async def test_search_similar_scenes_strips_embedding():
     """
     from backend.mcp.server import search_similar_scenes
 
-    client = _make_mock_client({
-        "search_observations": [_make_hit(description="Test scene")],
-    })
+    client = _make_mock_client(
+        {
+            "search_observations": [_make_hit(description="Test scene")],
+        }
+    )
     _svc.semantic_memory_client = client
 
     result = await search_similar_scenes(query_text="test")
@@ -292,9 +304,15 @@ async def test_search_similar_scenes_strips_embedding():
     assert "embedding" not in result[0]
     # Verify the expected keys are present
     assert set(result[0].keys()) == {
-        "id", "observed_at", "room_id", "description",
-        "object_list", "hazard_flags", "text_similarity",
-        "image_similarity", "source",
+        "id",
+        "observed_at",
+        "room_id",
+        "description",
+        "object_list",
+        "hazard_flags",
+        "text_similarity",
+        "image_similarity",
+        "source",
     }
 
 

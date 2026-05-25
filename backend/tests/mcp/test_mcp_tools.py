@@ -90,9 +90,7 @@ class TestGetDailyReport:
         assert result["person_id"] == "person123"
         assert result["status"] == "complete"
         assert result["sleep_total_minutes"] == 480
-        mock_service.get_report.assert_called_once_with(
-            person_id="person123", date="2026-04-17"
-        )
+        mock_service.get_report.assert_called_once_with(person_id="person123", date="2026-04-17")
         mock_service.generate_daily_report.assert_not_called()
 
     @pytest.mark.asyncio

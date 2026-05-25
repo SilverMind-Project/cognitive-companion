@@ -57,7 +57,11 @@ class TestInsert:
     async def test_naive_datetime_accepted(self, store: SignalStore):
         """window_start/end without timezone info should be accepted."""
         sid = await store.insert(
-            {**_BASE_SIGNAL, "window_start": "2026-04-23T10:00:00", "window_end": "2026-04-23T10:30:00"}
+            {
+                **_BASE_SIGNAL,
+                "window_start": "2026-04-23T10:00:00",
+                "window_end": "2026-04-23T10:30:00",
+            }
         )
         assert sid > 0
 

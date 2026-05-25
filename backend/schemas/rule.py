@@ -56,7 +56,6 @@ class PipelineStepOut(OutSchema):
     next_step_on_false: int | None
 
 
-
 class PipelineStepReorder(BaseModel):
     """Ordered list of step IDs; position in the list becomes the new order value."""
 
@@ -106,14 +105,12 @@ class RuleContextOut(OutSchema):
     negate: bool = False
 
 
-
 class RuleDependencyOut(OutSchema):
     id: int
     dependent_rule_id: int
     parent_rule_id: int
     lookback_minutes: int
     require_success: bool
-
 
 
 class CronTriggerOut(OutSchema):
@@ -146,7 +143,6 @@ class RuleOut(OutSchema):
     cron_triggers: list[CronTriggerOut] = []
 
 
-
 class RuleExecutionCounts(BaseModel):
     last_15m: int = 0
     last_1h: int = 0
@@ -168,7 +164,6 @@ class RuleListOut(OutSchema):
     execution_timeout_minutes: int
     created_at: UTCDatetime
     execution_counts: RuleExecutionCounts = RuleExecutionCounts()
-
 
 
 # -- Context -----------------------------------------------------------------

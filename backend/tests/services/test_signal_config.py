@@ -16,7 +16,10 @@ class TestIsSignalEnabled:
     def test_empty_enabled_kinds_allows_everything(self):
         # empty list means no kinds restriction (all allowed)
         # Actually — empty list means NOTHING is enabled.
-        assert is_signal_enabled({"enabled_kinds": [], "min_severity": "info"}, "pacing", "info") is False
+        assert (
+            is_signal_enabled({"enabled_kinds": [], "min_severity": "info"}, "pacing", "info")
+            is False
+        )
 
     def test_kind_in_list_is_allowed(self):
         cfg = {"enabled_kinds": ["absence", "pacing"], "min_severity": "info"}

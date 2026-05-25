@@ -200,8 +200,9 @@ class TestTelegramChannelMultipleImages:
         fetched = [b"bytes_a", b"bytes_b"]
         fetch_mock = AsyncMock(side_effect=fetched)
 
-        with _patch_settings(_SINGLE_TARGET), patch(
-            "backend.channels.builtin.telegram.fetch_and_prepare_image", new=fetch_mock
+        with (
+            _patch_settings(_SINGLE_TARGET),
+            patch("backend.channels.builtin.telegram.fetch_and_prepare_image", new=fetch_mock),
         ):
             channel = TelegramChannel()
             ok = await channel.send(
@@ -226,8 +227,9 @@ class TestTelegramChannelMultipleImages:
         fetched = [b"a", b"b", b"c"]
         fetch_mock = AsyncMock(side_effect=fetched)
 
-        with _patch_settings(_SINGLE_TARGET), patch(
-            "backend.channels.builtin.telegram.fetch_and_prepare_image", new=fetch_mock
+        with (
+            _patch_settings(_SINGLE_TARGET),
+            patch("backend.channels.builtin.telegram.fetch_and_prepare_image", new=fetch_mock),
         ):
             channel = TelegramChannel()
             await channel.send(
@@ -250,8 +252,9 @@ class TestTelegramChannelMultipleImages:
         # First URL fails, second succeeds
         fetch_mock = AsyncMock(side_effect=[None, b"good"])
 
-        with _patch_settings(_SINGLE_TARGET), patch(
-            "backend.channels.builtin.telegram.fetch_and_prepare_image", new=fetch_mock
+        with (
+            _patch_settings(_SINGLE_TARGET),
+            patch("backend.channels.builtin.telegram.fetch_and_prepare_image", new=fetch_mock),
         ):
             channel = TelegramChannel()
             ok = await channel.send(
@@ -276,8 +279,9 @@ class TestTelegramChannelMultipleImages:
         fetched = [b"x", b"y"]
         fetch_mock = AsyncMock(side_effect=fetched)
 
-        with _patch_settings(_TWO_TARGETS), patch(
-            "backend.channels.builtin.telegram.fetch_and_prepare_image", new=fetch_mock
+        with (
+            _patch_settings(_TWO_TARGETS),
+            patch("backend.channels.builtin.telegram.fetch_and_prepare_image", new=fetch_mock),
         ):
             channel = TelegramChannel()
             await channel.send(

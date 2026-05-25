@@ -142,7 +142,7 @@ class CtsEventBucketizer:
             for ts_str, evt in buf:
                 try:
                     evt_ts = datetime.fromisoformat(ts_str).timestamp()
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     continue
                 if evt_ts >= cutoff:
                     if trigger.rooms:
@@ -184,7 +184,7 @@ class CtsEventBucketizer:
             for ts_str, evt in buf:
                 try:
                     evt_ts = datetime.fromisoformat(ts_str).timestamp()
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     continue
                 if evt_ts >= cutoff:
                     frames.append(evt)

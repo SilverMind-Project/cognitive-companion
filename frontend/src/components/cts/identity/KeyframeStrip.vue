@@ -8,7 +8,7 @@
       <v-img
         v-for="kf in frames"
         :key="kf.sample_id || kf.keyframe_id"
-        :src="displaySrc(frameUrl(kf.minio_key))"
+        :src="displaySrc(frameUrl(kf))"
         width="100"
         height="75"
         cover
@@ -30,7 +30,9 @@ defineEmits(["click"]);
 const { blurMode } = useBlurMode();
 const { displaySrc } = useDisplaySrc(blurMode);
 
-function frameUrl(minioKey) {
+function frameUrl(kf) {
+  if (kf.image_url) return kf.image_url;
+  const minioKey = kf.minio_key;
   if (!minioKey) return "";
   const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
   const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");

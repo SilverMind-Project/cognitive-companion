@@ -1,4 +1,5 @@
 """Tests for LayoutRegistry."""
+
 import tempfile
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -57,7 +58,12 @@ class TestLayoutRegistry:
         assert len(text_only.image_slots) == 0
 
     def test_rejects_duplicate_id(self):
-        data = {"layouts": [{"id": "dup", "applies_to": ["info_card"]}, {"id": "dup", "applies_to": ["info_card"]}]}
+        data = {
+            "layouts": [
+                {"id": "dup", "applies_to": ["info_card"]},
+                {"id": "dup", "applies_to": ["info_card"]},
+            ]
+        }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(data, f)
             f.flush()
@@ -66,7 +72,29 @@ class TestLayoutRegistry:
             Path(f.name).unlink()
 
     def test_rejects_bad_fit_mode(self):
-        data = {"layouts": [{"id": "test", "applies_to": ["info_card"], "surfaces": ["pwa"], "image_slots": [{"slot_id": "s", "variants": {"pwa": {"target_width": 100, "target_height": 100, "fit_mode": "bad", "color_mode": "rgb", "format": "webp"}}}]}]}
+        data = {
+            "layouts": [
+                {
+                    "id": "test",
+                    "applies_to": ["info_card"],
+                    "surfaces": ["pwa"],
+                    "image_slots": [
+                        {
+                            "slot_id": "s",
+                            "variants": {
+                                "pwa": {
+                                    "target_width": 100,
+                                    "target_height": 100,
+                                    "fit_mode": "bad",
+                                    "color_mode": "rgb",
+                                    "format": "webp",
+                                }
+                            },
+                        }
+                    ],
+                }
+            ]
+        }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(data, f)
             f.flush()

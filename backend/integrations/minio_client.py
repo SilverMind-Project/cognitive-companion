@@ -93,9 +93,7 @@ class MinioClient:
                 retries={"max_attempts": 2, "mode": "standard"},
             ),
         )
-        self._client.meta.events.register(
-            "before-send.s3", _inject_content_md5
-        )
+        self._client.meta.events.register("before-send.s3", _inject_content_md5)
         logger.info("minio_client_initialized", endpoint=endpoint, bucket=bucket)
 
     # -- bucket management ----------------------------------------------------
@@ -219,7 +217,9 @@ class MinioClient:
 
     async def async_upload_bytes(self, data: bytes, object_name: str, content_type: str) -> str:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(_io_pool, self.upload_bytes, data, object_name, content_type)
+        return await loop.run_in_executor(
+            _io_pool, self.upload_bytes, data, object_name, content_type
+        )
 
     async def async_get_object(self, object_name: str) -> bytes | None:
         loop = asyncio.get_running_loop()

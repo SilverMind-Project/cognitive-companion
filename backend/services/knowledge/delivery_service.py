@@ -113,27 +113,31 @@ class KnowledgeDeliveryService:
                         url = self._minio.generate_presigned_url(object_name)
                     except Exception:
                         logger.exception("presigned_url_failed", object_name=object_name)
-                image_slots.append({
-                    "slot_id": slot.slot_index,
-                    "alt_text": slot.alt_text or "",
-                    "url": url,
-                    "width": pwa_var.get("width", 0),
-                    "height": pwa_var.get("height", 0),
-                })
+                image_slots.append(
+                    {
+                        "slot_id": slot.slot_index,
+                        "alt_text": slot.alt_text or "",
+                        "url": url,
+                        "width": pwa_var.get("width", 0),
+                        "height": pwa_var.get("height", 0),
+                    }
+                )
 
         # PWA popup broadcast
         if "pwa" in channels:
             try:
-                await self._ws_manager.broadcast({
-                    "type": "info_card",
-                    "delivery_id": delivery_id,
-                    "layout_id": card.layout_id,
-                    "title": card.title,
-                    "body": card.body_text,
-                    "image_slots": image_slots,
-                    "dismiss_seconds": dismiss_seconds,
-                    "server_timestamp": datetime.now(UTC).isoformat(),
-                })
+                await self._ws_manager.broadcast(
+                    {
+                        "type": "info_card",
+                        "delivery_id": delivery_id,
+                        "layout_id": card.layout_id,
+                        "title": card.title,
+                        "body": card.body_text,
+                        "image_slots": image_slots,
+                        "dismiss_seconds": dismiss_seconds,
+                        "server_timestamp": datetime.now(UTC).isoformat(),
+                    }
+                )
             except Exception:
                 logger.exception("info_card_ws_broadcast_failed")
 
@@ -150,9 +154,7 @@ class KnowledgeDeliveryService:
                         try:
                             eink_image_bytes = self._minio.get_object(object_name)
                         except Exception:
-                            logger.exception(
-                                "eink_image_fetch_failed", object_name=object_name
-                            )
+                            logger.exception("eink_image_fetch_failed", object_name=object_name)
                     break  # Use only the first image slot for eink
 
                 await self._eink.render(
@@ -167,7 +169,9 @@ class KnowledgeDeliveryService:
         # Voice delivery via Gemini Live (gated on explicit speak flag)
         if speak:
             try:
-                voice_prompt = f"Here is some information for you.\n\n{card.title}\n\n{card.body_text}"
+                voice_prompt = (
+                    f"Here is some information for you.\n\n{card.title}\n\n{card.body_text}"
+                )
                 await self._ws_manager.send_backend_task(
                     prompt=voice_prompt,
                     voice_instruction=voice_inst or None,
@@ -259,14 +263,16 @@ class KnowledgeDeliveryService:
 
         # PWA popup
         try:
-            await self._ws_manager.broadcast({
-                "type": "quiz_start",
-                "session_id": session_id,
-                "quiz_id": quiz.id,
-                "title": quiz.title,
-                "intro_voice_text": quiz.intro_voice_template or "",
-                "total_questions": total,
-            })
+            await self._ws_manager.broadcast(
+                {
+                    "type": "quiz_start",
+                    "session_id": session_id,
+                    "quiz_id": quiz.id,
+                    "title": quiz.title,
+                    "intro_voice_text": quiz.intro_voice_template or "",
+                    "total_questions": total,
+                }
+            )
         except Exception:
             logger.exception("quiz_start_ws_broadcast_failed")
 
@@ -308,9 +314,7 @@ class KnowledgeDeliveryService:
 
     # -- info card events ---------------------------------------------------
 
-    def record_info_card_event(
-        self, delivery_id: int, action: str
-    ) -> InfoCardDelivery | None:
+    def record_info_card_event(self, delivery_id: int, action: str) -> InfoCardDelivery | None:
         """Update viewed_at or dismissed_at on the delivery audit row."""
         db: Session = self._db_factory()
         try:
@@ -469,13 +473,15 @@ class KnowledgeDeliveryService:
 
             # Broadcast shared result for both PWA and voice paths
             try:
-                await self._ws_manager.broadcast({
-                    "type": "quiz_answer_recorded",
-                    "session_id": session_id,
-                    "question_ord": question_ord,
-                    "is_correct": is_correct,
-                    "advance": advance,
-                })
+                await self._ws_manager.broadcast(
+                    {
+                        "type": "quiz_answer_recorded",
+                        "session_id": session_id,
+                        "question_ord": question_ord,
+                        "is_correct": is_correct,
+                        "advance": advance,
+                    }
+                )
             except Exception:
                 logger.exception("quiz_answer_recorded_broadcast_failed")
 
@@ -513,9 +519,11 @@ class KnowledgeDeliveryService:
             session.completed_at = datetime.now(UTC)
 
             # Count results
-            responses = db.execute(
-                select(QuizResponse).where(QuizResponse.session_id == session_id)
-            ).scalars().all()
+            responses = (
+                db.execute(select(QuizResponse).where(QuizResponse.session_id == session_id))
+                .scalars()
+                .all()
+            )
             num_answered = len(responses)
             num_correct = sum(1 for r in responses if r.is_correct)
 
@@ -523,12 +531,14 @@ class KnowledgeDeliveryService:
             execution_id = session.execution_id
 
             # Broadcast completion
-            await self._ws_manager.broadcast({
-                "type": "quiz_complete",
-                "session_id": session_id,
-                "num_correct": num_correct,
-                "num_answered": num_answered,
-            })
+            await self._ws_manager.broadcast(
+                {
+                    "type": "quiz_complete",
+                    "session_id": session_id,
+                    "num_correct": num_correct,
+                    "num_answered": num_answered,
+                }
+            )
 
             # Resume the owning pipeline execution so it doesn't wait for timeout
             if execution_id and self._pipeline_executor:
@@ -539,7 +549,9 @@ class KnowledgeDeliveryService:
                     finally:
                         db2.close()
                 except Exception:
-                    logger.exception("quiz_complete_pipeline_resume_failed", execution_id=execution_id)
+                    logger.exception(
+                        "quiz_complete_pipeline_resume_failed", execution_id=execution_id
+                    )
 
             logger.info(
                 "quiz_session_completed",
@@ -603,19 +615,21 @@ class KnowledgeDeliveryService:
                     "alt_text": question.image_slot.get("alt_text", ""),
                 }
 
-        await self._ws_manager.broadcast({
-            "type": "quiz_question",
-            "session_id": session_id,
-            "question_ord": ord_num,
-            "question_type": question.question_type,
-            "question_text": question.question_text,
-            "choices": [
-                {"id": c.get("id", ""), "text": c.get("text", "")}
-                for c in (question.choices or [])
-            ],
-            "image": image_data,
-            "server_timestamp": datetime.now(UTC).isoformat(),
-        })
+        await self._ws_manager.broadcast(
+            {
+                "type": "quiz_question",
+                "session_id": session_id,
+                "question_ord": ord_num,
+                "question_type": question.question_type,
+                "question_text": question.question_text,
+                "choices": [
+                    {"id": c.get("id", ""), "text": c.get("text", "")}
+                    for c in (question.choices or [])
+                ],
+                "image": image_data,
+                "server_timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
     def _update_session_status(self, session_id: int, status: str) -> None:
         db: Session = self._db_factory()

@@ -12,18 +12,36 @@
         <div v-if="loading" class="d-flex justify-center pa-8">
           <v-progress-circular indeterminate />
         </div>
-        <BboxCanvas
-          v-else
-          :key="bboxKey"
-          :image-url="imageUrl"
-          :keyframe-id="keyframeId"
-          :initial-bboxes="bboxes"
-          :identities="identities"
-          @bbox-tagged="onBboxTagged"
-          @bbox-overridden="onBboxOverridden"
-          @bbox-created="onBboxCreated"
-          @bbox-deleted="onBboxDeleted"
-        />
+        <template v-else>
+          <v-row dense align="center" class="px-4 pb-2">
+            <v-col cols="12" sm="6">
+              <v-slider
+                v-model="minConfidence"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                label="Min confidence"
+                thumb-label
+                density="compact"
+                hide-details
+              />
+            </v-col>
+            <v-col cols="12" sm="6" class="text-body-2 text-medium-emphasis">
+              Showing {{ filteredBboxes.length }} of {{ bboxes.length }} detections
+            </v-col>
+          </v-row>
+          <BboxCanvas
+            :key="bboxKey"
+            :image-url="imageUrl"
+            :keyframe-id="keyframeId"
+            :initial-bboxes="filteredBboxes"
+            :identities="identities"
+            @bbox-tagged="onBboxTagged"
+            @bbox-overridden="onBboxOverridden"
+            @bbox-created="onBboxCreated"
+            @bbox-deleted="onBboxDeleted"
+          />
+        </template>
       </v-card-text>
       <v-divider />
       <v-card-actions class="pa-4">
@@ -63,6 +81,11 @@ const bboxes = ref([]);
 const loading = ref(false);
 const saving = ref(false);
 const bboxKey = ref(0);
+const minConfidence = ref(0.5);
+
+const filteredBboxes = computed(() =>
+  bboxes.value.filter((b) => b.detection_confidence >= minConfidence.value)
+);
 
 // Pending changes accumulated from BboxCanvas events
 const pendingTags = ref([]);
@@ -161,6 +184,11 @@ async function onSave() {
     }
     for (const tag of pendingTags.value) {
       await cts.applyBboxCorrection(tag.annotationId, tag.identityId, tag.reason);
+    }
+    for (const del of pendingDeletes.value) {
+      if (del.annotationId) {
+        await cts.deleteBbox(del.annotationId);
+      }
     }
     pendingTags.value = [];
     pendingOverrides.value = [];

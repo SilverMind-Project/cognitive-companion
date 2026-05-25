@@ -85,6 +85,111 @@
             </v-col>
           </v-row>
 
+          <!-- Crop section — visual draw-to-crop bounding box -->
+          <template v-if="uploadFile && uploadWidth && uploadHeight">
+            <v-divider class="my-4" />
+            <div class="d-flex align-center mb-2">
+              <div class="text-subtitle-2">Crop margins</div>
+              <v-spacer />
+              <v-btn
+                v-if="!cropActive"
+                variant="text"
+                size="small"
+                prepend-icon="mdi-crop"
+                @click="startCropMode"
+              >
+                Trim margins
+              </v-btn>
+              <template v-else>
+                <v-btn variant="text" size="small" @click="resetCrop">Reset</v-btn>
+                <v-btn
+                  color="primary"
+                  variant="tonal"
+                  size="small"
+                  class="ml-2"
+                  prepend-icon="mdi-check"
+                  @click="applyCrop"
+                >
+                  Apply crop
+                </v-btn>
+              </template>
+            </div>
+
+            <!-- Draw-to-crop overlay (SVG-based, follows scale picker pattern) -->
+            <div
+              v-if="cropActive && scalePickerImageUrl"
+              class="crop-container"
+              @mousedown="onCropMouseDown"
+            >
+              <img
+                ref="cropImgRef"
+                :src="scalePickerImageUrl"
+                class="crop-img"
+                draggable="false"
+                alt="Crop preview"
+                @load="onCropImgLoad"
+              />
+              <svg
+                v-if="cropImgRect"
+                class="crop-svg-overlay"
+                :viewBox="`0 0 ${cropImgRect.width} ${cropImgRect.height}`"
+                :style="`left:${cropImgRect.offsetX}px;top:${cropImgRect.offsetY}px;width:${cropImgRect.width}px;height:${cropImgRect.height}px`"
+              >
+                <!-- Dimmed backdrop: full image minus crop area -->
+                <defs>
+                  <mask id="crop-mask">
+                    <rect x="0" y="0" :width="cropImgRect.width" :height="cropImgRect.height" fill="white" />
+                    <rect
+                      :x="cropRect.x * cropImgRect.width"
+                      :y="cropRect.y * cropImgRect.height"
+                      :width="cropRect.w * cropImgRect.width"
+                      :height="cropRect.h * cropImgRect.height"
+                      fill="black"
+                    />
+                  </mask>
+                </defs>
+                <rect
+                  x="0" y="0"
+                  :width="cropImgRect.width" :height="cropImgRect.height"
+                  fill="rgba(0,0,0,0.4)"
+                  mask="url(#crop-mask)"
+                />
+                <!-- Crop rectangle border -->
+                <rect
+                  :x="cropRect.x * cropImgRect.width"
+                  :y="cropRect.y * cropImgRect.height"
+                  :width="cropRect.w * cropImgRect.width"
+                  :height="cropRect.h * cropImgRect.height"
+                  fill="none"
+                  stroke="#ff9800"
+                  stroke-width="2.5"
+                  stroke-dasharray="8 4"
+                />
+                <!-- Corner drag handles -->
+                <rect
+                  v-for="handle in cropHandles"
+                  :key="handle.corner"
+                  class="crop-handle"
+                  :x="handle.x * cropImgRect.width - 5"
+                  :y="handle.y * cropImgRect.height - 5"
+                  width="10" height="10"
+                  fill="white"
+                  stroke="#ff9800"
+                  stroke-width="2"
+                  :style="{ cursor: handle.cursor }"
+                  @mousedown.stop="onCropHandleDown(handle.corner, $event)"
+                />
+              </svg>
+              <div v-if="!cropImgRect" class="d-flex align-center justify-center pa-8">
+                <span class="text-body-2 text-medium-emphasis">Loading image...</span>
+              </div>
+            </div>
+            <div v-if="cropActive" class="text-caption text-medium-emphasis mt-1">
+              Drag corners to adjust, or click &amp; drag on empty area to redraw.
+              Cropped: {{ Math.round(uploadWidth * cropRect.w) }} × {{ Math.round(uploadHeight * cropRect.h) }} px
+            </div>
+          </template>
+
           <!-- Scale section -->
           <div class="text-subtitle-2 mb-3 mt-4">Real-world scale</div>
 
@@ -394,10 +499,10 @@
                 variant="flat"
                 size="small"
                 :loading="savingRoom"
-                :disabled="editPolygon.length < 3"
+                :disabled="editPolygon.length > 0 && editPolygon.length < 3"
                 @click="saveRoomPolygon"
               >
-                Save polygon
+                {{ editPolygon.length === 0 && editingRoom?.floor_polygon ? 'Delete polygon' : 'Save polygon' }}
               </v-btn>
             </v-card-title>
             <v-card-text class="pa-0">
@@ -502,16 +607,23 @@
           <div v-if="uncalibratedCoverage.length > 0" class="px-4 py-3">
             <v-alert type="warning" density="compact" variant="tonal">
               <strong>{{ uncalibratedCoverage.length }} camera(s) not shown</strong>
-              &mdash; no homography calibration yet:
-              {{ uncalibratedCoverage.map(c => c.camera_name).join(', ') }}.
-              <v-btn
-                variant="text"
-                size="x-small"
-                class="ml-1"
-                :to="{ name: 'CTSCalibration' }"
-              >
-                Calibrate &rarr;
-              </v-btn>
+              &mdash;
+              <span v-if="uncalibratedCoverage.some(c => c.has_homography)">
+                visibility polygon could not be computed.
+                Check that the floor plan scale (m/pixel) is correct in
+                <router-link :to="{ name: 'cts-floor-plan' }" class="text-primary">Floor Plan settings</router-link>.
+              </span>
+              <span v-else>
+                no homography calibration yet.
+                <v-btn
+                  variant="text"
+                  size="x-small"
+                  class="ml-1"
+                  :to="{ name: 'CTSCalibration' }"
+                >
+                  Calibrate &rarr;
+                </v-btn>
+              </span>
             </v-alert>
           </div>
         </v-card-text>
@@ -802,7 +914,17 @@ const scaleMeasuredM = ref(null); // real-world distance in metres
 const scaleImgEl = ref(null);
 const scaleImgRect = ref(null);
 let _uploadBlobUrl = null;        // blob URL lifecycle managed manually
+let _originalFile = null;         // pre-crop File object, kept for reset
 let _resizeObserver = null;       // keeps scaleImgRect current on resize
+
+// Crop state — visual draw-to-crop bounding box on the image.
+// cropRect is normalised [0,1] relative to the image content area.
+const cropActive = ref(false);
+const cropRect = ref({ x: 0.05, y: 0.05, w: 0.90, h: 0.90 });
+// cropDrag: { type: 'draw'|'nw'|'ne'|'se'|'sw'|'move', startX, startY, startRect }
+const cropDrag = ref(null);
+const cropImgRef = ref(null);          // ref for the crop preview <img>
+const cropImgRect = ref(null);         // { width, height, offsetX, offsetY } like scaleImgRect
 
 // ── Rooms state ────────────────────────────────────────────────────────────
 const rooms = ref([]);
@@ -1009,12 +1131,15 @@ function onFileSelected(fileOrArray) {
   const file = Array.isArray(fileOrArray) ? fileOrArray[0] : fileOrArray;
   // Revoke previous blob URL.
   if (_uploadBlobUrl) { URL.revokeObjectURL(_uploadBlobUrl); _uploadBlobUrl = null; }
-  // Reset scale picker state for the new image.
+  // Reset state for the new image.
   scalePoints.value = [];
   scaleMeasuredM.value = null;
   scaleImgRect.value = null;
+  cropActive.value = false;
+  cropRect.value = { x: 0.05, y: 0.05, w: 0.90, h: 0.90 };
   if (!file) return;
 
+  _originalFile = file;
   _uploadBlobUrl = URL.createObjectURL(file);
   // Read natural dimensions without a visible img element.
   const probe = new Image();
@@ -1098,6 +1223,168 @@ function onRealWidthChange() {
 
 
 
+// ── Crop ──────────────────────────────────────────────────────────────────
+
+/** Corner handle positions (normalised) for the crop rectangle. */
+const cropHandles = computed(() => {
+  const r = cropRect.value;
+  return [
+    { corner: 'nw', x: r.x,       y: r.y,       cursor: 'nwse-resize' },
+    { corner: 'ne', x: r.x + r.w, y: r.y,       cursor: 'nesw-resize' },
+    { corner: 'se', x: r.x + r.w, y: r.y + r.h, cursor: 'nwse-resize' },
+    { corner: 'sw', x: r.x,       y: r.y + r.h, cursor: 'nesw-resize' },
+  ];
+});
+
+function onCropImgLoad() {
+  if (!cropImgRef.value) return;
+  const img = cropImgRef.value;
+  const r = img.getBoundingClientRect();
+  const nw = img.naturalWidth;
+  const nh = img.naturalHeight;
+  if (!nw || !nh) return;
+  const naturalRatio = nw / nh;
+  const elRatio = r.width / r.height;
+  let cw, ch, offX, offY;
+  if (naturalRatio > elRatio) {
+    cw = r.width; ch = r.width / naturalRatio;
+    offX = 0; offY = (r.height - ch) / 2;
+  } else {
+    ch = r.height; cw = r.height * naturalRatio;
+    offX = (r.width - cw) / 2; offY = 0;
+  }
+  cropImgRect.value = { width: cw, height: ch, offsetX: offX, offsetY: offY };
+}
+
+function startCropMode() {
+  cropRect.value = { x: 0.05, y: 0.05, w: 0.90, h: 0.90 };
+  cropActive.value = true;
+}
+
+function resetCrop() {
+  cropRect.value = { x: 0.05, y: 0.05, w: 0.90, h: 0.90 };
+}
+
+/** Convert a mouse event on the crop container to normalised [0,1] coords. */
+function cropEventToNorm(e) {
+  if (!cropImgRef.value || !cropImgRect.value) return null;
+  const r = cropImgRef.value.getBoundingClientRect();
+  const cr = cropImgRect.value;
+  const nx = (e.clientX - r.left - cr.offsetX) / cr.width;
+  const ny = (e.clientY - r.top - cr.offsetY) / cr.height;
+  if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;
+  return { x: nx, y: ny };
+}
+
+/** Start drawing a new crop rectangle from scratch. */
+function onCropMouseDown(e) {
+  if (!cropActive.value) return;
+  const pt = cropEventToNorm(e);
+  if (!pt) return;
+  cropDrag.value = { type: 'draw', startX: pt.x, startY: pt.y, startRect: { ...cropRect.value } };
+  window.addEventListener('mousemove', onCropMouseMove);
+  window.addEventListener('mouseup', onCropMouseUp);
+  e.preventDefault();
+}
+
+/** Start dragging a corner handle. */
+function onCropHandleDown(corner, e) {
+  const pt = cropEventToNorm(e);
+  if (!pt) return;
+  cropDrag.value = { type: corner, startX: pt.x, startY: pt.y, startRect: { ...cropRect.value } };
+  window.addEventListener('mousemove', onCropMouseMove);
+  window.addEventListener('mouseup', onCropMouseUp);
+}
+
+function onCropMouseMove(e) {
+  if (!cropDrag.value || !cropImgRef.value || !cropImgRect.value) return;
+  const pt = cropEventToNorm(e);
+  if (!pt) return;
+  const d = cropDrag.value;
+  const dx = pt.x - d.startX;
+  const dy = pt.y - d.startY;
+  const sr = d.startRect;
+
+  let nx = sr.x, ny = sr.y, nw = sr.w, nh = sr.h;
+
+  if (d.type === 'draw') {
+    // Drag to define a new rectangle.
+    nx = Math.min(d.startX, pt.x);
+    ny = Math.min(d.startY, pt.y);
+    nw = Math.abs(pt.x - d.startX);
+    nh = Math.abs(pt.y - d.startY);
+  } else if (d.type === 'move') {
+    nx = Math.max(0, Math.min(1 - sr.w, sr.x + dx));
+    ny = Math.max(0, Math.min(1 - sr.h, sr.y + dy));
+  } else {
+    // Corner resize — adjust whichever edges the corner controls.
+    if (d.type.includes('n')) { ny = Math.min(sr.y + sr.h - 0.01, sr.y + dy); nh = sr.y + sr.h - ny; }
+    if (d.type.includes('s')) { nh = Math.max(0.01, sr.h + dy); }
+    if (d.type.includes('w')) { nx = Math.min(sr.x + sr.w - 0.01, sr.x + dx); nw = sr.x + sr.w - nx; }
+    if (d.type.includes('e')) { nw = Math.max(0.01, sr.w + dx); }
+    // Clamp to image bounds.
+    nx = Math.max(0, nx); ny = Math.max(0, ny);
+    nw = Math.min(1 - nx, nw); nh = Math.min(1 - ny, nh);
+  }
+
+  // Enforce minimum size.
+  const minPx = 10;
+  const pw = uploadWidth.value || 1448;
+  const ph = uploadHeight.value || 1086;
+  if (nw * pw < minPx) nw = minPx / pw;
+  if (nh * ph < minPx) nh = minPx / ph;
+
+  cropRect.value = { x: nx, y: ny, w: nw, h: nh };
+}
+
+function onCropMouseUp() {
+  cropDrag.value = null;
+  window.removeEventListener('mousemove', onCropMouseMove);
+  window.removeEventListener('mouseup', onCropMouseUp);
+}
+
+async function applyCrop() {
+  if (!_originalFile || !uploadWidth.value || !uploadHeight.value) return;
+
+  const r = cropRect.value;
+  const x = Math.round(uploadWidth.value * r.x);
+  const y = Math.round(uploadHeight.value * r.y);
+  const w = Math.round(uploadWidth.value * r.w);
+  const h = Math.round(uploadHeight.value * r.h);
+  if (w < 10 || h < 10) return;
+
+  // Canvas-crop the image.
+  const img = await new Promise((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = reject;
+    el.src = _uploadBlobUrl;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
+
+  const croppedBlob = await new Promise((resolve) =>
+    canvas.toBlob(resolve, _originalFile.type, 0.95)
+  );
+
+  const croppedFile = new File([croppedBlob], _originalFile.name, { type: _originalFile.type });
+  uploadFile.value = croppedFile;
+  if (_uploadBlobUrl) URL.revokeObjectURL(_uploadBlobUrl);
+  _uploadBlobUrl = URL.createObjectURL(croppedBlob);
+  uploadWidth.value = w;
+  uploadHeight.value = h;
+
+  cropActive.value = false;
+  cropImgRect.value = null;
+  scalePoints.value = [];
+  scaleMeasuredM.value = null;
+  scaleImgRect.value = null;
+}
+
 // ── Upload ────────────────────────────────────────────────────────────────
 async function uploadFloorPlan() {
   uploading.value = true;
@@ -1132,17 +1419,20 @@ function selectRoom(room) {
 }
 
 async function saveRoomPolygon() {
-  if (!editingRoom.value || editPolygon.value.length < 3) return;
+  if (!editingRoom.value) return;
+  // Allow 0 points (delete polygon) or 3+ points (valid polygon), not 1-2.
+  if (editPolygon.value.length > 0 && editPolygon.value.length < 3) return;
   savingRoom.value = true;
+  const isDelete = editPolygon.value.length === 0;
   try {
     const updated = await household.putRoom(editingRoom.value.id, {
       ...editingRoom.value,
-      floor_polygon: editPolygon.value,
+      floor_polygon: isDelete ? null : editPolygon.value,
     });
     const idx = rooms.value.findIndex((r) => r.id === updated.id);
     if (idx >= 0) rooms.value[idx] = updated;
     editingRoom.value = updated;
-    notify("Room polygon saved");
+    notify(isDelete ? "Room polygon removed" : "Room polygon saved");
   } catch (e) {
     notify(e.message, "error");
   } finally {
@@ -1334,6 +1624,32 @@ onBeforeUnmount(() => {
   top: 0;
   left: 0;
   pointer-events: none;
+}
+
+.crop-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  user-select: none;
+  border: 1px solid var(--cc-divider-strong, rgba(0,0,0,0.12));
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.crop-img {
+  display: block;
+  width: 100%;
+  max-height: min(400px, 55vh);
+  object-fit: contain;
+}
+
+.crop-svg-overlay {
+  position: absolute;
+  pointer-events: none;
+}
+/* Corner handles receive pointer events so they're draggable. */
+.crop-svg-overlay .crop-handle {
+  pointer-events: auto;
 }
 
 .coverage-canvas-wrap {

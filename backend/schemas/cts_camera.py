@@ -128,6 +128,8 @@ class HomographyResult(BaseModel):
     residuals_m: list[float]
     max_residual_m: float
     status: str  # "ok" | "warning" | "error"
+    visibility_polygon_computed: bool = False
+    visibility_polygon_warning: str | None = None
 
 
 class HomographyPreviewRequest(BaseModel):

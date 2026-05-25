@@ -279,6 +279,10 @@ export const cts = {
       method: "PUT",
       body: JSON.stringify(bbox),
     }),
+  deleteBbox: (annotationId) =>
+    req(`/identity/bboxes/${encodeURIComponent(annotationId)}`, {
+      method: "DELETE",
+    }),
   applyBboxCorrection: (annotationId, identityId, reason) =>
     req("/identity/corrections", {
       method: "POST",

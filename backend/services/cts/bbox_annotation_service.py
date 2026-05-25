@@ -39,6 +39,10 @@ class BboxAnnotationService:
         )
         return _dict_to_response(result)
 
+    async def delete_annotation(self, annotation_id: str) -> None:
+        """Delete a single bbox annotation via the orchestrator."""
+        await self._client.delete_bbox_annotation(annotation_id=annotation_id)
+
 
 def _dict_to_response(d: dict) -> BboxAnnotationResponse:
     return BboxAnnotationResponse(

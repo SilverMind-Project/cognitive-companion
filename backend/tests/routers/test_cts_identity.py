@@ -27,22 +27,30 @@ def _build_app(db_engine: Engine, cts_enabled: bool = True, orchestrator=None):
     def _session():
         return Session()
 
-    from backend.routers import cts_deps
-    from backend.routers import cts_identity as cts_identity_mod
+    from backend.routers import cts_bboxes, cts_corrections, cts_decisions, cts_deps
+    from backend.routers import cts_identity_helpers
+    from backend.routers import cts_tracks
 
     app = FastAPI()
     register_exception_handlers(app)
-    app.include_router(cts_identity_mod.router, prefix="/api/v1")
+    app.include_router(cts_tracks.router, prefix="/api/v1")
+    app.include_router(cts_corrections.router, prefix="/api/v1")
+    app.include_router(cts_decisions.router, prefix="/api/v1")
+    app.include_router(cts_bboxes.router, prefix="/api/v1")
     app.state.orchestrator_client = orchestrator
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
         key="x", name="tester", permissions=["*"]
     )
 
     settings_patch = patch.object(cts_deps, "settings", cfg)
-    session_patch = patch.object(cts_identity_mod, "get_session", _session)
+    session_patches = [
+        patch.object(cts_identity_helpers, "get_session", _session),
+        patch.object(cts_decisions, "get_session", _session),
+    ]
     settings_patch.start()
-    session_patch.start()
-    patchers = (settings_patch, session_patch)
+    for sp in session_patches:
+        sp.start()
+    patchers = [settings_patch, *session_patches]
     return TestClient(app), Session, patchers
 
 
@@ -80,13 +88,18 @@ class TestGlobalTracksProxy:
     def test_forwards_to_orchestrator(self, db_engine):
         orchestrator = AsyncMock()
         orchestrator.get_global_tracks = AsyncMock(
-            return_value=[
-                {
-                    "global_track_id": "gt-1",
-                    "current_identity_id": "grandma",
-                    "camera_ids": ["kitchen-1"],
-                }
-            ]
+            return_value={
+                "tracks": [
+                    {
+                        "global_track_id": "gt-1",
+                        "current_identity_id": "grandma",
+                        "camera_ids": ["kitchen-1"],
+                    }
+                ],
+                "count": 1,
+                "limit": None,
+                "offset": None,
+            }
         )
         client, _, patchers = _build_app(db_engine, cts_enabled=True, orchestrator=orchestrator)
         try:
@@ -155,6 +168,50 @@ class TestCorrectionProxy:
                 "merge_from": "guest_a",
                 "merge_to": "grandma",
             }
+        finally:
+            for p in patchers:
+                p.stop()
+
+    def test_bbox_tagging_calls_tag_bbox_annotation(self, db_engine):
+        orchestrator = AsyncMock()
+        orchestrator.tag_bbox_annotation = AsyncMock(
+            return_value={"id": "ann-1", "identity_id": "person-abc"}
+        )
+        client, _, patchers = _build_app(db_engine, cts_enabled=True, orchestrator=orchestrator)
+        try:
+            r = client.post(
+                "/api/v1/cts/identity/corrections",
+                json={
+                    "global_track_id": "",
+                    "annotation_id": "ann-1",
+                    "new_identity_id": "person-abc",
+                    "reason": "manual_bbox_tag",
+                },
+            )
+            assert r.status_code == 200
+            body = r.json()
+            assert body["status"] == "tagged"
+            assert body["annotation_id"] == "ann-1"
+            assert body["new_identity_id"] == "person-abc"
+            orchestrator.tag_bbox_annotation.assert_awaited_once_with(
+                annotation_id="ann-1",
+                identity_id="person-abc",
+                tagged_by="tester",
+            )
+        finally:
+            for p in patchers:
+                p.stop()
+
+    def test_delete_bbox_calls_delete(self, db_engine):
+        orchestrator = AsyncMock()
+        orchestrator.delete_bbox_annotation = AsyncMock()
+        client, _, patchers = _build_app(db_engine, cts_enabled=True, orchestrator=orchestrator)
+        try:
+            r = client.delete("/api/v1/cts/identity/bboxes/ann-1")
+            assert r.status_code == 204
+            orchestrator.delete_bbox_annotation.assert_awaited_once_with(
+                annotation_id="ann-1",
+            )
         finally:
             for p in patchers:
                 p.stop()

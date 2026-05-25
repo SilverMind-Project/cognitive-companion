@@ -141,7 +141,7 @@
         </template>
 
         <template #item.actions="{ item }">
-          <div class="d-flex ga-1 justify-end">
+          <div class="d-flex align-center ga-1 justify-end">
             <v-btn
               v-if="item._source === 'rule' && item.status === 'active'"
               size="x-small"

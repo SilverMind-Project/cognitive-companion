@@ -403,3 +403,25 @@ class OrchestratorClient(UpstreamClient):
             },
         )
         return r.json()
+
+    async def tag_bbox_annotation(
+        self,
+        *,
+        annotation_id: str,
+        identity_id: str | None,
+        tagged_by: str,
+    ) -> dict:
+        """Set or clear the identity_id on a single bbox annotation."""
+        r = await self._request(
+            "PUT",
+            f"/internal/bboxes/{annotation_id}/tag",
+            json={"identity_id": identity_id, "tagged_by": tagged_by},
+        )
+        return r.json()
+
+    async def delete_bbox_annotation(self, *, annotation_id: str) -> None:
+        """Delete a single bbox annotation."""
+        await self._request(
+            "DELETE",
+            f"/internal/bboxes/{annotation_id}",
+        )

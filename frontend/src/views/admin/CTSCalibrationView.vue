@@ -27,7 +27,7 @@
     <v-card class="glass-card mb-5">
       <v-card-text class="py-3">
         <div class="text-caption text-medium-emphasis mb-2 font-weight-medium">SETUP PREREQUISITES</div>
-        <div class="d-flex flex-wrap ga-3">
+        <div class="d-flex flex-wrap ga-3 align-center">
           <span>Floor plan image</span>
           <div class="prereq-item" :class="floorPlanReady ? 'prereq-ok' : 'prereq-warn'">
             <v-icon size="16" :color="floorPlanReady ? 'success' : 'warning'">
@@ -585,6 +585,29 @@
                   </tr>
                 </tbody>
               </v-table>
+              <v-alert
+                v-if="result.visibility_polygon_computed === false"
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mt-3"
+              >
+                <div class="text-caption">
+                  <strong>Coverage map not updated.</strong>
+                  {{ result.visibility_polygon_warning || 'Visibility polygon could not be computed from this homography.' }}
+                </div>
+              </v-alert>
+              <v-alert
+                v-else-if="result.visibility_polygon_computed === true"
+                type="success"
+                variant="tonal"
+                density="compact"
+                class="mt-3"
+              >
+                <div class="text-caption">
+                  Coverage map updated — visibility polygon computed successfully.
+                </div>
+              </v-alert>
               <div v-if="result.status !== 'ok'" class="text-caption mt-3 text-medium-emphasis">
                 Tip: re-calibrate with more spread-out points and re-measure carefully.
                 Points with a "poor" rating are dragging down accuracy — try replacing them.
@@ -630,14 +653,47 @@
               >
                 {{ autoResult.warning }}
               </v-alert>
+              <v-alert
+                v-if="autoResult.visibility_polygon_computed === false"
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mt-2"
+              >
+                <div class="text-caption">
+                  <strong>Coverage map not updated.</strong>
+                  {{ autoResult.visibility_polygon_warning || 'Visibility polygon could not be computed from this homography.' }}
+                </div>
+              </v-alert>
+              <v-alert
+                v-else-if="autoResult.visibility_polygon_computed === true"
+                type="success"
+                variant="tonal"
+                density="compact"
+                class="mt-2"
+              >
+                <div class="text-caption">
+                  Coverage map updated — visibility polygon computed successfully.
+                </div>
+              </v-alert>
               <div class="text-caption text-medium-emphasis mt-2">
                 This is a draft homography estimated from depth. The camera will use it
-                immediately. To improve accuracy, use the manual click-to-pick flow
-                above with a few known reference points.
+                immediately. Refine with manual points to improve accuracy in specific
+                areas, or keep as-is.
               </div>
             </v-card-text>
             <v-card-actions class="px-4 pb-4 pt-0">
-              <v-btn variant="text" size="small" @click="autoResult = null">Dismiss</v-btn>
+              <v-btn variant="text" size="small" @click="autoResult = null">Keep as-is</v-btn>
+              <v-spacer />
+              <v-btn
+                color="primary"
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-pencil"
+                @click="populateFromAutoResult"
+              >
+                Refine manually
+              </v-btn>
             </v-card-actions>
           </v-card>
         </v-col>
@@ -1089,6 +1145,45 @@ async function runCalibration() {
 }
 
 // ── Auto-calibrate ────────────────────────────────────────────────────────
+
+/**
+ * Project a pixel point through a 3x3 homography matrix to floor-metre coordinates.
+ * H @ [px, py, 1]' → dehomogenise → [floor_x_m, floor_y_m].
+ */
+function projectPixelToFloor(matrix, px, py) {
+  const [[a, b, c], [d, e, f], [g, h, i]] = matrix;
+  const x = a * px + b * py + c;
+  const y = d * px + e * py + f;
+  const w = g * px + h * py + i;
+  if (Math.abs(w) < 1e-9) return null;
+  return [x / w, y / w];
+}
+
+/**
+ * Derive calibration point pairs from a homography matrix.
+ * Samples a 3×3 grid across the camera image, projects each pixel through
+ * the matrix to get floor-metre coordinates.  Returns 9 pixel→floor pairs
+ * that the user can adjust, delete, or supplement.
+ */
+function derivePointsFromMatrix(matrix, imgW, imgH) {
+  const pts = [];
+  const rows = 3, cols = 3;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = Math.round((imgW * c) / (cols - 1));
+      const py = Math.round((imgH * r) / (rows - 1));
+      const floor = projectPixelToFloor(matrix, px, py);
+      if (floor) {
+        pts.push({
+          pixel: [px, py],
+          floor_m: [parseFloat(floor[0].toFixed(3)), parseFloat(floor[1].toFixed(3))],
+        });
+      }
+    }
+  }
+  return pts;
+}
+
 async function runAutoCalibrate() {
   if (!selectedCameraId.value) return;
   autoCalibrating.value = true;
@@ -1108,6 +1203,18 @@ async function runAutoCalibrate() {
   } finally {
     autoCalibrating.value = false;
   }
+}
+
+function populateFromAutoResult() {
+  if (!autoResult.value || !imgContentRect.value) return;
+  const derived = derivePointsFromMatrix(
+    autoResult.value.matrix,
+    imgContentRect.value.naturalWidth,
+    imgContentRect.value.naturalHeight,
+  );
+  points.value = derived;
+  autoResult.value = null;
+  notify(`${derived.length} calibration points populated from auto result — drag to adjust, then save.`, "info");
 }
 
 // ── WebSocket: track latest MinIO key per camera for auto-calibrate ───────

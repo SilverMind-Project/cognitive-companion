@@ -10,16 +10,23 @@
         </div>
       </div>
       <v-spacer />
-      <v-btn
-        variant="tonal"
-        class="mr-2"
-        prepend-icon="mdi-auto-fix"
-        :loading="inferring"
-        :disabled="!hasPolygons"
-        @click="inferAdjacency"
+      <v-tooltip
+        :text="hasPolygons ? 'Analyze visibility polygons to suggest adjacency edges' : 'Calibrate at least one camera homography to enable inference'"
       >
-        Infer from coverage
-      </v-btn>
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            variant="tonal"
+            class="mr-2"
+            prepend-icon="mdi-auto-fix"
+            :loading="inferring"
+            :disabled="!hasPolygons"
+            @click="inferAdjacency"
+          >
+            Infer from coverage
+          </v-btn>
+        </template>
+      </v-tooltip>
       <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">
         Add Edge
       </v-btn>
@@ -34,64 +41,70 @@
           <v-divider />
           <v-card-text class="pa-0">
             <div style="position:relative;overflow:hidden">
-              <img
-                v-if="floorPlanUrl"
-                :src="floorPlanUrl"
-                style="display:block;width:100%;height:auto"
-                ref="mapImgRef"
-                @load="onMapImgLoad"
-              />
-              <svg
-                v-if="mapImgLoaded"
-                :viewBox="`0 0 ${mapImgW} ${mapImgH}`"
-                style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <!-- Camera visibility polygons (muted, background) -->
-                <polygon
-                  v-for="cam in coverageCameras"
-                  :key="cam.camera_id"
-                  v-if="cam.visibility_polygon"
-                  :points="toSvgPoints(cam.visibility_polygon)"
-                  fill="rgba(33,150,243,0.12)"
-                  stroke="#2196f3"
-                  stroke-width="1.5"
+              <template v-if="floorPlanUrl">
+                <img
+                  :src="floorPlanUrl"
+                  style="display:block;width:100%;height:auto"
+                  ref="mapImgRef"
+                  @load="onMapImgLoad"
                 />
-                <!-- Adjacency edge lines -->
-                <line
-                  v-for="edge in allEdgesForMap"
-                  :key="edge._key"
-                  :x1="centroidOf(edge.from)[0]"
-                  :y1="centroidOf(edge.from)[1]"
-                  :x2="centroidOf(edge.to)[0]"
-                  :y2="centroidOf(edge.to)[1]"
-                  :stroke="edge.overlap ? '#4caf50' : '#9c27b0'"
-                  stroke-width="2"
-                  :stroke-dasharray="edge._staged ? '6,3' : 'none'"
-                  opacity="0.8"
-                />
-                <!-- Camera labels at polygon centroids -->
-                <text
-                  v-for="cam in coverageCameras"
-                  :key="`lbl-${cam.camera_id}`"
-                  v-if="cam.visibility_polygon"
-                  :x="centroidOf(cam.camera_id)[0]"
-                  :y="centroidOf(cam.camera_id)[1]"
-                  text-anchor="middle"
-                  dominant-baseline="middle"
-                  font-size="11"
-                  font-family="sans-serif"
-                  fill="white"
-                  paint-order="stroke"
-                  stroke="black"
-                  stroke-width="3"
+                <svg
+                  v-if="mapImgLoaded"
+                  :viewBox="`0 0 ${mapImgW} ${mapImgH}`"
+                  style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  {{ cam.camera_name }}
-                </text>
-              </svg>
-              <div v-if="!floorPlanUrl" class="pa-8 text-center text-medium-emphasis">
-                <v-icon size="48">mdi-floor-plan</v-icon>
-                <div class="mt-2">No floor plan uploaded.</div>
+                  <!-- Camera visibility polygons (muted, background) -->
+                  <polygon
+                    v-for="cam in coverageCameras"
+                    :key="cam.camera_id"
+                    v-if="cam.visibility_polygon"
+                    :points="toSvgPoints(cam.visibility_polygon)"
+                    fill="rgba(33,150,243,0.12)"
+                    stroke="#2196f3"
+                    stroke-width="1.5"
+                  />
+                  <!-- Adjacency edge lines -->
+                  <line
+                    v-for="edge in allEdgesForMap"
+                    :key="edge._key"
+                    :x1="centroidOf(edge.from)[0]"
+                    :y1="centroidOf(edge.from)[1]"
+                    :x2="centroidOf(edge.to)[0]"
+                    :y2="centroidOf(edge.to)[1]"
+                    :stroke="edge.overlap ? '#4caf50' : '#9c27b0'"
+                    stroke-width="2"
+                    :stroke-dasharray="edge._staged ? '6,3' : 'none'"
+                    opacity="0.8"
+                  />
+                  <!-- Camera labels at polygon centroids -->
+                  <text
+                    v-for="cam in coverageCameras"
+                    :key="`lbl-${cam.camera_id}`"
+                    v-if="cam.visibility_polygon"
+                    :x="centroidOf(cam.camera_id)[0]"
+                    :y="centroidOf(cam.camera_id)[1]"
+                    text-anchor="middle"
+                    dominant-baseline="middle"
+                    font-size="11"
+                    font-family="sans-serif"
+                    fill="white"
+                    paint-order="stroke"
+                    stroke="black"
+                    stroke-width="3"
+                  >
+                    {{ cam.camera_name }}
+                  </text>
+                </svg>
+              </template>
+              <div v-else class="pa-6 text-center">
+                <v-card flat>
+                  <v-card-text class="text-grey text-h6">No floor plan uploaded</v-card-text>
+                  <v-card-text class="text-grey">
+                    Upload a floor plan with its scale in Floor Plan settings
+                    to see camera coverage and infer adjacency.
+                  </v-card-text>
+                </v-card>
               </div>
             </div>
             <div class="d-flex align-center flex-wrap ga-3 px-4 py-2 text-caption">
@@ -108,6 +121,17 @@
                 Staged (unsaved)
               </span>
             </div>
+            <v-alert
+              v-if="floorPlanUrl && !hasPolygons && !loadingEdges"
+              type="info"
+              density="compact"
+              variant="tonal"
+              class="ma-4"
+            >
+              Calibrate camera homographies in
+              <router-link to="/admin/cts/calibration" class="text-primary">Homography Calibration</router-link>
+              to compute visibility polygons and enable coverage-based inference.
+            </v-alert>
           </v-card-text>
         </v-card>
       </v-col>
@@ -197,8 +221,10 @@
               </template>
             </v-list-item>
           </v-list>
-          <div v-else class="pa-4 text-center text-medium-emphasis text-caption">
-            No saved edges
+          <div v-else class="pa-6 text-center">
+            <v-card flat>
+              <v-card-text class="text-grey">No saved edges</v-card-text>
+            </v-card>
           </div>
         </v-card>
 
@@ -291,9 +317,20 @@
             Enable when cameras physically share a viewing zone (e.g. two cameras covering the same doorway).
             The cross-camera resolver will treat detections as potentially simultaneous rather than sequential.
           </div>
+          <v-switch
+            v-model="form.addSymmetric"
+            label="Also add reverse direction (B&rarr;A)"
+            color="primary"
+            class="mt-1"
+            :disabled="editingIdx !== null"
+          />
+          <div class="text-caption text-medium-emphasis mt-1">
+            Most adjacencies are bidirectional. Uncheck only for one-way flows
+            (e.g. exit-only camera).
+          </div>
         </v-card-text>
         <DialogFooter
-          hint="Adjacency edges define which cameras are physically connected for person tracking across rooms."
+          hint="Adjacency edges define directed transit paths between cameras. A&rarr;B is not the same as B&rarr;A. For most physical adjacencies, add both directions."
           :confirm-label="editingIdx !== null ? 'Update' : 'Add'"
           :confirm-disabled="form.max_transit_s < form.min_transit_s || !form.from || !form.to || form.from === form.to"
           @cancel="dialog = false"
@@ -317,12 +354,28 @@ import DialogFooter from "../../components/common/DialogFooter.vue";
 const { snack, snackText, snackColor, notify } = useNotify();
 
 // ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/**
+ * @typedef {{ camera_id: string, camera_name: string, visibility_polygon: number[][] | null }} CameraPolygon
+ * @typedef {{ cameras: CameraPolygon[], floor_meters_per_pixel: number | null, floor_plan_width_px: number | null, floor_plan_height_px: number | null }} VisibilityPolygonsPayload
+ * @typedef {{ from: string, to: string, min_transit_s: number, max_transit_s: number, overlap: boolean }} AdjacencyEdge
+ * @typedef {{ id: string, name: string }} CameraOption
+ */
+
+// ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
+
+/** @type {import('vue').Ref<CameraOption[]>} */
 const cameraOptions = ref([]);
+/** @type {import('vue').Ref<CameraPolygon[]>} */
 const coverageCameras = ref([]);
 const overlapGroups = ref([]);
+/** @type {import('vue').Ref<AdjacencyEdge[]>} */
 const savedEdges = ref([]);
+/** @type {import('vue').Ref<AdjacencyEdge[]>} */
 const stagedEdges = ref([]);
 const skippedCameraIds = ref([]);
 const loadingEdges = ref(false);
@@ -384,11 +437,73 @@ const sameOverlapGroupHint = computed(() => {
 });
 
 // ---------------------------------------------------------------------------
+// Boundary validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate and sanitize the visibility polygons API response.
+ *
+ * The backend contract is VisibilityPolygonsResponse:
+ *   { cameras: [{ camera_id: string, camera_name: string,
+ *                 visibility_polygon: number[][] | null }],
+ *     floor_meters_per_pixel: number | null, ... }
+ *
+ * Rejects entries that don't match the contract and logs what was wrong
+ * so the operator can fix the source (database content, serialization).
+ *
+ * @param {unknown} raw - raw JSON parsed from GET /calibration/visibility_polygons
+ * @returns {CameraPolygon[]}
+ */
+function validateVisibilityPolygons(raw) {
+  if (!raw || typeof raw !== "object") {
+    console.warn("cts_visibility_polygons_not_object", raw);
+    return [];
+  }
+
+  const cameras = raw.cameras;
+  if (!Array.isArray(cameras)) {
+    console.warn("cts_visibility_polygons_cameras_not_array", typeof cameras, cameras);
+    return [];
+  }
+
+  /** @type {CameraPolygon[]} */
+  const valid = [];
+  for (let i = 0; i < cameras.length; i++) {
+    const c = cameras[i];
+    if (!c || typeof c !== "object") {
+      console.warn("cts_visibility_polygons_entry_not_object", i, c);
+      continue;
+    }
+    if (typeof c.camera_id !== "string") {
+      console.warn("cts_visibility_polygons_entry_missing_camera_id", i, c);
+      continue;
+    }
+    // visibility_polygon is either null or an array of [number, number] pairs.
+    // Accept anything truthy that is an array; null/undefined → null.
+    const poly = Array.isArray(c.visibility_polygon) ? c.visibility_polygon : null;
+    valid.push({
+      camera_id: c.camera_id,
+      camera_name: typeof c.camera_name === "string" ? c.camera_name : c.camera_id,
+      visibility_polygon: poly,
+    });
+  }
+
+  if (valid.length !== cameras.length) {
+    console.warn(
+      "cts_visibility_polygons_dropped_entries",
+      `kept ${valid.length} / dropped ${cameras.length - valid.length}`,
+    );
+  }
+
+  return valid;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function emptyForm() {
-  return { from: "", to: "", min_transit_s: 0.5, max_transit_s: 30, overlap: false };
+  return { from: "", to: "", min_transit_s: 0.5, max_transit_s: 30, overlap: false, addSymmetric: true };
 }
 
 function toSvgPoints(polygon) {
@@ -432,8 +547,9 @@ async function loadCameras() {
 async function loadCoverage() {
   try {
     const data = await cts.getVisibilityPolygons();
-    coverageCameras.value = data.cameras || [];
-  } catch {
+    coverageCameras.value = validateVisibilityPolygons(data);
+  } catch (err) {
+    console.warn("cts_visibility_polygons_load_failed", err);
     coverageCameras.value = [];
   }
 }
@@ -554,6 +670,18 @@ function commitEdge() {
     stagedEdges.value[editingIdx.value] = edge;
   } else {
     stagedEdges.value.push(edge);
+
+    if (form.value.addSymmetric) {
+      const reverseEdge = {
+        from: form.value.to,
+        to: form.value.from,
+        min_transit_s: form.value.min_transit_s,
+        max_transit_s: form.value.max_transit_s,
+        overlap: form.value.overlap,
+        _key: `${form.value.to}->${form.value.from}`,
+      };
+      stagedEdges.value.push(reverseEdge);
+    }
   }
   dialog.value = false;
 }

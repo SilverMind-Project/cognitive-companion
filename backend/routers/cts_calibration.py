@@ -58,32 +58,39 @@ router = APIRouter(prefix="/cts/calibration", tags=["cts-calibration"])
 def _refresh_visibility_polygon(
     cam: CtsCamera,
     db: Session,
-) -> None:
+) -> dict:
     """Derive the visibility polygon from the camera's current homography and persist it.
 
-    Called after every homography save (manual or auto).  Silently no-ops if:
-    - no homography is stored
-    - snapshot dimensions are not stored (pre-M1 calibration)
-    - the floor plan scale is not configured yet
-    - the projection is degenerate (compute_visibility_from_homography returns None)
+    Called after every homography save (manual or auto).
+
+    Returns a dict with keys:
+      - ``computed``: bool — whether the polygon was successfully stored
+      - ``point_count``: int — number of polygon vertices (0 if not computed)
+      - ``warning``: str | None — human-readable explanation when not computed
     """
+    no_op: dict = {"computed": False, "point_count": 0, "warning": None}
+
     if not cam.homography or not cam.snapshot_width or not cam.snapshot_height:
-        return
+        if not cam.snapshot_width or not cam.snapshot_height:
+            no_op["warning"] = "Snapshot dimensions not stored — load a camera snapshot before calibrating."
+        return no_op
 
     matrix = cam.homography.get("matrix")
     if not matrix:
-        return
+        return no_op
 
     settings = db.get(HouseholdSettings, 1)
     if not settings:
-        return
+        no_op["warning"] = "Floor plan settings not configured."
+        return no_op
 
     mpp: float | None = settings.floor_meters_per_pixel
     fp_w_px: int | None = settings.floor_plan_width
     fp_h_px: int | None = settings.floor_plan_height
 
     if not mpp or not fp_w_px or not fp_h_px:
-        return
+        no_op["warning"] = "Floor plan scale not set — configure metres/pixel in Floor Plan settings."
+        return no_op
 
     fp_width_m = fp_w_px * mpp
     fp_height_m = fp_h_px * mpp
@@ -103,13 +110,23 @@ def _refresh_visibility_polygon(
             camera_id=cam.id,
             point_count=len(polygon),
         )
-    else:
-        logger.warning(
-            "cts_visibility_polygon_degenerate",
-            camera_id=cam.id,
-            snapshot_dims=f"{cam.snapshot_width}x{cam.snapshot_height}",
-            fp_dims_m=f"{fp_width_m:.2f}x{fp_height_m:.2f}",
-        )
+        return {"computed": True, "point_count": len(polygon), "warning": None}
+
+    logger.warning(
+        "cts_visibility_polygon_degenerate",
+        camera_id=cam.id,
+        snapshot_dims=f"{cam.snapshot_width}x{cam.snapshot_height}",
+        fp_dims_m=f"{fp_width_m:.2f}x{fp_height_m:.2f}",
+    )
+    return {
+        "computed": False,
+        "point_count": 0,
+        "warning": (
+            "Visibility polygon could not be computed — projected points fall far outside "
+            "the floor plan. Your calibration point correspondences may be incorrect. "
+            "Verify that floor coordinates reference the correct locations on the floor plan."
+        ),
+    }
 
 
 def _upstream_to_http(exc: UpstreamError) -> HTTPException:
@@ -210,7 +227,7 @@ async def post_homography(
     cam.homography_residuals = residuals
     cam.snapshot_width = body.image_width
     cam.snapshot_height = body.image_height
-    _refresh_visibility_polygon(cam, db)
+    poly_status = _refresh_visibility_polygon(cam, db)
     db.commit()
 
     logger.info(
@@ -218,6 +235,7 @@ async def post_homography(
         camera_id=body.camera_id,
         snapshot_dims=f"{body.image_width}x{body.image_height}",
         max_residual_m=round(max_residual, 4),
+        visibility_polygon_computed=poly_status["computed"],
     )
 
     return HomographyResult(
@@ -226,6 +244,8 @@ async def post_homography(
         residuals_m=residuals,
         max_residual_m=max_residual,
         status=result.get("status", "ok"),
+        visibility_polygon_computed=poly_status["computed"],
+        visibility_polygon_warning=poly_status.get("warning"),
     )
 
 
@@ -265,6 +285,8 @@ class AutoCalibrateResult(BaseModel):
     fov_deg: float
     method: str
     warning: str | None = None
+    visibility_polygon_computed: bool = False
+    visibility_polygon_warning: str | None = None
 
 
 @router.post("/auto/{camera_id}", response_model=AutoCalibrateResult)
@@ -324,7 +346,7 @@ async def post_auto_calibrate(
         cam.snapshot_width = int(result["image_width"])
     if result.get("image_height"):
         cam.snapshot_height = int(result["image_height"])
-    _refresh_visibility_polygon(cam, db)
+    poly_status = _refresh_visibility_polygon(cam, db)
     db.commit()
 
     logger.info(
@@ -340,6 +362,7 @@ async def post_auto_calibrate(
         ),
         confidence=result.get("confidence"),
         inlier_count=result.get("inlier_count"),
+        visibility_polygon_computed=poly_status["computed"],
     )
 
     return AutoCalibrateResult(
@@ -351,6 +374,8 @@ async def post_auto_calibrate(
         fov_deg=result["fov_deg"],
         method=result.get("method", "depth_auto"),
         warning=result.get("warning"),
+        visibility_polygon_computed=poly_status["computed"],
+        visibility_polygon_warning=poly_status.get("warning"),
     )
 
 

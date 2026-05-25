@@ -48,12 +48,11 @@ def _sample_bbox_response(**overrides) -> dict:
 def _build_app(cts_enabled: bool = True, orchestrator=None):
     cfg = Settings.from_dict({"cts": {"enabled": cts_enabled}})
 
-    from backend.routers import cts_deps
-    from backend.routers import cts_identity as cts_identity_mod
+    from backend.routers import cts_bboxes, cts_deps
 
     app = FastAPI()
     register_exception_handlers(app)
-    app.include_router(cts_identity_mod.router, prefix="/api/v1")
+    app.include_router(cts_bboxes.router, prefix="/api/v1")
     app.state.orchestrator_client = orchestrator
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
         key="x", name="tester", permissions=["*"]

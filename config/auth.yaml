@@ -135,6 +135,8 @@ permission_map:
     - "cts.bboxes.write"
     - "cts.identity.correct.batch"
     - "cts.identity.read_enriched"
+    - "persons.read"
+    - "persons.write_overrides"
     - "cts.replay"
     # M3: bbox annotation endpoints
     - "PUT /api/v1/cts/identity/bboxes/*/override"

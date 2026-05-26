@@ -36,7 +36,7 @@ def _get_service(db: Session = Depends(get_db)) -> PersonLocationService:
 
 @router.get("/persons/{person_id}/location", response_model=CurrentLocationOut)
 async def get_person_location(
-    person_id: UUID,
+    person_id: str,
     _auth: AuthContext = Depends(require_permission("persons.read")),
     db: Session = Depends(get_db),
 ) -> CurrentLocationOut:
@@ -58,7 +58,7 @@ async def get_person_location(
 
 @router.get("/persons/{person_id}/presence-history", response_model=PresenceHistoryResponse)
 async def get_presence_history(
-    person_id: UUID,
+    person_id: str,
     since: datetime | None = None,
     until: datetime | None = None,
     _auth: AuthContext = Depends(require_permission("persons.read")),
@@ -96,7 +96,7 @@ async def get_presence_history(
 
 @router.get("/rooms/{room_id}/occupants", response_model=OccupantsResponse)
 async def get_room_occupants(
-    room_id: UUID,
+    room_id: int,
     _auth: AuthContext = Depends(require_permission("persons.read")),
     db: Session = Depends(get_db),
 ) -> OccupantsResponse:
@@ -123,7 +123,7 @@ async def get_room_occupants(
 
 @router.get("/persons/{person_id}/dwell", response_model=dict)
 async def get_person_dwell(
-    person_id: UUID,
+    person_id: str,
     _auth: AuthContext = Depends(require_permission("persons.read")),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -150,7 +150,7 @@ async def get_person_dwell(
     status_code=status.HTTP_201_CREATED,
 )
 async def override_person_location(
-    person_id: UUID,
+    person_id: str,
     body: LocationOverrideRequest,
     _auth: AuthContext = Depends(require_permission("persons.write_overrides")),
     db: Session = Depends(get_db),

@@ -29,8 +29,8 @@ class EventKind(StrEnum):
 @dataclass(frozen=True)
 class IncomingEvent:
     kind: EventKind
-    person_id: UUID
-    room_id: UUID | None
+    person_id: str
+    room_id: int | None
     at: datetime
     confidence: float
     source_ref: str | None = None
@@ -135,7 +135,7 @@ def decide(
         )
 
     if event.kind == EventKind.IDENTITY_REVISION:
-        new_person_id = UUID(str(event.metadata["new_person_id"]))
+        new_person_id = str(event.metadata["new_person_id"])
         replacement = PresenceSegment(
             id=uuid4(),
             person_id=new_person_id,

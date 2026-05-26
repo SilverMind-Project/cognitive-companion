@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, String
+from sqlalchemy import Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,11 +16,13 @@ class PresenceSegment(Base):
     __tablename__ = "presence_segments"
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True)
+    # household_members.id is String(64) and rooms.id is Integer per the
+    # pre-existing schema (see alembic 0001_initial_schema).
     person_id: Mapped[str] = mapped_column(
-        UUID, ForeignKey("household_members.id"), nullable=False
+        String(64), ForeignKey("household_members.id"), nullable=False
     )
-    room_id: Mapped[str] = mapped_column(
-        UUID, ForeignKey("rooms.id"), nullable=False
+    room_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("rooms.id"), nullable=False
     )
     entered_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     exited_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)

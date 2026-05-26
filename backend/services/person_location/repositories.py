@@ -21,7 +21,7 @@ from .types import LocationObservation, PresenceSegment
 class ObservationRepository(Protocol):
     async def insert(self, obs: LocationObservation) -> None: ...
     async def list_for_person(
-        self, person_id: UUID, since: datetime, until: datetime, limit: int = 500
+        self, person_id: str, since: datetime, until: datetime, limit: int = 500
     ) -> list[LocationObservation]: ...
     async def list_for_source_ref(
         self, source_ref: str, since: datetime, until: datetime
@@ -35,13 +35,13 @@ class SegmentRepository(Protocol):
     async def close_segment(
         self, segment_id: UUID, exited_at: datetime, exit_source: str
     ) -> None: ...
-    async def get_open(self, person_id: UUID) -> PresenceSegment | None: ...
+    async def get_open(self, person_id: str) -> PresenceSegment | None: ...
     async def list_for_person(
-        self, person_id: UUID, since: datetime, until: datetime
+        self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]: ...
-    async def list_open_for_room(self, room_id: UUID) -> list[PresenceSegment]: ...
+    async def list_open_for_room(self, room_id: int) -> list[PresenceSegment]: ...
     async def list_overlapping(
-        self, person_id: UUID, since: datetime, until: datetime
+        self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]: ...
 
 
@@ -58,7 +58,7 @@ class InMemoryObservationRepository:
         self._rows[obs.id] = obs
 
     async def list_for_person(
-        self, person_id: UUID, since: datetime, until: datetime, limit: int = 500
+        self, person_id: str, since: datetime, until: datetime, limit: int = 500
     ) -> list[LocationObservation]:
         result = [
             o
@@ -110,14 +110,14 @@ class InMemorySegmentRepository:
                 metadata=seg.metadata,
             )
 
-    async def get_open(self, person_id: UUID) -> PresenceSegment | None:
+    async def get_open(self, person_id: str) -> PresenceSegment | None:
         for seg in self._rows.values():
             if seg.person_id == person_id and seg.is_open:
                 return seg
         return None
 
     async def list_for_person(
-        self, person_id: UUID, since: datetime, until: datetime
+        self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]:
         result = [
             s
@@ -127,11 +127,11 @@ class InMemorySegmentRepository:
         result.sort(key=lambda s: s.entered_at)
         return result
 
-    async def list_open_for_room(self, room_id: UUID) -> list[PresenceSegment]:
+    async def list_open_for_room(self, room_id: int) -> list[PresenceSegment]:
         return [s for s in self._rows.values() if s.room_id == room_id and s.is_open]
 
     async def list_overlapping(
-        self, person_id: UUID, since: datetime, until: datetime
+        self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]:
         return [
             s
@@ -168,7 +168,7 @@ class SqlAlchemyObservationRepository:
         self._db.flush()
 
     async def list_for_person(
-        self, person_id: UUID, since: datetime, until: datetime, limit: int = 500
+        self, person_id: str, since: datetime, until: datetime, limit: int = 500
     ) -> list[LocationObservation]:
         rows = (
             self._db.execute(
@@ -249,7 +249,7 @@ class SqlAlchemySegmentRepository:
             row.exit_source = exit_source
             self._db.flush()
 
-    async def get_open(self, person_id: UUID) -> PresenceSegment | None:
+    async def get_open(self, person_id: str) -> PresenceSegment | None:
         row = (
             self._db.execute(
                 select(PSeg).where(
@@ -264,7 +264,7 @@ class SqlAlchemySegmentRepository:
         return _seg_to_domain(row) if row else None
 
     async def list_for_person(
-        self, person_id: UUID, since: datetime, until: datetime
+        self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]:
         rows = (
             self._db.execute(
@@ -281,7 +281,7 @@ class SqlAlchemySegmentRepository:
         )
         return [_seg_to_domain(r) for r in rows]
 
-    async def list_open_for_room(self, room_id: UUID) -> list[PresenceSegment]:
+    async def list_open_for_room(self, room_id: int) -> list[PresenceSegment]:
         rows = (
             self._db.execute(
                 select(PSeg).where(
@@ -296,7 +296,7 @@ class SqlAlchemySegmentRepository:
         return [_seg_to_domain(r) for r in rows]
 
     async def list_overlapping(
-        self, person_id: UUID, since: datetime, until: datetime
+        self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]:
         rows = (
             self._db.execute(
@@ -320,12 +320,12 @@ def _obs_to_domain(row: LOObs) -> LocationObservation:
         fp = FloorPoint(x_m=row.floor_x_m, y_m=row.floor_y_m)
     return LocationObservation(
         id=UUID(str(row.id)),
-        person_id=UUID(str(row.person_id)),
+        person_id=str(row.person_id),
         observed_at=row.observed_at,
         source=row.source,
         source_ref=row.source_ref,
         floor_point=fp,
-        room_id=UUID(str(row.room_id)) if row.room_id else None,
+        room_id=int(row.room_id) if row.room_id is not None else None,
         confidence=row.confidence,
         metadata=row.metadata_json or {},
     )
@@ -334,8 +334,8 @@ def _obs_to_domain(row: LOObs) -> LocationObservation:
 def _seg_to_domain(row: PSeg) -> PresenceSegment:
     return PresenceSegment(
         id=UUID(str(row.id)),
-        person_id=UUID(str(row.person_id)),
-        room_id=UUID(str(row.room_id)),
+        person_id=str(row.person_id),
+        room_id=int(row.room_id),
         entered_at=row.entered_at,
         exited_at=row.exited_at,
         entry_source=row.entry_source,

@@ -23,7 +23,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # --- cts_cameras: calibration health columns ---
-    op.add_column("cts_cameras", sa.Column("room_id", sa.Integer(), nullable=True))
+    # NOTE: room_id was already added in migration 0007_cts_camera_room_linkage,
+    # which also created index ix_cts_cameras_room_id but no FK constraint. We
+    # add the FK here.
     op.add_column("cts_cameras", sa.Column("homography_matrix", JSONB, nullable=True))
     op.add_column("cts_cameras", sa.Column("homography_residual_m", sa.Float(), nullable=True))
     op.add_column(
@@ -95,4 +97,4 @@ def downgrade() -> None:
     op.drop_column("cts_cameras", "homography_method")
     op.drop_column("cts_cameras", "homography_residual_m")
     op.drop_column("cts_cameras", "homography_matrix")
-    op.drop_column("cts_cameras", "room_id")
+    # room_id is NOT dropped here; it is owned by migration 0007.

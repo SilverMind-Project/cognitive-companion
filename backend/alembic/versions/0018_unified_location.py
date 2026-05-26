@@ -21,12 +21,18 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # Type notes:
+    # - household_members.id is String(64), NOT UUID (see 0001_initial_schema line 311).
+    # - rooms.id is Integer, NOT UUID (see 0001_initial_schema line 40).
+    # - location_observations is a TimescaleDB hypertable; the partitioning
+    #   column (observed_at) must appear in every UNIQUE index, so PK is
+    #   composite (id, observed_at). See PLAN_INDEX rule 15.
     op.create_table(
         "location_observations",
-        sa.Column("id", UUID, primary_key=True),
+        sa.Column("id", UUID, nullable=False),
         sa.Column(
             "person_id",
-            UUID,
+            sa.String(64),
             sa.ForeignKey("household_members.id"),
             nullable=False,
         ),
@@ -35,9 +41,10 @@ def upgrade() -> None:
         sa.Column("source_ref", sa.Text(), nullable=True),
         sa.Column("floor_x_m", sa.Float(), nullable=True),
         sa.Column("floor_y_m", sa.Float(), nullable=True),
-        sa.Column("room_id", UUID, sa.ForeignKey("rooms.id"), nullable=True),
+        sa.Column("room_id", sa.Integer(), sa.ForeignKey("rooms.id"), nullable=True),
         sa.Column("confidence", sa.Float(), nullable=False, server_default="0.5"),
         sa.Column("metadata", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.PrimaryKeyConstraint("id", "observed_at", name="location_observations_pkey"),
     )
     op.execute(
         "SELECT create_hypertable('location_observations', 'observed_at', "
@@ -46,26 +53,25 @@ def upgrade() -> None:
     op.create_index(
         "idx_loc_obs_person",
         "location_observations",
-        ["person_id", "observed_at"],
-        postgresql_ordering={"observed_at": "DESC"},
+        ["person_id", sa.text("observed_at DESC")],
     )
     op.create_index(
         "idx_loc_obs_room",
         "location_observations",
-        ["room_id", "observed_at"],
-        postgresql_ordering={"observed_at": "DESC"},
+        ["room_id", sa.text("observed_at DESC")],
     )
 
+    # presence_segments is NOT a hypertable (small, derived data) so single-column PK is fine.
     op.create_table(
         "presence_segments",
         sa.Column("id", UUID, primary_key=True),
         sa.Column(
             "person_id",
-            UUID,
+            sa.String(64),
             sa.ForeignKey("household_members.id"),
             nullable=False,
         ),
-        sa.Column("room_id", UUID, sa.ForeignKey("rooms.id"), nullable=False),
+        sa.Column("room_id", sa.Integer(), sa.ForeignKey("rooms.id"), nullable=False),
         sa.Column("entered_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("exited_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("entry_source", sa.String(32), nullable=False),
@@ -86,14 +92,12 @@ def upgrade() -> None:
     op.create_index(
         "idx_ps_person_time",
         "presence_segments",
-        ["person_id", "entered_at"],
-        postgresql_ordering={"entered_at": "DESC"},
+        ["person_id", sa.text("entered_at DESC")],
     )
     op.create_index(
         "idx_ps_room_time",
         "presence_segments",
-        ["room_id", "entered_at"],
-        postgresql_ordering={"entered_at": "DESC"},
+        ["room_id", sa.text("entered_at DESC")],
     )
 
 

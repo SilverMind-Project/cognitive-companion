@@ -1144,8 +1144,7 @@ async function deleteDoorZone(id) {
   }
 }
 
-// Watch mode to lazy-load door zones
-import { watch } from "vue";
+// Watch mode to lazy-load door zones (watch is imported at the top of <script setup>)
 watch(mode, (m) => {
   if (m === "doors") loadDoorZones();
 });

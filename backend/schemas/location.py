@@ -8,6 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# household_members.id is String(64); rooms.id is Integer. The observation
+# row's own id and the segment's own id are UUID, as is superseded_by.
 SourceTag = Literal["world_tracker", "recamera_vlm", "sensor", "manual"]
 EntrySource = Literal["observed", "inferred_transit", "manual"]
 ExitSource = Literal["observed", "inferred_transit", "contradicted", "manual", "timeout"]
@@ -22,20 +24,20 @@ class FloorPointWire(BaseModel):
 class LocationObservationOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: UUID
-    person_id: UUID
+    person_id: str
     observed_at: datetime
     source: SourceTag
     source_ref: str | None = None
     floor_point: FloorPointWire | None = None
-    room_id: UUID | None = None
+    room_id: int | None = None
     confidence: float = Field(ge=0.0, le=1.0)
 
 
 class PresenceSegmentOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: UUID
-    person_id: UUID
-    room_id: UUID
+    person_id: str
+    room_id: int
     room_name: str
     entered_at: datetime
     exited_at: datetime | None
@@ -49,8 +51,8 @@ class PresenceSegmentOut(BaseModel):
 
 class CurrentLocationOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    person_id: UUID
-    room_id: UUID
+    person_id: str
+    room_id: int
     room_name: str
     since: datetime
     entry_source: EntrySource
@@ -60,14 +62,14 @@ class CurrentLocationOut(BaseModel):
 
 class OccupantsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    room_id: UUID
+    room_id: int
     as_of: datetime
     occupants: list[CurrentLocationOut]
 
 
 class PresenceHistoryResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    person_id: UUID
+    person_id: str
     since: datetime
     until: datetime
     segments: list[PresenceSegmentOut]
@@ -75,8 +77,8 @@ class PresenceHistoryResponse(BaseModel):
 
 class LocationOverrideRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    person_id: UUID
-    room_id: UUID
+    person_id: str
+    room_id: int
     entered_at: datetime
     exited_at: datetime | None = None
     note: str | None = Field(default=None, max_length=500)

@@ -62,11 +62,11 @@ class RoomTransitionSubscriber(StreamConsumer[dict]):
                 seg_repo=SqlAlchemySegmentRepository(db),
             )
             await svc.ingest_room_transition(
-                person_id=UUID(msg["ph_id"]),
+                person_id=str(msg["ph_id"]),
                 transit_zone_id=msg["transit_zone_id"],
                 direction=msg["direction"],
-                inside_room_id=UUID(msg["inside_room_id"]),
-                outside_room_id=UUID(msg["outside_room_id"]),
+                inside_room_id=int(msg["inside_room_id"]),
+                outside_room_id=int(msg["outside_room_id"]),
                 floor_x_m=msg["floor_x_m"],
                 floor_y_m=msg["floor_y_m"],
                 event_time=msg["event_time"],

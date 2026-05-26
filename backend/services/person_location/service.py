@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from structlog import get_logger
+from backend.core.logging import get_logger
 
 from .config import PersonLocationConfig
 from .repositories import ObservationRepository, SegmentRepository
@@ -49,12 +49,12 @@ class PersonLocationService:
 
     async def ingest_observation(
         self,
-        person_id: UUID,
+        person_id: str,
         observed_at: datetime,
         source: SourceTag,
         source_ref: str | None = None,
         floor_point: FloorPoint | None = None,
-        room_id: UUID | None = None,
+        room_id: int | None = None,
         confidence: float = 0.5,
         metadata: dict[str, object] | None = None,
     ) -> None:
@@ -90,11 +90,11 @@ class PersonLocationService:
 
     async def ingest_room_transition(
         self,
-        person_id: UUID,
+        person_id: str,
         transit_zone_id: str,
         direction: str,
-        inside_room_id: UUID,
-        outside_room_id: UUID,
+        inside_room_id: int,
+        outside_room_id: int,
         floor_x_m: float,
         floor_y_m: float,
         event_time: datetime,
@@ -120,8 +120,8 @@ class PersonLocationService:
 
     async def ingest_manual_override(
         self,
-        person_id: UUID,
-        room_id: UUID,
+        person_id: str,
+        room_id: int,
         entered_at: datetime,
         note: str | None = None,
     ) -> None:
@@ -155,8 +155,8 @@ class PersonLocationService:
 
     async def apply_identity_revision(
         self,
-        old_person_id: UUID,
-        new_person_id: UUID | None,
+        old_person_id: str,
+        new_person_id: str | None,
         global_track_id: str,
         revision_time: datetime,
     ) -> None:
@@ -211,9 +211,9 @@ class PersonLocationService:
 
     async def ingest_ph_continuation(
         self,
-        predecessor_person_id: UUID,
+        predecessor_person_id: str,
         successor_ph_id: str,
-        predecessor_room_id: UUID,
+        predecessor_room_id: int,
         predecessor_entered_at: datetime,
         handoff_time: datetime,
     ) -> None:
@@ -248,7 +248,7 @@ class PersonLocationService:
     # ------------------------------------------------------------------
 
     async def where_is(
-        self, person_id: UUID, at: datetime | None = None
+        self, person_id: str, at: datetime | None = None
     ) -> CurrentLocation | None:
         """Return the current location of a person."""
         seg = await self._seg.get_open(person_id)
@@ -265,13 +265,13 @@ class PersonLocationService:
         )
 
     async def presence_history(
-        self, person_id: UUID, since: datetime, until: datetime
+        self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]:
         """Return presence segments for a person in a time window."""
         return await self._seg.list_for_person(person_id, since, until)
 
     async def occupants_of(
-        self, room_id: UUID, at: datetime | None = None
+        self, room_id: int, at: datetime | None = None
     ) -> list[CurrentLocation]:
         """Return currently-present persons in a room."""
         segments = await self._seg.list_open_for_room(room_id)
@@ -290,7 +290,7 @@ class PersonLocationService:
             )
         return result
 
-    async def current_dwell(self, person_id: UUID) -> PresenceSegment | None:
+    async def current_dwell(self, person_id: str) -> PresenceSegment | None:
         """Return the currently-open segment (including inferred)."""
         return await self._seg.get_open(person_id)
 

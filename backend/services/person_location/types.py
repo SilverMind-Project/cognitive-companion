@@ -24,13 +24,15 @@ class FloorPoint:
 
 @dataclass(frozen=True)
 class LocationObservation:
+    # person_id is household_members.id (String(64)); room_id is rooms.id (Integer).
+    # The observation row itself is UUID-keyed.
     id: UUID
-    person_id: UUID
+    person_id: str
     observed_at: datetime
     source: SourceTag
     source_ref: str | None = None
     floor_point: FloorPoint | None = None
-    room_id: UUID | None = None
+    room_id: int | None = None
     confidence: float = 0.5
     metadata: dict[str, object] = field(default_factory=dict)
 
@@ -38,8 +40,8 @@ class LocationObservation:
 @dataclass(frozen=True)
 class PresenceSegment:
     id: UUID
-    person_id: UUID
-    room_id: UUID
+    person_id: str
+    room_id: int
     entered_at: datetime
     exited_at: datetime | None = None
     entry_source: EntrySource = "observed"
@@ -66,8 +68,8 @@ class PresenceSegment:
 
 @dataclass(frozen=True)
 class CurrentLocation:
-    person_id: UUID
-    room_id: UUID
+    person_id: str
+    room_id: int
     room_name: str
     since: datetime
     entry_source: EntrySource

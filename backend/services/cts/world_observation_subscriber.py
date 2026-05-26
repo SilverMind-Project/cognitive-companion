@@ -92,7 +92,7 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
                 floor_x = det["floor_x_mm"] / 1000.0
                 floor_y = det["floor_y_mm"] / 1000.0
                 await svc.ingest_observation(
-                    person_id=UUID(det["identity_id"]),
+                    person_id=str(det["identity_id"]),
                     observed_at=msg["event_time"],
                     source="world_tracker",
                     source_ref=det.get("global_track_id"),

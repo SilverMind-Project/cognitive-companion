@@ -174,28 +174,42 @@ function onBboxDeleted({ annotationId }) {
 async function onSave() {
   saving.value = true;
   try {
+    // M3: build a single batch of operations.
+    const operations = [];
+    for (const del of pendingDeletes.value) {
+      if (del.annotationId) {
+        operations.push({ op: "delete", annotation_id: del.annotationId });
+      }
+    }
     for (const ov of pendingOverrides.value) {
-      await cts.overrideBbox(ov.annotationId, {
-        x1: ov.x1,
-        y1: ov.y1,
-        x2: ov.x2,
-        y2: ov.y2,
+      operations.push({
+        op: "update",
+        annotation_id: ov.annotationId,
+        data: { x1: ov.x1, y1: ov.y1, x2: ov.x2, y2: ov.y2 },
       });
     }
     for (const tag of pendingTags.value) {
-      await cts.applyBboxCorrection(tag.annotationId, tag.identityId, tag.reason);
+      operations.push({
+        op: "update",
+        annotation_id: tag.annotationId,
+        data: { identity_id: tag.identityId },
+      });
     }
-    for (const del of pendingDeletes.value) {
-      if (del.annotationId) {
-        try {
-          await cts.deleteBbox(del.annotationId);
-        } catch (err) {
-          const msg = String(err.message || err || "");
-          if (err && (err.status === 404 || msg.includes("404"))) continue;
-          throw err;
-        }
-      }
+    for (const cr of pendingCreates.value) {
+      operations.push({
+        op: "create",
+        data: {
+          x1: cr.x1, y1: cr.y1, x2: cr.x2, y2: cr.y2,
+          identity_id: cr.identityId,
+          detection_confidence: minConfidence.value,
+        },
+      });
     }
+
+    if (!operations.length) return;
+
+    await cts.applyBboxBatch(props.keyframeId, operations);
+
     pendingTags.value = [];
     pendingOverrides.value = [];
     pendingDeletes.value = [];

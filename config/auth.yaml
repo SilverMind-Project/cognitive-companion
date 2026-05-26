@@ -132,6 +132,7 @@ permission_map:
     - "cts.cameras.write"
     - "cts.calibrate"
     - "cts.identity.correct"
+    - "cts.bboxes.write"
     - "cts.identity.correct.batch"
     - "cts.identity.read_enriched"
     - "cts.replay"
@@ -153,6 +154,7 @@ permission_map:
     # a permission not listed in auth.yaml)
     - "cts.cameras.write"
     - "cts.calibrate"
+    - "cts.bboxes.write"
     - "household:read"
     - "household:write"
 

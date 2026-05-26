@@ -293,6 +293,12 @@ export const cts = {
     req(`/identity/bboxes/${encodeURIComponent(annotationId)}`, {
       method: "DELETE",
     }),
+  // M3: batch bbox operations
+  applyBboxBatch: (keyframeId, operations) =>
+    req("/identity/bboxes/batch", {
+      method: "POST",
+      body: JSON.stringify({ keyframe_id: keyframeId, operations }),
+    }),
   applyBboxCorrection: (annotationId, identityId, reason) =>
     req("/identity/corrections", {
       method: "POST",

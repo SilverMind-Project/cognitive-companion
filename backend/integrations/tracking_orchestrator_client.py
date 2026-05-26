@@ -425,3 +425,14 @@ class OrchestratorClient(UpstreamClient):
             "DELETE",
             f"/internal/bboxes/{annotation_id}",
         )
+
+    async def apply_bbox_batch(
+        self, keyframe_id: str, operations: list[dict]
+    ) -> dict:
+        """Apply a batch of bbox create/update/delete operations atomically (M3)."""
+        r = await self._request(
+            "POST",
+            "/internal/bboxes/batch",
+            json={"keyframe_id": keyframe_id, "operations": operations},
+        )
+        return r.json()

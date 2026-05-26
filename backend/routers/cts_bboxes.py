@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, status
+from pydantic import BaseModel, Field
 
 from backend.core.auth import AuthContext, require_permission
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
@@ -61,3 +62,29 @@ async def delete_bbox(
     """Delete a single bounding box annotation."""
     svc = BboxAnnotationService(client)
     await svc.delete_annotation(annotation_id)
+
+
+# ---------------------------------------------------------------------------
+# M3: POST /cts/identity/bboxes/batch
+# ---------------------------------------------------------------------------
+
+class BboxBatchOp(BaseModel):
+    op: str = Field(..., pattern="^(create|update|delete)$")
+    annotation_id: str | None = None
+    data: dict | None = None
+
+class BboxBatchRequest(BaseModel):
+    keyframe_id: str
+    operations: list[BboxBatchOp] = Field(..., min_length=1, max_length=50)
+
+
+@router.post("/bboxes/batch")
+async def apply_bbox_batch(
+    body: BboxBatchRequest,
+    auth: AuthContext = Depends(require_permission("cts.bboxes.write")),
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+) -> dict:
+    """Apply a batch of bbox create/update/delete operations atomically (M3)."""
+    svc = BboxAnnotationService(client)
+    ops = [{"op": o.op, "annotation_id": o.annotation_id, "data": o.data} for o in body.operations]
+    return await svc.apply_bbox_batch(body.keyframe_id, ops)

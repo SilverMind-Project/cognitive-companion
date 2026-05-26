@@ -43,6 +43,14 @@ class BboxAnnotationService:
         """Delete a single bbox annotation via the orchestrator."""
         await self._client.delete_bbox_annotation(annotation_id=annotation_id)
 
+    async def apply_bbox_batch(
+        self,
+        keyframe_id: str,
+        operations: list[dict],
+    ) -> dict:
+        """Apply a batch of create/update/delete operations atomically (M3)."""
+        return await self._client.apply_bbox_batch(keyframe_id, operations)
+
 
 def _dict_to_response(d: dict) -> BboxAnnotationResponse:
     return BboxAnnotationResponse(

@@ -687,21 +687,22 @@ def create_app() -> FastAPI:
         alerts,
         conversations,
         cts,
+        cts_bboxes,
         cts_calibration,
         cts_cameras,
-        cts_dashboard,
-        cts_gallery,
-        cts_bboxes,
         cts_corrections,
+        cts_dashboard,
         cts_decisions,
-        cts_tracks,
-        cts_identity_helpers,
+        cts_diagnostics,
+        cts_gallery,
         cts_keyframes,
         cts_live,
         cts_overlap_groups,
         cts_presence,
         cts_signals,
+        cts_tracks,
         cts_trajectory,
+        cts_transit_zones,
         cts_window_triggers,
         device,
         events,
@@ -772,6 +773,8 @@ def create_app() -> FastAPI:
     app.include_router(cts_decisions.router, prefix=api)
     app.include_router(cts_bboxes.router, prefix=api)
     app.include_router(cts_overlap_groups.router, prefix=api)
+    app.include_router(cts_diagnostics.router, prefix=api)
+    app.include_router(cts_transit_zones.router, prefix=api)
 
     # WebSocket routers (no /api/v1 prefix).
     app.include_router(ws.router)

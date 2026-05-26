@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, String, func
+from sqlalchemy import JSON, Boolean, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -23,5 +23,9 @@ class Room(Base):
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     floor_polygon: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
+
+    # M2: camera-blind room support
+    has_camera: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("TRUE"))
+    inferred_dwell_alert_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     sensors: Mapped[list[Sensor]] = relationship(back_populates="room")

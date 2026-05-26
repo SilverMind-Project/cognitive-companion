@@ -92,10 +92,13 @@ permission_map:
     - "cts.live.subscribe"
     - "cts.signals.view"
     - "cts.signals.delete"
+    - "cts.cameras.read"
     - "cts.keyframes.view"
     - "GET /api/v1/cts/presence/*"
     - "GET /api/v1/cts/presence-config"
     - "POST /api/v1/cts/presence-config/reload"
+    # M2: calibration health (read-only)
+    - "GET /api/v1/cts/diagnostics/calibration"
     # Knowledge repository endpoints
     - "GET /api/v1/knowledge/documents*"
     - "POST /api/v1/knowledge/documents*"
@@ -126,6 +129,8 @@ permission_map:
     - "cts.signals.delete"
     - "cts.keyframes.view"
     - "cts.cameras.read"
+    - "cts.cameras.write"
+    - "cts.calibrate"
     - "cts.identity.correct"
     - "cts.identity.correct.batch"
     - "cts.identity.read_enriched"
@@ -135,6 +140,12 @@ permission_map:
     - "GET /api/v1/cts/identity/keyframes/*/bboxes"
     # M6: global track merge
     - "POST /api/v1/cts/identity/global_tracks/merge"
+    # M2: diagnostics and transit zones
+    - "GET /api/v1/cts/diagnostics/calibration"
+    - "GET /api/v1/cts/transit-zones*"
+    - "POST /api/v1/cts/transit-zones*"
+    - "PATCH /api/v1/cts/transit-zones/*"
+    - "DELETE /api/v1/cts/transit-zones/*"
 
   operator:
     - "*"

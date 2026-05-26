@@ -42,6 +42,14 @@
         >
           Coverage
         </v-btn>
+        <v-btn
+          size="small"
+          :variant="mode === 'doors' ? 'flat' : 'outlined'"
+          :color="mode === 'doors' ? 'primary' : undefined"
+          @click="mode = 'doors'"
+        >
+          Door Zones
+        </v-btn>
       </div>
       <v-btn
         v-if="mode === 'live'"
@@ -630,6 +638,128 @@
       </v-card>
     </template>
 
+    <!-- ── Door Zones panel (M2) ─────────────────────────────────────────── -->
+    <template v-else-if="mode === 'doors'">
+      <v-card class="glass-card">
+        <v-card-title class="d-flex align-center">
+          Door Zones
+          <v-spacer />
+          <v-btn
+            variant="tonal"
+            size="small"
+            prepend-icon="mdi-plus"
+            :disabled="!rooms.length"
+            @click="showDoorZoneDialog = true"
+          >
+            Add Zone
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <p class="text-body-2 text-medium-emphasis mb-4">
+            Door zones track when a person enters or leaves a room with no camera.
+            If a room has no camera, use a door zone to detect entry and exit events.
+          </p>
+
+          <div v-if="doorZonesLoading" class="text-caption">Loading...</div>
+          <div v-else-if="!doorZones.length" class="text-body-2 text-medium-emphasis">
+            No door zones configured. Add one to track entry/exit for camera-blind rooms.
+          </div>
+          <div v-else class="d-flex flex-wrap ga-3">
+            <v-card
+              v-for="zone in doorZones"
+              :key="zone.id"
+              class="glass-card"
+              width="300"
+              :border="true"
+            >
+              <v-card-item>
+                <template #title>{{ zone.name }}</template>
+                <template #subtitle>
+                  {{ zone.kind === 'door' ? 'Door' : 'Threshold' }}
+                </template>
+              </v-card-item>
+              <v-card-text class="text-caption">
+                <div>Inside: room {{ zone.inside_room_id }}</div>
+                <div>Outside: room {{ zone.outside_room_id }}</div>
+                <div>{{ zone.polygon?.length || 0 }} polygon vertices</div>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn
+                  icon="mdi-delete"
+                  variant="text"
+                  size="small"
+                  color="error"
+                  @click="deleteDoorZone(zone.id)"
+                />
+              </v-card-actions>
+            </v-card>
+          </div>
+        </v-card-text>
+      </v-card>
+
+      <!-- Add Door Zone Dialog -->
+      <v-dialog v-model="showDoorZoneDialog" max-width="500">
+        <v-card>
+          <v-card-title>Add Door Zone</v-card-title>
+          <v-card-text>
+            <v-text-field
+              v-model="newDoorZone.name"
+              label="Name"
+              variant="outlined"
+              density="compact"
+              class="mb-3"
+            />
+            <v-select
+              v-model="newDoorZone.kind"
+              :items="['door', 'threshold']"
+              label="Type"
+              variant="outlined"
+              density="compact"
+              class="mb-3"
+            />
+            <v-select
+              v-model="newDoorZone.inside_room_id"
+              :items="rooms"
+              item-title="name"
+              item-value="id"
+              label="Inside Room"
+              variant="outlined"
+              density="compact"
+              class="mb-3"
+            />
+            <v-select
+              v-model="newDoorZone.outside_room_id"
+              :items="rooms"
+              item-title="name"
+              item-value="id"
+              label="Outside Room"
+              variant="outlined"
+              density="compact"
+              class="mb-3"
+            />
+            <p class="text-caption text-medium-emphasis">
+              Direction vector: [{{ newDoorZone.direction_vec.join(', ') }}]
+            </p>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn variant="text" @click="showDoorZoneDialog = false">Cancel</v-btn>
+            <v-btn
+              variant="tonal"
+              color="primary"
+              :disabled="!newDoorZone.name || !newDoorZone.inside_room_id || !newDoorZone.outside_room_id"
+              :loading="doorZoneCreating"
+              @click="createDoorZone"
+            >
+              Create
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+    </template>
+
     <!-- ── Live view ─────────────────────────────────────────────────────── -->
     <template v-else>
       <v-row>
@@ -951,6 +1081,74 @@ const CAMERA_STALE_MS = 10_000;
 
 // ── Mode ──────────────────────────────────────────────────────────────────
 const mode = ref("live");
+
+// ── M2: Door Zones tab state ───────────────────────────────────────────────
+const doorZones = ref([]);
+const doorZonesLoading = ref(false);
+const doorZoneCreating = ref(false);
+const showDoorZoneDialog = ref(false);
+const newDoorZone = ref({
+  name: "",
+  kind: "door",
+  inside_room_id: null,
+  outside_room_id: null,
+  direction_vec: [1.0, 0.0],
+  polygon: [[0.4, 0.45], [0.6, 0.45], [0.6, 0.55], [0.4, 0.55]],
+});
+
+async function loadDoorZones() {
+  doorZonesLoading.value = true;
+  try {
+    doorZones.value = await cts.getTransitZones();
+  } catch (e) {
+    // silently fail; user sees empty state
+  } finally {
+    doorZonesLoading.value = false;
+  }
+}
+
+async function createDoorZone() {
+  doorZoneCreating.value = true;
+  try {
+    await cts.createTransitZone({
+      name: newDoorZone.value.name,
+      kind: newDoorZone.value.kind,
+      polygon: newDoorZone.value.polygon,
+      inside_room_id: newDoorZone.value.inside_room_id,
+      outside_room_id: newDoorZone.value.outside_room_id,
+      direction_vec: newDoorZone.value.direction_vec,
+    });
+    showDoorZoneDialog.value = false;
+    newDoorZone.value = {
+      name: "",
+      kind: "door",
+      inside_room_id: null,
+      outside_room_id: null,
+      direction_vec: [1.0, 0.0],
+      polygon: [[0.4, 0.45], [0.6, 0.45], [0.6, 0.55], [0.4, 0.55]],
+    };
+    await loadDoorZones();
+  } catch (e) {
+    // error shown by notify
+  } finally {
+    doorZoneCreating.value = false;
+  }
+}
+
+async function deleteDoorZone(id) {
+  try {
+    await cts.deleteTransitZone(id);
+    doorZones.value = doorZones.value.filter((z) => z.id !== id);
+  } catch (e) {
+    // silently fail
+  }
+}
+
+// Watch mode to lazy-load door zones
+import { watch } from "vue";
+watch(mode, (m) => {
+  if (m === "doors") loadDoorZones();
+});
 
 // ── Coverage tab state ────────────────────────────────────────────────────
 const coverageLoading = ref(false);

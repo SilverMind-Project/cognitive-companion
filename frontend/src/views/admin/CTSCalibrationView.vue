@@ -742,6 +742,17 @@
     </template>
 
     <v-snackbar v-model="snack" :color="snackColor" timeout="4000">{{ snackText }}</v-snackbar>
+
+    <!-- M2: Calibration Health Panel -->
+    <v-card class="glass-card mt-6" :border="true">
+      <v-card-title class="d-flex align-center">
+        <v-icon start icon="mdi-heart-pulse" class="mr-2" />
+        Calibration Health
+      </v-card-title>
+      <v-card-text>
+        <CalibrationHealthPanel @test-projection="onTestProjection" />
+      </v-card-text>
+    </v-card>
   </div>
 </template>
 
@@ -753,6 +764,7 @@ import { useNotify } from "../../composables/useNotify.js";
 import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import { useCtsWebSocket } from "../../composables/useCtsWebSocket.js";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
+import CalibrationHealthPanel from "../../components/cts/CalibrationHealthPanel.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { blurMode } = useBlurMode();
@@ -1117,6 +1129,13 @@ function clearPoints() {
   points.value = [];
   pendingPixel.value = null;
   result.value = null;
+}
+
+// M2: handle test-projection from CalibrationHealthPanel
+function onTestProjection(cameraId) {
+  selectedCameraId.value = cameraId;
+  // Scroll to the calibration area for visual inspection.
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 // ── Calibrate ─────────────────────────────────────────────────────────────

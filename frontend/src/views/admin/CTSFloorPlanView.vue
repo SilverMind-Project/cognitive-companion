@@ -656,8 +656,9 @@
                 variant="tonal"
                 prepend-icon="mdi-crosshairs-off"
                 class="mr-2"
+                @click="router.push({ name: 'CTSCalibration' })"
               >
-                Estimated positions
+                {{ uncalibratedDetCount }} unmapped detections (calibrate cameras to show)
               </v-chip>
               <v-chip
                 :color="paused ? 'warning' : 'success'"
@@ -884,7 +885,9 @@
 
 <script setup>
 import { onMounted, onBeforeUnmount, ref, shallowRef, computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import { identityColor } from "@/composables/useIdentityColor";
+import { projectDetectionToCanvas, trailKeyFor, roomForCanvasPoint } from "@/composables/useFloorPlanProjection";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket";
 import { useNotify } from "@/composables/useNotify";
 import { household } from "@/services/household";
@@ -892,6 +895,7 @@ import { cts } from "@/services/cts";
 import PolygonOnSnapshot from "@/components/cts/PolygonOnSnapshot.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
+const router = useRouter();
 
 // ── Floor plan state ───────────────────────────────────────────────────────
 const floorPlanUrl = ref(null);
@@ -937,6 +941,8 @@ const canvasW = ref(1200);
 const canvasH = ref(800);
 const paused = ref(false);
 const identityTrails = shallowRef({});
+const uncalibratedDetCount = ref(0);
+let _uncalibratedWindow = [];
 // cameraFrameState tracks the most recent frame per camera for status display
 const cameraFrameState = shallowRef({});
 const MAX_TRAIL_POINTS = 80;
@@ -986,7 +992,7 @@ const activeCameras = computed(() => {
 });
 
 const uncalibratedWarning = computed(() =>
-  activePersons.value.some((p) => !p.calibrated)
+  uncalibratedDetCount.value > 0
 );
 
 const uncalibratedCoverage = computed(() =>
@@ -1053,29 +1059,6 @@ function formatAge(ts) {
   if (s < 5) return "now";
   if (s < 60) return `${s}s ago`;
   return `${Math.round(s / 60)}m ago`;
-}
-
-/** Return the room name whose polygon contains normalized point [nx, ny]. */
-function roomForPoint(nx, ny) {
-  for (const room of rooms.value) {
-    if (!room.floor_polygon || room.floor_polygon.length < 3) continue;
-    if (pointInPolygon(nx, ny, room.floor_polygon)) return room.name;
-  }
-  return null;
-}
-
-/** Ray-casting polygon containment test. Polygon is in [0,1] normalized coords. */
-function pointInPolygon(x, y, polygon) {
-  let inside = false;
-  const n = polygon.length;
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const xi = polygon[i][0], yi = polygon[i][1];
-    const xj = polygon[j][0], yj = polygon[j][1];
-    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
-      inside = !inside;
-    }
-  }
-  return inside;
 }
 
 // ── Load ─────────────────────────────────────────────────────────────────
@@ -1446,9 +1429,14 @@ function onLiveFrame(frame) {
 
   const detections = frame.detections || [];
   const now = Date.now();
-  const frameW = frame.frame_width || 640;
-  const frameH = frame.frame_height || 480;
-  const hasFloorPlan = fpMpp.value && fpWidth.value && fpHeight.value;
+  const fp = {
+    width: fpWidth.value,
+    height: fpHeight.value,
+    mpp: fpMpp.value,
+    canvasW: canvasW.value,
+    canvasH: canvasH.value,
+  };
+  const floorPlanReady = fp.width && fp.height && fp.mpp;
 
   const trails = { ...identityTrails.value };
 
@@ -1461,58 +1449,97 @@ function onLiveFrame(frame) {
 
   let cameraCalibrated = false;
   let cameraDetCount = 0;
+  let frameUncalibrated = 0;
 
   for (const det of detections) {
-    const gtId = det.global_track_id;
-    if (!gtId) continue;
+    const key = trailKeyFor(det);
+    if (!key) continue;
 
     cameraDetCount++;
 
-    // Prefer the human-readable display name from the identity gallery.
-    const displayName = det.display_name || det.identity_id || gtId.slice(0, 8);
     const calibrated = det.floor_calibrated ?? false;
     if (calibrated) cameraCalibrated = true;
 
-    let fx, fy;
-    if (calibrated && det.floor_x != null && hasFloorPlan) {
-      // floor_x / floor_y are in metres in the floor plan coordinate frame.
-      fx = (det.floor_x / (fpWidth.value * fpMpp.value)) * canvasW.value;
-      fy = (det.floor_y / (fpHeight.value * fpMpp.value)) * canvasH.value;
-    } else {
-      // Fallback: scale bbox foot-point to canvas.
-      const bbox = det.bbox;
-      fx = bbox ? ((bbox.x_min + bbox.x_max) / 2) / frameW * canvasW.value : 0;
-      fy = bbox ? bbox.y_max / frameH * canvasH.value : 0;
+    // Project to canvas. Drop uncalibrated detections entirely.
+    const projected = projectDetectionToCanvas(det, fp);
+    if (!projected) {
+      if (floorPlanReady && !calibrated) frameUncalibrated++;
+      continue;
     }
 
-    // Normalised position for room lookup.
-    const nx = fx / canvasW.value;
-    const ny = fy / canvasH.value;
-    const roomName = roomForPoint(nx, ny);
+    const gtId = det.global_track_id;
+    const displayName = det.display_name || det.identity_id || (gtId || "").slice(0, 8);
+    const idForColor = det.identity_id || gtId || key;
 
-    let trail = trails[gtId];
+    // Room lookup from projected canvas point.
+    const roomName = roomForCanvasPoint(projected.x, projected.y, fp.canvasW, fp.canvasH, rooms.value);
+
+    let trail = trails[key];
     if (!trail) {
       trail = {
         points: [],
         current: null,
-        color: identityColor(gtId),
+        color: identityColor(idForColor),
         displayName,
         lastSeen: now,
         calibrated,
         confidence: det.identity_confidence ?? 0,
         roomName,
+        _identityId: det.identity_id || null,
+        _gtId: gtId || null,
       };
-      trails[gtId] = trail;
+      trails[key] = trail;
+
+      // If this is a new id: trail, merge any existing gt: trail for the same GT.
+      if (key.startsWith("id:") && gtId) {
+        const gtKey = `gt:${gtId}`;
+        const gtTrail = trails[gtKey];
+        if (gtTrail) {
+          trail.points = [...gtTrail.points];
+          if (!trail.displayName || trail.displayName === gtId.slice(0, 8)) {
+            trail.displayName = gtTrail.displayName;
+          }
+          delete trails[gtKey];
+        }
+      }
     }
+
     trail.lastSeen = now;
     trail.displayName = displayName;
     trail.calibrated = calibrated;
     trail.confidence = det.identity_confidence ?? trail.confidence;
     trail.roomName = roomName;
-    trail.points.push({ x: fx, y: fy, ts: now });
+    trail.points.push({ x: projected.x, y: projected.y, ts: now });
     if (trail.points.length > MAX_TRAIL_POINTS) trail.points = trail.points.slice(-MAX_TRAIL_POINTS);
-    trail.current = { x: fx, y: fy };
+    trail.current = { x: projected.x, y: projected.y };
   }
+
+  // Reconcile: if the same frame produced both a gt: and an id: trail for the
+  // same person (gt detection processed before id detection), merge now.
+  for (const key of Object.keys(trails)) {
+    if (!key.startsWith("gt:")) continue;
+    const gtId = key.slice(3);
+    for (const otherKey of Object.keys(trails)) {
+      if (!otherKey.startsWith("id:")) continue;
+      if (trails[otherKey]._gtId === gtId) {
+        trails[otherKey].points = [...trails[key].points, ...trails[otherKey].points]
+          .sort((a, b) => a.ts - b.ts)
+          .slice(-MAX_TRAIL_POINTS);
+        if (trails[key].lastSeen > trails[otherKey].lastSeen) {
+          trails[otherKey].lastSeen = trails[key].lastSeen;
+        }
+        delete trails[key];
+        break;
+      }
+    }
+  }
+
+  // Sliding window for uncalibrated count (10-second lookback).
+  if (frameUncalibrated > 0) {
+    _uncalibratedWindow.push({ count: frameUncalibrated, ts: now });
+  }
+  _uncalibratedWindow = _uncalibratedWindow.filter((e) => now - e.ts <= 10_000);
+  uncalibratedDetCount.value = _uncalibratedWindow.reduce((s, e) => s + e.count, 0);
 
   identityTrails.value = trails;
 

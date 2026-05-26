@@ -463,8 +463,9 @@ function formatTime(iso) {
 
 // ── Annotation saved callback ───────────────────────────────────────────────
 
-function onAnnotationSaved() {
+async function onAnnotationSaved() {
   notify.success("Annotations saved");
+  await loadKeyframes();
 }
 
 // ── Gallery enrollment ──────────────────────────────────────────────────────

@@ -27,9 +27,14 @@ def _build_app(db_engine: Engine, cts_enabled: bool = True, orchestrator=None):
     def _session():
         return Session()
 
-    from backend.routers import cts_bboxes, cts_corrections, cts_decisions, cts_deps
-    from backend.routers import cts_identity_helpers
-    from backend.routers import cts_tracks
+    from backend.routers import (
+        cts_bboxes,
+        cts_corrections,
+        cts_decisions,
+        cts_deps,
+        cts_identity_helpers,
+        cts_tracks,
+    )
 
     app = FastAPI()
     register_exception_handlers(app)

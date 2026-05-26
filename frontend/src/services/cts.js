@@ -100,6 +100,16 @@ export const cts = {
   getInferredAdjacency: () => req("/calibration/adjacency/inferred"),
   getOverlapGroups: () => req("/overlap_groups"),
 
+  // ── M2: Calibration diagnostics & transit zones ──────────────────────────────
+  getCalibrationDiagnostics: () => req("/diagnostics/calibration"),
+  getTransitZones: () => req("/transit-zones"),
+  createTransitZone: (body) =>
+    req("/transit-zones", { method: "POST", body: JSON.stringify(body) }),
+  updateTransitZone: (id, body) =>
+    req(`/transit-zones/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteTransitZone: (id) =>
+    req(`/transit-zones/${id}`, { method: "DELETE" }),
+
   // ── Dementia signals ────────────────────────────────────────────────────────
   getSignals: (params = {}) => {
     const qs = new URLSearchParams();

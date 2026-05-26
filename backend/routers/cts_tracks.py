@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
 
 from backend.core.auth import AuthContext, require_permission
 from backend.integrations._upstream_base import UpstreamError

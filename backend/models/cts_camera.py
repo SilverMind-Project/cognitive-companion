@@ -66,6 +66,14 @@ class CtsCamera(Base):
     # Per-point reprojection error from the last homography fit (meters).
     homography_residuals: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
+    # M2: calibration health columns
+    homography_matrix: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    homography_residual_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    homography_method: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    homography_set_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    frame_natural_width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    frame_natural_height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Normalised [0,1] visibility polygon derived from the homography matrix.
     # Each element is [x_norm, y_norm] where x=0 is the left edge of the floor plan
     # and x=1 is the right edge.  Populated automatically when homography is saved.

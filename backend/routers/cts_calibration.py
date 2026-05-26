@@ -18,6 +18,7 @@ Routes:
 from __future__ import annotations
 
 import base64
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -222,11 +223,43 @@ async def post_homography(
     residuals: list[float] = result["residuals_m"]
     max_residual: float = result["max_residual_m"]
 
+    # M2: server-side validation — reject degenerate or high-error matrices.
+    from backend.services.cts.calibration_validator import (
+        validate_homography,
+    )
+
+    validation = validate_homography(
+        matrix=matrix,
+        residuals=residuals,
+        image_width=body.image_width,
+        image_height=body.image_height,
+    )
+    if not validation.ok:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "calibration_rejected",
+                "message": "Homography failed validation",
+                "validation": {
+                    "ok": validation.ok,
+                    "severity": validation.severity,
+                    "issues": validation.issues,
+                },
+            },
+        )
+
     # Persist the computed matrix to the CC database for restart durability.
     cam.homography = {"matrix": matrix}
     cam.homography_residuals = residuals
     cam.snapshot_width = body.image_width
     cam.snapshot_height = body.image_height
+    # M2: populate new calibration health columns.
+    cam.homography_matrix = matrix
+    cam.homography_residual_m = max_residual
+    cam.homography_method = "manual"
+    cam.homography_set_at = datetime.now(UTC)
+    cam.frame_natural_width = body.image_width
+    cam.frame_natural_height = body.image_height
     poly_status = _refresh_visibility_polygon(cam, db)
     db.commit()
 
@@ -235,6 +268,7 @@ async def post_homography(
         camera_id=body.camera_id,
         snapshot_dims=f"{body.image_width}x{body.image_height}",
         max_residual_m=round(max_residual, 4),
+        validation_severity=validation.severity,
         visibility_polygon_computed=poly_status["computed"],
     )
 

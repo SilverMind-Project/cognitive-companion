@@ -187,7 +187,13 @@ async function onSave() {
     }
     for (const del of pendingDeletes.value) {
       if (del.annotationId) {
-        await cts.deleteBbox(del.annotationId);
+        try {
+          await cts.deleteBbox(del.annotationId);
+        } catch (err) {
+          const msg = String(err.message || err || "");
+          if (err && (err.status === 404 || msg.includes("404"))) continue;
+          throw err;
+        }
       }
     }
     pendingTags.value = [];

@@ -27,8 +27,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy.orm import Session
-
 from backend.filters import FilterRegistry
 from backend.filters.base import ContextFilter, FilterMetadata
 from backend.services.camera_topology import (
@@ -95,19 +93,14 @@ class RoomTransitionFilter(ContextFilter):
             },
         )
 
-    def evaluate(
+    async def evaluate(
         self,
         config: dict,
-        sensor,
+        sensor: Any,
         now: datetime,
-        db: Session | None = None,
+        db: Any = None,
         services: Any = None,
     ) -> bool:
-        if not db:
-            return False
-
-        from backend.models.person import PersonLocationHistory
-
         person_id: str | None = config.get("person_id")
         if not person_id:
             return False
@@ -115,24 +108,59 @@ class RoomTransitionFilter(ContextFilter):
         within_minutes: float = config.get("within_minutes", _DEFAULT_WINDOW_MINUTES)
         cutoff = now - timedelta(minutes=within_minutes)
 
-        query = db.query(PersonLocationHistory).filter(
-            PersonLocationHistory.person_id == person_id,
-            PersonLocationHistory.entered_at >= cutoff,
-            # Only rows produced by topology inference carry a direction_semantic.
-            PersonLocationHistory.direction_semantic.isnot(None),
-        )
-
         semantic: str | None = config.get("semantic")
-        if semantic:
-            query = query.filter(PersonLocationHistory.direction_semantic == semantic)
-
         to_room: str | None = config.get("to_room_name")
-        if to_room:
-            # room_name on PersonLocationHistory is the *destination* room.
-            query = query.filter(PersonLocationHistory.room_name.ilike(to_room))
-
         from_room: str | None = config.get("from_room_name")
-        if from_room:
-            query = query.filter(PersonLocationHistory.from_room_name.ilike(from_room))
 
-        return query.first() is not None
+        # M4: use PersonLocationService presence_history.
+        if services and hasattr(services, "person_location") and services.person_location is not None:
+            try:
+                segments = await services.person_location.presence_history(
+                    person_id, since=cutoff, until=now
+                )
+            except Exception:
+                return False
+
+            # Filter out superseded segments.
+            active = [s for s in segments if s.superseded_by is None]
+            if len(active) < 2:
+                return False
+
+            # Detect transitions: compare consecutive segments.
+            for i in range(1, len(active)):
+                prev = active[i - 1]
+                curr = active[i]
+                room_changed = prev.room_id != curr.room_id
+                if not room_changed:
+                    continue
+                if to_room and curr.room_id != to_room:
+                    continue
+                if from_room and prev.room_id != from_room:
+                    continue
+                # Map entry_source to semantic direction.
+                if semantic:
+                    if semantic == SEMANTIC_ENTERING and curr.entry_source not in ("observed", "inferred_transit"):
+                        continue
+                    if semantic == SEMANTIC_EXITING and prev.exit_source not in ("observed", "inferred_transit", "contradicted"):
+                        continue
+                return True
+            return False
+
+        # Legacy fallback: query PersonLocationHistory.
+        if db is not None:
+            from backend.models.person import PersonLocationHistory
+
+            query = db.query(PersonLocationHistory).filter(
+                PersonLocationHistory.person_id == person_id,
+                PersonLocationHistory.entered_at >= cutoff,
+                PersonLocationHistory.direction_semantic.isnot(None),
+            )
+            if semantic:
+                query = query.filter(PersonLocationHistory.direction_semantic == semantic)
+            if to_room:
+                query = query.filter(PersonLocationHistory.room_name.ilike(to_room))
+            if from_room:
+                query = query.filter(PersonLocationHistory.from_room_name.ilike(from_room))
+            return query.first() is not None
+
+        return False

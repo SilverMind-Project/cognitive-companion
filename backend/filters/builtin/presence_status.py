@@ -1,7 +1,6 @@
-"""presence_status context filter -- match on fused PresenceStatus.
+"""presence_status context filter -- match on fused PresenceStatus (M4: uses PersonLocationService).
 
-Gates a rule when the person's fused presence status matches (or does not
-match, when ``negate`` is True) the configured value.
+Gates a rule when the person's location status matches the configured value.
 """
 
 from __future__ import annotations
@@ -9,22 +8,20 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.orm import Session
-
 from backend.filters import FilterRegistry
 from backend.filters.base import ContextFilter, FilterMetadata
 
 
 @FilterRegistry.register
 class PresenceStatusFilter(ContextFilter):
-    """Gate on the person's fused presence status."""
+    """Gate on the person's current location / presence status."""
 
     @classmethod
     def metadata(cls) -> FilterMetadata:
         return FilterMetadata(
             filter_type="presence_status",
             display_name="Presence Status",
-            description="Match when a person's fused presence status equals the configured value.",
+            description="Match when a person's presence status equals the configured value.",
             config_schema={
                 "type": "object",
                 "properties": {
@@ -55,38 +52,47 @@ class PresenceStatusFilter(ContextFilter):
             },
         )
 
-    def evaluate(
+    async def evaluate(
         self,
         config: dict,
         sensor: Any,
         now: datetime,
-        db: Session | None = None,
+        db: Any = None,
         services: Any = None,
     ) -> bool:
-        if not services or services.presence is None:
-            return False
-
         person_id = (config.get("person_id") or "").strip() or None
-        if not person_id:
-            return False
-
         status = config.get("status")
-        if not status:
+        if not person_id or not status:
             return False
 
         room_name = config.get("room_name")
 
-        try:
-            import asyncio
+        # M4: use PersonLocationService when available.
+        if services and hasattr(services, "person_location") and services.person_location is not None:
+            try:
+                current = await services.person_location.where_is(person_id)
+            except Exception:
+                return False
 
-            snapshot = asyncio.run(services.presence.get(person_id))
-        except Exception:
-            return False
+            if status in ("away", "stale", "unknown"):
+                return current is None
+            if current is None:
+                return False
+            # present_room / present_home
+            if room_name and current.room_name:
+                return current.room_name.lower() == room_name.lower()
+            return True
 
-        if snapshot.status.value != status:
-            return False
+        # Legacy fallback: use presence service.
+        if services and hasattr(services, "presence") and services.presence is not None:
+            try:
+                snapshot = await services.presence.get(person_id)
+            except Exception:
+                return False
+            if snapshot.status.value != status:
+                return False
+            if room_name and snapshot.room_name:
+                return snapshot.room_name.lower() == room_name.lower()
+            return True
 
-        if room_name and snapshot.room_name:
-            return snapshot.room_name.lower() == room_name.lower()
-
-        return True
+        return False

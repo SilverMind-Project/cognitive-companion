@@ -717,6 +717,7 @@ def create_app() -> FastAPI:
         media,
         occupancy,
         persons,
+        persons_location,
         pipeline,
         pipeline_images,
         quizzes,
@@ -775,6 +776,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_overlap_groups.router, prefix=api)
     app.include_router(cts_diagnostics.router, prefix=api)
     app.include_router(cts_transit_zones.router, prefix=api)
+    app.include_router(persons_location.router)  # M4: already has /api/v1 prefix
 
     # WebSocket routers (no /api/v1 prefix).
     app.include_router(ws.router)

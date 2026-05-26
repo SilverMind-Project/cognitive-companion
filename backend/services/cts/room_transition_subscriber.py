@@ -7,7 +7,6 @@ PersonLocationService.ingest_room_transition.
 from __future__ import annotations
 
 from datetime import datetime
-from uuid import UUID
 
 from backend.services.cts._types import DBSessionFactory
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer

@@ -7,14 +7,8 @@ PersonLocationService.ingest_observation with source='world_tracker'.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID
 
-from backend.services.cts._types import DBSessionFactory
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
-from backend.services.person_location.repositories import (
-    SqlAlchemyObservationRepository,
-    SqlAlchemySegmentRepository,
-)
 from backend.services.person_location.service import PersonLocationService
 from backend.services.person_location.types import FloorPoint
 
@@ -26,7 +20,7 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
     def __init__(
         self,
         redis_url: str,
-        db_factory: DBSessionFactory,
+        location_service: PersonLocationService,
         config: ConsumerConfig | None = None,
     ) -> None:
         super().__init__(
@@ -35,11 +29,10 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
             group=GROUP,
             config=config or ConsumerConfig(consumer_id="m4-world-obs"),
         )
-        self._db_factory = db_factory
+        self._location = location_service
 
     async def decode(self, message_id: str, fields: dict) -> dict | None:
-        """Decode a tracking event. For M4, we extract the world-tracker
-        observations from the tracking event proto."""
+        """Decode a tracking event proto and extract world-observation data."""
         if b"event" not in fields:
             return None
         try:
@@ -78,35 +71,23 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
         return result
 
     async def handle(self, msg: dict) -> bool:
-        db = self._db_factory()
-        try:
-            svc = PersonLocationService(
-                obs_repo=SqlAlchemyObservationRepository(db),
-                seg_repo=SqlAlchemySegmentRepository(db),
+        for det in msg.get("detections", []):
+            if not det.get("identity_id"):
+                continue
+            if not det.get("calibrated"):
+                continue
+            floor_x = det["floor_x_mm"] / 1000.0
+            floor_y = det["floor_y_mm"] / 1000.0
+            await self._location.ingest_observation(
+                person_id=str(det["identity_id"]),
+                observed_at=msg["event_time"],
+                source="world_tracker",
+                source_ref=det.get("global_track_id"),
+                floor_point=FloorPoint(x_m=floor_x, y=floor_y),
+                confidence=det.get("confidence", 0.5),
+                metadata={
+                    "camera_id": det.get("camera_id", ""),
+                    "room_name": det.get("room_name", ""),
+                },
             )
-            for det in msg.get("detections", []):
-                if not det.get("identity_id"):
-                    continue
-                if not det.get("calibrated"):
-                    continue
-                floor_x = det["floor_x_mm"] / 1000.0
-                floor_y = det["floor_y_mm"] / 1000.0
-                await svc.ingest_observation(
-                    person_id=str(det["identity_id"]),
-                    observed_at=msg["event_time"],
-                    source="world_tracker",
-                    source_ref=det.get("global_track_id"),
-                    floor_point=FloorPoint(x_m=floor_x, y_m=floor_y),
-                    confidence=det.get("confidence", 0.5),
-                    metadata={
-                        "camera_id": det.get("camera_id", ""),
-                        "room_name": det.get("room_name", ""),
-                    },
-                )
-            db.commit()
-            return True
-        except Exception:
-            db.rollback()
-            raise
-        finally:
-            db.close()
+        return True

@@ -1,19 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 
-// ── Mocks ──────────────────────────────────────────────────────────────────
+// --- Mocks ------------------------------------------------------------------
 
-const mockDeleteBbox = vi.fn().mockResolvedValue(null);
-const mockOverrideBbox = vi.fn().mockResolvedValue({});
-const mockApplyBboxCorrection = vi.fn().mockResolvedValue({});
 const mockGetKeyframeBboxes = vi.fn().mockResolvedValue([]);
+const mockApplyBboxBatch = vi.fn().mockResolvedValue({ applied: 0, results: [] });
 
 vi.mock("@/services/cts", () => ({
   cts: {
     getKeyframeBboxes: (...args) => mockGetKeyframeBboxes(...args),
-    overrideBbox: (...args) => mockOverrideBbox(...args),
-    applyBboxCorrection: (...args) => mockApplyBboxCorrection(...args),
-    deleteBbox: (...args) => mockDeleteBbox(...args),
+    applyBboxBatch: (...args) => mockApplyBboxBatch(...args),
   },
 }));
 
@@ -68,8 +64,8 @@ describe("KeyframeAnnotationDialog — save handler", () => {
     vi.clearAllMocks();
   });
 
-  it("emits error when a deleteBbox throws a non-404 error", async () => {
-    mockDeleteBbox.mockRejectedValue(new Error("Server error"));
+  it("emits error when applyBboxBatch fails", async () => {
+    mockApplyBboxBatch.mockRejectedValue(new Error("Server error"));
     const wrapper = await mountDialog();
 
     // Queue a delete by mutating the reactive array in place.
@@ -88,8 +84,8 @@ describe("KeyframeAnnotationDialog — save handler", () => {
     expect(errorEvents[0][0]).toBe("Server error");
   });
 
-  it("treats 404 from deleteBbox as success (idempotent delete)", async () => {
-    mockDeleteBbox.mockRejectedValue(new Error("HTTP 404"));
+  it("emits saved when applyBboxBatch succeeds", async () => {
+    mockApplyBboxBatch.mockResolvedValue({ applied: 1, results: [] });
     mockGetKeyframeBboxes.mockResolvedValue([]);
     const wrapper = await mountDialog();
 
@@ -104,7 +100,7 @@ describe("KeyframeAnnotationDialog — save handler", () => {
     await buttons[1].trigger("click");
     await flushPromises();
 
-    // Should NOT emit error — 404 is treated as success.
+    // Should NOT emit error.
     expect(wrapper.emitted("error")).toBeFalsy();
     // Should emit saved.
     expect(wrapper.emitted("saved")).toBeTruthy();

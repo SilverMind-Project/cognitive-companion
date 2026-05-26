@@ -30,10 +30,10 @@ class RoomFilter(ContextFilter):
             },
         )
 
-    def evaluate(
+    async def evaluate(
         self,
         config: dict,
-        sensor,
+        sensor: Any,
         now: datetime,
         db: Session | None = None,
         services: Any = None,

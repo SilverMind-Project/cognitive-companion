@@ -7,7 +7,7 @@ location_observations or presence_segments directly.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from backend.core.logging import get_logger
 

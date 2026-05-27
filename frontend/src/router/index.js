@@ -175,7 +175,7 @@ const routes = [
         meta: { title: "People & Hypotheses", icon: "mdi-account-group" },
       },
       {
-        path: "cts/identity-corrections",
+        path: "cts/corrections",
         redirect: { name: "CTSPeople" },
       },
       {

@@ -1,5 +1,7 @@
 /**
- * N3: PH correction composable — apply correct/merge/split with toasts.
+ * N3: PH correction composable -- apply correct/merge/split with toasts.
+ *
+ * Returns { state, actions } per engineering-standards Section 17.
  */
 
 import { ref } from "vue";
@@ -43,5 +45,8 @@ export function usePHCorrection(notify) {
     }
   }
 
-  return { saving, lastRevision, apply };
+  return {
+    state: { saving, lastRevision },
+    actions: { apply },
+  };
 }

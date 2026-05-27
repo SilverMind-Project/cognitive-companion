@@ -12,16 +12,16 @@
       <v-btn
         variant="tonal"
         prepend-icon="mdi-refresh"
-        :loading="phList.loading.value"
-        @click="phList.fetch()"
+        :loading="phList.state.loading.value"
+        @click="phList.actions.fetch()"
       >
         Refresh
       </v-btn>
       <BlurToggle />
     </div>
 
-    <v-alert v-if="phList.error.value" type="error" class="mb-4" closable @click:close="phList.error.value = ''">
-      {{ phList.error.value }}
+    <v-alert v-if="phList.state.error.value" type="error" class="mb-4" closable @click:close="phList.state.error.value = ''">
+      {{ phList.state.error.value }}
     </v-alert>
 
     <!-- WS disconnect banner (only after first connection attempt) -->
@@ -35,7 +35,7 @@
       <span class="d-flex align-center ga-2">
         <v-icon size="16">mdi-wifi-off</v-icon>
         Live updates paused. Reconnecting...
-        <v-btn size="x-small" variant="outlined" @click="phList.fetch()">Refresh now</v-btn>
+        <v-btn size="x-small" variant="outlined" @click="phList.actions.fetch()">Refresh now</v-btn>
       </span>
     </v-alert>
 
@@ -44,7 +44,7 @@
       <v-tab value="people">People</v-tab>
       <v-tab value="hypotheses">
         Hypotheses
-        <v-chip size="x-small" variant="tonal" class="ml-1">{{ phList.total.value }}</v-chip>
+        <v-chip size="x-small" variant="tonal" class="ml-1">{{ phList.state.total.value }}</v-chip>
       </v-tab>
       <v-tab value="history">History</v-tab>
     </v-tabs>
@@ -56,7 +56,7 @@
         <v-row dense align="center">
           <v-col cols="12" sm="4" md="3">
             <v-select
-              v-model="phList.filters.identity_id"
+              v-model="phList.state.filters.identity_id"
               :items="identityOptions"
               label="Identity"
               variant="outlined"
@@ -68,7 +68,7 @@
           </v-col>
           <v-col cols="6" sm="4" md="2">
             <v-select
-              v-model="phList.filters.room_id"
+              v-model="phList.state.filters.room_id"
               :items="roomOptions"
               label="Room"
               variant="outlined"
@@ -78,18 +78,53 @@
               @update:model-value="onFilterChange()"
             />
           </v-col>
+          <v-col cols="6" sm="4" md="2">
+            <v-select
+              v-model="phList.state.filters.state"
+              :items="stateOptions"
+              label="State"
+              variant="outlined"
+              density="compact"
+              clearable
+              hide-details
+              @update:model-value="onFilterChange()"
+            />
+          </v-col>
+          <v-col cols="6" sm="4" md="2">
+            <v-switch
+              v-model="phList.state.filters.include_transient"
+              label="Transient"
+              density="compact"
+              hide-details
+              color="primary"
+              @update:model-value="onFilterChange()"
+            />
+          </v-col>
+          <v-col cols="6" sm="4" md="3">
+            <v-text-field
+              v-model="phList.state.filters.search"
+              label="Search by name"
+              variant="outlined"
+              density="compact"
+              clearable
+              hide-details
+              @update:model-value="debouncedSearch"
+            />
+          </v-col>
         </v-row>
       </v-card>
 
       <v-data-table-server
-        v-model:items-per-page="phList.pagination.itemsPerPage"
-        v-model:page="phList.pagination.page"
+        v-model:items-per-page="phList.state.pagination.itemsPerPage"
+        v-model:page="phList.state.pagination.page"
         :headers="headers"
-        :items="phList.items.value"
-        :items-length="phList.total.value"
-        :loading="phList.loading.value"
+        :items="phList.state.items.value"
+        :items-length="phList.state.total.value"
+        :loading="phList.state.loading.value"
         item-value="ph_id"
         items-per-page-text="PHs per page"
+        hover
+        @click:row="(_event, { item }) => openInspector(item, 'view')"
         @update:options="onTableOptions"
       >
         <!-- Identity -->
@@ -158,46 +193,10 @@
     <!-- ─────────────── TAB: People ─────────────── -->
     <div v-if="activeTab === 'people'">
       <v-card class="glass-card pa-6">
-        <div class="d-flex flex-wrap ga-4">
-          <v-card
-            v-for="group in identityGroups"
-            :key="group.identity_id"
-            variant="flat"
-            border
-            rounded="lg"
-            class="pa-4"
-            style="min-width: 280px; flex: 1"
-          >
-            <div class="text-subtitle-2 font-weight-medium mb-2">
-              <v-icon
-                size="10"
-                :color="identityColor(group.identity_id)"
-                class="mr-1"
-              >mdi-circle</v-icon>
-              {{ group.display_name }}
-            </div>
-            <div class="text-caption text-medium-emphasis">
-              {{ group.count }} active PH{{ group.count !== 1 ? 's' : '' }}
-            </div>
-          </v-card>
-          <v-card
-            v-if="unidentifiedCount > 0"
-            variant="flat"
-            border
-            rounded="lg"
-            class="pa-4"
-            style="min-width: 280px; flex: 1"
-            color="warning"
-          >
-            <div class="text-subtitle-2 font-weight-medium mb-2">
-              <v-icon size="10" color="warning" class="mr-1">mdi-help-circle</v-icon>
-              Unidentified
-            </div>
-            <div class="text-caption text-medium-emphasis">
-              {{ unidentifiedCount }} PH{{ unidentifiedCount !== 1 ? 's' : '' }}
-            </div>
-          </v-card>
-        </div>
+        <PHPeopleSummary
+          :identity-groups="identityGroups"
+          :unidentified-count="unidentifiedCount"
+        />
       </v-card>
     </div>
 
@@ -276,14 +275,21 @@ import { usePHList } from "@/composables/usePHList";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket";
 import { ctsPh } from "@/services/cts_ph";
 import PHInspectorDrawer from "@/components/cts/ph/PHInspectorDrawer.vue";
+import PHPeopleSummary from "@/components/cts/ph/PHPeopleSummary.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
 
 let searchTimer = null;
 
+const stateOptions = [
+  { title: "Active", value: "active" },
+  { title: "Coasting", value: "coasting" },
+  { title: "Ended", value: "ended" },
+];
+
 export default {
   name: "CTSPersonHypothesesView",
 
-  components: { PHInspectorDrawer, BlurToggle },
+  components: { PHInspectorDrawer, PHPeopleSummary, BlurToggle },
 
   setup() {
     const { blurMode } = useBlurMode();
@@ -308,7 +314,7 @@ export default {
       try {
         const event = JSON.parse(raw.data);
         if (event.type === "cts_ph_update" || event.type === "cts_ph_correction") {
-          phList.handleWsEvent(event);
+          phList.actions.handleWsEvent(event);
         }
       } catch { /* ignore malformed */ }
     }
@@ -316,7 +322,7 @@ export default {
     const { status, attempted: wsAttempted } = useCtsWebSocket(onWsMessage);
 
     onMounted(() => {
-      phList.fetch();
+      phList.actions.fetch();
       loadIdentities();
     });
 
@@ -336,7 +342,7 @@ export default {
     // ── Identity groups for People tab ──
     const identityGroups = computed(() => {
       const byId = new Map();
-      for (const ph of phList.items.value) {
+      for (const ph of phList.state.items.value) {
         const id = ph.current_identity_id;
         if (!id) continue;
         if (!byId.has(id)) {
@@ -352,7 +358,7 @@ export default {
     });
 
     const unidentifiedCount = computed(
-      () => phList.items.value.filter((ph) => !ph.current_identity_id).length
+      () => phList.state.items.value.filter((ph) => !ph.current_identity_id).length
     );
 
     // ── Table ──
@@ -367,7 +373,7 @@ export default {
     const identityOptions = computed(() => {
       const seen = new Set();
       const opts = [];
-      for (const ph of phList.items.value) {
+      for (const ph of phList.state.items.value) {
         if (ph.current_identity_id && !seen.has(ph.current_identity_id)) {
           seen.add(ph.current_identity_id);
           opts.push({
@@ -382,7 +388,7 @@ export default {
     const roomOptions = computed(() => {
       const seen = new Set();
       const opts = [];
-      for (const ph of phList.items.value) {
+      for (const ph of phList.state.items.value) {
         const rn = ph.room_name;
         if (rn && !seen.has(rn)) {
           seen.add(rn);
@@ -407,26 +413,26 @@ export default {
 
     // ── Filter / pagination ──
     function onFilterChange() {
-      phList.pagination.page = 1;
-      phList.fetch();
+      phList.state.pagination.page = 1;
+      phList.actions.fetch();
     }
 
     function debouncedSearch(val) {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
-        phList.pagination.page = 1;
-        phList.fetch();
+        phList.state.pagination.page = 1;
+        phList.actions.fetch();
       }, 300);
     }
 
     function onTableOptions(opts) {
-      if (opts.itemsPerPage !== phList.pagination.itemsPerPage) {
-        phList.pagination.itemsPerPage = opts.itemsPerPage;
-        phList.pagination.page = 1;
+      if (opts.itemsPerPage !== phList.state.pagination.itemsPerPage) {
+        phList.state.pagination.itemsPerPage = opts.itemsPerPage;
+        phList.state.pagination.page = 1;
       } else {
-        phList.pagination.page = opts.page;
+        phList.state.pagination.page = opts.page;
       }
-      phList.fetch();
+      phList.actions.fetch();
     }
 
     // ── Inspector ──
@@ -438,7 +444,7 @@ export default {
 
     async function onDrawerApply() {
       drawerOpen.value = false;
-      await phList.fetch();
+      await phList.actions.fetch();
       loadIdentities();
     }
 

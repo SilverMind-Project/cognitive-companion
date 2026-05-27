@@ -1,8 +1,9 @@
 /**
- * N3: PH list composable — pagination, filters, and WebSocket merge.
+ * N3: PH list composable -- pagination, filters, and WebSocket merge.
  *
- * Usage:
- *   const { items, total, loading, error, fetch, handleWsEvent } = usePHList();
+ * Returns { state, actions } per engineering-standards Section 17.
+ *
+ * state.filters includes all ten filter params supported by the backend.
  */
 
 import { ref, reactive } from "vue";
@@ -19,6 +20,11 @@ export function usePHList() {
     identity_id: null,
     room_id: null,
     since: null,
+    until: null,
+    state: null,
+    include_transient: false,
+    min_duration_s: null,
+    search: null,
   });
 
   const pagination = reactive({
@@ -37,6 +43,11 @@ export function usePHList() {
       if (filters.identity_id) params.identity_id = filters.identity_id;
       if (filters.room_id) params.room_id = filters.room_id;
       if (filters.since) params.since = filters.since;
+      if (filters.until) params.until = filters.until;
+      if (filters.state) params.state = filters.state;
+      if (filters.include_transient) params.include_transient = true;
+      if (filters.min_duration_s != null) params.min_duration_s = filters.min_duration_s;
+      if (filters.search) params.search = filters.search;
 
       const data = await ctsPh.list(params);
       items.value = data.items || [];
@@ -64,21 +75,24 @@ export function usePHList() {
         last_seen_at: event.last_observed_at,
       });
     } else if (event.type === "cts_ph_correction") {
-      // Refresh the affected row
       ctsPh.get(event.ph_id).then((ph) => updateRowInPlace(event.ph_id, ph)).catch(() => {});
     }
   }
 
   return {
-    items,
-    total,
-    loading,
-    error,
-    filters,
-    pagination,
-    newSinceRefresh,
-    fetch,
-    updateRowInPlace,
-    handleWsEvent,
+    state: {
+      items,
+      total,
+      loading,
+      error,
+      filters,
+      pagination,
+      newSinceRefresh,
+    },
+    actions: {
+      fetch,
+      updateRowInPlace,
+      handleWsEvent,
+    },
   };
 }

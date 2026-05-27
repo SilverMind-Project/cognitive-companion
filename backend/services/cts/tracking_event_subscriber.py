@@ -273,6 +273,59 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             except Exception:
                 logger.exception("cts_ph_update_broadcast_error")
 
+            # N4: broadcast world snapshot with PH-level position data
+            try:
+                identity_map = {}
+                for snap in event.get("identity_snapshots", []):
+                    identity_map[snap.get("ph_id", "")] = {
+                        "identity_id": snap.get("identity_id"),
+                        "display_name": snap.get("identity_id"),
+                        "color": "#888888",
+                        "top_prob": snap.get("top_probability", 0.0),
+                    }
+                phs = []
+                for det in event.get("detections", []):
+                    ph_id = det.get("global_track_id", "")
+                    identity = identity_map.get(ph_id, {})
+                    calibrated = det.get("floor_calibrated", False)
+                    ph = {
+                        "ph_id": ph_id,
+                        "identity_id": identity.get("identity_id"),
+                        "identity_display_name": identity.get("display_name"),
+                        "identity_color": identity.get("color", "#888888"),
+                        "identity_committed": bool(identity.get("identity_id")),
+                        "posterior_top_label": identity.get("identity_id"),
+                        "posterior_top_prob": identity.get("top_prob", 0.0),
+                        "room_id": None,
+                        "room_name": event.get("room_name") or "",
+                        "room_has_camera": True,
+                        "floor_xy_m": [
+                            det.get("floor_x") or 0.0,
+                            det.get("floor_y") or 0.0,
+                        ],
+                        "velocity_mps": [0.0, 0.0],
+                        "posture": det.get("posture") or "unknown",
+                        "state": "active",
+                        "last_observed_at": event.get("capture_time"),
+                        "uncalibrated": not calibrated,
+                        "presence_source": "observed" if calibrated else "unknown",
+                    }
+                    phs.append(ph)
+                if phs:
+                    import uuid
+
+                    await self._ws_manager.broadcast(
+                        {
+                            "type": "cts_world_snapshot",
+                            "snapshot_id": str(uuid.uuid4()),
+                            "captured_at": event.get("capture_time"),
+                            "phs": phs,
+                            "inferred_rooms": [],
+                        }
+                    )
+            except Exception:
+                logger.exception("cts_world_snapshot_broadcast_error")
+
         if self._pipeline is not None and touched:
             try:
                 await self._pipeline.fire_event(

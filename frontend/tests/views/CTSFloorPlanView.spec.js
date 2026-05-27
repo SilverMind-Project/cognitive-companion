@@ -14,6 +14,16 @@ vi.mock("@/composables/useCtsWebSocket", () => ({
   },
 }));
 
+vi.mock("@/composables/useWorldSnapshot", () => ({
+  useWorldSnapshot: () => ({
+    phs: ref([]),
+    inferredRooms: ref([]),
+    lastUpdate: ref(0),
+    isStale: ref(false),
+    wsStatus: ref("open"),
+  }),
+}));
+
 vi.mock("@/composables/useNotify", () => ({
   useNotify: () => ({
     snack: ref(false),

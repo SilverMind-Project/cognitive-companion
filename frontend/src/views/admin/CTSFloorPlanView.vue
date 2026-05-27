@@ -780,7 +780,7 @@
                 No floor plan
               </v-chip>
               <v-chip
-                v-if="uncalibratedWarning"
+                v-if="uncalibratedWarning || uncalibratedPhCount > 0"
                 color="warning"
                 size="small"
                 variant="tonal"
@@ -788,7 +788,15 @@
                 class="mr-2"
                 @click="router.push({ name: 'CTSCalibration' })"
               >
-                {{ uncalibratedDetCount }} unmapped detections (calibrate cameras to show)
+                {{ uncalibratedPhCount || uncalibratedDetCount }} person(s) off-plan (camera uncalibrated)
+              </v-chip>
+              <v-chip
+                :color="worldIsStale ? 'warning' : 'success'"
+                size="small"
+                variant="tonal"
+              >
+                <v-icon start size="14">{{ worldIsStale ? 'mdi-wifi-off' : 'mdi-broadcast' }}</v-icon>
+                {{ worldIsStale ? 'Stale' : 'Live' }}
               </v-chip>
               <v-chip
                 :color="paused ? 'warning' : 'success'"
@@ -892,9 +900,20 @@
                     </text>
                   </g>
 
+                  <!-- N4: PH-driven markers from world snapshot -->
+                  <PHMarker
+                    v-for="m in worldPhMarkers"
+                    :key="m.ph.ph_id || m.ph.identity_id || Math.random()"
+                    :ph="m.ph"
+                    :x="m.x"
+                    :y="m.y"
+                    :color="m.color"
+                    @click="phId => router.push({ name: 'CTSPeople', query: { ph_id: phId.ph_id || '' } })"
+                  />
+
                   <!-- Empty state -->
                   <text
-                    v-if="Object.keys(identityTrails).length === 0"
+                    v-if="Object.keys(identityTrails).length === 0 && worldPhMarkers.length === 0"
                     x="50%"
                     y="50%"
                     text-anchor="middle"
@@ -977,6 +996,22 @@
             </v-list>
           </v-card>
 
+          <!-- N4: Inferred presence badges -->
+          <v-card v-if="worldInferredRooms.length > 0" class="glass-card mt-3">
+            <v-card-title class="text-subtitle-2">Inferred Presence</v-card-title>
+            <v-divider />
+            <v-card-text class="pa-2">
+              <InferredPresenceBadge
+                v-for="ir in worldInferredRooms"
+                :key="ir.room_id"
+                :room-name="ir.room_name"
+                :person-name="ir.person_id || ''"
+                :since="ir.since"
+                @dismiss="() => {}"
+              />
+            </v-card-text>
+          </v-card>
+
           <!-- Calibration status per camera -->
           <v-card class="glass-card mt-3">
             <v-card-title class="text-subtitle-2">Camera Status</v-card-title>
@@ -1019,10 +1054,13 @@ import { useRouter } from "vue-router";
 import { identityColor } from "@/composables/useIdentityColor";
 import { projectDetectionToCanvas, trailKeyFor, roomForCanvasPoint } from "@/composables/useFloorPlanProjection";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket";
+import { useWorldSnapshot } from "@/composables/useWorldSnapshot";
 import { useNotify } from "@/composables/useNotify";
 import { household } from "@/services/household";
 import { cts } from "@/services/cts";
 import PolygonOnSnapshot from "@/components/cts/PolygonOnSnapshot.vue";
+import PHMarker from "@/components/cts/floor/PHMarker.vue";
+import InferredPresenceBadge from "@/components/cts/floor/InferredPresenceBadge.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const router = useRouter();
@@ -1162,6 +1200,44 @@ function onWsMessage(msg) {
   if (msg?.type === "cts_live_frame") onLiveFrame(msg);
 }
 useCtsWebSocket(onWsMessage);
+
+// N4: world snapshot (PH-driven floor plan markers)
+const enableWorldSnapshot = ref(true);
+const { phs: worldPhs, inferredRooms: worldInferredRooms, isStale: worldIsStale } = useWorldSnapshot();
+
+// Compute floor positions for world snapshot PHs
+const worldPhMarkers = computed(() => {
+  const fp = {
+    width: fpWidth.value,
+    height: fpHeight.value,
+    mpp: fpMpp.value,
+    canvasW: canvasW.value,
+    canvasH: canvasH.value,
+  };
+  const floorPlanReady = fp.width && fp.height && fp.mpp;
+  if (!floorPlanReady) return [];
+  return worldPhs.value
+    .filter((ph) => !ph.uncalibrated)
+    .map((ph) => {
+      const [fx, fy] = ph.floor_xy_m || [0, 0];
+      const x = (fx / (fp.width * fp.mpp)) * fp.canvasW;
+      const y = (fy / (fp.height * fp.mpp)) * fp.canvasH;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return {
+        ph,
+        x,
+        y,
+        color: ph.identity_color || identityColor(ph.identity_id || ph.ph_id),
+        roomName: ph.room_name || roomForCanvasPoint(x, y, fp.canvasW, fp.canvasH, rooms.value),
+      };
+    })
+    .filter(Boolean);
+});
+
+// Uncalibrated PH count for warning chip
+const uncalibratedPhCount = computed(() =>
+  worldPhs.value.filter((ph) => ph.uncalibrated).length
+);
 
 // ── Computed ──────────────────────────────────────────────────────────────
 const activePersons = computed(() => {

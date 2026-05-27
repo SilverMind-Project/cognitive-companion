@@ -8,7 +8,7 @@ for reads and ``cts.identity.correct`` for mutations.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from structlog import get_logger
+from backend.core.logging import get_logger
 
 from backend.core.auth import require_permission
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient

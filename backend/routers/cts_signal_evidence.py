@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from structlog import get_logger
+from backend.core.logging import get_logger
 
 from backend.core.auth import AuthContext, require_permission
 from backend.routers.cts_deps import cts_enabled

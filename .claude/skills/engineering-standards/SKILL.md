@@ -175,6 +175,9 @@ logger.exception("pipeline_failed", execution_id=exec_id)  # includes traceback
 ```
 
 - Never `print()`. Never `logging.getLogger()` directly (use `get_logger()`).
+- Never `from structlog import get_logger`. The project replaced structlog with a stdlib-based
+  ``BoundLogger`` in `backend/core/logging.py` that accepts the same keyword-context API.
+  Always import ``get_logger`` from ``backend.core.logging``.
 - Never printf-style `%s` or `.format()`. Always `key=value` kwargs.
 - Event names are `snake_case` short strings describing what happened.
 - Every integration call that can fail should log at least one event (success or failure).
@@ -481,6 +484,7 @@ Before opening a PR, verify:
 | Anti-pattern | Correct approach |
 |---|---|
 | `print("debug", x)` | `logger.debug("event", value=x)` |
+| `from structlog import get_logger` | `from backend.core.logging import get_logger` |
 | `except Exception: pass` | Log and return zero value, or re-raise as AppError |
 | `dict["key"]` without check | `dict.get("key", default)` or validate with Pydantic |
 | `str(datetime.now())` | `datetime.now(UTC).isoformat()` |

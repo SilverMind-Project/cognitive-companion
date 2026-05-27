@@ -6,7 +6,7 @@ Returns per-camera calibration status for the admin health panel.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from structlog import get_logger
+from backend.core.logging import get_logger
 
 from backend.core.auth import require_permission
 from backend.routers.cts_deps import cts_enabled

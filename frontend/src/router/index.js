@@ -169,10 +169,14 @@ const routes = [
         meta: { title: "Floor Plan", icon: "mdi-floor-plan" },
       },
       {
+        path: "cts/people",
+        name: "CTSPeople",
+        component: () => import("../views/admin/CTSPersonHypothesesView.vue"),
+        meta: { title: "People & Hypotheses", icon: "mdi-account-group" },
+      },
+      {
         path: "cts/identity-corrections",
-        name: "cts-identity-corrections",
-        component: () =>
-          import("../views/admin/CTSIdentityCorrectionsView.vue"),
+        redirect: { name: "CTSPeople" },
       },
       {
         path: "cts/presence",

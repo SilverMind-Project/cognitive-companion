@@ -107,7 +107,9 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         # display_name comes from the gallery candidate entry.
         identity_by_track: dict[str, tuple[str, float, str]] = {}
         for revision in message.identity_revisions:
-            if not revision.global_track_id or not revision.map_identity_id:
+            # N0: global_track_id renamed to ph_id
+            track_key = revision.ph_id
+            if not track_key or not revision.map_identity_id:
                 continue
             matched = next(
                 (c for c in revision.candidates if c.identity_id == revision.map_identity_id),
@@ -119,7 +121,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 if (matched and matched.display_name)
                 else revision.map_identity_id
             )
-            identity_by_track[revision.global_track_id] = (
+            identity_by_track[track_key] = (
                 revision.map_identity_id,
                 confidence,
                 display_name,
@@ -169,6 +171,21 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 }
             )
 
+        # N2: extract identity snapshots for PH update broadcasts
+        identity_snapshots: list[dict[str, Any]] = []
+        for snap in message.identity_snapshots:
+            if snap.identity_id:
+                identity_snapshots.append(
+                    {
+                        "ph_id": snap.global_track_id,
+                        "identity_id": snap.identity_id,
+                        "top_probability": snap.top_probability,
+                        "second_probability": snap.second_probability,
+                        "posterior_entropy": snap.posterior_entropy,
+                        "direct_face_evidence": snap.direct_face_evidence,
+                    }
+                )
+
         return {
             "event_id": message.event_id,
             "camera_id": message.camera_id,
@@ -181,6 +198,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             "frame_height": int(message.frame_ref.height),
             "capture_time": ns_to_iso(message.frame_ref.capture_time_unix_ns),
             "detections": detections,
+            "identity_snapshots": identity_snapshots,
         }
 
     async def handle(self, event: dict[str, Any]) -> bool:
@@ -236,6 +254,24 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 )
             except Exception:
                 logger.exception("cts_live_broadcast_error")
+
+            # N2: broadcast PH updates from identity snapshots
+            try:
+                for snap in event.get("identity_snapshots", []):
+                    await self._ws_manager.broadcast(
+                        {
+                            "type": "cts_ph_update",
+                            "ph_id": snap.get("ph_id", ""),
+                            "current_identity_id": snap.get("identity_id"),
+                            "identity_committed": bool(snap.get("identity_id")),
+                            "state": "active",
+                            "posterior_top_label": snap.get("identity_id"),
+                            "posterior_top_prob": snap.get("top_probability", 0.0),
+                            "last_observed_at": event.get("capture_time"),
+                        }
+                    )
+            except Exception:
+                logger.exception("cts_ph_update_broadcast_error")
 
         if self._pipeline is not None and touched:
             try:

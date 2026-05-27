@@ -50,7 +50,7 @@ def _make_event(
     det.floor_point.calibrated = True
     if identity_id:
         rev = ev.identity_revisions.add()
-        rev.global_track_id = "gt-1"
+        rev.ph_id = "gt-1"
         rev.map_identity_id = identity_id
         rev.candidates.add(identity_id=identity_id, probability=confidence)
     return ev

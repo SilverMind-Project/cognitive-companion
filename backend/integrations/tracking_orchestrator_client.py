@@ -436,3 +436,126 @@ class OrchestratorClient(UpstreamClient):
             json={"keyframe_id": keyframe_id, "operations": operations},
         )
         return r.json()
+
+    # -- N2: Person Hypothesis methods ----------------------------------------
+
+    async def list_phs(
+        self,
+        *,
+        since: str | None = None,
+        room_id: str | None = None,
+        identity_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        params: dict[str, str] = {"limit": str(limit), "offset": str(offset)}
+        if since:
+            params["since"] = since
+        if room_id:
+            params["room_id"] = room_id
+        if identity_id:
+            params["identity_id"] = identity_id
+        r = await self._request("GET", "/ph", params=params)
+        return r.json()
+
+    async def get_ph(self, ph_id: str) -> dict:
+        r = await self._request("GET", f"/ph/{ph_id}")
+        return r.json()
+
+    async def list_ph_observations(self, ph_id: str, *, limit: int = 200) -> dict:
+        r = await self._request("GET", f"/ph/{ph_id}/observations", params={"limit": str(limit)})
+        return r.json()
+
+    async def list_ph_keyframes(self, ph_id: str, *, limit: int = 24) -> dict:
+        r = await self._request("GET", f"/ph/{ph_id}/keyframes", params={"limit": str(limit)})
+        return r.json()
+
+    async def get_ph_trail(self, ph_id: str, *, since: str | None = None) -> dict:
+        params: dict[str, str] = {}
+        if since:
+            params["since"] = since
+        r = await self._request("GET", f"/ph/{ph_id}/trail", params=params)
+        return r.json()
+
+    async def get_ph_co_present(self, ph_id: str, *, radius_m: float = 5.0) -> dict:
+        r = await self._request("GET", f"/ph/{ph_id}/co_present", params={"radius_m": str(radius_m)})
+        return r.json()
+
+    async def correct_ph_identity(
+        self,
+        ph_id: str,
+        *,
+        new_identity_id: str | None,
+        reason: str = "manual",
+        actor: str = "system",
+    ) -> dict:
+        headers = {"X-Actor-Subject": actor}
+        r = await self._request(
+            "POST",
+            f"/ph/{ph_id}/correct",
+            json={"new_identity_id": new_identity_id, "reason": reason},
+            headers=headers,
+        )
+        return r.json()
+
+    async def merge_phs(
+        self,
+        *,
+        source_ph_id: str,
+        target_ph_id: str,
+        reason: str = "manual",
+        actor: str = "system",
+    ) -> dict:
+        headers = {"X-Actor-Subject": actor}
+        r = await self._request(
+            "POST",
+            "/ph/merge",
+            json={"source_ph_id": source_ph_id, "target_ph_id": target_ph_id, "reason": reason},
+            headers=headers,
+        )
+        return r.json()
+
+    async def split_ph(
+        self,
+        ph_id: str,
+        *,
+        at_observation_id: str,
+        reason: str = "manual",
+        actor: str = "system",
+    ) -> dict:
+        headers = {"X-Actor-Subject": actor}
+        r = await self._request(
+            "POST",
+            f"/ph/{ph_id}/split",
+            json={"at_observation_id": at_observation_id, "reason": reason},
+            headers=headers,
+        )
+        return r.json()
+
+    async def batch_correct_phs(self, *, corrections: list[dict], actor: str = "system") -> dict:
+        headers = {"X-Actor-Subject": actor}
+        r = await self._request(
+            "POST",
+            "/ph/batch_correct",
+            json={"corrections": corrections},
+            headers=headers,
+        )
+        return r.json()
+
+    async def list_ph_revisions(
+        self,
+        *,
+        ph_id: str | None = None,
+        kind: str | None = None,
+        limit: int = 50,
+        before_id: str | None = None,
+    ) -> dict:
+        params: dict[str, str] = {"limit": str(limit)}
+        if ph_id:
+            params["ph_id"] = ph_id
+        if kind:
+            params["kind"] = kind
+        if before_id:
+            params["before_id"] = before_id
+        r = await self._request("GET", "/ph/revisions", params=params)
+        return r.json()

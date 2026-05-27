@@ -13,6 +13,7 @@ import { cts } from "@/services/cts";
 
 export function useCtsWebSocket(onMessage) {
   const status = ref("disconnected");
+  const attempted = ref(false);
   let ws = null;
   let reconnectTimer = null;
   let closed = false;
@@ -26,14 +27,17 @@ export function useCtsWebSocket(onMessage) {
     ws.onopen = () => {
       console.debug("[cts_live] WS connected");
       status.value = "open";
+      attempted.value = true;
     };
     ws.onerror = (ev) => {
       console.warn("[cts_live] WS error", ev);
       status.value = "error";
+      attempted.value = true;
     };
     ws.onclose = (ev) => {
       console.warn("[cts_live] WS closed", { code: ev.code, reason: ev.reason, will_reconnect: !closed });
       status.value = "closed";
+      attempted.value = true;
       ws = null;
       if (!closed) {
         reconnectTimer = setTimeout(connect, 3000);
@@ -50,5 +54,5 @@ export function useCtsWebSocket(onMessage) {
   onUnmounted(disconnect);
   connect();
 
-  return { status, disconnect };
+  return { status, attempted, disconnect };
 }

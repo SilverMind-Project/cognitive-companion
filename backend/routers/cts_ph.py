@@ -8,9 +8,9 @@ for reads and ``cts.identity.correct`` for mutations.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from backend.core.logging import get_logger
 
 from backend.core.auth import require_permission
+from backend.core.logging import get_logger
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.routers.cts_deps import cts_enabled, presigned_image_url
 from backend.schemas.cts_ph import (
@@ -34,7 +34,7 @@ from backend.schemas.cts_ph import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["cts-ph"])
+router = APIRouter(prefix="/cts", tags=["cts-ph"])
 
 
 # ---------------------------------------------------------------------------
@@ -256,3 +256,19 @@ async def batch_correct(
     corrections = [item.model_dump() for item in body.corrections]
     data = await client.batch_correct_phs(corrections=corrections, actor=_actor(request))
     return BatchCorrectResponse(**data)
+
+
+# ---------------------------------------------------------------------------
+# Identity gallery (needed by admin UI for correction forms)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/identity/identities")
+async def list_identities(
+    request: Request,
+    _auth=Depends(require_permission("cts.identity.view")),
+) -> dict:
+    cts_enabled()
+    client = _get_client(request)
+    identities = await client.get_identities()
+    return {"identities": identities}

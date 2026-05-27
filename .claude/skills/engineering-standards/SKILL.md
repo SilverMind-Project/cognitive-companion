@@ -642,6 +642,49 @@ Extract duplicated view logic into composables under `frontend/src/composables/`
 | `useCtsSeverity.js` | `severityColor()` / `severityIcon()` duplicated across 3 views |
 | `useFormatRelative.js` | `formatRelative()` duplicated across 2 views |
 | `useCtsWebSocket.js` | Ad-hoc WebSocket lifecycle with no reconnection; adds 3-second exponential backoff |
+| `usePHList.js` | PH list fetch, pagination, WS update handling |
+| `usePHDetail.js` | PH detail fetch (observations, trail, co-present) with `Promise.allSettled` |
+| `usePHCorrection.js` | PH correction/merge/split mutations with notify injection |
+| `usePresenceTimeline.js` | Presence timeline fetch, dwell totals, WS live update, active segment timer |
+| `useWorldSnapshot.js` | World snapshot WS subscription, PH marker map, 30s trail buffer, inferred rooms |
+
+### Required composable shape: `{ state, actions }`
+
+**All composables that manage server state must return a `{ state, actions }` object.** This is the project standard, modelled on `useCtsWebSocket.js`.
+
+```js
+export function useMyResource() {
+  const state = reactive({
+    items: [],
+    total: 0,
+    loading: false,
+    error: null,
+    page: 1,
+    itemsPerPage: 20,
+  })
+
+  async function fetchItems() { ... }
+  function onPageOptions({ page, itemsPerPage }) { ... }
+
+  return {
+    state,
+    actions: { fetchItems, onPageOptions },
+  }
+}
+```
+
+**Never return flat named refs from a composable** (`return { items, total, loading, fetchItems }`). The `{ state, actions }` shape:
+- Makes destructuring explicit: `const { state, actions } = useMyResource()`
+- Groups reactive data vs. functions clearly
+- Prevents naming collisions when multiple composables are used in the same view
+- Makes it obvious in the template what is state (`state.items`) vs. an action (`actions.fetchItems()`)
+
+**Rules:**
+- All reactive data (refs, reactive objects) lives under `state`
+- All functions (fetch, setFilter, onPageOptions, handlers) live under `actions`
+- WS subscriptions are wired inside the composable body (not in the view)
+- Cleanup (timers, WS unsubscribe) uses `onUnmounted()` inside the composable
+- Composables never call `useNotify()` internally — they accept a `notify` callback if feedback is needed, or they export an `error` state field and let the view decide how to show it. Exception: `usePHCorrection.js` injects `useNotify()` directly since correction feedback is always immediate.
 
 Use design tokens (`var(--cc-*)`) or Vuetify theme colors for all CSS color values. Never hardcode hex values like `'#4CAF50'` or `'#fff'` in templates.
 
@@ -670,6 +713,50 @@ The orchestrator computes deterministic signal IDs via UUID5. The CC stores thes
 ### Proto evolution
 
 Additive proto fields (new tag numbers) are wire-compatible. The CC subscriber uses `message.algorithm_version if message.algorithm_version else None` to gracefully handle old orchestrators that do not set the field. Regenerate bindings in both repos after every proto change via `make proto-py` from the continuous-tracking repo.
+
+### CTS WebSocket payload rule
+
+**All WebSocket broadcasts must use `Pydantic model.model_dump(mode="json")`** — never manual dict literals. This prevents the payload schema drifting from the Pydantic definition without a type error.
+
+```python
+# CORRECT
+from backend.schemas.cts_ph_ws import PHUpdateEvent
+
+event = PHUpdateEvent(ph_id=..., ...)
+await self._ws_manager.broadcast(event.model_dump(mode="json"))
+
+# WRONG — raw dict that will silently drift from the schema
+await self._ws_manager.broadcast({
+    "type": "cts_ph_update",
+    "ph_id": ph_id,
+    ...
+})
+```
+
+WS event schemas live in a dedicated module named `backend/schemas/<domain>_ws.py`. The module for PH events is `backend/schemas/cts_ph_ws.py`. Never define WS event schemas inside a router file.
+
+### CTS WebSocket debounce rule
+
+High-frequency WS events (those driven by every tracking frame) must be debounced server-side per entity. The pattern:
+
+```python
+async def _schedule_broadcast(self, entity_id: str, event: BaseModel) -> None:
+    self._pending[entity_id] = event
+    existing = self._debounce_tasks.get(entity_id)
+    if existing and not existing.done():
+        existing.cancel()
+    task = asyncio.create_task(self._delayed_broadcast(entity_id))
+    task.add_done_callback(lambda t: self._debounce_tasks.pop(entity_id, None))
+    self._debounce_tasks[entity_id] = task
+
+async def _delayed_broadcast(self, entity_id: str) -> None:
+    await asyncio.sleep(self._debounce_interval)  # 0.200s for PH updates
+    event = self._pending.pop(entity_id, None)
+    if event is not None and self._ws_manager is not None:
+        await self._ws_manager.broadcast(event.model_dump(mode="json"))
+```
+
+Always cancel and await pending debounce tasks in `stop()`.
 
 ### CTS router pattern
 

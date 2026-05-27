@@ -26,6 +26,7 @@ from backend.services.cts._time import ns_to_iso
 from backend.services.cts._types import ConnectionManager, MinioClient, PipelineExecutor
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
+from backend.services.cts.world_snapshot_publisher import WorldSnapshotPublisher
 
 # TrackingEvents whose capture_time_unix_ns is older than this are replayed
 # backlog.  Returning None from decode() causes the base class to XACK and
@@ -56,6 +57,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         pipeline: PipelineExecutor | None = None,
         bucketizer: Any = None,
         minio_client: MinioClient | None = None,
+        snapshot_publisher: WorldSnapshotPublisher | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -71,6 +73,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         self._pipeline = pipeline
         self._bucketizer = bucketizer
         self._minio_client = minio_client
+        self._snapshot_publisher = snapshot_publisher
         self._ph_pending: dict[str, asyncio.Task[None]] = {}
 
     # -- StreamConsumer abstract methods ------------------------------------
@@ -293,58 +296,11 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             except Exception:
                 logger.exception("cts_ph_update_broadcast_error")
 
-            # N4: broadcast world snapshot with PH-level position data
-            try:
-                identity_map = {}
-                for snap in event.get("identity_snapshots", []):
-                    identity_map[snap.get("ph_id", "")] = {
-                        "identity_id": snap.get("identity_id"),
-                        "display_name": snap.get("identity_id"),
-                        "color": "#888888",
-                        "top_prob": snap.get("top_probability", 0.0),
-                    }
-                phs = []
-                for det in event.get("detections", []):
-                    ph_id = det.get("global_track_id", "")
-                    identity = identity_map.get(ph_id, {})
-                    calibrated = det.get("floor_calibrated", False)
-                    ph = {
-                        "ph_id": ph_id,
-                        "identity_id": identity.get("identity_id"),
-                        "identity_display_name": identity.get("display_name"),
-                        "identity_color": identity.get("color", "#888888"),
-                        "identity_committed": bool(identity.get("identity_id")),
-                        "posterior_top_label": identity.get("identity_id"),
-                        "posterior_top_prob": identity.get("top_prob", 0.0),
-                        "room_id": None,
-                        "room_name": event.get("room_name") or "",
-                        "room_has_camera": True,
-                        "floor_xy_m": [
-                            det.get("floor_x") or 0.0,
-                            det.get("floor_y") or 0.0,
-                        ],
-                        "velocity_mps": [0.0, 0.0],
-                        "posture": det.get("posture") or "unknown",
-                        "state": "active",
-                        "last_observed_at": event.get("capture_time"),
-                        "uncalibrated": not calibrated,
-                        "presence_source": "observed" if calibrated else "unknown",
-                    }
-                    phs.append(ph)
+            # N4: delegate world snapshot to debounced publisher
+            if self._snapshot_publisher is not None:
+                phs = self._build_ph_entries(event)
                 if phs:
-                    import uuid
-
-                    await self._ws_manager.broadcast(
-                        {
-                            "type": "cts_world_snapshot",
-                            "snapshot_id": str(uuid.uuid4()),
-                            "captured_at": event.get("capture_time"),
-                            "phs": phs,
-                            "inferred_rooms": [],
-                        }
-                    )
-            except Exception:
-                logger.exception("cts_world_snapshot_broadcast_error")
+                    self._snapshot_publisher.mark_dirty(ph_data_list=phs)
 
         if self._pipeline is not None and touched:
             try:
@@ -368,6 +324,47 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 logger.exception("tracking_event_bucketizer_ingest_error")
 
         return True
+
+    def _build_ph_entries(self, event: dict[str, Any]) -> list[dict[str, Any]]:
+        """Build PH position entries from tracking event detections."""
+        identity_map: dict[str, dict[str, Any]] = {}
+        for snap in event.get("identity_snapshots", []):
+            identity_map[snap.get("ph_id", "")] = {
+                "identity_id": snap.get("identity_id"),
+                "display_name": snap.get("identity_id"),
+                "color": "#888888",
+                "top_prob": snap.get("top_probability", 0.0),
+            }
+        phs: list[dict[str, Any]] = []
+        for det in event.get("detections", []):
+            ph_id = det.get("global_track_id", "")
+            identity = identity_map.get(ph_id, {})
+            calibrated = det.get("floor_calibrated", False)
+            phs.append(
+                {
+                    "ph_id": ph_id,
+                    "identity_id": identity.get("identity_id"),
+                    "identity_display_name": identity.get("display_name"),
+                    "identity_color": identity.get("color", "#888888"),
+                    "identity_committed": bool(identity.get("identity_id")),
+                    "posterior_top_label": identity.get("identity_id"),
+                    "posterior_top_prob": identity.get("top_prob", 0.0),
+                    "room_id": None,
+                    "room_name": event.get("room_name") or "",
+                    "room_has_camera": True,
+                    "floor_xy_m": [
+                        det.get("floor_x") or 0.0,
+                        det.get("floor_y") or 0.0,
+                    ],
+                    "velocity_mps": [0.0, 0.0],
+                    "posture": det.get("posture") or "unknown",
+                    "state": "active",
+                    "last_observed_at": event.get("capture_time"),
+                    "uncalibrated": not calibrated,
+                    "presence_source": "observed" if calibrated else "unknown",
+                }
+            )
+        return phs
 
     async def stop(self) -> None:
         """Cancel pending debounce tasks, then delegate to base class."""

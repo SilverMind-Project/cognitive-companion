@@ -5,7 +5,7 @@
  * for a given household member. Subscribes to WS for live updates.
  */
 
-import { ref, shallowRef, watch } from "vue";
+import { ref, shallowRef, watch, onUnmounted } from "vue";
 
 const BASE = "/api/v1/cts";
 
@@ -24,6 +24,20 @@ export function usePresenceTimeline(notify) {
   const currentLocation = ref(null);
   const loading = ref(false);
   const error = ref("");
+  const activeDuration = ref(0);
+  let timerInterval = null;
+
+  function _startLiveTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      const active = segments.value.find((s) => !s.exited_at);
+      if (active && active.entered_at) {
+        activeDuration.value = Math.floor(
+          (Date.now() - new Date(active.entered_at).getTime()) / 1000
+        );
+      }
+    }, 1000);
+  }
 
   async function fetch(personId_) {
     personId.value = personId_;
@@ -39,6 +53,7 @@ export function usePresenceTimeline(notify) {
       dwells.value = dwellsData.dwells || [];
       currentLocation.value =
         (currentData.occupants || []).find((o) => o.person_id === personId_) || null;
+      _startLiveTimer();
     } catch (err) {
       error.value = String(err.message || err);
       if (notify) notify.error(error.value);
@@ -63,5 +78,19 @@ export function usePresenceTimeline(notify) {
     }
   }
 
-  return { personId, segments, dwells, currentLocation, loading, error, fetch, handleWsEvent };
+  onUnmounted(() => {
+    if (timerInterval) clearInterval(timerInterval);
+  });
+
+  return {
+    personId,
+    segments,
+    dwells,
+    currentLocation,
+    loading,
+    error,
+    activeDuration,
+    fetch,
+    handleWsEvent,
+  };
 }

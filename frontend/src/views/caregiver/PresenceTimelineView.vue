@@ -9,7 +9,7 @@
         </div>
       </div>
       <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="fetch()">
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="fetchTimeline(personId)">
         Refresh
       </v-btn>
     </div>
@@ -38,47 +38,15 @@
     <!-- HUD card -->
     <v-row class="mb-4">
       <v-col cols="12" md="4">
-        <v-card class="glass-card pa-4">
-          <div class="text-caption text-medium-emphasis">Currently in</div>
-          <div v-if="currentLocation && currentLocation.room_name" class="text-h5 font-weight-bold mt-1">
-            {{ currentLocation.room_name }}
-          </div>
-          <div v-else class="text-h5 font-weight-bold mt-1 text-medium-emphasis">Unknown</div>
-          <div v-if="currentLocation && currentLocation.since" class="text-caption text-medium-emphasis mt-1">
-            In for {{ formatDuration(currentLocation.dwell_seconds) }}
-          </div>
-          <div v-if="currentLocation && currentLocation.is_inferred" class="mt-2">
-            <v-chip size="x-small" color="warning" variant="tonal" prepend-icon="mdi-timer-sand">
-              Inferred
-            </v-chip>
-          </div>
-        </v-card>
+        <PresenceHudCard
+          :current-room="currentLocation?.room_name || null"
+          :since="currentLocation?.since || null"
+          :is-inferred="currentLocation?.is_inferred || false"
+          :active-duration="activeDuration"
+        />
       </v-col>
-
-      <!-- Dwell totals -->
       <v-col cols="12" md="8">
-        <v-card class="glass-card">
-          <v-card-title class="text-subtitle-2">Today's room dwell totals</v-card-title>
-          <v-divider />
-          <v-card-text>
-            <div v-if="dwells.length === 0" class="text-caption text-medium-emphasis">
-              No room dwell data for this period.
-            </div>
-            <div v-for="d in dwells" :key="d.room_id" class="d-flex align-center ga-2 mb-2">
-              <span class="text-caption" style="min-width: 100px;">{{ d.room_name }}</span>
-              <v-progress-linear
-                :model-value="dwellPercent(d)"
-                color="primary"
-                height="8"
-                rounded
-                style="flex: 1;"
-              />
-              <span class="text-caption text-medium-emphasis" style="min-width: 60px;">
-                {{ formatDuration(d.total_seconds) }}
-              </span>
-            </div>
-          </v-card-text>
-        </v-card>
+        <RoomDwellTotalsCard :dwells="dwells" />
       </v-col>
     </v-row>
 
@@ -94,7 +62,7 @@
           <!-- Background grid lines -->
           <line v-for="(tick, i) in timeTicks" :key="'tick-' + i"
             :x1="tick.x" y1="0" :x2="tick.x" y2="60"
-            stroke="rgba(128,128,128,0.15)" stroke-width="0.5" />
+            stroke="var(--cc-divider)" stroke-width="0.5" />
 
           <!-- Segments -->
           <g v-for="seg in segments" :key="seg.segment_id">
@@ -109,7 +77,6 @@
             >
               <title>{{ seg.room_name }}: {{ formatDuration(seg.dwell_seconds) }}</title>
             </rect>
-            <!-- Inferred stripe pattern -->
             <rect
               v-if="seg.is_inferred"
               :x="timeToX(seg.entered_at)"
@@ -124,13 +91,13 @@
 
           <!-- Time labels -->
           <text v-for="(tick, i) in timeTicks.filter((_, i) => i % 3 === 0)" :key="'label-' + i"
-            :x="tick.x" y="52" text-anchor="middle" font-size="8" fill="#888">
+            :x="tick.x" y="52" text-anchor="middle" font-size="8" fill="var(--cc-text-3)">
             {{ tick.label }}
           </text>
 
           <defs>
             <pattern id="inferred-stripe" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,255,255,0.5)" stroke-width="2" />
+              <line x1="0" y1="0" x2="0" y2="6" stroke="var(--cc-divider-strong)" stroke-width="2" />
             </pattern>
           </defs>
         </svg>
@@ -138,23 +105,7 @@
     </v-card>
 
     <!-- Recent transitions -->
-    <v-card v-if="recentTransitions.length > 0" class="glass-card mb-4">
-      <v-card-title class="text-subtitle-2">Recent Transitions</v-card-title>
-      <v-divider />
-      <v-list density="compact">
-        <v-list-item v-for="(t, i) in recentTransitions" :key="'t-' + i">
-          <template #prepend>
-            <v-icon size="14" color="medium-emphasis">mdi-arrow-right</v-icon>
-          </template>
-          <v-list-item-title class="text-caption">
-            {{ t.from_room_name || 'Unknown' }} → {{ t.to_room_name }}
-          </v-list-item-title>
-          <v-list-item-subtitle class="text-caption text-medium-emphasis">
-            {{ formatTime(t.transitioned_at) }}
-          </v-list-item-subtitle>
-        </v-list-item>
-      </v-list>
-    </v-card>
+    <RecentTransitionsList :transitions="recentTransitions" />
 
     <!-- Signals strip -->
     <v-card v-if="signals.length > 0" class="glass-card">
@@ -181,22 +132,39 @@
 <script>
 import { ref, computed } from "vue";
 import { useRoute } from "vue-router";
-import { formatRelative } from "@/composables/useFormatRelative";
-import { identityColor } from "@/composables/useIdentityColor";
+import { useTheme } from "vuetify";
+import { formatTimeOnly, isoToLocalHHMM } from "@/services/timezone.js";
+import { usePresenceTimeline } from "@/composables/usePresenceTimeline";
+import { useNotify } from "@/composables/useNotify";
+import PresenceHudCard from "@/components/cts/presence/PresenceHudCard.vue";
+import RoomDwellTotalsCard from "@/components/cts/presence/RoomDwellTotalsCard.vue";
+import RecentTransitionsList from "@/components/cts/presence/RecentTransitionsList.vue";
 
 export default {
   name: "PresenceTimelineView",
+  components: { PresenceHudCard, RoomDwellTotalsCard, RecentTransitionsList },
 
   setup() {
     const route = useRoute();
-    const personId = ref(route.params.personId || "");
-    const segments = ref([]);
-    const dwells = ref([]);
-    const currentLocation = ref(null);
-    const signals = ref([]);
-    const loading = ref(false);
-    const error = ref("");
+    const { notify } = useNotify();
+    const theme = useTheme();
+    const {
+      personId,
+      segments,
+      dwells,
+      currentLocation,
+      loading,
+      error,
+      activeDuration,
+      fetch: fetchTimeline,
+      handleWsEvent,
+    } = usePresenceTimeline(notify);
 
+    if (route.params.personId) {
+      personId.value = route.params.personId;
+    }
+
+    const signals = ref([]);
     const personOptions = ref([
       { title: "All members (select one)", value: "", disabled: true },
     ]);
@@ -234,13 +202,12 @@ export default {
     const timeTicks = computed(() => {
       const ticks = [];
       const span = windowSpan.value;
-      const interval = span > 43200000 ? 4 * 3600000 : 3600000; // 4h or 1h
+      const interval = span > 43200000 ? 4 * 3600000 : 3600000;
       const start = Math.ceil(windowStart.value / interval) * interval;
       for (let t = start; t <= windowEnd.value; t += interval) {
-        const d = new Date(t);
         ticks.push({
           x: ((t - windowStart.value) / span) * timelineWidth,
-          label: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+          label: isoToLocalHHMM(new Date(t).toISOString()),
         });
       }
       return ticks;
@@ -265,13 +232,12 @@ export default {
     });
 
     function roomColor(roomId) {
-      const palette = ["#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#FF6B6B", "#F7DC6F"];
-      return palette[Math.abs(String(roomId).split("").reduce((h, c) => h * 31 + c.charCodeAt(0), 0)) % palette.length];
-    }
-
-    function dwellPercent(d) {
-      const max = Math.max(...dwells.value.map((x) => x.total_seconds), 1);
-      return (d.total_seconds / max) * 100;
+      const keys = ["primary", "secondary", "info", "success", "warning", "tertiary"];
+      const hash = Math.abs(
+        String(roomId).split("").reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)
+      );
+      const key = keys[hash % keys.length];
+      return theme.current.value.colors[key] ?? "#888";
     }
 
     function formatDuration(secs) {
@@ -281,75 +247,33 @@ export default {
       return h > 0 ? `${h}h ${m}m` : `${m}m`;
     }
 
-    function formatTime(iso) {
-      if (!iso) return "";
-      const d = new Date(iso);
-      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    }
-
-    async function fetch() {
-      if (!personId.value) return;
-      loading.value = true;
-      error.value = "";
-      try {
-        const apiKey = localStorage.getItem("cc_api_key") || "";
-        const headers = { "X-API-Key": apiKey };
-        const BASE = "/api/v1/cts";
-        const resp = await fetch(`${BASE}/presence/timeline/${encodeURIComponent(personId.value)}`, { headers });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        segments.value = data.segments || [];
-        signals.value = data.signals || [];
-
-        const [dwellsR, currentR] = await Promise.all([
-          fetch(`${BASE}/presence/dwells/${encodeURIComponent(personId.value)}`, { headers }),
-          fetch(`${BASE}/presence/currently_in`, { headers }),
-        ]);
-        dwells.value = (await dwellsR.json()).dwells || [];
-        const currentData = await currentR.json();
-        currentLocation.value =
-          (currentData.occupants || []).find((o) => o.person_id === personId.value) || null;
-
-        // Build person options
-        personOptions.value = (currentData.occupants || []).map((o) => ({
-          title: o.display_name || o.person_id,
-          value: o.person_id,
-        }));
-      } catch (err) {
-        error.value = String(err.message || err);
-      } finally {
-        loading.value = false;
-      }
-    }
-
     function onPersonChange(id) {
       personId.value = id;
-      fetch();
+      fetchTimeline(id);
     }
 
     // Initial load
-    if (personId.value) fetch();
+    if (personId.value) fetchTimeline(personId.value);
 
     return {
       personId,
       segments,
       dwells,
       currentLocation,
-      signals,
       loading,
       error,
+      activeDuration,
+      signals,
       personOptions,
       timelineWidth,
       timeTicks,
       recentTransitions,
       roomColor,
-      dwellPercent,
       formatDuration,
-      formatTime,
-      formatRelative,
+      formatTimeOnly,
       timeToX,
       segWidth,
-      fetch,
+      fetchTimeline,
       onPersonChange,
     };
   },
@@ -357,5 +281,8 @@ export default {
 </script>
 
 <style scoped>
-.timeline-svg { background: rgba(0, 0, 0, 0.02); border-radius: 8px; }
+.timeline-svg {
+  background: var(--cc-surface-2);
+  border-radius: 8px;
+}
 </style>

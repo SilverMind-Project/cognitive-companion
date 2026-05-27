@@ -153,6 +153,9 @@ permission_map:
     - "POST /api/v1/cts/transit-zones*"
     - "PATCH /api/v1/cts/transit-zones/*"
     - "DELETE /api/v1/cts/transit-zones/*"
+    # CTS presence timeline (N5)
+    - "cts.presence.view"
+    - "GET /api/v1/cts/presence/*"
 
   operator:
     - "*"

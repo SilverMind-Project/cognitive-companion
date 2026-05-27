@@ -337,6 +337,70 @@ class SignalStore:
         finally:
             db.close()
 
+    async def aggregate_by_kind(
+        self,
+        *,
+        person_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """SQL GROUP BY kind — never Python post-processing."""
+        db = self._db_factory()
+        try:
+            q = select(
+                DementiaSignal.signal_type,
+                func.count(DementiaSignal.id).label("count"),
+            ).group_by(DementiaSignal.signal_type).order_by(
+                desc(func.count(DementiaSignal.id))
+            )
+            if person_id is not None:
+                q = q.where(DementiaSignal.person_id == person_id)
+            if since is not None:
+                q = q.where(DementiaSignal.received_at >= since)
+            if until is not None:
+                q = q.where(DementiaSignal.received_at <= until)
+            rows = db.execute(q).all()
+            return [{"kind": r.signal_type, "count": r.count} for r in rows]
+        finally:
+            db.close()
+
+    async def aggregate_by_room(
+        self,
+        *,
+        person_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """SQL GROUP BY room_name from context_json."""
+        db = self._db_factory()
+        try:
+            room_expr = func.json_extract(
+                DementiaSignal.context_json, "$.room_name"
+            ).label("room_name")
+            q = (
+                select(
+                    room_expr,
+                    func.count(DementiaSignal.id).label("count"),
+                )
+                .where(DementiaSignal.context_json.isnot(None))
+                .group_by(room_expr)
+                .order_by(desc(func.count(DementiaSignal.id)))
+            )
+            if person_id is not None:
+                q = q.where(DementiaSignal.person_id == person_id)
+            if since is not None:
+                q = q.where(DementiaSignal.received_at >= since)
+            if until is not None:
+                q = q.where(DementiaSignal.received_at <= until)
+            rows = db.execute(q).all()
+            return [
+                {"room_name": r.room_name, "count": r.count}
+                for r in rows
+                if r.room_name
+            ]
+        finally:
+            db.close()
+
     # -- Helpers -------------------------------------------------------------
 
     @staticmethod

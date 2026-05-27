@@ -5,7 +5,10 @@ Returns per-camera calibration status for the admin health panel.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from prometheus_client import REGISTRY
 
 from backend.core.auth import require_permission
 from backend.core.logging import get_logger
@@ -16,11 +19,25 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/cts", tags=["cts-calibration-health"])
 
 
+def _get_uncalibrated_detection_count() -> int:
+    """Read cumulative uncalibrated detection count from Prometheus registry.
+
+    This is a process-lifetime counter, not a rolling 24-hour window.
+    """
+    try:
+        for metric in REGISTRY.collect():
+            if metric.name == "cts_uncalibrated_detections_total":
+                return int(sum(sample.value for sample in metric.samples))
+    except Exception as exc:
+        logger.warning("uncalibrated_count_fetch_failed", error=str(exc))
+    return 0
+
+
 @router.get("/calibration/health")
 async def calibration_health(
     request: Request,
-    _auth=Depends(require_permission("cts.cameras.read")),
-) -> list[dict]:
+    _auth=Depends(require_permission("cts.calibration.view")),
+) -> dict:
     """Return per-camera calibration health status."""
     cts_enabled()
     client = getattr(request.app.state, "orchestrator_client", None)
@@ -75,8 +92,14 @@ async def calibration_health(
                 "severity": severity,
                 "code": code,
                 "residual_m": float(residual) if residual is not None else None,
-                "uncalibrated_detection_count_24h": 0,
             }
         )
 
-    return results
+    uncalibrated_count = _get_uncalibrated_detection_count()
+
+    return {
+        "cameras": results,
+        "uncalibrated_detection_count": uncalibrated_count,
+        "uncalibrated_count_is_cumulative": True,
+        "generated_at": datetime.now(UTC).isoformat(),
+    }

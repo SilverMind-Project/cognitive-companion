@@ -38,7 +38,7 @@ def _get_store(request: Request) -> SignalStore:
 async def signal_evidence(
     signal_id: int,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals.evidence.view")),
     store: SignalStore = Depends(_get_store),
 ) -> dict[str, Any]:
     """Return the full evidence backing a fired dementia signal."""
@@ -130,7 +130,7 @@ async def signal_explorer(
     until: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.signals.evidence.view")),
     store: SignalStore = Depends(_get_store),
 ) -> dict[str, Any]:
     """Rich signal explorer with multi-value filters and aggregates."""
@@ -154,15 +154,18 @@ async def signal_explorer(
     if person_id and len(person_id) > 1:
         signals = [s for s in signals if s.get("person_id") in person_id]
 
-    # Aggregates
-    by_kind: dict[str, int] = {}
-    by_room: dict[str, int] = {}
-    for s in signals:
-        k = s.get("signal_type", "unknown")
-        by_kind[k] = by_kind.get(k, 0) + 1
-        room = s.get("room_name", "unknown")
-        if room:
-            by_room[room] = by_room.get(room, 0) + 1
+    # Aggregates via SQL GROUP BY (not Python post-processing)
+    pid = person_id[0] if person_id else None
+    since_dt = _parse_iso(since) if since else None
+    until_dt = _parse_iso(until) if until else None
+    by_kind_list = await store.aggregate_by_kind(
+        person_id=pid, since=since_dt, until=until_dt
+    )
+    by_room_list = await store.aggregate_by_room(
+        person_id=pid, since=since_dt, until=until_dt
+    )
+    by_kind = {r["kind"]: r["count"] for r in by_kind_list}
+    by_room = {r["room_name"]: r["count"] for r in by_room_list}
 
     return {
         "rows": signals,
@@ -188,7 +191,7 @@ class WeeklyReportRequest(BaseModel):
 async def weekly_report(
     body: WeeklyReportRequest,
     request: Request,
-    _auth: AuthContext = Depends(require_permission("cts.signals.view")),
+    _auth: AuthContext = Depends(require_permission("cts.reports.weekly.view")),
     store: SignalStore = Depends(_get_store),
 ) -> dict[str, Any]:
     """Generate a weekly trend report for a person."""

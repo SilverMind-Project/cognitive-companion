@@ -60,7 +60,7 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
             result["detections"].append({
                 "camera_id": proto.camera_id,
                 "detection_id": det.detection_id,
-                "global_track_id": det.global_track_id,
+                "ph_id": det.global_track_id,  # N0: proto field 1 reused for ph_id
                 "identity_id": identity_id,
                 "confidence": det.confidence,
                 "floor_x_mm": det.floor_point.x_mm if det.floor_point else 0,
@@ -82,7 +82,7 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
                 person_id=str(det["identity_id"]),
                 observed_at=msg["event_time"],
                 source="world_tracker",
-                source_ref=det.get("global_track_id"),
+                source_ref=det.get("ph_id"),
                 floor_point=FloorPoint(x_m=floor_x, y=floor_y),
                 confidence=det.get("confidence", 0.5),
                 metadata={

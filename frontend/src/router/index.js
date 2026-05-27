@@ -185,6 +185,18 @@ const routes = [
         meta: { title: "Presence Fusion", icon: "mdi-map-marker-radius" },
       },
       {
+        path: "medical/signals",
+        name: "SignalExplorer",
+        component: () => import("../views/medical/SignalExplorerView.vue"),
+        meta: { title: "Signal Explorer", icon: "mdi-chart-bar" },
+      },
+      {
+        path: "medical/reports/weekly",
+        name: "WeeklyReport",
+        component: () => import("../views/medical/WeeklyReportView.vue"),
+        meta: { title: "Weekly Report", icon: "mdi-file-document" },
+      },
+      {
         path: "caregiver/presence/:personId?",
         name: "PresenceTimeline",
         component: () => import("../views/caregiver/PresenceTimelineView.vue"),

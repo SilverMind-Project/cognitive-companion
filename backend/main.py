@@ -701,6 +701,7 @@ def create_app() -> FastAPI:
         cts_ph,
         cts_presence,
         cts_presence_timeline,
+        cts_signal_evidence,
         cts_signals,
         cts_trajectory,
         cts_transit_zones,
@@ -767,6 +768,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_calibration_health.router, prefix=api)
     app.include_router(cts_presence.router, prefix=api)
     app.include_router(cts_presence_timeline.router, prefix=api)
+    app.include_router(cts_signal_evidence.router, prefix=api)
     app.include_router(cts_signals.router, prefix=api)
     app.include_router(cts_trajectory.router, prefix=api)
     app.include_router(cts_keyframes.router, prefix=api)

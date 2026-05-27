@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-router = APIRouter(tags=["cts-legacy-gone"])
+router = APIRouter(prefix="/cts", tags=["cts-legacy-gone"])
 
 _SUNSET = "Sat, 28 Jun 2026 00:00:00 GMT"
 _SUCCESSOR = '</api/v1/cts/ph>; rel="successor-version"'

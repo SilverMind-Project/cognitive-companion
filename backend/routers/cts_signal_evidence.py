@@ -11,16 +11,16 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from backend.core.logging import get_logger
 
 from backend.core.auth import AuthContext, require_permission
+from backend.core.logging import get_logger
 from backend.routers.cts_deps import cts_enabled
 from backend.services.cts.signal_narratives import narrative_for
 from backend.services.cts.signal_store import SignalStore
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["cts-signal-evidence"])
+router = APIRouter(prefix="/cts", tags=["cts-signal-evidence"])
 
 
 def _get_store(request: Request) -> SignalStore:

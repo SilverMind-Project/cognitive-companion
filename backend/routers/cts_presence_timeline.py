@@ -9,9 +9,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from backend.core.logging import get_logger
 
 from backend.core.auth import require_permission
+from backend.core.logging import get_logger
 from backend.routers.cts_deps import cts_enabled
 from backend.schemas.presence_timeline import (
     CurrentInEntry,
@@ -26,7 +26,7 @@ from backend.schemas.presence_timeline import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(tags=["cts-presence-timeline"])
+router = APIRouter(prefix="/cts", tags=["cts-presence-timeline"])
 
 _MAX_WINDOW_DAYS = 30
 _DEFAULT_WINDOW_HOURS = 24

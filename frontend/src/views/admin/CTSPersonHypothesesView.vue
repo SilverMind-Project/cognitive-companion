@@ -24,9 +24,9 @@
       {{ phList.error.value }}
     </v-alert>
 
-    <!-- WS disconnect banner -->
+    <!-- WS disconnect banner (only after first connection attempt) -->
     <v-alert
-      v-if="wsStatus !== 'open' && wsStatus !== 'connecting'"
+      v-if="wsAttempted && wsStatus !== 'open' && wsStatus !== 'connecting'"
       type="warning"
       variant="tonal"
       class="mb-4"
@@ -268,7 +268,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { formatRelative } from "@/composables/useFormatRelative";
 import { identityColor } from "@/composables/useIdentityColor";
 import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
@@ -313,20 +313,17 @@ export default {
       } catch { /* ignore malformed */ }
     }
 
-    const { status } = useCtsWebSocket(onWsMessage);
+    const { status, attempted: wsAttempted } = useCtsWebSocket(onWsMessage);
 
     onMounted(() => {
       phList.fetch();
       loadIdentities();
     });
 
-    // Watch ws status
-    const unwatch = computed(() => {
-      wsStatus.value = status.value;
-      return status.value;
-    });
-    // Keep alive
-    unwatch;
+    // Mirror WS status into a local ref for the template
+    watch(status, (val) => {
+      wsStatus.value = val;
+    }, { immediate: true });
 
     async function loadIdentities() {
       try {
@@ -492,6 +489,7 @@ export default {
     return {
       phList,
       wsStatus,
+      wsAttempted,
       activeTab,
       drawerOpen,
       drawerMode,

@@ -465,6 +465,108 @@ if (!ok) return;
 
 ---
 
+## Right-hand inspector drawer with deep enrichment
+
+This pattern applies to any drawer that shows detail for a selected list row and loads additional data sections lazily (observations, trail, revisions, co-present entities). Reference implementation: `PHInspectorDrawer.vue`.
+
+### Structure rules
+
+1. **The drawer component is a thin coordinator.** It receives the selected item as a prop, delegates all data fetching to a `useDetail` composable, and delegates all mutation to a `useCorrection` composable. It never contains inline fetch logic.
+
+2. **Tabs split heavy sections.** Use `v-tabs` + `v-window` inside the drawer to split: Summary (always visible), Evidence/Observations (lazy), History/Revisions (lazy), Actions. This prevents loading all sections on every row click.
+
+3. **Six-component decomposition.** For any inspector with 4+ distinct data sections, extract each section into its own component. The naming convention is `{Domain}{Section}.vue`. Example: `PHObservationsTimeline.vue`, `PHRevisionsFeed.vue`, `PHTrailMiniFloorPlan.vue`, `PHCorrectionForm.vue`, `PHPeopleSummary.vue`, `PHListPanel.vue`. Do not inline these sections in the drawer.
+
+4. **Confirmation on all destructive actions.** Any action that is hard to reverse (merge, split, delete, reassign) must call `useConfirm()` before proceeding. Never allow an irreversible action without a dialog confirmation.
+
+5. **`useNotify()` for all outcomes.** Success, warning, and error states surface via `useNotify()`, not `console.log` or native `alert()`.
+
+6. **Row click wires `@click:row`, not just a button.** On `v-data-table-server`, add both:
+   - `@click:row="(_event, { item }) => openDrawer(item)"` for the full-row click
+   - `hover` prop to show pointer cursor
+   - A dedicated Inspect button inside `#item.actions` that calls `event.stopPropagation(); openDrawer(item)` to avoid double-open
+
+7. **All time in the drawer uses `services/timezone.js`.** Never `new Date().toLocaleString()` or raw `Date` methods.
+
+### Template skeleton
+
+```html
+<v-navigation-drawer v-model="open" location="right" temporary width="500" class="cc-drawer-right">
+  <v-card flat class="h-100 d-flex flex-column">
+    <!-- Fixed header -->
+    <v-card-title class="d-flex align-center py-3">
+      <PHListPanel :item="selectedItem" />
+      <v-spacer />
+      <v-btn icon="mdi-close" variant="text" size="small" @click="open = false" />
+    </v-card-title>
+
+    <!-- Optional alert banner -->
+    <v-card-text v-if="state.error" class="pb-0">
+      <v-alert type="error" density="compact">{{ state.error }}</v-alert>
+    </v-card-text>
+
+    <!-- Tabs -->
+    <v-tabs v-model="tab" color="primary" density="compact" class="px-4">
+      <v-tab value="summary">Summary</v-tab>
+      <v-tab value="observations">Observations</v-tab>
+      <v-tab value="history">History</v-tab>
+      <v-tab value="actions">Actions</v-tab>
+    </v-tabs>
+
+    <!-- Scrollable body -->
+    <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
+      <v-card-text>
+        <v-window v-model="tab">
+          <v-window-item value="summary">
+            <PHTrailMiniFloorPlan :trail-points="state.trail" />
+            <PHPeopleSummary :co-present="state.coPresent" />
+          </v-window-item>
+          <v-window-item value="observations">
+            <PHObservationsTimeline :item-id="selectedItem.id" />
+          </v-window-item>
+          <v-window-item value="history">
+            <PHRevisionsFeed :item-id="selectedItem.id" />
+          </v-window-item>
+          <v-window-item value="actions">
+            <PHCorrectionForm :item-id="selectedItem.id" @corrected="onCorrected" />
+          </v-window-item>
+        </v-window>
+      </v-card-text>
+    </div>
+  </v-card>
+
+  <!-- Confirmation dialogs outside the card but inside the drawer -->
+  <v-dialog v-model="confirmDialog" max-width="400">
+    <v-card rounded="xl">
+      <v-card-title>{{ confirmTitle }}</v-card-title>
+      <v-card-text>{{ confirmText }}</v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+        <v-btn :color="confirmColor" variant="flat" @click="onConfirm">{{ confirmLabel }}</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+</v-navigation-drawer>
+```
+
+Required scoped CSS (same as right-side drawer pattern):
+```css
+.cc-drawer-right {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+}
+.cc-drawer-right :deep(.v-navigation-drawer__content) {
+  flex: 1 1 0;
+  min-height: 0;
+  padding-top: 64px;
+}
+```
+
+---
+
 ## File organization
 
 ```
@@ -508,3 +610,8 @@ Before marking frontend work complete:
 - `tracking-tight` on page titles
 - Status chips use `statusColor()` helper
 - Filter changes reset page to 1
+- No `getHours()`, `getMinutes()`, `getSeconds()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()` anywhere — use `services/timezone.js`
+- Inspector drawers: `useNotify()` imported and used (zero `console.log` / `console.error` stubs)
+- Inspector drawers: `useConfirm()` called before every destructive action
+- Inspector drawers: `@click:row` wired on data tables (not only the Inspect button)
+- Composables return `{ state, actions }` shape (never flat named refs)

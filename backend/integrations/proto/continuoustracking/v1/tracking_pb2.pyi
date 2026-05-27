@@ -120,30 +120,28 @@ class FloorPoint(_message.Message):
     def __init__(self, x_mm: _Optional[int] = ..., y_mm: _Optional[int] = ..., calibrated: bool = ...) -> None: ...
 
 class IdentityRevision(_message.Message):
-    __slots__ = ("global_track_id", "candidates", "map_identity_id", "posterior_entropy", "revision_time_unix_ns", "revision_id", "tracklet_ids", "previous_identity_id", "new_identity_id", "reason", "evidence_json")
-    GLOBAL_TRACK_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("ph_id", "candidates", "map_identity_id", "posterior_entropy", "revision_time_unix_ns", "revision_id", "previous_identity_id", "new_identity_id", "reason", "evidence_json")
+    PH_ID_FIELD_NUMBER: _ClassVar[int]
     CANDIDATES_FIELD_NUMBER: _ClassVar[int]
     MAP_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
     POSTERIOR_ENTROPY_FIELD_NUMBER: _ClassVar[int]
     REVISION_TIME_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
     REVISION_ID_FIELD_NUMBER: _ClassVar[int]
-    TRACKLET_IDS_FIELD_NUMBER: _ClassVar[int]
     PREVIOUS_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
     NEW_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     EVIDENCE_JSON_FIELD_NUMBER: _ClassVar[int]
-    global_track_id: str
+    ph_id: str
     candidates: _containers.RepeatedCompositeFieldContainer[IdentityCandidate]
     map_identity_id: str
     posterior_entropy: float
     revision_time_unix_ns: int
     revision_id: str
-    tracklet_ids: _containers.RepeatedScalarFieldContainer[str]
     previous_identity_id: str
     new_identity_id: str
     reason: str
     evidence_json: str
-    def __init__(self, global_track_id: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[IdentityCandidate, _Mapping]]] = ..., map_identity_id: _Optional[str] = ..., posterior_entropy: _Optional[float] = ..., revision_time_unix_ns: _Optional[int] = ..., revision_id: _Optional[str] = ..., tracklet_ids: _Optional[_Iterable[str]] = ..., previous_identity_id: _Optional[str] = ..., new_identity_id: _Optional[str] = ..., reason: _Optional[str] = ..., evidence_json: _Optional[str] = ...) -> None: ...
+    def __init__(self, ph_id: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[IdentityCandidate, _Mapping]]] = ..., map_identity_id: _Optional[str] = ..., posterior_entropy: _Optional[float] = ..., revision_time_unix_ns: _Optional[int] = ..., revision_id: _Optional[str] = ..., previous_identity_id: _Optional[str] = ..., new_identity_id: _Optional[str] = ..., reason: _Optional[str] = ..., evidence_json: _Optional[str] = ...) -> None: ...
 
 class IdentitySnapshot(_message.Message):
     __slots__ = ("global_track_id", "identity_id", "top_probability", "second_probability", "posterior_entropy", "direct_face_evidence", "evidence_json")

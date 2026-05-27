@@ -67,12 +67,12 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
             metrics.cts_revisions_decode_errors.inc()
             return None
 
-        if not message.revision_id or not message.global_track_id:
+        if not message.revision_id or not message.ph_id:
             logger.warning(
                 "revision_missing_required_fields",
                 message_id=message_id,
                 revision_id=message.revision_id,
-                global_track_id=message.global_track_id,
+                ph_id=message.ph_id,
             )
             return None
 
@@ -86,12 +86,9 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
 
         return {
             "revision_id": message.revision_id,
-            "global_track_id": message.global_track_id,
-            "tracklet_ids": list(message.tracklet_ids),
+            "ph_id": message.ph_id,
             "previous_identity_id": message.previous_identity_id or None,
             "new_identity_id": message.new_identity_id or None,
-            "map_identity_id": message.map_identity_id,
-            "posterior_entropy": float(message.posterior_entropy),
             "reason": message.reason,
             "evidence": evidence,
             "revision_time": ns_to_iso(message.revision_time_unix_ns),
@@ -115,7 +112,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
                     kind="identity_revision",
                     payload={
                         "revision_id": revision["revision_id"],
-                        "global_track_id": revision.get("global_track_id"),
+                        "ph_id": revision.get("ph_id"),
                         "previous_identity_id": revision.get("previous_identity_id"),
                         "new_identity_id": revision.get("new_identity_id"),
                         "reason": revision.get("reason"),

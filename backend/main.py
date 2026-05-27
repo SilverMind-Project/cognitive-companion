@@ -699,6 +699,7 @@ def create_app() -> FastAPI:
         cts_overlap_groups,
         cts_ph,
         cts_presence,
+        cts_presence_timeline,
         cts_signals,
         cts_trajectory,
         cts_transit_zones,
@@ -763,6 +764,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_cameras.router, prefix=api)
     app.include_router(cts_calibration.router, prefix=api)
     app.include_router(cts_presence.router, prefix=api)
+    app.include_router(cts_presence_timeline.router, prefix=api)
     app.include_router(cts_signals.router, prefix=api)
     app.include_router(cts_trajectory.router, prefix=api)
     app.include_router(cts_keyframes.router, prefix=api)

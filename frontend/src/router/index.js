@@ -184,6 +184,12 @@ const routes = [
         component: () => import("../views/admin/CTSPresenceView.vue"),
         meta: { title: "Presence Fusion", icon: "mdi-map-marker-radius" },
       },
+      {
+        path: "caregiver/presence/:personId?",
+        name: "PresenceTimeline",
+        component: () => import("../views/caregiver/PresenceTimelineView.vue"),
+        meta: { title: "Presence Timeline", icon: "mdi-timeline-clock" },
+      },
     ],
   },
 ];

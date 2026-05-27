@@ -549,6 +549,7 @@ async def lifespan(app: FastAPI):
 
     # -- CTS gateway clients + runtime (gated by cts.enabled) --------------
     cts_runtime = None
+    app.state.person_location_service = None
     if settings.as_bool("cts.enabled"):
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
@@ -631,6 +632,7 @@ async def lifespan(app: FastAPI):
         app.state.dementia_signal_subscriber = None
         app.state.tracking_event_subscriber = None
         app.state.identity_revision_subscriber = None
+        app.state.person_location_service = None
 
     # Start MCP session manager for streamable HTTP transport
     from backend.mcp.server import mcp_server

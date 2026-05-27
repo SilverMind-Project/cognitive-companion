@@ -225,30 +225,7 @@ class PHCoPresentResponse(BaseModel):
 
 # ---------------------------------------------------------------------------
 # WebSocket event payloads (N2 §3.3)
+# Re-exported from cts_ph_ws for backward compatibility.
 # ---------------------------------------------------------------------------
 
-
-class PHUpdateEvent(BaseModel):
-    """Broadcast on WebSocket as ``cts_ph_update``."""
-
-    ph_id: str
-    current_identity_id: str | None = None
-    identity_committed: bool = False
-    state: str = "active"
-    posterior_top_label: str | None = None
-    posterior_top_prob: float | None = None
-    room_id: str | None = None
-    last_observed_at: datetime | None = None
-
-
-class PHCorrectionEvent(BaseModel):
-    """Broadcast on WebSocket as ``cts_ph_correction``."""
-
-    revision_id: str
-    ph_id: str
-    previous_identity_id: str | None = None
-    new_identity_id: str | None = None
-    actor: str = ""
-    reason: str = ""
-    kind: str = ""
-    applied_at: datetime | None = None
+from backend.schemas.cts_ph_ws import PHCorrectionEvent, PHUpdateEvent  # noqa: E402, F401

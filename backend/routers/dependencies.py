@@ -30,6 +30,8 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, Request, status
 
+from backend.core.database import get_session
+
 if TYPE_CHECKING:
     from backend.integrations.homeassistant import HomeAssistantClient
     from backend.integrations.ingress_admin_client import IngressAdminClient
@@ -42,6 +44,7 @@ if TYPE_CHECKING:
     from backend.services.cts.runtime import CTSRuntime
     from backend.services.event_aggregator import EventAggregator
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
+    from backend.services.person_location.service import PersonLocationService
     from backend.services.scheduler import SchedulerBridge
     from backend.services.sensor_polling import SensorPollingService
     from backend.websocket.connection_manager import ConnectionManager
@@ -57,6 +60,7 @@ __all__ = [
     "get_llm_model_registry",
     "get_minio_client",
     "get_orchestrator_client",
+    "get_person_location_service",
     "get_realtime_provider",
     "get_scheduler",
     "get_sensor_polling",
@@ -190,3 +194,21 @@ def get_knowledge_delivery(request: Request) -> KnowledgeDeliveryService:
     if svc is None:
         raise _raise_503("knowledge_delivery", "Knowledge delivery service")
     return svc
+
+
+def get_person_location_service(request: Request) -> PersonLocationService:
+    """Return a per-request PersonLocationService (503 if unavailable)."""
+    db = next(get_session())
+    try:
+        from backend.services.person_location.repositories import (
+            SqlAlchemyObservationRepository,
+            SqlAlchemySegmentRepository,
+        )
+        from backend.services.person_location.service import PersonLocationService
+
+        return PersonLocationService(
+            obs_repo=SqlAlchemyObservationRepository(db),
+            seg_repo=SqlAlchemySegmentRepository(db),
+        )
+    except Exception as exc:
+        raise _raise_503("person_location_service", "Person location service") from exc

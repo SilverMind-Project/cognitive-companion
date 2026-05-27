@@ -133,6 +133,7 @@ class CTSRuntime:
             consumer_id=config.consumer_id,
             rewriter=self.identity_rewriter,
             pipeline=pipeline,
+            ws_manager=ws_manager,
         )
         self.dementia_signal_subscriber = DementiaSignalSubscriber(
             redis_url=config.redis_url,

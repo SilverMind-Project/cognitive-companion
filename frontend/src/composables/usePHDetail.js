@@ -1,5 +1,7 @@
 /**
- * N3: PH detail composable — parallel fetch of detail, observations, keyframes, trail.
+ * N3: PH detail composable -- parallel fetch of detail, observations, keyframes, trail.
+ *
+ * Returns { state, actions } per engineering-standards Section 17.
  */
 
 import { ref } from "vue";
@@ -39,15 +41,16 @@ export function usePHDetail() {
     else errors.value.push("observations: " + (obsR.reason?.message || "failed"));
 
     if (kfR.status === "fulfilled") keyframes.value = kfR.value.items || [];
-    // keyframes failure is non-critical
 
     if (trailR.status === "fulfilled") trail.value = trailR.value.points || [];
-    // trail failure is non-critical
 
     if (coR.status === "fulfilled") coPresent.value = coR.value.co_present || [];
 
     loading.value = false;
   }
 
-  return { detail, observations, keyframes, trail, coPresent, loading, errors, fetch };
+  return {
+    state: { detail, observations, keyframes, trail, coPresent, loading, errors },
+    actions: { fetch },
+  };
 }

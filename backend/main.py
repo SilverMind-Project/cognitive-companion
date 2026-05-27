@@ -690,17 +690,16 @@ def create_app() -> FastAPI:
         cts_bboxes,
         cts_calibration,
         cts_cameras,
-        cts_corrections,
         cts_dashboard,
-        cts_decisions,
         cts_diagnostics,
         cts_gallery,
         cts_keyframes,
+        cts_legacy_gone,
         cts_live,
         cts_overlap_groups,
+        cts_ph,
         cts_presence,
         cts_signals,
-        cts_tracks,
         cts_trajectory,
         cts_transit_zones,
         cts_window_triggers,
@@ -769,9 +768,8 @@ def create_app() -> FastAPI:
     app.include_router(cts_keyframes.router, prefix=api)
     app.include_router(cts_dashboard.router, prefix=api)
     app.include_router(cts_gallery.router, prefix=api)
-    app.include_router(cts_tracks.router, prefix=api)
-    app.include_router(cts_corrections.router, prefix=api)
-    app.include_router(cts_decisions.router, prefix=api)
+    app.include_router(cts_ph.router, prefix=api)
+    app.include_router(cts_legacy_gone.router, prefix=api)
     app.include_router(cts_bboxes.router, prefix=api)
     app.include_router(cts_overlap_groups.router, prefix=api)
     app.include_router(cts_diagnostics.router, prefix=api)

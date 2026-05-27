@@ -89,6 +89,8 @@ permission_map:
     - "GET /ws/cts"
     # CTS read-only permissions
     - "cts.view"
+    # CTS identity: view PH data (N2)
+    - "cts.identity.view"
     - "cts.live.subscribe"
     - "cts.signals.view"
     - "cts.signals.delete"
@@ -124,6 +126,9 @@ permission_map:
     - "GET /ws/cts"
     # CTS permissions for caregiver admin
     - "cts.view"
+    # CTS identity PH surface (N2)
+    - "cts.identity.view"
+    - "cts.identity.correct"
     - "cts.live.subscribe"
     - "cts.signals.view"
     - "cts.signals.delete"
@@ -131,7 +136,6 @@ permission_map:
     - "cts.cameras.read"
     - "cts.cameras.write"
     - "cts.calibrate"
-    - "cts.identity.correct"
     - "cts.bboxes.write"
     - "cts.identity.correct.batch"
     - "cts.identity.read_enriched"

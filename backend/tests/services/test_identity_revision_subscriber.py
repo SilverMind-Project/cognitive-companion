@@ -15,12 +15,9 @@ from backend.services.cts.identity_revision_subscriber import IdentityRevisionSu
 def _payload(**overrides) -> dict[bytes, bytes]:
     defaults = {
         "revision_id": "rev-1",
-        "global_track_id": "gt-1",
-        "tracklet_ids": ["t-1", "t-2"],
+        "ph_id": "ph-1",
         "previous_identity_id": "grandma",
         "new_identity_id": "grandpa",
-        "map_identity_id": "grandpa",
-        "posterior_entropy": 0.0,
         "reason": "manual",
         "evidence_json": json.dumps({"actor": "tester"}),
         "revision_time_unix_ns": 1735305600000000000,
@@ -57,7 +54,7 @@ class TestDecode:
         rev = sub.decode(b"0-0", _payload())
         assert rev is not None
         assert rev["revision_id"] == "rev-1"
-        assert rev["tracklet_ids"] == ["t-1", "t-2"]
+        assert rev["ph_id"] == "ph-1"
         assert rev["previous_identity_id"] == "grandma"
         assert rev["new_identity_id"] == "grandpa"
         assert rev["evidence"] == {"actor": "tester"}

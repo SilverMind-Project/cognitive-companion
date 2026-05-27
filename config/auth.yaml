@@ -147,8 +147,6 @@ permission_map:
     # M3: bbox annotation endpoints
     - "PUT /api/v1/cts/identity/bboxes/*/override"
     - "GET /api/v1/cts/identity/keyframes/*/bboxes"
-    # M6: global track merge
-    - "POST /api/v1/cts/identity/global_tracks/merge"
     # M2: diagnostics and transit zones
     - "GET /api/v1/cts/diagnostics/calibration"
     - "GET /api/v1/cts/transit-zones*"

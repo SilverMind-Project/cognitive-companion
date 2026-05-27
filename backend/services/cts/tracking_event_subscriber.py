@@ -14,11 +14,13 @@ subscriber is the only consumer.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
+from backend.schemas.cts_ph_ws import PHUpdateEvent
 from backend.services.cts import metrics
 from backend.services.cts._time import ns_to_iso
 from backend.services.cts._types import ConnectionManager, MinioClient, PipelineExecutor
@@ -69,6 +71,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         self._pipeline = pipeline
         self._bucketizer = bucketizer
         self._minio_client = minio_client
+        self._ph_pending: dict[str, asyncio.Task[None]] = {}
 
     # -- StreamConsumer abstract methods ------------------------------------
 
@@ -256,20 +259,37 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 logger.exception("cts_live_broadcast_error")
 
             # N2: broadcast PH updates from identity snapshots
+            # Per-PH 200 ms debounce to avoid flooding the WebSocket bus.
             try:
                 for snap in event.get("identity_snapshots", []):
-                    await self._ws_manager.broadcast(
-                        {
-                            "type": "cts_ph_update",
-                            "ph_id": snap.get("ph_id", ""),
-                            "current_identity_id": snap.get("identity_id"),
-                            "identity_committed": bool(snap.get("identity_id")),
-                            "state": "active",
-                            "posterior_top_label": snap.get("identity_id"),
-                            "posterior_top_prob": snap.get("top_probability", 0.0),
-                            "last_observed_at": event.get("capture_time"),
-                        }
+                    ph_id = snap.get("ph_id", "")
+                    if not ph_id:
+                        continue
+                    evt = PHUpdateEvent(
+                        ph_id=ph_id,
+                        current_identity_id=snap.get("identity_id") or None,
+                        identity_committed=bool(snap.get("identity_id")),
+                        state="active",
+                        posterior_top_label=snap.get("identity_id") or None,
+                        posterior_top_prob=float(snap.get("top_probability", 0.0)),
+                        last_observed_at=event.get("capture_time"),
                     )
+                    payload = evt.model_dump(mode="json")
+
+                    existing = self._ph_pending.get(ph_id)
+                    if existing is not None and not existing.done():
+                        existing.cancel()
+
+                    async def _emit(p: dict = payload, pid: str = ph_id) -> None:
+                        await asyncio.sleep(0.2)
+                        if self._ws_manager is not None:
+                            await self._ws_manager.broadcast(p)
+
+                    task = asyncio.create_task(_emit())
+                    task.add_done_callback(
+                        lambda t, pid=ph_id: self._ph_pending.pop(pid, None)
+                    )
+                    self._ph_pending[ph_id] = task
             except Exception:
                 logger.exception("cts_ph_update_broadcast_error")
 
@@ -348,3 +368,11 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 logger.exception("tracking_event_bucketizer_ingest_error")
 
         return True
+
+    async def stop(self) -> None:
+        """Cancel pending debounce tasks, then delegate to base class."""
+        for task in list(self._ph_pending.values()):
+            if not task.done():
+                task.cancel()
+        self._ph_pending.clear()
+        await super().stop()

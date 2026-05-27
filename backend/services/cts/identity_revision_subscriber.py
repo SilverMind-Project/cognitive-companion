@@ -12,9 +12,10 @@ from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
+from backend.schemas.cts_ph_ws import PHCorrectionEvent
 from backend.services.cts import metrics
 from backend.services.cts._time import ns_to_iso
-from backend.services.cts._types import PipelineExecutor
+from backend.services.cts._types import ConnectionManager, PipelineExecutor
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
@@ -35,6 +36,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         consumer_id: str,
         rewriter: IdentityRewriter,
         pipeline: PipelineExecutor | None = None,
+        ws_manager: ConnectionManager | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -47,6 +49,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         )
         self._rewriter = rewriter
         self._pipeline = pipeline
+        self._ws_manager = ws_manager
 
     # -- StreamConsumer abstract methods -------------------------------------
 
@@ -121,5 +124,21 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
                 )
             except Exception:
                 logger.exception("identity_revision_pipeline_fire_error")
+
+        if self._ws_manager is not None:
+            try:
+                evt = PHCorrectionEvent(
+                    revision_id=revision["revision_id"],
+                    ph_id=revision.get("ph_id", ""),
+                    previous_identity_id=revision.get("previous_identity_id"),
+                    new_identity_id=revision.get("new_identity_id"),
+                    actor="",
+                    reason=revision.get("reason", ""),
+                    kind="auto",
+                    applied_at=revision.get("revision_time"),
+                )
+                await self._ws_manager.broadcast(evt.model_dump(mode="json"))
+            except Exception:
+                logger.exception("cts_ph_correction_broadcast_error")
 
         return True

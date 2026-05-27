@@ -443,18 +443,33 @@ class OrchestratorClient(UpstreamClient):
         self,
         *,
         since: str | None = None,
+        until: str | None = None,
         room_id: str | None = None,
         identity_id: str | None = None,
+        state: str | None = None,
+        include_transient: bool = False,
+        min_duration_s: float | None = None,
+        search: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> dict:
         params: dict[str, str] = {"limit": str(limit), "offset": str(offset)}
         if since:
             params["since"] = since
+        if until:
+            params["until"] = until
         if room_id:
             params["room_id"] = room_id
         if identity_id:
             params["identity_id"] = identity_id
+        if state:
+            params["state"] = state
+        if include_transient:
+            params["include_transient"] = "true"
+        if min_duration_s is not None:
+            params["min_duration_s"] = str(min_duration_s)
+        if search:
+            params["search"] = search
         r = await self._request("GET", "/ph", params=params)
         return r.json()
 
@@ -488,8 +503,11 @@ class OrchestratorClient(UpstreamClient):
         new_identity_id: str | None,
         reason: str = "manual",
         actor: str = "system",
+        idempotency_key: str | None = None,
     ) -> dict:
-        headers = {"X-Actor-Subject": actor}
+        headers: dict[str, str] = {"X-Actor-Subject": actor}
+        if idempotency_key:
+            headers["X-Idempotency-Key"] = idempotency_key
         r = await self._request(
             "POST",
             f"/ph/{ph_id}/correct",
@@ -505,8 +523,11 @@ class OrchestratorClient(UpstreamClient):
         target_ph_id: str,
         reason: str = "manual",
         actor: str = "system",
+        idempotency_key: str | None = None,
     ) -> dict:
-        headers = {"X-Actor-Subject": actor}
+        headers: dict[str, str] = {"X-Actor-Subject": actor}
+        if idempotency_key:
+            headers["X-Idempotency-Key"] = idempotency_key
         r = await self._request(
             "POST",
             "/ph/merge",
@@ -522,8 +543,11 @@ class OrchestratorClient(UpstreamClient):
         at_observation_id: str,
         reason: str = "manual",
         actor: str = "system",
+        idempotency_key: str | None = None,
     ) -> dict:
-        headers = {"X-Actor-Subject": actor}
+        headers: dict[str, str] = {"X-Actor-Subject": actor}
+        if idempotency_key:
+            headers["X-Idempotency-Key"] = idempotency_key
         r = await self._request(
             "POST",
             f"/ph/{ph_id}/split",
@@ -532,8 +556,16 @@ class OrchestratorClient(UpstreamClient):
         )
         return r.json()
 
-    async def batch_correct_phs(self, *, corrections: list[dict], actor: str = "system") -> dict:
-        headers = {"X-Actor-Subject": actor}
+    async def batch_correct_phs(
+        self,
+        *,
+        corrections: list[dict],
+        actor: str = "system",
+        idempotency_key: str | None = None,
+    ) -> dict:
+        headers: dict[str, str] = {"X-Actor-Subject": actor}
+        if idempotency_key:
+            headers["X-Idempotency-Key"] = idempotency_key
         r = await self._request(
             "POST",
             "/ph/batch_correct",

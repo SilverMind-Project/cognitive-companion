@@ -1,129 +1,69 @@
 <template>
   <div>
-    <div v-if="loading" class="text-body-2 text-medium-emphasis pa-4">Loading calibration health...</div>
-    <div v-else-if="error" class="text-body-2 text-error pa-4">{{ error }}</div>
-    <div v-else-if="!cameras.length" class="text-body-2 text-medium-emphasis pa-4">
+    <div v-if="loading" class="text-body-2 text-medium-emphasis pa-2">Loading calibration health...</div>
+    <div v-else-if="error" class="text-body-2 text-error pa-2">{{ error }}</div>
+    <div v-else-if="!cameras.length" class="text-body-2 text-medium-emphasis pa-2">
       No enabled cameras found.
     </div>
-    <div v-else class="d-flex flex-wrap ga-4 pa-2">
-      <v-card
-        v-for="cam in cameras"
-        :key="cam.camera_id"
-        class="glass-card"
-        width="320"
-        :border="true"
-      >
-        <v-card-item>
-          <template #title>
-            <span class="text-body-1 font-weight-medium">{{ cam.camera_id }}</span>
-          </template>
-          <template #subtitle>
-            <span v-if="cam.room_name" class="text-body-2">
-              Room: {{ cam.room_name }}
-            </span>
-            <span v-else class="text-body-2 text-warning">Room: unknown</span>
-          </template>
-        </v-card-item>
-
-        <v-card-text>
-          <div class="d-flex align-center ga-2 mb-2">
-            <span class="text-caption text-medium-emphasis">Status:</span>
-            <v-chip
-              v-if="!cam.has_homography"
-              size="x-small"
-              color="error"
-              variant="tonal"
-            >
-              Not calibrated
-            </v-chip>
-            <v-chip
-              v-else-if="cam.validation"
-              size="x-small"
-              :color="severityColor(cam.validation.severity)"
-              variant="tonal"
-            >
-              {{ cam.validation.severity }}
-            </v-chip>
-            <v-chip v-else size="x-small" variant="tonal">Unknown</v-chip>
-          </div>
-
-          <div v-if="cam.homography_set_at" class="text-caption text-medium-emphasis mb-1">
-            Calibrated: {{ formatDate(cam.homography_set_at) }}
-          </div>
-
-          <div v-if="cam.homography_method" class="text-caption text-medium-emphasis mb-2">
-            Method: {{ cam.homography_method }}
-          </div>
-
-          <v-divider v-if="cam.validation?.issues?.length" class="my-2" />
-
-          <div v-if="cam.validation?.issues?.length">
-            <div
-              v-for="(issue, idx) in cam.validation.issues"
-              :key="idx"
-              class="text-caption text-warning mb-1"
-            >
-              {{ issue }}
-            </div>
-          </div>
-        </v-card-text>
-
-        <v-card-actions>
-          <v-btn
-            v-if="cam.has_homography"
-            size="small"
-            variant="text"
-            color="primary"
-            @click="$emit('test-projection', cam.camera_id)"
-          >
-            Test Projection
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </div>
+    <v-card v-else variant="flat" border class="mb-3 px-3 py-2">
+      <div class="d-flex align-center flex-wrap ga-3">
+        <span class="text-caption font-weight-medium">Calibration Health:</span>
+        <span
+          v-for="cam in cameras"
+          :key="cam.camera_id"
+          class="d-flex align-center ga-1"
+          style="cursor: pointer"
+          :data-testid="`calibration-dot-${cam.camera_id}`"
+          @click="$router.push({ name: 'CTSCalibration', query: { camera_id: cam.camera_id } })"
+        >
+          <span
+            class="cal-dot"
+            :class="'cal-dot--' + cam.severity"
+            :title="`${cam.camera_id}: ${cam.severity}${cam.code ? ' (' + cam.code + ')' : ''}${cam.residual_m != null ? ', residual: ' + cam.residual_m.toFixed(3) + 'm' : ''}`"
+          />
+          <span class="text-caption">{{ cam.camera_id }}</span>
+        </span>
+      </div>
+    </v-card>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from "vue";
-import { cts } from "@/services/cts";
-import { useNotify } from "@/composables/useNotify";
-
-const emit = defineEmits(["test-projection"]);
-const notify = useNotify();
 
 const loading = ref(true);
 const error = ref("");
 const cameras = ref([]);
 
-function severityColor(severity) {
-  if (severity === "error") return "error";
-  if (severity === "warning") return "warning";
-  return "success";
-}
-
-function formatDate(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
-}
-
-async function load() {
+async function fetch() {
   loading.value = true;
   error.value = "";
   try {
-    const data = await cts.getCalibrationDiagnostics();
-    cameras.value = data.cameras || [];
+    const apiKey = localStorage.getItem("cc_api_key") || "";
+    const resp = await fetch("/api/v1/cts/calibration/health", {
+      headers: { "X-API-Key": apiKey },
+    });
+    if (resp.ok) cameras.value = await resp.json();
+    else error.value = `HTTP ${resp.status}`;
   } catch (e) {
-    error.value = e.message || "Failed to load calibration diagnostics";
-    notify.error(error.value);
+    error.value = e.message || "Failed to load calibration health";
   } finally {
     loading.value = false;
   }
 }
 
-onMounted(load);
+onMounted(fetch);
 </script>
+
+<style scoped>
+.cal-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cal-dot--ok { background: #4caf50; }
+.cal-dot--warning { background: #ff9800; }
+.cal-dot--error { background: #f44336; }
+</style>

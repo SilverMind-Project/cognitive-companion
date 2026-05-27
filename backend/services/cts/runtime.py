@@ -40,6 +40,7 @@ from backend.services.cts.stream_consumer import StreamConsumer
 from backend.services.cts.subscriber import DementiaSignalSubscriber
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 from backend.services.cts.tracking_response_subscriber import TrackingResponseSubscriber
+from backend.services.cts.world_snapshot_publisher import WorldSnapshotPublisher
 
 logger = get_logger(__name__)
 
@@ -119,6 +120,11 @@ class CTSRuntime:
             get_triggers=_load_triggers,
         )
 
+        self.snapshot_publisher = WorldSnapshotPublisher(
+            ws_manager=ws_manager,
+            person_location_service=None,  # wired via main.py lifespan
+        )
+
         self.tracking_event_subscriber = TrackingEventSubscriber(
             redis_url=config.redis_url,
             consumer_id=config.consumer_id,
@@ -127,6 +133,7 @@ class CTSRuntime:
             pipeline=pipeline,
             bucketizer=self.bucketizer,
             minio_client=minio_client,
+            snapshot_publisher=self.snapshot_publisher,
         )
         self.identity_revision_subscriber = IdentityRevisionSubscriber(
             redis_url=config.redis_url,
@@ -201,6 +208,7 @@ class CTSRuntime:
                 name=f"cts-runtime-{bundle.name}",
             )
             bundle.task = task
+        await self.snapshot_publisher.start()
         logger.info(
             "cts_runtime_started",
             subscribers=[b.name for b in self._bundles],
@@ -214,6 +222,7 @@ class CTSRuntime:
         event and :meth:`StreamConsumer.start` exits after the next tick.
         We wait up to 10 seconds per subscriber before cancelling hard.
         """
+        await self.snapshot_publisher.stop()
         for bundle in self._bundles:
             if bundle.subscriber is not None:
                 try:

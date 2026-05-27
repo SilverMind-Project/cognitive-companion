@@ -1108,7 +1108,7 @@ const savingRoom = ref(false);
 const canvasW = ref(1200);
 const canvasH = ref(800);
 const paused = ref(false);
-const identityTrails = shallowRef({});
+const identityTrails = computed(() => ({}));  // N4: replaced by useWorldSnapshot
 const uncalibratedDetCount = ref(0);
 let _uncalibratedWindow = [];
 // cameraFrameState tracks the most recent frame per camera for status display
@@ -1195,15 +1195,10 @@ const coverageImgReady = ref(false);
 const coverageImgW = ref(0);
 const coverageImgH = ref(0);
 
-// ── WS ───────────────────────────────────────────────────────────────────
-function onWsMessage(msg) {
-  if (msg?.type === "cts_live_frame") onLiveFrame(msg);
-}
-useCtsWebSocket(onWsMessage);
-
 // N4: world snapshot (PH-driven floor plan markers)
+// (WS lifecycle is managed inside useWorldSnapshot and useCtsWebSocket composables)
 const enableWorldSnapshot = ref(true);
-const { phs: worldPhs, inferredRooms: worldInferredRooms, isStale: worldIsStale } = useWorldSnapshot();
+const { phs: worldPhs, inferredRooms: worldInferredRooms, isStale: worldIsStale, trailBuffers } = useWorldSnapshot();
 
 // Compute floor positions for world snapshot PHs
 const worldPhMarkers = computed(() => {
@@ -1242,16 +1237,16 @@ const uncalibratedPhCount = computed(() =>
 // ── Computed ──────────────────────────────────────────────────────────────
 const activePersons = computed(() => {
   const now = Date.now();
-  return Object.entries(identityTrails.value)
-    .filter(([, t]) => now - (t.lastSeen ?? 0) < TRAIL_MAX_AGE_MS)
-    .map(([gtId, t]) => ({
-      gtId,
-      displayName: t.displayName,
-      color: t.color,
-      calibrated: t.calibrated,
-      confidence: t.confidence ?? 0,
-      lastSeen: t.lastSeen,
-      roomName: t.roomName ?? null,
+  return worldPhs.value
+    .filter((ph) => ph.identity_id && ph.last_observed_at)
+    .map((ph) => ({
+      gtId: ph.ph_id,
+      displayName: ph.identity_display_name || ph.identity_id || "UNKNOWN",
+      color: ph.identity_color || "#888888",
+      calibrated: !ph.uncalibrated,
+      confidence: ph.posterior_top_prob ?? 0,
+      lastSeen: new Date(ph.last_observed_at).getTime(),
+      roomName: ph.room_name || null,
     }))
     .sort((a, b) => b.lastSeen - a.lastSeen);
 });

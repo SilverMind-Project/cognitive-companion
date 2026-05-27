@@ -96,6 +96,8 @@ permission_map:
     - "cts.signals.delete"
     - "cts.cameras.read"
     - "cts.keyframes.view"
+    # CTS presence timeline (N5)
+    - "cts.presence.view"
     - "GET /api/v1/cts/presence/*"
     - "GET /api/v1/cts/presence-config"
     - "POST /api/v1/cts/presence-config/reload"

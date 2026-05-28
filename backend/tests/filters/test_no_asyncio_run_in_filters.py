@@ -24,11 +24,14 @@ def _has_asyncio_run(file_path: Path) -> bool:
     except SyntaxError:
         return False
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Attribute):
-                if node.func.attr == "run":
-                    if isinstance(node.func.value, ast.Name) and node.func.value.id == "asyncio":
-                        return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "run"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "asyncio"
+        ):
+            return True
     return False
 
 

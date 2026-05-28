@@ -1,11 +1,12 @@
-"""WebSocket event payload schemas for the PH gateway (N2 §3.3).
+"""WebSocket event payload schemas for the PH gateway.
 
+Contract: WTR1 §1 — ``ph_id`` is the stable physical-track identifier.
 These schemas define the wire format for cts_ph_update and
 cts_ph_correction events broadcast over the shared WebSocket bus.
 Consumers read ``event["type"]`` to dispatch.
 
-Field names are stable -- frontend usePHList.handleWsEvent() depends on
-the exact names ``type``, ``current_identity_id``, and ``last_observed_at``.
+Field names are stable — frontend composables depend on the exact names
+``type``, ``current_identity_id``, ``ph_id``, and ``last_observed_at``.
 """
 
 from __future__ import annotations

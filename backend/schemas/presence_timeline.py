@@ -1,6 +1,12 @@
-"""N5: Presence timeline response schemas.
+"""Presence timeline response schemas.
 
-Pydantic v2 models for the caregiver-facing presence timeline API.
+Contract: WTR1 §6 — person location rows use ``person_id``, not ``ph_id``.
+PH id belongs in ``source_ref``. These schemas expose ``person_id`` for
+caregiver-facing presence queries.
+
+Contract: WTR1 §7 — ``room_id`` is an integer CC ``rooms.id`` value.
+Room names are display labels only and must not be used for identity,
+transition, or presence logic.
 """
 
 from __future__ import annotations

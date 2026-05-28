@@ -154,7 +154,8 @@ class RoomTransitionFilter(ContextFilter):
                 return True
             return False
 
-        # Legacy fallback: query PersonLocationHistory.
+        # DEPRECATED (WTR9): Legacy fallback — query PersonLocationHistory.
+        # Sunset when PersonLocationService is the sole runtime source of truth.
         if db is not None:
             from backend.models.person import PersonLocationHistory
 

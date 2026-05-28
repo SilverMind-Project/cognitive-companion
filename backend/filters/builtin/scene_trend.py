@@ -150,6 +150,9 @@ class SceneTrendFilter(ContextFilter):
 
     # -- trend checkers -----------------------------------------------------
 
+    # DEPRECATED (WTR9): These methods query PersonLocationHistory directly.
+    # Migrate to PersonLocationService.presence_history() for the primary path.
+    # Sunset when PersonLocationService is the sole runtime source of truth.
     def _check_prolonged_stay(
         self, db: Session, person_id: str, config: dict, cutoff: datetime, now: datetime
     ) -> bool:

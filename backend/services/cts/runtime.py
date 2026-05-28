@@ -67,7 +67,7 @@ class _SubscriberBundle:
 
 
 class CTSRuntime:
-    """Owns the five CTS subscribers and shared CTS services."""
+    """Owns the CTS subscribers and shared CTS services."""
 
     def __init__(
         self,
@@ -81,6 +81,7 @@ class CTSRuntime:
         semantic_memory_client: SemanticMemoryClient | None = None,
         camera_room_map: dict[str, str] | None = None,
         authority: SourceAuthority | None = None,
+        recamera_subscriber: object | None = None,
     ) -> None:
         self._cfg = config
         self._db_factory = db_factory
@@ -162,6 +163,9 @@ class CTSRuntime:
             consumer_id=config.consumer_id,
         )
 
+        # WTR2: recamera observation subscriber (in-process queue, not Redis).
+        self._recamera_subscriber = recamera_subscriber
+
         self._bundles: list[_SubscriberBundle] = [
             _SubscriberBundle(name="tracking_events", subscriber=self.tracking_event_subscriber),
             _SubscriberBundle(
@@ -209,6 +213,9 @@ class CTSRuntime:
             )
             bundle.task = task
         await self.snapshot_publisher.start()
+        # WTR2: start recamera subscriber if provided.
+        if self._recamera_subscriber is not None:
+            await self._recamera_subscriber.start()  # type: ignore[union-attr]
         logger.info(
             "cts_runtime_started",
             subscribers=[b.name for b in self._bundles],
@@ -223,6 +230,9 @@ class CTSRuntime:
         We wait up to 10 seconds per subscriber before cancelling hard.
         """
         await self.snapshot_publisher.stop()
+        # WTR2: stop recamera subscriber.
+        if self._recamera_subscriber is not None:
+            await self._recamera_subscriber.stop()  # type: ignore[union-attr]
         for bundle in self._bundles:
             if bundle.subscriber is not None:
                 try:

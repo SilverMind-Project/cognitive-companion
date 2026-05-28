@@ -1,9 +1,7 @@
 """Room transition context filter.
 
-Passes when a person has completed a semantically-tagged room transition
-(derived from camera topology) within the configured time window.
-
-Typical use case: "alert me when Grandma *enters* the Kitchen in the last 2 minutes."
+Passes when a person has moved between rooms within the configured time
+window, using PersonLocationService presence_history() (R2: SSOT).
 
 Config schema
 -------------
@@ -19,7 +17,7 @@ Config schema
     }
 
 All optional fields are ANDed: the filter passes only when every supplied
-constraint matches at least one history row in the time window.
+constraint matches at least one segment pair in the time window.
 """
 
 from __future__ import annotations
@@ -27,6 +25,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
+from backend.core.logging import get_logger
 from backend.filters import FilterRegistry
 from backend.filters.base import ContextFilter, FilterMetadata
 from backend.services.camera_topology import (
@@ -36,6 +35,11 @@ from backend.services.camera_topology import (
     SEMANTIC_EXITING,
     SEMANTIC_STATIONARY,
 )
+from backend.services.cts.metrics import cts_filter_degraded_total
+
+logger = get_logger(__name__)
+
+_FILTER_NAME = "room_transition"
 
 _VALID_SEMANTICS = (
     SEMANTIC_ENTERING,
@@ -50,8 +54,8 @@ _DEFAULT_WINDOW_MINUTES = 5
 
 @FilterRegistry.register
 class RoomTransitionFilter(ContextFilter):
-    """Passes when the configured person has a topology-derived room-transition
-    entry in ``PersonLocationHistory`` within the requested time window."""
+    """Passes when the configured person has a room change in
+    PersonLocationService presence history within the time window."""
 
     @classmethod
     def metadata(cls) -> FilterMetadata:
@@ -114,62 +118,46 @@ class RoomTransitionFilter(ContextFilter):
         to_room_id: str | None = config.get("to_room_id")
         from_room_id: str | None = config.get("from_room_id")
 
-        # WTR7: use PersonLocationService presence_history.
-        if services and hasattr(services, "person_location") and services.person_location is not None:
-            try:
-                segments = await services.person_location.presence_history(
-                    person_id, since=cutoff, until=now
-                )
-            except Exception:
-                return False
-
-            active = [s for s in segments if s.superseded_by is None]
-            if len(active) < 2:
-                return False
-
-            for i in range(1, len(active)):
-                prev = active[i - 1]
-                curr = active[i]
-                if prev.room_id == curr.room_id:
-                    continue
-                # Compare room IDs when configured (int comparison).
-                if to_room_id is not None and str(curr.room_id) != to_room_id:
-                    continue
-                if from_room_id is not None and str(prev.room_id) != from_room_id:
-                    continue
-                # Compare room names when configured (string comparison).
-                if to_room_name:
-                    curr_name = (curr.metadata.get("room_name", "") if hasattr(curr, "metadata") else "")
-                    if curr_name.lower() != to_room_name.lower():
-                        continue
-                if from_room_name:
-                    prev_name = (prev.metadata.get("room_name", "") if hasattr(prev, "metadata") else "")
-                    if prev_name.lower() != from_room_name.lower():
-                        continue
-                if semantic:
-                    if semantic == SEMANTIC_ENTERING and curr.entry_source not in ("observed", "inferred_transit"):
-                        continue
-                    if semantic == SEMANTIC_EXITING and prev.exit_source not in ("observed", "inferred_transit", "contradicted"):
-                        continue
-                return True
+        # R2: PersonLocationService is the SSOT.  Fail closed when unavailable.
+        if not (services and getattr(services, "person_location", None)):
+            cts_filter_degraded_total.labels(filter=_FILTER_NAME).inc()
+            logger.warning(
+                "cts_filter_degraded_no_person_location",
+                filter=_FILTER_NAME,
+            )
             return False
 
-        # DEPRECATED (WTR9): Legacy fallback — query PersonLocationHistory.
-        # Sunset when PersonLocationService is the sole runtime source of truth.
-        if db is not None:
-            from backend.models.person import PersonLocationHistory
+        segments = await services.person_location.presence_history(
+            person_id, since=cutoff, until=now
+        )
 
-            query = db.query(PersonLocationHistory).filter(
-                PersonLocationHistory.person_id == person_id,
-                PersonLocationHistory.entered_at >= cutoff,
-                PersonLocationHistory.direction_semantic.isnot(None),
-            )
-            if semantic:
-                query = query.filter(PersonLocationHistory.direction_semantic == semantic)
+        active = [s for s in segments if s.superseded_by is None]
+        if len(active) < 2:
+            return False
+
+        for i in range(1, len(active)):
+            prev = active[i - 1]
+            curr = active[i]
+            if prev.room_id == curr.room_id:
+                continue
+            # Compare room IDs when configured (int comparison).
+            if to_room_id is not None and str(curr.room_id) != to_room_id:
+                continue
+            if from_room_id is not None and str(prev.room_id) != from_room_id:
+                continue
+            # Compare room names when configured (string comparison).
             if to_room_name:
-                query = query.filter(PersonLocationHistory.room_name.ilike(to_room_name))
+                curr_name = (curr.metadata.get("room_name", "") if hasattr(curr, "metadata") else "")
+                if curr_name.lower() != to_room_name.lower():
+                    continue
             if from_room_name:
-                query = query.filter(PersonLocationHistory.from_room_name.ilike(from_room_name))
-            return query.first() is not None
-
+                prev_name = (prev.metadata.get("room_name", "") if hasattr(prev, "metadata") else "")
+                if prev_name.lower() != from_room_name.lower():
+                    continue
+            if semantic:
+                if semantic == SEMANTIC_ENTERING and curr.entry_source not in ("observed", "inferred_transit"):
+                    continue
+                if semantic == SEMANTIC_EXITING and prev.exit_source not in ("observed", "inferred_transit", "contradicted"):
+                    continue
+            return True
         return False

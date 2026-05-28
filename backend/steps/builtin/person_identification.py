@@ -74,7 +74,7 @@ class PersonIdentificationHandler(StepHandler):
                     "record_presence": {
                         "type": "boolean",
                         "default": True,
-                        "description": "When false, PersonLocationState and PersonLocationHistory are not updated.",
+                        "description": "DEPRECATED (R2): PersonLocationState and PersonLocationHistory are superseded by PersonLocationService.",
                     },
                     "record_sightings": {
                         "type": "boolean",

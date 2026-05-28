@@ -103,3 +103,13 @@ cts_tracking_responses_decode_errors = Counter(
     "cts_tracking_responses_decode_errors_total",
     "Total tracking.responses messages that failed proto decode.",
 )
+
+# -- Filter degradation counters (R2) -----------------------------------------
+
+FILTER_LABEL = "filter"
+
+cts_filter_degraded_total = Counter(
+    "cts_filter_degraded_total",
+    "Total CTS filter evaluations that failed closed because PersonLocationService was unavailable.",
+    [FILTER_LABEL],
+)

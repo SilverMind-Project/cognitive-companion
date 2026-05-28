@@ -112,12 +112,10 @@ class OrchestratorClient(UpstreamClient):
         display_name: str | None = None,
         evidence: dict | None = None,
     ) -> dict:
-        """Apply a caregiver-authored identity override for ``global_track_id``.
+        """DEPRECATED (WTR6): use correct_ph_identity() instead.
 
-        Thin typed wrapper over :meth:`post_manual_correction`. The orchestrator
-        synthesizes an ``IdentityRevision`` from the override and publishes it
-        on the ``tracking.revisions`` stream; the CC subscriber picks it up
-        and rewrites the local history.
+        Apply a caregiver-authored identity override. Kept for backward
+        compat — prefer the PH-native correct/merge/split endpoints.
         """
         body: dict = {
             "global_track_id": global_track_id,

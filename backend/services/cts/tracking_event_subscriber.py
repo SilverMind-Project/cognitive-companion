@@ -157,7 +157,6 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                     "id": det.detection_id,
                     "ph_id": ph_id,
                     "tracklet_id": det.tracklet_id,
-                    "global_track_id": ph_id,
                     "identity_id": identity_id or None,
                     "display_name": display_name or None,
                     "identity_confidence": identity_conf,
@@ -351,8 +350,8 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             }
         phs: list[dict[str, Any]] = []
         for det in event.get("detections", []):
-            # WTR3: ph_id is the canonical PH identifier; global_track_id is legacy.
-            ph_id = det.get("ph_id") or det.get("global_track_id", "")
+            # R3: ph_id is the canonical PH identifier.
+            ph_id = det.get("ph_id", "")
             identity = identity_map.get(ph_id, {})
             calibrated = det.get("floor_calibrated", False)
             phs.append(

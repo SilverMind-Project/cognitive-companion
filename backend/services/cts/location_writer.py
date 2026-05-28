@@ -1,5 +1,13 @@
 """LocationWriter: CTS writer for PersonLocationState / PersonLocationHistory.
 
+DEPRECATED (R2): PersonLocationService is now the single source of truth
+for caregiver-facing presence.  The legacy PersonLocationState/History
+tables are still written because the pre-CTS presence providers
+(services/presence/providers/cts_location.py, night_anchor.py,
+stale_fallback.py) still read them.  Those providers will be migrated
+to PersonLocationService in a follow-up; once they are, this writer and
+LocationRepository can be removed.
+
 Consumes decoded tracking events (dicts produced by
 :class:`backend.services.cts.tracking_event_subscriber.TrackingEventSubscriber`)
 and applies them to the canonical person-location tables via a
@@ -13,12 +21,6 @@ Behaviour
 - Uses the :class:`SourceAuthority` helper to decide whether the CTS event
   is allowed to overwrite the current state (presence-sensor events and
   scene-analysis events may beat CTS in some deployments).
-- Every history row written carries ``source="cts"``, ``global_track_id``
-  from the event, and a nullable ``superseded_by_revision_id`` that
-  :class:`IdentityRewriter` fills in when an identity revision arrives.
-
-This service delegates all persistence to the injected
-:class:`LocationRepository`, keeping the writer free of direct ORM calls.
 """
 
 from __future__ import annotations

@@ -1,4 +1,10 @@
-"""WTR9: Architecture test — filters and steps must not import legacy location tables."""
+"""R2: Architecture test -- filters and steps must NOT import legacy location tables.
+
+After R2, any reference to PersonLocationState or PersonLocationHistory
+in the filters/ or steps/ directories is a violation -- no exceptions
+for transitional DEPRECATED markers, legacy fallbacks, or try-old-then-new.
+"""
+
 from __future__ import annotations
 
 import ast
@@ -38,25 +44,20 @@ def _references_legacy_location(file_path: Path) -> list[str]:
     return violations
 
 
-def test_filters_and_steps_use_person_location_service_primary():
-    """Filters/steps that reference PersonLocationState/History must also
-    use PersonLocationService as their primary path (WTR9 transitional)."""
+def test_no_legacy_location_references_in_filters_or_steps():
+    """R2: zero tolerance.  No file under filters/ or steps/ may reference
+    PersonLocationState or PersonLocationHistory."""
     all_violations: list[str] = []
     for f in _find_files():
         v = _references_legacy_location(f)
         if not v:
             continue
-        content = f.read_text()
-        # Allow if the file also uses PersonLocationService as primary path.
-        uses_pls = "person_location" in content and "services.person_location" in content
-        uses_legacy_guard = "Legacy fallback" in content or "if db is not None" in content
-        is_deprecated = "DEPRECATED (WTR9)" in content
-        if uses_pls or uses_legacy_guard or is_deprecated:
-            continue
         rel = str(f.relative_to(f.parents[2]))
         all_violations.append(f"{rel}:\n" + "\n".join(v))
 
     assert not all_violations, (
-        "Filters/steps reference legacy location tables without PersonLocationService as primary. "
-        "Use PersonLocationService instead:\n\n" + "\n\n".join(all_violations)
+        "R2: Filters/steps reference legacy location tables. "
+        "Remove all PersonLocationState/PersonLocationHistory references "
+        "from filters/ and steps/. Use PersonLocationService instead:\n\n"
+        + "\n\n".join(all_violations)
     )

@@ -1,9 +1,8 @@
 """Scene trend context filter.
 
 Detects patterns in a person's activity and location history over a
-configurable time window. Useful for rules like "alert if Grandma has
-been stationary in the bathroom for 30+ minutes" or "flag if someone
-has had 5+ bathroom visits in the last hour."
+configurable time window. Uses PersonLocationService.presence_history()
+for location-based trends (R2: SSOT).
 
 Config schema
 -------------
@@ -42,11 +41,17 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from backend.core.logging import get_logger
 from backend.filters import FilterRegistry
 from backend.filters.base import ContextFilter, FilterMetadata
+from backend.services.cts.metrics import cts_filter_degraded_total
+
+logger = get_logger(__name__)
+
+_FILTER_NAME = "scene_trend"
 
 _VALID_TREND_TYPES = (
     "prolonged_stay",
@@ -118,7 +123,7 @@ class SceneTrendFilter(ContextFilter):
             },
         )
 
-    def evaluate(
+    async def evaluate(
         self,
         config: dict,
         sensor,
@@ -126,9 +131,6 @@ class SceneTrendFilter(ContextFilter):
         db: Session | None = None,
         services: Any = None,
     ) -> bool:
-        if not db:
-            return False
-
         person_id: str | None = config.get("person_id")
         trend_type: str | None = config.get("trend_type")
         if not person_id or not trend_type:
@@ -137,84 +139,105 @@ class SceneTrendFilter(ContextFilter):
         within_minutes: float = config.get("within_minutes", _DEFAULT_WINDOW_MINUTES)
         cutoff = now - timedelta(minutes=within_minutes)
 
+        # R2: PersonLocationService is the SSOT for location-based trends.
+        # unusual_activity only needs PersonActivity (db), so it can skip
+        # the PersonLocationService requirement.
+        needs_location = trend_type in ("prolonged_stay", "frequent_visits", "no_recent_activity")
+        if needs_location and not (services and getattr(services, "person_location", None)):
+            cts_filter_degraded_total.labels(filter=_FILTER_NAME).inc()
+            logger.warning(
+                "cts_filter_degraded_no_person_location",
+                filter=_FILTER_NAME,
+            )
+            return False
+
         if trend_type == "prolonged_stay":
-            return self._check_prolonged_stay(db, person_id, config, cutoff, now)
+            return await self._check_prolonged_stay(person_id, config, cutoff, now, services)
         if trend_type == "frequent_visits":
-            return self._check_frequent_visits(db, person_id, config, cutoff)
+            return await self._check_frequent_visits(person_id, config, cutoff, services)
         if trend_type == "unusual_activity":
             return self._check_unusual_activity(db, person_id, config, cutoff)
         if trend_type == "no_recent_activity":
-            return self._check_no_recent_activity(db, person_id, cutoff)
+            return await self._check_no_recent_activity(
+                db, person_id, cutoff, services
+            )
 
         return False
 
     # -- trend checkers -----------------------------------------------------
 
-    # DEPRECATED (WTR9): These methods query PersonLocationHistory directly.
-    # Migrate to PersonLocationService.presence_history() for the primary path.
-    # Sunset when PersonLocationService is the sole runtime source of truth.
-    def _check_prolonged_stay(
-        self, db: Session, person_id: str, config: dict, cutoff: datetime, now: datetime
+    async def _check_prolonged_stay(
+        self,
+        person_id: str,
+        config: dict,
+        cutoff: datetime,
+        now: datetime,
+        services: Any,
     ) -> bool:
-        """Person has been in the same room continuously for > threshold."""
-        from backend.models.person import PersonLocationHistory
-
+        """Person has been in the same room continuously for > threshold (R2: PersonLocationService)."""
         threshold: int | None = config.get("threshold_minutes")
         if threshold is None:
             return False
 
         room_name: str | None = config.get("room_name")
 
-        # Find all location entries for the person within the window.
-        stmt = select(PersonLocationHistory).where(
-            PersonLocationHistory.person_id == person_id,
-            PersonLocationHistory.entered_at <= cutoff,
+        segments = await services.person_location.presence_history(
+            person_id, since=cutoff, until=now
         )
-        if room_name:
-            stmt = stmt.where(PersonLocationHistory.room_name.ilike(room_name))
-
-        entries = db.execute(stmt).scalars().all()
 
         # Group by room and compute max stay duration.
-        room_stays: dict[str, float] = {}
-        for entry in entries:
-            room = entry.room_name or "unknown"
-            if room not in room_stays:
-                room_stays[room] = 0.0
-            # Duration is from entered_at to exited_at (or now if still there).
-            end = entry.exited_at if entry.exited_at else now
-            duration = (end - entry.entered_at).total_seconds() / 60
-            if duration > room_stays[room]:
-                room_stays[room] = duration
+        room_stays: dict[int, float] = {}
+        for seg in segments:
+            if seg.superseded_by is not None:
+                continue
+            if room_name and (seg.metadata.get("room_name", "") or "").lower() != room_name.lower():
+                continue
+            r = seg.room_id
+            if r not in room_stays:
+                room_stays[r] = 0.0
+            end = seg.exited_at if seg.exited_at else now
+            duration = (end - seg.entered_at).total_seconds() / 60
+            if duration > room_stays[r]:
+                room_stays[r] = duration
 
         return any(dur >= threshold for dur in room_stays.values())
 
-    def _check_frequent_visits(
-        self, db: Session, person_id: str, config: dict, cutoff: datetime
+    async def _check_frequent_visits(
+        self,
+        person_id: str,
+        config: dict,
+        cutoff: datetime,
+        services: Any,
     ) -> bool:
-        """Person visited a room >= visit_count times within the window."""
+        """Person visited a room >= visit_count times within the window (R2: PersonLocationService)."""
         min_visits: int | None = config.get("visit_count")
         if min_visits is None:
             return False
 
         room_name: str | None = config.get("room_name")
 
-        from backend.models.person import PersonLocationHistory
-
-        stmt = select(func.count(PersonLocationHistory.id)).where(
-            PersonLocationHistory.person_id == person_id,
-            PersonLocationHistory.entered_at >= cutoff,
+        segments = await services.person_location.presence_history(
+            person_id, since=cutoff, until=cutoff + timedelta(days=1)
         )
+
+        active = [s for s in segments if s.superseded_by is None]
         if room_name:
-            stmt = stmt.where(PersonLocationHistory.room_name.ilike(room_name))
+            active = [
+                s for s in active
+                if (s.metadata.get("room_name", "") or "").lower() == room_name.lower()
+            ]
+        return len(active) >= min_visits
 
-        count = db.execute(stmt).scalar()
-        return (count or 0) >= min_visits
-
+    @staticmethod
     def _check_unusual_activity(
-        self, db: Session, person_id: str, config: dict, cutoff: datetime
+        db: Session | None,
+        person_id: str,
+        config: dict,
+        cutoff: datetime,
     ) -> bool:
         """Person performed an activity >= activity_count times."""
+        if db is None:
+            return False
         activity_type: str | None = config.get("activity_type")
         min_count: int | None = config.get("activity_count")
         if not activity_type or min_count is None:
@@ -233,21 +256,28 @@ class SceneTrendFilter(ContextFilter):
         )
         return count >= min_count
 
-    def _check_no_recent_activity(self, db: Session, person_id: str, cutoff: datetime) -> bool:
-        """Person has no location history or activity in the window."""
-        from backend.models.person import PersonActivity, PersonLocationHistory
-
-        has_location = (
-            db.query(PersonLocationHistory.id)
-            .filter(
-                PersonLocationHistory.person_id == person_id,
-                PersonLocationHistory.entered_at >= cutoff,
-            )
-            .limit(1)
-            .first()
+    async def _check_no_recent_activity(
+        self,
+        db: Session | None,
+        person_id: str,
+        cutoff: datetime,
+        services: Any,
+    ) -> bool:
+        """Person has no location history or activity in the window (R2: PersonLocationService)."""
+        # Check location via PersonLocationService.
+        segments = await services.person_location.presence_history(
+            person_id, since=cutoff, until=cutoff + timedelta(days=1)
+        )
+        has_location = any(
+            s.superseded_by is None for s in segments
         )
         if has_location:
             return False
+
+        # Check activity via DB (PersonActivity is not a legacy location table).
+        if db is None:
+            return True
+        from backend.models.person import PersonActivity
 
         has_activity = (
             db.query(PersonActivity.id)

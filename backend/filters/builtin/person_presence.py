@@ -1,12 +1,18 @@
-"""Person presence context filter -- is person X home / away / in room Y? (M4: uses PersonLocationService)."""
+"""Person presence context filter -- is person X home / away / in room Y? (R2: PersonLocationService SSOT)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
 
+from backend.core.logging import get_logger
 from backend.filters import FilterRegistry
 from backend.filters.base import ContextFilter, FilterMetadata
+from backend.services.cts.metrics import cts_filter_degraded_total
+
+logger = get_logger(__name__)
+
+_FILTER_NAME = "person_presence"
 
 
 @FilterRegistry.register
@@ -50,46 +56,24 @@ class PersonPresenceFilter(ContextFilter):
         status = config.get("status", "home")
         room_name = config.get("room_name")
 
-        # M4: use PersonLocationService when available.
-        if services and hasattr(services, "person_location") and services.person_location is not None:
-            try:
-                current = await services.person_location.where_is(person_id)
-            except Exception:
-                return False
-
-            if status == "away":
-                return current is None
-            if status == "unknown":
-                return False
-            # status == "home"
-            if current is None:
-                return False
-            if room_name:
-                return (current.room_name or "").lower() == room_name.lower()
-            return True
-
-        # Legacy fallback: direct DB query.
-        if db is not None:
-            from backend.models.person import PersonLocationState
-
-            loc = (
-                db.query(PersonLocationState)
-                .filter(PersonLocationState.person_id == person_id)
-                .first()
+        # R2: PersonLocationService is the SSOT.  Fail closed when unavailable.
+        if not (services and getattr(services, "person_location", None)):
+            cts_filter_degraded_total.labels(filter=_FILTER_NAME).inc()
+            logger.warning(
+                "cts_filter_degraded_no_person_location",
+                filter=_FILTER_NAME,
             )
-            is_home = self._is_home(loc, now)
-            if status == "away":
-                return not is_home
-            if status == "unknown":
-                return loc is None or loc.status == "unknown"
-            if not is_home or loc is None:
-                return False
-            if room_name:
-                return (loc.current_room_name or "").lower() == room_name.lower()
-            return True
+            return False
 
-        return False
+        current = await services.person_location.where_is(person_id)
 
-    @staticmethod
-    def _is_home(loc, now: datetime) -> bool:
-        return not (not loc or loc.status != "home")
+        if status == "away":
+            return current is None
+        if status == "unknown":
+            return False
+        # status == "home"
+        if current is None:
+            return False
+        if room_name:
+            return (current.room_name or "").lower() == room_name.lower()
+        return True

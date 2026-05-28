@@ -63,17 +63,25 @@ async def create_transit_zone(
 ) -> TransitZoneOut:
     cts_enabled()
     svc = TransitZoneService(db)
-    # Validate direction vector is roughly unit-length.
+
+    # WTR5: centralized polygon and room reference validation.
+    from backend.services.cts.transit_zone_service import validate_transit_zone_polygon
+
+    errors = validate_transit_zone_polygon(
+        polygon=body.polygon,
+        inside_room_id=body.inside_room_id,
+        outside_room_id=body.outside_room_id,
+        direction_vec=body.direction_vec,
+    )
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+
+    # Normalize direction vector.
     import math
 
     dx, dy = body.direction_vec
     mag = math.sqrt(dx * dx + dy * dy)
-    if mag < 0.01:
-        raise HTTPException(
-            status_code=422,
-            detail="direction_vec must be non-zero",
-        )
-    norm_direction = [dx / mag, dy / mag]
+    norm_direction = [dx / mag, dy / mag] if mag > 0 else [1.0, 0.0]
     zone = svc.create_zone(
         name=body.name,
         kind=body.kind,
@@ -95,6 +103,27 @@ async def update_transit_zone(
 ) -> TransitZoneOut:
     cts_enabled()
     svc = TransitZoneService(db)
+
+    # WTR5: validate polygon fields if any geometry-related fields are updated.
+    from backend.services.cts.transit_zone_service import validate_transit_zone_polygon
+
+    if body.polygon is not None or body.inside_room_id is not None or body.outside_room_id is not None:
+        existing = svc.get_zone(zone_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Transit zone not found")
+        poly = body.polygon if body.polygon is not None else existing.polygon
+        inside = body.inside_room_id if body.inside_room_id is not None else existing.inside_room_id
+        outside = body.outside_room_id if body.outside_room_id is not None else existing.outside_room_id
+        dir_vec = body.direction_vec if body.direction_vec is not None else existing.direction_vec
+        errors = validate_transit_zone_polygon(
+            polygon=poly,
+            inside_room_id=inside,
+            outside_room_id=outside,
+            direction_vec=dir_vec,
+        )
+        if errors:
+            raise HTTPException(status_code=422, detail="; ".join(errors))
+
     kwargs = body.model_dump(exclude_unset=True)
     zone = svc.update_zone(zone_id, **kwargs)
     if zone is None:

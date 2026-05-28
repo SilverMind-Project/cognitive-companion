@@ -1,13 +1,69 @@
-"""Transit zone service for camera-blind room entry/exit detection (M2)."""
+"""Transit zone service for camera-blind room entry/exit detection (M2).
+
+WTR5: Added polygon and room reference validation.
+"""
 
 from __future__ import annotations
 
+import math
 import uuid
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.core.logging import get_logger
 from backend.models.transit_zone import TransitZone
+
+logger = get_logger(__name__)
+
+
+def validate_transit_zone_polygon(
+    polygon: list[list[float]],
+    inside_room_id: int | None = None,
+    outside_room_id: int | None = None,
+    direction_vec: list[float] | None = None,
+) -> list[str]:
+    """Validate a transit zone polygon and associated fields.
+
+    Returns a list of validation error messages (empty list = valid).
+    """
+    errors: list[str] = []
+
+    # Non-self-intersecting polygon with at least 3 vertices.
+    if len(polygon) < 3:
+        errors.append("polygon must have at least 3 vertices")
+        return errors
+
+    from shapely.geometry import Polygon
+
+    try:
+        poly = Polygon([(p[0], p[1]) for p in polygon])
+    except Exception:
+        errors.append("polygon geometry is invalid")
+        return errors
+
+    if not poly.is_valid:
+        errors.append("polygon is self-intersecting or invalid")
+
+    if poly.area <= 0:
+        errors.append("polygon area must be greater than zero")
+
+    # Transit zone must link exactly two distinct rooms.
+    if inside_room_id is None or outside_room_id is None:
+        errors.append("inside_room_id and outside_room_id are required")
+    elif inside_room_id == outside_room_id:
+        errors.append("inside_room_id and outside_room_id must be different")
+
+    # Direction vector validation.
+    if direction_vec is not None and len(direction_vec) >= 2:
+        dx, dy = float(direction_vec[0]), float(direction_vec[1])
+        mag = math.sqrt(dx * dx + dy * dy)
+        if mag < 1e-6:
+            errors.append("direction vector must have non-zero magnitude")
+    else:
+        errors.append("direction_vec is required")
+
+    return errors
 
 
 class TransitZoneService:

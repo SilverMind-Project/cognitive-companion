@@ -109,10 +109,12 @@ class RoomTransitionFilter(ContextFilter):
         cutoff = now - timedelta(minutes=within_minutes)
 
         semantic: str | None = config.get("semantic")
-        to_room: str | None = config.get("to_room_name")
-        from_room: str | None = config.get("from_room_name")
+        to_room_name: str | None = config.get("to_room_name")
+        from_room_name: str | None = config.get("from_room_name")
+        to_room_id: str | None = config.get("to_room_id")
+        from_room_id: str | None = config.get("from_room_id")
 
-        # M4: use PersonLocationService presence_history.
+        # WTR7: use PersonLocationService presence_history.
         if services and hasattr(services, "person_location") and services.person_location is not None:
             try:
                 segments = await services.person_location.presence_history(
@@ -121,23 +123,29 @@ class RoomTransitionFilter(ContextFilter):
             except Exception:
                 return False
 
-            # Filter out superseded segments.
             active = [s for s in segments if s.superseded_by is None]
             if len(active) < 2:
                 return False
 
-            # Detect transitions: compare consecutive segments.
             for i in range(1, len(active)):
                 prev = active[i - 1]
                 curr = active[i]
-                room_changed = prev.room_id != curr.room_id
-                if not room_changed:
+                if prev.room_id == curr.room_id:
                     continue
-                if to_room and curr.room_id != to_room:
+                # Compare room IDs when configured (int comparison).
+                if to_room_id is not None and str(curr.room_id) != to_room_id:
                     continue
-                if from_room and prev.room_id != from_room:
+                if from_room_id is not None and str(prev.room_id) != from_room_id:
                     continue
-                # Map entry_source to semantic direction.
+                # Compare room names when configured (string comparison).
+                if to_room_name:
+                    curr_name = (curr.metadata.get("room_name", "") if hasattr(curr, "metadata") else "")
+                    if curr_name.lower() != to_room_name.lower():
+                        continue
+                if from_room_name:
+                    prev_name = (prev.metadata.get("room_name", "") if hasattr(prev, "metadata") else "")
+                    if prev_name.lower() != from_room_name.lower():
+                        continue
                 if semantic:
                     if semantic == SEMANTIC_ENTERING and curr.entry_source not in ("observed", "inferred_transit"):
                         continue
@@ -157,10 +165,10 @@ class RoomTransitionFilter(ContextFilter):
             )
             if semantic:
                 query = query.filter(PersonLocationHistory.direction_semantic == semantic)
-            if to_room:
-                query = query.filter(PersonLocationHistory.room_name.ilike(to_room))
-            if from_room:
-                query = query.filter(PersonLocationHistory.from_room_name.ilike(from_room))
+            if to_room_name:
+                query = query.filter(PersonLocationHistory.room_name.ilike(to_room_name))
+            if from_room_name:
+                query = query.filter(PersonLocationHistory.from_room_name.ilike(from_room_name))
             return query.first() is not None
 
         return False

@@ -9,7 +9,7 @@ the bathroom for X minutes", not "we last saw her X minutes ago."
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from backend.filters import FilterRegistry
@@ -72,7 +72,8 @@ class PresenceDwellFilter(ContextFilter):
                 return False
             if dwell is None:
                 return False
-            elapsed = (datetime.now(UTC) - dwell.entered_at).total_seconds()
+            # WTR7: use the injected ``now`` for deterministic tests.
+            elapsed = (now - dwell.entered_at).total_seconds()
             return elapsed >= (min_minutes * 60)
 
         # Legacy fallback: use the presence service (last_seen_at-based).

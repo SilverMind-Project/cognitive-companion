@@ -74,13 +74,14 @@ class PresenceStatusFilter(ContextFilter):
             except Exception:
                 return False
 
+            # WTR7: differentiate absence semantics explicitly.
             if status in ("away", "stale", "unknown"):
                 return current is None
             if current is None:
                 return False
-            # present_room / present_home
-            if room_name and current.room_name:
+            if status == "present_room" and room_name and current.room_name:
                 return current.room_name.lower() == room_name.lower()
+            # present_home, asleep: any presence is sufficient.
             return True
 
         # Legacy fallback: use presence service.

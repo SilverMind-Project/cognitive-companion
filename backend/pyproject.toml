@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.6.176"
+version = "0.6.178"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -150,6 +150,9 @@ filterwarnings = [
     # Silence the known circular-FK SAWarning raised during test teardown
     # (see tests/conftest.py for context).
     "ignore::sqlalchemy.exc.SAWarning",
+]
+markers = [
+    "integration: tests requiring testcontainers (skipped by default in make check)",
 ]
 
 # ── Coverage ─────────────────────────────────────────────────────────

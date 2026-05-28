@@ -1,230 +1,199 @@
-"""N8: M4 bathroom scenario end-to-end test.
+"""R1 W3: Camera-blind bathroom inferred-dwell end-to-end test (C3).
 
-Simulates a 25-minute camera-blind dwell in the bathroom and asserts
-that the inferred_dwell_exceeded signal fires with correct evidence.
+Proves claim C3: a person who enters a camera-blind room through a transit
+zone and stays 25 minutes causes an ``inferred_dwell_exceeded`` signal.
 
-Requires testcontainer Postgres + Redis.
-Marked ``@pytest.mark.integration`` — skipped by default; CI opts in.
+The test drives ``PersonLocationService`` and ``SignalStore`` directly with
+the same SQLAlchemy repos that ``CTSRuntime`` wires in production. No parallel
+harness; no mocks for the database layer.
+
+Uses the testcontainer session fixture from ``backend/tests/conftest.py``.
+Marked ``@pytest.mark.integration`` so CI selects it.
 """
 
 from __future__ import annotations
 
-import os
+import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.orm import Session
+
+from backend.services.person_location.config import PersonLocationConfig
+from backend.services.person_location.repositories import (
+    InMemoryObservationRepository,
+    InMemorySegmentRepository,
+    SqlAlchemyObservationRepository,
+    SqlAlchemySegmentRepository,
+)
+from backend.services.person_location.service import PersonLocationService
+
+# 20-minute threshold so a 25-minute dwell triggers the signal.
+_TEST_CFG = PersonLocationConfig(inferred_dwell_max_s=20 * 60)
+
+PERSON_ID = "test-person-bathroom"
+T0 = datetime(2026, 5, 28, 10, 0, 0, tzinfo=UTC)
+T_ENTER = T0
+T_TICK = T0 + timedelta(minutes=25)
+
+
+def _seed_room(db: Session, has_camera: bool = False) -> int:
+    """Insert a room row and return its id."""
+    from backend.models.room import Room
+
+    room = Room(name=f"bathroom-{uuid.uuid4().hex[:8]}", has_camera=has_camera)
+    db.add(room)
+    db.flush()
+    return int(room.id)
+
+
+def _seed_person(db: Session, person_id: str) -> None:
+    """Insert a minimal household_members row."""
+    from backend.models.person import HouseholdMember
+
+    existing = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
+    if existing is None:
+        p = HouseholdMember(id=person_id, name="Test Person")
+        db.add(p)
+        db.flush()
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not os.getenv("TEST_DATABASE_URL"),
-    reason="Requires testcontainer Postgres + Redis",
-)
 class TestBathroomInferredDwellE2E:
-    """End-to-end: person enters camera-blind bathroom, dwells 25 min, signal fires."""
+    """C3: 25-minute camera-blind bathroom dwell produces inferred_dwell_exceeded."""
 
     @pytest.mark.asyncio
-    async def test_inferred_dwell_exceeded_fires_after_threshold(self, db_session):
+    async def test_inferred_dwell_exceeded_fires_after_threshold(self, db_session: Session) -> None:
         """After 25 minutes in a camera-blind bathroom, inferred_dwell_exceeded fires."""
-        t0 = datetime(2026, 5, 27, 10, 0, 0, tzinfo=UTC)
-        t_enter = t0
-        t_threshold = t0 + timedelta(minutes=20)
-        t_end = t0 + timedelta(minutes=25)
+        bathroom_room_id = _seed_room(db_session, has_camera=False)
+        hallway_room_id = _seed_room(db_session, has_camera=True)
+        _seed_person(db_session, PERSON_ID)
+        db_session.commit()
 
-        # Verify the simulated timeline is consistent
-        assert t_enter < t_threshold < t_end
+        obs_repo = SqlAlchemyObservationRepository(db_session)
+        seg_repo = SqlAlchemySegmentRepository(db_session)
+        svc = PersonLocationService(obs_repo, seg_repo, _TEST_CFG)
 
-        ws_mock = AsyncMock()
-        from backend.services.cts.location_writer import LocationWriter
+        # Person walks through the hallway→bathroom transit zone.
+        await svc.ingest_room_transition(
+            person_id=PERSON_ID,
+            transit_zone_id="tz-hallway-bathroom",
+            direction="enter",
+            inside_room_id=bathroom_room_id,
+            outside_room_id=hallway_room_id,
+            floor_x_m=5.0,
+            floor_y_m=2.0,
+            event_time=T_ENTER,
+        )
+        db_session.commit()
 
-        writer = LocationWriter(
-            repo_factory=lambda: None,
-            authority=None,
-            camera_room_map={"cam-1": "hallway"},
-            db_factory=lambda: db_session,
+        # Verify segment exists with inferred_transit entry source.
+        open_seg = await seg_repo.get_open(PERSON_ID)
+        assert open_seg is not None, "Segment must be open after room transition"
+        assert open_seg.entry_source == "inferred_transit", (
+            f"entry_source must be 'inferred_transit', got '{open_seg.entry_source}'"
+        )
+        assert open_seg.is_inferred, "Segment must be marked as inferred"
+        assert open_seg.room_id == bathroom_room_id
+
+        # Advance time 25 minutes and fire the dwell tick.
+        signals = await svc.tick(T_TICK)
+        db_session.commit()
+
+        # Segment must now be closed by timeout.
+        closed_seg = await seg_repo.get_open(PERSON_ID)
+        assert closed_seg is None, "Open segment must be closed after inferred_dwell_exceeded tick"
+
+        # Tick must have returned exactly one inferred_dwell_exceeded signal.
+        assert len(signals) == 1, (
+            f"Expected 1 inferred_dwell_exceeded signal, got {len(signals)}: {signals}"
+        )
+        sig = signals[0]
+        assert sig["signal_type"] == "inferred_dwell_exceeded", (
+            f"signal_type must be 'inferred_dwell_exceeded', got '{sig['signal_type']}'"
+        )
+        assert sig["person_id"] == PERSON_ID
+        assert sig["severity"] == "warning"
+        dwell_s = sig["value"]
+        assert dwell_s == pytest.approx(25 * 60, abs=1), (
+            f"signal value must be ~1500 s, got {dwell_s}"
         )
 
-        from backend.services.cts.tracking_event_subscriber import (
-            TrackingEventSubscriber,
+        # Persist the signal (mirroring what CTSRuntime does) and assert the DB row.
+        from backend.services.cts.signal_store import SignalStore
+
+        store = SignalStore(db_factory=lambda: db_session)
+        _, action = await store.upsert(sig)
+        assert action == "new", f"Signal upsert must be 'new', got '{action}'"
+
+        rows, total = await store.list_recent(
+            person_id=PERSON_ID,
+            signal_type="inferred_dwell_exceeded",
+            window_hours=1,
         )
-
-        subscriber = TrackingEventSubscriber(
-            redis_url="redis://localhost:6379",
-            consumer_id="test",
-            writer=writer,
-            ws_manager=ws_mock,
-            minio_client=None,
+        assert total == 1, (
+            f"dementia_signals must have exactly 1 inferred_dwell_exceeded row, got {total}"
         )
-
-        # Build a mock tracking event for person "mum" in hallway
-        event = {
-            "event_id": "evt-1",
-            "camera_id": "cam-1",
-            "event_time": t_enter.isoformat(),
-            "frame_index": 0,
-            "detection_count": 1,
-            "minio_key": "",
-            "room_name": "hallway",
-            "frame_width": 640,
-            "frame_height": 480,
-            "capture_time": t_enter.isoformat(),
-            "detections": [
-                {
-                    "id": "det-1",
-                    "tracklet_id": "tl-1",
-                    "global_track_id": "ph-mum",
-                    "identity_id": "mum",
-                    "display_name": "Mum",
-                    "identity_confidence": 0.9,
-                    "confidence": 0.95,
-                    "bbox": {"x_min": 100, "y_min": 200, "x_max": 300, "y_max": 400},
-                    "floor_point": {"x_mm": 5000, "y_mm": 3000},
-                    "floor_calibrated": True,
-                    "floor_x": 5.0,
-                    "floor_y": 3.0,
-                    "pose_keypoints": [],
-                    "posture": "standing",
-                    "trail": [],
-                    "evidence": {"top_prob": 0.9, "top2_prob": 0.05, "face_anchor_used": False},
-                }
-            ],
-            "identity_snapshots": [
-                {
-                    "ph_id": "ph-mum",
-                    "identity_id": "mum",
-                    "top_probability": 0.9,
-                    "second_probability": 0.05,
-                    "posterior_entropy": 0.3,
-                    "direct_face_evidence": False,
-                }
-            ],
-        }
-
-        result = await subscriber.handle(event)
-        assert result is True, "handle() should return True for valid event"
-
-        # Verify WS broadcast was called (cts_live_frame and cts_ph_update)
-        assert ws_mock.broadcast.call_count >= 1
+        assert rows[0]["signal_type"] == "inferred_dwell_exceeded"
+        assert rows[0]["person_id"] == PERSON_ID
 
     @pytest.mark.asyncio
-    async def test_segment_handles_missing_minio_key_gracefully(self, db_session):
-        """A tracking event with no minio_key should not crash the subscriber."""
-        ws_mock = AsyncMock()
-        from backend.services.cts.location_writer import LocationWriter
+    async def test_dwell_below_threshold_does_not_fire(self, db_session: Session) -> None:
+        """A dwell shorter than the threshold must not emit a signal."""
+        bathroom_room_id = _seed_room(db_session, has_camera=False)
+        hallway_room_id = _seed_room(db_session, has_camera=True)
+        _seed_person(db_session, PERSON_ID + "-short")
+        db_session.commit()
 
-        writer = LocationWriter(
-            repo_factory=lambda: None,
-            authority=None,
-            camera_room_map={},
-            db_factory=lambda: db_session,
+        obs_repo = SqlAlchemyObservationRepository(db_session)
+        seg_repo = SqlAlchemySegmentRepository(db_session)
+        svc = PersonLocationService(obs_repo, seg_repo, _TEST_CFG)
+
+        person = PERSON_ID + "-short"
+        await svc.ingest_room_transition(
+            person_id=person,
+            transit_zone_id="tz-h-b",
+            direction="enter",
+            inside_room_id=bathroom_room_id,
+            outside_room_id=hallway_room_id,
+            floor_x_m=5.0,
+            floor_y_m=2.0,
+            event_time=T_ENTER,
         )
+        db_session.commit()
 
-        from backend.services.cts.tracking_event_subscriber import (
-            TrackingEventSubscriber,
-        )
+        # Only 10 minutes in — below the 20-minute threshold.
+        signals = await svc.tick(T0 + timedelta(minutes=10))
+        assert signals == [], f"Dwell below threshold must not emit signals, got {signals}"
 
-        subscriber = TrackingEventSubscriber(
-            redis_url="redis://localhost:6379",
-            consumer_id="test-no-minio",
-            writer=writer,
-            ws_manager=ws_mock,
-            minio_client=None,
-        )
-
-        event = {
-            "event_id": "evt-2",
-            "camera_id": "cam-1",
-            "event_time": datetime.now(UTC).isoformat(),
-            "frame_index": 0,
-            "detection_count": 0,
-            "minio_key": None,
-            "room_name": "hallway",
-            "frame_width": 640,
-            "frame_height": 480,
-            "capture_time": datetime.now(UTC).isoformat(),
-            "detections": [],
-            "identity_snapshots": [],
-        }
-
-        result = await subscriber.handle(event)
-        assert result is True
+        # Segment must still be open.
+        open_seg = await seg_repo.get_open(person)
+        assert open_seg is not None, "Segment must remain open below threshold"
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    not os.getenv("TEST_DATABASE_URL"),
-    reason="Requires testcontainer Postgres + Redis",
-)
-class TestBathroomSegmentCorrectness:
-    """Segment-level assertions for the bathroom scenario."""
+class TestBathroomSegmentInMemory:
+    """Fast in-memory variant of C3 (no DB); validates pure state-machine logic."""
 
     @pytest.mark.asyncio
-    async def test_segment_has_correct_source(self, db_session):
-        """Verify the test subscriber processes events without crashing."""
-        ws_mock = AsyncMock()
-        from backend.services.cts.location_writer import LocationWriter
+    async def test_inferred_dwell_exceeded_in_memory(self) -> None:
+        """InMemory repos: 25-min dwell beyond threshold returns signal dict."""
+        obs_repo = InMemoryObservationRepository()
+        seg_repo = InMemorySegmentRepository()
+        svc = PersonLocationService(obs_repo, seg_repo, _TEST_CFG)
 
-        writer = LocationWriter(
-            repo_factory=lambda: None,
-            authority=None,
-            camera_room_map={},
-            db_factory=lambda: db_session,
+        await svc.ingest_room_transition(
+            person_id="mem-person",
+            transit_zone_id="tz-1",
+            direction="enter",
+            inside_room_id=99,
+            outside_room_id=1,
+            floor_x_m=1.0,
+            floor_y_m=1.0,
+            event_time=T_ENTER,
         )
 
-        from backend.services.cts.tracking_event_subscriber import (
-            TrackingEventSubscriber,
-        )
-
-        subscriber = TrackingEventSubscriber(
-            redis_url="redis://localhost:6379",
-            consumer_id="test-segment",
-            writer=writer,
-            ws_manager=ws_mock,
-        )
-
-        event = {
-            "event_id": "evt-3",
-            "camera_id": "cam-1",
-            "event_time": datetime.now(UTC).isoformat(),
-            "frame_index": 0,
-            "detection_count": 1,
-            "minio_key": None,
-            "room_name": "hallway",
-            "frame_width": 640,
-            "frame_height": 480,
-            "capture_time": datetime.now(UTC).isoformat(),
-            "detections": [
-                {
-                    "id": "det-1",
-                    "tracklet_id": "tl-1",
-                    "global_track_id": "ph-bob",
-                    "identity_id": "bob",
-                    "display_name": "Bob",
-                    "identity_confidence": 0.85,
-                    "confidence": 0.9,
-                    "bbox": {"x_min": 0, "y_min": 0, "x_max": 0, "y_max": 0},
-                    "floor_point": {"x_mm": 0, "y_mm": 0},
-                    "floor_calibrated": True,
-                    "floor_x": 0.0,
-                    "floor_y": 0.0,
-                    "pose_keypoints": [],
-                    "posture": "standing",
-                    "trail": [],
-                    "evidence": None,
-                }
-            ],
-            "identity_snapshots": [
-                {
-                    "ph_id": "ph-bob",
-                    "identity_id": "bob",
-                    "top_probability": 0.85,
-                    "second_probability": 0.05,
-                    "posterior_entropy": 0.5,
-                    "direct_face_evidence": False,
-                }
-            ],
-        }
-
-        result = await subscriber.handle(event)
-        assert result is True
+        signals = await svc.tick(T_TICK)
+        assert len(signals) == 1
+        assert signals[0]["signal_type"] == "inferred_dwell_exceeded"
+        assert signals[0]["person_id"] == "mem-person"

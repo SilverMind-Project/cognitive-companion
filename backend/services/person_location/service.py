@@ -6,7 +6,9 @@ location_observations or presence_segments directly.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 from backend.core.logging import get_logger
@@ -101,9 +103,7 @@ class PersonLocationService:
     ) -> None:
         """Handle a room transition event from tracking.room_transitions (M2)."""
         room_id = inside_room_id if direction == "enter" else outside_room_id
-        event_kind = (
-            EventKind.TRANSIT_ENTER if direction == "enter" else EventKind.TRANSIT_EXIT
-        )
+        event_kind = EventKind.TRANSIT_ENTER if direction == "enter" else EventKind.TRANSIT_EXIT
 
         open_seg = await self._seg.get_open(person_id)
         event = IncomingEvent(
@@ -247,9 +247,7 @@ class PersonLocationService:
     # Query API
     # ------------------------------------------------------------------
 
-    async def where_is(
-        self, person_id: str, at: datetime | None = None
-    ) -> CurrentLocation | None:
+    async def where_is(self, person_id: str, at: datetime | None = None) -> CurrentLocation | None:
         """Return the current location of a person."""
         seg = await self._seg.get_open(person_id)
         if seg is None:
@@ -270,9 +268,7 @@ class PersonLocationService:
         """Return presence segments for a person in a time window."""
         return await self._seg.list_for_person(person_id, since, until)
 
-    async def occupants_of(
-        self, room_id: int, at: datetime | None = None
-    ) -> list[CurrentLocation]:
+    async def occupants_of(self, room_id: int, at: datetime | None = None) -> list[CurrentLocation]:
         """Return currently-present persons in a room."""
         segments = await self._seg.list_open_for_room(room_id)
         result: list[CurrentLocation] = []
@@ -311,6 +307,73 @@ class PersonLocationService:
         return result
 
     # ------------------------------------------------------------------
+    # Inferred-dwell timeout evaluation
+    # ------------------------------------------------------------------
+
+    async def tick(self, now: datetime) -> list[dict[str, Any]]:
+        """Evaluate timeout for every open inferred segment.
+
+        Fires a TIMEOUT_TICK event for each open inferred segment. When a
+        segment's age exceeds ``inferred_dwell_max_s``, the state machine
+        closes it and this method appends an ``inferred_dwell_exceeded``
+        signal dict to the return list. The caller (CTSRuntime) is
+        responsible for persisting those signals to the signal store.
+
+        Returns a (possibly empty) list of signal dicts ready for
+        ``SignalStore.upsert()``.
+        """
+        open_segments = await self._seg.list_all_open()
+        signals: list[dict[str, Any]] = []
+
+        for seg in open_segments:
+            if not seg.is_inferred:
+                continue
+
+            event = IncomingEvent(
+                kind=EventKind.TIMEOUT_TICK,
+                person_id=seg.person_id,
+                room_id=seg.room_id,
+                at=now,
+                confidence=seg.confidence,
+            )
+            decision = decide(seg, event, self._cfg.inferred_dwell_max_s)
+            await self._apply_decision(decision)
+
+            if decision.closes:
+                dwell_s = (now - seg.entered_at).total_seconds()
+                signal_id = str(
+                    uuid.uuid5(
+                        uuid.NAMESPACE_URL,
+                        f"{seg.person_id}\x00inferred_dwell_exceeded"
+                        f"\x00{seg.entered_at.isoformat()}\x00{now.isoformat()}",
+                    )
+                )
+                signals.append(
+                    {
+                        "signal_id": signal_id,
+                        "person_id": seg.person_id,
+                        "signal_type": "inferred_dwell_exceeded",
+                        "severity": "warning",
+                        "window_start": seg.entered_at.isoformat(),
+                        "window_end": now.isoformat(),
+                        "value": dwell_s,
+                        "baseline": self._cfg.inferred_dwell_max_s,
+                        "z_score": None,
+                        "context_json": None,
+                        "algorithm_version": 1,
+                    }
+                )
+                logger.warning(
+                    "inferred_dwell_exceeded",
+                    person_id=seg.person_id,
+                    room_id=seg.room_id,
+                    dwell_s=dwell_s,
+                    threshold_s=self._cfg.inferred_dwell_max_s,
+                )
+
+        return signals
+
+    # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 
@@ -318,9 +381,7 @@ class PersonLocationService:
         for sw in decision.writes:
             await self._seg.insert(sw.segment)
         for sc in decision.closes:
-            await self._seg.close_segment(
-                sc.segment_id, sc.exited_at, sc.exit_source
-            )
+            await self._seg.close_segment(sc.segment_id, sc.exited_at, sc.exit_source)
         for ss in decision.supersedes:
             existing = await self._seg.get_by_id(ss.segment_id)
             if existing is not None:

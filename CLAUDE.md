@@ -36,8 +36,9 @@ uv run --project backend uvicorn backend.main:app --host 0.0.0.0 --port 8000 --r
 cd frontend && npm run dev          # http://localhost:5173
 
 # Test gates (run before any PR)
-make check                          # lint + strict mypy on core + core tests
-make check-all                      # adds backend.services tests
+make check                          # lint + strict mypy on core + core tests (fast local gate)
+make check-all                      # adds backend.services tests + frontend (authoritative for non-integration changes)
+make test-integration               # C3 bathroom proof + DB integration tests (requires Docker)
 
 # Targeted iteration
 make test-core / make test-services

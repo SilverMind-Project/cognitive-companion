@@ -108,42 +108,56 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 metrics.cts_events_stale_dropped.inc()
                 return None
 
-        # MAP identities live on IdentityRevision sub-messages; the top
-        # candidate's probability acts as the per-detection confidence.
-        # display_name comes from the gallery candidate entry.
-        identity_by_track: dict[str, tuple[str, float, str]] = {}
-        for revision in message.identity_revisions:
-            # N0: global_track_id renamed to ph_id
-            track_key = revision.ph_id
-            if not track_key or not revision.map_identity_id:
+        # WTR3: build identity map from identity_snapshots (field 8),
+        # not the deprecated identity_revisions (field 5).
+        identity_by_ph: dict[str, tuple[str, float, str]] = {}
+        for snap in message.identity_snapshots:
+            # WTR3: global_track_id carries the PH id.
+            ph_id = snap.global_track_id
+            if not ph_id:
                 continue
-            matched = next(
-                (c for c in revision.candidates if c.identity_id == revision.map_identity_id),
-                None,
+            identity_by_ph[ph_id] = (
+                snap.identity_id,
+                snap.top_probability,
+                snap.identity_id,  # display_name
             )
-            confidence = float(matched.probability) if matched else 0.0
-            display_name = (
-                matched.display_name
-                if (matched and matched.display_name)
-                else revision.map_identity_id
-            )
-            identity_by_track[track_key] = (
-                revision.map_identity_id,
-                confidence,
-                display_name,
-            )
+
+        # Fallback: read from deprecated identity_revisions for old orchestrators.
+        if not identity_by_ph:
+            for revision in message.identity_revisions:
+                track_key = revision.ph_id
+                if not track_key or not revision.map_identity_id:
+                    continue
+                matched = next(
+                    (c for c in revision.candidates if c.identity_id == revision.map_identity_id),
+                    None,
+                )
+                confidence = float(matched.probability) if matched else 0.0
+                display_name = (
+                    matched.display_name
+                    if (matched and matched.display_name)
+                    else revision.map_identity_id
+                )
+                identity_by_ph[track_key] = (
+                    revision.map_identity_id,
+                    confidence,
+                    display_name,
+                )
 
         detections: list[dict[str, Any]] = []
         for det in message.detections:
-            identity_id, identity_conf, display_name = identity_by_track.get(
-                det.global_track_id, ("", 0.0, "")
+            # WTR3: global_track_id carries the PH id in the proto.
+            ph_id = det.global_track_id
+            identity_id, identity_conf, display_name = identity_by_ph.get(
+                ph_id, ("", 0.0, "")
             )
             calibrated = det.floor_point.calibrated
             detections.append(
                 {
                     "id": det.detection_id,
+                    "ph_id": ph_id,
                     "tracklet_id": det.tracklet_id,
-                    "global_track_id": det.global_track_id,
+                    "global_track_id": ph_id,
                     "identity_id": identity_id or None,
                     "display_name": display_name or None,
                     "identity_confidence": identity_conf,
@@ -326,7 +340,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         return True
 
     def _build_ph_entries(self, event: dict[str, Any]) -> list[dict[str, Any]]:
-        """Build PH position entries from tracking event detections."""
+        """Build PH position entries from tracking event detections (WTR3)."""
         identity_map: dict[str, dict[str, Any]] = {}
         for snap in event.get("identity_snapshots", []):
             identity_map[snap.get("ph_id", "")] = {
@@ -337,7 +351,8 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             }
         phs: list[dict[str, Any]] = []
         for det in event.get("detections", []):
-            ph_id = det.get("global_track_id", "")
+            # WTR3: ph_id is the canonical PH identifier; global_track_id is legacy.
+            ph_id = det.get("ph_id") or det.get("global_track_id", "")
             identity = identity_map.get(ph_id, {})
             calibrated = det.get("floor_calibrated", False)
             phs.append(

@@ -38,13 +38,6 @@
         style="width: 100px"
         @update:modelValue="loadKeyframes"
       />
-      <v-chip
-        v-if="identityHealth && !identityHealth.issues.length"
-        size="small"
-        variant="tonal"
-        color="success"
-        prepend-icon="mdi-shield-check"
-      >{{ identityHealth.gallery_size }} in gallery</v-chip>
       <BlurToggle />
       <v-btn
         :variant="selectMode ? 'flat' : 'tonal'"
@@ -61,17 +54,6 @@
       >Enroll ({{ selectedIds.size }})</v-btn>
       <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadKeyframes" :loading="loading">Refresh</v-btn>
     </div>
-
-    <v-alert
-      v-if="identityHealth && identityHealth.issues.length"
-      type="warning"
-      variant="tonal"
-      density="compact"
-      class="mb-4"
-    >
-      <div class="font-weight-medium mb-1">Identity gallery needs attention</div>
-      <div v-for="issue in identityHealth.issues" :key="issue" class="text-body-2">{{ issue }}</div>
-    </v-alert>
 
     <v-card class="glass-card">
       <!-- Empty state -->
@@ -332,17 +314,6 @@ const persons = computed(() => {
   return Array.from(ids).sort();
 });
 
-// ── Identity health ────────────────────────────────────────────────────────
-const identityHealth = ref(null);
-
-async function loadIdentityHealth() {
-  try {
-    identityHealth.value = await cts.getIdentityHealth();
-  } catch {
-    // non-blocking — banner simply won't show
-  }
-}
-
 // ── Selection mode ─────────────────────────────────────────────────────────
 const selectMode = ref(false);
 const selectedIds = ref(new Set());
@@ -403,7 +374,6 @@ async function submitBulkEnroll() {
         ? `Enrolled ${ok} tracklet(s); ${fail} could not be enrolled.`
         : `Enrolled ${ok} tracklet(s) for "${bulkIdentityId.value.trim()}".`;
     enrollSnackbar.value = true;
-    await loadIdentityHealth();
   } catch (e) {
     bulkError.value = e.message || String(e);
   } finally {
@@ -413,7 +383,6 @@ async function submitBulkEnroll() {
 
 onMounted(() => {
   loadKeyframes();
-  loadIdentityHealth();
 });
 
 async function loadKeyframes() {

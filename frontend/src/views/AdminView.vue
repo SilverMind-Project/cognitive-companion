@@ -263,9 +263,11 @@ const navSections = [
       { to: "/admin/cts/calibration", icon: "mdi-crosshairs-gps", title: "Calibration" },
       { to: "/admin/cts/privacy", icon: "mdi-eye-off-outline", title: "Privacy Zones" },
       { to: "/admin/cts/adjacency", icon: "mdi-graph-outline", title: "Camera Adjacency" },
-      { to: "/admin/cts/identity-corrections", icon: "mdi-account-edit-outline", title: "Identity Corrections" },
+      { to: "/admin/cts/people", icon: "mdi-account-group-outline", title: "People & Hypotheses" },
       { to: "/admin/cts/keyframes", icon: "mdi-image-search-outline", title: "Keyframes" },
       { to: "/admin/cts/presence", icon: "mdi-map-marker-radius", title: "Presence Fusion" },
+      { to: "/admin/medical/signals", icon: "mdi-chart-bar", title: "Signal Explorer" },
+      { to: "/admin/medical/reports/weekly", icon: "mdi-file-document-outline", title: "Weekly Report" },
     ],
   },
   {

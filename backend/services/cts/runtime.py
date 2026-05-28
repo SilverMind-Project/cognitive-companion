@@ -66,11 +66,15 @@ class _SubscriberBundle:
     task: asyncio.Task[None] | None = None
 
 
+_INFERRED_DWELL_TICK_INTERVAL_S: float = 60.0
+
+
 class CTSRuntime:
     """Owns the CTS subscribers and shared CTS services.
 
     WTR4: M4 subscribers (WorldObservation, RoomTransition,
     PHContinuation) are owned here and started/stopped with the runtime.
+    R1: periodic inferred-dwell tick evaluates camera-blind bathroom timeouts.
     """
 
     def __init__(
@@ -179,6 +183,7 @@ class CTSRuntime:
 
         # WTR2: recamera observation subscriber (in-process queue, not Redis).
         self._recamera_subscriber = recamera_subscriber
+        self._inferred_dwell_task: asyncio.Task[None] | None = None
 
         self._bundles: list[_SubscriberBundle] = [
             _SubscriberBundle(name="tracking_events", subscriber=self.tracking_event_subscriber),
@@ -243,6 +248,15 @@ class CTSRuntime:
                     ),
                     name=f"cts-runtime-m4-{type(m4_sub).__name__}",
                 )
+        # R1: start inferred-dwell timeout evaluator if PersonLocationService is wired.
+        if self._person_location_service is not None and (
+            self._inferred_dwell_task is None or self._inferred_dwell_task.done()
+        ):
+            self._inferred_dwell_task = asyncio.create_task(
+                self._run_inferred_dwell_ticker(),
+                name="cts-runtime-inferred-dwell-tick",
+            )
+
         logger.info(
             "cts_runtime_started",
             subscribers=[b.name for b in self._bundles],
@@ -298,7 +312,40 @@ class CTSRuntime:
                         error=str(exc),
                     )
                 bundle.task.cancel()
+        # R1: stop inferred-dwell tick task.
+        if self._inferred_dwell_task is not None and not self._inferred_dwell_task.done():
+            self._inferred_dwell_task.cancel()
+            try:  # noqa: SIM105 -- contextlib.suppress cannot suppress async exceptions
+                await self._inferred_dwell_task
+            except asyncio.CancelledError, Exception:
+                pass
+
         logger.info("cts_runtime_stopped")
+
+    async def _run_inferred_dwell_ticker(self) -> None:
+        """Periodically evaluate inferred-dwell timeouts and emit signals."""
+        from datetime import UTC
+        from datetime import datetime as dt
+
+        while True:
+            await asyncio.sleep(_INFERRED_DWELL_TICK_INTERVAL_S)
+            try:
+                now = dt.now(UTC)
+                svc = self._person_location_service
+                if svc is None:
+                    continue
+                signals = await svc.tick(now)  # type: ignore[union-attr]
+                for sig in signals:
+                    await self.signal_store.upsert(sig)
+                    logger.info(
+                        "inferred_dwell_signal_persisted",
+                        person_id=sig.get("person_id"),
+                        signal_type=sig.get("signal_type"),
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("inferred_dwell_tick_error")
 
     # -- diagnostics --------------------------------------------------------
 

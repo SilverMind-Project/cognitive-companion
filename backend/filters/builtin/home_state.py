@@ -9,8 +9,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.orm import Session
-
 from backend.filters import FilterRegistry
 from backend.filters.base import ContextFilter, FilterMetadata
 
@@ -42,17 +40,14 @@ class HomeStateFilter(ContextFilter):
             },
         )
 
-    def evaluate(
+    async def evaluate(
         self,
         config: dict,
         sensor: Any,
         now: datetime,
-        db: Session | None = None,
+        db: Any = None,
         services: Any = None,
     ) -> bool:
-        if not services or services.presence is None:
-            return False
-
         person_id = (config.get("person_id") or "").strip() or None
         if not person_id:
             return False
@@ -61,22 +56,39 @@ class HomeStateFilter(ContextFilter):
         if not state:
             return False
 
-        try:
-            import asyncio
-
-            snapshot = asyncio.run(services.presence.get(person_id))
-        except Exception:
+        # WTR7: prefer PersonLocationService (async, no asyncio.run()).
+        if services and hasattr(services, "person_location") and services.person_location is not None:
+            try:
+                current = await services.person_location.where_is(person_id)
+            except Exception:
+                return False
+            if current is None:
+                return state in ("away", "unknown")
+            if state == "at_home":
+                return True
+            if state == "asleep":
+                return getattr(current, "is_inferred", False)
+            if state == "away":
+                return False
+            if state == "unknown":
+                return False
             return False
 
-        status = snapshot.status.value
-
-        if state == "at_home":
-            return status in ("present_room", "present_home", "asleep")
-        if state == "asleep":
-            return status == "asleep"
-        if state == "away":
-            return status == "away"
-        if state == "unknown":
-            return status in ("unknown", "stale")
+        # Legacy fallback: presence service.
+        if services and hasattr(services, "presence") and services.presence is not None:
+            try:
+                snapshot = await services.presence.get(person_id)
+            except Exception:
+                return False
+            status = snapshot.status.value
+            if state == "at_home":
+                return status in ("present_room", "present_home", "asleep")
+            if state == "asleep":
+                return status == "asleep"
+            if state == "away":
+                return status == "away"
+            if state == "unknown":
+                return status in ("unknown", "stale")
+            return False
 
         return False

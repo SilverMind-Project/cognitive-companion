@@ -23,6 +23,35 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/cts", tags=["cts-signal-evidence"])
 
 
+# ---------------------------------------------------------------------------
+# WTR8: Pydantic evidence response model
+# ---------------------------------------------------------------------------
+
+
+class SignalEvidenceSegment(BaseModel):
+    segment_id: str = ""
+    room_id: int | None = None
+    room_name: str = ""
+    entered_at: str | None = None
+    exited_at: str | None = None
+    dwell_seconds: float = 0.0
+    entry_source: str = "observed"
+    is_inferred: bool = False
+
+
+class SignalEvidenceResponse(BaseModel):
+    signal: dict[str, Any] = Field(default_factory=dict)
+    window: dict[str, Any] = Field(default_factory=dict)
+    observed_segments: list[SignalEvidenceSegment] = Field(default_factory=list)
+    inferred_segments: list[SignalEvidenceSegment] = Field(default_factory=list)
+    transitions: list[dict[str, Any]] = Field(default_factory=list)
+    keyframes: list[dict[str, Any]] = Field(default_factory=list)
+    ph_lifecycle: dict[str, Any] = Field(default_factory=dict)
+    narrative: str = ""
+    algorithm_version: str = ""
+    threshold_metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 def _get_store(request: Request) -> SignalStore:
     from backend.core.database import get_session
 
@@ -55,8 +84,9 @@ async def signal_evidence(
     window_end = signal.get("window_end")
     person_id = signal.get("person_id", "")
 
-    # Get presence segments in the window from PersonLocationService
-    segments: list[dict] = []
+    # WTR8: get presence segments, split by observed vs inferred.
+    observed_segments: list[dict] = []
+    inferred_segments: list[dict] = []
     transitions: list[dict] = []
     try:
         pls = getattr(request.app.state, "person_location_service", None)
@@ -66,18 +96,20 @@ async def signal_evidence(
             segs = await pls.presence_history(str(person_id), ws, we)
             prev_room = None
             for seg in segs:
-                segments.append(
-                    {
-                        "segment_id": str(seg.id),
-                        "room_id": seg.room_id,
-                        "room_name": str(seg.metadata.get("room_name", "")),
-                        "entered_at": seg.entered_at.isoformat() if seg.entered_at else None,
-                        "exited_at": seg.exited_at.isoformat() if seg.exited_at else None,
-                        "dwell_seconds": ((seg.exited_at or we) - seg.entered_at).total_seconds(),
-                        "entry_source": seg.entry_source,
-                        "is_inferred": seg.is_inferred,
-                    }
-                )
+                seg_dict = {
+                    "segment_id": str(seg.id),
+                    "room_id": seg.room_id,
+                    "room_name": str(seg.metadata.get("room_name", "")),
+                    "entered_at": seg.entered_at.isoformat() if seg.entered_at else None,
+                    "exited_at": seg.exited_at.isoformat() if seg.exited_at else None,
+                    "dwell_seconds": ((seg.exited_at or we) - seg.entered_at).total_seconds(),
+                    "entry_source": seg.entry_source,
+                    "is_inferred": seg.is_inferred,
+                }
+                if seg.is_inferred:
+                    inferred_segments.append(seg_dict)
+                else:
+                    observed_segments.append(seg_dict)
                 if prev_room is not None and seg.room_id != prev_room:
                     transitions.append(
                         {
@@ -104,15 +136,22 @@ async def signal_evidence(
         transition_count=len(transitions),
     )
 
-    return {
-        "signal": signal,
-        "window": {"start": window_start, "end": window_end},
-        "segments": segments,
-        "transitions": transitions,
-        "ph_lifecycle": {"ph_id": "", "started_at": None, "state": "active"},
-        "keyframes": [],
-        "narrative": narrative,
-    }
+    return SignalEvidenceResponse(
+        signal=signal,
+        window={"start": window_start, "end": window_end},
+        observed_segments=[SignalEvidenceSegment(**s) for s in observed_segments],
+        inferred_segments=[SignalEvidenceSegment(**s) for s in inferred_segments],
+        transitions=transitions,
+        ph_lifecycle={"ph_id": "", "started_at": None, "state": "active"},
+        keyframes=[],
+        narrative=narrative,
+        algorithm_version=str(signal.get("algorithm_version", "")),
+        threshold_metadata={
+            "threshold_minutes": signal.get("threshold_minutes", 0) or 0,
+            "value": signal.get("value", 0.0) or 0.0,
+            "z_score": signal.get("z_score"),
+        },
+    ).model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------
@@ -225,22 +264,41 @@ async def weekly_report(
 
     highlights.sort(key=lambda h: (0 if h["severity"] == "emergency" else 1, str(h.get("fired_at", ""))), reverse=False)
 
-    # Dwell totals from presence service
+    # WTR8: separate observed vs inferred dwell totals.
     dwell_by_room: list[dict] = []
+    observed_dwell_minutes: float = 0.0
+    inferred_dwell_minutes: float = 0.0
     try:
         pls = getattr(request.app.state, "person_location_service", None)
         if pls is not None:
             segs = await pls.presence_history(body.person_id, ws, we)
-            room_totals: dict[int, float] = {}
+            room_totals: dict[int, dict[str, float]] = {}
             room_names: dict[int, str] = {}
             for seg in segs:
                 dur = ((seg.exited_at or min(we, datetime.now(UTC))) - max(seg.entered_at, ws)).total_seconds()
                 if dur > 0:
-                    room_totals[seg.room_id] = room_totals.get(seg.room_id, 0.0) + dur
+                    if seg.room_id not in room_totals:
+                        room_totals[seg.room_id] = {"observed": 0.0, "inferred": 0.0}
+                    if seg.is_inferred:
+                        room_totals[seg.room_id]["inferred"] += dur
+                        inferred_dwell_minutes += dur / 60
+                    else:
+                        room_totals[seg.room_id]["observed"] += dur
+                        observed_dwell_minutes += dur / 60
                     room_names[seg.room_id] = str(seg.metadata.get("room_name", ""))
             dwell_by_room = [
-                {"room_id": str(rid), "room_name": room_names.get(rid, ""), "minutes": round(total / 60, 1)}
-                for rid, total in sorted(room_totals.items(), key=lambda x: x[1], reverse=True)
+                {
+                    "room_id": str(rid),
+                    "room_name": room_names.get(rid, ""),
+                    "observed_minutes": round(totals["observed"] / 60, 1),
+                    "inferred_minutes": round(totals["inferred"] / 60, 1),
+                    "total_minutes": round((totals["observed"] + totals["inferred"]) / 60, 1),
+                }
+                for rid, totals in sorted(
+                    room_totals.items(),
+                    key=lambda x: x[1]["observed"] + x[1]["inferred"],
+                    reverse=True,
+                )
             ]
     except Exception:
         logger.exception("weekly_report_dwells_failed")
@@ -249,6 +307,11 @@ async def weekly_report(
         "person_id": body.person_id,
         "week": {"start": ws.isoformat(), "end": we.isoformat()},
         "signal_counts": signal_counts,
+        "dwell_summary": {
+            "observed_minutes": round(observed_dwell_minutes, 1),
+            "inferred_minutes": round(inferred_dwell_minutes, 1),
+            "total_minutes": round(observed_dwell_minutes + inferred_dwell_minutes, 1),
+        },
         "dwell_by_room": dwell_by_room,
         "transitions": {"total": 0, "by_hour": []},
         "highlights": highlights,

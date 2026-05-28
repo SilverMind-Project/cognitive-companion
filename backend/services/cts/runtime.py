@@ -67,7 +67,11 @@ class _SubscriberBundle:
 
 
 class CTSRuntime:
-    """Owns the CTS subscribers and shared CTS services."""
+    """Owns the CTS subscribers and shared CTS services.
+
+    WTR4: M4 subscribers (WorldObservation, RoomTransition,
+    PHContinuation) are owned here and started/stopped with the runtime.
+    """
 
     def __init__(
         self,
@@ -82,6 +86,10 @@ class CTSRuntime:
         camera_room_map: dict[str, str] | None = None,
         authority: SourceAuthority | None = None,
         recamera_subscriber: object | None = None,
+        person_location_service: object | None = None,
+        world_observation_subscriber: object | None = None,
+        room_transition_subscriber: object | None = None,
+        ph_continuation_subscriber: object | None = None,
     ) -> None:
         self._cfg = config
         self._db_factory = db_factory
@@ -123,8 +131,14 @@ class CTSRuntime:
 
         self.snapshot_publisher = WorldSnapshotPublisher(
             ws_manager=ws_manager,
-            person_location_service=None,  # wired via main.py lifespan
+            person_location_service=person_location_service,
         )
+
+        # WTR4: M4 subscribers owned by CTSRuntime.
+        self._person_location_service = person_location_service
+        self._world_observation_subscriber = world_observation_subscriber
+        self._room_transition_subscriber = room_transition_subscriber
+        self._ph_continuation_subscriber = ph_continuation_subscriber
 
         self.tracking_event_subscriber = TrackingEventSubscriber(
             redis_url=config.redis_url,
@@ -216,6 +230,19 @@ class CTSRuntime:
         # WTR2: start recamera subscriber if provided.
         if self._recamera_subscriber is not None:
             await self._recamera_subscriber.start()  # type: ignore[union-attr]
+        # WTR4: start M4 subscribers.
+        for m4_sub in [
+            self._world_observation_subscriber,
+            self._room_transition_subscriber,
+            self._ph_continuation_subscriber,
+        ]:
+            if m4_sub is not None:
+                task = asyncio.create_task(
+                    _run_with_retry(
+                        _SubscriberBundle(name="m4", subscriber=m4_sub)  # type: ignore[arg-type]
+                    ),
+                    name=f"cts-runtime-m4-{type(m4_sub).__name__}",
+                )
         logger.info(
             "cts_runtime_started",
             subscribers=[b.name for b in self._bundles],
@@ -233,6 +260,17 @@ class CTSRuntime:
         # WTR2: stop recamera subscriber.
         if self._recamera_subscriber is not None:
             await self._recamera_subscriber.stop()  # type: ignore[union-attr]
+        # WTR4: stop M4 subscribers.
+        for m4_sub in [
+            self._world_observation_subscriber,
+            self._room_transition_subscriber,
+            self._ph_continuation_subscriber,
+        ]:
+            if m4_sub is not None:
+                try:
+                    await m4_sub.stop()  # type: ignore[union-attr]
+                except Exception:
+                    logger.exception("m4_subscriber_stop_error", name=type(m4_sub).__name__)
         for bundle in self._bundles:
             if bundle.subscriber is not None:
                 try:

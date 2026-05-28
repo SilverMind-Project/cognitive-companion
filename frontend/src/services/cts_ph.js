@@ -14,7 +14,12 @@ async function req(path, options = {}) {
     ...(apiKey ? { "X-API-Key": apiKey } : {}),
     ...options.headers,
   };
-  const resp = await fetch(`${BASE}${path}`, { ...options, headers });
+  let resp;
+  try {
+    resp = await fetch(`${BASE}${path}`, { ...options, headers });
+  } catch (err) {
+    throw new Error(`Network error: ${err.message || "Unable to reach server"}`);
+  }
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     const detail = body.detail;

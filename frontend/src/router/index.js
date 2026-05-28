@@ -175,10 +175,6 @@ const routes = [
         meta: { title: "People & Hypotheses", icon: "mdi-account-group" },
       },
       {
-        path: "cts/corrections",
-        redirect: { name: "CTSPeople" },
-      },
-      {
         path: "cts/presence",
         name: "cts-presence",
         component: () => import("../views/admin/CTSPresenceView.vue"),

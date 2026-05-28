@@ -21,7 +21,12 @@ async function req(path, options = {}) {
     "Content-Type": "application/json",
     ...options.headers,
   });
-  const resp = await fetch(`${BASE}${path}`, { ...options, headers });
+  let resp;
+  try {
+    resp = await fetch(`${BASE}${path}`, { ...options, headers });
+  } catch (err) {
+    throw new Error(`Network error: ${err.message || "Unable to reach server"}`);
+  }
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     const detail = body.detail;
@@ -197,8 +202,7 @@ export const cts = {
       body: JSON.stringify(payload),
     }),
 
-  // ── Identity health + bulk enrollment ─────────────────────────────────────
-  getIdentityHealth: () => req("/identity/health"),
+  // ── Bulk enrollment ────────────────────────────────────────────────────────
   enrollBatch: (items) =>
     req("/identity/enroll/batch", {
       method: "POST",

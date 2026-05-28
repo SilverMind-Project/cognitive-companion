@@ -31,12 +31,10 @@ def _references_legacy_location(file_path: Path) -> list[str]:
     except SyntaxError:
         return violations
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            if node.id in _LEGACY_LOCATION_TABLES:
-                violations.append(f"  reference to '{node.id}' at line {node.lineno}")
-        elif isinstance(node, ast.Attribute):
-            if hasattr(node, "attr") and node.attr in _LEGACY_LOCATION_TABLES:
-                violations.append(f"  reference to '.{node.attr}' at line {node.lineno}")
+        if isinstance(node, ast.Name) and node.id in _LEGACY_LOCATION_TABLES:
+            violations.append(f"  reference to '{node.id}' at line {node.lineno}")
+        elif isinstance(node, ast.Attribute) and hasattr(node, "attr") and node.attr in _LEGACY_LOCATION_TABLES:
+            violations.append(f"  reference to '.{node.attr}' at line {node.lineno}")
     return violations
 
 

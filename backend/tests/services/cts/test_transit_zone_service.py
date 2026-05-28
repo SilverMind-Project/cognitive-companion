@@ -1,8 +1,6 @@
 """WTR5: Transit zone validation tests."""
 from __future__ import annotations
 
-import pytest
-
 from backend.services.cts.transit_zone_service import validate_transit_zone_polygon
 
 

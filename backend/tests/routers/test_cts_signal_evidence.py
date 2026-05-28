@@ -1,10 +1,6 @@
 """WTR8: Signal evidence endpoint tests."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
-import pytest
-
 from backend.routers.cts_signal_evidence import SignalEvidenceResponse, SignalEvidenceSegment
 
 

@@ -554,7 +554,6 @@ async def lifespan(app: FastAPI):
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
         from backend.services.cts.runtime import CTSRuntime, CTSRuntimeConfig
-        from backend.services.person_location.config import PersonLocationConfig
         from backend.services.person_location.repositories import (
             SqlAlchemyObservationRepository,
             SqlAlchemySegmentRepository,
@@ -579,20 +578,20 @@ async def lifespan(app: FastAPI):
         app.state.person_location_service = person_location_service
 
         # WTR4: M4 subscribers — constructed once, injected into runtime.
-        from backend.services.cts.world_observation_subscriber import (
-            WorldObservationSubscriber,
+        from backend.services.cts.ph_continuation_subscriber import (
+            PHContinuationSubscriber,
         )
         from backend.services.cts.room_transition_subscriber import (
             RoomTransitionSubscriber,
         )
-        from backend.services.cts.ph_continuation_subscriber import (
-            PHContinuationSubscriber,
+        from backend.services.cts.world_observation_subscriber import (
+            WorldObservationSubscriber,
         )
 
         world_obs_sub = WorldObservationSubscriber(
             redis_url=redis_url,
             location_service=person_location_service,
-            camera_room_map=camera_room_map if "camera_room_map" in dir() else {},
+            camera_room_map={},  # populated by CC config sync at runtime
         )
         room_trans_sub = RoomTransitionSubscriber(
             redis_url=redis_url,

@@ -14,7 +14,6 @@ from backend.services.person_location.repositories import (
     InMemorySegmentRepository,
 )
 from backend.services.person_location.service import PersonLocationService
-from backend.services.person_location.types import FloorPoint
 
 
 def _make_service() -> PersonLocationService:

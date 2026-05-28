@@ -554,12 +554,55 @@ async def lifespan(app: FastAPI):
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
         from backend.services.cts.runtime import CTSRuntime, CTSRuntimeConfig
+        from backend.services.person_location.config import PersonLocationConfig
+        from backend.services.person_location.repositories import (
+            SqlAlchemyObservationRepository,
+            SqlAlchemySegmentRepository,
+        )
+        from backend.services.person_location.service import PersonLocationService
 
         app.state.ingress_admin_client = IngressAdminClient()
         app.state.orchestrator_client = OrchestratorClient()
 
         redis_url = settings.as_str("redis.url", allow_empty=False)
         consumer_id = settings.as_str("cts.consumer_id", allow_empty=False)
+
+        # WTR4: PersonLocationService with session-aware repos.
+        def _make_pls() -> PersonLocationService:
+            session = get_session()
+            return PersonLocationService(
+                obs_repo=SqlAlchemyObservationRepository(session),
+                seg_repo=SqlAlchemySegmentRepository(session),
+            )
+
+        person_location_service = _make_pls()
+        app.state.person_location_service = person_location_service
+
+        # WTR4: M4 subscribers — constructed once, injected into runtime.
+        from backend.services.cts.world_observation_subscriber import (
+            WorldObservationSubscriber,
+        )
+        from backend.services.cts.room_transition_subscriber import (
+            RoomTransitionSubscriber,
+        )
+        from backend.services.cts.ph_continuation_subscriber import (
+            PHContinuationSubscriber,
+        )
+
+        world_obs_sub = WorldObservationSubscriber(
+            redis_url=redis_url,
+            location_service=person_location_service,
+            camera_room_map=camera_room_map if "camera_room_map" in dir() else {},
+        )
+        room_trans_sub = RoomTransitionSubscriber(
+            redis_url=redis_url,
+            location_service=person_location_service,
+        )
+        ph_cont_sub = PHContinuationSubscriber(
+            redis_url=redis_url,
+            location_service=person_location_service,
+        )
+
         cts_runtime = CTSRuntime(
             config=CTSRuntimeConfig(
                 redis_url=redis_url,
@@ -573,6 +616,10 @@ async def lifespan(app: FastAPI):
             scene_analysis_client=scene_analysis_client,
             semantic_memory_client=semantic_memory_client,
             authority=shared_authority,
+            person_location_service=person_location_service,
+            world_observation_subscriber=world_obs_sub,
+            room_transition_subscriber=room_trans_sub,
+            ph_continuation_subscriber=ph_cont_sub,
         )
         app.state.cts_runtime = cts_runtime
         # Expose individual subscribers for tests / diagnostics.

@@ -1,6 +1,6 @@
 """Subscribes to tracking.events for world-tracker observations (M4).
 
-Decodes WorldTrackerObservationEvent protos and feeds them to
+Decodes TrackingEvent protos and feeds them to
 PersonLocationService.ingest_observation with source='world_tracker'.
 """
 
@@ -21,15 +21,19 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
         self,
         redis_url: str,
         location_service: PersonLocationService,
+        camera_room_map: dict[str, str] | None = None,
         config: ConsumerConfig | None = None,
     ) -> None:
         super().__init__(
-            redis_url=redis_url,
-            stream=STREAM,
-            group=GROUP,
-            config=config or ConsumerConfig(consumer_id="m4-world-obs"),
+            config or ConsumerConfig(
+                redis_url=redis_url,
+                stream=STREAM,
+                group=GROUP,
+                consumer_id="m4-world-obs",
+            )
         )
         self._location = location_service
+        self._camera_room_map = camera_room_map or {}
 
     async def decode(self, message_id: str, fields: dict) -> dict | None:
         """Decode a tracking event proto and extract world-observation data."""
@@ -49,6 +53,8 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
         )
         result: dict = {
             "event_time": event_time,
+            "room_name": proto.room_name,
+            "camera_id": proto.camera_id,
             "detections": [],
         }
         for det in proto.detections:
@@ -60,7 +66,7 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
             result["detections"].append({
                 "camera_id": proto.camera_id,
                 "detection_id": det.detection_id,
-                "ph_id": det.global_track_id,  # N0: proto field 1 reused for ph_id
+                "ph_id": det.global_track_id,
                 "identity_id": identity_id,
                 "confidence": det.confidence,
                 "floor_x_mm": det.floor_point.x_mm if det.floor_point else 0,
@@ -78,16 +84,36 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
                 continue
             floor_x = det["floor_x_mm"] / 1000.0
             floor_y = det["floor_y_mm"] / 1000.0
+
+            # Resolve room_id: prefer camera→room mapping over raw room_name.
+            room_name = det.get("room_name", "") or msg.get("room_name", "")
+            room_id = self._resolve_room_id(det.get("camera_id", ""), room_name)
+
             await self._location.ingest_observation(
                 person_id=str(det["identity_id"]),
                 observed_at=msg["event_time"],
                 source="world_tracker",
                 source_ref=det.get("ph_id"),
-                floor_point=FloorPoint(x_m=floor_x, y=floor_y),
+                floor_point=FloorPoint(x_m=floor_x, y_m=floor_y),
+                room_id=room_id,
                 confidence=det.get("confidence", 0.5),
                 metadata={
                     "camera_id": det.get("camera_id", ""),
-                    "room_name": det.get("room_name", ""),
+                    "room_name": room_name,
                 },
             )
         return True
+
+    def _resolve_room_id(self, camera_id: str, room_name: str) -> int | None:
+        """Resolve room_id from camera→room map or return None.
+
+        Returns None when no room identity can be determined; callers
+        should not persist empty room names as room identity.
+        """
+        mapped = self._camera_room_map.get(camera_id)
+        if mapped:
+            try:
+                return int(mapped)
+            except (ValueError, TypeError):
+                pass
+        return None

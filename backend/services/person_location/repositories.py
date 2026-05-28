@@ -40,6 +40,7 @@ class SegmentRepository(Protocol):
         self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]: ...
     async def list_open_for_room(self, room_id: int) -> list[PresenceSegment]: ...
+    async def list_all_open(self) -> list[PresenceSegment]: ...
     async def list_overlapping(
         self, person_id: str, since: datetime, until: datetime
     ) -> list[PresenceSegment]: ...
@@ -129,6 +130,9 @@ class InMemorySegmentRepository:
 
     async def list_open_for_room(self, room_id: int) -> list[PresenceSegment]:
         return [s for s in self._rows.values() if s.room_id == room_id and s.is_open]
+
+    async def list_all_open(self) -> list[PresenceSegment]:
+        return [s for s in self._rows.values() if s.is_open]
 
     async def list_overlapping(
         self, person_id: str, since: datetime, until: datetime
@@ -286,6 +290,19 @@ class SqlAlchemySegmentRepository:
             self._db.execute(
                 select(PSeg).where(
                     PSeg.room_id == room_id,
+                    PSeg.exited_at.is_(None),
+                    PSeg.superseded_by.is_(None),
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [_seg_to_domain(r) for r in rows]
+
+    async def list_all_open(self) -> list[PresenceSegment]:
+        rows = (
+            self._db.execute(
+                select(PSeg).where(
                     PSeg.exited_at.is_(None),
                     PSeg.superseded_by.is_(None),
                 )

@@ -294,6 +294,22 @@ class PersonLocationService:
         """Return the currently-open segment (including inferred)."""
         return await self._seg.get_open(person_id)
 
+    async def where_is_everyone(self) -> dict[str, CurrentLocation]:
+        """Return current location for every person with an open segment (WTR4)."""
+        all_open = await self._seg.list_all_open()
+        result: dict[str, CurrentLocation] = {}
+        for seg in all_open:
+            result[seg.person_id] = CurrentLocation(
+                person_id=seg.person_id,
+                room_id=seg.room_id,
+                room_name=str(seg.metadata.get("room_name", "")),
+                since=seg.entered_at,
+                entry_source=seg.entry_source,
+                confidence=seg.confidence,
+                is_inferred=seg.is_inferred,
+            )
+        return result
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------

@@ -37,6 +37,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         rewriter: IdentityRewriter,
         pipeline: PipelineExecutor | None = None,
         ws_manager: ConnectionManager | None = None,
+        person_location_service: object | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -50,6 +51,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         self._rewriter = rewriter
         self._pipeline = pipeline
         self._ws_manager = ws_manager
+        self._pls = person_location_service
 
     # -- StreamConsumer abstract methods -------------------------------------
 
@@ -107,6 +109,25 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
             return False
 
         metrics.cts_revisions_persisted.inc()
+
+        # WTR4: apply revision to PersonLocationService for segment rewrites.
+        if self._pls is not None:
+            try:
+                from datetime import UTC, datetime
+
+                rev_time_str = revision.get("revision_time")
+                if rev_time_str:
+                    rev_time = datetime.fromisoformat(rev_time_str.replace("Z", "+00:00"))
+                else:
+                    rev_time = datetime.now(UTC)
+                await self._pls.apply_identity_revision(  # type: ignore[union-attr]
+                    old_person_id=revision.get("previous_identity_id") or "",
+                    new_person_id=revision.get("new_identity_id"),
+                    global_track_id=revision.get("ph_id", ""),
+                    revision_time=rev_time,
+                )
+            except Exception:
+                logger.exception("identity_revision_pls_apply_error")
 
         if self._pipeline is not None:
             try:

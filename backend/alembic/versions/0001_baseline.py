@@ -1,15 +1,12 @@
-"""Consolidated initial schema.
+"""Consolidated baseline schema for cognitive-companion.
 
-Revision ID: 0001_initial_schema
+Revision ID: 0001_baseline
 Revises: None
-Create Date: 2026-05-08
+Create Date: 2026-05-28
 
-Combines all previous migrations into a single baseline:
-  - 68d9e37c65c2 (initial schema)
-  - 0001_label_not_null (pipeline_steps.label NOT NULL)
-  - 0002_knowledge_repository (knowledge tables + extensions + seed)
-  - 0003_camera_face_id (cts_cameras face_id columns)
-  - 0002_decouple_cron_triggers (cron_triggers + rule_cron_triggers tables)
+Squashes all 21 incremental migrations into a single baseline representing
+the final schema state. downgrade() is intentionally a no-op; this is a
+dev-stage app where rollbacks are not required.
 """
 
 from __future__ import annotations
@@ -18,12 +15,13 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 import backend.core.time
 from alembic import op
 
-revision: str = "0001_initial_schema"
+revision: str = "0001_baseline"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -48,13 +46,63 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
+    # -- rooms ----------------------------------------------------------------
+    # Created early: many tables reference rooms.id via FK.
+    op.create_table(
+        "rooms",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=128), nullable=False),
+        sa.Column("ha_area_id", sa.String(length=128), nullable=True),
+        sa.Column("floor", sa.String(length=64), nullable=True),
+        sa.Column("metadata_json", sa.JSON(), nullable=True),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        # Added by 0010_floor_plan_and_room_polygons
+        sa.Column("floor_polygon", sa.JSON(), nullable=True),
+        # Added by 0017_calibration_health_and_transit_zones
+        sa.Column("has_camera", sa.Boolean(), nullable=False, server_default=sa.text("TRUE")),
+        sa.Column("inferred_dwell_alert_minutes", sa.Integer(), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_rooms_name"), "rooms", ["name"], unique=True)
+
+    # -- household_members ----------------------------------------------------
+    op.create_table(
+        "household_members",
+        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("name", sa.String(length=128), nullable=False),
+        sa.Column("is_active", sa.Boolean(), nullable=False),
+        sa.Column("is_guest", sa.Boolean(), nullable=False),
+        sa.Column("metadata_json", sa.JSON(), nullable=True),
+        sa.Column(
+            "created_at",
+            backend.core.time.UTCDateTime(),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("updated_at", backend.core.time.UTCDateTime(), nullable=True),
+        # Added by 0009_alert_suppressions_and_priority
+        sa.Column("alert_priority", sa.Integer(), nullable=False, server_default="5"),
+        # Added by 0012_cts_alert_config
+        sa.Column("cts_alert_config", JSONB, nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
     # -- cts_cameras ----------------------------------------------------------
+    # Reflects final state after 0003, 0007, 0008, 0015, 0016, 0017.
+    # Column "location" was renamed to "room_name" in 0007.
+    # room_id FK to rooms is added after rooms table exists (below).
     op.create_table(
         "cts_cameras",
         sa.Column("id", sa.String(length=128), nullable=False),
         sa.Column("name", sa.String(length=256), nullable=False),
         sa.Column("rtsp_url", sa.String(length=1024), nullable=False),
-        sa.Column("location", sa.String(length=256), nullable=False),
+        # "location" was renamed to "room_name" in 0007_cts_camera_room_linkage
+        sa.Column("room_name", sa.String(length=256), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column("face_id_enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("face_id_min_confidence", sa.Float(), nullable=True),
@@ -75,11 +123,42 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        # Added by 0003_cts_camera_rotation
+        sa.Column("rotation_degrees", sa.Integer(), nullable=False, server_default="0"),
+        # Added by 0007_cts_camera_room_linkage
+        sa.Column("room_id", sa.Integer(), nullable=True),
+        # Added by 0008_cts_camera_role_and_overlap
+        sa.Column("role", sa.String(32), nullable=False, server_default="surveillance"),
+        # Added by 0015_cts_camera_physical
+        sa.Column("horizontal_fov_deg", sa.Float(), nullable=True),
+        sa.Column("mounting_height_m", sa.Float(), nullable=True),
+        sa.Column("tilt_deg", sa.Float(), nullable=True),
+        sa.Column("snapshot_width", sa.Integer(), nullable=True),
+        sa.Column("snapshot_height", sa.Integer(), nullable=True),
+        # Added by 0016_cts_camera_visibility
+        sa.Column("visibility_polygon", JSONB, nullable=True),
+        # Added by 0017_calibration_health_and_transit_zones
+        sa.Column("homography_matrix", JSONB, nullable=True),
+        sa.Column("homography_residual_m", sa.Float(), nullable=True),
+        sa.Column("homography_method", sa.String(32), nullable=True),
+        sa.Column("homography_set_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("frame_natural_width", sa.Integer(), nullable=True),
+        sa.Column("frame_natural_height", sa.Integer(), nullable=True),
+        sa.CheckConstraint(
+            "rotation_degrees IN (0, 90, 180, 270)",
+            name="ck_cts_cameras_rotation",
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_cts_cameras_name"), "cts_cameras", ["name"], unique=False)
+    op.create_index("ix_cts_cameras_room_id", "cts_cameras", ["room_id"])
+    # FK added after rooms table is created
+    op.create_foreign_key(
+        "fk_cts_cameras_room_id", "cts_cameras", "rooms", ["room_id"], ["id"]
+    )
 
     # -- cts_dementia_signals -------------------------------------------------
+    # Reflects final state after 0004 (signal_id, algorithm_version added).
     op.create_table(
         "cts_dementia_signals",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -99,6 +178,9 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        # Added by 0004_cts_signal_id_algo_version
+        sa.Column("signal_id", sa.String(64), nullable=True),
+        sa.Column("algorithm_version", sa.Integer(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
@@ -108,7 +190,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_cts_dementia_signals_severity"), "cts_dementia_signals", ["severity"], unique=False
+        op.f("ix_cts_dementia_signals_severity"),
+        "cts_dementia_signals",
+        ["severity"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_cts_dementia_signals_signal_type"),
@@ -127,6 +212,11 @@ def upgrade() -> None:
         "cts_dementia_signals",
         ["window_start"],
         unique=False,
+    )
+    op.create_index(
+        "ix_cts_dementia_signals_signal_id",
+        "cts_dementia_signals",
+        ["signal_id"],
     )
 
     # -- emergency_alerts -----------------------------------------------------
@@ -150,6 +240,7 @@ def upgrade() -> None:
     )
 
     # -- rules ----------------------------------------------------------------
+    # trigger_types is JSONB (altered in 0013_trigger_types_jsonb).
     op.create_table(
         "rules",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -158,7 +249,7 @@ def upgrade() -> None:
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column(
             "trigger_types",
-            sa.JSON(),
+            postgresql.JSONB(),
             nullable=False,
             server_default=sa.text("'[\"sensor_event\"]'"),
         ),
@@ -214,6 +305,60 @@ def upgrade() -> None:
         "ix_rule_cron_triggers_cron_trigger_id", "rule_cron_triggers", ["cron_trigger_id"]
     )
 
+    # -- cts_window_triggers --------------------------------------------------
+    op.create_table(
+        "cts_window_triggers",
+        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("name", sa.String(256), nullable=False),
+        sa.Column("window_seconds", sa.Float(), nullable=False, server_default="10.0"),
+        sa.Column("min_detections", sa.Integer(), nullable=False, server_default="1"),
+        sa.Column("min_identities", sa.Integer(), nullable=False, server_default="1"),
+        sa.Column("cameras", postgresql.ARRAY(sa.String()), nullable=True),
+        sa.Column("rooms", postgresql.ARRAY(sa.String()), nullable=True),
+        sa.Column("cooldown_seconds", sa.Float(), nullable=False, server_default="0.0"),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+    )
+
+    # -- rule_cts_window_triggers ---------------------------------------------
+    op.create_table(
+        "rule_cts_window_triggers",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column(
+            "rule_id",
+            sa.Integer(),
+            sa.ForeignKey("rules.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "cts_window_trigger_id",
+            sa.String(36),
+            sa.ForeignKey("cts_window_triggers.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+    )
+    op.create_index(
+        "ix_rule_cts_window_triggers_rule_id",
+        "rule_cts_window_triggers",
+        ["rule_id"],
+    )
+    op.create_index(
+        "ix_rule_cts_window_triggers_ct_id",
+        "rule_cts_window_triggers",
+        ["cts_window_trigger_id"],
+    )
+
     # -- pipeline_steps -------------------------------------------------------
     op.create_table(
         "pipeline_steps",
@@ -231,7 +376,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["rule_id"], ["rules.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_pipeline_steps_rule_id"), "pipeline_steps", ["rule_id"], unique=False)
+    op.create_index(
+        op.f("ix_pipeline_steps_rule_id"), "pipeline_steps", ["rule_id"], unique=False
+    )
 
     # -- workflow_executions --------------------------------------------------
     op.create_table(
@@ -269,7 +416,8 @@ def upgrade() -> None:
         op.f("ix_workflow_executions_status"), "workflow_executions", ["status"], unique=False
     )
 
-    # -- event_logs (needs rules + workflow_executions) -----------------------
+    # -- event_logs -----------------------------------------------------------
+    # Depends on rules + workflow_executions.
     op.create_table(
         "event_logs",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -302,44 +450,8 @@ def upgrade() -> None:
     op.create_index(op.f("ix_event_logs_status"), "event_logs", ["status"], unique=False)
     op.create_index(op.f("ix_event_logs_timestamp"), "event_logs", ["timestamp"], unique=False)
 
-    # Add FK from workflow_executions to event_logs (depends on event_logs)
+    # Add FK from workflow_executions to event_logs (circular reference resolved after both tables exist)
     op.create_foreign_key(None, "workflow_executions", "event_logs", ["event_log_id"], ["id"])
-
-    # -- household_members ----------------------------------------------------
-    op.create_table(
-        "household_members",
-        sa.Column("id", sa.String(length=64), nullable=False),
-        sa.Column("name", sa.String(length=128), nullable=False),
-        sa.Column("is_active", sa.Boolean(), nullable=False),
-        sa.Column("is_guest", sa.Boolean(), nullable=False),
-        sa.Column("metadata_json", sa.JSON(), nullable=True),
-        sa.Column(
-            "created_at",
-            backend.core.time.UTCDateTime(),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column("updated_at", backend.core.time.UTCDateTime(), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
-
-    # -- rooms ----------------------------------------------------------------
-    op.create_table(
-        "rooms",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=128), nullable=False),
-        sa.Column("ha_area_id", sa.String(length=128), nullable=True),
-        sa.Column("floor", sa.String(length=64), nullable=True),
-        sa.Column("metadata_json", sa.JSON(), nullable=True),
-        sa.Column(
-            "created_at",
-            backend.core.time.UTCDateTime(),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(op.f("ix_rooms_name"), "rooms", ["name"], unique=True)
 
     # -- image_templates ------------------------------------------------------
     op.create_table(
@@ -540,6 +652,7 @@ def upgrade() -> None:
     )
 
     # -- person_location_history ----------------------------------------------
+    # Retained: superseded by presence_segments but still read by legacy presence providers.
     op.create_table(
         "person_location_history",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -585,6 +698,7 @@ def upgrade() -> None:
     )
 
     # -- person_location_state ------------------------------------------------
+    # Retained: superseded by presence_segments but still read by legacy presence providers.
     op.create_table(
         "person_location_state",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -730,7 +844,10 @@ def upgrade() -> None:
         unique=True,
     )
     op.create_index(
-        op.f("ix_interactive_responses_step_id"), "interactive_responses", ["step_id"], unique=False
+        op.f("ix_interactive_responses_step_id"),
+        "interactive_responses",
+        ["step_id"],
+        unique=False,
     )
 
     # -- media_cache ----------------------------------------------------------
@@ -753,9 +870,15 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_media_cache_captured_at"), "media_cache", ["captured_at"], unique=False
     )
-    op.create_index(op.f("ix_media_cache_expires_at"), "media_cache", ["expires_at"], unique=False)
-    op.create_index(op.f("ix_media_cache_object_name"), "media_cache", ["object_name"], unique=True)
-    op.create_index(op.f("ix_media_cache_sensor_id"), "media_cache", ["sensor_id"], unique=False)
+    op.create_index(
+        op.f("ix_media_cache_expires_at"), "media_cache", ["expires_at"], unique=False
+    )
+    op.create_index(
+        op.f("ix_media_cache_object_name"), "media_cache", ["object_name"], unique=True
+    )
+    op.create_index(
+        op.f("ix_media_cache_sensor_id"), "media_cache", ["sensor_id"], unique=False
+    )
 
     # -- knowledge_documents --------------------------------------------------
     op.create_table(
@@ -955,6 +1078,7 @@ def upgrade() -> None:
     )
 
     # -- quiz_sessions --------------------------------------------------------
+    # Includes question_order column added by 990462f4cf44_.
     op.create_table(
         "quiz_sessions",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
@@ -992,6 +1116,13 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("completed_at", backend.core.time.UTCDateTime(), nullable=True),
+        # Added by 990462f4cf44_
+        sa.Column(
+            "question_order",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default="[]",
+            nullable=False,
+        ),
         sa.CheckConstraint(
             "status IN ('started','in_progress','completed','abandoned','timed_out')",
             name="ck_quiz_sessions_status",
@@ -1084,7 +1215,9 @@ def upgrade() -> None:
         sa.Column(
             "source_document_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False
         ),
-        sa.Column("source_chunk_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False),
+        sa.Column(
+            "source_chunk_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False
+        ),
         sa.Column("top_similarity", sa.Float(), nullable=True),
         sa.Column("answered_via", sa.Text(), nullable=False),
         sa.Column("channel", sa.Text(), nullable=False),
@@ -1092,7 +1225,220 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # -- knowledge indices ----------------------------------------------------
+    # -- cts_identity_revision_log --------------------------------------------
+    op.create_table(
+        "cts_identity_revision_log",
+        sa.Column("revision_id", sa.String(128), primary_key=True),
+        sa.Column("global_track_id", sa.String(128), nullable=False),
+        sa.Column("previous_identity_id", sa.String(128), nullable=True),
+        sa.Column("new_identity_id", sa.String(128), nullable=True),
+        sa.Column("actor", sa.String(128), nullable=False),
+        sa.Column("reason", sa.String(512), nullable=True),
+        sa.Column(
+            "applied_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column("kind", sa.String(32), nullable=False),
+        sa.Column("rewritten_rows", sa.Integer(), default=0),
+        sa.Column("evidence", postgresql.JSONB, nullable=True),
+    )
+    op.create_index(
+        "ix_cts_identity_revision_log_applied_at",
+        "cts_identity_revision_log",
+        [sa.text("applied_at DESC")],
+    )
+    op.create_index(
+        "ix_cts_identity_revision_log_gt_applied",
+        "cts_identity_revision_log",
+        ["global_track_id", sa.text("applied_at DESC")],
+    )
+    op.create_index(
+        "ix_cts_identity_revision_log_kind_applied",
+        "cts_identity_revision_log",
+        ["kind", sa.text("applied_at DESC")],
+    )
+
+    # -- cts_camera_overlap_groups --------------------------------------------
+    op.create_table(
+        "cts_camera_overlap_groups",
+        sa.Column("id", sa.Integer(), autoincrement=True, primary_key=True),
+        sa.Column("name", sa.String(256), nullable=False),
+        sa.Column("camera_ids", postgresql.ARRAY(sa.String), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+    )
+
+    # -- cts_alert_suppressions -----------------------------------------------
+    op.create_table(
+        "cts_alert_suppressions",
+        sa.Column("id", sa.Integer(), autoincrement=True, primary_key=True),
+        sa.Column(
+            "person_id",
+            sa.String(64),
+            sa.ForeignKey("household_members.id"),
+            nullable=False,
+        ),
+        sa.Column("signal_kind", sa.String(64), nullable=True),
+        sa.Column("suppressed_until", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("created_by", sa.String(128), nullable=False),
+        sa.Column("reason", sa.String(512), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+    )
+    op.create_index(
+        "ix_alert_suppressions_person_until",
+        "cts_alert_suppressions",
+        ["person_id", "suppressed_until"],
+    )
+
+    # -- household_settings ---------------------------------------------------
+    # Singleton table (CHECK id = 1). Includes cts_adjacency_edges from 0011.
+    op.create_table(
+        "household_settings",
+        sa.Column("id", sa.Integer(), primary_key=True, server_default="1"),
+        sa.Column("floor_plan_key", sa.String(512), nullable=True),
+        sa.Column("floor_plan_width", sa.Integer(), nullable=True),
+        sa.Column("floor_plan_height", sa.Integer(), nullable=True),
+        sa.Column("floor_meters_per_pixel", sa.Float(), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        # Added by 0011_cts_adjacency_edges
+        sa.Column("cts_adjacency_edges", sa.JSON(), nullable=True),
+        sa.CheckConstraint("id = 1", name="ck_household_settings_singleton"),
+    )
+
+    # -- room_occupancy_state -------------------------------------------------
+    op.create_table(
+        "room_occupancy_state",
+        sa.Column("room_name", sa.String(128), primary_key=True),
+        sa.Column("occupied", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("since", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("source", sa.String(32), nullable=False, server_default="unknown"),
+        sa.Column("person_ids", sa.JSON(), nullable=False, server_default="[]"),
+        sa.Column(
+            "last_updated",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+    )
+
+    # -- transit_zones --------------------------------------------------------
+    op.create_table(
+        "transit_zones",
+        sa.Column("id", UUID, primary_key=True),
+        sa.Column("name", sa.String(256), nullable=False),
+        sa.Column("kind", sa.String(32), nullable=False, server_default="door"),
+        sa.Column("polygon", JSONB, nullable=False),
+        sa.Column("inside_room_id", sa.Integer(), sa.ForeignKey("rooms.id"), nullable=False),
+        sa.Column("outside_room_id", sa.Integer(), sa.ForeignKey("rooms.id"), nullable=False),
+        sa.Column("direction_vec", JSONB, nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+            nullable=False,
+        ),
+    )
+
+    # -- location_observations ------------------------------------------------
+    # TimescaleDB hypertable partitioned on observed_at.
+    # Composite PK (id, observed_at) required by TimescaleDB uniqueness rules.
+    op.create_table(
+        "location_observations",
+        sa.Column("id", UUID, nullable=False),
+        sa.Column(
+            "person_id",
+            sa.String(64),
+            sa.ForeignKey("household_members.id"),
+            nullable=False,
+        ),
+        sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("source", sa.String(32), nullable=False),
+        sa.Column("source_ref", sa.Text(), nullable=True),
+        sa.Column("floor_x_m", sa.Float(), nullable=True),
+        sa.Column("floor_y_m", sa.Float(), nullable=True),
+        sa.Column("room_id", sa.Integer(), sa.ForeignKey("rooms.id"), nullable=True),
+        sa.Column("confidence", sa.Float(), nullable=False, server_default="0.5"),
+        sa.Column("metadata", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.PrimaryKeyConstraint("id", "observed_at", name="location_observations_pkey"),
+    )
+    op.execute(
+        "SELECT create_hypertable('location_observations', 'observed_at', "
+        "chunk_time_interval => INTERVAL '6 hours', if_not_exists => TRUE)"
+    )
+    op.create_index(
+        "idx_loc_obs_person",
+        "location_observations",
+        ["person_id", sa.text("observed_at DESC")],
+    )
+    op.create_index(
+        "idx_loc_obs_room",
+        "location_observations",
+        ["room_id", sa.text("observed_at DESC")],
+    )
+
+    # -- presence_segments ----------------------------------------------------
+    op.create_table(
+        "presence_segments",
+        sa.Column("id", UUID, primary_key=True),
+        sa.Column(
+            "person_id",
+            sa.String(64),
+            sa.ForeignKey("household_members.id"),
+            nullable=False,
+        ),
+        sa.Column("room_id", sa.Integer(), sa.ForeignKey("rooms.id"), nullable=False),
+        sa.Column("entered_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("exited_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("entry_source", sa.String(32), nullable=False),
+        sa.Column("exit_source", sa.String(32), nullable=True),
+        sa.Column("confidence", sa.Float(), nullable=False, server_default="0.5"),
+        sa.Column("last_observed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "superseded_by", UUID, sa.ForeignKey("presence_segments.id"), nullable=True
+        ),
+        sa.Column("metadata", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
+    )
+    op.create_index(
+        "idx_ps_person_open",
+        "presence_segments",
+        ["person_id"],
+        postgresql_where=sa.text("exited_at IS NULL"),
+    )
+    op.create_index(
+        "idx_ps_person_time",
+        "presence_segments",
+        ["person_id", sa.text("entered_at DESC")],
+    )
+    op.create_index(
+        "idx_ps_room_time",
+        "presence_segments",
+        ["room_id", sa.text("entered_at DESC")],
+    )
+
+    # -- Knowledge indices ----------------------------------------------------
     op.create_index(
         "idx_senior_kq_asked_at", "senior_knowledge_queries", ["asked_at"], unique=False
     )
@@ -1101,21 +1447,17 @@ def upgrade() -> None:
         "idx_info_deliveries_at", "info_card_deliveries", ["delivered_at"], unique=False
     )
 
-    # Vector similarity search: the primary RAG query does
-    #   ORDER BY kdc.embedding <=> :vec  (cosine distance, nearest-neighbour)
-    # StreamingDiskANN (via pgvectorscale) keeps the index on disk so it
-    # doesn't need to fit in memory, and builds incrementally.
+    # Vector similarity search index (pgvectorscale StreamingDiskANN).
+    # The primary RAG query uses ORDER BY kdc.embedding <=> :vec (cosine distance).
     op.execute(
         "CREATE INDEX idx_kdc_embedding ON knowledge_document_chunks "
         "USING diskann (embedding vector_cosine_ops)"
     )
-
-    # The RAG query filters kd.status = 'approved' on the JOIN side.
     op.create_index(
         "idx_knowledge_documents_status", "knowledge_documents", ["status"], unique=False
     )
 
-    # -- seed data: info_card image template ----------------------------------
+    # -- Seed data: info_card image template ----------------------------------
     op.execute(
         sa.text(
             """INSERT INTO image_templates (name, description, width, height, image_filename, font_filename, regions_json, is_default)
@@ -1174,104 +1516,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Seed data
-    op.execute("DELETE FROM image_templates WHERE name = 'info_card'")
-
-    # Knowledge indices
-    op.drop_index("idx_knowledge_documents_status", table_name="knowledge_documents")
-    op.execute("DROP INDEX IF EXISTS idx_kdc_embedding")
-    op.drop_index("idx_info_deliveries_at", table_name="info_card_deliveries")
-    op.drop_index("idx_quiz_sessions_started_at", table_name="quiz_sessions")
-    op.drop_index("idx_senior_kq_asked_at", table_name="senior_knowledge_queries")
-
-    # Knowledge tables (reverse FK order)
-    op.drop_table("senior_knowledge_queries")
-    op.drop_table("info_card_deliveries")
-    op.drop_table("quiz_responses")
-    op.drop_table("quiz_sessions")
-    op.drop_table("quiz_questions")
-    op.drop_table("quizzes")
-    op.drop_table("info_card_image_slots")
-    op.drop_table("info_cards")
-    op.drop_table("knowledge_document_chunks")
-    op.drop_table("knowledge_document_images")
-    op.drop_table("knowledge_documents")
-
-    # Core tables (reverse FK order)
-    op.drop_index(op.f("ix_media_cache_sensor_id"), table_name="media_cache")
-    op.drop_index(op.f("ix_media_cache_object_name"), table_name="media_cache")
-    op.drop_index(op.f("ix_media_cache_expires_at"), table_name="media_cache")
-    op.drop_index(op.f("ix_media_cache_captured_at"), table_name="media_cache")
-    op.drop_table("media_cache")
-    op.drop_index(op.f("ix_interactive_responses_step_id"), table_name="interactive_responses")
-    op.drop_index("ix_interactive_responses_execution_step", table_name="interactive_responses")
-    op.drop_index(op.f("ix_interactive_responses_execution_id"), table_name="interactive_responses")
-    op.drop_index(op.f("ix_interactive_responses_created_at"), table_name="interactive_responses")
-    op.drop_table("interactive_responses")
-    op.drop_index(op.f("ix_sensors_name"), table_name="sensors")
-    op.drop_table("sensors")
-    op.drop_table("rule_dependencies")
-    op.drop_table("rule_contexts")
-    op.drop_index(op.f("ix_person_sightings_timestamp"), table_name="person_sightings")
-    op.drop_index(op.f("ix_person_sightings_sensor_id"), table_name="person_sightings")
-    op.drop_index(op.f("ix_person_sightings_person_id"), table_name="person_sightings")
-    op.drop_table("person_sightings")
-    op.drop_index(op.f("ix_person_location_state_person_id"), table_name="person_location_state")
-    op.drop_table("person_location_state")
-    op.drop_index(
-        op.f("ix_person_location_history_superseded_by_revision_id"),
-        table_name="person_location_history",
-    )
-    op.drop_index(
-        op.f("ix_person_location_history_person_id"), table_name="person_location_history"
-    )
-    op.drop_index(
-        op.f("ix_person_location_history_global_track_id"), table_name="person_location_history"
-    )
-    op.drop_index(
-        op.f("ix_person_location_history_entered_at"), table_name="person_location_history"
-    )
-    op.drop_table("person_location_history")
-    op.drop_index(op.f("ix_person_activities_session_id"), table_name="person_activities")
-    op.drop_index(op.f("ix_person_activities_person_id"), table_name="person_activities")
-    op.drop_index(op.f("ix_person_activities_observation_id"), table_name="person_activities")
-    op.drop_index(op.f("ix_person_activities_detected_at"), table_name="person_activities")
-    op.drop_index(op.f("ix_person_activities_activity_type"), table_name="person_activities")
-    op.drop_table("person_activities")
-    op.drop_index(op.f("ix_daily_reports_person_id"), table_name="daily_reports")
-    op.drop_table("daily_reports")
-    op.drop_table("conversation_turns")
-    op.drop_index(op.f("ix_activity_sessions_person_id"), table_name="activity_sessions")
-    op.drop_index(op.f("ix_activity_sessions_opened_at"), table_name="activity_sessions")
-    op.drop_index(op.f("ix_activity_sessions_observation_id"), table_name="activity_sessions")
-    op.drop_index(op.f("ix_activity_sessions_activity_type"), table_name="activity_sessions")
-    op.drop_table("activity_sessions")
-    op.drop_index(op.f("ix_active_image_state_sensor_id"), table_name="active_image_state")
-    op.drop_table("active_image_state")
-    op.drop_table("event_logs")
-    op.drop_index(op.f("ix_workflow_executions_status"), table_name="workflow_executions")
-    op.drop_index(op.f("ix_workflow_executions_rule_id"), table_name="workflow_executions")
-    op.drop_table("workflow_executions")
-    op.drop_index(op.f("ix_pipeline_steps_rule_id"), table_name="pipeline_steps")
-    op.drop_table("pipeline_steps")
-    op.drop_index(op.f("ix_rule_cron_triggers_cron_trigger_id"), table_name="rule_cron_triggers")
-    op.drop_index(op.f("ix_rule_cron_triggers_rule_id"), table_name="rule_cron_triggers")
-    op.drop_table("rule_cron_triggers")
-    op.drop_table("cron_triggers")
-    op.drop_index(op.f("ix_rules_name"), table_name="rules")
-    op.drop_table("rules")
-    op.drop_table("emergency_alerts")
-    op.drop_index(op.f("ix_image_templates_name"), table_name="image_templates")
-    op.drop_table("image_templates")
-    op.drop_index(op.f("ix_rooms_name"), table_name="rooms")
-    op.drop_table("rooms")
-    op.drop_table("household_members")
-    op.drop_index(op.f("ix_cts_dementia_signals_window_start"), table_name="cts_dementia_signals")
-    op.drop_index(op.f("ix_cts_dementia_signals_window_end"), table_name="cts_dementia_signals")
-    op.drop_index(op.f("ix_cts_dementia_signals_signal_type"), table_name="cts_dementia_signals")
-    op.drop_index(op.f("ix_cts_dementia_signals_severity"), table_name="cts_dementia_signals")
-    op.drop_index(op.f("ix_cts_dementia_signals_person_id"), table_name="cts_dementia_signals")
-    op.drop_table("cts_dementia_signals")
-    op.drop_index(op.f("ix_cts_cameras_name"), table_name="cts_cameras")
-    op.drop_table("cts_cameras")
-    op.drop_table("conversation_sessions")
+    pass

@@ -20,7 +20,7 @@ An import-linter contract (backend/pyproject.toml) prevents filters and
 steps from reintroducing direct imports of location_repository.
 
 Revision ID: 6e9135dc1f60
-Revises: 990462f4cf44
+Revises: 0018_unified_location
 Create Date: 2026-05-28
 """
 
@@ -28,7 +28,7 @@ from collections.abc import Sequence
 
 # revision identifiers, used by Alembic.
 revision: str = "6e9135dc1f60"
-down_revision: str | None = "990462f4cf44"
+down_revision: str | None = "0018_unified_location"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

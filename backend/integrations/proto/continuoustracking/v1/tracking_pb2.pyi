@@ -144,22 +144,22 @@ class IdentityRevision(_message.Message):
     def __init__(self, ph_id: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[IdentityCandidate, _Mapping]]] = ..., map_identity_id: _Optional[str] = ..., posterior_entropy: _Optional[float] = ..., revision_time_unix_ns: _Optional[int] = ..., revision_id: _Optional[str] = ..., previous_identity_id: _Optional[str] = ..., new_identity_id: _Optional[str] = ..., reason: _Optional[str] = ..., evidence_json: _Optional[str] = ...) -> None: ...
 
 class IdentitySnapshot(_message.Message):
-    __slots__ = ("global_track_id", "identity_id", "top_probability", "second_probability", "posterior_entropy", "direct_face_evidence", "evidence_json")
-    GLOBAL_TRACK_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("ph_id", "identity_id", "top_probability", "second_probability", "posterior_entropy", "direct_face_evidence", "evidence_json")
+    PH_ID_FIELD_NUMBER: _ClassVar[int]
     IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
     TOP_PROBABILITY_FIELD_NUMBER: _ClassVar[int]
     SECOND_PROBABILITY_FIELD_NUMBER: _ClassVar[int]
     POSTERIOR_ENTROPY_FIELD_NUMBER: _ClassVar[int]
     DIRECT_FACE_EVIDENCE_FIELD_NUMBER: _ClassVar[int]
     EVIDENCE_JSON_FIELD_NUMBER: _ClassVar[int]
-    global_track_id: str
+    ph_id: str
     identity_id: str
     top_probability: float
     second_probability: float
     posterior_entropy: float
     direct_face_evidence: bool
     evidence_json: str
-    def __init__(self, global_track_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., top_probability: _Optional[float] = ..., second_probability: _Optional[float] = ..., posterior_entropy: _Optional[float] = ..., direct_face_evidence: bool = ..., evidence_json: _Optional[str] = ...) -> None: ...
+    def __init__(self, ph_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., top_probability: _Optional[float] = ..., second_probability: _Optional[float] = ..., posterior_entropy: _Optional[float] = ..., direct_face_evidence: bool = ..., evidence_json: _Optional[str] = ...) -> None: ...
 
 class IdentityCandidate(_message.Message):
     __slots__ = ("identity_id", "display_name", "probability")

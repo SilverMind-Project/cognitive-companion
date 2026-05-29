@@ -1,7 +1,8 @@
-"""WTR3: TrackingEventSubscriber PH-native decode tests.
+"""WTR3/R3: TrackingEventSubscriber PH-native decode tests.
 
 Tests that the subscriber decodes Detection.global_track_id into local ph_id,
-uses identity_snapshots for identity, and does not require identity_revisions.
+uses identity_snapshots (now with ph_id field after R3 rename) for identity,
+and does not require identity_revisions.
 """
 from __future__ import annotations
 
@@ -56,7 +57,7 @@ def _build_event(
 
     for snap in (identity_snapshots or []):
         s = event.identity_snapshots.add()
-        s.global_track_id = snap.get("global_track_id", "")
+        s.ph_id = snap.get("ph_id", "")  # R3: field renamed from global_track_id
         s.identity_id = snap.get("identity_id", "")
         s.top_probability = snap.get("top_probability", 0.0)
         s.posterior_entropy = snap.get("posterior_entropy", 0.0)
@@ -81,7 +82,7 @@ async def test_identity_snapshots_set_detection_identity():
             {"detection_id": "d-1", "global_track_id": "ph-aaa"},
         ],
         identity_snapshots=[
-            {"global_track_id": "ph-aaa", "identity_id": "alice", "top_probability": 0.9},
+            {"ph_id": "ph-aaa", "identity_id": "alice", "top_probability": 0.9},
         ],
     )
 
@@ -110,16 +111,16 @@ async def test_global_track_id_becomes_ph_id_in_local_dict():
             {"detection_id": "d-1", "global_track_id": "ph-xyz"},
         ],
         identity_snapshots=[
-            {"global_track_id": "ph-xyz", "identity_id": "bob", "top_probability": 0.85},
+            {"ph_id": "ph-xyz", "identity_id": "bob", "top_probability": 0.85},
         ],
     )
 
     decoded = subscriber.decode(b"msg-1", {b"event": event.SerializeToString()})
     assert decoded is not None
     det = decoded["detections"][0]
-    # global_track_id from proto becomes ph_id in local dict.
+    # R3: Detection.global_track_id from proto is decoded as ph_id in the local dict.
     assert det["ph_id"] == "ph-xyz"
-    assert det["global_track_id"] == "ph-xyz"
+    assert "global_track_id" not in det, "decoded detection dict must use ph_id, not global_track_id"
 
 
 @pytest.mark.asyncio
@@ -140,7 +141,7 @@ async def test_no_identity_revisions_needed_for_current_identity():
             {"detection_id": "d-1", "global_track_id": "ph-1"},
         ],
         identity_snapshots=[
-            {"global_track_id": "ph-1", "identity_id": "carol", "top_probability": 0.95},
+            {"ph_id": "ph-1", "identity_id": "carol", "top_probability": 0.95},
         ],
     )
 

@@ -620,7 +620,8 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 
 ### 16.4 CTS isolation
 
-- CTS tables (`dementia_signals`, `cts_cameras`, `person_location_state`, `person_location_history`) are written only inside `services/cts/`.
+- CTS tables (`dementia_signals`, `cts_cameras`) are written only inside `services/cts/`.
+- **R2:** The four CTS filters (`room`, `room_transition`, `person_presence`, `scene_trend`) were migrated to `PersonLocationService` as the single source of truth (`presence_segments` / `location_observations`). `person_location_state` and `person_location_history` are deprecated: no new code may read or write them from filters or steps. The tables still exist because the pre-CTS presence fusion chain (`services/presence/providers/`) depends on them; they will be dropped once those providers are migrated (follow-up milestone). Do not reintroduce reads of these tables in filters or steps.
 - `_upstream_base` is imported only by CTS integration clients (`ingress_admin_client`, `tracking_orchestrator_client`).
 - Redis Stream subscriptions (`tracking.events`, `tracking.revisions`, `tracking.signals`, `scene.samples`) are created only inside `CTSRuntime`.
 - All browser and MCP traffic to `rtsp-ingress` or `tracking-orchestrator` goes through CC routers. No direct access.

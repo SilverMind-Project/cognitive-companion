@@ -1,20 +1,23 @@
 """R2: deprecate person_location_state and person_location_history tables.
 
 These tables are superseded by PersonLocationService (location_observations
-+ presence_segments).  The CTS filters no longer read them (R2 W2).
++ presence_segments).  The four CTS filters (room, room_transition,
+person_presence, scene_trend) no longer read them (R2 W2).
 
-The tables CANNOT be dropped yet because the pre-CTS presence providers
-still depend on them:
-- services/presence/providers/cts_location.py
-- services/presence/providers/night_anchor.py
-- services/presence/providers/stale_fallback.py
+The tables CANNOT be dropped yet because the pre-CTS presence fusion chain
+still reads them:
+- services/presence/providers/cts_location.py reads PersonLocationState
+  (written by services/cts/location_writer.py via CTSRuntime)
+- services/presence/providers/night_anchor.py reads PersonLocationState
+- services/presence/providers/stale_fallback.py reads PersonLocationState
 
-Once those providers are migrated to read from PersonLocationService,
-this migration will be amended to:
-  - upgrade(): drop person_location_state, person_location_history
-  - downgrade(): recreate them with the original 0001 schema.
+Next step: migrate those three providers to read from PersonLocationService
+(where_is / presence_history), then remove LocationWriter from CTSRuntime,
+then replace this no-op with the actual drop.
 
-For now, this is a no-op that documents the dependency.
+DO NOT write new code that reads or writes these tables.
+An import-linter contract (backend/pyproject.toml) prevents filters and
+steps from reintroducing direct imports of location_repository.
 
 Revision ID: 6e9135dc1f60
 Revises: 990462f4cf44

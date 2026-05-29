@@ -2,7 +2,7 @@
 
 Detects patterns in a person's activity and location history over a
 configurable time window. Uses PersonLocationService.presence_history()
-for location-based trends (R2: SSOT).
+for location-based trends.
 
 Config schema
 -------------
@@ -139,7 +139,7 @@ class SceneTrendFilter(ContextFilter):
         within_minutes: float = config.get("within_minutes", _DEFAULT_WINDOW_MINUTES)
         cutoff = now - timedelta(minutes=within_minutes)
 
-        # R2: PersonLocationService is the SSOT for location-based trends.
+        # PersonLocationService is the SSOT for location-based trends.
         # unusual_activity only needs PersonActivity (db), so it can skip
         # the PersonLocationService requirement.
         needs_location = trend_type in ("prolonged_stay", "frequent_visits", "no_recent_activity")
@@ -158,9 +158,7 @@ class SceneTrendFilter(ContextFilter):
         if trend_type == "unusual_activity":
             return self._check_unusual_activity(db, person_id, config, cutoff)
         if trend_type == "no_recent_activity":
-            return await self._check_no_recent_activity(
-                db, person_id, cutoff, services
-            )
+            return await self._check_no_recent_activity(db, person_id, cutoff, services)
 
         return False
 
@@ -174,7 +172,7 @@ class SceneTrendFilter(ContextFilter):
         now: datetime,
         services: Any,
     ) -> bool:
-        """Person has been in the same room continuously for > threshold (R2: PersonLocationService)."""
+        """Person has been in the same room continuously for > threshold."""
         threshold: int | None = config.get("threshold_minutes")
         if threshold is None:
             return False
@@ -209,7 +207,7 @@ class SceneTrendFilter(ContextFilter):
         cutoff: datetime,
         services: Any,
     ) -> bool:
-        """Person visited a room >= visit_count times within the window (R2: PersonLocationService)."""
+        """Person visited a room >= visit_count times within the window."""
         min_visits: int | None = config.get("visit_count")
         if min_visits is None:
             return False
@@ -223,7 +221,8 @@ class SceneTrendFilter(ContextFilter):
         active = [s for s in segments if s.superseded_by is None]
         if room_name:
             active = [
-                s for s in active
+                s
+                for s in active
                 if (s.metadata.get("room_name", "") or "").lower() == room_name.lower()
             ]
         return len(active) >= min_visits
@@ -263,14 +262,12 @@ class SceneTrendFilter(ContextFilter):
         cutoff: datetime,
         services: Any,
     ) -> bool:
-        """Person has no location history or activity in the window (R2: PersonLocationService)."""
+        """Person has no location history or activity in the window."""
         # Check location via PersonLocationService.
         segments = await services.person_location.presence_history(
             person_id, since=cutoff, until=cutoff + timedelta(days=1)
         )
-        has_location = any(
-            s.superseded_by is None for s in segments
-        )
+        has_location = any(s.superseded_by is None for s in segments)
         if has_location:
             return False
 

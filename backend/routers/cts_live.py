@@ -91,7 +91,7 @@ async def cts_live_websocket(websocket: WebSocket) -> None:
             await websocket.receive_text()
     except WebSocketDisconnect:
         logger.info("cts_live_client_disconnected", subject=auth.name)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("cts_live_ws_error", error=str(exc))
     finally:
         await manager.disconnect(websocket)

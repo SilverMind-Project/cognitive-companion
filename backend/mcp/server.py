@@ -52,6 +52,7 @@ class MCPServices:
     sensor_polling: Any = None
     ha_client: Any = None
     person_tracking: Any = None
+    person_location_service: Any = None  # SSOT for location (replaces person_tracking reads)
     activity_timeline: Any = None
     activity_session: Any = None
     daily_report: Any = None
@@ -72,6 +73,7 @@ def init_services(
     sensor_polling_service=None,
     ha_client=None,
     person_tracking=None,
+    person_location_service=None,
     activity_timeline=None,
     activity_session=None,
     daily_report=None,
@@ -88,6 +90,7 @@ def init_services(
     _svc.sensor_polling = sensor_polling_service
     _svc.ha_client = ha_client
     _svc.person_tracking = person_tracking
+    _svc.person_location_service = person_location_service
     _svc.activity_timeline = activity_timeline
     _svc.activity_session = activity_session
     _svc.daily_report = daily_report
@@ -192,16 +195,59 @@ async def get_sensors(room_name: str | None = None, sensor_type: str | None = No
 
 
 @_register
-async def get_room_occupancy(room_name: str | None = None) -> dict:
-    """Get current room occupancy status from presence sensors."""
-    if _svc.sensor_polling:
-        summary = await _svc.sensor_polling.get_occupancy_summary()
-        if room_name:
-            return {
-                k: v for k, v in summary.items() if v.get("room", "").lower() == room_name.lower()
-            }
-        return summary
-    return {"message": "Sensor polling not available"}
+async def get_room_occupancy(room_name: str | None = None) -> list[dict]:
+    """Get current room occupancy from the PersonLocationService (SSOT).
+
+    D6: reads PersonLocationService.occupants_of() -- same service function as
+    GET /api/v1/rooms/{room_id}/occupants.
+    dict to RoomOccupancyEnvelope-derived list; MCP back-compat intentionally
+    dropped (dev-stage, D7 escape hatch).
+
+    Returns a list of RoomOccupancyEnvelope dicts (one per room that has occupants,
+    or the specified room if room_name is given).
+    """
+    from datetime import UTC, datetime
+
+    from backend.observability.metrics import location_metrics
+    from backend.schemas.cts_envelopes import (
+        PersonLocationEnvelope,
+        RoomOccupancyEnvelope,
+        occupancy_to_mcp,
+    )
+
+    pls = _svc.person_location_service
+    if pls is None:
+        location_metrics.mcp_tool_dependency_unavailable_total.labels(
+            tool="get_room_occupancy"
+        ).inc()
+        raise RuntimeError("PersonLocationService not available")
+
+    rooms_all = await pls.where_is_everyone()
+    if not rooms_all:
+        return []
+
+    now = datetime.now(UTC)
+    # Group by room.
+    by_room: dict[int, list] = {}
+    for loc in rooms_all.values():
+        by_room.setdefault(loc.room_id, []).append(loc)
+
+    results: list[dict] = []
+    for room_id, locs in by_room.items():
+        first = locs[0]
+        if room_name and first.room_name.lower() != room_name.lower():
+            continue
+        envelope = RoomOccupancyEnvelope(
+            room_id=room_id,
+            room_name=first.room_name,
+            as_of=now,
+            occupants=[
+                PersonLocationEnvelope.from_current_location(loc, display_name="", now=now)
+                for loc in locs
+            ],
+        )
+        results.append(occupancy_to_mcp(envelope))
+    return results
 
 
 @_register
@@ -325,10 +371,30 @@ async def get_conversation_history(session_id: int | None = None, limit: int = 2
 
 @_register
 async def get_person_locations() -> list[dict]:
-    """Get current location of all tracked household members."""
-    if _svc.person_tracking:
-        return await _svc.person_tracking.get_person_locations()
-    return [{"message": "Person tracking not available"}]
+    """Get current location of all tracked household members.
+
+    D6: reads PersonLocationService (the SSOT) -- same service function as
+    the BFF endpoint GET /api/v1/persons/locations. Returns PersonLocationEnvelope
+    fields as a flat dict per person.
+    """
+    from backend.observability.metrics import location_metrics
+    from backend.schemas.cts_envelopes import PersonLocationEnvelope, envelope_to_mcp
+
+    pls = _svc.person_location_service
+    if pls is None:
+        location_metrics.mcp_tool_dependency_unavailable_total.labels(
+            tool="get_person_locations"
+        ).inc()
+        raise RuntimeError("PersonLocationService not available")
+
+    everyone = await pls.where_is_everyone()
+    if not everyone:
+        return []
+    now = datetime.now(UTC)
+    return [
+        envelope_to_mcp(PersonLocationEnvelope.from_current_location(loc, display_name="", now=now))
+        for loc in everyone.values()
+    ]
 
 
 @_register
@@ -354,9 +420,14 @@ async def get_enrolled_persons() -> list[dict]:
 @_register
 async def get_person_sightings(person_id: str, limit: int = 10) -> list[dict]:
     """Get recent camera sightings for a specific person."""
-    if _svc.person_tracking:
-        return await _svc.person_tracking.get_recent_sightings(person_id, limit=limit)
-    return [{"message": "Person tracking not available"}]
+    from backend.observability.metrics import location_metrics
+
+    if _svc.person_tracking is None:
+        location_metrics.mcp_tool_dependency_unavailable_total.labels(
+            tool="get_person_sightings"
+        ).inc()
+        raise RuntimeError("PersonTrackingService not available")
+    return await _svc.person_tracking.get_recent_sightings(person_id, limit=limit)
 
 
 @_register
@@ -366,11 +437,16 @@ async def get_person_activities(
     minutes: int = 60,
 ) -> list[dict]:
     """Get recent detected activities for a person (eating, sleeping, etc.)."""
-    if _svc.person_tracking:
-        return await _svc.person_tracking.get_recent_activities(
-            person_id, activity_type=activity_type, minutes=minutes
-        )
-    return [{"message": "Person tracking not available"}]
+    from backend.observability.metrics import location_metrics
+
+    if _svc.person_tracking is None:
+        location_metrics.mcp_tool_dependency_unavailable_total.labels(
+            tool="get_person_activities"
+        ).inc()
+        raise RuntimeError("PersonTrackingService not available")
+    return await _svc.person_tracking.get_recent_activities(
+        person_id, activity_type=activity_type, minutes=minutes
+    )
 
 
 @_register
@@ -975,55 +1051,32 @@ async def get_tracking_status() -> dict:
 
 @_register
 async def get_person_location(person_id: str) -> dict:
-    """Return the currently inferred room and history for ``person_id``.
+    """Return the currently inferred room for ``person_id``.
 
-    Reads the :class:`PersonLocationState` row and the open
-    :class:`PersonLocationHistory` row (if any) so the caller can reason
-    about "how long have they been there".
+    D6: reads PersonLocationService.where_is() -- same SSOT as
+    GET /api/v1/persons/{person_id}/location.
+    legacy PersonLocationState/PersonLocationHistory to PersonLocationEnvelope;
+    MCP back-compat intentionally dropped (dev-stage, D7 escape hatch).
     """
-    from backend.models.person import PersonLocationHistory, PersonLocationState
+    from backend.observability.metrics import location_metrics
+    from backend.schemas.cts_envelopes import PersonLocationEnvelope, envelope_to_mcp
 
-    db: Session = _svc.db_factory()
-    try:
-        state = (
-            db.query(PersonLocationState).filter(PersonLocationState.person_id == person_id).first()
-        )
-        if state is None:
-            return {"person_id": person_id, "found": False}
+    pls = _svc.person_location_service
+    if pls is None:
+        location_metrics.mcp_tool_dependency_unavailable_total.labels(
+            tool="get_person_location"
+        ).inc()
+        raise RuntimeError("PersonLocationService not available")
 
-        latest = (
-            db.query(PersonLocationHistory)
-            .filter(
-                PersonLocationHistory.person_id == person_id,
-                PersonLocationHistory.exited_at.is_(None),
-                PersonLocationHistory.superseded_by_revision_id.is_(None),
-            )
-            .order_by(PersonLocationHistory.entered_at.desc())
-            .first()
-        )
+    loc = await pls.where_is(person_id)
+    if loc is None:
+        return {"person_id": person_id, "found": False}
 
-        entered_iso = latest.entered_at.isoformat() if latest and latest.entered_at else None
-        dwell_minutes: float | None = None
-        if latest and latest.entered_at:
-            entered = latest.entered_at
-            if entered.tzinfo is None:
-                entered = entered.replace(tzinfo=UTC)
-            dwell_minutes = round((datetime.now(UTC) - entered).total_seconds() / 60.0, 2)
-
-        return {
-            "person_id": person_id,
-            "found": True,
-            "current_room_name": state.current_room_name,
-            "current_room_id": state.current_room_id,
-            "last_seen_at": state.last_seen_at.isoformat() if state.last_seen_at else None,
-            "last_sensor_id": state.last_sensor_id,
-            "status": state.status,
-            "confidence": state.confidence,
-            "entered_current_room_at": entered_iso,
-            "dwell_minutes": dwell_minutes,
-        }
-    finally:
-        db.close()
+    result = envelope_to_mcp(
+        PersonLocationEnvelope.from_current_location(loc, display_name="", now=datetime.now(UTC))
+    )
+    result["found"] = True
+    return result
 
 
 @_register

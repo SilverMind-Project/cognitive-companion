@@ -1,4 +1,5 @@
 """WTR4: IdentityRevisionSubscriber + PersonLocationService integration."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -29,15 +30,19 @@ async def test_revision_calls_person_location_service():
     # First create a segment for the old identity.
     now = datetime.now(UTC)
     await svc.ingest_observation(
-        person_id="old_alice", observed_at=now, source="world_tracker",
-        source_ref="ph-1", floor_point=FloorPoint(x_m=1.0, y_m=2.0), room_id=1,
+        person_id="old_alice",
+        observed_at=now,
+        source="world_tracker",
+        source_ref="ph-1",
+        floor_point=FloorPoint(x_m=1.0, y_m=2.0),
+        room_id=1,
     )
 
     # When the revision fires, apply_identity_revision should rewrite segments.
     await svc.apply_identity_revision(
         old_person_id="old_alice",
         new_person_id="alice",
-        global_track_id="ph-1",
+        ph_id="ph-1",
         revision_time=now,
     )
 

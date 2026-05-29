@@ -219,7 +219,7 @@ class ImageCropHandler(StepHandler):
             try:
                 img = Image.open(BytesIO(image_bytes))
                 img.load()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 logger.warning(
                     "image_decode_error", ref_url=ref.url, ref_object_name=ref.object_name
                 )

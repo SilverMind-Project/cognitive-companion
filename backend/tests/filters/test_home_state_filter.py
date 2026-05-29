@@ -41,10 +41,14 @@ def now():
 async def test_at_home_present_room(now):
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM)
     filter_instance = HomeStateFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None})()
+    services = type(
+        "Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None}
+    )()
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "state": "at_home"},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is True
 
@@ -53,10 +57,14 @@ async def test_at_home_present_room(now):
 async def test_at_home_asleep(now):
     snapshot = _make_snapshot(PresenceStatus.ASLEEP)
     filter_instance = HomeStateFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None})()
+    services = type(
+        "Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None}
+    )()
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "state": "at_home"},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is True
 
@@ -65,10 +73,14 @@ async def test_at_home_asleep(now):
 async def test_asleep(now):
     snapshot = _make_snapshot(PresenceStatus.ASLEEP)
     filter_instance = HomeStateFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None})()
+    services = type(
+        "Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None}
+    )()
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "state": "asleep"},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is True
 
@@ -77,10 +89,14 @@ async def test_asleep(now):
 async def test_away(now):
     snapshot = _make_snapshot(PresenceStatus.AWAY)
     filter_instance = HomeStateFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None})()
+    services = type(
+        "Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None}
+    )()
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "state": "away"},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is True
 
@@ -89,10 +105,14 @@ async def test_away(now):
 async def test_unknown(now):
     snapshot = _make_snapshot(PresenceStatus.UNKNOWN)
     filter_instance = HomeStateFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None})()
+    services = type(
+        "Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None}
+    )()
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "state": "unknown"},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is True
 
@@ -101,10 +121,14 @@ async def test_unknown(now):
 async def test_stale_is_unknown(now):
     snapshot = _make_snapshot(PresenceStatus.STALE)
     filter_instance = HomeStateFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None})()
+    services = type(
+        "Svc", (), {"presence": _StubPresenceService(snapshot), "person_location": None}
+    )()
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "state": "unknown"},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is True
 
@@ -115,6 +139,8 @@ async def test_no_person_returns_false(now):
     services = type("Svc", (), {"presence": None, "person_location": None})()
     result = await filter_instance.evaluate(
         config={"state": "at_home"},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is False

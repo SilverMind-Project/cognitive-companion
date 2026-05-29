@@ -339,6 +339,18 @@ export const api = {
     return URL.createObjectURL(await resp.blob());
   },
 
+  // Pipeline runs
+  getPipelineRuns: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/pipeline/runs${qs ? "?" + qs : ""}`, { contract: "pipeline.runs.list" });
+  },
+  getPipelineRun: (executionId) =>
+    request(`/pipeline/runs/${executionId}`, { contract: "pipeline.runs.single" }),
+  getIngestActivity: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/pipeline/ingest/activity${qs ? "?" + qs : ""}`, { contract: "pipeline.ingest.activity" });
+  },
+
   // Pipeline metadata (step types, channels, filters, LLM models)
   getStepTypes: () => request("/pipeline/step-types"),
   getChannelTypes: () => request("/pipeline/channel-types"),
@@ -536,3 +548,29 @@ export const api = {
     return request(`/knowledge-interactions/info-card-deliveries${qs ? "?" + qs : ""}`, { contract: "knowledge.interactions.deliveries" });
   },
 };
+
+/**
+ * Open a WebSocket connection to /ws/pipeline for live pipeline events.
+ * Follows the same auth pattern as cts.openLiveSocket: API key via
+ * Sec-WebSocket-Protocol header to avoid query-param logging.
+ *
+ * @param {function} onMessage  Called with the parsed event object.
+ * @returns {WebSocket}
+ */
+export function openPipelineSocket(onMessage) {
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const key = getApiKey();
+  const ws = new WebSocket(
+    `${proto}//${window.location.host}/ws/pipeline`,
+    key ? [key] : undefined,
+  );
+  ws.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      onMessage(data);
+    } catch {
+      // ignore malformed messages
+    }
+  };
+  return ws;
+}

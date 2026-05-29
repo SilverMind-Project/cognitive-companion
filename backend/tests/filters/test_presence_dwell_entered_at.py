@@ -1,4 +1,5 @@
 """WTR7: PresenceDwellFilter uses entered_at and injected now."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -28,7 +29,9 @@ async def test_dwell_uses_entered_at_and_injected_now():
     now = entered + timedelta(minutes=10)
     result = await flt.evaluate(
         {"person_id": "alice", "min_minutes": 5},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is True
 
@@ -50,6 +53,8 @@ async def test_dwell_below_threshold_fails():
     now = entered + timedelta(minutes=2)
     result = await flt.evaluate(
         {"person_id": "alice", "min_minutes": 5},
-        sensor=None, now=now, services=services,
+        sensor=None,
+        now=now,
+        services=services,
     )
     assert result is False

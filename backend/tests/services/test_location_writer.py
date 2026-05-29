@@ -45,8 +45,8 @@ def _event(
         "detections": [
             {
                 "id": "det-1",
-                "tracklet_id": "t-1",
-                "global_track_id": "gt-1",
+                "detection_id": "t-1",
+                "ph_id": "gt-1",
                 "identity_id": person_id,
                 "identity_confidence": identity_conf,
                 "bbox": {"x_min": 10, "y_min": 10, "x_max": 100, "y_max": 200},
@@ -177,15 +177,15 @@ class TestMultipleDetections:
             "detections": [
                 {
                     "id": "det-1",
-                    "tracklet_id": "t-1",
-                    "global_track_id": "gt-1",
+                    "detection_id": "t-1",
+                    "ph_id": "gt-1",
                     "identity_id": "grandma",
                     "identity_confidence": 0.95,
                 },
                 {
                     "id": "det-2",
-                    "tracklet_id": "t-2",
-                    "global_track_id": "gt-2",
+                    "detection_id": "t-2",
+                    "ph_id": "gt-2",
                     "identity_id": "grandpa",
                     "identity_confidence": 0.88,
                 },

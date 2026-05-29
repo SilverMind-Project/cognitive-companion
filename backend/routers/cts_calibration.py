@@ -73,7 +73,9 @@ def _refresh_visibility_polygon(
 
     if not cam.homography or not cam.snapshot_width or not cam.snapshot_height:
         if not cam.snapshot_width or not cam.snapshot_height:
-            no_op["warning"] = "Snapshot dimensions not stored — load a camera snapshot before calibrating."
+            no_op["warning"] = (
+                "Snapshot dimensions not stored — load a camera snapshot before calibrating."
+            )
         return no_op
 
     matrix = cam.homography.get("matrix")
@@ -90,7 +92,9 @@ def _refresh_visibility_polygon(
     fp_h_px: int | None = settings.floor_plan_height
 
     if not mpp or not fp_w_px or not fp_h_px:
-        no_op["warning"] = "Floor plan scale not set — configure metres/pixel in Floor Plan settings."
+        no_op["warning"] = (
+            "Floor plan scale not set — configure metres/pixel in Floor Plan settings."
+        )
         return no_op
 
     fp_width_m = fp_w_px * mpp
@@ -223,7 +227,7 @@ async def post_homography(
     residuals: list[float] = result["residuals_m"]
     max_residual: float = result["max_residual_m"]
 
-    # M2: server-side validation — reject degenerate or high-error matrices.
+    # Server-side validation: reject degenerate or high-error matrices.
     from backend.services.cts.calibration_validator import (
         validate_homography,
     )
@@ -253,7 +257,7 @@ async def post_homography(
     cam.homography_residuals = residuals
     cam.snapshot_width = body.image_width
     cam.snapshot_height = body.image_height
-    # M2: populate new calibration health columns.
+    # Populate calibration health columns.
     cam.homography_matrix = matrix
     cam.homography_residual_m = max_residual
     cam.homography_method = "manual"

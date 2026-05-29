@@ -1,4 +1,4 @@
-"""Transit zones CRUD endpoints (M2)."""
+"""Transit zones CRUD endpoints."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ async def create_transit_zone(
     cts_enabled()
     svc = TransitZoneService(db)
 
-    # WTR5: centralized polygon and room reference validation.
+    # Centralized polygon and room reference validation.
     from backend.services.cts.transit_zone_service import validate_transit_zone_polygon
 
     errors = validate_transit_zone_polygon(
@@ -104,16 +104,22 @@ async def update_transit_zone(
     cts_enabled()
     svc = TransitZoneService(db)
 
-    # WTR5: validate polygon fields if any geometry-related fields are updated.
+    # Validate polygon fields if any geometry-related fields are updated.
     from backend.services.cts.transit_zone_service import validate_transit_zone_polygon
 
-    if body.polygon is not None or body.inside_room_id is not None or body.outside_room_id is not None:
+    if (
+        body.polygon is not None
+        or body.inside_room_id is not None
+        or body.outside_room_id is not None
+    ):
         existing = svc.get_zone(zone_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Transit zone not found")
         poly = body.polygon if body.polygon is not None else existing.polygon
         inside = body.inside_room_id if body.inside_room_id is not None else existing.inside_room_id
-        outside = body.outside_room_id if body.outside_room_id is not None else existing.outside_room_id
+        outside = (
+            body.outside_room_id if body.outside_room_id is not None else existing.outside_room_id
+        )
         dir_vec = body.direction_vec if body.direction_vec is not None else existing.direction_vec
         errors = validate_transit_zone_polygon(
             polygon=poly,

@@ -24,7 +24,7 @@ class Room(Base):
     floor_polygon: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())
 
-    # M2: camera-blind room support
+    # Camera-blind room support
     has_camera: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("TRUE"))
     inferred_dwell_alert_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

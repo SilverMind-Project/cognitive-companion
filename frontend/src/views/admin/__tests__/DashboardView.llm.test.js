@@ -236,6 +236,61 @@ describe("DashboardView — LLM health cards", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Describe block: verify Tracking Orchestrator health statuses
+// ---------------------------------------------------------------------------
+describe("DashboardView — Tracking Orchestrator health", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.getRooms.mockResolvedValue([]);
+    api.getSensors.mockResolvedValue([]);
+    api.getRules.mockResolvedValue([]);
+    api.getAlerts.mockResolvedValue([]);
+    api.getOccupancy.mockResolvedValue({ occupancy: {} });
+    api.getPersonLocations.mockResolvedValue([]);
+    api.health.mockResolvedValue({ status: "ok", version: "1.0" });
+    api.personIdHealth.mockResolvedValue({ configured: false });
+    api.ttsHealth.mockResolvedValue({ configured: false });
+    api.sceneAnalysisHealth.mockResolvedValue({ configured: false });
+    api.semanticMemoryHealth.mockResolvedValue({ configured: false });
+    api.tritonHealth.mockResolvedValue({ configured: false });
+    api.llmHealth.mockResolvedValue([]);
+  });
+
+  it("marks Tracking Orchestrator as ok:false when status is 'running' (must be 'healthy')", async () => {
+    api.trackingOrchestratorHealth.mockResolvedValue({ configured: true, status: "running", version: "0.1.0" });
+    const wrapper = await mountDashboard();
+    const hs = getHealthServices(wrapper);
+    const services = hs.value ?? hs;
+    const toCard = services.find((s) => s.name === "Tracking Orchestrator");
+    expect(toCard).toBeDefined();
+    expect(toCard.ok).toBe(false);
+    expect(toCard.detail).toBe("running · v0.1.0");
+  });
+
+  it("marks Tracking Orchestrator as ok:true when status is 'healthy'", async () => {
+    api.trackingOrchestratorHealth.mockResolvedValue({ configured: true, status: "healthy", version: "0.1.0" });
+    const wrapper = await mountDashboard();
+    const hs = getHealthServices(wrapper);
+    const services = hs.value ?? hs;
+    const toCard = services.find((s) => s.name === "Tracking Orchestrator");
+    expect(toCard).toBeDefined();
+    expect(toCard.ok).toBe(true);
+    expect(toCard.detail).toBe("healthy · v0.1.0");
+  });
+
+  it("marks Tracking Orchestrator as ok:false when status is 'unreachable'", async () => {
+    api.trackingOrchestratorHealth.mockResolvedValue({ configured: true, status: "unreachable" });
+    const wrapper = await mountDashboard();
+    const hs = getHealthServices(wrapper);
+    const services = hs.value ?? hs;
+    const toCard = services.find((s) => s.name === "Tracking Orchestrator");
+    expect(toCard).toBeDefined();
+    expect(toCard.ok).toBe(false);
+    expect(toCard.detail).toBe("Unreachable");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Separate describe block: verify the real api.js implementation
 // ---------------------------------------------------------------------------
 describe("api.js — llmHealth method", () => {

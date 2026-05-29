@@ -640,7 +640,7 @@ class KnowledgeDeliveryService:
             if session and session.status != status:
                 session.status = status
                 db.commit()
-        except Exception:
+        except Exception:  # noqa: BLE001
             db.rollback()
         finally:
             db.close()

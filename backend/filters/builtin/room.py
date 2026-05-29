@@ -1,4 +1,4 @@
-"""Room context filter -- match rule to specific rooms (M4/R2: PersonLocationService SSOT)."""
+"""Room context filter: match rule to specific rooms using PersonLocationService."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ class RoomFilter(ContextFilter):
         if not person_id:
             return False
 
-        # R2: PersonLocationService is the SSOT.  Fail closed when unavailable.
+        # PersonLocationService is the SSOT.  Fail closed when unavailable.
         if not (services and getattr(services, "person_location", None)):
             cts_filter_degraded_total.labels(filter=_FILTER_NAME).inc()
             logger.warning(

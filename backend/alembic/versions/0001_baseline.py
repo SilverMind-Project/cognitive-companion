@@ -4,9 +4,11 @@ Revision ID: 0001_baseline
 Revises: None
 Create Date: 2026-05-28
 
-Squashes all 21 incremental migrations into a single baseline representing
-the final schema state. downgrade() is intentionally a no-op; this is a
-dev-stage app where rollbacks are not required.
+Squashes all 23 incremental migrations (including 0002_presence_segment_quality
+and 0003_ph_native_ids) into a single baseline representing the final schema
+state. downgrade() is intentionally a no-op; this is a dev-stage app where
+rollbacks are not required. Drop and recreate the database when migrating from
+an older chain.
 """
 
 from __future__ import annotations
@@ -153,9 +155,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_cts_cameras_name"), "cts_cameras", ["name"], unique=False)
     op.create_index("ix_cts_cameras_room_id", "cts_cameras", ["room_id"])
     # FK added after rooms table is created
-    op.create_foreign_key(
-        "fk_cts_cameras_room_id", "cts_cameras", "rooms", ["room_id"], ["id"]
-    )
+    op.create_foreign_key("fk_cts_cameras_room_id", "cts_cameras", "rooms", ["room_id"], ["id"])
 
     # -- cts_dementia_signals -------------------------------------------------
     # Reflects final state after 0004 (signal_id, algorithm_version added).
@@ -376,9 +376,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["rule_id"], ["rules.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_pipeline_steps_rule_id"), "pipeline_steps", ["rule_id"], unique=False
-    )
+    op.create_index(op.f("ix_pipeline_steps_rule_id"), "pipeline_steps", ["rule_id"], unique=False)
 
     # -- workflow_executions --------------------------------------------------
     op.create_table(
@@ -666,7 +664,7 @@ def upgrade() -> None:
         sa.Column("from_room_id", sa.Integer(), nullable=True),
         sa.Column("from_room_name", sa.String(length=128), nullable=True),
         sa.Column("superseded_by_revision_id", sa.String(length=64), nullable=True),
-        sa.Column("global_track_id", sa.String(length=128), nullable=True),
+        sa.Column("ph_id", sa.String(length=128), nullable=True),
         sa.ForeignKeyConstraint(["from_room_id"], ["rooms.id"]),
         sa.ForeignKeyConstraint(["person_id"], ["household_members.id"]),
         sa.ForeignKeyConstraint(["room_id"], ["rooms.id"]),
@@ -679,9 +677,9 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_person_location_history_global_track_id"),
+        op.f("ix_person_location_history_ph_id"),
         "person_location_history",
-        ["global_track_id"],
+        ["ph_id"],
         unique=False,
     )
     op.create_index(
@@ -870,15 +868,9 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_media_cache_captured_at"), "media_cache", ["captured_at"], unique=False
     )
-    op.create_index(
-        op.f("ix_media_cache_expires_at"), "media_cache", ["expires_at"], unique=False
-    )
-    op.create_index(
-        op.f("ix_media_cache_object_name"), "media_cache", ["object_name"], unique=True
-    )
-    op.create_index(
-        op.f("ix_media_cache_sensor_id"), "media_cache", ["sensor_id"], unique=False
-    )
+    op.create_index(op.f("ix_media_cache_expires_at"), "media_cache", ["expires_at"], unique=False)
+    op.create_index(op.f("ix_media_cache_object_name"), "media_cache", ["object_name"], unique=True)
+    op.create_index(op.f("ix_media_cache_sensor_id"), "media_cache", ["sensor_id"], unique=False)
 
     # -- knowledge_documents --------------------------------------------------
     op.create_table(
@@ -1215,9 +1207,7 @@ def upgrade() -> None:
         sa.Column(
             "source_document_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False
         ),
-        sa.Column(
-            "source_chunk_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False
-        ),
+        sa.Column("source_chunk_ids", sa.ARRAY(sa.Integer()), server_default="{}", nullable=False),
         sa.Column("top_similarity", sa.Float(), nullable=True),
         sa.Column("answered_via", sa.Text(), nullable=False),
         sa.Column("channel", sa.Text(), nullable=False),
@@ -1229,7 +1219,7 @@ def upgrade() -> None:
     op.create_table(
         "cts_identity_revision_log",
         sa.Column("revision_id", sa.String(128), primary_key=True),
-        sa.Column("global_track_id", sa.String(128), nullable=False),
+        sa.Column("ph_id", sa.String(128), nullable=False),
         sa.Column("previous_identity_id", sa.String(128), nullable=True),
         sa.Column("new_identity_id", sa.String(128), nullable=True),
         sa.Column("actor", sa.String(128), nullable=False),
@@ -1250,9 +1240,9 @@ def upgrade() -> None:
         [sa.text("applied_at DESC")],
     )
     op.create_index(
-        "ix_cts_identity_revision_log_gt_applied",
+        "ix_cts_identity_revision_log_ph_applied",
         "cts_identity_revision_log",
-        ["global_track_id", sa.text("applied_at DESC")],
+        ["ph_id", sa.text("applied_at DESC")],
     )
     op.create_index(
         "ix_cts_identity_revision_log_kind_applied",
@@ -1416,10 +1406,9 @@ def upgrade() -> None:
         sa.Column("exit_source", sa.String(32), nullable=True),
         sa.Column("confidence", sa.Float(), nullable=False, server_default="0.5"),
         sa.Column("last_observed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "superseded_by", UUID, sa.ForeignKey("presence_segments.id"), nullable=True
-        ),
+        sa.Column("superseded_by", UUID, sa.ForeignKey("presence_segments.id"), nullable=True),
         sa.Column("metadata", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
+        sa.Column("quality", sa.Float(), nullable=False, server_default="0.0"),
     )
     op.create_index(
         "idx_ps_person_open",

@@ -1,4 +1,4 @@
-"""Pure decision functions for opening, closing, and superseding segments (M4).
+"""Pure decision functions for opening, closing, and superseding segments.
 
 Each function takes the current persistence state plus an incoming event,
 and returns a SegmentDecision describing the writes to perform. The service
@@ -34,6 +34,7 @@ class IncomingEvent:
     at: datetime
     confidence: float
     source_ref: str | None = None
+    quality: float = 0.0
     metadata: dict[str, object] = field(default_factory=dict)
 
 
@@ -145,6 +146,7 @@ def decide(
             entry_source=open_segment.entry_source,
             exit_source=open_segment.exit_source,
             confidence=open_segment.confidence,
+            quality=open_segment.quality,
             last_observed_at=open_segment.last_observed_at,
             superseded_by=None,
             metadata={**open_segment.metadata, "revised_from": str(open_segment.id)},
@@ -161,9 +163,7 @@ def _noop() -> SegmentDecision:
     return SegmentDecision()
 
 
-def _new_segment(
-    event: IncomingEvent, entry_source: EntrySource
-) -> PresenceSegment:
+def _new_segment(event: IncomingEvent, entry_source: EntrySource) -> PresenceSegment:
     return PresenceSegment(
         id=uuid4(),
         person_id=event.person_id,
@@ -173,6 +173,7 @@ def _new_segment(
         entry_source=entry_source,
         exit_source=None,
         confidence=event.confidence,
+        quality=event.quality,
         last_observed_at=event.at if event.kind == EventKind.OBSERVATION else None,
         superseded_by=None,
         metadata=dict(event.metadata),

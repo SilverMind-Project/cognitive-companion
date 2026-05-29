@@ -196,7 +196,7 @@ async def get_auth_context(
         try:
             body = await request.json()
             raw_key = body.get("device_key") or body.get("api_key")
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     if not raw_key:

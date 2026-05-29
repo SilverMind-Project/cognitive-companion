@@ -77,7 +77,7 @@ format:
 
 .PHONY: import-lint
 import-lint:
-	$(PY) -m importlinter --config backend/pyproject.toml
+	uv run --project backend lint-imports --config backend/pyproject.toml
 
 .PHONY: typecheck
 typecheck:

@@ -228,7 +228,7 @@ class ActivityDetectionHandler(StepHandler):
                     source_event_id=execution.event_log_id,
                     metadata=metadata or None,
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001
                 logger.warning(
                     "activity_record_failed",
                     person_id=person_id,

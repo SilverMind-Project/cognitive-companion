@@ -237,9 +237,10 @@ const navSections = [
     key: "automation",
     title: "Automation",
     items: [
-      { to: "/admin/rules", icon: "mdi-shield-check-outline", title: "Rules" },
-      { to: "/admin/workflows", icon: "mdi-sitemap-outline", title: "Workflows" },
-      { to: "/admin/events", icon: "mdi-calendar-text-outline", title: "Events" },
+      { to: "/admin/rules",     icon: "mdi-shield-check-outline", title: "Rules"     },
+      { to: "/admin/workflows", icon: "mdi-sitemap-outline",       title: "Workflows" },
+      { to: "/admin/events",    icon: "mdi-calendar-text-outline", title: "Events"    },
+      { to: "/admin/activity",  icon: "mdi-pulse",                 title: "Activity"  },
     ],
   },
   {
@@ -254,20 +255,20 @@ const navSections = [
   },
   {
     key: "tracking",
-    title: "Tracking (CTS)",
+    title: "Tracking",
     items: [
-      { to: "/admin/cts/dashboard", icon: "mdi-view-dashboard-outline", title: "Dashboard" },
-      { to: "/admin/cts/live", icon: "mdi-video-outline", title: "Live View" },
-      { to: "/admin/cts/floor-plan", icon: "mdi-floor-plan", title: "Floor Plan" },
-      { to: "/admin/cts/cameras", icon: "mdi-cctv", title: "Cameras" },
-      { to: "/admin/cts/calibration", icon: "mdi-crosshairs-gps", title: "Calibration" },
-      { to: "/admin/cts/privacy", icon: "mdi-eye-off-outline", title: "Privacy Zones" },
-      { to: "/admin/cts/adjacency", icon: "mdi-graph-outline", title: "Camera Adjacency" },
-      { to: "/admin/cts/people", icon: "mdi-account-group-outline", title: "People & Hypotheses" },
-      { to: "/admin/cts/keyframes", icon: "mdi-image-search-outline", title: "Keyframes" },
-      { to: "/admin/cts/presence", icon: "mdi-map-marker-radius", title: "Presence Fusion" },
-      { to: "/admin/medical/signals", icon: "mdi-chart-bar", title: "Signal Explorer" },
-      { to: "/admin/medical/reports/weekly", icon: "mdi-file-document-outline", title: "Weekly Report" },
+      { to: "/admin/tracking", icon: "mdi-view-dashboard-variant-outline", title: "Tracking Workspace" },
+    ],
+  },
+  {
+    key: "tracking-setup",
+    title: "Tracking - Setup",
+    items: [
+      { to: "/admin/cts/cameras",     icon: "mdi-cctv",                   title: "Cameras"         },
+      { to: "/admin/cts/calibration", icon: "mdi-crosshairs-gps",         title: "Calibration"     },
+      { to: "/admin/cts/privacy",     icon: "mdi-eye-off-outline",         title: "Privacy Zones"   },
+      { to: "/admin/cts/adjacency",   icon: "mdi-graph-outline",           title: "Camera Adjacency"},
+      { to: "/admin/cts/keyframes",   icon: "mdi-image-search-outline",    title: "Keyframes"       },
     ],
   },
   {

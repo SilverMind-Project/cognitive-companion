@@ -110,7 +110,7 @@ class PluginRegistry(Generic[T_co, M]):  # noqa: UP046
             ):
                 try:
                     importlib.import_module(module_name)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning(
                         "plugin_discovery_failed",
                         registry=cls.__name__,

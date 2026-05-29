@@ -32,13 +32,13 @@ def _make_event(
 def _make_detection(
     *,
     identity_id: str = "person-1",
-    global_track_id: str = "gt-001",
+    ph_id: str = "gt-001",
     identity_confidence: float = 0.9,
 ) -> dict:
     return {
         "id": "det-1",
-        "tracklet_id": "tl-1",
-        "global_track_id": global_track_id,
+        "detection_id": "tl-1",
+        "ph_id": ph_id,
         "identity_id": identity_id,
         "identity_confidence": identity_confidence,
         "confidence": 0.95,
@@ -162,8 +162,8 @@ class TestLocationWriter:
         await writer.apply(
             _make_event(
                 detections=[
-                    _make_detection(identity_id="alice", global_track_id="gt-1"),
-                    _make_detection(identity_id="bob", global_track_id="gt-2"),
+                    _make_detection(identity_id="alice", ph_id="gt-1"),
+                    _make_detection(identity_id="bob", ph_id="gt-2"),
                 ]
             )
         )

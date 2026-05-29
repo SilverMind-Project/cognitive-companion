@@ -15,6 +15,16 @@ vi.mock("@/composables/useNotify", () => ({
 
 vi.mock("vue-router", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
+const stubs = {
+  "v-card": { template: '<div class="v-card"><slot /></div>' },
+};
+
+function mountPanel() {
+  return mount(CalibrationHealthPanel, {
+    global: { stubs },
+  });
+}
+
 describe("CalibrationHealthPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -27,7 +37,7 @@ describe("CalibrationHealthPanel", () => {
     const localStorageSpy = vi.spyOn(Storage.prototype, "getItem");
     const globalFetchSpy = vi.spyOn(globalThis, "fetch");
 
-    mount(CalibrationHealthPanel, { global: { stubs: { "v-card": true, "v-img": true } } });
+    mountPanel();
     await flushPromises();
 
     expect(mockGetCalibrationHealth).toHaveBeenCalledOnce();
@@ -40,7 +50,7 @@ describe("CalibrationHealthPanel", () => {
       { camera_id: "cam-1", severity: "ok", code: null, residual_m: null },
       { camera_id: "cam-2", severity: "warning", code: "low_coverage", residual_m: 0.05 },
     ]);
-    const wrapper = mount(CalibrationHealthPanel);
+    const wrapper = mountPanel();
     await flushPromises();
 
     expect(wrapper.find("[data-testid='calibration-dot-cam-1']").exists()).toBe(true);
@@ -49,7 +59,7 @@ describe("CalibrationHealthPanel", () => {
 
   it("calls notify.error when service throws", async () => {
     mockGetCalibrationHealth.mockRejectedValue(new Error("upstream down"));
-    mount(CalibrationHealthPanel);
+    mountPanel();
     await flushPromises();
 
     expect(notifyError).toHaveBeenCalledWith("upstream down");

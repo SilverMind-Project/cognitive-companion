@@ -91,7 +91,7 @@ async def get_all_locations(
     return locations
 
 
-# M4: deprecated — use GET /api/v1/persons/{id}/location instead.
+# DEPRECATED: use GET /api/v1/persons/{id}/location instead.
 @router.get(
     "/cts/person-location",
     status_code=410,

@@ -40,8 +40,7 @@ def _make_event(
     det = ev.detections.add(
         detection_id="det-0",
         confidence=0.92,
-        tracklet_id="t-1",
-        global_track_id="gt-1",
+        ph_id="gt-1",
     )
     det.bbox.x_min, det.bbox.y_min = 10, 20
     det.bbox.x_max, det.bbox.y_max = 110, 220
@@ -49,10 +48,10 @@ def _make_event(
     det.floor_point.y_mm = 2000
     det.floor_point.calibrated = True
     if identity_id:
-        rev = ev.identity_revisions.add()
-        rev.ph_id = "gt-1"
-        rev.map_identity_id = identity_id
-        rev.candidates.add(identity_id=identity_id, probability=confidence)
+        snap = ev.identity_snapshots.add()
+        snap.ph_id = "gt-1"
+        snap.identity_id = identity_id
+        snap.top_probability = confidence
     return ev
 
 

@@ -17,8 +17,7 @@ from backend.services.cts.scene_sample_subscriber import SceneSampleSubscriber
 def _make_sample_proto(**overrides) -> scene_pb2.SceneSample:
     sample = scene_pb2.SceneSample()
     sample.keyframe_id = overrides.get("keyframe_id", "kf-001")
-    sample.tracklet_id = overrides.get("tracklet_id", "trk-001")
-    sample.global_track_id = overrides.get("global_track_id", "gtrk-001")
+    sample.ph_id = overrides.get("ph_id", "ph-001")
     sample.camera_id = overrides.get("camera_id", "cam-kitchen")
     sample.minio_key = overrides.get("minio_key", "keyframes/cam-kitchen/kf-001.jpg")
     sample.captured_at_unix_ns = overrides.get("captured_at_unix_ns", 1715000000000000000)

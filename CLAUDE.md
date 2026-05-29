@@ -26,6 +26,24 @@ Privacy-first, on-premise AI for senior care. Python 3.14 FastAPI backend, Vue 3
 
 ---
 
+## Python virtual environment
+
+**Always use the project venv at `backend/.venv/`; never invoke the system Python directly.** The Makefile targets activate it automatically. For one-off commands:
+
+```bash
+# Activate
+source backend/.venv/bin/activate
+
+# Or run directly without activating
+backend/.venv/bin/python -m pytest backend/tests/...
+backend/.venv/bin/python -c "import backend"
+
+# Sync dependencies after pyproject.toml changes
+cd backend && uv sync --frozen --extra dev
+```
+
+---
+
 ## Commands
 
 ```bash
@@ -72,7 +90,7 @@ uv run --project backend python -m backend.steps._scaffold new <type_name> --cat
 - **Permissions are mandatory.** Every endpoint needs an `auth.yaml` entry. Tests override `get_auth_context`, not `require_permission`.
 - **Datetimes are timezone-aware.** Use `datetime.now(UTC)`. External datetimes pass through `backend.core.time.normalize_utc_datetime()`.
 - **Shared PostgreSQL.** The database host, port, user, password, and name come from `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` env vars. The shared `timescale/timescaledb-ha:pg18` instance hosts three databases: `cognitive_companion`, `continuous_tracking`, `semantic_memory`. Dev: `docker compose --profile standalone up -d` for a self-contained Postgres, or use the shared `docker-compose.db.yml` via `include`.
-- **CTS surface is isolated.** Don't write CTS tables outside `services/cts/`. Don't import `_upstream_base` from non-CTS code. Don't subscribe to `tracking.*` or `scene.*` streams outside `CTSRuntime`. Don't duplicate `_cts_enabled()` — import from `backend.routers.cts_deps`. Don't duplicate `ns_to_iso` or `parse_ts` — import from `backend.services.cts._time`. Use protocol types from `backend.services.cts._types` for injected service parameters; never `Any`. Don't hardcode signal kind strings — import `ALL_SIGNAL_KINDS` from `backend.services.cts.signal_config`.
+- **CTS surface is isolated.** Don't write CTS tables outside `services/cts/`. Don't import `_upstream_base` from non-CTS code. Don't subscribe to `tracking.*` or `scene.*` streams outside `CTSRuntime`. Don't duplicate `_cts_enabled()`: import from `backend.routers.cts_deps`. Don't duplicate `ns_to_iso` or `parse_ts`: import from `backend.services.cts._time`. Use protocol types from `backend.services.cts._types` for injected service parameters; never `Any`. Don't hardcode signal kind strings: import `ALL_SIGNAL_KINDS` from `backend.services.cts.signal_config`.
 - **No em-dashes in `.md` files.** Use colons, commas, semicolons.
 - **Template expressions use `{{ }}` syntax everywhere.** The Lark-based grammar in `backend/core/template_grammar.lark` is the single evaluator. Bare expressions (no braces) are not supported. JMESPath uses pipe syntax: `steps.foo.outputs.detections | length(@)`.
 - **Plugins declare their output schema.** Every data-emitting step handler must include `output_schema` in its `StepMetadata`. The contract tests in `backend/tests/steps/test_registry_contract.py` enforce this.

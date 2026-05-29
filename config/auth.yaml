@@ -87,6 +87,7 @@ permission_map:
     - "GET /api/v1/activities*"
     - "GET /api/v1/workflows*"
     - "GET /ws/cts"
+    - "GET /ws/pipeline"
     # CTS read-only permissions
     - "cts.view"
     # CTS identity: view PH data (N2)
@@ -126,6 +127,7 @@ permission_map:
     - "POST /api/v1/cts/identity/*"
     - "GET /api/v1/activities*"
     - "GET /ws/cts"
+    - "GET /ws/pipeline"
     # CTS permissions for caregiver admin
     - "cts.view"
     # CTS identity PH surface (N2)

@@ -200,7 +200,7 @@ class InteractivePromptHandler(StepHandler):
                     pipeline_data,
                     trigger_vars,
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "interactive_prompt_template_error",
                 execution_id=execution.id,
@@ -318,7 +318,7 @@ class InteractivePromptHandler(StepHandler):
                                 "step_id": step.id,
                             }
                         )
-                    except Exception as broadcast_error:
+                    except Exception as broadcast_error:  # noqa: BLE001
                         logger.error(
                             "interactive_prompt_enable_mic_error",
                             execution_id=execution.id,
@@ -378,7 +378,7 @@ class InteractivePromptHandler(StepHandler):
                     step_id=step.id,
                     timeout_at=timeout_timestamp.isoformat(),
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(
                     "interactive_timeout_schedule_error",
                     execution_id=execution.id,
@@ -451,7 +451,7 @@ class InteractivePromptHandler(StepHandler):
                 step_id=step_id,
                 timeout_action=timeout_action,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(
                 "interactive_timeout_record_error",
                 execution_id=execution_id,

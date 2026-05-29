@@ -25,6 +25,7 @@ from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_session
 from backend.core.logging import get_logger
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
+from backend.observability.metrics import location_metrics
 from backend.routers.cts_deps import cts_enabled
 
 logger = get_logger(__name__)
@@ -219,7 +220,12 @@ async def unacknowledged_count(
     _auth: AuthContext = Depends(require_permission("cts.signals.view")),
     client: OrchestratorClient = Depends(_get_orchestrator_client),
 ) -> dict:
-    """Return count of unacknowledged signals for the alert ticker."""
+    """Return count of unacknowledged signals for the alert ticker.
+
+    Replaces the silent except-swallow (return {"count": 0}) with an
+    explicit 503 so the UI can render a clear "tracking offline" state
+    rather than a misleading zero.
+    """
     cts_enabled()
     try:
         data = await client.get_dashboard_signals(
@@ -229,5 +235,17 @@ async def unacknowledged_count(
         signals = data.get("signals", [])
         unacked = [s for s in signals if not s.get("acknowledged_at")]
         return {"count": len(unacked), "signals": unacked[:5]}
-    except Exception:
-        return {"count": 0, "signals": []}
+    except Exception as exc:
+        location_metrics.cts_orchestrator_unavailable_total.labels(
+            endpoint="unacknowledged_count"
+        ).inc()
+        logger.warning(
+            "cts_orchestrator_unavailable", endpoint="unacknowledged_count", error=str(exc)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "cts.orchestrator_unavailable",
+                "message": "CTS orchestrator is unreachable. Tracking data is temporarily unavailable.",
+            },
+        ) from exc

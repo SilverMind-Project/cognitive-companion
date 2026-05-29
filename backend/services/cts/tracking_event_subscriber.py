@@ -108,11 +108,11 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 metrics.cts_events_stale_dropped.inc()
                 return None
 
-        # WTR3/R3: build identity map from identity_snapshots (field 8),
+        # Build identity map from identity_snapshots (field 8),
         # not the deprecated identity_revisions (field 5).
         identity_by_ph: dict[str, tuple[str, float, str]] = {}
         for snap in message.identity_snapshots:
-            ph_id = snap.ph_id  # R3: field renamed from global_track_id in proto
+            ph_id = snap.ph_id  # ph_id is the physical-track identifier
             if not ph_id:
                 continue
             identity_by_ph[ph_id] = (
@@ -121,42 +121,16 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 snap.identity_id,  # display_name
             )
 
-        # Fallback: read from deprecated identity_revisions for old orchestrators.
-        if not identity_by_ph:
-            for revision in message.identity_revisions:
-                track_key = revision.ph_id
-                if not track_key or not revision.map_identity_id:
-                    continue
-                matched = next(
-                    (c for c in revision.candidates if c.identity_id == revision.map_identity_id),
-                    None,
-                )
-                confidence = float(matched.probability) if matched else 0.0
-                display_name = (
-                    matched.display_name
-                    if (matched and matched.display_name)
-                    else revision.map_identity_id
-                )
-                identity_by_ph[track_key] = (
-                    revision.map_identity_id,
-                    confidence,
-                    display_name,
-                )
-
         detections: list[dict[str, Any]] = []
         for det in message.detections:
-            # Detection.global_track_id is a deprecated wire alias for ph_id,
-            # still populated by older orchestrators during the transition.
-            ph_id = det.global_track_id
-            identity_id, identity_conf, display_name = identity_by_ph.get(
-                ph_id, ("", 0.0, "")
-            )
+            ph_id = det.ph_id
+            identity_id, identity_conf, display_name = identity_by_ph.get(ph_id, ("", 0.0, ""))
             calibrated = det.floor_point.calibrated
             detections.append(
                 {
                     "id": det.detection_id,
+                    "detection_id": det.detection_id,
                     "ph_id": ph_id,
-                    "tracklet_id": det.tracklet_id,
                     "identity_id": identity_id or None,
                     "display_name": display_name or None,
                     "identity_confidence": identity_conf,
@@ -196,7 +170,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             if snap.identity_id:
                 identity_snapshots.append(
                     {
-                        "ph_id": snap.ph_id,  # R3: field renamed from global_track_id
+                        "ph_id": snap.ph_id,  # physical-track identifier
                         "identity_id": snap.identity_id,
                         "top_probability": snap.top_probability,
                         "second_probability": snap.second_probability,
@@ -302,9 +276,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                             await self._ws_manager.broadcast(p)
 
                     task = asyncio.create_task(_emit())
-                    task.add_done_callback(
-                        lambda t, pid=ph_id: self._ph_pending.pop(pid, None)
-                    )
+                    task.add_done_callback(lambda t, pid=ph_id: self._ph_pending.pop(pid, None))
                     self._ph_pending[ph_id] = task
             except Exception:
                 logger.exception("cts_ph_update_broadcast_error")
@@ -339,7 +311,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         return True
 
     def _build_ph_entries(self, event: dict[str, Any]) -> list[dict[str, Any]]:
-        """Build PH position entries from tracking event detections (WTR3)."""
+        """Build PH position entries from tracking event detections."""
         identity_map: dict[str, dict[str, Any]] = {}
         for snap in event.get("identity_snapshots", []):
             identity_map[snap.get("ph_id", "")] = {
@@ -350,7 +322,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             }
         phs: list[dict[str, Any]] = []
         for det in event.get("detections", []):
-            # R3: ph_id is the canonical PH identifier.
+            # ph_id is the canonical PH identifier.
             ph_id = det.get("ph_id", "")
             identity = identity_map.get(ph_id, {})
             calibrated = det.get("floor_calibrated", False)

@@ -66,7 +66,7 @@ class IdentityRewriter:
     async def apply(self, revision: dict[str, Any]) -> dict[str, Any]:
         """Apply one revision dict.  Returns a summary dict with row counts."""
         revision_id = revision["revision_id"]
-        global_track_id = revision.get("global_track_id") or None
+        ph_id = revision.get("ph_id") or None
         previous_identity_id = revision.get("previous_identity_id") or None
         new_identity_id = revision.get("new_identity_id") or None
         applied_at = parse_ts(revision.get("revision_time"))
@@ -76,7 +76,7 @@ class IdentityRewriter:
 
         db = self._db_factory()
         try:
-            if not previous_identity_id and not global_track_id:
+            if not previous_identity_id and not ph_id:
                 # Nothing to rewrite; must know either who the prior identity
                 # was or which global track carried the rewritten rows.
                 return {"revision_id": revision_id, "rewritten": 0, "inserted": 0}
@@ -88,8 +88,8 @@ class IdentityRewriter:
                 # Scope to the prior identity so we never rewrite the rows we
                 # inserted for ``new_identity_id`` on an earlier pass.
                 query = query.filter(PersonLocationHistory.person_id == previous_identity_id)
-            if global_track_id:
-                query = query.filter(PersonLocationHistory.global_track_id == global_track_id)
+            if ph_id:
+                query = query.filter(PersonLocationHistory.ph_id == ph_id)
 
             affected = query.all()
             rewritten = 0
@@ -111,7 +111,7 @@ class IdentityRewriter:
                             direction_semantic=row.direction_semantic,
                             from_room_id=row.from_room_id,
                             from_room_name=row.from_room_name,
-                            global_track_id=row.global_track_id,
+                            ph_id=row.ph_id,
                         )
                     )
                     inserted += 1
@@ -161,7 +161,7 @@ class IdentityRewriter:
             _upsert_revision_log(
                 db,
                 revision_id=revision_id,
-                global_track_id=global_track_id or "",
+                ph_id=ph_id or "",
                 previous_identity_id=previous_identity_id,
                 new_identity_id=new_identity_id,
                 actor="cts_resolver",
@@ -186,7 +186,7 @@ class IdentityRewriter:
         logger.info(
             "cts_identity_revision_applied",
             revision_id=revision_id,
-            global_track_id=global_track_id,
+            ph_id=ph_id,
             previous_identity_id=previous_identity_id,
             new_identity_id=new_identity_id,
             rewritten=rewritten,
@@ -199,13 +199,15 @@ class IdentityRewriter:
                     {
                         "type": "cts_identity_revision",
                         "revision_id": revision_id,
-                        "global_track_id": global_track_id,
+                        "ph_id": ph_id,
                         "previous_identity_id": previous_identity_id,
                         "new_identity_id": new_identity_id,
                         "rewritten": rewritten,
                     }
                 )
-            except Exception:
+            except (
+                Exception
+            ):  # WS broadcast is a non-required side-effect; failure must not undo the DB revision
                 logger.exception("cts_identity_revision_ws_error")
 
         return {
@@ -219,7 +221,7 @@ def _upsert_revision_log(
     db: Session,
     *,
     revision_id: str,
-    global_track_id: str,
+    ph_id: str,
     previous_identity_id: str | None,
     new_identity_id: str | None,
     actor: str,
@@ -236,7 +238,7 @@ def _upsert_revision_log(
     """
     stmt = pg_insert(CtsIdentityRevisionLog).values(
         revision_id=revision_id,
-        global_track_id=global_track_id,
+        ph_id=ph_id,
         previous_identity_id=previous_identity_id,
         new_identity_id=new_identity_id,
         actor=actor,

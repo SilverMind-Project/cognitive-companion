@@ -81,7 +81,7 @@ def _eval_path(node: PathNode, data: Mapping[str, Any]) -> Any:
     if node.jmespath and value is not None:
         try:
             return jmespath.search(node.jmespath, value)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     return value
@@ -91,7 +91,7 @@ def _eval_jmespath(expression: str, data: Any) -> Any:
     """Evaluate a raw JMESPath expression against data."""
     try:
         return jmespath.search(expression.strip(), data)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
 
 

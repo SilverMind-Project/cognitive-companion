@@ -248,7 +248,7 @@ async function loadData() {
     } else {
       const st = to.status || "unknown";
       const ver = to.version ? ` · v${to.version}` : "";
-      services.push({ name: "Tracking Orchestrator", ok: st === "running", detail: `${st}${ver}` });
+      services.push({ name: "Tracking Orchestrator", ok: st === "healthy", detail: `${st}${ver}` });
     }
   } catch {
     services.push({ name: "Tracking Orchestrator", ok: false, detail: "Unreachable" });

@@ -1,4 +1,4 @@
-"""Repositories for location observations and presence segments (M4).
+"""Repositories for location observations and presence segments.
 
 Protocol + InMemory triplet following project pattern.
 """
@@ -92,9 +92,7 @@ class InMemorySegmentRepository:
     async def get_by_id(self, segment_id: UUID) -> PresenceSegment | None:
         return self._rows.get(segment_id)
 
-    async def close_segment(
-        self, segment_id: UUID, exited_at: datetime, exit_source: str
-    ) -> None:
+    async def close_segment(self, segment_id: UUID, exited_at: datetime, exit_source: str) -> None:
         seg = self._rows.get(segment_id)
         if seg is not None:
             self._rows[segment_id] = PresenceSegment(
@@ -106,6 +104,7 @@ class InMemorySegmentRepository:
                 entry_source=seg.entry_source,
                 exit_source=exit_source,
                 confidence=seg.confidence,
+                quality=seg.quality,
                 last_observed_at=seg.last_observed_at,
                 superseded_by=seg.superseded_by,
                 metadata=seg.metadata,
@@ -221,6 +220,7 @@ class SqlAlchemySegmentRepository:
             entry_source=seg.entry_source,
             exit_source=seg.exit_source,
             confidence=seg.confidence,
+            quality=seg.quality,
             last_observed_at=seg.last_observed_at,
             superseded_by=seg.superseded_by,
             metadata_json=dict(seg.metadata),
@@ -235,6 +235,7 @@ class SqlAlchemySegmentRepository:
         row.exited_at = seg.exited_at
         row.exit_source = seg.exit_source
         row.confidence = seg.confidence
+        row.quality = seg.quality
         row.last_observed_at = seg.last_observed_at
         row.superseded_by = str(seg.superseded_by) if seg.superseded_by else None
         row.metadata_json = dict(seg.metadata)
@@ -244,9 +245,7 @@ class SqlAlchemySegmentRepository:
         row = self._db.get(PSeg, segment_id)
         return _seg_to_domain(row) if row else None
 
-    async def close_segment(
-        self, segment_id: UUID, exited_at: datetime, exit_source: str
-    ) -> None:
+    async def close_segment(self, segment_id: UUID, exited_at: datetime, exit_source: str) -> None:
         row = self._db.get(PSeg, segment_id)
         if row is not None:
             row.exited_at = exited_at
@@ -358,6 +357,7 @@ def _seg_to_domain(row: PSeg) -> PresenceSegment:
         entry_source=row.entry_source,
         exit_source=row.exit_source,
         confidence=row.confidence,
+        quality=float(getattr(row, "quality", 0.0) or 0.0),
         last_observed_at=row.last_observed_at,
         superseded_by=UUID(str(row.superseded_by)) if row.superseded_by else None,
         metadata=row.metadata_json or {},

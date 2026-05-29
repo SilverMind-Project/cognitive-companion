@@ -1,6 +1,8 @@
 """WTR4: RoomTransitionSubscriber tests."""
+
 from __future__ import annotations
 
+import inspect
 from datetime import UTC, datetime
 
 import pytest
@@ -24,6 +26,60 @@ def _make_service() -> PersonLocationService:
     )
 
 
+def test_decode_returns_message_not_coroutine():
+    """Regression: StreamConsumer calls decode synchronously before handle."""
+    subscriber = RoomTransitionSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=_make_service(),
+    )
+
+    decoded = subscriber.decode(
+        b"msg-1",
+        {
+            b"ph_id": b"ph-1",
+            b"identity_id": b"alice",
+            b"transit_zone_id": b"tz-1",
+            b"direction": b"enter",
+            b"inside_room_id": b"3",
+            b"outside_room_id": b"5",
+            b"floor_x_m": b"1.5",
+            b"floor_y_m": b"3.2",
+            b"event_time": b"2026-05-30T15:00:00+00:00",
+        },
+    )
+
+    assert not inspect.isawaitable(decoded)
+    assert decoded is not None
+    assert decoded["identity_id"] == "alice"
+    assert decoded["inside_room_id"] == 3
+
+
+def test_decode_accepts_string_field_keys_and_values():
+    """Decoder honors the StreamConsumer bytes-or-str field contract."""
+    subscriber = RoomTransitionSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=_make_service(),
+    )
+
+    decoded = subscriber.decode(
+        b"msg-1",
+        {
+            "ph_id": "ph-1",
+            "identity_id": "alice",
+            "transit_zone_id": "tz-1",
+            "direction": "enter",
+            "inside_room_id": "3",
+            "outside_room_id": "5",
+            "floor_x_m": "1.5",
+            "floor_y_m": "3.2",
+            "event_time": "2026-05-30T15:00:00+00:00",
+        },
+    )
+
+    assert decoded is not None
+    assert decoded["floor_x_m"] == 1.5
+
+
 @pytest.mark.asyncio
 async def test_known_identity_transition_updates_segment():
     """A room transition with identity_id creates an inferred segment."""
@@ -39,8 +95,8 @@ async def test_known_identity_transition_updates_segment():
         "identity_id": "alice",
         "transit_zone_id": "tz-1",
         "direction": "enter",
-        "inside_room_id": "3",
-        "outside_room_id": "5",
+        "inside_room_id": 3,
+        "outside_room_id": 5,
         "floor_x_m": 1.5,
         "floor_y_m": 3.2,
         "event_time": now,
@@ -68,8 +124,8 @@ async def test_unknown_ph_transition_is_skipped():
         "identity_id": None,
         "transit_zone_id": "tz-1",
         "direction": "enter",
-        "inside_room_id": "3",
-        "outside_room_id": "5",
+        "inside_room_id": 3,
+        "outside_room_id": 5,
         "floor_x_m": 1.5,
         "floor_y_m": 3.2,
         "event_time": datetime.now(UTC),

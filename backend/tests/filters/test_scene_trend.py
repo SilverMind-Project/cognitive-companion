@@ -89,7 +89,8 @@ class TestSceneTrendProlongedStay:
         """Should detect when person stayed in room > threshold."""
         now = datetime.now(UTC)
         seg = _seg(
-            room_id=1, room_name="bedroom",
+            room_id=1,
+            room_name="bedroom",
             entered_at=now - timedelta(minutes=60),
             exited_at=None,  # still there
         )
@@ -100,7 +101,9 @@ class TestSceneTrendProlongedStay:
                 "trend_type": "prolonged_stay",
                 "threshold_minutes": 30,
             },
-            sensor=None, now=now, services=svc,
+            sensor=None,
+            now=now,
+            services=svc,
         )
         assert result is True
 
@@ -108,7 +111,8 @@ class TestSceneTrendProlongedStay:
         """Should not detect when stay is below threshold."""
         now = datetime.now(UTC)
         seg = _seg(
-            room_id=1, room_name="bedroom",
+            room_id=1,
+            room_name="bedroom",
             entered_at=now - timedelta(minutes=20),
             exited_at=now - timedelta(minutes=10),
         )
@@ -119,19 +123,24 @@ class TestSceneTrendProlongedStay:
                 "trend_type": "prolonged_stay",
                 "threshold_minutes": 30,
             },
-            sensor=None, now=now, services=svc,
+            sensor=None,
+            now=now,
+            services=svc,
         )
         assert result is False
 
     async def test_prolonged_stay_filtered_by_room(self):
         """Should respect room_name filter for prolonged stay."""
         now = datetime.now(UTC)
-        s1 = _seg(room_id=1, room_name="kitchen",
-                   entered_at=now - timedelta(minutes=60),
-                   exited_at=None)
-        s2 = _seg(room_id=2, room_name="bedroom",
-                   entered_at=now - timedelta(minutes=15),
-                   exited_at=now - timedelta(minutes=5))
+        s1 = _seg(
+            room_id=1, room_name="kitchen", entered_at=now - timedelta(minutes=60), exited_at=None
+        )
+        s2 = _seg(
+            room_id=2,
+            room_name="bedroom",
+            entered_at=now - timedelta(minutes=15),
+            exited_at=now - timedelta(minutes=5),
+        )
         svc = _services(s1, s2)
         result = await FILTER.evaluate(
             config={
@@ -140,7 +149,9 @@ class TestSceneTrendProlongedStay:
                 "room_name": "bedroom",
                 "threshold_minutes": 30,
             },
-            sensor=None, now=now, services=svc,
+            sensor=None,
+            now=now,
+            services=svc,
         )
         assert result is False
 
@@ -151,23 +162,27 @@ class TestSceneTrendProlongedStay:
                 "room_name": "kitchen",
                 "threshold_minutes": 30,
             },
-            sensor=None, now=now, services=svc,
+            sensor=None,
+            now=now,
+            services=svc,
         )
         assert result2 is True
 
     async def test_prolonged_stay_missing_threshold(self):
         """Should return False when threshold_minutes is not provided."""
         now = datetime.now(UTC)
-        seg = _seg(room_id=1, room_name="bedroom",
-                    entered_at=now - timedelta(minutes=60),
-                    exited_at=None)
+        seg = _seg(
+            room_id=1, room_name="bedroom", entered_at=now - timedelta(minutes=60), exited_at=None
+        )
         svc = _services(seg)
         result = await FILTER.evaluate(
             config={
                 "person_id": "person123",
                 "trend_type": "prolonged_stay",
             },
-            sensor=None, now=now, services=svc,
+            sensor=None,
+            now=now,
+            services=svc,
         )
         assert result is False
 
@@ -182,7 +197,9 @@ class TestSceneTrendProlongedStay:
                 "trend_type": "prolonged_stay",
                 "threshold_minutes": 30,
             },
-            sensor=None, now=now, services=services,
+            sensor=None,
+            now=now,
+            services=services,
         )
         assert result is False
 
@@ -199,11 +216,14 @@ class TestSceneTrendFrequentVisits:
         now = datetime.now(UTC)
         segments = []
         for i in range(6):
-            segments.append(_seg(
-                room_id=1, room_name="bathroom",
-                entered_at=now - timedelta(minutes=(i * 10) + 5),
-                exited_at=now - timedelta(minutes=i * 10),
-            ))
+            segments.append(
+                _seg(
+                    room_id=1,
+                    room_name="bathroom",
+                    entered_at=now - timedelta(minutes=(i * 10) + 5),
+                    exited_at=now - timedelta(minutes=i * 10),
+                )
+            )
         svc = _services(*segments)
         result = await FILTER.evaluate(
             config={
@@ -213,7 +233,9 @@ class TestSceneTrendFrequentVisits:
                 "visit_count": 5,
                 "within_minutes": 60,
             },
-            sensor=None, now=now, services=svc,
+            sensor=None,
+            now=now,
+            services=svc,
         )
         assert result is True
 
@@ -222,11 +244,14 @@ class TestSceneTrendFrequentVisits:
         now = datetime.now(UTC)
         segments = []
         for i in range(3):
-            segments.append(_seg(
-                room_id=1, room_name="bathroom",
-                entered_at=now - timedelta(minutes=(i * 15) + 5),
-                exited_at=now - timedelta(minutes=i * 15),
-            ))
+            segments.append(
+                _seg(
+                    room_id=1,
+                    room_name="bathroom",
+                    entered_at=now - timedelta(minutes=(i * 15) + 5),
+                    exited_at=now - timedelta(minutes=i * 15),
+                )
+            )
         svc = _services(*segments)
         result = await FILTER.evaluate(
             config={
@@ -236,7 +261,9 @@ class TestSceneTrendFrequentVisits:
                 "visit_count": 5,
                 "within_minutes": 60,
             },
-            sensor=None, now=now, services=svc,
+            sensor=None,
+            now=now,
+            services=svc,
         )
         assert result is False
 
@@ -245,16 +272,22 @@ class TestSceneTrendFrequentVisits:
         now = datetime.now(UTC)
         segments = []
         for i in range(4):
-            segments.append(_seg(
-                room_id=1, room_name="bedroom",
-                entered_at=now - timedelta(minutes=(i * 10) + 5),
-                exited_at=now - timedelta(minutes=i * 10),
-            ))
-            segments.append(_seg(
-                room_id=2, room_name="kitchen",
-                entered_at=now - timedelta(minutes=(i * 10) + 8),
-                exited_at=now - timedelta(minutes=i * 10 + 3),
-            ))
+            segments.append(
+                _seg(
+                    room_id=1,
+                    room_name="bedroom",
+                    entered_at=now - timedelta(minutes=(i * 10) + 5),
+                    exited_at=now - timedelta(minutes=i * 10),
+                )
+            )
+            segments.append(
+                _seg(
+                    room_id=2,
+                    room_name="kitchen",
+                    entered_at=now - timedelta(minutes=(i * 10) + 8),
+                    exited_at=now - timedelta(minutes=i * 10 + 3),
+                )
+            )
         svc = _services(*segments)
         result = await FILTER.evaluate(
             config={
@@ -263,7 +296,9 @@ class TestSceneTrendFrequentVisits:
                 "visit_count": 5,
                 "within_minutes": 60,
             },
-            sensor=None, now=now, services=svc,
+            sensor=None,
+            now=now,
+            services=svc,
         )
         assert result is True
 
@@ -391,7 +426,10 @@ class TestSceneTrendNoRecentActivity:
                 "trend_type": "no_recent_activity",
                 "within_minutes": 30,
             },
-            sensor=None, now=now, db=db, services=svc,
+            sensor=None,
+            now=now,
+            db=db,
+            services=svc,
         )
         assert result is True
         db.close()
@@ -400,8 +438,7 @@ class TestSceneTrendNoRecentActivity:
         """Should not detect when person has recent location."""
         db = db_factory()
         now = datetime.now(UTC)
-        seg = _seg(room_id=1, room_name="kitchen",
-                    entered_at=now - timedelta(minutes=5))
+        seg = _seg(room_id=1, room_name="kitchen", entered_at=now - timedelta(minutes=5))
         svc = _services(seg)
         result = await FILTER.evaluate(
             config={
@@ -409,7 +446,10 @@ class TestSceneTrendNoRecentActivity:
                 "trend_type": "no_recent_activity",
                 "within_minutes": 30,
             },
-            sensor=None, now=now, db=db, services=svc,
+            sensor=None,
+            now=now,
+            db=db,
+            services=svc,
         )
         assert result is False
         db.close()
@@ -432,7 +472,10 @@ class TestSceneTrendNoRecentActivity:
                 "trend_type": "no_recent_activity",
                 "within_minutes": 30,
             },
-            sensor=None, now=now, db=db, services=svc,
+            sensor=None,
+            now=now,
+            db=db,
+            services=svc,
         )
         assert result is False
         db.close()
@@ -451,7 +494,9 @@ class TestSceneTrendValidation:
         now = datetime.now(UTC)
         result = await FILTER.evaluate(
             config={"trend_type": "no_recent_activity"},
-            sensor=None, now=now, db=db,
+            sensor=None,
+            now=now,
+            db=db,
         )
         assert result is False
         db.close()
@@ -463,7 +508,9 @@ class TestSceneTrendValidation:
         now = datetime.now(UTC)
         result = await FILTER.evaluate(
             config={"person_id": "person123"},
-            sensor=None, now=now, db=db,
+            sensor=None,
+            now=now,
+            db=db,
         )
         assert result is False
         db.close()
@@ -475,7 +522,9 @@ class TestSceneTrendValidation:
         now = datetime.now(UTC)
         result = await FILTER.evaluate(
             config={"person_id": "person123", "trend_type": "nonexistent"},
-            sensor=None, now=now, db=db,
+            sensor=None,
+            now=now,
+            db=db,
         )
         assert result is False
         db.close()
@@ -491,7 +540,9 @@ class TestSceneTrendValidation:
                 "activity_type": "bathroom",
                 "activity_count": 5,
             },
-            sensor=None, now=now, db=None,
+            sensor=None,
+            now=now,
+            db=None,
         )
         assert result is False
 
@@ -505,6 +556,8 @@ class TestSceneTrendValidation:
                 "trend_type": "prolonged_stay",
                 "threshold_minutes": 30,
             },
-            sensor=None, now=now, services=None,
+            sensor=None,
+            now=now,
+            services=None,
         )
         assert result is False

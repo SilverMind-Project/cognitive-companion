@@ -95,7 +95,7 @@ describe("BboxCanvas", () => {
         {
           id: "annot-1",
           keyframe_id: "kf-001",
-          tracklet_id: "t-1",
+          ph_id: "ph-1",
           camera_id: "cam-1",
           x1: 100, y1: 200, x2: 300, y2: 400,
           detection_confidence: 0.9,
@@ -148,7 +148,7 @@ describe("BboxCanvas", () => {
         {
           id: "annot-1",
           keyframe_id: "kf-001",
-          tracklet_id: "t-1",
+          ph_id: "ph-1",
           camera_id: "cam-1",
           x1: 100, y1: 100, x2: 300, y2: 300,
           detection_confidence: 0.9,
@@ -199,7 +199,7 @@ describe("BboxCanvas", () => {
         {
           id: "annot-1",
           keyframe_id: "kf-001",
-          tracklet_id: "t-1",
+          ph_id: "ph-1",
           camera_id: "cam-1",
           x1: 100, y1: 100, x2: 200, y2: 200,
           detection_confidence: 0.9,

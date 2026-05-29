@@ -33,40 +33,38 @@ vi.mock("@/composables/useConfirm", () => ({
   useConfirm: () => ({ require: vi.fn().mockResolvedValue(true) }),
 }));
 
+const stubs = {
+  "v-btn": { template: '<button @click="$emit(\'click\', $event)"><slot /></button>' },
+  "v-chip": { template: "<span><slot /></span>", props: ["color", "size", "variant"] },
+  "v-divider": { template: "<hr />" },
+  "v-icon": { template: "<i><slot /></i>" },
+  "v-progress-linear": { template: "<div />" },
+  "v-spacer": { template: "<span />" },
+  PHPosteriorPanel: true,
+  PHObservationsTimeline: true,
+  PHTrailMiniFloorPlan: true,
+  PHCorrectionForm: true,
+  PHRevisionsFeed: true,
+  PHListPanel: true,
+};
+
+function mountDrawer() {
+  return mount(PHInspectorDrawer, {
+    props: { phId: "ph-1", mode: "view", identities: [] },
+    global: { stubs },
+  });
+}
+
 describe("PHInspectorDrawer", () => {
   it("renders without console.log calls", () => {
     const consoleSpy = vi.spyOn(console, "log");
-    mount(PHInspectorDrawer, {
-      props: { phId: "ph-1", mode: "view", identities: [] },
-      global: {
-        stubs: {
-          PHPosteriorPanel: true,
-          PHObservationsTimeline: true,
-          PHTrailMiniFloorPlan: true,
-          PHCorrectionForm: true,
-          PHRevisionsFeed: true,
-          PHListPanel: true,
-        },
-      },
-    });
+    mountDrawer();
     expect(consoleSpy).not.toHaveBeenCalled();
   });
 
   it("does not use console.error for notifications", () => {
     const spy = vi.spyOn(console, "error");
-    mount(PHInspectorDrawer, {
-      props: { phId: "ph-1", mode: "view", identities: [] },
-      global: {
-        stubs: {
-          PHPosteriorPanel: true,
-          PHObservationsTimeline: true,
-          PHTrailMiniFloorPlan: true,
-          PHCorrectionForm: true,
-          PHRevisionsFeed: true,
-          PHListPanel: true,
-        },
-      },
-    });
+    mountDrawer();
     expect(spy).not.toHaveBeenCalledWith(expect.stringContaining("[ph-drawer]"));
   });
 });

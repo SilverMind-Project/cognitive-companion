@@ -10,9 +10,9 @@ Guidelines for building and modifying the Cognitive Companion Vue 3 + Vuetify fr
 
 All custom CSS properties are prefixed `--cc-` and live in three blocks:
 
-- `:root` — brand colors, geometry radii, typography stacks (shared across themes)
-- `.v-theme--ccDark` — dark-mode surface, text, border, shadow values
-- `.v-theme--ccLight` — light-mode overrides for the same tokens
+- `:root`: brand colors, geometry radii, typography stacks (shared across themes)
+- `.v-theme--ccDark`: dark-mode surface, text, border, shadow values
+- `.v-theme--ccLight`: light-mode overrides for the same tokens
 
 **Always use these variables** instead of hardcoded colors or `rgba(255,255,255,…)` values:
 
@@ -48,10 +48,10 @@ All custom CSS properties are prefixed `--cc-` and live in three blocks:
 ### How frosted-glass works
 
 The global stylesheet automatically applies frosted-glass to:
-- `v-app-bar`, `v-navigation-drawer` — `backdrop-filter: saturate(200%) blur(20px)`
-- All elevated `v-card` (non-outlined, non-tonal) — glass surface + border + shadow
-- Dialog cards (`v-dialog > .v-overlay__content > .v-card`) — `--cc-bg-elevated` + 28px blur + stronger border
-- Input fields (`v-field--variant-outlined`) — `--cc-surface-3` + 6px blur
+- `v-app-bar`, `v-navigation-drawer`: `backdrop-filter: saturate(200%) blur(20px)`
+- All elevated `v-card` (non-outlined, non-tonal): glass surface + border + shadow
+- Dialog cards (`v-dialog > .v-overlay__content > .v-card`): `--cc-bg-elevated` + 28px blur + stronger border
+- Input fields (`v-field--variant-outlined`): `--cc-surface-3` + 6px blur
 
 **Never add background-color or custom glass effects to these elements.** The global rules handle them.
 
@@ -70,6 +70,27 @@ The global stylesheet automatically applies frosted-glass to:
 ---
 
 ## Component patterns
+
+### Router configuration
+
+Vue Router warnings are production defects, even when tests pass.
+
+- Layout routes with a default empty-path child (`path: ""`) must not put the route `name` on the parent if the child redirects or renders the default page. Put the name on the empty-path child when named navigation to the layout path is required.
+- Route names belong on the route record that actually resolves the component or redirect users should reach. Avoid naming abstract/layout-only parents.
+- Redirect-only compatibility routes may be unnamed unless code navigates to them by name. If named, the name must be unique and tested.
+- Router tests use `createMemoryHistory()` and the real route table. Do not mock Vue Router when the route matching, redirect, params, query, or named-route behavior is under test.
+
+```js
+// Correct: /admin named navigation resolves the default child redirect.
+{
+  path: "/admin",
+  component: () => import("../views/AdminView.vue"),
+  children: [
+    { path: "", name: "admin", redirect: "/admin/dashboard" },
+    { path: "dashboard", name: "admin-dashboard", component: DashboardView },
+  ],
+}
+```
 
 ### Page layout
 
@@ -186,10 +207,10 @@ Right-side drawers overlay the main content and must scroll independently from t
 **Rules:**
 
 - Use `width` between `480`–`500` for content-heavy drawers, `400`–`440` for simple forms
-- Always wrap content in `<v-card flat class="h-100 d-flex flex-column">` — this gives the drawer a frosted-glass card surface and sets up the flex column layout
+- Always wrap content in `<v-card flat class="h-100 d-flex flex-column">`: this gives the drawer a frosted-glass card surface and sets up the flex column layout
 - The `v-card` is the single root element inside the drawer; dialogs (confirm, etc.) go as siblings *outside* the card
-- The title is a plain `<v-card-title>` — no custom background, border, or sticky positioning needed. It sits naturally at the top of the card as a fixed flex child
-- Add `padding-top: 64px` on `.v-navigation-drawer__content` — this clears the app bar so content is not cut off
+- The title is a plain `<v-card-title>`: no custom background, border, or sticky positioning needed. It sits naturally at the top of the card as a fixed flex child
+- Add `padding-top: 64px` on `.v-navigation-drawer__content`: this clears the app bar so content is not cut off
 - Override `.v-navigation-drawer__content` with `flex: 1 1 0; min-height: 0` so the content area fills the drawer and handles its own overflow
 - The scrollable area uses `flex-grow-1 overflow-y-auto` with `min-height: 0` so it shrinks correctly inside the flex column
 - Content inside the scrollable area should use `<v-card-text>` for proper padding and to match the card surface
@@ -277,7 +298,7 @@ async function fetchItems() {
 @update:model-value="page = 1; fetchItems()"
 ```
 
-**Do NOT use `#bottom` template** for "No items yet" messages. When `totalItems` is 0, Vuetify shows its built-in empty state. Use `#no-data` for custom empty-state content — it renders only when there is zero data and loading is complete, without overriding the pagination footer.
+**Do NOT use `#bottom` template** for "No items yet" messages. When `totalItems` is 0, Vuetify shows its built-in empty state. Use `#no-data` for custom empty-state content: it renders only when there is zero data and loading is complete, without overriding the pagination footer.
 
 **Backend pagination support is required.** The list endpoint must:
 1. Accept `limit` and `offset` query params
@@ -382,7 +403,7 @@ For views with multiple tabs, follow this pattern (see `PersonsView.vue`):
 - In compact areas (question editors, expanded rows), use `density="compact" hide-details`.
 - Use `:rules` on required fields: `[r => !!r || 'Field is required']`
 - Always use `:loading` on submit buttons.
-- Form state resets go in `closeCreateDialog()` — reset every field back to default.
+- Form state resets go in `closeCreateDialog()`: reset every field back to default.
 
 ---
 
@@ -434,26 +455,83 @@ if (!ok) return;
 
 ---
 
+## Testing and warning hygiene
+
+The frontend test suite must be warning-clean. A passing test run with `stderr` warnings is not complete.
+
+### Treat warnings as root-cause bugs
+
+- Fix `[Vue warn]` and `[Vue Router warn]` at the source. Do not suppress them with console spies, global filters, or `compilerOptions.isCustomElement` unless the component is truly a browser custom element.
+- Do not add silent fallbacks to make tests quiet. If a component depends on Vuetify, Router, Pinia, or a provided injection, mount it with that dependency or stub the exact component boundary intentionally.
+- When a warning appears only in tests, the test harness is usually incomplete. Make the harness match the runtime contract instead of changing production code.
+
+### Component mount rules
+
+- Prefer a small local `mountX()` helper per spec file once two tests mount the same component.
+- Provide a real memory router plugin when the component calls `useRouter()`, renders `router-link`, or uses `$router` and route behavior is relevant. Mock `vue-router` only for isolated tests that do not care about routing.
+- Stub Vuetify components explicitly by tag name when not installing Vuetify. Include every Vuetify tag rendered by the component and by non-stubbed children.
+- Stub components with slots and the props/events the test depends on. Avoid `true` stubs for components whose rendered slot content, click events, or attributes are part of the assertion.
+
+```js
+const stubs = {
+  "v-card": { template: '<section><slot /></section>', props: ["color", "variant"] },
+  "v-card-text": { template: "<div><slot /></div>" },
+  "v-img": {
+    template: '<img :src="src" @click="$emit(\'click\', $event)" />',
+    props: ["src"],
+  },
+};
+
+function mountPanel(props) {
+  return mount(Panel, { props, global: { stubs } });
+}
+```
+
+### Data ownership tests
+
+For presentational panels that receive data by prop, tests must assert the ownership boundary:
+
+- Render from the prop value.
+- Do not call the service that owns the upstream fetch.
+- Feed sibling panels the same fixture when testing consistency across the UI.
+
+This is especially important for `TrackingWorkspace`: `usePersonPresence` is the single fetch owner for person-location data; workspace panels consume `locations` and must not independently call `api.getPersonLocations()`.
+
+### Verification
+
+Before finishing frontend test work, run at least the affected specs and one full suite pass:
+
+```bash
+cd frontend
+npm run test --silent -- <affected spec paths>
+npm run test -- --reporter=dot
+```
+
+The final output should contain only test results, not Vue, Vue Router, unresolved component, injection, or console warnings.
+
+---
+
 ## Common mistakes to avoid
 
-1. **Hardcoded `rgba(255, 255, 255, …)` colors** — these break in light mode. Use `--cc-*` variables or Vuetify named colors.
-2. **Scoped `<style>` blocks with custom colors** — use global utility classes and Vuetify variants instead.
-3. **Static `:items-per-page`** on data tables — use server-side pagination with `:items-length`.
-4. **Not resetting `page = 1` on filter changes** — causes empty pages when filters narrow results.
-5. **`item-title="title"` on layout selects** — layout objects use `display_name`, not `title`.
-6. **Sending fields not in the backend schema** — check the Pydantic model for allowed fields (many schemas use `extra="forbid"`).
-7. **`toLocaleString()` for dates** — use `formatDateTime` from `@/services/timezone.js`.
-8. **`alert()` / `confirm()` in Vue** — use `useNotify()` / `useConfirm()`.
-9. **Extra fields in PATCH requests** — PATCH schemas have `extra="forbid"`. Only send fields defined in the Update schema.
-10. **Margin classes on Vuetify wrapper components inside slot templates** — `v-chip`, `v-btn`, and `v-avatar` render internal DOM wrappers that can absorb `mr-2`/`ml-2` classes, making the margin invisible. Always wrap these components in a `<div>` with the margin class when they appear in `#prepend` or `#append` slots:
+1. **Hardcoded `rgba(255, 255, 255, …)` colors**: these break in light mode. Use `--cc-*` variables or Vuetify named colors.
+2. **Scoped `<style>` blocks with custom colors**: use global utility classes and Vuetify variants instead.
+3. **Static `:items-per-page`** on data tables: use server-side pagination with `:items-length`.
+4. **Not resetting `page = 1` on filter changes**: causes empty pages when filters narrow results.
+5. **`item-title="title"` on layout selects**: layout objects use `display_name`, not `title`.
+6. **Sending fields not in the backend schema**: check the Pydantic model for allowed fields (many schemas use `extra="forbid"`).
+7. **`toLocaleString()` for dates**: use `formatDateTime` from `@/services/timezone.js`.
+8. **`alert()` / `confirm()` in Vue**: use `useNotify()` / `useConfirm()`.
+9. **Extra fields in PATCH requests**: PATCH schemas have `extra="forbid"`. Only send fields defined in the Update schema.
+10. **Incomplete test harnesses**: unresolved Vuetify components, missing router injections, and Vue Router config warnings are defects. Mount with the right plugin or explicit stubs; never suppress the warning.
+11. **Margin classes on Vuetify wrapper components inside slot templates**: `v-chip`, `v-btn`, and `v-avatar` render internal DOM wrappers that can absorb `mr-2`/`ml-2` classes, making the margin invisible. Always wrap these components in a `<div>` with the margin class when they appear in `#prepend` or `#append` slots:
 
     ```html
-    <!-- WRONG — margin may land on an internal wrapper -->
+    <!-- WRONG: margin may land on an internal wrapper -->
     <template #prepend>
       <v-chip class="mr-2">Label</v-chip>
     </template>
 
-    <!-- RIGHT — margin on a plain div is always visible -->
+    <!-- RIGHT: margin on a plain div is always visible -->
     <template #prepend>
       <div class="mr-2">
         <v-chip>Label</v-chip>
@@ -567,20 +645,111 @@ Required scoped CSS (same as right-side drawer pattern):
 
 ---
 
+## Data visualisation
+
+### Authorised libraries
+
+- **`echarts` + `vue-echarts`**: the only permitted charting library. Use explicit module imports only; never import the full ECharts bundle.
+- No second charting or flow-diagram library. No hand-rolled SVG charts for data shapes covered by the shared components.
+
+### Shared component catalogue
+
+All chart and dashboard components live in `frontend/src/components/`. Use them; never duplicate their logic in a view.
+
+**Charts (`components/charts/`)**
+
+| Component | Data shape | When to use |
+|-----------|-----------|-------------|
+| `CcTimeSeriesChart.vue` | Time-indexed numeric series | Presence trends, signal history, motion energy |
+| `CcBarChart.vue` | Categorical bars | Room dwell totals, signal counts by kind |
+| `CcDistributionChart.vue` | Histogram / distribution | Quality score distribution, dwell-duration spread |
+| `CcGaugeChart.vue` | Single scalar 0-100 | Mean quality gauge, confidence indicator |
+| `CcHeatmapCalendar.vue` | Day x hour intensity grid | Activity calendars, pacing heat maps |
+| `CcScatterFloorCloud.vue` | (x, y) floor-plane points | Trajectory scatter on floor plan |
+
+**Dashboard (`components/dashboard/`)**
+
+| Component | Purpose |
+|-----------|---------|
+| `CcMetricTile.vue` | Single KPI tile with label, value, trend arrow |
+| `CcProvenanceBadge.vue` | Source/quality badge rendered from `source` + `quality` envelope fields |
+| `CcSectionCard.vue` | Frosted-glass section wrapper with optional header slot |
+
+**Process (`components/process/`)**
+
+| Component | Purpose |
+|-----------|---------|
+| `CcDagChart.vue` | Pipeline step DAG for live and historical runs |
+| `CcLiveActivityFeed.vue` | Scrolling event feed (ingest events, signal triggers) |
+| `CcStatusTimeline.vue` | Horizontal step timeline with elapsed-ms labels |
+
+### Hard rules (D2/D3)
+
+1. **One shared component per data shape.** If a view needs a time series chart, use `CcTimeSeriesChart`. Do not write an inline ECharts option object in a view component.
+2. **Bespoke canvas only for spatial domains.** Floor plan overlays and bounding-box-on-keyframe rendering are the only permitted SVG/Canvas surfaces. They must use `useChartTheme` and `--cc-` tokens.
+3. **Always use `useChartTheme`.** The composable at `composables/useChartTheme.js` injects the ECharts theme derived from Vuetify's current theme. Pass its `theme` return value to every `v-chart` instance.
+
+```js
+// CORRECT
+import { useChartTheme } from '@/composables/useChartTheme.js'
+const { theme } = useChartTheme()
+// <v-chart :theme="theme" :option="option" />
+
+// WRONG: hardcoded theme name or no theme
+// <v-chart option={option} />
+```
+
+### Provenance and quality (D5)
+
+Confidence, quality, staleness, and source fields travel from CTS through the BFF envelope to the UI as explicit fields. The UI **never computes them client-side**.
+
+Always use `CcProvenanceBadge` to display source information. Pass the `source` and `quality` fields directly from the envelope:
+
+```html
+<CcProvenanceBadge :source="location.source" :quality="location.quality" :staleness-seconds="location.staleness_seconds" />
+```
+
+### Tracking workspace information architecture
+
+The `TrackingWorkspace.vue` view is the single role-aware tracking dashboard. It uses `usePersonPresence` as the one composable for all person-location data (design rule D1). Rules:
+
+- Do not create a second composable that fetches person location data.
+- Panel visibility is controlled by permissions; do not duplicate panels into separate views for different roles.
+- Add new panels as children of `TrackingWorkspace`, not as new top-level views.
+
+### Live process pattern
+
+Use `useLivePipeline` from `composables/useLivePipeline.js` for any component that shows live pipeline execution state.
+
+```js
+import { useLivePipeline } from '@/composables/useLivePipeline.js'
+const { state, actions } = useLivePipeline()
+// state.connectionStatus: 'connecting' | 'connected' | 'disconnected'
+// state.activeRuns: PipelineRunEnvelope[]
+// actions.connect() / actions.disconnect()
+```
+
+Connection-state rendering rules:
+- **Connecting**: show a loading spinner, no run data.
+- **Connected**: show live run DAGs via `CcDagChart`.
+- **Disconnected**: show the last known state with a reconnection badge. **Never show stale data as live.**
+
+`useLivePipeline` manages reconnection internally with 3-second exponential backoff. Do not implement reconnection in the view.
+
 ## File organization
 
 ```
 frontend/src/
-  styles/theme.css          — global design tokens + Vuetify overrides
-  services/api.js           — all API calls
-  services/contracts.js     — response shape validation
-  services/timezone.js      — datetime formatting + constants
-  composables/useNotify.js  — snackbar notifications
-  composables/useConfirm.js — promise-based confirmation dialog
-  components/common/        — reusable shared components (LlmModelPicker, etc.)
-  components/pipeline/      — rule pipeline builder components
-  components/companion/     — senior-facing companion UI
-  views/admin/              — admin dashboard views (one per resource)
+  styles/theme.css          -- global design tokens + Vuetify overrides
+  services/api.js           -- all API calls
+  services/contracts.js     -- response shape validation
+  services/timezone.js      -- datetime formatting + constants
+  composables/useNotify.js  -- snackbar notifications
+  composables/useConfirm.js -- promise-based confirmation dialog
+  components/common/        -- reusable shared components (LlmModelPicker, etc.)
+  components/pipeline/      -- rule pipeline builder components
+  components/companion/     -- senior-facing companion UI
+  views/admin/              -- admin dashboard views (one per resource)
 ```
 
 ---
@@ -610,8 +779,9 @@ Before marking frontend work complete:
 - `tracking-tight` on page titles
 - Status chips use `statusColor()` helper
 - Filter changes reset page to 1
-- No `getHours()`, `getMinutes()`, `getSeconds()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()` anywhere — use `services/timezone.js`
+- No `getHours()`, `getMinutes()`, `getSeconds()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()` anywhere; use `services/timezone.js`
 - Inspector drawers: `useNotify()` imported and used (zero `console.log` / `console.error` stubs)
 - Inspector drawers: `useConfirm()` called before every destructive action
 - Inspector drawers: `@click:row` wired on data tables (not only the Inspect button)
 - Composables return `{ state, actions }` shape (never flat named refs)
+- When tests are touched: affected specs and `npm run test -- --reporter=dot` pass with no Vue, Vue Router, unresolved component, missing injection, or console warnings

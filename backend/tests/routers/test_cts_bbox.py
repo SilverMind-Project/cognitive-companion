@@ -23,7 +23,8 @@ def _sample_bbox_response(**overrides) -> dict:
     default = {
         "id": "bb-001",
         "keyframe_id": "kf-test-001",
-        "tracklet_id": "22222222-2222-2222-2222-222222222222",
+        "ph_id": "ph-test-001",
+        "detection_id": "22222222-2222-2222-2222-222222222222",
         "camera_id": "cam-a",
         "x1": 10.0,
         "y1": 20.0,

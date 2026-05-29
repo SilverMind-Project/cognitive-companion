@@ -1,4 +1,4 @@
-"""Subscribes to recamera VLM identification events (M4).
+"""Subscribes to recamera VLM identification events.
 
 Receives push-based recamera observations, writes them to
 PersonLocationService as LocationObservation(source='recamera_vlm'),
@@ -37,9 +37,7 @@ class RecameraObservationSubscriber:
     ) -> None:
         self._location = location_service
         self._assertion_publisher = assertion_publisher
-        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(
-            maxsize=_MAX_QUEUE_SIZE
-        )
+        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=_MAX_QUEUE_SIZE)
         self._task: asyncio.Task[None] | None = None
 
     async def enqueue(self, event: dict[str, Any]) -> None:

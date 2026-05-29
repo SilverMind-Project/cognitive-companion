@@ -16,6 +16,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from backend.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 # Threshold above which two cameras are considered to have overlapping coverage.
 OVERLAP_IOU_THRESHOLD: float = 0.05
 # Max normalised centroid distance to qualify as adjacent (not overlapping).
@@ -83,7 +87,12 @@ def infer_adjacency(
                 result.skipped_camera_ids.append(cid)
                 continue
             polys[cid] = poly
-        except Exception:
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "cts_adjacency_polygon_build_failed",
+                camera_id=cid,
+                exc_info=True,
+            )
             result.skipped_camera_ids.append(cid)
 
     ids = sorted(polys.keys())
@@ -98,7 +107,13 @@ def infer_adjacency(
                 inter_area = pa.intersection(pb).area
                 union_area = pa.union(pb).area
                 iou = inter_area / union_area if union_area > 0 else 0.0
-            except Exception:
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "cts_adjacency_iou_computation_failed",
+                    camera_a=id_a,
+                    camera_b=id_b,
+                    exc_info=True,
+                )
                 iou = 0.0
 
             if iou >= OVERLAP_IOU_THRESHOLD:
@@ -195,8 +210,13 @@ def _build_overlap_groups(
                     ia = polys[members[i]].intersection(polys[members[j]]).area
                     ua = polys[members[i]].union(polys[members[j]]).area
                     inter_areas.append(ia / ua if ua > 0 else 0.0)
-                except Exception:
-                    pass
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "cts_overlap_group_iou_failed",
+                        member_a=members[i],
+                        member_b=members[j],
+                        exc_info=True,
+                    )
         mean_iou = sum(inter_areas) / len(inter_areas) if inter_areas else 0.0
         groups.append(
             InferredOverlapGroup(

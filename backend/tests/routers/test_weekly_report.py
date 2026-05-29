@@ -1,4 +1,5 @@
 """WTR8: Weekly report endpoint tests — observed vs inferred dwell, no diagnosis wording."""
+
 from __future__ import annotations
 
 import pytest
@@ -18,14 +19,17 @@ def test_report_observed_vs_inferred_separation():
     assert report["dwell_summary"]["total_minutes"] == 150.5
 
 
-@pytest.mark.parametrize("wording", [
-    "diagnosis",
-    "diagnosed",
-    "diagnose",
-    "Alzheimer's confirmed",
-    "dementia confirmed",
-    "patient has",
-])
+@pytest.mark.parametrize(
+    "wording",
+    [
+        "diagnosis",
+        "diagnosed",
+        "diagnose",
+        "Alzheimer's confirmed",
+        "dementia confirmed",
+        "patient has",
+    ],
+)
 def test_report_does_not_contain_diagnosis_wording(wording: str):
     """Report text must avoid diagnosis language."""
     narrative_fields = [
@@ -40,14 +44,17 @@ def test_report_does_not_contain_diagnosis_wording(wording: str):
         )
 
 
-@pytest.mark.parametrize("acceptable", [
-    "review",
-    "pattern",
-    "signal",
-    "evidence",
-    "observed",
-    "inferred",
-])
+@pytest.mark.parametrize(
+    "acceptable",
+    [
+        "review",
+        "pattern",
+        "signal",
+        "evidence",
+        "observed",
+        "inferred",
+    ],
+)
 def test_report_uses_acceptable_wording(acceptable: str):
     """Report should use review/pattern/signal/evidence language."""
     # Verify these words are the ones we want to see in reports.

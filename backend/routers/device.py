@@ -126,7 +126,7 @@ async def recamera_upload(
                 object_name=object_name,
                 content_type="image/jpeg",
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning(
                 "recamera_minio_upload_failed",
                 object_name=object_name,

@@ -21,7 +21,7 @@ export function projectDetectionToCanvas(det, fp) {
 
 /**
  * Stable trail key for a detection. Prefer identity_id when committed;
- * fall back to global_track_id so UNKNOWN tracks still have a stable key.
+ * fall back to ph_id so UNKNOWN tracks still have a stable key.
  *
  * @param {object} det - Detection payload.
  * @returns {string|null}
@@ -29,7 +29,7 @@ export function projectDetectionToCanvas(det, fp) {
 export function trailKeyFor(det) {
   const id = (det.identity_id || "").trim();
   if (id) return `id:${id}`;
-  if (det.global_track_id) return `gt:${det.global_track_id}`;
+  if (det.ph_id) return `ph:${det.ph_id}`;
   return null;
 }
 

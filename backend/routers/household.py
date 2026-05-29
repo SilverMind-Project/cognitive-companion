@@ -71,7 +71,7 @@ def _presign(minio: MinioClient, key: str | None) -> str | None:
         return None
     try:
         return minio.generate_presigned_url(key, expiration=3600)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("floor_plan_presign_failed", key=key)
         return None
 

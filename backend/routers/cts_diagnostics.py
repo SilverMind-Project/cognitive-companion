@@ -1,4 +1,4 @@
-"""CTS diagnostics endpoints — calibration health (M2)."""
+"""CTS diagnostics endpoints: calibration health."""
 
 from __future__ import annotations
 
@@ -58,9 +58,7 @@ async def get_calibration_diagnostics(
                 room_name=cam.room_name,
                 has_homography=cam.homography_matrix is not None,
                 homography_set_at=(
-                    cam.homography_set_at.isoformat()
-                    if cam.homography_set_at
-                    else None
+                    cam.homography_set_at.isoformat() if cam.homography_set_at else None
                 ),
                 homography_method=cam.homography_method,
                 validation=validation,

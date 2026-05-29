@@ -56,11 +56,15 @@ class HomeStateFilter(ContextFilter):
         if not state:
             return False
 
-        # WTR7: prefer PersonLocationService (async, no asyncio.run()).
-        if services and hasattr(services, "person_location") and services.person_location is not None:
+        # Use PersonLocationService (async-safe).
+        if (
+            services
+            and hasattr(services, "person_location")
+            and services.person_location is not None
+        ):
             try:
                 current = await services.person_location.where_is(person_id)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 return False
             if current is None:
                 return state in ("away", "unknown")
@@ -78,7 +82,7 @@ class HomeStateFilter(ContextFilter):
         if services and hasattr(services, "presence") and services.presence is not None:
             try:
                 snapshot = await services.presence.get(person_id)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 return False
             status = snapshot.status.value
             if state == "at_home":

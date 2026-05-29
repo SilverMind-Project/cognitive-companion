@@ -104,7 +104,7 @@ cts_tracking_responses_decode_errors = Counter(
     "Total tracking.responses messages that failed proto decode.",
 )
 
-# -- Filter degradation counters (R2) -----------------------------------------
+# -- Filter degradation counters -------------------------------------------
 
 FILTER_LABEL = "filter"
 

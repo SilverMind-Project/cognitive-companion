@@ -90,7 +90,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
 
         try:
             message = signals_pb2.DementiaSignal.FromString(payload)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning("dementia_signal_proto_decode_error", message_id=message_id)
             metrics.cts_signals_decode_errors.inc()
             return None

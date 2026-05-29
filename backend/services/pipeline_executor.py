@@ -58,7 +58,7 @@ For nested updates like `pipeline_data["_pipeline"]["completed_at"]`, use
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -125,6 +125,7 @@ class PipelineExecutor:
         knowledge_delivery=None,
         minio_client=None,
         rules_engine=None,
+        event_publisher: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> None:
         self._services = ServiceContainer(
             db_factory=db_session_factory,
@@ -147,6 +148,9 @@ class PipelineExecutor:
             minio_client=minio_client,
         )
         self._rules_engine = rules_engine
+        self._event_publisher = event_publisher
+        # Monotonic sequence counter for ordering events across executions.
+        self._event_sequence = 0
 
     # Expose scheduler for injection after construction
     @property
@@ -161,6 +165,25 @@ class PipelineExecutor:
     def event_aggregator(self):
         """Public accessor for the event aggregator (used by Scheduler for media fetch)."""
         return self._services.event_aggregator
+
+    # -- event emission -------------------------------------------------------
+
+    async def _emit(self, event: dict[str, Any]) -> None:
+        """Publish a pipeline event; errors are dead-lettered (rule 15).
+
+        Publisher failure must not interrupt execution; this is a side-channel.
+        One increment logged per failed publish for observability (rule 13).
+        """
+        if self._event_publisher is None:
+            return
+        try:
+            await self._event_publisher(event)
+        except Exception:  # noqa: BLE001
+            logger.warning("pipeline_event_publish_failed", event_type=event.get("event_type"))
+
+    def _next_seq(self) -> int:
+        self._event_sequence += 1
+        return self._event_sequence
 
     # -- public API -----------------------------------------------------------
 
@@ -272,6 +295,21 @@ class PipelineExecutor:
         event_log.workflow_execution_id = execution.id
         db.commit()
         db.refresh(execution)
+
+        # Emit pipeline_started event.
+        rule_name_str = rule.name
+        await self._emit(
+            {
+                "type": "pipeline_event",
+                "event_type": "pipeline_started",
+                "execution_id": execution.id,
+                "rule_id": rule.id,
+                "rule_name": rule_name_str,
+                "status": "running",
+                "started_at": now_utc.isoformat(),
+                "sequence": self._next_seq(),
+            }
+        )
 
         steps = sorted(
             [s for s in rule.steps if s.enabled],
@@ -543,6 +581,23 @@ class PipelineExecutor:
                 _active_step = step
                 _active_step_started_at = datetime.now(UTC)
 
+                # Emit step_started (one event per transition, one increment per code path).
+                await self._emit(
+                    {
+                        "type": "pipeline_event",
+                        "event_type": "step_started",
+                        "execution_id": execution.id,
+                        "rule_id": execution.rule_id,
+                        "rule_name": execution.rule.name,
+                        "step_id": str(step.id),
+                        "step_name": step.label or step.step_type,
+                        "step_type": step.step_type,
+                        "status": "running",
+                        "started_at": _active_step_started_at.isoformat(),
+                        "sequence": self._next_seq(),
+                    }
+                )
+
                 # Per-step timeout (coarse safety net for stuck LLM calls)
                 try:
                     result = await asyncio.wait_for(
@@ -567,6 +622,27 @@ class PipelineExecutor:
                 )
                 # Signal to the except-block that this step's timing is already saved
                 _active_step_started_at = None
+
+                # Emit step_completed (one event per transition, one increment per code path).
+                await self._emit(
+                    {
+                        "type": "pipeline_event",
+                        "event_type": "step_completed",
+                        "execution_id": execution.id,
+                        "rule_id": execution.rule_id,
+                        "rule_name": execution.rule.name,
+                        "step_id": str(step.id),
+                        "step_name": step.label or step.step_type,
+                        "step_type": step.step_type,
+                        "status": "succeeded" if result.success else "failed",
+                        "started_at": _active_step_started_at.isoformat()
+                        if _active_step_started_at
+                        else None,
+                        "finished_at": step_completed_at.isoformat(),
+                        "error_code": (result.data.get("error") if not result.success else None),
+                        "sequence": self._next_seq(),
+                    }
+                )
 
                 # Merge step output into the tracked dict via the canonical helper.
                 # apply_step_result writes steps.<label>.outputs and promotes
@@ -598,6 +674,17 @@ class PipelineExecutor:
                         "pipeline_waiting",
                         execution_id=execution.id,
                         resume_at=result.wait_until.isoformat(),
+                    )
+                    await self._emit(
+                        {
+                            "type": "pipeline_event",
+                            "event_type": "pipeline_waiting",
+                            "execution_id": execution.id,
+                            "rule_id": execution.rule_id,
+                            "rule_name": execution.rule.name,
+                            "status": "waiting",
+                            "sequence": self._next_seq(),
+                        }
                     )
                     return execution
 
@@ -656,6 +743,18 @@ class PipelineExecutor:
                 rule=execution.rule.name,
                 cooloff_triggered=pipeline_data.get("_cooloff_triggered", False),
             )
+            await self._emit(
+                {
+                    "type": "pipeline_event",
+                    "event_type": "pipeline_completed",
+                    "execution_id": execution.id,
+                    "rule_id": execution.rule_id,
+                    "rule_name": execution.rule.name,
+                    "status": "completed",
+                    "finished_at": completed_at.isoformat(),
+                    "sequence": self._next_seq(),
+                }
+            )
             return execution
 
         except Exception as e:
@@ -705,6 +804,19 @@ class PipelineExecutor:
                 event_log.status = "failed"
                 event_log.pipeline_data_json = copy_pipeline_snapshot(pipeline_data)
             db.commit()
+            await self._emit(
+                {
+                    "type": "pipeline_event",
+                    "event_type": "pipeline_failed",
+                    "execution_id": execution.id,
+                    "rule_id": execution.rule_id,
+                    "rule_name": execution.rule.name,
+                    "status": "failed",
+                    "error_code": str(e),
+                    "finished_at": completed_at.isoformat(),
+                    "sequence": self._next_seq(),
+                }
+            )
             return execution
 
     async def _execute_step(

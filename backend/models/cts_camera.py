@@ -66,7 +66,7 @@ class CtsCamera(Base):
     # Per-point reprojection error from the last homography fit (meters).
     homography_residuals: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
-    # M2: calibration health columns
+    # Calibration health columns
     homography_matrix: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     homography_residual_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     homography_method: Mapped[str | None] = mapped_column(String(32), nullable=True)

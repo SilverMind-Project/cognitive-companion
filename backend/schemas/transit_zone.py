@@ -1,4 +1,4 @@
-"""Pydantic schemas for transit zones (M2)."""
+"""Pydantic schemas for transit zones."""
 
 from __future__ import annotations
 

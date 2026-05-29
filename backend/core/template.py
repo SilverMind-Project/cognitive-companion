@@ -132,7 +132,7 @@ def render_template(
         expr = match.group(1).strip()
         try:
             value = evaluate_expression(expr, merged)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return match.group(0)  # leave unresolved
 
         if value is None:

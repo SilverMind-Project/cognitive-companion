@@ -1,11 +1,11 @@
 """Person Hypothesis response schemas (CC-enriched BFF layer).
 
-Contract: WTR1 §9 — administrator PH inspection reads from orchestrator PH APIs
+Contract: administrator PH inspection reads from orchestrator PH APIs
 via the CC BFF gateway. These schemas enrich orchestrator responses with
 identity_display_name, identity_color, room_name, presigned image URLs,
 posterior_top_label, and posterior_top_prob.
 
-Contract: WTR1 §1 — ``ph_id`` is the stable identifier. No public schema in
+Contract: ``ph_id`` is the stable identifier. No public schema in
 this module may expose ``global_track_id`` or ``tracklet_id``.
 """
 

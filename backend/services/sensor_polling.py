@@ -72,7 +72,7 @@ class SensorPollingService:
         try:
             state_data = await self._ha.get_entity_state(ha_entity)
             state = state_data.get("state", "off") if state_data else "off"
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning("sensor_poll_failed", sensor_id=sensor.id)
             return
 

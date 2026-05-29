@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { ref } from "vue";
+import { createMemoryHistory, createRouter } from "vue-router";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ const stubComponents = {
   "v-row": { template: "<div><slot /></div>" },
   "v-col": { template: "<div><slot /></div>" },
   "v-card": { template: "<div class='v-card'><slot /></div>" },
+  "v-card-item": { template: "<div><slot /></div>" },
   "v-card-title": { template: "<div><slot /></div>" },
   "v-card-text": { template: "<div><slot /></div>" },
   "v-card-actions": { template: "<div><slot /></div>" },
@@ -94,8 +96,15 @@ const stubComponents = {
 import CTSFloorPlanView from "../../src/views/admin/CTSFloorPlanView.vue";
 
 async function mountView() {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: "/", component: { template: "<div />" } }],
+  });
+  await router.push("/");
+  await router.isReady();
+
   const wrapper = mount(CTSFloorPlanView, {
-    global: { stubs: stubComponents },
+    global: { plugins: [router], stubs: stubComponents },
   });
   await flushPromises();
   return wrapper;

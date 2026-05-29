@@ -3,6 +3,7 @@
 Tests that CTSRuntime starts and stops the recamera subscriber when CTS
 is enabled, without requiring Redis testcontainers.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 class BboxAnnotationResponse(BaseModel):
     id: str
     keyframe_id: str
-    tracklet_id: str
+    ph_id: str
     camera_id: str
     x1: float
     y1: float

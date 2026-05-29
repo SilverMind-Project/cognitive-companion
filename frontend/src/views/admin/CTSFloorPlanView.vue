@@ -169,7 +169,7 @@
                   :width="cropRect.w * cropImgRect.width"
                   :height="cropRect.h * cropImgRect.height"
                   fill="none"
-                  stroke="#ff9800"
+                  :stroke="_tokWarning"
                   stroke-width="2.5"
                   stroke-dasharray="8 4"
                 />
@@ -182,7 +182,7 @@
                   :y="handle.y * cropImgRect.height - 5"
                   width="10" height="10"
                   fill="white"
-                  stroke="#ff9800"
+                  :stroke="_tokWarning"
                   stroke-width="2"
                   :style="{ cursor: handle.cursor }"
                   @mousedown.stop="onCropHandleDown(handle.corner, $event)"
@@ -548,11 +548,11 @@
 
         <div class="d-flex align-center flex-wrap ga-4 px-4 py-2 text-caption text-medium-emphasis">
           <span class="d-flex align-center ga-1">
-            <span class="coverage-legend-swatch" style="border-color:#2196f3;background:rgba(33,150,243,0.18)" />
+            <span class="coverage-legend-swatch" :style="{ borderColor: _tokBrand, background: _tokBrandSoft }" />
             Calibrated
           </span>
           <span class="d-flex align-center ga-1">
-            <span class="coverage-legend-swatch" style="border-color:#9e9e9e;background:rgba(200,200,200,0.1);border-style:dotted" />
+            <span class="coverage-legend-swatch" :style="{ borderColor: _tokText3, background: 'rgba(128,128,128,0.1)', borderStyle: 'dotted' }" />
             Not calibrated
           </span>
         </div>
@@ -580,8 +580,8 @@
                 <polygon
                   v-if="cam.visibility_polygon"
                   :points="toCoverageSvgPoints(cam.visibility_polygon)"
-                  fill="rgba(33,150,243,0.18)"
-                  stroke="#2196f3"
+                  :fill="_tokBrandSoft"
+                  :stroke="_tokBrand"
                   stroke-width="2"
                 />
                 <text
@@ -638,7 +638,7 @@
       </v-card>
     </template>
 
-    <!-- ── Door Zones panel (M2) ─────────────────────────────────────────── -->
+    <!-- ── Door Zones panel ─────────────────────────────────────────────────── -->
     <template v-else-if="mode === 'doors'">
       <v-card class="glass-card">
         <v-card-title class="d-flex align-center">
@@ -1053,6 +1053,7 @@ import { onMounted, onBeforeUnmount, ref, shallowRef, computed, watch } from "vu
 import { useRouter } from "vue-router";
 import { identityColor } from "@/composables/useIdentityColor";
 import { projectDetectionToCanvas, trailKeyFor, roomForCanvasPoint } from "@/composables/useFloorPlanProjection";
+import { ccToken } from "@/composables/useChartTheme.js";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket";
 import { useWorldSnapshot } from "@/composables/useWorldSnapshot";
 import { useNotify } from "@/composables/useNotify";
@@ -1064,6 +1065,15 @@ import InferredPresenceBadge from "@/components/cts/floor/InferredPresenceBadge.
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const router = useRouter();
+
+// ── Design-token colors for bespoke spatial renderers (D3) ────────────────
+// SVG attributes cannot use CSS custom properties directly; compute them here
+// so every stroke/fill reads from the --cc-* token vocabulary instead of
+// hardcoded hex values.
+const _tokWarning = computed(() => ccToken("--cc-warning"));
+const _tokBrand = computed(() => ccToken("--cc-brand"));
+const _tokBrandSoft = computed(() => ccToken("--cc-brand-soft"));
+const _tokText3 = computed(() => ccToken("--cc-text-3"));
 
 // ── Floor plan state ───────────────────────────────────────────────────────
 const floorPlanUrl = ref(null);
@@ -1120,7 +1130,7 @@ const CAMERA_STALE_MS = 10_000;
 // ── Mode ──────────────────────────────────────────────────────────────────
 const mode = ref("live");
 
-// ── M2: Door Zones tab state ───────────────────────────────────────────────
+// ── Door Zones tab state ───────────────────────────────────────────────────
 const doorZones = ref([]);
 const doorZonesLoading = ref(false);
 const doorZoneCreating = ref(false);
@@ -1735,9 +1745,9 @@ function onLiveFrame(frame) {
       continue;
     }
 
-    const gtId = det.global_track_id;
-    const displayName = det.display_name || det.identity_id || (gtId || "").slice(0, 8);
-    const idForColor = det.identity_id || gtId || key;
+    const phId = det.ph_id;
+    const displayName = det.display_name || det.identity_id || (phId || "").slice(0, 8);
+    const idForColor = det.identity_id || phId || key;
 
     // Room lookup from projected canvas point.
     const roomName = roomForCanvasPoint(projected.x, projected.y, fp.canvasW, fp.canvasH, rooms.value);

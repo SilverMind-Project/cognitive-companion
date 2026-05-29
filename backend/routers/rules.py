@@ -453,7 +453,6 @@ def delete_step(
     db.commit()
 
 
-@router.post("/{rule_id}/execute", status_code=202)
 @router.post("/{rule_id}/validate")
 def validate_rule(
     rule_id: int,
@@ -481,6 +480,7 @@ def validate_rule(
     return {"rule_id": rule_id, "errors": all_errors, "valid": len(all_errors) == 0}
 
 
+@router.post("/{rule_id}/execute", status_code=202)
 async def execute_rule(
     rule_id: int,
     request: Request,

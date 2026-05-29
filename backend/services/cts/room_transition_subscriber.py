@@ -1,17 +1,18 @@
-"""Subscribes to tracking.room_transitions for transit zone events (M4).
+"""Subscribes to tracking.room_transitions for transit zone events.
 
 Decodes RoomTransitionEvent payloads and feeds them to
 PersonLocationService.ingest_room_transition.
 
-WTR4: PersonLocationService is injected, not constructed per message.
+PersonLocationService is injected, not constructed per message.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TypedDict
 
 from backend.core.logging import get_logger
-from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
+from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer, StreamFields
 from backend.services.person_location.service import PersonLocationService
 
 logger = get_logger(__name__)
@@ -20,7 +21,19 @@ STREAM = "tracking.room_transitions"
 GROUP = "cognitive-companion-m4-room-trans"
 
 
-class RoomTransitionSubscriber(StreamConsumer[dict]):
+class RoomTransitionMessage(TypedDict):
+    ph_id: str
+    identity_id: str | None
+    transit_zone_id: str
+    direction: str
+    inside_room_id: int
+    outside_room_id: int
+    floor_x_m: float
+    floor_y_m: float
+    event_time: datetime
+
+
+class RoomTransitionSubscriber(StreamConsumer[RoomTransitionMessage]):
     def __init__(
         self,
         redis_url: str,
@@ -37,44 +50,57 @@ class RoomTransitionSubscriber(StreamConsumer[dict]):
         )
         self._location = location_service
 
-    async def decode(self, message_id: str, fields: dict) -> dict | None:
+    def decode(self, message_id: bytes, fields: StreamFields) -> RoomTransitionMessage | None:
         """Decode a room transition event from the Redis stream."""
         try:
-            identity_id_raw = fields.get(b"identity_id", b"")
-            identity_id = identity_id_raw.decode() if identity_id_raw else None
+            identity_id = _get_text_field(fields, b"identity_id") or None
             return {
-                "ph_id": fields.get(b"ph_id", b"").decode(),
+                "ph_id": _get_text_field(fields, b"ph_id"),
                 "identity_id": identity_id,
-                "transit_zone_id": fields.get(b"transit_zone_id", b"").decode(),
-                "direction": fields.get(b"direction", b"").decode(),
-                "inside_room_id": fields.get(b"inside_room_id", b"").decode(),
-                "outside_room_id": fields.get(b"outside_room_id", b"").decode(),
-                "floor_x_m": float(fields.get(b"floor_x_m", b"0").decode()),
-                "floor_y_m": float(fields.get(b"floor_y_m", b"0").decode()),
-                "event_time": datetime.fromisoformat(
-                    fields.get(b"event_time", b"").decode()
-                ),
+                "transit_zone_id": _get_text_field(fields, b"transit_zone_id"),
+                "direction": _get_text_field(fields, b"direction"),
+                "inside_room_id": int(_get_text_field(fields, b"inside_room_id")),
+                "outside_room_id": int(_get_text_field(fields, b"outside_room_id")),
+                "floor_x_m": float(_get_text_field(fields, b"floor_x_m")),
+                "floor_y_m": float(_get_text_field(fields, b"floor_y_m")),
+                "event_time": datetime.fromisoformat(_get_text_field(fields, b"event_time")),
             }
-        except Exception:
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "room_transition_decode_error",
+                message_id=message_id,
+                exc_info=True,
+            )
             return None
 
-    async def handle(self, msg: dict) -> bool:
-        identity_id = msg.get("identity_id")
+    async def handle(self, msg: RoomTransitionMessage) -> bool:
+        identity_id = msg["identity_id"]
         if not identity_id:
             logger.debug(
                 "room_transition_skipped_no_identity",
-                ph_id=msg.get("ph_id"),
+                ph_id=msg["ph_id"],
             )
             return True
 
         await self._location.ingest_room_transition(
-            person_id=str(identity_id),
-            transit_zone_id=str(msg["transit_zone_id"]),
-            direction=str(msg["direction"]),
-            inside_room_id=int(msg["inside_room_id"]),
-            outside_room_id=int(msg["outside_room_id"]),
-            floor_x_m=float(msg["floor_x_m"]),
-            floor_y_m=float(msg["floor_y_m"]),
+            person_id=identity_id,
+            transit_zone_id=msg["transit_zone_id"],
+            direction=msg["direction"],
+            inside_room_id=msg["inside_room_id"],
+            outside_room_id=msg["outside_room_id"],
+            floor_x_m=msg["floor_x_m"],
+            floor_y_m=msg["floor_y_m"],
             event_time=msg["event_time"],
         )
         return True
+
+
+def _get_text_field(fields: StreamFields, key: bytes) -> str:
+    raw = fields.get(key)
+    if raw is None:
+        raw = fields.get(key.decode())
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode()
+    return raw

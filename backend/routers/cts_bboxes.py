@@ -25,7 +25,7 @@ async def get_keyframe_bboxes(
     _auth: AuthContext = Depends(require_permission("cts.identity.correct")),
     _cts: None = Depends(cts_enabled),
     client: OrchestratorClient = Depends(get_orchestrator_client),
-) ->list[BboxAnnotationResponse]:
+) -> list[BboxAnnotationResponse]:
     """Return bounding-box annotations for a keyframe."""
     svc = BboxAnnotationService(client)
     return await svc.get_for_keyframe(keyframe_id)
@@ -65,13 +65,15 @@ async def delete_bbox(
 
 
 # ---------------------------------------------------------------------------
-# M3: POST /cts/identity/bboxes/batch
+# POST /cts/identity/bboxes/batch
 # ---------------------------------------------------------------------------
+
 
 class BboxBatchOp(BaseModel):
     op: str = Field(..., pattern="^(create|update|delete)$")
     annotation_id: str | None = None
     data: dict | None = None
+
 
 class BboxBatchRequest(BaseModel):
     keyframe_id: str
@@ -84,7 +86,7 @@ async def apply_bbox_batch(
     auth: AuthContext = Depends(require_permission("cts.bboxes.write")),
     client: OrchestratorClient = Depends(get_orchestrator_client),
 ) -> dict:
-    """Apply a batch of bbox create/update/delete operations atomically (M3)."""
+    """Apply a batch of bbox create/update/delete operations atomically."""
     svc = BboxAnnotationService(client)
     ops = [{"op": o.op, "annotation_id": o.annotation_id, "data": o.data} for o in body.operations]
     return await svc.apply_bbox_batch(body.keyframe_id, ops)

@@ -22,7 +22,9 @@ async def test_string_person_id_works():
     mock_svc.where_is.return_value = None
     result = await flt.evaluate(
         {"person_id": "alice-123", "room_id": "1"},
-        sensor=None, now=datetime.now(UTC), services=services,
+        sensor=None,
+        now=datetime.now(UTC),
+        services=services,
     )
     assert result is False
     mock_svc.where_is.assert_called_once_with("alice-123")
@@ -43,7 +45,9 @@ async def test_room_id_matches():
 
     result = await flt.evaluate(
         {"person_id": "bob", "room_id": "3"},
-        sensor=None, now=datetime.now(UTC), services=services,
+        sensor=None,
+        now=datetime.now(UTC),
+        services=services,
     )
     assert result is True
 
@@ -63,7 +67,9 @@ async def test_room_name_matches():
 
     result = await flt.evaluate(
         {"person_id": "carol", "room_name": "living room"},
-        sensor=None, now=datetime.now(UTC), services=services,
+        sensor=None,
+        now=datetime.now(UTC),
+        services=services,
     )
     assert result is True
 
@@ -76,7 +82,9 @@ async def test_fail_closed_no_person_location():
     services.person_location = None
     result = await flt.evaluate(
         {"person_id": "alice", "room_id": "1"},
-        sensor=None, now=datetime.now(UTC), services=services,
+        sensor=None,
+        now=datetime.now(UTC),
+        services=services,
     )
     assert result is False
 
@@ -87,7 +95,9 @@ async def test_fail_closed_no_services():
     flt = RoomFilter()
     result = await flt.evaluate(
         {"person_id": "alice", "room_id": "1"},
-        sensor=None, now=datetime.now(UTC), services=None,
+        sensor=None,
+        now=datetime.now(UTC),
+        services=None,
     )
     assert result is False
 
@@ -98,7 +108,9 @@ async def test_no_person_id_returns_false():
     flt = RoomFilter()
     result = await flt.evaluate(
         {"room_name": "Kitchen"},
-        sensor=None, now=datetime.now(UTC), services=None,
+        sensor=None,
+        now=datetime.now(UTC),
+        services=None,
     )
     assert result is False
 
@@ -109,6 +121,8 @@ async def test_no_uuid_coercion():
     flt = RoomFilter()
     result = await flt.evaluate(
         {"person_id": "simple-name", "room_id": "1"},
-        sensor=None, now=datetime.now(UTC), services=None,
+        sensor=None,
+        now=datetime.now(UTC),
+        services=None,
     )
     assert result is False  # no services, fails closed

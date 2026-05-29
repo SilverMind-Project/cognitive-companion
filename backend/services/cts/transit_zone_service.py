@@ -1,6 +1,6 @@
-"""Transit zone service for camera-blind room entry/exit detection (M2).
+"""Transit zone service for camera-blind room entry/exit detection.
 
-WTR5: Added polygon and room reference validation.
+Added polygon and room reference validation.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ def validate_transit_zone_polygon(
 
     try:
         poly = Polygon([(p[0], p[1]) for p in polygon])
-    except Exception:
+    except Exception:  # noqa: BLE001
         errors.append("polygon geometry is invalid")
         return errors
 

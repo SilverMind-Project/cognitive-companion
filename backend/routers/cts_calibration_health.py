@@ -28,7 +28,7 @@ def _get_uncalibrated_detection_count() -> int:
         for metric in REGISTRY.collect():
             if metric.name == "cts_uncalibrated_detections_total":
                 return int(sum(sample.value for sample in metric.samples))
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("uncalibrated_count_fetch_failed", error=str(exc))
     return 0
 
@@ -57,7 +57,7 @@ async def calibration_health(
     try:
         status_raw = await client._request("GET", "/internal/calibration/status")
         status = status_raw.json()
-    except Exception:
+    except Exception:  # noqa: BLE001
         status = {}
 
     results: list[dict] = []

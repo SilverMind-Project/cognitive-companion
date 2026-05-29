@@ -1,4 +1,4 @@
-"""Shared schema mixin for M2 calibration validation results."""
+"""Shared schema mixin for calibration validation results."""
 
 from __future__ import annotations
 

@@ -2,7 +2,7 @@
 
 On-premise AI system for senior care: safety monitoring, activity tracking, and cognitive engagement. All inference runs locally.
 
-The backend is a FastAPI BFF gateway for the continuous tracking, scene analysis, person identification, semantic memory, and TTS services. A Vue 3 admin UI provides camera management, live tracking, privacy zone configuration, rule authoring, and dementia signal dashboards. A senior-facing voice companion runs through the PWA.
+The backend is a FastAPI BFF gateway for the continuous tracking, scene analysis, person identification, semantic memory, and TTS services. A Vue 3 admin UI provides camera management, a unified role-aware tracking workspace, live pipeline activity view, privacy zone configuration, rule authoring, and dementia signal dashboards. A senior-facing voice companion runs through the PWA.
 
 **Documentation:** [silvermind-project.github.io](https://silvermind-project.github.io)
 
@@ -16,7 +16,7 @@ flowchart LR
     CTS --> CC
 ```
 
-The system ingests camera frames and sensor events, evaluates them against caregiver-authored rules with composable per-rule pipelines, and dispatches notifications across seven output channels.
+The system ingests camera frames and sensor events, evaluates them against caregiver-authored rules with composable per-rule pipelines, and dispatches notifications across seven output channels. Person location state is managed by `PersonLocationService` as a single source of truth; MCP tools and BFF router endpoints read from the same service functions.
 
 ## Quick start
 
@@ -41,6 +41,7 @@ cd frontend && npm install && npm run dev
 # Quality gates
 make check              # lint + strict mypy on core + core tests
 make check-all          # adds services tests
+make test-integration   # integration tests (requires Docker)
 ```
 
 ## License

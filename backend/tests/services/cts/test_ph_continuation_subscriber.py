@@ -1,6 +1,8 @@
 """WTR4: PHContinuationSubscriber tests."""
+
 from __future__ import annotations
 
+import inspect
 from datetime import UTC, datetime
 
 import pytest
@@ -25,6 +27,53 @@ def _make_service() -> PersonLocationService:
     )
 
 
+def test_decode_returns_message_not_coroutine():
+    """Regression: StreamConsumer calls decode synchronously before handle."""
+    subscriber = PHContinuationSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=_make_service(),
+    )
+
+    decoded = subscriber.decode(
+        b"msg-1",
+        {
+            b"predecessor_ph_id": b"ph-old",
+            b"successor_ph_id": b"ph-new",
+            b"predecessor_identity_id": b"alice",
+        },
+    )
+
+    assert not inspect.isawaitable(decoded)
+    assert decoded == {
+        "predecessor_ph_id": "ph-old",
+        "successor_ph_id": "ph-new",
+        "predecessor_identity_id": "alice",
+    }
+
+
+def test_decode_accepts_string_field_keys_and_values():
+    """Decoder honors the StreamConsumer bytes-or-str field contract."""
+    subscriber = PHContinuationSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=_make_service(),
+    )
+
+    decoded = subscriber.decode(
+        b"msg-1",
+        {
+            "predecessor_ph_id": "ph-old",
+            "successor_ph_id": "ph-new",
+            "predecessor_identity_id": "alice",
+        },
+    )
+
+    assert decoded == {
+        "predecessor_ph_id": "ph-old",
+        "successor_ph_id": "ph-new",
+        "predecessor_identity_id": "alice",
+    }
+
+
 @pytest.mark.asyncio
 async def test_continuation_does_not_coerce_person_id_to_uuid():
     """WTR4 regression: predecessor_identity_id is a string, not UUID."""
@@ -37,8 +86,12 @@ async def test_continuation_does_not_coerce_person_id_to_uuid():
     now = datetime.now(UTC)
     # Seed an inferred segment for the predecessor identity.
     await svc.ingest_observation(
-        person_id="alice", observed_at=now, source="world_tracker",
-        source_ref="ph-old", floor_point=FloorPoint(x_m=1.0, y_m=2.0), room_id=1,
+        person_id="alice",
+        observed_at=now,
+        source="world_tracker",
+        source_ref="ph-old",
+        floor_point=FloorPoint(x_m=1.0, y_m=2.0),
+        room_id=1,
     )
 
     msg = {

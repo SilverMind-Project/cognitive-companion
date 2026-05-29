@@ -753,6 +753,15 @@
               Copy
             </v-btn>
             <v-btn
+              size="small"
+              variant="text"
+              prepend-icon="mdi-open-in-new"
+              :to="`/admin/activity`"
+              title="Open in Activity view"
+            >
+              Activity
+            </v-btn>
+            <v-btn
               icon="mdi-close"
               variant="text"
               size="small"

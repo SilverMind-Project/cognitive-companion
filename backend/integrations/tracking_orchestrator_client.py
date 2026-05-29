@@ -98,36 +98,6 @@ class OrchestratorClient(UpstreamClient):
     async def post_reload(self) -> None:
         await self._request("POST", "/internal/calibration/reload")
 
-    async def post_manual_correction(self, body: dict) -> dict:
-        r = await self._request("POST", "/internal/corrections", json=body)
-        return r.json()
-
-    async def manual_identity_override(
-        self,
-        *,
-        global_track_id: str,
-        new_identity_id: str | None,
-        actor: str,
-        reason: str = "manual",
-        display_name: str | None = None,
-        evidence: dict | None = None,
-    ) -> dict:
-        """DEPRECATED (WTR6): use correct_ph_identity() instead.
-
-        Apply a caregiver-authored identity override. Kept for backward
-        compat — prefer the PH-native correct/merge/split endpoints.
-        """
-        body: dict = {
-            "global_track_id": global_track_id,
-            "new_identity_id": new_identity_id,
-            "actor": actor,
-            "reason": reason,
-            "evidence": evidence or {},
-        }
-        if display_name is not None:
-            body["display_name"] = display_name
-        return await self.post_manual_correction(body)
-
     async def get_identities(self, *, active_only: bool = True) -> list[dict]:
         """Fetch all named identities from the ReID gallery."""
         r = await self._request(
@@ -136,50 +106,6 @@ class OrchestratorClient(UpstreamClient):
             params={"active_only": str(active_only).lower()},
         )
         return r.json().get("identities", [])
-
-    async def get_global_tracks(
-        self,
-        *,
-        open_only: bool = True,
-        since: str | None = None,
-        limit: int | None = None,
-        offset: int | None = None,
-        camera_id: str | None = None,
-        identity_id: str | None = None,
-        status: str | None = None,
-        search: str | None = None,
-        min_duration_s: float | None = None,
-    ) -> dict:
-        params: dict[str, str] = {"open_only": str(open_only).lower()}
-        if since:
-            params["since"] = since
-        if limit is not None:
-            params["limit"] = str(limit)
-        if offset is not None:
-            params["offset"] = str(offset)
-        if camera_id:
-            params["camera_id"] = camera_id
-        if identity_id:
-            params["identity_id"] = identity_id
-        if status:
-            params["status"] = status
-        if search:
-            params["search"] = search
-        if min_duration_s is not None:
-            params["min_duration_s"] = str(min_duration_s)
-        r = await self._request("GET", "/internal/global_tracks", params=params)
-        data = r.json()
-        tracks = data.get("tracks", [])
-        return {
-            "tracks": tracks,
-            "count": int(data.get("count", len(tracks))),
-            "limit": data.get("limit"),
-            "offset": data.get("offset"),
-        }
-
-    async def get_global_track(self, track_id: str) -> dict:
-        r = await self._request("GET", f"/internal/global_tracks/{track_id}")
-        return r.json()
 
     async def get_health(self) -> dict:
         r = await self._request("GET", "/internal/health")
@@ -198,15 +124,15 @@ class OrchestratorClient(UpstreamClient):
         self,
         *,
         identity_id: str | None = None,
-        global_track_id: str | None = None,
+        ph_id: str | None = None,
         since: str | None = None,
         limit: int = 200,
     ) -> dict:
         params: dict = {"limit": limit}
         if identity_id:
             params["identity_id"] = identity_id
-        if global_track_id:
-            params["global_track_id"] = global_track_id
+        if ph_id:
+            params["ph_id"] = ph_id
         if since:
             params["since"] = since
         r = await self._request("GET", "/internal/trajectory/recent", params=params)
@@ -218,39 +144,13 @@ class OrchestratorClient(UpstreamClient):
 
     # -- Keyframe methods (M8) -----------------------------------------------
 
-    async def enroll_from_tracklet(
-        self,
-        *,
-        identity_id: str,
-        tracklet_id: str,
-        display_name: str | None = None,
-    ) -> dict:
-        """Enroll a tracklet's embeddings under a named identity in the ReID gallery.
-
-        Proxies ``POST /internal/gallery/enroll`` on the orchestrator.  Returns
-        the enrollment response dict (``identity_id``, ``enrolled_count``,
-        ``enrolled_at``).
-
-        Raises :class:`UpstreamError` (propagated as HTTP 502) when the
-        orchestrator returns an error (e.g., 404 when the tracklet has no
-        gallery embeddings yet).
-        """
-        body: dict = {
-            "identity_id": identity_id,
-            "tracklet_id": tracklet_id,
-        }
-        if display_name is not None:
-            body["display_name"] = display_name
-        r = await self._request("POST", "/internal/gallery/enroll", json=body)
-        return r.json()
-
     async def list_keyframes(
         self,
         person_id: str | None = None,
         signal_type: str | None = None,
         after: str | None = None,
         limit: int = 100,
-        global_track_id: str | None = None,
+        ph_id: str | None = None,
         strategy: str | None = None,
     ) -> list[dict]:
         """List tagged keyframes, optionally filtered by person, signal, or track."""
@@ -261,8 +161,8 @@ class OrchestratorClient(UpstreamClient):
             params["signal_type"] = signal_type
         if after:
             params["after"] = after
-        if global_track_id:
-            params["global_track_id"] = global_track_id
+        if ph_id:
+            params["ph_id"] = ph_id
         if strategy:
             params["strategy"] = strategy
         r = await self._request("GET", "/internal/keyframes", params=params)
@@ -276,50 +176,6 @@ class OrchestratorClient(UpstreamClient):
     async def retain_keyframe(self, sample_id: str) -> dict:
         """Retain a keyframe past the normal retention window."""
         r = await self._request("POST", f"/internal/keyframes/{sample_id}/retain")
-        return r.json()
-
-    async def unmerge_tracklet(
-        self,
-        *,
-        tracklet_id: str,
-        requested_by: str = "caregiver",
-    ) -> dict:
-        """Detach a tracklet from its current global track.
-
-        Proxies ``POST /internal/corrections/unmerge_tracklet`` on the
-        orchestrator.  Returns a dict with ``tracklet_id``,
-        ``original_global_track_id``, and ``new_global_track_id``.
-        """
-        r = await self._request(
-            "POST",
-            "/internal/corrections/unmerge_tracklet",
-            json={"tracklet_id": tracklet_id, "requested_by": requested_by},
-        )
-        return r.json()
-
-    async def merge_global_tracks(
-        self,
-        *,
-        source_id: str,
-        target_id: str,
-        merged_by: str,
-    ) -> dict:
-        """Merge source global track into target.
-
-        Proxies ``POST /internal/corrections/merge_global_tracks`` on the
-        orchestrator.  Returns a dict with ``source_id``, ``target_id``,
-        and ``merged_at``.
-        """
-        r = await self._request(
-            "POST",
-            "/internal/corrections/merge_global_tracks",
-            json={
-                "source_id": source_id,
-                "target_id": target_id,
-                "merged_by": merged_by,
-            },
-            timeout=30.0,
-        )
         return r.json()
 
     # -- Dashboard methods (M8) ----------------------------------------------
@@ -424,10 +280,8 @@ class OrchestratorClient(UpstreamClient):
             f"/internal/bboxes/{annotation_id}",
         )
 
-    async def apply_bbox_batch(
-        self, keyframe_id: str, operations: list[dict]
-    ) -> dict:
-        """Apply a batch of bbox create/update/delete operations atomically (M3)."""
+    async def apply_bbox_batch(self, keyframe_id: str, operations: list[dict]) -> dict:
+        """Apply a batch of bbox create/update/delete operations atomically."""
         r = await self._request(
             "POST",
             "/internal/bboxes/batch",
@@ -491,7 +345,9 @@ class OrchestratorClient(UpstreamClient):
         return r.json()
 
     async def get_ph_co_present(self, ph_id: str, *, radius_m: float = 5.0) -> dict:
-        r = await self._request("GET", f"/ph/{ph_id}/co_present", params={"radius_m": str(radius_m)})
+        r = await self._request(
+            "GET", f"/ph/{ph_id}/co_present", params={"radius_m": str(radius_m)}
+        )
         return r.json()
 
     async def correct_ph_identity(

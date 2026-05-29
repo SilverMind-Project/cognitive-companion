@@ -119,7 +119,7 @@ async def tts_health():
             resp.raise_for_status()
             data = resp.json()
             return {"configured": True, **data}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {"configured": True, "status": "unreachable"}
 
 
@@ -134,7 +134,7 @@ async def _proxy_health(url: str, timeout: float = 5.0) -> dict:
             resp.raise_for_status()
             data = resp.json()
             return {"configured": True, **data}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {"configured": True, "status": "unreachable"}
 
 
@@ -182,7 +182,7 @@ async def triton_health():
             resp = await client.get(f"{http_url}/v2/health/ready")
             resp.raise_for_status()
             return {"configured": True, "status": "ready"}
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {"configured": True, "status": "unreachable"}
 
 
@@ -215,7 +215,7 @@ async def llm_models_health() -> list[dict]:
                     }
         except httpx.TimeoutException:
             return {**base, "status": "error", "detail": "Request timed out"}
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return {**base, "status": "error", "detail": str(exc)}
 
     results = await asyncio.gather(*(check_model(m) for m in models))

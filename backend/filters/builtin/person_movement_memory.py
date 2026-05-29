@@ -1,4 +1,4 @@
-"""Context filter: person_movement_memory (M4: uses PersonLocationService fallback).
+"""Context filter: person_movement_memory (uses PersonLocationService fallback).
 
 Gates rules on movement transitions. Primary path: semantic memory client.
 Fallback: PersonLocationService.presence_history for installations without
@@ -88,7 +88,11 @@ class PersonMovementMemoryFilter(ContextFilter):
         min_confidence: float = config.get("min_confidence", 0.0)
 
         # Primary: semantic memory client.
-        if services and hasattr(services, "semantic_memory_client") and services.semantic_memory_client:
+        if (
+            services
+            and hasattr(services, "semantic_memory_client")
+            and services.semantic_memory_client
+        ):
             client = services.semantic_memory_client
             transitions = await client.get_transitions(
                 person_id,
@@ -98,14 +102,18 @@ class PersonMovementMemoryFilter(ContextFilter):
             )
             return any(t.confidence >= min_confidence for t in transitions)
 
-        # M4 fallback: PersonLocationService presence_history.
-        if services and hasattr(services, "person_location") and services.person_location is not None:
+        # PersonLocationService presence_history fallback.
+        if (
+            services
+            and hasattr(services, "person_location")
+            and services.person_location is not None
+        ):
             try:
                 cutoff = now - timedelta(minutes=within_minutes)
                 segments = await services.person_location.presence_history(
                     person_id, since=cutoff, until=now
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001
                 return False
 
             active = [s for s in segments if s.superseded_by is None]
@@ -120,9 +128,16 @@ class PersonMovementMemoryFilter(ContextFilter):
                 if to_room_id and str(curr.room_id) != to_room_id:
                     continue
                 if semantic:
-                    if semantic == "entering" and curr.entry_source not in ("observed", "inferred_transit"):
+                    if semantic == "entering" and curr.entry_source not in (
+                        "observed",
+                        "inferred_transit",
+                    ):
                         continue
-                    if semantic == "exiting" and prev.exit_source not in ("observed", "inferred_transit", "contradicted"):
+                    if semantic == "exiting" and prev.exit_source not in (
+                        "observed",
+                        "inferred_transit",
+                        "contradicted",
+                    ):
                         continue
                 return True
             return False

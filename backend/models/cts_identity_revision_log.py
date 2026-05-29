@@ -21,7 +21,7 @@ class CtsIdentityRevisionLog(Base):
     __tablename__ = "cts_identity_revision_log"
 
     revision_id: Mapped[str] = mapped_column(String(128), primary_key=True)
-    global_track_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    ph_id: Mapped[str] = mapped_column(String(128), nullable=False)
     previous_identity_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     new_identity_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     actor: Mapped[str] = mapped_column(String(128), nullable=False)

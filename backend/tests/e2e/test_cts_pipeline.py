@@ -84,26 +84,24 @@ def _make_event_fields(
     det = ev.detections.add(
         detection_id=f"det-{frame_index}",
         confidence=0.9,
-        tracklet_id=f"tr-{camera_id}",
-        global_track_id=f"gt-{identity}",
+        ph_id=f"ph-{identity}",
     )
     det.bbox.x_min, det.bbox.y_min = 100, 200
     det.bbox.x_max, det.bbox.y_max = 200, 400
     det.floor_point.x_mm = 1500
     det.floor_point.y_mm = 2500
     det.floor_point.calibrated = True
-    rev = ev.identity_revisions.add()
-    rev.global_track_id = f"gt-{identity}"
-    rev.map_identity_id = identity
-    rev.candidates.add(identity_id=identity, probability=0.92)
+    snap = ev.identity_snapshots.add()
+    snap.ph_id = f"ph-{identity}"
+    snap.identity_id = identity
+    snap.top_probability = 0.92
     return {b"event": ev.SerializeToString()}
 
 
 def _make_revision_fields(
     *,
     revision_id: str,
-    global_track_id: str,
-    tracklet_ids: list[str],
+    ph_id: str,
     previous_identity_id: str | None,
     new_identity_id: str | None,
     revision_time: datetime,
@@ -112,8 +110,7 @@ def _make_revision_fields(
     """Build a Redis-Streams field dict carrying an IdentityRevision proto."""
     msg = tracking_pb2.IdentityRevision(
         revision_id=revision_id,
-        global_track_id=global_track_id,
-        tracklet_ids=tracklet_ids,
+        ph_id=ph_id,
         previous_identity_id=previous_identity_id or "",
         new_identity_id=new_identity_id or "",
         map_identity_id=new_identity_id or "",
@@ -207,7 +204,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
         kitchen, bedroom = rows
         assert kitchen.room_name == "Kitchen"
         assert kitchen.exited_at is not None
-        assert kitchen.global_track_id == "gt-grandma"
+        assert kitchen.ph_id == "ph-grandma"
         assert kitchen.source == "cts"
         assert bedroom.room_name == "Bedroom"
         assert bedroom.exited_at is None
@@ -237,8 +234,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
         revisions_stream,
         _make_revision_fields(
             revision_id="rev-1",
-            global_track_id="gt-grandma",
-            tracklet_ids=["tr-cam-overhead"],
+            ph_id="ph-grandma",
             previous_identity_id="grandma",
             new_identity_id="caregiver",
             revision_time=datetime.now(UTC),
@@ -296,7 +292,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
         assert len(caregiver_rows) == 2
         rooms = [row.room_name for row in caregiver_rows]
         assert rooms == ["Kitchen", "Bedroom"]
-        assert all(row.global_track_id == "gt-grandma" for row in caregiver_rows)
+        assert all(row.ph_id == "ph-grandma" for row in caregiver_rows)
 
         caregiver_state = (
             db.query(PersonLocationState).filter(PersonLocationState.person_id == "caregiver").one()

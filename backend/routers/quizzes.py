@@ -475,7 +475,7 @@ async def set_question_image(
                     }
                     for surface, v in variants.items()
                 }
-            except Exception:
+            except Exception:  # noqa: BLE001
                 image_slot["variants"] = {}
 
     q.image_slot = image_slot

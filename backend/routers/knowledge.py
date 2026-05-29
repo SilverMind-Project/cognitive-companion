@@ -39,7 +39,7 @@ def _add_presigned(img_row, minio_client) -> dict:
         d["presigned_url"] = minio_client.generate_presigned_url(
             img_row.minio_object_name, expiration=3600
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         d["presigned_url"] = None
     return d
 

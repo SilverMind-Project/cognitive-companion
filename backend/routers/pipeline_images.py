@@ -81,7 +81,7 @@ async def _recamera_sample(minio_client, sensor_id: str | None) -> dict:
         if data:
             img = Image.open(BytesIO(data))
             width, height = img.size
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.warning("sample_dimensions_read_error", object_name=row.object_name)
 
     return {
@@ -118,7 +118,7 @@ async def _cts_sample(minio_client, ingress, camera_id: str | None) -> dict:
     try:
         img = Image.open(BytesIO(jpeg_bytes))
         width, height = img.size
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
     db = get_session()

@@ -108,7 +108,7 @@ export const cts = {
   getInferredAdjacency: () => req("/calibration/adjacency/inferred"),
   getOverlapGroups: () => req("/overlap_groups"),
 
-  // ── M2: Calibration diagnostics & transit zones ──────────────────────────────
+  // ── Calibration diagnostics and transit zones ──────────────────────────────
   getCalibrationDiagnostics: () => req("/diagnostics/calibration"),
   getTransitZones: () => req("/transit-zones"),
   createTransitZone: (body) =>
@@ -169,7 +169,7 @@ export const cts = {
   retainKeyframe: (sampleId) =>
     req(`/keyframes/${sampleId}/retain`, { method: "POST" }),
 
-  /** R4: Fetch a keyframe image as an authenticated blob (object URL).
+  /** Fetch a keyframe image as an authenticated blob (object URL).
    *  The caller MUST call URL.revokeObjectURL(url) on unmount. */
   getKeyframeBlob: async (minioKey) => {
     const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
@@ -181,14 +181,14 @@ export const cts = {
     return URL.createObjectURL(await resp.blob());
   },
 
-  // ── Weekly report (R4) ──────────────────────────────────────────────────────
+  // ── Weekly report ──────────────────────────────────────────────────────────
   getWeeklyReport: (personId, weekStart) =>
     req("/reports/weekly", {
       method: "POST",
       body: JSON.stringify({ person_id: personId, week_start: weekStart }),
     }),
 
-  // ── Signal explorer (R4) ────────────────────────────────────────────────────
+  // ── Signal explorer ────────────────────────────────────────────────────────
   getSignalExplorer: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.kind) params.kind.forEach((k) => qs.append("kind[]", k));
@@ -228,37 +228,8 @@ export const cts = {
     return req(`/dashboard/dwell_summary?${qs.toString()}`);
   },
 
-  // ── Gallery enrollment ─────────────────────────────────────────────────────
-  enrollFromTracklet: (payload) =>
-    req("/gallery/enroll", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  // ── Bulk enrollment ────────────────────────────────────────────────────────
-  enrollBatch: (items) =>
-    req("/identity/enroll/batch", {
-      method: "POST",
-      body: JSON.stringify({ items }),
-    }),
-
-  // ── Identity corrections (M9) ──────────────────────────────────────────────
+  // ── Identity corrections ──────────────────────────────────────────────────
   getIdentities: () => req("/identity/identities"),
-  getGlobalTracks: (params = {}) => {
-    const qs = new URLSearchParams();
-    if (params.open_only !== undefined) qs.set("open_only", params.open_only);
-    if (params.since) qs.set("since", params.since);
-    if (params.limit) qs.set("limit", params.limit);
-    if (params.offset) qs.set("offset", params.offset);
-    if (params.camera_id) qs.set("camera_id", params.camera_id);
-    if (params.identity_id) qs.set("identity_id", params.identity_id);
-    if (params.status) qs.set("status", params.status);
-    if (params.search) qs.set("search", params.search);
-    if (params.include_transient !== undefined) qs.set("include_transient", params.include_transient);
-    if (params.min_duration_s !== undefined) qs.set("min_duration_s", params.min_duration_s);
-    const q = qs.toString();
-    return q ? req(`/identity/global_tracks?${q}`) : req("/identity/global_tracks");
-  },
   applyCorrection: (payload) =>
     req("/identity/corrections", {
       method: "POST",
@@ -282,17 +253,6 @@ export const cts = {
     const q = qs.toString();
     return q ? req(`/identity/decisions?${q}`) : req("/identity/decisions");
   },
-  // ── Identity track enrichment (Phase 1C) ──────────────────────────────
-  getGlobalTrackDetail: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}`),
-  getCoOccurringTracks: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}/co_occurring`),
-  getTrackKeyframes: (id) => req(`/identity/global_tracks/${encodeURIComponent(id)}/keyframes`),
-  getTrackTrail: (id, { since } = {}) => {
-    const qs = new URLSearchParams();
-    if (since) qs.set("since", since);
-    const q = qs.toString();
-    return req(`/identity/global_tracks/${encodeURIComponent(id)}/trail${q ? "?" + q : ""}`);
-  },
-
   getRevisions: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.window_hours) qs.set("window_hours", params.window_hours);
@@ -318,7 +278,7 @@ export const cts = {
     return ws;
   },
 
-  // ── Bbox annotations (M4) ──────────────────────────────────────────────────
+  // ── Bbox annotations ──────────────────────────────────────────────────────
   getKeyframeBboxes: (keyframeId) =>
     req(`/identity/keyframes/${encodeURIComponent(keyframeId)}/bboxes`),
   overrideBbox: (annotationId, bbox) =>
@@ -330,7 +290,7 @@ export const cts = {
     req(`/identity/bboxes/${encodeURIComponent(annotationId)}`, {
       method: "DELETE",
     }),
-  // M3: batch bbox operations
+  // Batch bbox operations
   applyBboxBatch: (keyframeId, operations) =>
     req("/identity/bboxes/batch", {
       method: "POST",
@@ -340,27 +300,10 @@ export const cts = {
     req("/identity/corrections", {
       method: "POST",
       body: JSON.stringify({
-        global_track_id: "",
+        ph_id: "",
         annotation_id: annotationId,
         new_identity_id: identityId,
         reason: reason || "manual_bbox_tag",
-      }),
-    }),
-
-  // ── Tracklet unmerge (M5) ──────────────────────────────────────────────
-  unmergeTracklet: (globalTrackId, trackletId) =>
-    req("/identity/unmerge_tracklet", {
-      method: "POST",
-      body: JSON.stringify({ tracklet_id: trackletId }),
-    }),
-
-  // ── Global track merge (M6) ────────────────────────────────────────────
-  mergeGlobalTracks: (sourceGlobalTrackId, targetGlobalTrackId) =>
-    req("/identity/global_tracks/merge", {
-      method: "POST",
-      body: JSON.stringify({
-        source_global_track_id: sourceGlobalTrackId,
-        target_global_track_id: targetGlobalTrackId,
       }),
     }),
 
@@ -401,5 +344,24 @@ export const cts = {
    */
   reloadPresenceConfig() {
     return req("/presence-config/reload", { method: "POST" });
+  },
+
+  // ── Presence timeline ───────────────────────────────────────────────────────
+  getPresenceTimeline(personId, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.since) qs.set("since", params.since);
+    if (params.until) qs.set("until", params.until);
+    const q = qs.toString();
+    return req(`/presence/timeline/${encodeURIComponent(personId)}${q ? "?" + q : ""}`);
+  },
+  getPresenceDwells(personId, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.since) qs.set("since", params.since);
+    if (params.until) qs.set("until", params.until);
+    const q = qs.toString();
+    return req(`/presence/dwells/${encodeURIComponent(personId)}${q ? "?" + q : ""}`);
+  },
+  getCurrentlyIn() {
+    return req("/presence/currently_in");
   },
 };

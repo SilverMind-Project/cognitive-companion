@@ -1,7 +1,6 @@
 <template>
   <div>
     <div v-if="loading" class="text-body-2 text-medium-emphasis pa-2">Loading calibration health...</div>
-    <div v-else-if="error" class="text-body-2 text-error pa-2">{{ error }}</div>
     <div v-else-if="!cameras.length" class="text-body-2 text-medium-emphasis pa-2">
       No enabled cameras found.
     </div>
@@ -30,29 +29,25 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
+import { useNotify } from "@/composables/useNotify";
+import { cts } from "@/services/cts.js";
 
 const loading = ref(true);
-const error = ref("");
 const cameras = ref([]);
+const notify = useNotify();
 
-async function fetch() {
+async function loadHealth() {
   loading.value = true;
-  error.value = "";
   try {
-    const apiKey = localStorage.getItem("cc_api_key") || "";
-    const resp = await fetch("/api/v1/cts/calibration/health", {
-      headers: { "X-API-Key": apiKey },
-    });
-    if (resp.ok) cameras.value = await resp.json();
-    else error.value = `HTTP ${resp.status}`;
+    cameras.value = await cts.getCalibrationHealth();
   } catch (e) {
-    error.value = e.message || "Failed to load calibration health";
+    notify.error(e.message || "Failed to load calibration health");
   } finally {
     loading.value = false;
   }
 }
 
-onMounted(fetch);
+onMounted(loadHealth);
 </script>
 
 <style scoped>

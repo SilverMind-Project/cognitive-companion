@@ -62,6 +62,9 @@ export const cts = {
   getCameraHealth: (id) => req(`/cameras/${id}/health`),
   reloadCamera: (id) => req(`/cameras/${id}/reload`, { method: "POST" }),
 
+  // ── Calibration: health status ──────────────────────────────────────────────
+  getCalibrationHealth: () => req("/calibration/health"),
+
   // ── Calibration: homography ─────────────────────────────────────────────────
   postHomography: (camera_id, points, imageWidth, imageHeight) =>
     req("/calibration/homography", {
@@ -165,6 +168,18 @@ export const cts = {
   getKeyframe: (sampleId) => req(`/keyframes/${sampleId}`),
   retainKeyframe: (sampleId) =>
     req(`/keyframes/${sampleId}/retain`, { method: "POST" }),
+
+  /** R4: Fetch a keyframe image as an authenticated blob (object URL).
+   *  The caller MUST call URL.revokeObjectURL(url) on unmount. */
+  getKeyframeBlob: async (minioKey) => {
+    const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
+    const key = getApiKey();
+    const resp = await fetch(`${BASE}/frames/${encodedKey}`, {
+      headers: key ? { "X-API-Key": key } : {},
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return URL.createObjectURL(await resp.blob());
+  },
 
   // ── Dashboard ───────────────────────────────────────────────────────────────
   getDashboardOverview: () => req("/dashboard/overview"),

@@ -8,7 +8,7 @@
       <v-img
         v-for="kf in frames"
         :key="kf.sample_id || kf.keyframe_id"
-        :src="displaySrc(frameUrl(kf))"
+        :src="displaySrc(urlMap[kfKey(kf)] || '')"
         width="100"
         height="75"
         cover
@@ -22,22 +22,82 @@
 </template>
 
 <script setup>
+import { ref, watch, onUnmounted } from "vue";
 import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
+import { cts } from "@/services/cts.js";
+import { useNotify } from "@/composables/useNotify";
 
-defineProps({ frames: { type: Array, default: () => [] } });
+const props = defineProps({ frames: { type: Array, default: () => [] } });
 defineEmits(["click"]);
 
 const { blurMode } = useBlurMode();
 const { displaySrc } = useDisplaySrc(blurMode);
+const notify = useNotify();
 
-function frameUrl(kf) {
-  if (kf.image_url) return kf.image_url;
-  const minioKey = kf.minio_key;
-  if (!minioKey) return "";
-  const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
-  const apiKey = encodeURIComponent(localStorage.getItem("cc_api_key") || "");
-  return `/api/v1/cts/frames/${encodedKey}?api_key=${apiKey}`;
+const urlMap = ref({});
+
+function kfKey(kf) {
+  return kf.sample_id || kf.keyframe_id || "";
 }
+
+function hasImageUrl(kf) {
+  return !!(kf.image_url || kf.minio_key);
+}
+
+async function loadFrameUrl(kf) {
+  const key = kfKey(kf);
+  if (!key) return;
+  // If frame already has a direct image_url, use it.
+  if (kf.image_url) {
+    urlMap.value[key] = kf.image_url;
+    return;
+  }
+  const minioKey = kf.minio_key;
+  if (!minioKey) {
+    urlMap.value[key] = "";
+    return;
+  }
+  try {
+    const url = await cts.getKeyframeBlob(minioKey);
+    urlMap.value[key] = url;
+  } catch (e) {
+    notify.error(e.message || "Failed to load keyframe");
+  }
+}
+
+// Load URLs when frames change.
+watch(
+  () => props.frames,
+  (newFrames) => {
+    const newMap = {};
+    for (const kf of newFrames || []) {
+      const key = kfKey(kf);
+      if (!key) continue;
+      // Reuse existing URLs for frames we've already loaded.
+      if (urlMap.value[key]) {
+        newMap[key] = urlMap.value[key];
+      } else if (hasImageUrl(kf)) {
+        loadFrameUrl(kf);
+      }
+    }
+    // Revoke URLs for frames that are no longer present.
+    for (const [k, url] of Object.entries(urlMap.value)) {
+      if (!newMap[k] && url && url.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+      }
+    }
+    urlMap.value = newMap;
+  },
+  { immediate: true }
+);
+
+onUnmounted(() => {
+  for (const url of Object.values(urlMap.value)) {
+    if (typeof url === "string" && url.startsWith("blob:")) {
+      URL.revokeObjectURL(url);
+    }
+  }
+});
 </script>
 
 <style scoped>

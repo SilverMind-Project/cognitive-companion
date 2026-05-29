@@ -60,7 +60,7 @@ class WorldObservationSubscriber(StreamConsumer[dict]):
         for det in proto.detections:
             identity_id = None
             for snap in proto.identity_snapshots:
-                if snap.global_track_id == det.global_track_id:
+                if snap.ph_id == det.global_track_id:  # R3: snap uses ph_id; det uses deprecated alias
                     identity_id = snap.identity_id or None
                     break
             result["detections"].append({

@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.6.180"
+version = "0.6.181"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -54,6 +54,7 @@ dev = [
     "coverage>=7.6",
     "httpx>=0.28.1",          # FastAPI TestClient dependency
     "testcontainers[postgres]>=4.0",
+    "import-linter>=2.0.0",
 ]
 
 [tool.uv.sources]
@@ -184,4 +185,19 @@ directory = "htmlcov"
 [dependency-groups]
 dev = [
     "fakeredis>=2.35.1",
+]
+
+# ── Import Linter ─────────────────────────────────────────────────
+[tool.importlinter]
+root_packages = ["backend"]
+
+[[tool.importlinter.contracts]]
+name = "R2: filters and steps must not read legacy CTS location tables directly"
+type = "forbidden"
+source_modules = [
+    "backend.filters",
+    "backend.steps",
+]
+forbidden_modules = [
+    "backend.services.cts.location_repository",
 ]

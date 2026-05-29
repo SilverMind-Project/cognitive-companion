@@ -75,6 +75,10 @@ lint-fix:
 format:
 	$(RUFF) format backend
 
+.PHONY: import-lint
+import-lint:
+	$(PY) -m importlinter --config backend/pyproject.toml
+
 .PHONY: typecheck
 typecheck:
 	$(MYPY) -p backend
@@ -107,7 +111,7 @@ test-integration:
 check: lint typecheck-core test-core
 
 .PHONY: check-all
-check-all: lint typecheck-core test-core test-services frontend-test
+check-all: lint import-lint typecheck-core test-core test-services frontend-test
 
 .PHONY: migrate
 migrate:

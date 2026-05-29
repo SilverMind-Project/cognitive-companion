@@ -181,6 +181,24 @@ export const cts = {
     return URL.createObjectURL(await resp.blob());
   },
 
+  // ── Weekly report (R4) ──────────────────────────────────────────────────────
+  getWeeklyReport: (personId, weekStart) =>
+    req("/reports/weekly", {
+      method: "POST",
+      body: JSON.stringify({ person_id: personId, week_start: weekStart }),
+    }),
+
+  // ── Signal explorer (R4) ────────────────────────────────────────────────────
+  getSignalExplorer: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.kind) params.kind.forEach((k) => qs.append("kind[]", k));
+    if (params.severity) params.severity.forEach((s) => qs.append("severity[]", s));
+    if (params.limit) qs.set("limit", params.limit);
+    const q = qs.toString();
+    return req(`/signals/explorer${q ? "?" + q : ""}`);
+  },
+  getSignalEvidence: (signalId) => req(`/signals/${encodeURIComponent(signalId)}/evidence`),
+
   // ── Dashboard ───────────────────────────────────────────────────────────────
   getDashboardOverview: () => req("/dashboard/overview"),
   getUnacknowledgedCount: () => req("/dashboard/unacknowledged-count"),

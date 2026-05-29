@@ -164,19 +164,23 @@
         </div>
       </div>
     </v-navigation-drawer>
+
+    <v-snackbar v-model="snack" :color="snackColor" timeout="4000">{{ snackText }}</v-snackbar>
   </div>
 </template>
 
 <script>
 import { ref, computed } from "vue";
+import { cts } from "@/services/cts.js";
+import { useNotify } from "@/composables/useNotify.js";
 
-const BASE = "/api/v1/cts";
 const PALETTE = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#F7DC6F", "#BB8FCE", "#85C1E9"];
 
 export default {
   name: "SignalExplorerView",
 
   setup() {
+    const { snack, snackText, snackColor, notify } = useNotify();
     const signals = ref([]);
     const loading = ref(false);
     const error = ref("");
@@ -241,23 +245,20 @@ export default {
       return h > 0 ? `${h}h ${m}m` : `${m}m`;
     }
 
-    async function fetch() {
+    async function loadSignals() {
       loading.value = true;
       error.value = "";
       try {
-        const apiKey = localStorage.getItem("cc_api_key") || "";
-        const headers = { "X-API-Key": apiKey };
-        const params = new URLSearchParams();
-        (filters.value.kind || []).forEach((k) => params.append("kind[]", k));
-        (filters.value.severity || []).forEach((s) => params.append("severity[]", s));
-        params.set("limit", "200");
-        const resp = await fetch(`${BASE}/signals/explorer?${params}`, { headers });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
+        const data = await cts.getSignalExplorer({
+          kind: filters.value.kind || [],
+          severity: filters.value.severity || [],
+          limit: 200,
+        });
         signals.value = data.rows || [];
         aggregates.value = data.aggregates || { by_kind: {}, by_room: {} };
       } catch (e) {
         error.value = e.message || "Failed to load signals";
+        notify.error(error.value);
       } finally {
         loading.value = false;
       }
@@ -270,22 +271,24 @@ export default {
       evidenceLoading.value = true;
       evidence.value = null;
       try {
-        const apiKey = localStorage.getItem("cc_api_key") || "";
-        const resp = await fetch(`${BASE}/signals/${item.id}/evidence`, { headers: { "X-API-Key": apiKey } });
-        if (resp.ok) evidence.value = await resp.json();
-      } catch { /* silent */ }
-      finally { evidenceLoading.value = false; }
+        evidence.value = await cts.getSignalEvidence(item.id);
+      } catch (e) {
+        notify.error(e.message || "Failed to load evidence");
+      } finally {
+        evidenceLoading.value = false;
+      }
     }
 
-    function onTimeRange() { fetch(); }
+    function onTimeRange() { loadSignals(); }
 
-    fetch();
+    loadSignals();
 
     return {
       signals, loading, error, filters, headers, kindOptions, timeRangeOptions,
       drawerOpen, evidence, evidenceLoading, aggregates, kindBars, topRooms,
       maxRoomCount, chartWidth, barWidth, formatTime, formatDuration,
-      fetch, openEvidence, onTimeRange,
+      fetch: loadSignals, openEvidence, onTimeRange,
+      snack, snackText, snackColor,
     };
   },
 };

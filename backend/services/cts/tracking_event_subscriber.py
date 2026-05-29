@@ -108,12 +108,11 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 metrics.cts_events_stale_dropped.inc()
                 return None
 
-        # WTR3: build identity map from identity_snapshots (field 8),
+        # WTR3/R3: build identity map from identity_snapshots (field 8),
         # not the deprecated identity_revisions (field 5).
         identity_by_ph: dict[str, tuple[str, float, str]] = {}
         for snap in message.identity_snapshots:
-            # WTR3: global_track_id carries the PH id.
-            ph_id = snap.global_track_id
+            ph_id = snap.ph_id  # R3: field renamed from global_track_id in proto
             if not ph_id:
                 continue
             identity_by_ph[ph_id] = (
@@ -146,7 +145,8 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
 
         detections: list[dict[str, Any]] = []
         for det in message.detections:
-            # WTR3: global_track_id carries the PH id in the proto.
+            # Detection.global_track_id is a deprecated wire alias for ph_id,
+            # still populated by older orchestrators during the transition.
             ph_id = det.global_track_id
             identity_id, identity_conf, display_name = identity_by_ph.get(
                 ph_id, ("", 0.0, "")
@@ -196,7 +196,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             if snap.identity_id:
                 identity_snapshots.append(
                     {
-                        "ph_id": snap.global_track_id,
+                        "ph_id": snap.ph_id,  # R3: field renamed from global_track_id
                         "identity_id": snap.identity_id,
                         "top_probability": snap.top_probability,
                         "second_probability": snap.second_probability,

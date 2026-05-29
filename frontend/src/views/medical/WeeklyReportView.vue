@@ -114,8 +114,8 @@
 
 <script>
 import { ref, computed } from "vue";
+import { cts } from "@/services/cts.js";
 
-const BASE = "/api/v1/cts";
 const PALETTE = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#F7DC6F", "#BB8FCE", "#85C1E9"];
 
 export default {
@@ -150,19 +150,12 @@ export default {
       return ((d.minutes || 0) / max) * 100;
     }
 
-    async function fetch() {
+    async function loadReport() {
       if (!personId.value || !weekStart.value) return;
       loading.value = true;
       error.value = "";
       try {
-        const apiKey = localStorage.getItem("cc_api_key") || "";
-        const resp = await fetch(`${BASE}/reports/weekly`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
-          body: JSON.stringify({ person_id: personId.value, week_start: weekStart.value }),
-        });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        report.value = await resp.json();
+        report.value = await cts.getWeeklyReport(personId.value, weekStart.value);
       } catch (e) {
         error.value = e.message || "Failed to generate report";
       } finally {
@@ -170,7 +163,7 @@ export default {
       }
     }
 
-    return { personId, weekStart, loading, error, report, reportBars, rbarWidth, reportChartWidth, dwellPct, fetch, window };
+    return { personId, weekStart, loading, error, report, reportBars, rbarWidth, reportChartWidth, dwellPct, fetch: loadReport, window };
   },
 };
 </script>

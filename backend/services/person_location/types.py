@@ -1,4 +1,4 @@
-"""Domain types for the unified person location service (M4).
+"""Domain types for the unified person location service.
 
 All frozen dataclasses. No I/O, no validation logic (validation is at
 the HTTP boundary via Pydantic schemas).
@@ -34,6 +34,7 @@ class LocationObservation:
     floor_point: FloorPoint | None = None
     room_id: int | None = None
     confidence: float = 0.5
+    quality: float = 0.0  # PH mean_quality from CTS snapshot
     metadata: dict[str, object] = field(default_factory=dict)
 
 
@@ -47,6 +48,7 @@ class PresenceSegment:
     entry_source: EntrySource = "observed"
     exit_source: ExitSource | None = None
     confidence: float = 0.5
+    quality: float = 0.0  # PH mean_quality from CTS wire
     last_observed_at: datetime | None = None
     superseded_by: UUID | None = None
     metadata: dict[str, object] = field(default_factory=dict)
@@ -75,3 +77,5 @@ class CurrentLocation:
     entry_source: EntrySource
     confidence: float
     is_inferred: bool
+    quality: float = 0.0  # PH mean_quality; 0.0 = no data yet
+    last_observed_at: datetime | None = None  # for staleness_seconds in envelope

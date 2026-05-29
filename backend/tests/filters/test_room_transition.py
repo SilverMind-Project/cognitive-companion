@@ -99,21 +99,30 @@ class TestMetadata:
 class TestGuards:
     async def test_returns_false_without_services(self, room_filter):
         result = await room_filter.evaluate(
-            {"person_id": "alice"}, None, _NOW, services=None,
+            {"person_id": "alice"},
+            None,
+            _NOW,
+            services=None,
         )
         assert result is False
 
     async def test_returns_false_without_person_id(self, room_filter):
         svc = _services()
         result = await room_filter.evaluate(
-            {}, None, _NOW, services=svc,
+            {},
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
     async def test_returns_false_with_empty_person_id(self, room_filter):
         svc = _services()
         result = await room_filter.evaluate(
-            {"person_id": ""}, None, _NOW, services=svc,
+            {"person_id": ""},
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
@@ -122,7 +131,10 @@ class TestGuards:
         services = MagicMock()
         services.person_location = None
         result = await room_filter.evaluate(
-            {"person_id": "alice"}, None, _NOW, services=services,
+            {"person_id": "alice"},
+            None,
+            _NOW,
+            services=services,
         )
         assert result is False
 
@@ -135,16 +147,24 @@ class TestGuards:
 @pytest.mark.asyncio
 class TestCoreMatching:
     async def test_matches_within_window(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=3),
-                   entry_source="observed")
-        s2 = _seg(room_id=2, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=1),
-                   entry_source="observed")
+        s1 = _seg(
+            room_id=1,
+            room_name="Kitchen",
+            entered_at=_NOW - timedelta(minutes=3),
+            entry_source="observed",
+        )
+        s2 = _seg(
+            room_id=2,
+            room_name="Hallway",
+            entered_at=_NOW - timedelta(minutes=1),
+            entry_source="observed",
+        )
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "within_minutes": 5},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True
 
@@ -154,20 +174,22 @@ class TestCoreMatching:
         svc = _services(s1)
         result = await room_filter.evaluate(
             {"person_id": "alice", "within_minutes": 5},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
     async def test_no_match_same_room(self, room_filter):
         """Adjacent segments in the same room should not count as transition."""
-        s1 = _seg(room_id=1, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=3))
-        s2 = _seg(room_id=1, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1))
+        s1 = _seg(room_id=1, room_name="Kitchen", entered_at=_NOW - timedelta(minutes=3))
+        s2 = _seg(room_id=1, room_name="Kitchen", entered_at=_NOW - timedelta(minutes=1))
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "within_minutes": 5},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
@@ -177,7 +199,9 @@ class TestCoreMatching:
         svc = _services(s1)
         result = await room_filter.evaluate(
             {"person_id": "alice", "within_minutes": 5},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
@@ -195,7 +219,9 @@ class TestCoreMatching:
         svc = _services(seg)
         result = await room_filter.evaluate(
             {"person_id": "bob", "within_minutes": 5},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False  # only one segment
 
@@ -208,38 +234,38 @@ class TestCoreMatching:
 @pytest.mark.asyncio
 class TestToRoomFilter:
     async def test_matches_correct_room(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3))
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1))
+        s1 = _seg(room_id=1, room_name="Hallway", entered_at=_NOW - timedelta(minutes=3))
+        s2 = _seg(room_id=2, room_name="Kitchen", entered_at=_NOW - timedelta(minutes=1))
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "to_room_name": "Kitchen"},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True
 
     async def test_case_insensitive_room_match(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3))
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1))
+        s1 = _seg(room_id=1, room_name="Hallway", entered_at=_NOW - timedelta(minutes=3))
+        s2 = _seg(room_id=2, room_name="Kitchen", entered_at=_NOW - timedelta(minutes=1))
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "to_room_name": "kitchen"},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True
 
     async def test_no_match_wrong_room(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3))
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1))
+        s1 = _seg(room_id=1, room_name="Hallway", entered_at=_NOW - timedelta(minutes=3))
+        s2 = _seg(room_id=2, room_name="Kitchen", entered_at=_NOW - timedelta(minutes=1))
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "to_room_name": "Bedroom"},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
@@ -247,38 +273,38 @@ class TestToRoomFilter:
 @pytest.mark.asyncio
 class TestFromRoomFilter:
     async def test_matches_correct_from_room(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3))
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1))
+        s1 = _seg(room_id=1, room_name="Hallway", entered_at=_NOW - timedelta(minutes=3))
+        s2 = _seg(room_id=2, room_name="Kitchen", entered_at=_NOW - timedelta(minutes=1))
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "from_room_name": "Hallway"},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True
 
     async def test_case_insensitive_from_room(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3))
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1))
+        s1 = _seg(room_id=1, room_name="Hallway", entered_at=_NOW - timedelta(minutes=3))
+        s2 = _seg(room_id=2, room_name="Kitchen", entered_at=_NOW - timedelta(minutes=1))
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "from_room_name": "hallway"},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True
 
     async def test_no_match_wrong_from_room(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3))
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1))
+        s1 = _seg(room_id=1, room_name="Hallway", entered_at=_NOW - timedelta(minutes=3))
+        s2 = _seg(room_id=2, room_name="Kitchen", entered_at=_NOW - timedelta(minutes=1))
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "from_room_name": "Garage"},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
@@ -291,46 +317,70 @@ class TestFromRoomFilter:
 @pytest.mark.asyncio
 class TestSemanticFilter:
     async def test_matches_entering_semantic(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3),
-                   entry_source="observed")
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1),
-                   entry_source="observed")
+        s1 = _seg(
+            room_id=1,
+            room_name="Hallway",
+            entered_at=_NOW - timedelta(minutes=3),
+            entry_source="observed",
+        )
+        s2 = _seg(
+            room_id=2,
+            room_name="Kitchen",
+            entered_at=_NOW - timedelta(minutes=1),
+            entry_source="observed",
+        )
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "semantic": SEMANTIC_ENTERING},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True
 
     async def test_no_match_wrong_semantic(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3),
-                   entry_source="observed")
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1),
-                   entry_source="observed")
+        s1 = _seg(
+            room_id=1,
+            room_name="Hallway",
+            entered_at=_NOW - timedelta(minutes=3),
+            entry_source="observed",
+        )
+        s2 = _seg(
+            room_id=2,
+            room_name="Kitchen",
+            entered_at=_NOW - timedelta(minutes=1),
+            entry_source="observed",
+        )
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "semantic": SEMANTIC_EXITING},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
     async def test_matches_exiting_semantic(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=3),
-                   entry_source="observed",
-                   exit_source="observed")
-        s2 = _seg(room_id=2, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=1),
-                   entry_source="observed",
-                   exit_source="observed")
+        s1 = _seg(
+            room_id=1,
+            room_name="Kitchen",
+            entered_at=_NOW - timedelta(minutes=3),
+            entry_source="observed",
+            exit_source="observed",
+        )
+        s2 = _seg(
+            room_id=2,
+            room_name="Hallway",
+            entered_at=_NOW - timedelta(minutes=1),
+            entry_source="observed",
+            exit_source="observed",
+        )
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {"person_id": "alice", "semantic": SEMANTIC_EXITING},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True
 
@@ -343,12 +393,18 @@ class TestSemanticFilter:
 @pytest.mark.asyncio
 class TestCombinedConstraints:
     async def test_all_constraints_pass(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3),
-                   entry_source="observed")
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1),
-                   entry_source="observed")
+        s1 = _seg(
+            room_id=1,
+            room_name="Hallway",
+            entered_at=_NOW - timedelta(minutes=3),
+            entry_source="observed",
+        )
+        s2 = _seg(
+            room_id=2,
+            room_name="Kitchen",
+            entered_at=_NOW - timedelta(minutes=1),
+            entry_source="observed",
+        )
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {
@@ -358,17 +414,25 @@ class TestCombinedConstraints:
                 "from_room_name": "Hallway",
                 "within_minutes": 5,
             },
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True
 
     async def test_one_failing_constraint_rejects(self, room_filter):
-        s1 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=3),
-                   entry_source="observed")
-        s2 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1),
-                   entry_source="observed")
+        s1 = _seg(
+            room_id=1,
+            room_name="Hallway",
+            entered_at=_NOW - timedelta(minutes=3),
+            entry_source="observed",
+        )
+        s2 = _seg(
+            room_id=2,
+            room_name="Kitchen",
+            entered_at=_NOW - timedelta(minutes=1),
+            entry_source="observed",
+        )
         svc = _services(s1, s2)
         result = await room_filter.evaluate(
             {
@@ -377,23 +441,36 @@ class TestCombinedConstraints:
                 "to_room_name": "Kitchen",
                 "from_room_name": "Garage",  # wrong
             },
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is False
 
     async def test_most_recent_segments_considered(self, room_filter):
-        s1 = _seg(room_id=3, room_name="Bedroom",
-                   entered_at=_NOW - timedelta(minutes=10),
-                   entry_source="observed")
-        s2 = _seg(room_id=1, room_name="Hallway",
-                   entered_at=_NOW - timedelta(minutes=5),
-                   entry_source="observed")
-        s3 = _seg(room_id=2, room_name="Kitchen",
-                   entered_at=_NOW - timedelta(minutes=1),
-                   entry_source="observed")
+        s1 = _seg(
+            room_id=3,
+            room_name="Bedroom",
+            entered_at=_NOW - timedelta(minutes=10),
+            entry_source="observed",
+        )
+        s2 = _seg(
+            room_id=1,
+            room_name="Hallway",
+            entered_at=_NOW - timedelta(minutes=5),
+            entry_source="observed",
+        )
+        s3 = _seg(
+            room_id=2,
+            room_name="Kitchen",
+            entered_at=_NOW - timedelta(minutes=1),
+            entry_source="observed",
+        )
         svc = _services(s1, s2, s3)
         result = await room_filter.evaluate(
             {"person_id": "alice", "to_room_name": "Kitchen", "within_minutes": 5},
-            None, _NOW, services=svc,
+            None,
+            _NOW,
+            services=svc,
         )
         assert result is True

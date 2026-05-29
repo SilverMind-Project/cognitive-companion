@@ -148,7 +148,7 @@ class PersonLocationHistory(Base):
     superseded_by_revision_id: Mapped[str | None] = mapped_column(
         String(64), nullable=True, index=True
     )
-    global_track_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    ph_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
 
 
 class PersonActivity(Base):

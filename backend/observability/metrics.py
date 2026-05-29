@@ -1,4 +1,4 @@
-"""M4 observability metrics for the unified person location service."""
+"""Observability metrics for the unified person location service."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ class LocationMetrics:
     inferred_dwell_alerts_total: Counter
     identity_revisions_applied_total: Counter
     subscriber_lag_s: Histogram
+    cts_orchestrator_unavailable_total: Counter  # U2: orchestrator unreachable counter
+    mcp_tool_dependency_unavailable_total: Counter  # U2: MCP tool dependency unavailable
 
 
 def build_location_metrics(registry: CollectorRegistry = REGISTRY) -> LocationMetrics:
@@ -25,7 +27,9 @@ def build_location_metrics(registry: CollectorRegistry = REGISTRY) -> LocationMe
     def _gauge(name: str, doc: str, labels: list[str] | None = None) -> Gauge:
         return Gauge(name, doc, labelnames=labels or [], registry=registry)
 
-    def _hist(name: str, doc: str, buckets: tuple[float, ...], labels: list[str] | None = None) -> Histogram:
+    def _hist(
+        name: str, doc: str, buckets: tuple[float, ...], labels: list[str] | None = None
+    ) -> Histogram:
         return Histogram(name, doc, labelnames=labels or [], buckets=buckets, registry=registry)
 
     return LocationMetrics(
@@ -62,6 +66,16 @@ def build_location_metrics(registry: CollectorRegistry = REGISTRY) -> LocationMe
             "Subscriber processing latency from observed_at to write",
             (0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0),
             ["stream"],
+        ),
+        cts_orchestrator_unavailable_total=_counter(
+            "cc_cts_orchestrator_unavailable_total",
+            "Times the CTS orchestrator was unreachable on a dashboard request",
+            ["endpoint"],
+        ),
+        mcp_tool_dependency_unavailable_total=_counter(
+            "cc_mcp_tool_dependency_unavailable_total",
+            "Times an MCP tool found its upstream dependency unavailable",
+            ["tool"],
         ),
     )
 

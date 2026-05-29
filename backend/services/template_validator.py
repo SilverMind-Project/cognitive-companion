@@ -82,7 +82,7 @@ def _validate_fields(
 
         try:
             expressions = extract_expressions(value)
-        except Exception:
+        except Exception:  # noqa: BLE001
             continue
 
         for expr_body, start, end in expressions:

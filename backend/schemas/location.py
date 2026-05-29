@@ -1,4 +1,4 @@
-"""HTTP wire models for the unified location service (M4)."""
+"""HTTP wire models for the unified location service."""
 
 from __future__ import annotations
 

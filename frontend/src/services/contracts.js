@@ -107,6 +107,13 @@ def("media.buffer", "array");
 def("interactive.responses.list", "array");
 
 // ---------------------------------------------------------------------------
+// Pipeline runs
+// ---------------------------------------------------------------------------
+def("pipeline.runs.list", "array");
+def("pipeline.runs.single", { execution_id: "number", rule_id: "number", status: "string", nodes: "array", edges: "array" });
+def("pipeline.ingest.activity", "array");
+
+// ---------------------------------------------------------------------------
 // Validation (dev-only)
 // ---------------------------------------------------------------------------
 

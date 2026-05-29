@@ -1,4 +1,4 @@
-"""Presence segment ORM model (M4)."""
+"""Presence segment ORM model."""
 
 from __future__ import annotations
 
@@ -21,14 +21,13 @@ class PresenceSegment(Base):
     person_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("household_members.id"), nullable=False
     )
-    room_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("rooms.id"), nullable=False
-    )
+    room_id: Mapped[int] = mapped_column(Integer, ForeignKey("rooms.id"), nullable=False)
     entered_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     exited_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     entry_source: Mapped[str] = mapped_column(String(32), nullable=False)
     exit_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    quality: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     last_observed_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     superseded_by: Mapped[str | None] = mapped_column(
         UUID, ForeignKey("presence_segments.id"), nullable=True

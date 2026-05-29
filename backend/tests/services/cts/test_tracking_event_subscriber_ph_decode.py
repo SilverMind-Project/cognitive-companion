@@ -1,9 +1,10 @@
 """WTR3/R3: TrackingEventSubscriber PH-native decode tests.
 
-Tests that the subscriber decodes Detection.global_track_id into local ph_id,
+Tests that the subscriber decodes Detection.ph_id into local ph_id,
 uses identity_snapshots (now with ph_id field after R3 rename) for identity,
 and does not require identity_revisions.
 """
+
 from __future__ import annotations
 
 import time
@@ -38,12 +39,11 @@ def _build_event(
     event.frame_ref.height = 1080
     event.frame_ref.capture_time_unix_ns = _NOW_NS
 
-    for det in (detections or []):
+    for det in detections or []:
         d = event.detections.add(
             detection_id=det.get("detection_id", "d-1"),
             confidence=det.get("confidence", 0.9),
-            global_track_id=det.get("global_track_id", ""),
-            tracklet_id=det.get("tracklet_id", ""),
+            ph_id=det.get("ph_id", ""),
         )
         d.bbox.x_min = 10
         d.bbox.y_min = 20
@@ -55,9 +55,9 @@ def _build_event(
         d.floor_x = 1.0
         d.floor_y = 2.0
 
-    for snap in (identity_snapshots or []):
+    for snap in identity_snapshots or []:
         s = event.identity_snapshots.add()
-        s.ph_id = snap.get("ph_id", "")  # R3: field renamed from global_track_id
+        s.ph_id = snap.get("ph_id", "")  # R3: field renamed from ph_id
         s.identity_id = snap.get("identity_id", "")
         s.top_probability = snap.get("top_probability", 0.0)
         s.posterior_entropy = snap.get("posterior_entropy", 0.0)
@@ -79,7 +79,7 @@ async def test_identity_snapshots_set_detection_identity():
 
     event = _build_event(
         detections=[
-            {"detection_id": "d-1", "global_track_id": "ph-aaa"},
+            {"detection_id": "d-1", "ph_id": "ph-aaa"},
         ],
         identity_snapshots=[
             {"ph_id": "ph-aaa", "identity_id": "alice", "top_probability": 0.9},
@@ -96,8 +96,8 @@ async def test_identity_snapshots_set_detection_identity():
 
 
 @pytest.mark.asyncio
-async def test_global_track_id_becomes_ph_id_in_local_dict():
-    """The proto's Detection.global_track_id field is decoded as ph_id."""
+async def test_ph_id_becomes_ph_id_in_local_dict():
+    """The proto's Detection.ph_id field is decoded as ph_id."""
     writer = MagicMock(spec=LocationWriter)
     writer.apply = MagicMock(return_value=[])
     subscriber = TrackingEventSubscriber(
@@ -108,7 +108,7 @@ async def test_global_track_id_becomes_ph_id_in_local_dict():
 
     event = _build_event(
         detections=[
-            {"detection_id": "d-1", "global_track_id": "ph-xyz"},
+            {"detection_id": "d-1", "ph_id": "ph-xyz"},
         ],
         identity_snapshots=[
             {"ph_id": "ph-xyz", "identity_id": "bob", "top_probability": 0.85},
@@ -118,9 +118,10 @@ async def test_global_track_id_becomes_ph_id_in_local_dict():
     decoded = subscriber.decode(b"msg-1", {b"event": event.SerializeToString()})
     assert decoded is not None
     det = decoded["detections"][0]
-    # R3: Detection.global_track_id from proto is decoded as ph_id in the local dict.
+    # R3: Detection.ph_id from proto is decoded as ph_id in the local dict.
     assert det["ph_id"] == "ph-xyz"
-    assert "global_track_id" not in det, "decoded detection dict must use ph_id, not global_track_id"
+    assert "global_track_id" not in det
+    assert "tracklet_id" not in det
 
 
 @pytest.mark.asyncio
@@ -138,7 +139,7 @@ async def test_no_identity_revisions_needed_for_current_identity():
     # identity_snapshots (field 8).
     event = _build_event(
         detections=[
-            {"detection_id": "d-1", "global_track_id": "ph-1"},
+            {"detection_id": "d-1", "ph_id": "ph-1"},
         ],
         identity_snapshots=[
             {"ph_id": "ph-1", "identity_id": "carol", "top_probability": 0.95},

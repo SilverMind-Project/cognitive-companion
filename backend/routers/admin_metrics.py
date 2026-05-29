@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from prometheus_client import generate_latest
 from pydantic import BaseModel
 
 from backend.core.auth import AuthContext, require_permission
+from backend.core.logging import get_logger
 from backend.services.cts import metrics as cts_metrics
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["metrics"])
 
@@ -27,29 +30,18 @@ class CtsMetricsSummary(BaseModel):
     revisions_dropped: float
 
 
-def _counter_value(counter, **labels) -> float:
-    """Safely read a counter value from prometheus_client."""
-    try:
-        sample = counter.labels(**labels)
-        val = 0.0
-        for s in sample.collect():
-            for m in s.samples:
-                val += m.value
-        return val
-    except Exception:
-        return 0.0
-
-
 def _sum_counter(counter) -> float:
-    """Sum across all label values of a collector."""
-    try:
-        total = 0.0
-        for s in counter.collect():
-            for m in s.samples:
-                total += m.value
-        return total
-    except Exception:
-        return 0.0
+    """Sum across all label values of a Prometheus collector.
+
+    Rule 15: raises on failure so the endpoint returns an explicit 503 rather
+    than a ``0.0`` that looks like real data to a clinician or operator.
+    Callers must not swallow this exception.
+    """
+    total = 0.0
+    for s in counter.collect():
+        for m in s.samples:
+            total += m.value
+    return total
 
 
 @router.get("/metrics")
@@ -63,21 +55,34 @@ def cts_metrics_endpoint(
     request: Request,
     _auth: AuthContext = Depends(require_permission("admin:read")),
 ) -> CtsMetricsSummary:
-    """Return CTS subscriber metrics for the admin dashboard."""
-    return CtsMetricsSummary(
-        signals_received=_sum_counter(cts_metrics.cts_signals_received),
-        signals_persisted=_sum_counter(cts_metrics.cts_signals_persisted),
-        signals_decode_errors=_sum_counter(cts_metrics.cts_signals_decode_errors),
-        signals_dropped=_sum_counter(cts_metrics.cts_signals_dropped),
-        events_received=_sum_counter(cts_metrics.cts_events_received),
-        events_persisted=_sum_counter(cts_metrics.cts_events_persisted),
-        events_decode_errors=_sum_counter(cts_metrics.cts_events_decode_errors),
-        events_dropped=_sum_counter(cts_metrics.cts_events_dropped),
-        revisions_received=_sum_counter(cts_metrics.cts_revisions_received),
-        revisions_persisted=_sum_counter(cts_metrics.cts_revisions_persisted),
-        revisions_decode_errors=_sum_counter(cts_metrics.cts_revisions_decode_errors),
-        revisions_dropped=_sum_counter(cts_metrics.cts_revisions_dropped),
-    )
+    """Return CTS subscriber metrics for the admin dashboard.
+
+    Returns 503 when the Prometheus counters cannot be read (e.g. CTS not
+    initialised).  Rule 15: a ``0`` that looks like real data is worse than an
+    explicit unavailable state — these numbers are read by operators and
+    clinicians.
+    """
+    try:
+        return CtsMetricsSummary(
+            signals_received=_sum_counter(cts_metrics.cts_signals_received),
+            signals_persisted=_sum_counter(cts_metrics.cts_signals_persisted),
+            signals_decode_errors=_sum_counter(cts_metrics.cts_signals_decode_errors),
+            signals_dropped=_sum_counter(cts_metrics.cts_signals_dropped),
+            events_received=_sum_counter(cts_metrics.cts_events_received),
+            events_persisted=_sum_counter(cts_metrics.cts_events_persisted),
+            events_decode_errors=_sum_counter(cts_metrics.cts_events_decode_errors),
+            events_dropped=_sum_counter(cts_metrics.cts_events_dropped),
+            revisions_received=_sum_counter(cts_metrics.cts_revisions_received),
+            revisions_persisted=_sum_counter(cts_metrics.cts_revisions_persisted),
+            revisions_decode_errors=_sum_counter(cts_metrics.cts_revisions_decode_errors),
+            revisions_dropped=_sum_counter(cts_metrics.cts_revisions_dropped),
+        )
+    except Exception as exc:
+        logger.exception("cts_metrics_read_error")
+        raise HTTPException(
+            status_code=503,
+            detail="CTS metrics unavailable: Prometheus counters could not be read",
+        ) from exc
 
 
 def _prometheus_response():

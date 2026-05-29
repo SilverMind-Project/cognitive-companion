@@ -18,6 +18,21 @@ vi.mock("@/composables/useBlurMode", () => ({
   useDisplaySrc: () => ({ displaySrc: (src) => src }),
 }));
 
+const stubs = {
+  "v-icon": { template: "<i><slot /></i>" },
+  "v-img": {
+    template: '<img :src="src" @click="$emit(\'click\', $event)" />',
+    props: ["src"],
+  },
+};
+
+function mountStrip(frames) {
+  return mount(KeyframeStrip, {
+    props: { frames },
+    global: { stubs },
+  });
+}
+
 describe("KeyframeStrip", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -32,7 +47,7 @@ describe("KeyframeStrip", () => {
     const localStorageSpy = vi.spyOn(Storage.prototype, "getItem");
 
     const frames = [{ sample_id: "s1", minio_key: "keyframes/s1.jpg" }];
-    mount(KeyframeStrip, { props: { frames } });
+    mountStrip(frames);
     await flushPromises();
 
     expect(localStorageSpy).not.toHaveBeenCalledWith("cc_api_key");
@@ -43,7 +58,7 @@ describe("KeyframeStrip", () => {
     mockGetKeyframeBlob.mockResolvedValue("blob:test-url");
 
     const frames = [{ sample_id: "s1", minio_key: "keyframes/s1.jpg" }];
-    mount(KeyframeStrip, { props: { frames } });
+    mountStrip(frames);
     await flushPromises();
 
     expect(mockGetKeyframeBlob).toHaveBeenCalledWith("keyframes/s1.jpg");
@@ -55,7 +70,7 @@ describe("KeyframeStrip", () => {
     const revokeSpy = URL.revokeObjectURL;
 
     const frames = [{ sample_id: "s1", minio_key: "keyframes/s1.jpg" }];
-    const wrapper = mount(KeyframeStrip, { props: { frames } });
+    const wrapper = mountStrip(frames);
     await flushPromises();
 
     wrapper.unmount();
@@ -66,7 +81,7 @@ describe("KeyframeStrip", () => {
     mockGetKeyframeBlob.mockRejectedValue(new Error("storage unavailable"));
 
     const frames = [{ sample_id: "s1", minio_key: "keyframes/s1.jpg" }];
-    mount(KeyframeStrip, { props: { frames } });
+    mountStrip(frames);
     await flushPromises();
 
     expect(notifyError).toHaveBeenCalledWith("storage unavailable");

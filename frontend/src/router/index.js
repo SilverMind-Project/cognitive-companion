@@ -8,11 +8,11 @@ const routes = [
   },
   {
     path: "/admin",
-    name: "admin",
     component: () => import("../views/AdminView.vue"),
     children: [
       {
         path: "",
+        name: "admin",
         redirect: "/admin/dashboard",
       },
       {
@@ -122,7 +122,22 @@ const routes = [
         name: "admin-camera-media",
         component: () => import("../views/admin/CameraMediaView.vue"),
       },
-      // CTS: Continuous Tracking System
+
+      // ── Tracking workspace (U4) ──────────────────────────────────────────────
+      {
+        path: "tracking",
+        name: "tracking-workspace",
+        component: () => import("../views/tracking/TrackingWorkspace.vue"),
+      },
+
+      // ── Process Activity view (U5) ───────────────────────────────────────────
+      {
+        path: "activity",
+        name: "process-activity",
+        component: () => import("../views/activity/ProcessActivityView.vue"),
+      },
+
+      // ── Tracking - Setup (configuration tools, kept distinct from monitoring) ─
       {
         path: "cts/cameras",
         name: "cts-cameras",
@@ -144,63 +159,57 @@ const routes = [
         component: () => import("../views/admin/CTSAdjacencyView.vue"),
       },
       {
-        path: "cts/dashboard",
-        name: "cts-dashboard",
-        component: () => import("../views/admin/CTSDashboardView.vue"),
-      },
-      {
-        path: "cts/signals",
-        redirect: "/admin/alerts?source=cts",
-      },
-      {
         path: "cts/keyframes",
         name: "cts-keyframes",
         component: () => import("../views/admin/CTSKeyframesView.vue"),
       },
+
+      // ── Superseded monitoring routes: redirect into workspace panels ──────────
+      {
+        path: "cts/dashboard",
+        redirect: "/admin/tracking?panel=overview",
+      },
+      {
+        path: "cts/signals",
+        redirect: "/admin/tracking?panel=signals",
+      },
       {
         path: "cts/live",
-        name: "cts-live",
-        component: () => import("../views/admin/CTSLiveView.vue"),
+        redirect: "/admin/tracking?panel=live-floor",
       },
       {
         path: "cts/floor-plan",
-        name: "cts-floor-plan",
-        component: () => import("../views/admin/CTSFloorPlanView.vue"),
-        meta: { title: "Floor Plan", icon: "mdi-floor-plan" },
+        redirect: "/admin/tracking?panel=live-floor",
       },
       {
         path: "cts/people",
-        name: "CTSPeople",
-        component: () => import("../views/admin/CTSPersonHypothesesView.vue"),
-        meta: { title: "People & Hypotheses", icon: "mdi-account-group" },
+        redirect: "/admin/tracking?panel=people",
       },
       {
         path: "cts/presence",
-        name: "cts-presence",
-        component: () => import("../views/admin/CTSPresenceView.vue"),
-        meta: { title: "Presence Fusion", icon: "mdi-map-marker-radius" },
+        redirect: "/admin/tracking?panel=presence-timeline",
       },
       {
         path: "medical/signals",
-        name: "SignalExplorer",
-        component: () => import("../views/medical/SignalExplorerView.vue"),
-        meta: { title: "Signal Explorer", icon: "mdi-chart-bar" },
+        redirect: "/admin/tracking?panel=signals",
       },
       {
         path: "medical/reports/weekly",
-        name: "WeeklyReport",
-        component: () => import("../views/medical/WeeklyReportView.vue"),
-        meta: { title: "Weekly Report", icon: "mdi-file-document" },
+        redirect: "/admin/tracking?panel=reports&period=week",
       },
       {
         path: "caregiver/presence/:personId?",
-        name: "PresenceTimeline",
-        component: () => import("../views/caregiver/PresenceTimelineView.vue"),
-        meta: { title: "Presence Timeline", icon: "mdi-timeline-clock" },
+        redirect: (to) => {
+          const q = { panel: "presence-timeline" };
+          if (to.params.personId) q.person = to.params.personId;
+          return { path: "/admin/tracking", query: q };
+        },
       },
     ],
   },
 ];
+
+export { routes };
 
 export const router = createRouter({
   history: createWebHistory(),

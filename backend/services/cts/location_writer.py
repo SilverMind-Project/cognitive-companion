@@ -90,7 +90,7 @@ class LocationWriter:
                 person_id = (det.get("identity_id") or "").strip()
                 if not person_id:
                     continue
-                global_track_id = det.get("global_track_id") or None
+                ph_id = det.get("ph_id") or None
                 confidence = float(det.get("identity_confidence") or 0.0)
 
                 current = repo.get_state(person_id)
@@ -138,7 +138,7 @@ class LocationWriter:
                         room_name=room_name,
                         entered_at=event_time,
                         source=self.SOURCE,
-                        global_track_id=global_track_id,
+                        ph_id=ph_id,
                     )
 
                 touched.append(person_id)

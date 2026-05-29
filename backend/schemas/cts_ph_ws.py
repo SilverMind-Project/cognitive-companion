@@ -1,6 +1,6 @@
 """WebSocket event payload schemas for the PH gateway.
 
-Contract: WTR1 §1 — ``ph_id`` is the stable physical-track identifier.
+Contract: ``ph_id`` is the stable physical-track identifier.
 These schemas define the wire format for cts_ph_update and
 cts_ph_correction events broadcast over the shared WebSocket bus.
 Consumers read ``event["type"]`` to dispatch.

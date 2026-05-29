@@ -3,19 +3,12 @@
  *
  * Fetches timeline segments, dwell totals, and current-location HUD data
  * for a given household member. Subscribes to WS for live updates.
+ *
+ * U4: raw fetch replaced with cts service (rule 17).
  */
 
-import { ref, shallowRef, watch, onUnmounted } from "vue";
-
-const BASE = "/api/v1/cts";
-
-async function req(path) {
-  const apiKey = localStorage.getItem("cc_api_key") || "";
-  const headers = { "X-API-Key": apiKey };
-  const resp = await fetch(`${BASE}${path}`, { headers });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return resp.json();
-}
+import { ref, shallowRef, onUnmounted } from "vue";
+import { cts } from "@/services/cts.js";
 
 export function usePresenceTimeline(notify) {
   const personId = ref("");
@@ -45,9 +38,9 @@ export function usePresenceTimeline(notify) {
     error.value = "";
     try {
       const [timeline, dwellsData, currentData] = await Promise.all([
-        req(`/presence/timeline/${encodeURIComponent(personId_)}`),
-        req(`/presence/dwells/${encodeURIComponent(personId_)}`),
-        req("/presence/currently_in"),
+        cts.getPresenceTimeline(personId_),
+        cts.getPresenceDwells(personId_),
+        cts.getCurrentlyIn(),
       ]);
       segments.value = timeline.segments || [];
       dwells.value = dwellsData.dwells || [];

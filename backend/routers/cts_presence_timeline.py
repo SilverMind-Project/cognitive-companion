@@ -183,7 +183,7 @@ async def get_currently_in(
                 members = db.query(HouseholdMember).filter(HouseholdMember.is_active == True).all()  # noqa: E712
             finally:
                 db.close()
-        except Exception:
+        except Exception:  # noqa: BLE001
             members = []
 
     entries: list[CurrentInEntry] = []

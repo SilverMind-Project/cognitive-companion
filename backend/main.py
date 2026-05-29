@@ -121,9 +121,13 @@ async def lifespan(app: FastAPI):
 
     # -- WebSocket connection manager --------------------------------------
     from backend.websocket.connection_manager import ConnectionManager
+    from backend.websocket.pipeline_manager import PipelineConnectionManager
 
     ws_manager = ConnectionManager()
     app.state.ws_manager = ws_manager
+
+    pipeline_ws_manager = PipelineConnectionManager()
+    app.state.pipeline_ws_manager = pipeline_ws_manager
 
     # -- Realtime LLM provider (lazy - only connects when needed) ----------
     realtime_provider = None
@@ -267,7 +271,7 @@ async def lifespan(app: FastAPI):
                     "Memory queries, scene_contains filters, and semantic_memory_write "
                     "steps will return empty results.",
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning(
                 "semantic_memory_startup_unreachable",
                 hint="Semantic Memory health check failed. "
@@ -373,6 +377,10 @@ async def lifespan(app: FastAPI):
 
     # -- Pipeline executor -------------------------------------------------
     from backend.services.pipeline_executor import PipelineExecutor
+    from backend.services.pipeline_run_service import PipelineRunService
+
+    pipeline_run_service = PipelineRunService(db_factory=get_session)
+    app.state.pipeline_run_service = pipeline_run_service
 
     pipeline_executor = PipelineExecutor(
         db_session_factory=get_session,
@@ -393,6 +401,7 @@ async def lifespan(app: FastAPI):
         knowledge_delivery=knowledge_delivery,
         minio_client=minio_client,
         rules_engine=rules_engine,
+        event_publisher=pipeline_ws_manager.publish_event,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor
@@ -566,7 +575,7 @@ async def lifespan(app: FastAPI):
         redis_url = settings.as_str("redis.url", allow_empty=False)
         consumer_id = settings.as_str("cts.consumer_id", allow_empty=False)
 
-        # WTR4: PersonLocationService with session-aware repos.
+        # PersonLocationService with session-aware repos.
         def _make_pls() -> PersonLocationService:
             session = get_session()
             return PersonLocationService(
@@ -577,7 +586,7 @@ async def lifespan(app: FastAPI):
         person_location_service = _make_pls()
         app.state.person_location_service = person_location_service
 
-        # WTR4: M4 subscribers — constructed once, injected into runtime.
+        # M4 subscribers: constructed once, injected into runtime.
         from backend.services.cts.ph_continuation_subscriber import (
             PHContinuationSubscriber,
         )
@@ -741,9 +750,7 @@ def create_app() -> FastAPI:
         cts_cameras,
         cts_dashboard,
         cts_diagnostics,
-        cts_gallery,
         cts_keyframes,
-        cts_legacy_gone,
         cts_live,
         cts_overlap_groups,
         cts_ph,
@@ -770,6 +777,7 @@ def create_app() -> FastAPI:
         persons_location,
         pipeline,
         pipeline_images,
+        pipeline_runs,
         quizzes,
         rooms,
         rules,
@@ -801,6 +809,7 @@ def create_app() -> FastAPI:
     app.include_router(webhooks.router, prefix=api)
     app.include_router(pipeline.router, prefix=api)
     app.include_router(pipeline_images.router, prefix=api)
+    app.include_router(pipeline_runs.router, prefix=api)
     # Knowledge repository routers
     app.include_router(knowledge.router, prefix=api)
     app.include_router(info_cards.router, prefix=api)
@@ -821,14 +830,12 @@ def create_app() -> FastAPI:
     app.include_router(cts_trajectory.router, prefix=api)
     app.include_router(cts_keyframes.router, prefix=api)
     app.include_router(cts_dashboard.router, prefix=api)
-    app.include_router(cts_gallery.router, prefix=api)
     app.include_router(cts_ph.router, prefix=api)
-    app.include_router(cts_legacy_gone.router, prefix=api)
     app.include_router(cts_bboxes.router, prefix=api)
     app.include_router(cts_overlap_groups.router, prefix=api)
     app.include_router(cts_diagnostics.router, prefix=api)
     app.include_router(cts_transit_zones.router, prefix=api)
-    app.include_router(persons_location.router)  # M4: already has /api/v1 prefix
+    app.include_router(persons_location.router)  # already has /api/v1 prefix
 
     # WebSocket routers (no /api/v1 prefix).
     app.include_router(ws.router)

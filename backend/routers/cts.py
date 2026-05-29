@@ -40,7 +40,7 @@ async def get_status(
             orch_health = await orch_client.get_health()
             orchestrator["reachable"] = True
             orchestrator["health"] = orch_health
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             orchestrator["error"] = str(exc)
 
     subscribers = None

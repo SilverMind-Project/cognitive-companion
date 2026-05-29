@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n!continuoustracking/v1/scene.proto\x12\x15\x63ontinuoustracking.v1\"\xff\x01\n\x0bSceneSample\x12\x13\n\x0bkeyframe_id\x18\x01 \x01(\t\x12\x13\n\x0btracklet_id\x18\x02 \x01(\t\x12\x17\n\x0fglobal_track_id\x18\x03 \x01(\t\x12\x11\n\tcamera_id\x18\x04 \x01(\t\x12\x11\n\tminio_key\x18\x05 \x01(\t\x12\x1b\n\x13\x63\x61ptured_at_unix_ns\x18\x06 \x01(\x06\x12\x34\n\ntag_reason\x18\x07 \x01(\x0e\x32 .continuoustracking.v1.TagReason\x12\x18\n\x10\x61nnotations_json\x18\x08 \x01(\t\x12\x1a\n\x12\x65xpires_at_unix_ns\x18\t \x01(\x06*\xc9\x01\n\tTagReason\x12\x1a\n\x16TAG_REASON_UNSPECIFIED\x10\x00\x12\x17\n\x13TAG_REASON_PERIODIC\x10\x01\x12\x1f\n\x1bTAG_REASON_IDENTITY_CHANGED\x10\x02\x12\x15\n\x11TAG_REASON_HAZARD\x10\x03\x12\x1a\n\x16TAG_REASON_DWELL_START\x10\x04\x12\x13\n\x0fTAG_REASON_FALL\x10\x05\x12\x1e\n\x1aTAG_REASON_DEMENTIA_SIGNAL\x10\x06\x42OZMgithub.com/SilverMind-Project/continuous-tracking/proto/continuoustracking/v1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n!continuoustracking/v1/scene.proto\x12\x15\x63ontinuoustracking.v1\"\x8a\x02\n\x0bSceneSample\x12\x13\n\x0bkeyframe_id\x18\x01 \x01(\t\x12\x11\n\tcamera_id\x18\x04 \x01(\t\x12\x11\n\tminio_key\x18\x05 \x01(\t\x12\x1b\n\x13\x63\x61ptured_at_unix_ns\x18\x06 \x01(\x06\x12\x34\n\ntag_reason\x18\x07 \x01(\x0e\x32 .continuoustracking.v1.TagReason\x12\x18\n\x10\x61nnotations_json\x18\x08 \x01(\t\x12\x1a\n\x12\x65xpires_at_unix_ns\x18\t \x01(\x06\x12\r\n\x05ph_id\x18\n \x01(\tJ\x04\x08\x02\x10\x03J\x04\x08\x03\x10\x04R\x0btracklet_idR\x0fglobal_track_id*\xc9\x01\n\tTagReason\x12\x1a\n\x16TAG_REASON_UNSPECIFIED\x10\x00\x12\x17\n\x13TAG_REASON_PERIODIC\x10\x01\x12\x1f\n\x1bTAG_REASON_IDENTITY_CHANGED\x10\x02\x12\x15\n\x11TAG_REASON_HAZARD\x10\x03\x12\x1a\n\x16TAG_REASON_DWELL_START\x10\x04\x12\x13\n\x0fTAG_REASON_FALL\x10\x05\x12\x1e\n\x1aTAG_REASON_DEMENTIA_SIGNAL\x10\x06\x42OZMgithub.com/SilverMind-Project/continuous-tracking/proto/continuoustracking/v1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,8 +32,8 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'continuoustracking.v1.scene
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZMgithub.com/SilverMind-Project/continuous-tracking/proto/continuoustracking/v1'
-  _globals['_TAGREASON']._serialized_start=319
-  _globals['_TAGREASON']._serialized_end=520
+  _globals['_TAGREASON']._serialized_start=330
+  _globals['_TAGREASON']._serialized_end=531
   _globals['_SCENESAMPLE']._serialized_start=61
-  _globals['_SCENESAMPLE']._serialized_end=316
+  _globals['_SCENESAMPLE']._serialized_end=327
 # @@protoc_insertion_point(module_scope)

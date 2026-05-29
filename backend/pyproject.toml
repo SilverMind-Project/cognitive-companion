@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.6.183"
+version = "0.6.192"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -74,7 +74,30 @@ line-length = 100
 extend-exclude = ["integrations/proto", "scripts/*"]
 
 [tool.ruff.lint]
-extend-per-file-ignores = {"steps/_scaffold/__init__.py" = ["T201"]}
+# U6b: BLE001 (blind-except) guard — no silent fallbacks (rule 15).
+#
+# Documented BLE001 allowlist (paths relative to this pyproject.toml = backend/):
+#
+#   integrations/*.py — all integration clients are optional upstreams; CLAUDE.md
+#     mandates "return None, [], or typed zero when upstream is disabled/unreachable;
+#     no exceptions bubble."  Covers: HA, PersonIDClient, SceneAnalysis, TTS,
+#     Telegram, eink_renderer, triton_embedding_client, LLM chain, etc.
+#
+#   channels/builtin/*.py — notification channels are fire-and-forget delivery;
+#     a channel failure must not abort the pipeline step that triggered it.
+#
+#   websocket/*.py — WS broadcasts are non-required side-channels (audio, pipeline
+#     events, identity revisions).  Broadcast failure must not undo business logic.
+#
+#   mcp/server.py, mcp/middleware.py — MCP tool handlers return structured errors
+#     on failure; broad-except is the correct gateway pattern for tool execution.
+#
+#   tests/ — test utilities use broad-except for cleanup/teardown robustness.
+#
+# All other broad-excepts outside this allowlist must either:
+#   a) re-raise after logging (transient errors on required paths), or
+#   b) carry a per-site # noqa: BLE001 comment stating the reason.
+extend-per-file-ignores = {"steps/_scaffold/__init__.py" = ["T201"], "integrations/*.py" = ["BLE001"], "channels/builtin/*.py" = ["BLE001"], "websocket/*.py" = ["BLE001"], "mcp/server.py" = ["BLE001"], "mcp/middleware.py" = ["BLE001"], "tests/**/*.py" = ["BLE001"]}
 
 select = [
     "E",     # pycodestyle errors
@@ -83,6 +106,7 @@ select = [
     "W",     # pycodestyle warnings
     "UP",    # pyupgrade  modernize syntax
     "B",     # flake8-bugbear  common bug patterns
+    "BLE",   # U6b: blind-except guard (BLE001) — no silent fallbacks (rule 15)
     "SIM",   # flake8-simplify
     "TCH",   # flake8-type-checking  move type-only imports behind TYPE_CHECKING
     "RUF",   # ruff-specific rules
@@ -190,6 +214,10 @@ dev = [
 # ── Import Linter ─────────────────────────────────────────────────
 [tool.importlinter]
 root_packages = ["backend"]
+# Exclude TYPE_CHECKING-only imports from contract analysis: they have no runtime
+# effect and are guarded by if TYPE_CHECKING: blocks, so they do not create real
+# circular or forbidden runtime dependencies.
+exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
 name = "R2: filters and steps must not read legacy CTS location tables directly"
@@ -200,4 +228,51 @@ source_modules = [
 ]
 forbidden_modules = [
     "backend.services.cts.location_repository",
+]
+# person_tracking is a service-layer wrapper that legitimately instantiates
+# SqlAlchemyLocationRepository as part of its camera-event write path.
+# Steps access it only through the service interface (process_camera_event,
+# record_activity), never by importing the repository directly.
+# This ignore_imports entry allows the transitive path so the contract
+# catches only direct step→repository imports (the actual R2 violation).
+ignore_imports = [
+    "backend.steps.builtin.person_identification -> backend.services.person_tracking",
+]
+
+[[tool.importlinter.contracts]]
+name = "U2-T8: MCP module may not bypass the service layer (no direct repository imports)"
+type = "forbidden"
+source_modules = [
+    "backend.mcp",
+]
+forbidden_modules = [
+    "backend.services.person_location.repositories",
+]
+
+# U6a evidence: PersonTrackingService is LIVE (U6a dead-code audit 2026-05-29).
+# Live importers:
+#   backend.main (lifespan wiring + HA polling scheduler)
+#   backend.steps.builtin.person_identification (CameraFrameContext + process_camera_event)
+#   backend.steps.builtin.daily_report (person-id lookup via _db_factory)
+#   backend.steps.base (TYPE_CHECKING annotation)
+#   backend.services.activity.service (record_activity + query delegation)
+# PersonTrackingService owns: camera-event processing (face anchors → PersonLocationService),
+# HA sensor polling (room presence), and activity recording.
+# It is NOT removable: U2 retired its MCP read path, but the write paths above are live.
+# This comment is the U6a evidence record.  No module was removed.
+#
+# U6a: U4-deleted views (CTSDashboardView, CTSPresenceView, SignalExplorerView,
+# PresenceTimelineView) have no backend modules to guard; they were frontend-only.
+# The three CTS stream consumers (tracking_event, identity_revision, dementia_signal,
+# scene_sample) are live; no dead subscriber modules found.
+#
+# import-linter guard: prevent re-introduction of retired U4 dead module paths.
+[[tool.importlinter.contracts]]
+name = "U4: retired view modules must not be re-added as backend modules"
+type = "forbidden"
+source_modules = [
+    "backend",
+]
+forbidden_modules = [
+    "backend.services.person_location_legacy",
 ]

@@ -24,6 +24,8 @@ from backend.core.logging import get_logger
 logger = get_logger(__name__)
 
 T = TypeVar("T")
+type StreamFields = dict[bytes | str, bytes | str]
+type StreamMessage = tuple[bytes, StreamFields]
 
 
 @dataclass
@@ -55,7 +57,7 @@ class StreamConsumer[T](ABC):
         self._pending: set[asyncio.Task[object]] = set()
 
     @abstractmethod
-    def decode(self, message_id: bytes, fields: dict[bytes | str, bytes | str]) -> T | None: ...
+    def decode(self, message_id: bytes, fields: StreamFields) -> T | None: ...
 
     @abstractmethod
     async def handle(self, msg: T) -> bool: ...
@@ -106,10 +108,10 @@ class StreamConsumer[T](ABC):
             )
             await asyncio.sleep(1.0)
 
-    async def _fan_out(self, messages: list[tuple[bytes, dict[bytes, bytes]]]) -> None:
+    async def _fan_out(self, messages: list[StreamMessage]) -> None:
         assert self._redis is not None
         for message_id, fields in messages:
-            msg = self.decode(message_id, fields)  # type: ignore[arg-type]
+            msg = self.decode(message_id, fields)
             if msg is None:
                 await self._redis.xack(self._cfg.stream, self._cfg.group, message_id)
                 continue
@@ -117,7 +119,7 @@ class StreamConsumer[T](ABC):
             self._pending.add(task)
             task.add_done_callback(self._pending.discard)
 
-    async def _run_one(self, message_id, msg: T) -> None:
+    async def _run_one(self, message_id: bytes, msg: T) -> None:
         assert self._redis is not None
         async with self._sem:
             try:
@@ -132,7 +134,7 @@ class StreamConsumer[T](ABC):
         if ok:
             await self._redis.xack(self._cfg.stream, self._cfg.group, message_id)
 
-    async def _reclaim(self) -> list[tuple[bytes, dict[bytes, bytes]]] | None:
+    async def _reclaim(self) -> list[StreamMessage] | None:
         assert self._redis is not None
         res = await self._redis.xautoclaim(
             self._cfg.stream,

@@ -185,7 +185,7 @@ class InteractiveResponseService:
                 execution_id=execution_id,
                 step_id=step_id,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Job may not exist or already fired -- this is fine
             logger.debug(
                 "interactive_timeout_cancel_skipped",

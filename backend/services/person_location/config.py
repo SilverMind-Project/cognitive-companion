@@ -1,4 +1,4 @@
-"""Configuration for the unified person location service (M4)."""
+"""Configuration for the unified person location service."""
 
 from __future__ import annotations
 

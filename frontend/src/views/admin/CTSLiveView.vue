@@ -397,7 +397,7 @@
         />
         <v-card-text>
           <div class="text-body-2 mb-2">
-            GlobalTrack: <strong>{{ correction.global_track_id }}</strong>
+            PH: <strong>{{ correction.ph_id }}</strong>
           </div>
           <div class="text-body-2 mb-2">
             Camera: {{ correction.camera_id }}
@@ -548,7 +548,7 @@ const revisionToastText = ref("");
 const correctionOpen = ref(false);
 const saving = ref(false);
 const correction = reactive({
-  global_track_id: "",
+  ph_id: "",
   previous_identity_id: "",
   new_identity_id: "",
   camera_id: "",
@@ -693,21 +693,21 @@ function tileLinkEntries(cameraId) {
 // ---------------------------------------------------------------------------
 // Identity caches — three layers, consulted in order:
 //
-//  1. global_track_id cache  (5 min TTL) — most stable; one GT per person per session.
-//  2. tracklet_id cache      (30 s TTL)  — covers same-tracklet identity drops.
+//  1. ph_id cache  (5 min TTL) — most stable; one GT per person per session.
+//  2. detection_id cache      (30 s TTL)  — covers same-detection identity drops.
 //  3. position cache         (5 s TTL)   — last resort when both IDs are empty
 //     (the ~2-frame window while BoT-SORT confirms a new local track before
-//     it gets a tracklet_id or is merged back into the GT).  Picks the cached
+//     it gets a detection_id or is merged back into the GT).  Picks the cached
 //     entry whose bbox overlaps the current detection most.
 // ---------------------------------------------------------------------------
 
-const GLOBAL_TRACK_IDENTITY_TTL_MS = 300_000;
-const TRACKLET_IDENTITY_TTL_MS     =  30_000;
+const PH_IDENTITY_TTL_MS = 300_000;
+const DETECTION_IDENTITY_TTL_MS     =  30_000;
 const POSITION_IDENTITY_TTL_MS     =   5_000;
 const POSITION_IOU_MIN             =    0.25;  // require ≥25% bbox overlap
 
-const globalTrackIdentityCache = {};  // global_track_id → {identity_id, display_name, identity_confidence, lastSeenMs}
-const trackletIdentityCache    = {};  // tracklet_id      → {identity_id, display_name, identity_confidence, lastSeenMs}
+const phIdentityCache = {};  // ph_id → {identity_id, display_name, identity_confidence, lastSeenMs}
+const detectionIdentityCache    = {};  // detection_id      → {identity_id, display_name, identity_confidence, lastSeenMs}
 const positionIdentityCache    = {};  // camera_id        → [{bbox, identity_id, display_name, identity_confidence, lastSeenMs}]
 
 function _cacheEntry(d, nowMs) {
@@ -725,7 +725,7 @@ function _bboxIoU(a, b) {
 }
 
 function _applyIdentity(d, entry, action, cameraId) {
-  console.debug("[cts_live] identity_cache", { action, camera_id: cameraId, global_track_id: d.global_track_id || "", tracklet_id: d.tracklet_id || "", identity_id: entry.identity_id });
+  console.debug("[cts_live] identity_cache", { action, camera_id: cameraId, ph_id: d.ph_id || "", detection_id: d.detection_id || "", identity_id: entry.identity_id });
   return { ...d, identity_id: entry.identity_id, display_name: entry.display_name, identity_confidence: entry.identity_confidence };
 }
 
@@ -738,8 +738,8 @@ function mergeIdentityCache(detections, cameraId = "unknown") {
   for (const d of detections) {
     if (!d.identity_id) continue;
     const entry = _cacheEntry(d, nowMs);
-    if (d.global_track_id) globalTrackIdentityCache[d.global_track_id] = entry;
-    if (d.tracklet_id)     trackletIdentityCache[d.tracklet_id]         = entry;
+    if (d.ph_id) phIdentityCache[d.ph_id] = entry;
+    if (d.detection_id)     detectionIdentityCache[d.detection_id]         = entry;
     if (d.bbox)            freshPositions.push({ bbox: d.bbox, ...entry });
   }
   if (freshPositions.length) positionIdentityCache[cameraId] = freshPositions;
@@ -749,17 +749,17 @@ function mergeIdentityCache(detections, cameraId = "unknown") {
     if (d.identity_id) return d;
 
     // 1. Global-track cache (most stable — session-lifetime key).
-    if (d.global_track_id) {
-      const c = globalTrackIdentityCache[d.global_track_id];
-      if (c && nowMs - c.lastSeenMs <= GLOBAL_TRACK_IDENTITY_TTL_MS)
+    if (d.ph_id) {
+      const c = phIdentityCache[d.ph_id];
+      if (c && nowMs - c.lastSeenMs <= PH_IDENTITY_TTL_MS)
         return _applyIdentity(d, c, "gt_cache_hit", cameraId);
     }
 
-    // 2. Tracklet cache (covers same-tracklet brief identity drops).
-    if (d.tracklet_id) {
-      const c = trackletIdentityCache[d.tracklet_id];
-      if (c && nowMs - c.lastSeenMs <= TRACKLET_IDENTITY_TTL_MS)
-        return _applyIdentity(d, c, "tracklet_cache_hit", cameraId);
+    // 2. Detection cache (covers same-detection brief identity drops).
+    if (d.detection_id) {
+      const c = detectionIdentityCache[d.detection_id];
+      if (c && nowMs - c.lastSeenMs <= DETECTION_IDENTITY_TTL_MS)
+        return _applyIdentity(d, c, "detection_cache_hit", cameraId);
     }
 
     // 3. Position cache — fires when both IDs are empty (new unconfirmed track).
@@ -776,34 +776,34 @@ function mergeIdentityCache(detections, cameraId = "unknown") {
         return _applyIdentity(d, bestEntry, "position_cache_hit", cameraId);
     }
 
-    console.debug("[cts_live] identity_cache", { action: "cache_miss", camera_id: cameraId, global_track_id: d.global_track_id || "", tracklet_id: d.tracklet_id || "" });
+    console.debug("[cts_live] identity_cache", { action: "cache_miss", camera_id: cameraId, ph_id: d.ph_id || "", detection_id: d.detection_id || "" });
     return d;
   });
 }
 
 setInterval(() => {
-  const gtCutoff = Date.now() - GLOBAL_TRACK_IDENTITY_TTL_MS;
-  const tCutoff  = Date.now() - TRACKLET_IDENTITY_TTL_MS;
-  for (const [k, v] of Object.entries(globalTrackIdentityCache)) { if (v.lastSeenMs < gtCutoff) delete globalTrackIdentityCache[k]; }
-  for (const [k, v] of Object.entries(trackletIdentityCache))    { if (v.lastSeenMs < tCutoff)  delete trackletIdentityCache[k]; }
+  const gtCutoff = Date.now() - PH_IDENTITY_TTL_MS;
+  const tCutoff  = Date.now() - DETECTION_IDENTITY_TTL_MS;
+  for (const [k, v] of Object.entries(phIdentityCache)) { if (v.lastSeenMs < gtCutoff) delete phIdentityCache[k]; }
+  for (const [k, v] of Object.entries(detectionIdentityCache))    { if (v.lastSeenMs < tCutoff)  delete detectionIdentityCache[k]; }
   // Position cache entries are rebuilt fresh each frame — just clear stale cameras.
   for (const [k, v] of Object.entries(positionIdentityCache)) {
     if (!v.length || Date.now() - Math.max(...v.map(e => e.lastSeenMs)) > POSITION_IDENTITY_TTL_MS * 2)
       delete positionIdentityCache[k];
   }
-}, TRACKLET_IDENTITY_TTL_MS);
+}, DETECTION_IDENTITY_TTL_MS);
 
-// Per-tracklet keypoint EMA smoothing to reduce frame-to-frame jitter.
-// Each tracklet's 17 keypoints (x, y only) are blended with the previous
+// Per-detection keypoint EMA smoothing to reduce frame-to-frame jitter.
+// Each detection's 17 keypoints (x, y only) are blended with the previous
 // frame's values at alpha=0.35 so the skeleton overlay moves smoothly.
 const KEYPOINT_SMOOTH_ALPHA = 0.65;
-const keypointSmoothState = {};  // { tracklet_id: [{x, y} x 17] }
+const keypointSmoothState = {};  // { detection_id: [{x, y} x 17] }
 
 function smoothKeypoints(detections) {
   if (!detections) return detections;
   const now = Date.now();
   for (const d of detections) {
-    const tid = d.tracklet_id;
+    const tid = d.detection_id;
     if (!tid || !d.pose_keypoints || d.pose_keypoints.length !== 17) continue;
     const prev = keypointSmoothState[tid];
     if (!prev || (now - prev._ts) > 2000) {
@@ -1026,7 +1026,7 @@ function postureLabelY(det, cam) {
 }
 
 function openCorrection(det, cam) {
-  correction.global_track_id = det.global_track_id;
+  correction.ph_id = det.ph_id;
   correction.previous_identity_id = det.identity_id || "";
   correction.new_identity_id = "";
   correction.camera_id = cam?.camera_id || "";
@@ -1035,14 +1035,14 @@ function openCorrection(det, cam) {
 }
 
 async function submitCorrection() {
-  if (!correction.global_track_id) {
-    error.value = "No global_track_id on the selected detection.";
+  if (!correction.ph_id) {
+    error.value = "No ph_id on the selected detection.";
     return;
   }
   saving.value = true;
   try {
     await cts.applyCorrection({
-      global_track_id: correction.global_track_id,
+      ph_id: correction.ph_id,
       new_identity_id: correction.new_identity_id || null,
       reason: correction.reason || "manual",
     });

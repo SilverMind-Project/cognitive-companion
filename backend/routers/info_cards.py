@@ -344,7 +344,7 @@ async def set_info_card_slot(
             }
             db.commit()
             db.refresh(slot)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass  # variant render is best-effort
 
     return _slot_out(slot, minio)
@@ -425,7 +425,7 @@ def _slot_out(slot, minio_client) -> dict[str, Any]:
         if object_name and minio_client:
             try:
                 entry["presigned_url"] = minio_client.generate_presigned_url(object_name)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 entry["presigned_url"] = None
         else:
             entry["presigned_url"] = None

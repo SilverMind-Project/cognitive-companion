@@ -24,7 +24,7 @@ router = APIRouter(prefix="/cts", tags=["cts-signal-evidence"])
 
 
 # ---------------------------------------------------------------------------
-# WTR8: Pydantic evidence response model
+# Pydantic evidence response model
 # ---------------------------------------------------------------------------
 
 
@@ -84,7 +84,7 @@ async def signal_evidence(
     window_end = signal.get("window_end")
     person_id = signal.get("person_id", "")
 
-    # WTR8: get presence segments, split by observed vs inferred.
+    # Get presence segments, split by observed vs inferred.
     observed_segments: list[dict] = []
     inferred_segments: list[dict] = []
     transitions: list[dict] = []
@@ -115,7 +115,9 @@ async def signal_evidence(
                         {
                             "from_room_id": prev_room,
                             "to_room_id": seg.room_id,
-                            "transitioned_at": seg.entered_at.isoformat() if seg.entered_at else None,
+                            "transitioned_at": seg.entered_at.isoformat()
+                            if seg.entered_at
+                            else None,
                         }
                     )
                 prev_room = seg.room_id
@@ -197,12 +199,8 @@ async def signal_explorer(
     pid = person_id[0] if person_id else None
     since_dt = _parse_iso(since) if since else None
     until_dt = _parse_iso(until) if until else None
-    by_kind_list = await store.aggregate_by_kind(
-        person_id=pid, since=since_dt, until=until_dt
-    )
-    by_room_list = await store.aggregate_by_room(
-        person_id=pid, since=since_dt, until=until_dt
-    )
+    by_kind_list = await store.aggregate_by_kind(person_id=pid, since=since_dt, until=until_dt)
+    by_room_list = await store.aggregate_by_room(person_id=pid, since=since_dt, until=until_dt)
     by_kind = {r["kind"]: r["count"] for r in by_kind_list}
     by_room = {r["room_name"]: r["count"] for r in by_room_list}
 
@@ -262,9 +260,12 @@ async def weekly_report(
                 }
             )
 
-    highlights.sort(key=lambda h: (0 if h["severity"] == "emergency" else 1, str(h.get("fired_at", ""))), reverse=False)
+    highlights.sort(
+        key=lambda h: (0 if h["severity"] == "emergency" else 1, str(h.get("fired_at", ""))),
+        reverse=False,
+    )
 
-    # WTR8: separate observed vs inferred dwell totals.
+    # Separate observed vs inferred dwell totals.
     dwell_by_room: list[dict] = []
     observed_dwell_minutes: float = 0.0
     inferred_dwell_minutes: float = 0.0
@@ -275,7 +276,9 @@ async def weekly_report(
             room_totals: dict[int, dict[str, float]] = {}
             room_names: dict[int, str] = {}
             for seg in segs:
-                dur = ((seg.exited_at or min(we, datetime.now(UTC))) - max(seg.entered_at, ws)).total_seconds()
+                dur = (
+                    (seg.exited_at or min(we, datetime.now(UTC))) - max(seg.entered_at, ws)
+                ).total_seconds()
                 if dur > 0:
                     if seg.room_id not in room_totals:
                         room_totals[seg.room_id] = {"observed": 0.0, "inferred": 0.0}
@@ -336,5 +339,5 @@ def _in_window(fired_at: str | None, ws: datetime, we: datetime) -> bool:
     try:
         t = _parse_iso(fired_at)
         return ws <= t <= we
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False

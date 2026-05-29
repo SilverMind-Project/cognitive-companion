@@ -74,7 +74,7 @@ class CTSRuntime:
 
     WTR4: M4 subscribers (WorldObservation, RoomTransition,
     PHContinuation) are owned here and started/stopped with the runtime.
-    R1: periodic inferred-dwell tick evaluates camera-blind bathroom timeouts.
+    Periodic inferred-dwell tick evaluates camera-blind bathroom timeouts.
     """
 
     def __init__(
@@ -181,7 +181,7 @@ class CTSRuntime:
             consumer_id=config.consumer_id,
         )
 
-        # WTR2: recamera observation subscriber (in-process queue, not Redis).
+        # Recamera observation subscriber (in-process queue, not Redis).
         self._recamera_subscriber = recamera_subscriber
         self._inferred_dwell_task: asyncio.Task[None] | None = None
 
@@ -220,7 +220,7 @@ class CTSRuntime:
 
             try:
                 await _start()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 logger.error("cts_subscriber_retries_exhausted", name=bundle.name)
 
         for bundle in self._bundles:
@@ -232,7 +232,7 @@ class CTSRuntime:
             )
             bundle.task = task
         await self.snapshot_publisher.start()
-        # WTR2: start recamera subscriber if provided.
+        # Start recamera subscriber if provided.
         if self._recamera_subscriber is not None:
             await self._recamera_subscriber.start()  # type: ignore[union-attr]
         # WTR4: start M4 subscribers.
@@ -248,7 +248,7 @@ class CTSRuntime:
                     ),
                     name=f"cts-runtime-m4-{type(m4_sub).__name__}",
                 )
-        # R1: start inferred-dwell timeout evaluator if PersonLocationService is wired.
+        # Start inferred-dwell timeout evaluator if PersonLocationService is wired.
         if self._person_location_service is not None and (
             self._inferred_dwell_task is None or self._inferred_dwell_task.done()
         ):
@@ -271,7 +271,7 @@ class CTSRuntime:
         We wait up to 10 seconds per subscriber before cancelling hard.
         """
         await self.snapshot_publisher.stop()
-        # WTR2: stop recamera subscriber.
+        # Stop recamera subscriber.
         if self._recamera_subscriber is not None:
             await self._recamera_subscriber.stop()  # type: ignore[union-attr]
         # WTR4: stop M4 subscribers.
@@ -304,7 +304,7 @@ class CTSRuntime:
                     error=str(exc),
                 )
                 bundle.task.cancel()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 if not isinstance(exc, asyncio.CancelledError):
                     logger.warning(
                         "cts_runtime_task_hard_cancel",
@@ -312,12 +312,12 @@ class CTSRuntime:
                         error=str(exc),
                     )
                 bundle.task.cancel()
-        # R1: stop inferred-dwell tick task.
+        # Stop inferred-dwell tick task.
         if self._inferred_dwell_task is not None and not self._inferred_dwell_task.done():
             self._inferred_dwell_task.cancel()
             try:  # noqa: SIM105 -- contextlib.suppress cannot suppress async exceptions
                 await self._inferred_dwell_task
-            except asyncio.CancelledError, Exception:
+            except asyncio.CancelledError, Exception:  # noqa: BLE001
                 pass
 
         logger.info("cts_runtime_stopped")
@@ -404,6 +404,6 @@ def _load_window_triggers(db_factory: DBSessionFactory) -> list[CtsWindowTrigger
         ]
     except Exception:
         logger.exception("cts_window_triggers_load_error")
-        return []
+        raise
     finally:
         db.close()

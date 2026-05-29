@@ -154,7 +154,7 @@ class MemoryQueryService:
                 room_id, since_minutes=since_minutes
             )
             recent_objects = list(obj_records)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning("recent_objects_fetch_failed", room_id=room_id)
 
         # -- Format hazards ------------------------------------------------
@@ -223,7 +223,7 @@ class MemoryQueryService:
 
         try:
             result = await self._client.get_room_trends(room_id)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("trend_fetch_failed", room_id=room_id, error=str(exc))
             return None
 
@@ -246,7 +246,7 @@ class MemoryQueryService:
                     room_id, since_hours=include_snapshots_hours
                 )
                 snapshots = tuple(snap_list)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "trend_snapshots_failed",
                     room_id=room_id,

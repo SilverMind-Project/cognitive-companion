@@ -1,4 +1,4 @@
-"""PersonLocationService — single source of truth for person location (M4).
+"""PersonLocationService: single source of truth for person location.
 
 All callers (filters, steps, UI) talk to this service; nothing reads
 location_observations or presence_segments directly.
@@ -58,6 +58,7 @@ class PersonLocationService:
         floor_point: FloorPoint | None = None,
         room_id: int | None = None,
         confidence: float = 0.5,
+        quality: float = 0.0,
         metadata: dict[str, object] | None = None,
     ) -> None:
         """Ingest a single observation and update segments."""
@@ -70,6 +71,7 @@ class PersonLocationService:
             floor_point=floor_point,
             room_id=room_id,
             confidence=confidence,
+            quality=quality,
             metadata=dict(metadata or {}),
         )
         await self._obs.insert(obs)
@@ -84,6 +86,7 @@ class PersonLocationService:
             room_id=room_id,
             at=observed_at,
             confidence=confidence,
+            quality=quality,
             source_ref=source_ref,
             metadata=dict(metadata or {}),
         )
@@ -101,7 +104,7 @@ class PersonLocationService:
         floor_y_m: float,
         event_time: datetime,
     ) -> None:
-        """Handle a room transition event from tracking.room_transitions (M2)."""
+        """Handle a room transition event from tracking.room_transitions."""
         room_id = inside_room_id if direction == "enter" else outside_room_id
         event_kind = EventKind.TRANSIT_ENTER if direction == "enter" else EventKind.TRANSIT_EXIT
 
@@ -157,7 +160,7 @@ class PersonLocationService:
         self,
         old_person_id: str,
         new_person_id: str | None,
-        global_track_id: str,
+        ph_id: str,
         revision_time: datetime,
     ) -> None:
         """Retroactively rewrite segments affected by an identity revision."""
@@ -166,7 +169,7 @@ class PersonLocationService:
 
         # Rewrite observations.
         affected_obs = await self._obs.list_for_source_ref(
-            source_ref=global_track_id,
+            source_ref=ph_id,
             since=window_start,
             until=revision_time,
         )
@@ -217,7 +220,7 @@ class PersonLocationService:
         predecessor_entered_at: datetime,
         handoff_time: datetime,
     ) -> None:
-        """Stitch a presumed-presence link across a PH closure (M1 continuation).
+        """Stitch a presumed-presence link across a PH closure.
 
         When a PH closes and a new one spawns nearby within the handoff window,
         the predecessor's inferred segment carries forward to the successor.
@@ -260,6 +263,8 @@ class PersonLocationService:
             entry_source=seg.entry_source,
             confidence=seg.confidence,
             is_inferred=seg.is_inferred,
+            quality=seg.quality,
+            last_observed_at=seg.last_observed_at,
         )
 
     async def presence_history(
@@ -282,6 +287,8 @@ class PersonLocationService:
                     entry_source=seg.entry_source,
                     confidence=seg.confidence,
                     is_inferred=seg.is_inferred,
+                    quality=seg.quality,
+                    last_observed_at=seg.last_observed_at,
                 )
             )
         return result
@@ -291,7 +298,7 @@ class PersonLocationService:
         return await self._seg.get_open(person_id)
 
     async def where_is_everyone(self) -> dict[str, CurrentLocation]:
-        """Return current location for every person with an open segment (WTR4)."""
+        """Return current location for every person with an open segment."""
         all_open = await self._seg.list_all_open()
         result: dict[str, CurrentLocation] = {}
         for seg in all_open:
@@ -303,6 +310,8 @@ class PersonLocationService:
                 entry_source=seg.entry_source,
                 confidence=seg.confidence,
                 is_inferred=seg.is_inferred,
+                quality=seg.quality,
+                last_observed_at=seg.last_observed_at,
             )
         return result
 

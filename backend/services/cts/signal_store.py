@@ -347,11 +347,13 @@ class SignalStore:
         """SQL GROUP BY kind — never Python post-processing."""
         db = self._db_factory()
         try:
-            q = select(
-                DementiaSignal.signal_type,
-                func.count(DementiaSignal.id).label("count"),
-            ).group_by(DementiaSignal.signal_type).order_by(
-                desc(func.count(DementiaSignal.id))
+            q = (
+                select(
+                    DementiaSignal.signal_type,
+                    func.count(DementiaSignal.id).label("count"),
+                )
+                .group_by(DementiaSignal.signal_type)
+                .order_by(desc(func.count(DementiaSignal.id)))
             )
             if person_id is not None:
                 q = q.where(DementiaSignal.person_id == person_id)
@@ -374,9 +376,9 @@ class SignalStore:
         """SQL GROUP BY room_name from context_json."""
         db = self._db_factory()
         try:
-            room_expr = func.json_extract(
-                DementiaSignal.context_json, "$.room_name"
-            ).label("room_name")
+            room_expr = func.json_extract(DementiaSignal.context_json, "$.room_name").label(
+                "room_name"
+            )
             q = (
                 select(
                     room_expr,
@@ -393,11 +395,7 @@ class SignalStore:
             if until is not None:
                 q = q.where(DementiaSignal.received_at <= until)
             rows = db.execute(q).all()
-            return [
-                {"room_name": r.room_name, "count": r.count}
-                for r in rows
-                if r.room_name
-            ]
+            return [{"room_name": r.room_name, "count": r.count} for r in rows if r.room_name]
         finally:
             db.close()
 

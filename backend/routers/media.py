@@ -110,7 +110,7 @@ def get_media_buffer(
                     url = minio_client.generate_presigned_url(row.object_name)
                     row.presigned_url = url
                     url_refresh_needed = True
-                except Exception:
+                except Exception:  # noqa: BLE001
                     logger.warning(
                         "media_buffer_presign_failed",
                         object_name=row.object_name,

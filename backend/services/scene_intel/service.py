@@ -142,7 +142,7 @@ class SceneIntelService:
                 move_record = await self._memory_client.create_movement(movement)
                 if move_record:
                     movement_ids.append(move_record.id)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 logger.warning(
                     "movement_persist_failed",
                     person_id=transition.person_id,

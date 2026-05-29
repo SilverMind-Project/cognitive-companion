@@ -1,4 +1,4 @@
-"""Transit zone model for camera-blind room entry/exit detection (M2)."""
+"""Transit zone model for camera-blind room entry/exit detection."""
 
 from __future__ import annotations
 
@@ -21,12 +21,8 @@ class TransitZone(Base):
         String(32), nullable=False, default="door", server_default="door"
     )
     polygon: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    inside_room_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("rooms.id"), nullable=False
-    )
-    outside_room_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("rooms.id"), nullable=False
-    )
+    inside_room_id: Mapped[int] = mapped_column(Integer, ForeignKey("rooms.id"), nullable=False)
+    outside_room_id: Mapped[int] = mapped_column(Integer, ForeignKey("rooms.id"), nullable=False)
     direction_vec: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), server_default=func.now(), nullable=False

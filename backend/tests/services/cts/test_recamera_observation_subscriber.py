@@ -3,6 +3,7 @@
 Tests that recamera events are correctly ingested into PersonLocationService
 and published as identity assertions with all required fields.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

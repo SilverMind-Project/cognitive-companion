@@ -1,4 +1,5 @@
 """WTR7: Static test — no asyncio.run() in filter or step files."""
+
 from __future__ import annotations
 
 import ast

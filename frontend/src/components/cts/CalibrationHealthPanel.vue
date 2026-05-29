@@ -34,7 +34,7 @@ import { cts } from "@/services/cts.js";
 
 const loading = ref(true);
 const cameras = ref([]);
-const notify = useNotify();
+const { notify } = useNotify();
 
 async function loadHealth() {
   loading.value = true;

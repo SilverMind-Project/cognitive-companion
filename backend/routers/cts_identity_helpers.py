@@ -14,14 +14,14 @@ from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 logger = get_logger(__name__)
 
 
-def latest_posterior(global_track_id: str) -> dict | None:
+def latest_posterior(ph_id: str) -> dict | None:
     """Fetch the latest posterior evidence for a global track from the log."""
     db = get_session()
     try:
         row = (
             db.query(CtsIdentityRevisionLog)
             .filter(
-                CtsIdentityRevisionLog.global_track_id == global_track_id,
+                CtsIdentityRevisionLog.ph_id == ph_id,
                 CtsIdentityRevisionLog.evidence.isnot(None),
             )
             .order_by(CtsIdentityRevisionLog.applied_at.desc())
@@ -37,7 +37,7 @@ def latest_posterior(global_track_id: str) -> dict | None:
 def write_manual_revision_log(
     *,
     revision_id: str | None,
-    global_track_id: str,
+    ph_id: str,
     previous_identity_id: str | None,
     new_identity_id: str | None,
     actor: str,
@@ -60,7 +60,7 @@ def write_manual_revision_log(
     try:
         stmt = pg_insert(CtsIdentityRevisionLog).values(
             revision_id=revision_id,
-            global_track_id=global_track_id,
+            ph_id=ph_id,
             previous_identity_id=previous_identity_id,
             new_identity_id=new_identity_id,
             actor=actor,

@@ -396,5 +396,5 @@ async def _fetch_image(url: str) -> bytes | None:
             response = await client.get(url)
             response.raise_for_status()
             return response.content
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None

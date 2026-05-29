@@ -1,4 +1,4 @@
-"""Publishes face-anchor-equivalent assertions to cc.identity_assertions (M4).
+"""Publishes face-anchor-equivalent assertions to cc.identity_assertions.
 
 When the recamera VLM path or any other CC-side identification identifies
 a person, this publisher emits a message to the Redis stream so the

@@ -48,7 +48,7 @@ class BboxAnnotationService:
         keyframe_id: str,
         operations: list[dict],
     ) -> dict:
-        """Apply a batch of create/update/delete operations atomically (M3)."""
+        """Apply a batch of create/update/delete operations atomically."""
         return await self._client.apply_bbox_batch(keyframe_id, operations)
 
 
@@ -56,7 +56,7 @@ def _dict_to_response(d: dict) -> BboxAnnotationResponse:
     return BboxAnnotationResponse(
         id=d["id"],
         keyframe_id=d["keyframe_id"],
-        tracklet_id=d["tracklet_id"],
+        ph_id=d["ph_id"],
         camera_id=d["camera_id"],
         x1=float(d["x1"]),
         y1=float(d["y1"]),

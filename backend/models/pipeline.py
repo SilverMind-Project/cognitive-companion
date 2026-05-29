@@ -28,7 +28,7 @@ def get_step_types() -> tuple[str, ...]:
         names = StepRegistry.type_names()
         if names:
             return tuple(names)
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     # Fallback for DB migrations and early boot
     return (

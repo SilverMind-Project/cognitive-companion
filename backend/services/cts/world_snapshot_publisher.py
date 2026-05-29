@@ -71,11 +71,9 @@ class WorldSnapshotPublisher:
         phs = list(self._pending_phs)
 
         try:
-            content = json.dumps(
-                {"phs": phs, "rooms": inferred_rooms}, sort_keys=True, default=str
-            )
+            content = json.dumps({"phs": phs, "rooms": inferred_rooms}, sort_keys=True, default=str)
             snapshot_id = hashlib.sha256(content.encode()).hexdigest()[:16]
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning("world_snapshot_hash_failed")
             snapshot_id = datetime.now(UTC).isoformat()
 
@@ -112,6 +110,6 @@ class WorldSnapshotPublisher:
                         }
                     )
             return result
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning("inferred_rooms_fetch_failed")
             return []

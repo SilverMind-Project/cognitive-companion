@@ -1,4 +1,4 @@
-"""Unified Person Location Service (M4).
+"""Unified Person Location Service.
 
 Single source of truth for "where is this person, and where have they been."
 """

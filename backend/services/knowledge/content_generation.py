@@ -195,7 +195,7 @@ class ContentGenerationService:
                 body_text=data.get("body_text", response[:500]),
                 voice_instruction=data.get("voice_instruction", ""),
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Fallback: use first line as title, rest as body
             lines = response.strip().split("\n", 1)
             title = lines[0].strip().lstrip("#").strip()[:200] if lines else fallback_title
@@ -223,7 +223,7 @@ class ContentGenerationService:
                 voice_instruction=data.get("voice_instruction", ""),
                 questions=questions,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             return QuizSuggestion(title=f"Quiz: {fallback_title}")
 
     def _parse_single_question(self, response: str, question_type: str) -> QuizQuestionSuggestion:
@@ -238,7 +238,7 @@ class ContentGenerationService:
                 expected_answer=data.get("expected_answer", ""),
                 explanation=data.get("explanation", ""),
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             return QuizQuestionSuggestion(
                 question_type=cast(Literal["multiple_choice", "open_ended"], question_type),
                 question_text=response.strip()[:500],

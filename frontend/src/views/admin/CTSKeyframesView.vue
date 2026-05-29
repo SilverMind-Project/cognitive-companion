@@ -45,13 +45,6 @@
         prepend-icon="mdi-checkbox-multiple-marked-outline"
         @click="toggleSelectMode"
       >{{ selectMode ? "Cancel" : "Select" }}</v-btn>
-      <v-btn
-        v-if="selectMode && selectedIds.size > 0"
-        variant="flat"
-        color="primary"
-        prepend-icon="mdi-account-plus"
-        @click="openBulkEnroll"
-      >Enroll ({{ selectedIds.size }})</v-btn>
       <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadKeyframes" :loading="loading">Refresh</v-btn>
     </div>
 
@@ -140,134 +133,16 @@
       @error="notify.error($event)"
     />
 
-    <!-- Gallery Enrollment Dialog -->
-    <v-dialog v-model="enrollDialog" max-width="480" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-account-plus"
-          label="Enroll"
-          title="Gallery"
-          @close="enrollDialog = false"
-        />
-        <v-card-text>
-          <div class="text-body-2 text-medium-emphasis mb-4">
-            Assign this tracklet's appearance embeddings to an identity so the
-            ReID resolver can recognise them in future frames.
-          </div>
-          <div class="text-caption text-medium-emphasis mb-1">Tracklet</div>
-          <div class="font-weight-medium text-body-2 mb-4">{{ enrollTrackletId }}</div>
-          <v-autocomplete
-            v-model="enrollIdentityId"
-            :items="householdMembers"
-            :item-title="(m) => m.name + ' (' + m.id + ')'"
-            item-value="id"
-            label="Identity"
-            variant="outlined"
-            :error-messages="enrollError ? [enrollError] : []"
-            :menu-props="{ maxHeight: 280 }"
-          >
-            <template #item="{ props: itemProps, item }">
-              <v-list-item v-bind="itemProps" :subtitle="item.raw.is_enrolled ? 'Enrolled · ' + item.raw.embedding_count + ' embedding(s)' : 'Not yet enrolled'">
-                <template #append>
-                  <div class="ml-2">
-                    <v-chip v-if="!item.raw.is_active" size="x-small" color="warning">Inactive</v-chip>
-                  </div>
-                </template>
-              </v-list-item>
-            </template>
-          </v-autocomplete>
-          <v-text-field
-            v-model="enrollDisplayName"
-            label="Display name (optional)"
-            variant="outlined"
-            placeholder="e.g. Grandma"
-          />
-        </v-card-text>
-        <DialogFooter
-          hint="Creates named gallery entries for the Bayesian identity resolver."
-          confirm-label="Enroll"
-          :confirm-loading="enrollSaving"
-          :confirm-disabled="!enrollIdentityId.trim()"
-          @cancel="enrollDialog = false"
-          @confirm="submitEnroll"
-        />
-      </v-card>
-    </v-dialog>
-
-    <!-- Bulk Enroll Dialog -->
-    <v-dialog v-model="bulkDialog" max-width="480" persistent>
-      <v-card>
-        <DialogHeader
-          icon="mdi-account-plus-outline"
-          label="Bulk Enroll"
-          :title="`${selectedIds.size} selected`"
-          @close="bulkDialog = false"
-        />
-        <v-card-text>
-          <v-alert v-if="enrollableCount < selectedIds.size" type="info" variant="tonal" density="compact" class="mb-3 text-body-2">
-            {{ enrollableCount }} of {{ selectedIds.size }} selected frames have a tracklet ID and will be enrolled. The rest will be skipped.
-          </v-alert>
-          <div class="text-body-2 text-medium-emphasis mb-4">
-            Assigns body-appearance embeddings from the selected tracklets to the chosen identity so the ReID resolver can recognise them in future frames.
-            This uses SOLIDER-ReID embeddings only — for ArcFace face matching, add a face anchor via the person profile.
-          </div>
-          <v-autocomplete
-            v-model="bulkIdentityId"
-            :items="householdMembers"
-            :item-title="(m) => m.name + ' (' + m.id + ')'"
-            item-value="id"
-            label="Identity"
-            variant="outlined"
-            :error-messages="bulkError ? [bulkError] : []"
-            :menu-props="{ maxHeight: 280 }"
-          >
-            <template #item="{ props: itemProps, item }">
-              <v-list-item
-                v-bind="itemProps"
-                :subtitle="item.raw.is_enrolled ? 'Enrolled · ' + item.raw.embedding_count + ' embedding(s)' : 'Not yet enrolled'"
-              >
-                <template #append>
-                  <div class="ml-2">
-                    <v-chip v-if="!item.raw.is_active" size="x-small" color="warning">Inactive</v-chip>
-                  </div>
-                </template>
-              </v-list-item>
-            </template>
-          </v-autocomplete>
-          <v-text-field
-            v-model="bulkDisplayName"
-            label="Display name (optional)"
-            variant="outlined"
-            placeholder="e.g. Grandma"
-          />
-        </v-card-text>
-        <DialogFooter
-          hint="Enrolls ReID body-appearance embeddings. Add a face anchor separately for ArcFace matching."
-          confirm-label="Enroll"
-          :confirm-loading="bulkSaving"
-          :confirm-disabled="!bulkIdentityId?.trim() || enrollableCount === 0"
-          @cancel="bulkDialog = false"
-          @confirm="submitBulkEnroll"
-        />
-      </v-card>
-    </v-dialog>
-
-    <v-snackbar v-model="enrollSnackbar" :timeout="3500" color="success">
-      {{ enrollSnackbarText }}
-    </v-snackbar>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import { severityColor } from "../../composables/useCtsSeverity";
 import { formatDateTime } from "../../services/timezone.js";
 import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import { useNotify } from "../../composables/useNotify.js";
-import DialogHeader from "../../components/common/DialogHeader.vue";
-import DialogFooter from "../../components/common/DialogFooter.vue";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
 import KeyframeAnnotationDialog from "../../components/cts/keyframes/KeyframeAnnotationDialog.vue";
 
@@ -331,56 +206,6 @@ function toggleSelect(kf) {
   selectedIds.value = next;
 }
 
-// ── Bulk enroll ────────────────────────────────────────────────────────────
-const bulkDialog = ref(false);
-const bulkIdentityId = ref("");
-const bulkDisplayName = ref("");
-const bulkSaving = ref(false);
-const bulkError = ref("");
-
-const enrollableCount = computed(() =>
-  keyframes.value.filter(
-    (kf) => selectedIds.value.has(kf.keyframe_id || kf.sample_id) && kf.tracklet_id
-  ).length
-);
-
-function openBulkEnroll() {
-  bulkIdentityId.value = "";
-  bulkDisplayName.value = "";
-  bulkError.value = "";
-  bulkDialog.value = true;
-  if (!householdMembers.value.length) loadHouseholdMembers();
-}
-
-async function submitBulkEnroll() {
-  bulkError.value = "";
-  bulkSaving.value = true;
-  const items = keyframes.value
-    .filter((kf) => selectedIds.value.has(kf.keyframe_id || kf.sample_id) && kf.tracklet_id)
-    .map((kf) => ({
-      tracklet_id: kf.tracklet_id,
-      identity_id: bulkIdentityId.value.trim(),
-      display_name: bulkDisplayName.value.trim() || null,
-    }));
-  try {
-    const resp = await cts.enrollBatch(items);
-    const ok = resp.results.filter((r) => r.status === "ok").length;
-    const fail = resp.results.length - ok;
-    bulkDialog.value = false;
-    selectMode.value = false;
-    selectedIds.value = new Set();
-    enrollSnackbarText.value =
-      fail > 0
-        ? `Enrolled ${ok} tracklet(s); ${fail} could not be enrolled.`
-        : `Enrolled ${ok} tracklet(s) for "${bulkIdentityId.value.trim()}".`;
-    enrollSnackbar.value = true;
-  } catch (e) {
-    bulkError.value = e.message || String(e);
-  } finally {
-    bulkSaving.value = false;
-  }
-}
-
 onMounted(() => {
   loadKeyframes();
 });
@@ -430,73 +255,11 @@ function formatTime(iso) {
   return formatDateTime(iso) || "";
 }
 
-// ── Annotation saved callback ───────────────────────────────────────────────
-
 async function onAnnotationSaved() {
   notify.success("Annotations saved");
   await loadKeyframes();
 }
 
-// ── Gallery enrollment ──────────────────────────────────────────────────────
-const householdMembers = ref([]);
-const enrollDialog = ref(false);
-const enrollSaving = ref(false);
-const enrollTrackletId = ref("");
-const enrollIdentityId = ref("");
-const enrollDisplayName = ref("");
-const enrollError = ref("");
-const enrollSnackbar = ref(false);
-const enrollSnackbarText = ref("");
-
-async function loadHouseholdMembers() {
-  try {
-    const [persons, enrolled] = await Promise.all([
-      api.getPersons(),
-      api.getEnrolledPersons().catch(() => []),
-    ]);
-    const enrolledById = new Map(
-      (enrolled || []).map((e) => [e.person_id || e.id, e])
-    );
-    householdMembers.value = (persons || []).map((p) => {
-      const enrollment = enrolledById.get(p.id);
-      return {
-        ...p,
-        is_enrolled: !!enrollment,
-        embedding_count: enrollment?.embedding_count || 0,
-      };
-    });
-  } catch {
-    householdMembers.value = [];
-  }
-}
-
-function openEnroll(kf) {
-  enrollTrackletId.value = kf.tracklet_id || "";
-  enrollIdentityId.value = kf.person_id || "";
-  enrollDisplayName.value = "";
-  enrollError.value = "";
-  enrollDialog.value = true;
-  if (!householdMembers.value.length) loadHouseholdMembers();
-}
-
-async function submitEnroll() {
-  enrollError.value = "";
-  enrollSaving.value = true;
-  try {
-    const resp = await cts.enrollFromTracklet({
-      identity_id: enrollIdentityId.value.trim(),
-      tracklet_id: enrollTrackletId.value,
-      display_name: enrollDisplayName.value.trim() || null,
-    });
-    enrollDialog.value = false;
-    enrollSnackbarText.value = `Enrolled ${resp.enrolled_count} embedding(s) for "${resp.identity_id}".`;
-    enrollSnackbar.value = true;
-  } catch (e) {
-    enrollError.value = e.message || String(e);
-  } finally {
-    enrollSaving.value = false;
-  }
-}
 </script>
 
 <style scoped>

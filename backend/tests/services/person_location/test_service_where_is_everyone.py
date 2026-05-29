@@ -1,4 +1,5 @@
 """WTR4: PersonLocationService.where_is_everyone() tests."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -28,12 +29,20 @@ async def test_multiple_open_segments_return_map_by_person_id():
     now = datetime.now(UTC)
 
     await svc.ingest_observation(
-        person_id="alice", observed_at=now, source="world_tracker",
-        source_ref="ph-1", floor_point=FloorPoint(x_m=1.0, y_m=2.0), room_id=1,
+        person_id="alice",
+        observed_at=now,
+        source="world_tracker",
+        source_ref="ph-1",
+        floor_point=FloorPoint(x_m=1.0, y_m=2.0),
+        room_id=1,
     )
     await svc.ingest_observation(
-        person_id="bob", observed_at=now, source="world_tracker",
-        source_ref="ph-2", floor_point=FloorPoint(x_m=3.0, y_m=4.0), room_id=2,
+        person_id="bob",
+        observed_at=now,
+        source="world_tracker",
+        source_ref="ph-2",
+        floor_point=FloorPoint(x_m=3.0, y_m=4.0),
+        room_id=2,
     )
 
     everyone = await svc.where_is_everyone()

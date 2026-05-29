@@ -65,28 +65,28 @@ describe("useFloorPlanProjection", () => {
 
   describe("trailKeyFor", () => {
     it("returns id:<identity_id> when identity present", () => {
-      const det = { identity_id: "person-abc", global_track_id: "gt-123" };
+      const det = { identity_id: "person-abc", ph_id: "ph-123" };
       expect(trailKeyFor(det)).toBe("id:person-abc");
     });
 
-    it("returns gt:<gt_id> when only GT present", () => {
-      const det = { identity_id: null, global_track_id: "gt-456" };
-      expect(trailKeyFor(det)).toBe("gt:gt-456");
+    it("returns ph:<ph_id> when only PH present", () => {
+      const det = { identity_id: null, ph_id: "ph-456" };
+      expect(trailKeyFor(det)).toBe("ph:ph-456");
     });
 
-    it("returns null when neither identity nor GT present", () => {
+    it("returns null when neither identity nor PH present", () => {
       expect(trailKeyFor({})).toBeNull();
-      expect(trailKeyFor({ identity_id: null, global_track_id: null })).toBeNull();
+      expect(trailKeyFor({ identity_id: null, ph_id: null })).toBeNull();
     });
 
     it("trims whitespace from identity_id", () => {
-      const det = { identity_id: "  alice  ", global_track_id: "gt-1" };
+      const det = { identity_id: "  alice  ", ph_id: "ph-1" };
       expect(trailKeyFor(det)).toBe("id:alice");
     });
 
-    it("returns gt: prefix even when identity_id is empty string", () => {
-      const det = { identity_id: "", global_track_id: "gt-789" };
-      expect(trailKeyFor(det)).toBe("gt:gt-789");
+    it("returns ph: prefix even when identity_id is empty string", () => {
+      const det = { identity_id: "", ph_id: "ph-789" };
+      expect(trailKeyFor(det)).toBe("ph:ph-789");
     });
   });
 

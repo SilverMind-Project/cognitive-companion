@@ -17,7 +17,7 @@ ALL_SIGNAL_KINDS: tuple[str, ...] = (
     "nighttime_movement",
     "stillness_anomaly",
     "absence",
-    # M4: new signal kinds from unified location service
+    # Signal kinds including those from the unified location service
     "inferred_dwell_exceeded",
     "presumed_location_unknown",
     "identity_disagreement",

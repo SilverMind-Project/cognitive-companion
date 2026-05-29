@@ -1,4 +1,4 @@
-"""Location observation ORM model (M4)."""
+"""Location observation ORM model."""
 
 from __future__ import annotations
 
@@ -16,9 +16,7 @@ class LocationObservation(Base):
     __tablename__ = "location_observations"
     # Composite PK because this is a TimescaleDB hypertable. household_members.id
     # is String(64) and rooms.id is Integer per the pre-existing schema.
-    __table_args__ = (
-        PrimaryKeyConstraint("id", "observed_at", name="location_observations_pkey"),
-    )
+    __table_args__ = (PrimaryKeyConstraint("id", "observed_at", name="location_observations_pkey"),)
 
     id: Mapped[str] = mapped_column(UUID, nullable=False)
     person_id: Mapped[str] = mapped_column(

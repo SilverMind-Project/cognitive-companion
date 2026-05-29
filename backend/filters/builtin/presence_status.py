@@ -1,4 +1,4 @@
-"""presence_status context filter -- match on fused PresenceStatus (M4: uses PersonLocationService).
+"""presence_status context filter: match on fused PresenceStatus.
 
 Gates a rule when the person's location status matches the configured value.
 """
@@ -67,14 +67,18 @@ class PresenceStatusFilter(ContextFilter):
 
         room_name = config.get("room_name")
 
-        # M4: use PersonLocationService when available.
-        if services and hasattr(services, "person_location") and services.person_location is not None:
+        # Use PersonLocationService when available.
+        if (
+            services
+            and hasattr(services, "person_location")
+            and services.person_location is not None
+        ):
             try:
                 current = await services.person_location.where_is(person_id)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 return False
 
-            # WTR7: differentiate absence semantics explicitly.
+            # Differentiate absence semantics explicitly.
             if status in ("away", "stale", "unknown"):
                 return current is None
             if current is None:
@@ -88,7 +92,7 @@ class PresenceStatusFilter(ContextFilter):
         if services and hasattr(services, "presence") and services.presence is not None:
             try:
                 snapshot = await services.presence.get(person_id)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 return False
             if snapshot.status.value != status:
                 return False

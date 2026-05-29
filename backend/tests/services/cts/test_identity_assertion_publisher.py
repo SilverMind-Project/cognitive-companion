@@ -3,6 +3,7 @@
 Tests that the CC-side publisher emits all required fields with the
 expected stream name to cc.identity_assertions.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

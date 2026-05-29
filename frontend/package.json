@@ -19,8 +19,10 @@
     "@lezer/highlight": "^1.2.3",
     "@mdi/font": "^7.4.47",
     "cronstrue": "^3.14.0",
+    "echarts": "^5.6.0",
     "pinia": "^3.0.0",
     "vue": "^3.5.25",
+    "vue-echarts": "^7.0.3",
     "vue-router": "^4.5.0",
     "vuetify": "^3.7.0"
   },

@@ -88,7 +88,7 @@ class LocationRepository(Protocol):
         room_name: str | None,
         entered_at: datetime,
         source: str,
-        global_track_id: str | None = None,
+        ph_id: str | None = None,
         direction_semantic: str | None = None,
         from_room_id: int | None = None,
         from_room_name: str | None = None,
@@ -234,7 +234,7 @@ class SqlAlchemyLocationRepository:
         room_name: str | None,
         entered_at: datetime,
         source: str,
-        global_track_id: str | None = None,
+        ph_id: str | None = None,
         direction_semantic: str | None = None,
         from_room_id: int | None = None,
         from_room_name: str | None = None,
@@ -245,7 +245,7 @@ class SqlAlchemyLocationRepository:
             room_name=room_name,
             entered_at=entered_at,
             source=source,
-            global_track_id=global_track_id,
+            ph_id=ph_id,
             direction_semantic=direction_semantic,
             from_room_id=from_room_id,
             from_room_name=from_room_name,
@@ -309,7 +309,7 @@ class _InMemoryHistory:
     entered_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     exited_at: datetime | None = None
     source: str = "inferred"
-    global_track_id: str | None = None
+    ph_id: str | None = None
     direction_semantic: str | None = None
     from_room_id: int | None = None
     from_room_name: str | None = None
@@ -410,7 +410,7 @@ class InMemoryLocationRepository:
         room_name: str | None,
         entered_at: datetime,
         source: str,
-        global_track_id: str | None = None,
+        ph_id: str | None = None,
         direction_semantic: str | None = None,
         from_room_id: int | None = None,
         from_room_name: str | None = None,
@@ -422,7 +422,7 @@ class InMemoryLocationRepository:
             room_name=room_name,
             entered_at=entered_at,
             source=source,
-            global_track_id=global_track_id,
+            ph_id=ph_id,
             direction_semantic=direction_semantic,
             from_room_id=from_room_id,
             from_room_name=from_room_name,
@@ -436,7 +436,7 @@ class InMemoryLocationRepository:
             room_name=room_name,
             entered_at=entered_at,
             source=source,
-            global_track_id=global_track_id,
+            ph_id=ph_id,
             direction_semantic=direction_semantic,
             from_room_id=from_room_id,
             from_room_name=from_room_name,
@@ -470,7 +470,7 @@ class InMemoryLocationRepository:
             entered_at=row.entered_at,
             exited_at=row.exited_at,
             source=row.source,
-            global_track_id=row.global_track_id,
+            ph_id=row.ph_id,
             direction_semantic=row.direction_semantic,
             from_room_id=row.from_room_id,
             from_room_name=row.from_room_name,

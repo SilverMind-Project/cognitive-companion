@@ -1,6 +1,6 @@
 """Extracts crops from keyframe images and submits them to the tracking-orchestrator gallery.
 
-Supports the M4 bbox-tagging flow: when a caregiver assigns an identity to a bounding
+Supports the bbox-tagging flow: when a caregiver assigns an identity to a bounding
 box, this service crops the keyframe image (using the override bbox if present, else the
 YOLO-detected bbox) and POSTs the crop bytes to the orchestrator for ReID embedding and
 gallery storage.

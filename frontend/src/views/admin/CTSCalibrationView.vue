@@ -743,7 +743,7 @@
 
     <v-snackbar v-model="snack" :color="snackColor" timeout="4000">{{ snackText }}</v-snackbar>
 
-    <!-- M2: Calibration Health Panel -->
+    <!-- Calibration Health Panel -->
     <v-card class="glass-card mt-6" :border="true">
       <v-card-title class="d-flex align-center">
         <v-icon start icon="mdi-heart-pulse" class="mr-2" />

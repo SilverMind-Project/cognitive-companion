@@ -69,15 +69,14 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
 
         try:
             message = scene_pb2.SceneSample.FromString(payload)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning("scene_sample_proto_decode_error", message_id=message_id)
             metrics.cts_events_decode_errors.inc()
             return None
 
         return {
             "keyframe_id": message.keyframe_id,
-            "tracklet_id": message.tracklet_id,
-            "global_track_id": message.global_track_id,
+            "ph_id": message.ph_id,
             "camera_id": message.camera_id,
             "minio_key": message.minio_key,
             "captured_at": ns_to_iso(message.captured_at_unix_ns),

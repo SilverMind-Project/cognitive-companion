@@ -1,4 +1,4 @@
-"""Person presence context filter -- is person X home / away / in room Y? (R2: PersonLocationService SSOT)."""
+"""Person presence context filter: is person X home, away, or in room Y?"""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class PersonPresenceFilter(ContextFilter):
         status = config.get("status", "home")
         room_name = config.get("room_name")
 
-        # R2: PersonLocationService is the SSOT.  Fail closed when unavailable.
+        # PersonLocationService is the SSOT.  Fail closed when unavailable.
         if not (services and getattr(services, "person_location", None)):
             cts_filter_degraded_total.labels(filter=_FILTER_NAME).inc()
             logger.warning(

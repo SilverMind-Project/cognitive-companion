@@ -329,7 +329,7 @@ class PersonTrackingService:
         try:
             state_data = await self._ha.get_entity_state(ha_entity)
             state = state_data.get("state", "off") if state_data else "off"
-        except Exception:
+        except Exception:  # noqa: BLE001
             return
 
         if state != "on":
@@ -521,7 +521,7 @@ class PersonTrackingService:
         """Push person location to Home Assistant as an input_text helper."""
         try:
             await self._ha.set_person_location(person_id, room_name, confidence)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning("ha_propagation_failed", person_id=person_id)
 
     # ------------------------------------------------------------------
@@ -795,6 +795,6 @@ class PersonTrackingService:
                 else:
                     with open(path, "rb") as f:
                         images.append(base64.b64encode(f.read()).decode("utf-8"))
-            except Exception:
+            except Exception:  # noqa: BLE001
                 logger.warning("failed_to_load_image", path=path[:100])
         return images

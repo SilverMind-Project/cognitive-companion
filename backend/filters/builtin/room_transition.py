@@ -1,7 +1,7 @@
 """Room transition context filter.
 
 Passes when a person has moved between rooms within the configured time
-window, using PersonLocationService presence_history() (R2: SSOT).
+window, using PersonLocationService presence_history().
 
 Config schema
 -------------
@@ -118,7 +118,7 @@ class RoomTransitionFilter(ContextFilter):
         to_room_id: str | None = config.get("to_room_id")
         from_room_id: str | None = config.get("from_room_id")
 
-        # R2: PersonLocationService is the SSOT.  Fail closed when unavailable.
+        # PersonLocationService is the SSOT.  Fail closed when unavailable.
         if not (services and getattr(services, "person_location", None)):
             cts_filter_degraded_total.labels(filter=_FILTER_NAME).inc()
             logger.warning(
@@ -147,17 +147,24 @@ class RoomTransitionFilter(ContextFilter):
                 continue
             # Compare room names when configured (string comparison).
             if to_room_name:
-                curr_name = (curr.metadata.get("room_name", "") if hasattr(curr, "metadata") else "")
+                curr_name = curr.metadata.get("room_name", "") if hasattr(curr, "metadata") else ""
                 if curr_name.lower() != to_room_name.lower():
                     continue
             if from_room_name:
-                prev_name = (prev.metadata.get("room_name", "") if hasattr(prev, "metadata") else "")
+                prev_name = prev.metadata.get("room_name", "") if hasattr(prev, "metadata") else ""
                 if prev_name.lower() != from_room_name.lower():
                     continue
             if semantic:
-                if semantic == SEMANTIC_ENTERING and curr.entry_source not in ("observed", "inferred_transit"):
+                if semantic == SEMANTIC_ENTERING and curr.entry_source not in (
+                    "observed",
+                    "inferred_transit",
+                ):
                     continue
-                if semantic == SEMANTIC_EXITING and prev.exit_source not in ("observed", "inferred_transit", "contradicted"):
+                if semantic == SEMANTIC_EXITING and prev.exit_source not in (
+                    "observed",
+                    "inferred_transit",
+                    "contradicted",
+                ):
                     continue
             return True
         return False

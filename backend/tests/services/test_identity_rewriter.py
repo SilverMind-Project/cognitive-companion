@@ -31,7 +31,7 @@ def _seed_history(
     db_factory,
     person_id: str,
     room: str,
-    global_track_id: str = "gt-1",
+    ph_id: str = "ph-1",
 ) -> None:
     db = db_factory()
     try:
@@ -42,7 +42,7 @@ def _seed_history(
                 room_name=room,
                 entered_at=now,
                 source="cts",
-                global_track_id=global_track_id,
+                ph_id=ph_id,
             )
         )
         db.add(
@@ -63,14 +63,13 @@ def _seed_history(
 def _revision(
     *,
     revision_id: str = "rev-1",
-    global_track_id: str = "gt-1",
+    ph_id: str = "ph-1",
     previous_identity_id: str = "grandma",
     new_identity_id: str | None = "grandpa",
 ) -> dict:
     return {
         "revision_id": revision_id,
-        "global_track_id": global_track_id,
-        "tracklet_ids": ["t-1"],
+        "ph_id": ph_id,
         "previous_identity_id": previous_identity_id,
         "new_identity_id": new_identity_id,
         "map_identity_id": new_identity_id or "UNKNOWN",

@@ -110,7 +110,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
 
         metrics.cts_revisions_persisted.inc()
 
-        # WTR4: apply revision to PersonLocationService for segment rewrites.
+        # Apply revision to PersonLocationService for segment rewrites.
         if self._pls is not None:
             try:
                 from datetime import UTC, datetime
@@ -123,7 +123,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
                 await self._pls.apply_identity_revision(  # type: ignore[union-attr]
                     old_person_id=revision.get("previous_identity_id") or "",
                     new_person_id=revision.get("new_identity_id"),
-                    global_track_id=revision.get("ph_id", ""),
+                    ph_id=revision.get("ph_id", ""),
                     revision_time=rev_time,
                 )
             except Exception:

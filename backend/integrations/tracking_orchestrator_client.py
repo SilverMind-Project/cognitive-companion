@@ -46,9 +46,9 @@ class OrchestratorClient(UpstreamClient):
         """Run depth-based automatic homography estimation on a camera frame.
 
         Exactly one of *minio_key* or *snapshot_bytes* (base64 JPEG) must be
-        provided.  Returns a dict with keys ``matrix``, ``confidence``,
-        ``inlier_count``, ``sample_count``, ``fov_deg``, ``method``, and
-        optionally ``warning``.
+        provided. Returns a draft-only dict with keys ``draft_matrix``,
+        ``suggested_points``, ``confidence``, ``inlier_count``,
+        ``sample_count``, ``fov_deg``, ``method``, and optionally ``warning``.
         """
         payload: dict = {"fov_deg": fov_deg}
         if minio_key is not None:

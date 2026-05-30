@@ -20,7 +20,7 @@ from backend.routers.cts_cameras import router
 
 
 def _make_client(db_engine: Engine, cts_enabled: bool = True) -> TestClient:
-    from unittest.mock import patch
+    from unittest.mock import AsyncMock, MagicMock, patch
 
     cfg = Settings.from_dict({"cts": {"enabled": cts_enabled}})
 
@@ -41,11 +41,15 @@ def _make_client(db_engine: Engine, cts_enabled: bool = True) -> TestClient:
         key="x", name="tester", permissions=["*"]
     )
 
-    # Provide empty CTS gateway clients so the router can call _get_ingress().
-    app.state.ingress_admin_client = None
+    ingress = MagicMock()
+    ingress.test_connection = AsyncMock(return_value={"ok": True})
+    ingress.snapshot = AsyncMock(return_value=b"\xff\xd8\xff")
+    ingress.stream_health = AsyncMock(return_value={"status": "ok"})
+    ingress.reload_camera = AsyncMock(return_value=None)
+    app.state.ingress_admin_client = ingress
     app.state.orchestrator_client = None
 
-    patcher = patch("backend.routers.cts_cameras.settings", cfg)
+    patcher = patch("backend.routers.cts_deps.settings", cfg)
     patcher.start()
     client = TestClient(app)
     client._patcher = patcher  # type: ignore[attr-defined]
@@ -75,7 +79,7 @@ CAMERA = {
     "id": "kitchen-cam-1",
     "name": "Kitchen",
     "rtsp_url": "rtsp://192.168.1.10/stream",
-    "location": "Kitchen",
+    "room_name": "Kitchen",
     "enabled": True,
 }
 
@@ -124,6 +128,31 @@ class TestGetCamera:
     def test_get_missing_returns_404(self, client: TestClient):
         r = client.get("/api/v1/cts/cameras/nonexistent")
         assert r.status_code == 404
+
+    def test_legacy_depth_auto_is_not_reported_as_calibrated(
+        self, client: TestClient, db_engine: Engine
+    ):
+        from backend.models.cts_camera import CtsCamera
+
+        Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+        with Session() as db:
+            db.add(
+                CtsCamera(
+                    id="legacy-depth-auto",
+                    name="Legacy",
+                    rtsp_url="rtsp://x",
+                    homography={
+                        "matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                        "method": "depth_auto",
+                    },
+                )
+            )
+            db.commit()
+
+        r = client.get("/api/v1/cts/cameras/legacy-depth-auto")
+
+        assert r.status_code == 200
+        assert r.json()["has_homography"] is False
 
 
 class TestUpdateCamera:

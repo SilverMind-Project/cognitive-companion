@@ -179,6 +179,25 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                     }
                 )
 
+        logger.info(
+            "cts_tracking_event_identity_decode",
+            camera_id=message.camera_id,
+            frame_index=int(message.frame_ref.frame_index),
+            detection_count=len(detections),
+            detections_with_ph=sum(1 for det in detections if det.get("ph_id")),
+            detections_with_identity=sum(1 for det in detections if det.get("identity_id")),
+            snapshot_count=len(message.identity_snapshots),
+            snapshot_identities=[
+                {
+                    "ph_id": snap.ph_id[:8],
+                    "identity_id": snap.identity_id,
+                    "top_probability": round(float(snap.top_probability), 3),
+                }
+                for snap in message.identity_snapshots
+                if snap.identity_id
+            ],
+        )
+
         return {
             "event_id": message.event_id,
             "camera_id": message.camera_id,
@@ -231,6 +250,22 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                         )
                 else:
                     logger.info("cts_live_no_minio_key", camera_id=camera_id)
+                live_detections = event.get("detections", [])
+                logger.info(
+                    "cts_live_frame_identity_broadcast",
+                    camera_id=event["camera_id"],
+                    detection_count=len(live_detections),
+                    detections_with_identity=sum(
+                        1 for det in live_detections if det.get("identity_id")
+                    ),
+                    identities=sorted(
+                        {
+                            det.get("identity_id")
+                            for det in live_detections
+                            if det.get("identity_id")
+                        }
+                    ),
+                )
                 await self._ws_manager.broadcast(
                     {
                         "type": "cts_live_frame",
@@ -242,7 +277,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                         "frame_width": event.get("frame_width", 0),
                         "frame_height": event.get("frame_height", 0),
                         "capture_time": event.get("capture_time"),
-                        "detections": event.get("detections", []),
+                        "detections": live_detections,
                     }
                 )
             except Exception:

@@ -65,12 +65,18 @@ def _make_client(
     orchestrator.auto_calibrate = AsyncMock(
         return_value={
             "camera_id": "cal-cam",
-            "matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            "draft_matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            "suggested_points": [
+                {"pixel": [100.0, 300.0], "local_floor_m": [-0.5, 0.2]},
+                {"pixel": [300.0, 420.0], "local_floor_m": [0.4, 1.1]},
+            ],
             "confidence": 0.75,
             "inlier_count": 1200,
             "sample_count": 2048,
             "fov_deg": 70.0,
-            "method": "depth_auto",
+            "image_width": 640,
+            "image_height": 480,
+            "method": "depth_auto_draft",
             "warning": None,
         }
     )
@@ -139,6 +145,15 @@ POINTS = [
 ]
 
 
+def _homography_payload(camera_id: str, points: list[dict] | None = None) -> dict:
+    return {
+        "camera_id": camera_id,
+        "points": points or POINTS,
+        "image_width": 640,
+        "image_height": 480,
+    }
+
+
 class TestHomographyEndpoint:
     def test_post_homography_success_proxies_to_orchestrator(
         self, client: TestClient, camera_id: str
@@ -146,7 +161,7 @@ class TestHomographyEndpoint:
         """CC should call orchestrator.fit_homography and return the result."""
         r = client.post(
             "/api/v1/cts/calibration/homography",
-            json={"camera_id": camera_id, "points": POINTS},
+            json=_homography_payload(camera_id),
         )
         assert r.status_code == 200
         body = r.json()
@@ -165,7 +180,7 @@ class TestHomographyEndpoint:
 
         client.post(
             "/api/v1/cts/calibration/homography",
-            json={"camera_id": camera_id, "points": POINTS},
+            json=_homography_payload(camera_id),
         )
         db_session.expire_all()
         cam = db_session.get(CtsCamera, camera_id)
@@ -176,21 +191,21 @@ class TestHomographyEndpoint:
     def test_missing_camera_returns_404(self, client: TestClient):
         r = client.post(
             "/api/v1/cts/calibration/homography",
-            json={"camera_id": "does-not-exist", "points": POINTS},
+            json=_homography_payload("does-not-exist"),
         )
         assert r.status_code == 404
 
     def test_too_few_points_returns_422(self, client: TestClient, camera_id: str):
         r = client.post(
             "/api/v1/cts/calibration/homography",
-            json={"camera_id": camera_id, "points": POINTS[:3]},
+            json=_homography_payload(camera_id, POINTS[:3]),
         )
         assert r.status_code == 422
 
     def test_cts_disabled_returns_404(self, client_off: TestClient):
         r = client_off.post(
             "/api/v1/cts/calibration/homography",
-            json={"camera_id": "x", "points": POINTS},
+            json=_homography_payload("x"),
         )
         assert r.status_code == 404
         assert r.json()["detail"]["code"] == "cts.disabled"
@@ -210,11 +225,13 @@ class TestAutoCalibrate:
         assert r.status_code == 200
         body = r.json()
         assert body["camera_id"] == camera_id
-        assert body["method"] == "depth_auto"
+        assert body["method"] == "depth_auto_draft"
+        assert len(body["draft_matrix"]) == 3
+        assert len(body["suggested_points"]) == 2
         assert 0.0 <= body["confidence"] <= 1.0
         assert body["inlier_count"] > 0
 
-    def test_auto_calibrate_persists_to_db(
+    def test_auto_calibrate_does_not_persist_homography(
         self, client: TestClient, camera_id: str, db_session: Session
     ):
         from backend.models.cts_camera import CtsCamera
@@ -226,8 +243,12 @@ class TestAutoCalibrate:
         db_session.expire_all()
         cam = db_session.get(CtsCamera, camera_id)
         assert cam is not None
-        assert cam.homography is not None
-        assert cam.homography.get("method") == "depth_auto"
+        assert cam.homography is None
+        assert cam.homography_matrix is None
+        assert cam.homography_method is None
+        assert cam.visibility_polygon is None
+        assert cam.snapshot_width == 640
+        assert cam.snapshot_height == 480
 
     def test_auto_calibrate_missing_camera_returns_404(self, client: TestClient):
         r = client.post(
@@ -247,11 +268,28 @@ class TestAutoCalibrate:
         assert r.status_code == 200
         body = r.json()
         assert body["camera_id"] == camera_id
-        assert body["method"] == "depth_auto"
+        assert body["method"] == "depth_auto_draft"
         # Orchestrator must have been called with snapshot_bytes, not minio_key.
         call_kwargs = client._orchestrator.auto_calibrate.call_args.kwargs  # type: ignore[attr-defined]
         assert call_kwargs.get("snapshot_bytes") is not None
         assert call_kwargs.get("minio_key") is None
+
+    def test_legacy_depth_auto_homography_is_uncommitted(
+        self, client: TestClient, camera_id: str, db_session: Session
+    ):
+        from backend.models.cts_camera import CtsCamera
+
+        cam = db_session.get(CtsCamera, camera_id)
+        assert cam is not None
+        cam.homography = {
+            "matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            "method": "depth_auto",
+        }
+        db_session.commit()
+
+        r = client.get(f"/api/v1/cts/calibration/homography/{camera_id}")
+
+        assert r.status_code == 404
 
     def test_auto_calibrate_cts_disabled_returns_404(self, client_off: TestClient):
         r = client_off.post(

@@ -79,8 +79,16 @@ def _denormalise_room_name(db: Session, room_id: int) -> str:
     return room.name
 
 
+def _has_committed_homography(cam: CtsCamera) -> bool:
+    if cam.homography_matrix:
+        return True
+    if not cam.homography:
+        return False
+    method = cam.homography.get("method") if isinstance(cam.homography, dict) else None
+    return method not in {"depth_auto", "depth_auto_draft"}
+
+
 def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
-    homography = cam.homography
     residuals = cam.homography_residuals
     room = None
     if db is not None and cam.room_id is not None:
@@ -101,7 +109,7 @@ def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
         mounting_height_m=cam.mounting_height_m,
         tilt_deg=cam.tilt_deg,
         room=room,
-        has_homography=homography is not None,
+        has_homography=_has_committed_homography(cam),
         homography_residuals=residuals if residuals else None,
         privacy_zone_count=len(cam.privacy_zones) if cam.privacy_zones else 0,
         health=cam.health_json,

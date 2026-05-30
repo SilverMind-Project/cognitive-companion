@@ -119,4 +119,5 @@ def _project_point(
     if abs(projected[2]) < 1e-8:
         return (0.0, 0.0)
     projected /= projected[2]
-    return (float(projected[0] * mpp), float(projected[1] * mpp))
+    _ = mpp  # retained for backwards-compatible signature
+    return (float(projected[0]), float(projected[1]))

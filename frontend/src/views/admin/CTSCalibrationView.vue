@@ -242,6 +242,29 @@
                       style="pointer-events:none"
                     >{{ i + 1 }}</text>
                   </g>
+                  <!-- Auto-calibration suggestions: camera pixels only, not floor-plan coordinates -->
+                  <g
+                    v-for="(pt, i) in autoSuggestedPoints"
+                    :key="`auto-${i}`"
+                    class="auto-suggestion-marker"
+                  >
+                    <circle
+                      :cx="pt.pixel[0]"
+                      :cy="pt.pixel[1]"
+                      r="24"
+                      fill="none"
+                      stroke="#38bdf8"
+                      stroke-width="3"
+                      stroke-dasharray="8 6"
+                    />
+                    <circle
+                      :cx="pt.pixel[0]"
+                      :cy="pt.pixel[1]"
+                      r="7"
+                      fill="#38bdf8"
+                      opacity="0.85"
+                    />
+                  </g>
                   <!-- Pending camera point -->
                   <g v-if="pendingPixel">
                     <circle
@@ -653,37 +676,14 @@
               >
                 {{ autoResult.warning }}
               </v-alert>
-              <v-alert
-                v-if="autoResult.visibility_polygon_computed === false"
-                type="warning"
-                variant="tonal"
-                density="compact"
-                class="mt-2"
-              >
-                <div class="text-caption">
-                  <strong>Coverage map not updated.</strong>
-                  {{ autoResult.visibility_polygon_warning || 'Visibility polygon could not be computed from this homography.' }}
-                </div>
-              </v-alert>
-              <v-alert
-                v-else-if="autoResult.visibility_polygon_computed === true"
-                type="success"
-                variant="tonal"
-                density="compact"
-                class="mt-2"
-              >
-                <div class="text-caption">
-                  Coverage map updated — visibility polygon computed successfully.
-                </div>
-              </v-alert>
               <div class="text-caption text-medium-emphasis mt-2">
-                This is a draft homography estimated from depth. The camera will use it
-                immediately. Refine with manual points to improve accuracy in specific
-                areas, or keep as-is.
+                This draft found {{ autoResult.suggested_points?.length || 0 }} candidate
+                floor pixels. It has not been saved as calibration. Refine manually by
+                anchoring the suggested camera points to the floor plan.
               </div>
             </v-card-text>
             <v-card-actions class="px-4 pb-4 pt-0">
-              <v-btn variant="text" size="small" @click="autoResult = null">Keep as-is</v-btn>
+              <v-btn variant="text" size="small" @click="dismissAutoResult">Dismiss</v-btn>
               <v-spacer />
               <v-btn
                 color="primary"
@@ -812,6 +812,7 @@ const dragState = ref(null);
 const latestMinioKey = ref(null);
 const autoCalibrating = ref(false);
 const autoResult = ref(null);
+const autoSuggestedPoints = ref([]);
 
 // ── Click-to-pick state ───────────────────────────────────────────────────
 // pendingPixel: camera click waiting for a matching floor plan click
@@ -1011,6 +1012,7 @@ async function onCameraChange() {
   points.value = [];
   result.value = null;
   autoResult.value = null;
+  autoSuggestedPoints.value = [];
   pendingPixel.value = null;
   snapshotUrl.value = null;
   imgContentRect.value = null;
@@ -1091,8 +1093,13 @@ function onCameraClick(e) {
   const relY = e.clientY - r.top - offsetY;
   if (relX < 0 || relX > cw || relY < 0 || relY > ch) return;
   // Convert to raw pixel coords in the camera's natural resolution.
-  const px = Math.round(relX / cw * nw);
-  const py = Math.round(relY / ch * nh);
+  let px = Math.round(relX / cw * nw);
+  let py = Math.round(relY / ch * nh);
+  const suggestion = nearestAutoSuggestion(px, py);
+  if (suggestion) {
+    px = suggestion.pixel[0];
+    py = suggestion.pixel[1];
+  }
 
   if (inputMode.value === 'pick' && floorPlanReady.value && scaleReady.value) {
     pendingPixel.value = [px, py];
@@ -1116,6 +1123,7 @@ function onFloorPlanClick(e) {
     pixel: pendingPixel.value,
     floor_m: [floorX, floorY],
   });
+  consumeAutoSuggestion(pendingPixel.value);
   pendingPixel.value = null;
 }
 
@@ -1129,6 +1137,7 @@ function clearPoints() {
   points.value = [];
   pendingPixel.value = null;
   result.value = null;
+  autoSuggestedPoints.value = [];
 }
 
 // M2: handle test-projection from CalibrationHealthPanel
@@ -1155,6 +1164,7 @@ async function runCalibration() {
       imgContentRect.value.naturalHeight,
     );
     existingCalibration.value = true;
+    autoSuggestedPoints.value = [];
     notify("Calibration saved");
   } catch (e) {
     notify(e.message, "error");
@@ -1165,42 +1175,41 @@ async function runCalibration() {
 
 // ── Auto-calibrate ────────────────────────────────────────────────────────
 
-/**
- * Project a pixel point through a 3x3 homography matrix to floor-metre coordinates.
- * H @ [px, py, 1]' → dehomogenise → [floor_x_m, floor_y_m].
- */
-function projectPixelToFloor(matrix, px, py) {
-  const [[a, b, c], [d, e, f], [g, h, i]] = matrix;
-  const x = a * px + b * py + c;
-  const y = d * px + e * py + f;
-  const w = g * px + h * py + i;
-  if (Math.abs(w) < 1e-9) return null;
-  return [x / w, y / w];
+function normalizeSuggestedPoints(rawPoints) {
+  return (rawPoints || [])
+    .map((pt) => {
+      const pixel = pt?.pixel;
+      if (!Array.isArray(pixel) || pixel.length < 2) return null;
+      const px = Number(pixel[0]);
+      const py = Number(pixel[1]);
+      if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+      return { pixel: [Math.round(px), Math.round(py)], local_floor_m: pt.local_floor_m || null };
+    })
+    .filter(Boolean);
 }
 
-/**
- * Derive calibration point pairs from a homography matrix.
- * Samples a 3×3 grid across the camera image, projects each pixel through
- * the matrix to get floor-metre coordinates.  Returns 9 pixel→floor pairs
- * that the user can adjust, delete, or supplement.
- */
-function derivePointsFromMatrix(matrix, imgW, imgH) {
-  const pts = [];
-  const rows = 3, cols = 3;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const px = Math.round((imgW * c) / (cols - 1));
-      const py = Math.round((imgH * r) / (rows - 1));
-      const floor = projectPixelToFloor(matrix, px, py);
-      if (floor) {
-        pts.push({
-          pixel: [px, py],
-          floor_m: [parseFloat(floor[0].toFixed(3)), parseFloat(floor[1].toFixed(3))],
-        });
-      }
+function nearestAutoSuggestion(px, py) {
+  if (!autoSuggestedPoints.value.length) return null;
+  let best = null;
+  let bestD2 = Infinity;
+  for (const suggestion of autoSuggestedPoints.value) {
+    const dx = suggestion.pixel[0] - px;
+    const dy = suggestion.pixel[1] - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) {
+      best = suggestion;
+      bestD2 = d2;
     }
   }
-  return pts;
+  return bestD2 <= 36 * 36 ? best : null;
+}
+
+function consumeAutoSuggestion(pixel) {
+  autoSuggestedPoints.value = autoSuggestedPoints.value.filter((suggestion) => {
+    const dx = suggestion.pixel[0] - pixel[0];
+    const dy = suggestion.pixel[1] - pixel[1];
+    return dx * dx + dy * dy > 36 * 36;
+  });
 }
 
 async function runAutoCalibrate() {
@@ -1214,8 +1223,8 @@ async function runAutoCalibrate() {
     const body = latestMinioKey.value ? { minio_key: latestMinioKey.value } : {};
     const res = await cts.autoCalibrate(selectedCameraId.value, body);
     autoResult.value = res;
-    existingCalibration.value = true;
-    notify("Auto-calibration complete — review the result below.", "success");
+    autoSuggestedPoints.value = [];
+    notify("Auto-calibration draft ready — review the suggested camera points below.", "success");
   } catch (e) {
     const msg = e?.response?.data?.detail?.message || e.message || "Auto-calibration failed.";
     notify(msg, "error");
@@ -1226,14 +1235,16 @@ async function runAutoCalibrate() {
 
 function populateFromAutoResult() {
   if (!autoResult.value || !imgContentRect.value) return;
-  const derived = derivePointsFromMatrix(
-    autoResult.value.matrix,
-    imgContentRect.value.naturalWidth,
-    imgContentRect.value.naturalHeight,
-  );
-  points.value = derived;
+  autoSuggestedPoints.value = normalizeSuggestedPoints(autoResult.value.suggested_points);
+  inputMode.value = "pick";
+  pendingPixel.value = null;
   autoResult.value = null;
-  notify(`${derived.length} calibration points populated from auto result — drag to adjust, then save.`, "info");
+  notify(`${autoSuggestedPoints.value.length} suggested camera points shown — click one, then anchor it on the floor plan.`, "info");
+}
+
+function dismissAutoResult() {
+  autoResult.value = null;
+  autoSuggestedPoints.value = [];
 }
 
 // ── WebSocket: track latest MinIO key per camera for auto-calibrate ───────

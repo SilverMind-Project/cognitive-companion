@@ -56,6 +56,16 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/cts/calibration", tags=["cts-calibration"])
 
 
+def _has_committed_homography(cam: CtsCamera) -> bool:
+    """Return True only for homographies anchored to the shared floor plan."""
+    if cam.homography_matrix:
+        return True
+    if not cam.homography:
+        return False
+    method = cam.homography.get("method") if isinstance(cam.homography, dict) else None
+    return method not in {"depth_auto", "depth_auto_draft"}
+
+
 def _refresh_visibility_polygon(
     cam: CtsCamera,
     db: Session,
@@ -71,15 +81,14 @@ def _refresh_visibility_polygon(
     """
     no_op: dict = {"computed": False, "point_count": 0, "warning": None}
 
-    if not cam.homography or not cam.snapshot_width or not cam.snapshot_height:
+    matrix = cam.homography.get("matrix") if cam.homography else cam.homography_matrix
+    if not matrix or not cam.snapshot_width or not cam.snapshot_height:
         if not cam.snapshot_width or not cam.snapshot_height:
             no_op["warning"] = (
                 "Snapshot dimensions not stored — load a camera snapshot before calibrating."
             )
-        return no_op
-
-    matrix = cam.homography.get("matrix")
-    if not matrix:
+        else:
+            no_op["warning"] = "Homography matrix is missing from stored calibration."
         return no_op
 
     settings = db.get(HouseholdSettings, 1)
@@ -150,7 +159,7 @@ def _upstream_to_http(exc: UpstreamError) -> HTTPException:
             if isinstance(detail, dict):
                 upstream_code = detail.get("code", upstream_code)
                 message = detail.get("message", message)
-        except ValueError, AttributeError:
+        except (ValueError, AttributeError):
             pass
     return HTTPException(
         status_code=http_code,
@@ -316,15 +325,16 @@ class AutoCalibrateResult(BaseModel):
     """Result returned by the auto-calibrate endpoint."""
 
     camera_id: str
-    matrix: list[list[float]]
+    draft_matrix: list[list[float]]
+    suggested_points: list[dict[str, list[float]]]
     confidence: float
     inlier_count: int
     sample_count: int
     fov_deg: float
+    image_width: int
+    image_height: int
     method: str
     warning: str | None = None
-    visibility_polygon_computed: bool = False
-    visibility_polygon_warning: str | None = None
 
 
 @router.post("/auto/{camera_id}", response_model=AutoCalibrateResult)
@@ -373,22 +383,18 @@ async def post_auto_calibrate(
     except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
         raise _upstream_to_http(exc) from exc
 
-    matrix: list[list[float]] = result["matrix"]
-
-    # Persist the auto-computed matrix to the CC database so it survives
-    # an orchestrator restart.  We store no residuals (they're not meaningful
-    # for the depth-based method) and mark the method in the JSON blob.
-    cam.homography = {"matrix": matrix, "method": "depth_auto"}
-    cam.homography_residuals = None
+    # Auto-calibration is draft-only: keep snapshot dimensions for UI context,
+    # but never persist the local camera-floor draft as a global homography.
     if result.get("image_width"):
         cam.snapshot_width = int(result["image_width"])
+        cam.frame_natural_width = int(result["image_width"])
     if result.get("image_height"):
         cam.snapshot_height = int(result["image_height"])
-    poly_status = _refresh_visibility_polygon(cam, db)
+        cam.frame_natural_height = int(result["image_height"])
     db.commit()
 
     logger.info(
-        "cts_auto_calibration_saved",
+        "cts_auto_calibration_draft_created",
         camera_id=camera_id,
         effective_fov_deg=effective_fov,
         fov_source=(
@@ -400,20 +406,21 @@ async def post_auto_calibrate(
         ),
         confidence=result.get("confidence"),
         inlier_count=result.get("inlier_count"),
-        visibility_polygon_computed=poly_status["computed"],
+        suggested_point_count=len(result.get("suggested_points") or []),
     )
 
     return AutoCalibrateResult(
         camera_id=camera_id,
-        matrix=matrix,
+        draft_matrix=result["draft_matrix"],
+        suggested_points=result.get("suggested_points", []),
         confidence=result["confidence"],
         inlier_count=result["inlier_count"],
         sample_count=result["sample_count"],
         fov_deg=result["fov_deg"],
-        method=result.get("method", "depth_auto"),
+        image_width=int(result.get("image_width") or cam.snapshot_width or 0),
+        image_height=int(result.get("image_height") or cam.snapshot_height or 0),
+        method=result.get("method", "depth_auto_draft"),
         warning=result.get("warning"),
-        visibility_polygon_computed=poly_status["computed"],
-        visibility_polygon_warning=poly_status.get("warning"),
     )
 
 
@@ -427,7 +434,7 @@ def get_homography(
     cam = db.get(CtsCamera, camera_id)
     if not cam:
         raise NotFoundError("Camera", camera_id)
-    if not cam.homography:
+    if not _has_committed_homography(cam):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -435,9 +442,10 @@ def get_homography(
                 "message": f"Camera '{camera_id}' has not been calibrated yet.",
             },
         )
+    matrix = cam.homography.get("matrix") if cam.homography else cam.homography_matrix
     return {
         "camera_id": camera_id,
-        "matrix": cam.homography.get("matrix"),
+        "matrix": matrix,
         "residuals_m": cam.homography_residuals,
     }
 
@@ -480,7 +488,7 @@ def get_visibility_polygons(
         CameraVisibilityPolygon(
             camera_id=cam.id,
             camera_name=cam.name,
-            has_homography=cam.homography is not None,
+            has_homography=_has_committed_homography(cam),
             visibility_polygon=cam.visibility_polygon,
         )
         for cam in cameras
@@ -504,12 +512,22 @@ def post_recompute_visibility_polygons(
     Safe to call at any time — idempotent.  Skips cameras with missing
     snapshot dimensions or unconfigured floor plan scale.
     """
-    from sqlalchemy import select
+    from sqlalchemy import or_, select
 
     cts_enabled()
-    cameras = db.execute(select(CtsCamera).where(CtsCamera.homography.is_not(None))).scalars().all()
+    cameras = (
+        db.execute(
+            select(CtsCamera).where(
+                or_(CtsCamera.homography.is_not(None), CtsCamera.homography_matrix.is_not(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
     updated = 0
     for cam in cameras:
+        if not _has_committed_homography(cam):
+            continue
         _refresh_visibility_polygon(cam, db)
         updated += 1
     db.commit()

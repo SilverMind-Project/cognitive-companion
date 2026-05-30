@@ -55,15 +55,15 @@
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <!-- Camera visibility polygons (muted, background) -->
-                  <polygon
-                    v-for="cam in coverageCameras"
-                    :key="cam.camera_id"
-                    v-if="cam.visibility_polygon"
-                    :points="toSvgPoints(cam.visibility_polygon)"
-                    fill="rgba(33,150,243,0.12)"
-                    stroke="#2196f3"
-                    stroke-width="1.5"
-                  />
+                  <template v-for="cam in coverageCameras" :key="cam.camera_id">
+                    <polygon
+                      v-if="cam.visibility_polygon"
+                      :points="toSvgPoints(cam.visibility_polygon)"
+                      fill="rgba(33,150,243,0.12)"
+                      stroke="#2196f3"
+                      stroke-width="1.5"
+                    />
+                  </template>
                   <!-- Adjacency edge lines -->
                   <line
                     v-for="edge in allEdgesForMap"
@@ -78,23 +78,23 @@
                     opacity="0.8"
                   />
                   <!-- Camera labels at polygon centroids -->
-                  <text
-                    v-for="cam in coverageCameras"
-                    :key="`lbl-${cam.camera_id}`"
-                    v-if="cam.visibility_polygon"
-                    :x="centroidOf(cam.camera_id)[0]"
-                    :y="centroidOf(cam.camera_id)[1]"
-                    text-anchor="middle"
-                    dominant-baseline="middle"
-                    font-size="11"
-                    font-family="sans-serif"
-                    fill="white"
-                    paint-order="stroke"
-                    stroke="black"
-                    stroke-width="3"
-                  >
-                    {{ cam.camera_name }}
-                  </text>
+                  <template v-for="cam in coverageCameras" :key="`lbl-${cam.camera_id}`">
+                    <text
+                      v-if="cam.visibility_polygon"
+                      :x="centroidOf(cam.camera_id)[0]"
+                      :y="centroidOf(cam.camera_id)[1]"
+                      text-anchor="middle"
+                      dominant-baseline="middle"
+                      font-size="11"
+                      font-family="sans-serif"
+                      fill="white"
+                      paint-order="stroke"
+                      stroke="black"
+                      stroke-width="3"
+                    >
+                      {{ cam.camera_name }}
+                    </text>
+                  </template>
                 </svg>
               </template>
               <div v-else class="pa-6 text-center">
@@ -128,9 +128,16 @@
               variant="tonal"
               class="ma-4"
             >
-              Calibrate camera homographies in
-              <router-link to="/admin/cts/calibration" class="text-primary">Homography Calibration</router-link>
-              to compute visibility polygons and enable coverage-based inference.
+              <template v-if="calibratedWithoutPolygons.length > 0">
+                Coverage polygons could not be computed for
+                {{ calibratedWithoutPolygons.length }} calibrated camera(s).
+                Recompute coverage in Floor Plan settings, or revisit the calibration point correspondences.
+              </template>
+              <template v-else>
+                Calibrate camera homographies in
+                <router-link to="/admin/cts/calibration" class="text-primary">Homography Calibration</router-link>
+                to compute visibility polygons and enable coverage-based inference.
+              </template>
             </v-alert>
           </v-card-text>
         </v-card>
@@ -358,7 +365,7 @@ const { snack, snackText, snackColor, notify } = useNotify();
 // ---------------------------------------------------------------------------
 
 /**
- * @typedef {{ camera_id: string, camera_name: string, visibility_polygon: number[][] | null }} CameraPolygon
+ * @typedef {{ camera_id: string, camera_name: string, has_homography: boolean, visibility_polygon: number[][] | null }} CameraPolygon
  * @typedef {{ cameras: CameraPolygon[], floor_meters_per_pixel: number | null, floor_plan_width_px: number | null, floor_plan_height_px: number | null }} VisibilityPolygonsPayload
  * @typedef {{ from: string, to: string, min_transit_s: number, max_transit_s: number, overlap: boolean }} AdjacencyEdge
  * @typedef {{ id: string, name: string }} CameraOption
@@ -400,6 +407,10 @@ const form = ref(emptyForm());
 
 const hasPolygons = computed(() =>
   coverageCameras.value.some((c) => c.visibility_polygon)
+);
+
+const calibratedWithoutPolygons = computed(() =>
+  coverageCameras.value.filter((c) => c.has_homography && !c.visibility_polygon)
 );
 
 const allEdgesForMap = computed(() => {
@@ -484,6 +495,7 @@ function validateVisibilityPolygons(raw) {
     valid.push({
       camera_id: c.camera_id,
       camera_name: typeof c.camera_name === "string" ? c.camera_name : c.camera_id,
+      has_homography: c.has_homography === true,
       visibility_polygon: poly,
     });
   }

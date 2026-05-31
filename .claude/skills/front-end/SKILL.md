@@ -649,7 +649,7 @@ Required scoped CSS (same as right-side drawer pattern):
 
 ### Authorised libraries
 
-- **`echarts` + `vue-echarts`**: the only permitted charting library. Use explicit module imports only; never import the full ECharts bundle.
+- **`echarts` (v6) + `vue-echarts` (v8)**: the only permitted charting library. Use explicit module imports only; never import the full ECharts bundle.
 - No second charting or flow-diagram library. No hand-rolled SVG charts for data shapes covered by the shared components.
 
 ### Shared component catalogue
@@ -767,10 +767,27 @@ frontend/src/
 
 ---
 
+## Toolchain
+
+| Tool | Version | Notes |
+| --- | --- | --- |
+| Node.js | 20.18+ required; 24 LTS (Krypton) via `.nvmrc` | Vite 8 requires Node 20.18+; crypto.hash is native from 20.12+ |
+| Vite | 8.x | Rolldown bundler default; chunk size warning threshold is 500 kB |
+| Vue | 3.5.x | |
+| Vue Router | 4.x (latest 4.6.x) | Router 5.x has pinia+vite peer deps and a different data-loader API; the project stays on v4 |
+| Vuetify | 3.x (latest 3.12.x stable) | Vuetify 4 is a ground-up rewrite; v3 stable branch is maintained |
+| ECharts | 6.x + vue-echarts 8.x | Tree-shaking API (`use()` from `echarts/core`) is the same as v5 |
+| Pinia | 3.x | |
+
+**Security**: run `npm audit --audit-level=high` before every PR. No high/critical vulnerabilities should be present. Use `npm ci` in CI (not `npm install`) to enforce the committed `package-lock.json`.
+
+---
+
 ## Verification checklist
 
 Before marking frontend work complete:
 - `cd frontend && npm run build` passes
+- `npm audit --audit-level=high` reports no vulnerabilities
 - No hardcoded `rgba(255,255,255,…)` or hex colors in new code
 - No scoped `<style>` blocks with custom colors (utility-only scoped styles are OK)
 - Data tables use server-side pagination

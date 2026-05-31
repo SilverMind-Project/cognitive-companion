@@ -98,7 +98,11 @@ class StreamConsumer[T](ABC):
                 block=self._cfg.block_ms,
             )
             if resp:
-                await self._fan_out(resp[0][1])
+                # redis-py 8.x stubs annotate xreadgroup as dict-union for RESP3
+                # compat; with decode_responses=False (RESP2) the runtime value is
+                # always a list of (stream_name, messages) pairs. Narrow explicitly.
+                stream_entries: list[StreamMessage] = resp[0][1]  # type: ignore[index,assignment]
+                await self._fan_out(stream_entries)
         except asyncio.CancelledError:
             raise
         except Exception:

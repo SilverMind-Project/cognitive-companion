@@ -1,7 +1,7 @@
-FROM python:3.14-slim AS base
+FROM python:3.14.3-slim AS base
 
 # Install uv and ffmpeg
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.17 /uv /uvx /usr/local/bin/
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg git g++ && \
     rm -rf /var/lib/apt/lists/*

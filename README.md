@@ -1,5 +1,16 @@
 # Cognitive Companion
 
+[![Python](https://img.shields.io/badge/Python-3.14-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat&logo=vuedotjs&logoColor=white)](https://vuejs.org)
+[![Vuetify](https://img.shields.io/badge/Vuetify-3-1867C0?style=flat&logo=vuetify&logoColor=white)](https://vuetifyjs.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-316192?style=flat&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-8-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io)
+[![NVIDIA](https://img.shields.io/badge/NVIDIA-GPU%20Inference-76B900?style=flat&logo=nvidia&logoColor=white)](https://developer.nvidia.com)
+[![Docker](https://img.shields.io/badge/Docker-Containerised-2496ED?style=flat&logo=docker&logoColor=white)](https://docker.com)
+[![uv](https://img.shields.io/badge/uv-0.11-6E40C9?style=flat&logo=astral&logoColor=white)](https://docs.astral.sh/uv)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat)](LICENSE)
+
 On-premise AI system for senior care: safety monitoring, activity tracking, and cognitive engagement. All inference runs locally.
 
 The backend is a FastAPI BFF gateway for the continuous tracking, scene analysis, person identification, semantic memory, and TTS services. A Vue 3 admin UI provides camera management, a unified role-aware tracking workspace, live pipeline activity view, privacy zone configuration, rule authoring, and dementia signal dashboards. A senior-facing voice companion runs through the PWA.
@@ -42,7 +53,7 @@ cd frontend && npm install && npm run dev
 
 # Quality gates
 make check              # lint + strict mypy on core + core tests
-make check-all          # adds services tests
+make check-all          # adds services tests + frontend
 make test-integration   # integration tests (requires Docker)
 ```
 

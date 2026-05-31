@@ -1,36 +1,88 @@
 <template>
-  <v-dialog :model-value="modelValue" max-width="1000" @update:model-value="$emit('update:modelValue', $event)">
-    <v-card class="cc-glass">
-      <v-card-title class="d-flex align-center px-6 py-4">
-        <v-icon class="mr-2">mdi-puzzle-plus</v-icon>
-        Add Pipeline Step
-      </v-card-title>
+  <v-dialog
+    :model-value="modelValue"
+    max-width="860"
+    :fullscreen="$vuetify.display.smAndDown"
+    @update:model-value="$emit('update:modelValue', $event)"
+  >
+    <v-card class="cc-glass step-palette-card d-flex flex-column">
+      <DialogHeader
+        icon="mdi-puzzle-plus"
+        label="Add Pipeline Step"
+        :title="activeGroup?.name ?? 'Steps'"
+        @close="$emit('update:modelValue', false)"
+      />
 
-      <v-card-text>
-        <div v-if="loading" class="text-center py-4">
-          <v-progress-circular indeterminate color="primary" />
-        </div>
-        <div v-else v-for="group in groups" :key="group.name" class="mb-4">
-          <div class="text-overline text-medium-emphasis mb-3">{{ group.name }}</div>
-          <div class="step-grid">
-            <div v-for="st in group.types" :key="st.type" class="step-grid-item">
-              <v-card
-                class="glass-card pa-4 text-center cursor-pointer step-palette-card d-flex flex-column align-center justify-center"
-                rounded="lg"
-                hover
-                :class="st.deprecated ? 'text-grey' : ''"
-                @click="select(st.type)"
-              >
-                <v-icon size="32" :class="st.deprecated ? 'text-grey' : 'text-primary'" class="mb-2">{{ st.icon }}</v-icon>
-                <div class="text-body-2 font-weight-medium" :class="st.deprecated ? 'text-decoration-line-through' : ''">{{ st.label }}</div>
-                <v-chip v-if="st.deprecated" size="x-small" color="warning" variant="plain" class="mt-1">deprecated</v-chip>
-              </v-card>
-            </div>
-          </div>
-        </div>
-      </v-card-text>
+      <div v-if="loading" class="d-flex align-center justify-center flex-grow-1 py-12">
+        <v-progress-circular indeterminate color="primary" />
+      </div>
 
-      <v-card-actions>
+      <div v-else class="step-palette-body d-flex flex-grow-1 overflow-hidden">
+        <!-- Left vertical tabs, one per category -->
+        <v-tabs
+          v-model="activeCategory"
+          direction="vertical"
+          color="primary"
+          class="step-palette-tabs flex-shrink-0"
+        >
+          <v-tab
+            v-for="group in groups"
+            :key="group.category"
+            :value="group.category"
+            class="justify-start"
+            :prepend-icon="CATEGORY_ICONS[group.category]"
+          >
+            {{ group.name }}
+          </v-tab>
+        </v-tabs>
+
+        <v-divider vertical />
+
+        <!-- Step grid for the active category -->
+        <div class="step-palette-content flex-grow-1 pa-5 overflow-y-auto">
+          <v-window v-model="activeCategory">
+            <v-window-item
+              v-for="group in groups"
+              :key="group.category"
+              :value="group.category"
+            >
+              <div class="step-grid">
+                <div v-for="st in group.types" :key="st.type">
+                  <v-card
+                    class="pa-4 text-center cursor-pointer step-type-card d-flex flex-column align-center justify-center"
+                    rounded="lg"
+                    hover
+                    :class="st.deprecated ? 'step-type-card--deprecated' : ''"
+                    @click="select(st.type)"
+                  >
+                    <v-icon
+                      size="32"
+                      :color="st.deprecated ? undefined : 'primary'"
+                      class="mb-2"
+                    >{{ st.icon }}</v-icon>
+                    <div
+                      class="text-body-2 font-weight-medium"
+                      :class="st.deprecated ? 'text-decoration-line-through text-medium-emphasis' : ''"
+                    >{{ st.label }}</div>
+                    <v-chip
+                      v-if="st.deprecated"
+                      size="x-small"
+                      color="warning"
+                      variant="plain"
+                      class="mt-1"
+                    >deprecated</v-chip>
+                  </v-card>
+                </div>
+              </div>
+            </v-window-item>
+          </v-window>
+        </div>
+      </div>
+
+      <v-divider />
+      <v-card-actions class="px-6 py-3">
+        <v-icon size="small" color="medium-emphasis" class="mr-1">mdi-cursor-default-click-outline</v-icon>
+        <span class="text-caption text-medium-emphasis">Click a step type to insert it into the pipeline</span>
         <v-spacer />
         <v-btn variant="text" @click="$emit('update:modelValue', false)">Cancel</v-btn>
       </v-card-actions>
@@ -41,6 +93,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { api } from "../../services/api.js";
+import DialogHeader from "../common/DialogHeader.vue";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -50,8 +103,8 @@ const emit = defineEmits(["update:modelValue", "select"]);
 
 const loading = ref(false);
 const stepTypes = ref([]);
+const activeCategory = ref(null);
 
-// Category display order
 const CATEGORY_ORDER = ["perception", "reasoning", "state", "action", "flow"];
 const CATEGORY_LABELS = {
   perception: "Perception",
@@ -59,6 +112,13 @@ const CATEGORY_LABELS = {
   state: "State",
   action: "Action",
   flow: "Flow",
+};
+const CATEGORY_ICONS = {
+  perception: "mdi-eye-outline",
+  reasoning: "mdi-brain",
+  state: "mdi-database-outline",
+  action: "mdi-lightning-bolt-outline",
+  flow: "mdi-source-branch",
 };
 
 const groups = computed(() => {
@@ -76,17 +136,19 @@ const groups = computed(() => {
   return CATEGORY_ORDER
     .filter((cat) => byCategory[cat])
     .map((cat) => ({
+      category: cat,
       name: CATEGORY_LABELS[cat] || cat,
       types: byCategory[cat],
     }));
 });
+
+const activeGroup = computed(() => groups.value.find((g) => g.category === activeCategory.value));
 
 onMounted(async () => {
   loading.value = true;
   try {
     stepTypes.value = await api.getStepTypes();
   } catch {
-    // Fallback to hardcoded types if API unavailable
     stepTypes.value = [
       { type_name: "person_identification", display_name: "Person ID", category: "perception", icon: "mdi-face-recognition", deprecated: false },
       { type_name: "scene_analysis", display_name: "Scene Analysis", category: "perception", icon: "mdi-image-search", deprecated: false },
@@ -108,6 +170,7 @@ onMounted(async () => {
     ];
   } finally {
     loading.value = false;
+    if (groups.value.length) activeCategory.value = groups.value[0].category;
   }
 });
 
@@ -118,24 +181,59 @@ function select(type) {
 </script>
 
 <style scoped>
+.step-palette-card {
+  height: 70vh;
+  max-height: 680px;
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.step-palette-body {
+  min-height: 0;
+}
+
+.step-palette-tabs {
+  width: 200px;
+  background-color: var(--cc-bg-elevated);
+  padding-top: 12px;
+}
+
+.step-palette-tabs :deep(.v-tab) {
+  justify-content: flex-start !important;
+  padding-inline: 20px !important;
+  border-radius: 0;
+  font-weight: 500;
+  height: 44px;
+}
+
+.step-palette-content {
+  min-width: 0;
+}
+
+.step-palette-content :deep(.v-window),
+.step-palette-content :deep(.v-window__container) {
+  overflow: visible !important;
+}
+
 .step-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
 }
-.step-grid-item {
-  display: flex;
-  flex-direction: column;
-}
-.step-palette-card {
+
+.step-type-card {
   height: 100%;
+  min-height: 96px;
   transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s !important;
+  cursor: pointer;
 }
-.step-palette-card:hover {
+
+.step-type-card:hover {
   transform: scale(1.03) translateY(-2px);
   border-color: rgb(var(--v-theme-primary)) !important;
 }
-.cursor-pointer {
-  cursor: pointer;
+
+.step-type-card--deprecated {
+  opacity: 0.55;
 }
 </style>

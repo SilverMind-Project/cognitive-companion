@@ -7,10 +7,14 @@ for reads and ``cts.identity.correct`` for mutations.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from collections.abc import Awaitable, Mapping
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from backend.core.auth import require_permission
 from backend.core.logging import get_logger
+from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.routers.cts_deps import cts_enabled, presigned_image_url
 from backend.routers.dependencies import get_orchestrator_client, get_ph_enrichment_service
@@ -37,6 +41,91 @@ from backend.services.cts.ph_enrichment import PHEnrichmentService
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/cts", tags=["cts-ph"])
+
+
+async def _upstream_or_502[T](call: Awaitable[T], *, endpoint: str) -> T:
+    try:
+        return await call
+    except UpstreamError as exc:
+        logger.warning(
+            "cts_ph_upstream_failed",
+            endpoint=endpoint,
+            service=exc.service,
+            upstream_status=exc.status,
+        )
+        raise HTTPException(
+            status_code=502 if exc.status >= 500 else exc.status,
+            detail={
+                "code": str(exc.code),
+                "message": f"{exc.service} returned HTTP {exc.status}",
+                "service": exc.service,
+            },
+        ) from exc
+
+
+def _required_mapping_list(
+    data: Mapping[str, Any], key: str, *, endpoint: str
+) -> list[dict[str, Any]]:
+    if key not in data:
+        logger.error("cts_ph_upstream_contract_missing_field", endpoint=endpoint, field=key)
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "cts_ph.upstream_contract",
+                "message": f"tracking_orchestrator response missing required field {key}",
+                "service": "tracking_orchestrator",
+            },
+        )
+    value = data[key]
+    if not isinstance(value, list):
+        logger.error(
+            "cts_ph_upstream_contract_invalid_field",
+            endpoint=endpoint,
+            field=key,
+            field_type=type(value).__name__,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "cts_ph.upstream_contract",
+                "message": f"tracking_orchestrator field {key} must be a list",
+                "service": "tracking_orchestrator",
+            },
+        )
+    items: list[dict[str, Any]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, Mapping):
+            logger.error(
+                "cts_ph_upstream_contract_invalid_item",
+                endpoint=endpoint,
+                field=key,
+                index=index,
+                item_type=type(item).__name__,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "code": "cts_ph.upstream_contract",
+                    "message": f"tracking_orchestrator field {key}[{index}] must be an object",
+                    "service": "tracking_orchestrator",
+                },
+            )
+        items.append(dict(item))
+    return items
+
+
+def _required_value(data: Mapping[str, Any], key: str, *, endpoint: str) -> Any:
+    if key in data:
+        return data[key]
+    logger.error("cts_ph_upstream_contract_missing_field", endpoint=endpoint, field=key)
+    raise HTTPException(
+        status_code=502,
+        detail={
+            "code": "cts_ph.upstream_contract",
+            "message": f"tracking_orchestrator response missing required field {key}",
+            "service": "tracking_orchestrator",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -75,15 +164,15 @@ async def list_phs(
         offset=offset,
     )
     enriched = await enricher.enrich_phs(
-        data.get("items", []),
+        _required_mapping_list(data, "items", endpoint="list_phs"),
         image_url=lambda key: presigned_image_url(request, key),
     )
     items = [PHSummaryResponse(**item) for item in enriched]
     return PaginatedPHList(
         items=items,
-        total=data.get("total", 0),
-        limit=data.get("limit", limit),
-        offset=data.get("offset", offset),
+        total=_required_value(data, "total", endpoint="list_phs"),
+        limit=_required_value(data, "limit", endpoint="list_phs"),
+        offset=_required_value(data, "offset", endpoint="list_phs"),
     )
 
 
@@ -110,7 +199,7 @@ async def get_ph(
     _auth=Depends(require_permission("cts.identity.view")),
 ) -> PHDetailResponse:
     cts_enabled()
-    data = await client.get_ph(ph_id)
+    data = await _upstream_or_502(client.get_ph(ph_id), endpoint="get_ph")
     data = await enricher.enrich_ph(data, image_url=lambda key: presigned_image_url(request, key))
     return PHDetailResponse(**data)
 
@@ -139,7 +228,7 @@ async def list_ph_keyframes(
     cts_enabled()
     data = await client.list_ph_keyframes(ph_id, limit=limit)
     data["items"] = enricher.enrich_keyframes(
-        data.get("items", []),
+        _required_mapping_list(data, "items", endpoint="list_ph_keyframes"),
         image_url=lambda key: presigned_image_url(request, key),
     )
     return PHKeyframesResponse(**data)
@@ -166,10 +255,13 @@ async def get_co_present(
     _auth=Depends(require_permission("cts.identity.view")),
 ) -> PHCoPresentResponse:
     cts_enabled()
-    data = await client.get_ph_co_present(ph_id, radius_m=radius_m)
+    data = await _upstream_or_502(
+        client.get_ph_co_present(ph_id, radius_m=radius_m),
+        endpoint="get_co_present",
+    )
     display_names = await enricher.identity_display_names()
     data["co_present"] = enricher.enrich_co_present(
-        data.get("co_present", []),
+        _required_mapping_list(data, "co_present", endpoint="get_co_present"),
         display_names=display_names,
     )
     return PHCoPresentResponse(**data)

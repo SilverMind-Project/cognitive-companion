@@ -104,6 +104,42 @@ def test_enrichment_fetches_identity_map_once_for_list(test_client, client_mock)
     assert client_mock.get_identities.call_count == 1
 
 
+def test_co_present_forwards_radius_and_enriches_identity_name(test_client, client_mock):
+    client_mock.get_ph_co_present.return_value = {
+        "ph_id": "ph-1",
+        "co_present": [
+            {
+                "ph_id": "ph-2",
+                "current_identity_id": "alice",
+                "last_seen_camera": "cam-1",
+            }
+        ],
+        "radius_m": 7.0,
+    }
+    client_mock.get_identities.return_value = [
+        {"identity_id": "alice", "display_name": "Alice Rivera"},
+    ]
+
+    response = test_client.get("/api/v1/cts/ph/ph-1/co_present?radius_m=7")
+
+    assert response.status_code == 200
+    client_mock.get_ph_co_present.assert_awaited_once_with("ph-1", radius_m=7.0)
+    item = response.json()["co_present"][0]
+    assert item["identity_display_name"] == "Alice Rivera"
+
+
+def test_co_present_missing_required_list_returns_502(test_client, client_mock):
+    client_mock.get_ph_co_present.return_value = {
+        "ph_id": "ph-1",
+        "radius_m": 5.0,
+    }
+
+    response = test_client.get("/api/v1/cts/ph/ph-1/co_present")
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "cts_ph.upstream_contract"
+
+
 def test_correct_identity_forwards_idempotency_key(test_client, client_mock):
     client_mock.correct_ph_identity.return_value = {
         "revision": {"revision_id": "rev-1", "ph_id": "ph-1", "applied_at": None}

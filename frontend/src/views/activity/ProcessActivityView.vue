@@ -224,16 +224,16 @@
       width="480"
       class="cc-drawer-right"
     >
-      <v-card flat class="h-100 d-flex flex-column">
-        <v-card-title class="d-flex align-center py-3">
-          {{ selectedRun.rule_name }}
+      <div class="h-100 d-flex flex-column">
+        <div class="d-flex align-center px-4 py-3">
+          <span class="text-subtitle-1 font-weight-semibold">{{ selectedRun.rule_name }}</span>
           <v-chip :color="statusColor(selectedRun.status)" size="x-small" variant="tonal" class="ml-2">
             {{ selectedRun.status }}
           </v-chip>
           <v-spacer />
           <v-btn icon="mdi-close" variant="text" size="small" @click="drawerOpen = false" />
-        </v-card-title>
-
+        </div>
+        <v-divider />
         <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
           <v-card-text>
             <ExecutionDetail
@@ -246,7 +246,7 @@
             </div>
           </v-card-text>
         </div>
-      </v-card>
+      </div>
     </v-navigation-drawer>
   </div>
 </template>
@@ -477,17 +477,3 @@ watch(
 defineExpose({ connectionState, activeRuns, activeTab, selectedRun, feedEvents, ingestEvents, selectRun });
 </script>
 
-<style scoped>
-.cc-drawer-right {
-  position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
-}
-
-.cc-drawer-right :deep(.v-navigation-drawer__content) {
-  flex: 1 1 0;
-  min-height: 0;
-  padding-top: 64px;
-}
-</style>

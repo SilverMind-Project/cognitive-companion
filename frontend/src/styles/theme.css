@@ -47,7 +47,7 @@
   --cc-surface-2: rgba(44, 44, 46, 0.70);
   --cc-surface-3: rgba(58, 58, 60, 0.55);
   --cc-app-bar-glass: rgba(11, 11, 15, 0.72);
-  --cc-drawer-glass: rgba(11, 11, 15, 0.80);
+  --cc-drawer-glass: rgba(18, 18, 22, 0.96);
 
   /* Text */
   --cc-text-1: #ffffff;
@@ -89,7 +89,7 @@
   --cc-surface-2: rgba(242, 242, 247, 0.72);
   --cc-surface-3: rgba(229, 229, 234, 0.65);
   --cc-app-bar-glass: rgba(255, 255, 255, 0.68);
-  --cc-drawer-glass: rgba(255, 255, 255, 0.76);
+  --cc-drawer-glass: rgba(248, 248, 252, 0.97);
 
   /* Text */
   --cc-text-1: #000000;
@@ -99,8 +99,9 @@
   /* Borders & dividers */
   --cc-divider: rgba(0, 0, 0, 0.06);
   --cc-divider-strong: rgba(0, 0, 0, 0.12);
-  --cc-glass-border: rgba(255, 255, 255, 0.50);
-  --cc-glass-border-strong: rgba(255, 255, 255, 0.70);
+  /* Dark borders for light surfaces — white borders are invisible on white backgrounds */
+  --cc-glass-border: rgba(0, 0, 0, 0.08);
+  --cc-glass-border-strong: rgba(0, 0, 0, 0.14);
 
   /* Shadows */
   --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -171,8 +172,16 @@ kbd {
   border-right: 1px solid var(--cc-divider) !important;
 }
 
-/* All default (elevated) cards get glass treatment */
-.v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal) {
+/* Right-side panel drawers: flip border to the leading edge, add depth shadow */
+.v-navigation-drawer.cc-drawer-right {
+  border-right: none !important;
+  border-left: 1px solid var(--cc-divider-strong) !important;
+  box-shadow: -4px 0 32px rgba(0, 0, 0, 0.10), -1px 0 0 rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Elevated cards get glass surface + border. Flat/text/plain variants are excluded:
+   flat cards are used as borderless inner wrappers (e.g. drawer roots, form sections). */
+.v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(.v-card--variant-text):not(.v-card--variant-plain) {
   background-color: var(--cc-surface) !important;
   background-image: none !important;
   border: 1px solid var(--cc-glass-border) !important;
@@ -301,14 +310,22 @@ kbd {
   box-shadow: var(--cc-shadow-glass) !important;
 }
 
-/* Dialogs: glass card with deeper shadow */
-.v-dialog > .v-overlay__content > .v-card {
+/*
+ * Dialogs: solid elevated surface — always opaque, never translucent.
+ *
+ * The selector repeats the :not() chain from the global card rule so that
+ * specificity is (0,8,0) vs the global rule's (0,6,0). Both rules use
+ * !important; higher specificity wins among !important declarations.
+ * Without this, --cc-surface (translucent) overrides --cc-bg-elevated (solid).
+ *
+ * backdrop-filter is intentionally omitted: with a solid background it has
+ * no visible effect and wastes GPU resources.
+ */
+.v-dialog > .v-overlay__content > .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(.v-card--variant-text):not(.v-card--variant-plain) {
   border-radius: var(--cc-radius-xl) !important;
   background-color: var(--cc-bg-elevated) !important;
-  backdrop-filter: saturate(200%) blur(28px);
-  -webkit-backdrop-filter: saturate(200%) blur(28px);
   box-shadow: var(--cc-shadow-lg);
-  border: 1px solid var(--cc-glass-border-strong);
+  border: 1px solid var(--cc-glass-border-strong) !important;
 }
 
 /* Dialog overlay: subtle darkening */
@@ -446,6 +463,36 @@ kbd {
 .fade-slide-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+/*
+ * Right-side panel drawer — global utility class.
+ *
+ * Usage: <v-navigation-drawer location="right" temporary class="cc-drawer-right">
+ *
+ * Width standards (set via the `width` prop on v-navigation-drawer):
+ *   Standard panel (inspector, evidence, detail): width="480"
+ *   Wide panel (complex multi-section views):     width="640"
+ *
+ * z-index 2100: VNavigationDrawer temporary uses VOverlay (≈2000), which is
+ * already above VAppBar (≈1004). The explicit 2100 makes intent clear and
+ * avoids edge-case stacking when multiple overlays are open.
+ *
+ * padding-top 0: correct because the drawer overlays above the app bar
+ * (z-index 2100 > app bar ≈1004). Content is not hidden behind the navbar.
+ */
+.cc-drawer-right {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+  z-index: 2100 !important;
+}
+
+.cc-drawer-right .v-navigation-drawer__content {
+  flex: 1 1 0;
+  min-height: 0;
+  padding-top: 0;
 }
 
 /* Stat card: elevated dashboard metric panels */

@@ -1,11 +1,14 @@
 <template>
-  <div class="ph-drawer d-flex flex-column" style="height: 100%;">
-    <!-- Loading -->
-    <v-progress-linear v-if="detail.state.loading.value" indeterminate color="primary" />
-
-    <!-- Header -->
-    <div class="pa-4" v-if="detail.state.detail.value">
-      <div class="d-flex align-center ga-3 mb-3">
+  <!-- Plain div: the v-navigation-drawer provides the glass surface.
+       v-card flat would inherit a border from the global theme rule. -->
+  <div class="ph-inspector h-100 d-flex flex-column">
+    <!-- Fixed header -->
+    <v-card-title class="d-flex align-center py-3 px-4">
+      <div v-if="detail.state.loading.value" class="d-flex align-center ga-2">
+        <v-progress-circular indeterminate size="18" color="primary" />
+        <span class="text-body-2 text-medium-emphasis">Loading…</span>
+      </div>
+      <template v-else-if="detail.state.detail.value">
         <v-chip
           :color="detail.state.detail.value.current_identity_id ? 'success' : 'warning'"
           size="small"
@@ -13,20 +16,25 @@
         >
           {{ detail.state.detail.value.identity_display_name || detail.state.detail.value.current_identity_id || "UNKNOWN" }}
         </v-chip>
-        <v-chip v-if="posteriorTopLabel" size="x-small" variant="text" class="text-caption">
+        <v-chip v-if="posteriorTopLabel" size="x-small" variant="text" class="text-caption ml-1">
           {{ posteriorTopLabel }} {{ (posteriorTopProb * 100).toFixed(0) }}%
         </v-chip>
-        <v-spacer />
-        <span class="text-caption text-medium-emphasis">{{ formatRelative(detail.state.detail.value.last_seen_at) }}</span>
-      </div>
+      </template>
+      <span v-else class="text-body-2 text-medium-emphasis">No data</span>
+      <v-spacer />
+      <span v-if="detail.state.detail.value" class="text-caption text-medium-emphasis mr-2">
+        {{ formatRelative(detail.state.detail.value.last_seen_at) }}
+      </span>
+      <v-btn icon="mdi-close" variant="text" size="small" @click="$emit('close')" />
+    </v-card-title>
 
-      <div class="d-flex flex-wrap ga-1 mb-3">
+    <!-- Camera chips + action buttons (shown after load) -->
+    <div v-if="detail.state.detail.value" class="px-4 pb-3">
+      <div class="d-flex flex-wrap ga-1 mb-2">
         <v-chip v-for="cid in detail.state.detail.value.active_cameras || []" :key="cid" size="x-small" variant="tonal">
           <v-icon start size="12">mdi-cctv</v-icon> {{ cid }}
         </v-chip>
       </div>
-
-      <!-- Action buttons -->
       <div class="d-flex ga-2">
         <v-btn
           v-if="mode === 'correct' || mode === 'view'"
@@ -61,7 +69,7 @@
     <v-divider />
 
     <!-- Scrollable body -->
-    <div class="flex-1-1-0 overflow-y-auto" style="min-height: 0;">
+    <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
       <!-- Posterior panel -->
       <PHPosteriorPanel
         :ph="detail.state.detail.value"
@@ -72,9 +80,11 @@
 
       <v-divider />
 
+      <!-- Keyframe strip with click-to-expand -->
       <PHKeyframeStrip
         :keyframes="detail.state.keyframes.value"
         :error="detail.state.panelErrors.value.keyframes"
+        @select="onKeyframeSelect"
       />
 
       <v-divider />
@@ -140,6 +150,67 @@
         <PHRevisionsFeed :ph-id="phId" :limit="20" />
       </div>
     </div>
+
+    <!-- Keyframe lightbox dialog -->
+    <v-dialog v-model="lightboxOpen" max-width="900" @click:outside="lightboxOpen = false">
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <span class="text-body-1">
+            <v-icon start size="16">mdi-cctv</v-icon>
+            {{ lightboxFrame?.camera_id || '' }}
+          </span>
+          <span v-if="lightboxFrame?.observed_at" class="text-caption text-medium-emphasis ml-2">
+            {{ formatRelative(lightboxFrame.observed_at) }}
+          </span>
+          <v-spacer />
+          <v-btn
+            v-if="mode === 'correct' || mode === 'view'"
+            size="small"
+            variant="tonal"
+            color="primary"
+            prepend-icon="mdi-account-edit"
+            class="mr-2"
+            @click="lightboxOpen = false; toggleForm('correct')"
+          >
+            Correct Identity
+          </v-btn>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="lightboxOpen = false" />
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="pa-0">
+          <v-img
+            v-if="lightboxFrame"
+            :src="displaySrc(lightboxImageSrc)"
+            max-height="640"
+            contain
+          >
+            <template #placeholder>
+              <div class="d-flex align-center justify-center fill-height">
+                <v-progress-circular indeterminate color="primary" />
+              </div>
+            </template>
+            <template #error>
+              <div class="d-flex align-center justify-center fill-height pa-6">
+                <v-icon size="40" color="medium-emphasis">mdi-image-broken</v-icon>
+              </div>
+            </template>
+          </v-img>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- Confirmation dialog: persistent so backdrop-click doesn't leave Promise hanging -->
+    <v-dialog v-model="confirmDialogOpen" max-width="400" persistent>
+      <v-card rounded="xl">
+        <v-card-title>{{ confirmTitle }}</v-card-title>
+        <v-card-text>{{ confirmText }}</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+          <v-btn :color="confirmColor" variant="flat" @click="onConfirm">{{ confirmLabel }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -147,6 +218,7 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { formatRelative } from "@/composables/useFormatRelative";
 import { identityColor } from "@/composables/useIdentityColor";
+import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
 import { usePHDetail } from "@/composables/usePHDetail";
 import { usePHCorrection } from "@/composables/usePHCorrection";
 import { useNotify } from "@/composables/useNotify";
@@ -180,11 +252,35 @@ export default {
   setup(props, { emit }) {
     const detail = usePHDetail();
     const { notify } = useNotify();
-    const { require: confirm } = useConfirm();
+    const {
+      require: confirm,
+      confirmDialog: confirmDialogOpen,
+      confirmTitle,
+      confirmText,
+      confirmLabel,
+      cancelLabel,
+      confirmColor,
+      onConfirm,
+      onCancel,
+    } = useConfirm();
     const correction = usePHCorrection(notify);
+    const { blurMode } = useBlurMode();
+    const { displaySrc } = useDisplaySrc(blurMode);
 
     const activeForm = ref(null);
     const selectedObservationId = ref("");
+
+    // Lightbox state
+    const lightboxOpen = ref(false);
+    const lightboxFrame = ref(null);
+
+    const lightboxImageSrc = computed(() => {
+      if (!lightboxFrame.value) return "";
+      if (blurMode.value && lightboxFrame.value.blurred_image_url) {
+        return lightboxFrame.value.blurred_image_url;
+      }
+      return lightboxFrame.value.image_url || lightboxFrame.value.latest_keyframe_image_url || "";
+    });
 
     const posteriorTopLabel = computed(() => {
       const ph = detail.state.detail.value;
@@ -205,6 +301,7 @@ export default {
     watch(() => props.phId, (newId) => {
       if (newId) {
         selectedObservationId.value = "";
+        lightboxOpen.value = false;
         detail.actions.fetch(newId);
       }
     });
@@ -215,6 +312,11 @@ export default {
 
     function onObservationSelect(obs) {
       selectedObservationId.value = obs?.observation_id || "";
+    }
+
+    function onKeyframeSelect(frame) {
+      lightboxFrame.value = frame;
+      lightboxOpen.value = true;
     }
 
     async function onCorrectSubmit({ new_identity_id, reason }) {
@@ -268,13 +370,26 @@ export default {
       correction,
       activeForm,
       selectedObservationId,
+      lightboxOpen,
+      lightboxFrame,
+      lightboxImageSrc,
       posteriorTopLabel,
       posteriorTopProb,
       coPresentItems,
+      confirmDialogOpen,
+      confirmTitle,
+      confirmText,
+      confirmLabel,
+      cancelLabel,
+      confirmColor,
+      onConfirm,
+      onCancel,
+      displaySrc,
       formatRelative,
       identityColor,
       toggleForm,
       onObservationSelect,
+      onKeyframeSelect,
       onCorrectSubmit,
       onMergeSubmit,
       onSplitSubmit,

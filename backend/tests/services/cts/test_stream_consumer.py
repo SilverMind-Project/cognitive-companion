@@ -125,3 +125,28 @@ class TestStreamConsumerPendingDrain:
         # _run_one catches the exception and returns, so the task completes.
         # The done callback removes it from pending.
         assert len(consumer._pending) == 0
+
+
+class TestStreamConsumerRedisClient:
+    """Tests for Redis client timeout construction."""
+
+    @pytest.mark.asyncio
+    async def test_start_sets_read_timeout_longer_than_block_window(self, monkeypatch) -> None:
+        consumer = _Consumer()
+        fake_redis = MagicMock()
+        fake_redis.close = AsyncMock()
+        captured: dict[str, object] = {}
+
+        def fake_from_url(*args: object, **kwargs: object) -> MagicMock:
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return fake_redis
+
+        monkeypatch.setattr("backend.services.cts.stream_consumer.aioredis.from_url", fake_from_url)
+        consumer._ensure_group = AsyncMock()
+        consumer._tick = AsyncMock(side_effect=lambda: consumer._stopped.set())
+
+        await consumer.start()
+
+        assert captured["kwargs"]["socket_timeout"] > consumer._cfg.block_ms / 1000.0
+        assert captured["kwargs"]["socket_connect_timeout"] == 5.0

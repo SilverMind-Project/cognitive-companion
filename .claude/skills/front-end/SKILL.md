@@ -126,7 +126,7 @@ Every admin list view follows this structure:
 
 ### Dialog pattern
 
-Dialogs get glass styling automatically from the global rule. Use plain `<v-card>` with no custom class:
+Dialogs use a solid elevated surface (`--cc-bg-elevated`), not the translucent `--cc-surface` used by cards. Use plain `<v-card>` with no custom class:
 
 ```html
 <v-dialog v-model="showDialog" max-width="600" persistent>
@@ -147,6 +147,11 @@ Dialogs get glass styling automatically from the global rule. Use plain `<v-card
 - `max-width` is typically `400` for confirm dialogs, `600`–`640` for create/edit forms, `800` for complex editors.
 - Confirm/delete dialogs use `rounded="xl"` on the inner card.
 - Always use `persistent` on create/edit dialogs to prevent accidental dismissal.
+- **Never add opacity or translucency to dialog cards.** Dialogs must be ≥95% opaque so the content behind does not bleed through.
+
+#### CSS specificity note (do not regress)
+
+`theme.css` has a global card rule at specificity (0,6,0) that applies `--cc-surface` (translucent). The dialog override sits at specificity (0,8,0) — it repeats the `:not()` chain to win with `!important`. If you ever add more `:not()` exclusions to the global card rule, add the same exclusion to the dialog rule, otherwise the global rule will win again and dialogs will go translucent.
 - Always put the primary action on the right (`v-spacer` between Cancel and Save).
 
 ### Inset sections within dialogs
@@ -164,58 +169,96 @@ This gets `--cc-surface-2` background from the global tonal card rule. No custom
 
 ### Right-side drawer pattern
 
-Right-side drawers overlay the main content and must scroll independently from the page. Every `v-navigation-drawer` with `location="right" temporary` follows this structure:
+Right-side drawers overlay the main content as full-viewport panels. The `.cc-drawer-right` class is a **global utility in `theme.css`** — do not add scoped CSS for it in individual views.
+
+#### Width standards
+
+Two widths only:
+
+| Token | Value | Use |
+|---|---|---|
+| **Standard** | `width="480"` | Inspector panels, evidence, detail views, forms |
+| **Wide** | `width="640"` | Complex multi-section views with maps, timelines, or side-by-side content |
+
+Never use ad-hoc widths like 500 or 440. Pick the closest standard.
+
+#### Template
 
 ```html
 <v-navigation-drawer v-model="open" location="right" temporary width="480" class="cc-drawer-right">
-  <v-card flat class="h-100 d-flex flex-column">
-    <v-card-title class="d-flex align-center">
-      Drawer Title
+  <!-- Plain div root: v-navigation-drawer provides the glass surface.
+       Never use v-card flat — it inherits the global glass-border rule. -->
+  <div class="h-100 d-flex flex-column">
+
+    <!-- Fixed header: always rendered, contains title + close button -->
+    <div class="d-flex align-center px-4 py-3">
+      <span class="text-subtitle-1 font-weight-semibold">Panel Title</span>
       <v-spacer />
       <v-btn icon="mdi-close" variant="text" size="small" @click="open = false" />
-    </v-card-title>
-    <!-- optional conditional content (alerts, metadata) -->
-    <v-card-text v-if="condition" class="pb-0">...</v-card-text>
-    <!-- optional tabs -->
-    <v-tabs v-model="tab" color="primary" density="compact" class="px-4">...</v-tabs>
-    <!-- scrollable body -->
-    <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
-      <v-card-text>
-        ...
-      </v-card-text>
     </div>
-  </v-card>
+
+    <!-- Optional: status alerts, metadata chips (fixed height) -->
+    <div v-if="alertCondition" class="px-4 pb-2">
+      <v-alert type="warning" density="compact" variant="tonal">...</v-alert>
+    </div>
+
+    <!-- Optional: tabs (fixed height, followed by divider) -->
+    <v-tabs v-model="tab" color="primary" density="compact" class="px-4">
+      <v-tab value="summary">Summary</v-tab>
+      <v-tab value="history">History</v-tab>
+    </v-tabs>
+    <v-divider />
+
+    <!-- Scrollable body: must have min-height: 0 inside a flex column -->
+    <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
+      <div class="pa-4">
+        <!-- content -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation dialogs: outside the inner div, inside the drawer.
+       Always persistent — backdrop close leaves useConfirm's Promise hanging. -->
+  <v-dialog v-model="confirmDialog" max-width="400" persistent>
+    <v-card rounded="xl">
+      <v-card-title>{{ confirmTitle }}</v-card-title>
+      <v-card-text>{{ confirmText }}</v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+        <v-btn :color="confirmColor" variant="flat" @click="onConfirm">{{ confirmLabel }}</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </v-navigation-drawer>
 ```
 
-**Required CSS** (scoped to the view):
+#### No scoped CSS required
 
-```css
-.cc-drawer-right {
-  position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
-}
-.cc-drawer-right :deep(.v-navigation-drawer__content) {
-  flex: 1 1 0;
-  min-height: 0;
-  padding-top: 64px;
-}
-```
+`.cc-drawer-right` is a global utility in `theme.css`. It sets:
+- `position: fixed; top: 0; bottom: 0; height: auto` — full-viewport pinning
+- `z-index: 2100` — above `v-app-bar` (≈1004) and VOverlay default (≈2000)
+- `padding-top: 0` — correct; the drawer overlays the navbar (not behind it)
+- `border-left` and a left-side shadow — creates visual separation from page content
 
-**Rules:**
+Do not copy-paste these rules into a scoped `<style>` block. If a one-off override is needed, add a modifier class.
 
-- Use `width` between `480`–`500` for content-heavy drawers, `400`–`440` for simple forms
-- Always wrap content in `<v-card flat class="h-100 d-flex flex-column">`: this gives the drawer a frosted-glass card surface and sets up the flex column layout
-- The `v-card` is the single root element inside the drawer; dialogs (confirm, etc.) go as siblings *outside* the card
-- The title is a plain `<v-card-title>`: no custom background, border, or sticky positioning needed. It sits naturally at the top of the card as a fixed flex child
-- Add `padding-top: 64px` on `.v-navigation-drawer__content`: this clears the app bar so content is not cut off
-- Override `.v-navigation-drawer__content` with `flex: 1 1 0; min-height: 0` so the content area fills the drawer and handles its own overflow
-- The scrollable area uses `flex-grow-1 overflow-y-auto` with `min-height: 0` so it shrinks correctly inside the flex column
-- Content inside the scrollable area should use `<v-card-text>` for proper padding and to match the card surface
-- Tabs, if needed, go before the scrollable area as a natural-height flex child
-- Optional conditional content (status alerts, location metadata) can use `<v-card-text class="pb-0">` before the tabs
+#### Transparency and surface
+
+Drawers use `--cc-drawer-glass` which is near-opaque by design:
+- **Dark mode**: `rgba(18, 18, 22, 0.96)` — deep, essentially solid
+- **Light mode**: `rgba(248, 248, 252, 0.97)` — near-white, page content does not bleed through
+
+The backdrop-filter blur is kept for subtle depth even at high opacity. Never increase transparency — a translucent drawer is distracting, especially in light mode where the page background shows through.
+
+#### Rules
+
+- **Width**: `480` (standard) or `640` (wide) only — no ad-hoc values
+- **Root element**: plain `<div>`, never `v-card flat` (inherits unwanted glass border)
+- **Header**: plain `<div class="d-flex align-center px-4 py-3">`, not `v-card-title`
+- **Scrollable body**: `flex-grow-1 overflow-y-auto` with `style="min-height: 0"`
+- **Confirm dialogs**: always `persistent` to prevent Promise from hanging
+- **No scoped `.cc-drawer-right` CSS**: it is global in `theme.css`
 
 ---
 
@@ -570,18 +613,19 @@ This pattern applies to any drawer that shows detail for a selected list row and
 
 ```html
 <v-navigation-drawer v-model="open" location="right" temporary width="500" class="cc-drawer-right">
-  <v-card flat class="h-100 d-flex flex-column">
+  <!-- Plain div root — do NOT use v-card flat (gets unwanted glass border from theme.css) -->
+  <div class="h-100 d-flex flex-column">
     <!-- Fixed header -->
-    <v-card-title class="d-flex align-center py-3">
+    <div class="d-flex align-center px-4 py-3">
       <PHListPanel :item="selectedItem" />
       <v-spacer />
       <v-btn icon="mdi-close" variant="text" size="small" @click="open = false" />
-    </v-card-title>
+    </div>
 
     <!-- Optional alert banner -->
-    <v-card-text v-if="state.error" class="pb-0">
+    <div v-if="state.error" class="px-4 pb-0">
       <v-alert type="error" density="compact">{{ state.error }}</v-alert>
-    </v-card-text>
+    </div>
 
     <!-- Tabs -->
     <v-tabs v-model="tab" color="primary" density="compact" class="px-4">
@@ -590,10 +634,11 @@ This pattern applies to any drawer that shows detail for a selected list row and
       <v-tab value="history">History</v-tab>
       <v-tab value="actions">Actions</v-tab>
     </v-tabs>
+    <v-divider />
 
     <!-- Scrollable body -->
     <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
-      <v-card-text>
+      <div class="pa-4">
         <v-window v-model="tab">
           <v-window-item value="summary">
             <PHTrailMiniFloorPlan :trail-points="state.trail" />
@@ -609,12 +654,13 @@ This pattern applies to any drawer that shows detail for a selected list row and
             <PHCorrectionForm :item-id="selectedItem.id" @corrected="onCorrected" />
           </v-window-item>
         </v-window>
-      </v-card-text>
+      </div>
     </div>
-  </v-card>
+  </div>
 
-  <!-- Confirmation dialogs outside the card but inside the drawer -->
-  <v-dialog v-model="confirmDialog" max-width="400">
+  <!-- Confirmation dialogs outside the inner div but inside the drawer.
+       Always use persistent: backdrop click otherwise leaves the Promise hanging. -->
+  <v-dialog v-model="confirmDialog" max-width="400" persistent>
     <v-card rounded="xl">
       <v-card-title>{{ confirmTitle }}</v-card-title>
       <v-card-text>{{ confirmText }}</v-card-text>
@@ -628,20 +674,7 @@ This pattern applies to any drawer that shows detail for a selected list row and
 </v-navigation-drawer>
 ```
 
-Required scoped CSS (same as right-side drawer pattern):
-```css
-.cc-drawer-right {
-  position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
-}
-.cc-drawer-right :deep(.v-navigation-drawer__content) {
-  flex: 1 1 0;
-  min-height: 0;
-  padding-top: 64px;
-}
-```
+No scoped CSS needed — `.cc-drawer-right` is a global utility in `theme.css`.
 
 ---
 

@@ -14,6 +14,12 @@ CORE_PKG       := backend/core
 CORE_TESTS     := backend/tests/core
 SERVICES_PKG   := backend/services
 SERVICES_TESTS := backend/tests/services
+FRONTEND_NODE_VERSION := $(shell cat frontend/.nvmrc)
+NVM_DIR ?= $(HOME)/.nvm
+
+define RUN_FRONTEND
+bash -lc 'set -e; NVM_SH="$${NVM_DIR:-$(NVM_DIR)}/nvm.sh"; if [ ! -s "$$NVM_SH" ]; then echo "nvm not found at $$NVM_SH; install nvm and run nvm install $(FRONTEND_NODE_VERSION)" >&2; exit 1; fi; . "$$NVM_SH"; nvm use $(FRONTEND_NODE_VERSION) >/dev/null; cd frontend; $(1)'
+endef
 
 .PHONY: help
 help:
@@ -31,7 +37,7 @@ help:
 	@echo "  make typecheck         Mypy over the full backend tree"
 	@echo "  make typecheck-core    Mypy over backend.core only (strict)"
 	@echo "  make check             lint + typecheck-core + test-core (fast gate)"
-	@echo "  make check-all         lint + typecheck-core + test (core + services)"
+	@echo "  make check-all         lint + typecheck-core + test (core + services) + frontend on Node $(FRONTEND_NODE_VERSION)"
 	@echo "  make migrate           Run Alembic migrations (upgrade to head)"
 	@echo "  make migration         Generate new Alembic migration (autogenerate)"
 	@echo "  make migration-history Show Alembic migration history"
@@ -89,11 +95,11 @@ typecheck-core:
 
 .PHONY: frontend-build
 frontend-build:
-	cd frontend && npm install --no-audit --no-fund && npm run build
+	$(call RUN_FRONTEND,npm ci --no-audit --no-fund && npm run build)
 
 .PHONY: frontend-test
 frontend-test:
-	cd frontend && npm run test --silent
+	$(call RUN_FRONTEND,npm run test --silent)
 
 # Deselected: test_cts_signal_to_notification and test_service_container_integration
 # have pre-existing test-isolation failures (cross-test DB contamination, verified

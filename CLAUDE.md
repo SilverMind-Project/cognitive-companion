@@ -198,7 +198,7 @@ Rules can be exported to portable YAML/JSON bundles and imported across installa
 1. `make check` passes (lint + strict mypy on core + core tests). For service or schema changes, also `make check-all`.
 2. New code has unit tests under `backend/tests/<mirror_path>/` covering success path, missing-service path, and at least one edge case. Do not mock the database; use the testcontainer fixtures.
 3. Strongly-typed public surfaces. `@dataclass(frozen=True)` for results returned to callers, Pydantic for HTTP wire models. No `dict[str, Any]` leaking out of an integration client.
-4. Graceful degradation. Integration clients return `None`, `[]`, or a typed zero value when upstream is disabled or unreachable; no exceptions bubble.
+4. Graceful degradation is explicit. Optional integrations may return `None`, `[]`, or a typed zero value when the upstream is disabled or unreachable, with a structured warning. Required BFF upstream contracts must be validated and failures surfaced as typed 502/503 responses; never fabricate missing fields or hide contract drift behind defaults.
 5. New endpoints have an `auth.yaml` entry.
 6. Frontend changes pass `cd frontend && npm run build`. New step / filter types also pass `npm run test`.
 7. **New:** Plugin contract tests pass. Every config_schema is valid JSONSchema, every default_config validates against it, every data-emitting step has a non-empty `output_schema`.

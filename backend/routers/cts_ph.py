@@ -21,6 +21,8 @@ from backend.routers.dependencies import get_orchestrator_client, get_ph_enrichm
 from backend.schemas.cts_ph import (
     BatchCorrectRequest,
     BatchCorrectResponse,
+    BatchDeleteRequest,
+    BatchDeleteResponse,
     CorrectIdentityRequest,
     CorrectIdentityResponse,
     MergeRequest,
@@ -32,6 +34,8 @@ from backend.schemas.cts_ph import (
     PHObservationsResponse,
     PHSummaryResponse,
     PHTrailResponse,
+    PurgeUnknownRequest,
+    PurgeUnknownResponse,
     RevisionsFeedResponse,
     SplitRequest,
     SplitResponse,
@@ -352,6 +356,42 @@ async def batch_correct(
         idempotency_key=idempotency_key,
     )
     return BatchCorrectResponse(**data)
+
+
+@router.post("/ph/batch_delete", response_model=BatchDeleteResponse)
+async def batch_delete(
+    body: BatchDeleteRequest,
+    request: Request,
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+    _auth=Depends(require_permission("cts.identity.correct")),
+) -> BatchDeleteResponse:
+    cts_enabled()
+    idempotency_key = request.headers.get("X-Idempotency-Key")
+    data = await client.batch_delete_phs(
+        ph_ids=body.ph_ids,
+        reason=body.reason,
+        actor=_actor(request),
+        idempotency_key=idempotency_key,
+    )
+    return BatchDeleteResponse(**data)
+
+
+@router.post("/ph/purge_unknown", response_model=PurgeUnknownResponse)
+async def purge_unknown(
+    body: PurgeUnknownRequest,
+    request: Request,
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+    _auth=Depends(require_permission("cts.identity.correct")),
+) -> PurgeUnknownResponse:
+    cts_enabled()
+    idempotency_key = request.headers.get("X-Idempotency-Key")
+    data = await client.purge_unknown_phs(
+        older_than_days=body.older_than_days,
+        limit=body.limit,
+        actor=_actor(request),
+        idempotency_key=idempotency_key,
+    )
+    return PurgeUnknownResponse(**data)
 
 
 # ---------------------------------------------------------------------------

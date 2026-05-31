@@ -775,8 +775,9 @@ Every code change must pass these gates. Check off each item before opening a PR
 
 **Gate 6: Resilience**
 
-- [ ] Integration clients return `None`, `[]`, or typed zero values when upstream is disabled or unreachable
-- [ ] No exceptions bubble from integration clients
+- [ ] Optional integration clients return `None`, `[]`, or typed zero values when upstream is disabled or unreachable, with a structured warning
+- [ ] Required BFF upstream contracts validate response envelopes and surface contract drift as typed 502/503 responses; no fabricated defaults
+- [ ] No unexpected exceptions bubble from integration clients
 - [ ] Every integration call has at least one structured log event (success or failure)
 
 ### 16.2 Iterating during development

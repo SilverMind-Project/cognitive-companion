@@ -15,6 +15,8 @@ On-premise AI system for senior care: safety monitoring, activity tracking, and 
 
 The backend is a FastAPI BFF gateway for the continuous tracking, scene analysis, person identification, semantic memory, and TTS services. A Vue 3 admin UI provides camera management, a unified role-aware tracking workspace, live pipeline activity view, privacy zone configuration, rule authoring, and dementia signal dashboards. A senior-facing voice companion runs through the PWA.
 
+BFF endpoints fail closed for required upstream contracts. Missing fields or wrong JSON shapes are returned as typed gateway errors with structured logs instead of fabricated empty arrays or placeholder objects.
+
 **Documentation:** [silvermind-project.github.io](https://silvermind-project.github.io)
 
 **Architecture reference:** [docs/systems-architecture.md](docs/systems-architecture.md) covers the sensors and integrations, the rules engine and trigger types, event aggregation, the plugin systems (steps, channels, filters), the PWA companion view, the Gemini Live realtime voice path, and a current bugs-and-gaps checklist.

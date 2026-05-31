@@ -144,7 +144,7 @@ from backend.core.exceptions import (
 
 1. **Raise AppError subclasses from services and routers.** The global handler in `core/exceptions.py` converts them to JSON.
 2. **Never catch AppError subclasses in routers.** Let them bubble to the handler.
-3. **Integration clients return zero values on failure**, never raise. Pattern:
+3. **Optional integration clients return explicit zero values on failure**, never raise unexpected transport exceptions. This applies only when the endpoint is genuinely optional and the caller documents the degraded behavior. Pattern:
    ```python
    async def analyze(self, ...) -> SceneAnalyzeResult | None:
        try:
@@ -153,7 +153,8 @@ from backend.core.exceptions import (
            logger.exception("scene_analysis_failed")
            return None
    ```
-4. **Log with context before raising.** The exception handler doesn't log:
+4. **Required BFF upstream contracts fail closed.** If a browser-visible BFF endpoint depends on an upstream envelope field, validate that field at the router/client boundary. Missing required fields, wrong shapes, and upstream 5xx responses are contract failures: log with context and return a typed 502/503. Do not use `.get("required_field", [])` or fabricate display data to keep the UI quiet.
+5. **Log with context before raising.** The exception handler doesn't log:
    ```python
    logger.warning("rule_not_found", rule_id=rule_id)
    raise NotFoundError("Rule", rule_id)
@@ -644,10 +645,10 @@ The envelope is a **strict superset** of prior response shapes: every legacy fie
 The `BLE001` (blind-except) ruff rule is enabled at `error` severity in `backend/pyproject.toml`. The documented allowlist is the only place a bare `except Exception` is permitted. Every other failure path must:
 
 1. Raise a typed `AppError` subclass (`NotFoundError`, `ConflictError`, etc.), or
-2. Return an explicit `None` / zero value with a `logger.warning()` call that names the failure, or
+2. Return an explicit `None` / zero value with a `logger.warning()` call that names the optional degraded integration, or
 3. Dead-letter the message with a Prometheus counter increment and a `logger.warning()` (for stream consumers).
 
-Never return a fabricated `{}` or `[]` to hide a missing upstream. A missing required field is a contract violation; expose it as a typed 4xx/5xx or an explicit zero-value return documented in the function signature.
+Never return a fabricated `{}` or `[]` to hide a missing upstream. A missing required field is a contract violation; expose it as a typed 4xx/5xx. Only optional fields may use documented defaults, and tests must cover that degraded path.
 
 ---
 

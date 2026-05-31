@@ -428,6 +428,44 @@ class OrchestratorClient(UpstreamClient):
         )
         return r.json()
 
+    async def batch_delete_phs(
+        self,
+        *,
+        ph_ids: list[str],
+        reason: str = "manual_delete",
+        actor: str = "system",
+        idempotency_key: str | None = None,
+    ) -> dict:
+        headers: dict[str, str] = {"X-Actor-Subject": actor}
+        if idempotency_key:
+            headers["X-Idempotency-Key"] = idempotency_key
+        r = await self._request(
+            "POST",
+            "/ph/batch_delete",
+            json={"ph_ids": ph_ids, "reason": reason},
+            headers=headers,
+        )
+        return r.json()
+
+    async def purge_unknown_phs(
+        self,
+        *,
+        older_than_days: int,
+        limit: int = 1000,
+        actor: str = "system",
+        idempotency_key: str | None = None,
+    ) -> dict:
+        headers: dict[str, str] = {"X-Actor-Subject": actor}
+        if idempotency_key:
+            headers["X-Idempotency-Key"] = idempotency_key
+        r = await self._request(
+            "POST",
+            "/ph/purge_unknown",
+            json={"older_than_days": older_than_days, "limit": limit},
+            headers=headers,
+        )
+        return r.json()
+
     async def list_ph_revisions(
         self,
         *,

@@ -30,6 +30,16 @@
 
     <!-- Camera chips + action buttons (shown after load) -->
     <div v-if="detail.state.detail.value" class="px-4 pb-3">
+      <div class="d-flex align-center ga-2 mb-2 text-caption text-medium-emphasis">
+        <span class="cc-code">{{ detail.state.detail.value.ph_id }}</span>
+        <v-btn
+          icon="mdi-content-copy"
+          variant="text"
+          size="x-small"
+          title="Copy PH ID"
+          @click="copyPhId"
+        />
+      </div>
       <div class="d-flex flex-wrap ga-1 mb-2">
         <v-chip v-for="cid in detail.state.detail.value.active_cameras || []" :key="cid" size="x-small" variant="tonal">
           <v-icon start size="12">mdi-cctv</v-icon> {{ cid }}
@@ -134,7 +144,7 @@
         :identities="identities"
         :saving="correction.state.saving.value"
         :mode="activeForm"
-        :merge-candidates="coPresentItems"
+        :merge-candidates="mergeCandidateItems"
         :observations="detail.state.observations.value"
         :selected-observation-id="selectedObservationId"
         @correct="onCorrectSubmit"
@@ -246,6 +256,7 @@ export default {
     phId: { type: String, required: true },
     mode: { type: String, default: "view" },
     identities: { type: Array, default: () => [] },
+    mergeCandidates: { type: Array, default: () => [] },
   },
   emits: ["apply", "close", "inspect-ph"],
 
@@ -295,6 +306,14 @@ export default {
     });
 
     const coPresentItems = computed(() => detail.state.coPresent.value || []);
+    const mergeCandidateItems = computed(() => {
+      const byId = new Map();
+      for (const item of [...coPresentItems.value, ...props.mergeCandidates]) {
+        if (!item?.ph_id || item.ph_id === props.phId) continue;
+        byId.set(item.ph_id, item);
+      }
+      return [...byId.values()];
+    });
 
     onMounted(() => detail.actions.fetch(props.phId));
 
@@ -317,6 +336,15 @@ export default {
     function onKeyframeSelect(frame) {
       lightboxFrame.value = frame;
       lightboxOpen.value = true;
+    }
+
+    async function copyPhId() {
+      try {
+        await navigator.clipboard.writeText(props.phId);
+        notify("PH ID copied", "success");
+      } catch {
+        notify("Could not copy PH ID", "error");
+      }
     }
 
     async function onCorrectSubmit({ new_identity_id, reason }) {
@@ -376,6 +404,7 @@ export default {
       posteriorTopLabel,
       posteriorTopProb,
       coPresentItems,
+      mergeCandidateItems,
       confirmDialogOpen,
       confirmTitle,
       confirmText,
@@ -390,6 +419,7 @@ export default {
       toggleForm,
       onObservationSelect,
       onKeyframeSelect,
+      copyPhId,
       onCorrectSubmit,
       onMergeSubmit,
       onSplitSubmit,

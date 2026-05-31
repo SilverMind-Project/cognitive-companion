@@ -36,6 +36,8 @@ class MyResourceEnvelope(BaseModel):
 
 Add the business logic to an existing service in `backend/services/` or create a new one. The function returns the envelope or raises an `AppError` subclass; it never returns a fabricated value on error.
 
+When the BFF adapts an upstream service, validate the upstream envelope before enrichment. Required list/object/scalar fields must be present with the expected shape. Treat missing fields, wrong JSON types, and upstream 5xx responses as contract failures: log with upstream URL/status and return a typed 502/503. Do not use `.get("required_field", [])` for required data; that converts contract drift into an empty UI and makes incidents invisible.
+
 ```python
 # backend/services/my_service.py
 async def get_my_resource(resource_id: str) -> MyResourceEnvelope:
@@ -172,3 +174,4 @@ grep "my_resource" backend/routers/my_resource.py
 | Missing `auth.yaml` entry | CI catches this; do not merge without it |
 | MCP tool returns `{}` on error | Return `{"error": "..."}` with a log; let the caller surface the error |
 | Fabricating a default value when data is missing | Raise `NotFoundError` or return documented `None`; never invent data |
+| `.get("items", [])` on a required upstream envelope | Validate with Pydantic or explicit type checks; return 502 on contract violation |

@@ -163,3 +163,40 @@ def test_correct_identity_no_idempotency_key(test_client, client_mock):
     )
     call_kwargs = client_mock.correct_ph_identity.call_args.kwargs
     assert call_kwargs.get("idempotency_key") is None
+
+
+def test_batch_delete_forwards_ids_reason_and_idempotency(test_client, client_mock):
+    client_mock.batch_delete_phs.return_value = {"deleted": 2}
+
+    response = test_client.post(
+        "/api/v1/cts/ph/batch_delete",
+        json={"ph_ids": ["ph-1", "ph-2"], "reason": "cleanup"},
+        headers={"X-Idempotency-Key": "idem-delete"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["deleted"] == 2
+    call_kwargs = client_mock.batch_delete_phs.call_args.kwargs
+    assert call_kwargs["ph_ids"] == ["ph-1", "ph-2"]
+    assert call_kwargs["reason"] == "cleanup"
+    assert call_kwargs["idempotency_key"] == "idem-delete"
+
+
+def test_purge_unknown_forwards_config(test_client, client_mock):
+    client_mock.purge_unknown_phs.return_value = {
+        "deleted": 5,
+        "cutoff": "2026-05-24T00:00:00Z",
+        "older_than_days": 7,
+    }
+
+    response = test_client.post(
+        "/api/v1/cts/ph/purge_unknown",
+        json={"older_than_days": 7, "limit": 1000},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["deleted"] == 5
+    client_mock.purge_unknown_phs.assert_awaited_once()
+    call_kwargs = client_mock.purge_unknown_phs.call_args.kwargs
+    assert call_kwargs["older_than_days"] == 7
+    assert call_kwargs["limit"] == 1000

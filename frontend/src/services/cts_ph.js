@@ -100,4 +100,16 @@ export const ctsPh = {
       method: "POST",
       body: JSON.stringify({ corrections }),
     }),
+
+  batchDelete: (phIds = [], reason = "manual_delete") =>
+    req("/ph/batch_delete", {
+      method: "POST",
+      body: JSON.stringify({ ph_ids: phIds, reason }),
+    }),
+
+  purgeUnknown: ({ older_than_days, limit = 1000 } = {}) =>
+    req("/ph/purge_unknown", {
+      method: "POST",
+      body: JSON.stringify({ older_than_days, limit }),
+    }),
 };

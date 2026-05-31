@@ -126,7 +126,47 @@
         </v-row>
       </v-card>
 
+      <div class="d-flex align-center flex-wrap ga-3 px-4 py-3">
+        <v-chip v-if="selectedPhIds.length" size="small" color="primary" variant="tonal">
+          {{ selectedPhIds.length }} selected
+        </v-chip>
+        <v-btn
+          v-if="selectedPhIds.length"
+          color="error"
+          variant="tonal"
+          prepend-icon="mdi-delete-outline"
+          :loading="bulkDeleting"
+          @click="deleteSelected"
+        >
+          Delete selected
+        </v-btn>
+        <v-spacer />
+        <v-text-field
+          v-model.number="purgeOlderThanDays"
+          label="Purge unknown older than"
+          suffix="days"
+          type="number"
+          min="1"
+          max="3650"
+          variant="outlined"
+          density="compact"
+          hide-details
+          style="max-width: 230px"
+        />
+        <v-btn
+          color="warning"
+          variant="outlined"
+          prepend-icon="mdi-delete-clock-outline"
+          :loading="purgingUnknown"
+          @click="purgeUnknown"
+        >
+          Purge unknown
+        </v-btn>
+      </div>
+      <v-divider />
+
       <v-data-table-server
+        v-model="selectedPhIds"
         v-model:items-per-page="phList.state.pagination.itemsPerPage"
         v-model:page="phList.state.pagination.page"
         :headers="headers"
@@ -135,6 +175,7 @@
         :loading="phList.state.loading.value"
         item-value="ph_id"
         items-per-page-text="PHs per page"
+        show-select
         hover
         @click:row="(_event, { item }) => openInspector(item, 'view')"
         @update:options="onTableOptions"
@@ -180,11 +221,11 @@
               variant="tonal"
               prepend-icon="mdi-eye"
               :data-testid="`ph-row-${item.ph_id}`"
-              @click="openInspector(item, 'view')"
+              @click.stop="openInspector(item, 'view')"
             >
               Inspect
             </v-btn>
-            <v-btn size="small" variant="outlined" prepend-icon="mdi-account-edit" @click="openInspector(item, 'correct')">
+            <v-btn size="small" variant="outlined" prepend-icon="mdi-account-edit" @click.stop="openInspector(item, 'correct')">
               Correct
             </v-btn>
           </div>
@@ -265,16 +306,30 @@
     </v-card>
 
     <!-- Inspector drawer -->
-    <v-navigation-drawer v-model="drawerOpen" location="right" width="480" temporary class="cc-drawer-right">
+    <v-navigation-drawer v-model="drawerOpen" location="right" width="640" temporary class="cc-drawer-right">
       <PHInspectorDrawer
         v-if="inspectorPh"
         :ph-id="inspectorPh.ph_id"
         :mode="drawerMode"
         :identities="identities"
+        :merge-candidates="tableMergeCandidates"
         @apply="onDrawerApply"
         @close="drawerOpen = false"
+        @inspect-ph="openInspectorById"
       />
     </v-navigation-drawer>
+
+    <v-dialog v-model="confirmDialogOpen" max-width="420" persistent>
+      <v-card rounded="xl">
+        <v-card-title>{{ confirmTitle }}</v-card-title>
+        <v-card-text>{{ confirmText }}</v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
+          <v-btn :color="confirmColor" variant="flat" @click="onConfirm">{{ confirmLabel }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -282,9 +337,10 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { formatRelative } from "@/composables/useFormatRelative";
 import { identityColor } from "@/composables/useIdentityColor";
-import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
 import { usePHList } from "@/composables/usePHList";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket";
+import { useConfirm } from "@/composables/useConfirm";
+import { useNotify } from "@/composables/useNotify";
 import { ctsPh } from "@/services/cts_ph";
 import PHInspectorDrawer from "@/components/cts/ph/PHInspectorDrawer.vue";
 import PHPeopleSummary from "@/components/cts/ph/PHPeopleSummary.vue";
@@ -312,8 +368,19 @@ export default {
   components: { PHInspectorDrawer, PHPeopleSummary, BlurToggle },
 
   setup() {
-    const { blurMode } = useBlurMode();
     const phList = usePHList();
+    const { notify } = useNotify();
+    const {
+      require: confirm,
+      confirmDialog: confirmDialogOpen,
+      confirmTitle,
+      confirmText,
+      confirmLabel,
+      cancelLabel,
+      confirmColor,
+      onConfirm,
+      onCancel,
+    } = useConfirm();
 
     const wsStatus = ref("disconnected");
     const drawerOpen = ref(false);
@@ -321,6 +388,10 @@ export default {
     const inspectorPh = ref(null);
     const identities = ref([]);
     const activeTab = ref("hypotheses");
+    const selectedPhIds = ref([]);
+    const bulkDeleting = ref(false);
+    const purgingUnknown = ref(false);
+    const purgeOlderThanDays = ref(7);
 
     // Revisions
     const revisions = ref([]);
@@ -379,6 +450,10 @@ export default {
 
     const unidentifiedCount = computed(
       () => phList.state.items.value.filter((ph) => !ph.current_identity_id).length
+    );
+
+    const tableMergeCandidates = computed(() =>
+      phList.state.items.value.filter((ph) => ph.ph_id !== inspectorPh.value?.ph_id)
     );
 
     // ── Table ──
@@ -462,10 +537,60 @@ export default {
       drawerOpen.value = true;
     }
 
+    async function openInspectorById(phId) {
+      const existing = phList.state.items.value.find((ph) => ph.ph_id === phId);
+      inspectorPh.value = existing || { ph_id: phId };
+      drawerMode.value = "view";
+      drawerOpen.value = true;
+    }
+
     async function onDrawerApply() {
       drawerOpen.value = false;
       await phList.actions.fetch();
       loadIdentities();
+    }
+
+    async function deleteSelected() {
+      if (!selectedPhIds.value.length) return;
+      const ok = await confirm(
+        `Delete ${selectedPhIds.value.length} selected Person Hypotheses? This removes their PH records and linked observations.`,
+        { confirmText: "Delete", color: "error" }
+      );
+      if (!ok) return;
+      bulkDeleting.value = true;
+      try {
+        const data = await ctsPh.batchDelete(selectedPhIds.value, "manual_bulk_delete");
+        notify(`Deleted ${data.deleted} Person Hypotheses`, "success");
+        selectedPhIds.value = [];
+        await phList.actions.fetch();
+      } catch (err) {
+        notify(String(err.message || err), "error");
+      } finally {
+        bulkDeleting.value = false;
+      }
+    }
+
+    async function purgeUnknown() {
+      const days = Number(purgeOlderThanDays.value);
+      if (!Number.isFinite(days) || days < 1) {
+        notify("Purge age must be at least 1 day.", "error");
+        return;
+      }
+      const ok = await confirm(
+        `Delete closed UNKNOWN Person Hypotheses last seen more than ${days} day${days === 1 ? "" : "s"} ago?`,
+        { confirmText: "Purge", color: "warning" }
+      );
+      if (!ok) return;
+      purgingUnknown.value = true;
+      try {
+        const data = await ctsPh.purgeUnknown({ older_than_days: days, limit: 1000 });
+        notify(`Purged ${data.deleted} unknown Person Hypotheses`, "success");
+        await phList.actions.fetch();
+      } catch (err) {
+        notify(String(err.message || err), "error");
+      } finally {
+        purgingUnknown.value = false;
+      }
     }
 
     // ── Revisions ──
@@ -521,8 +646,13 @@ export default {
       drawerMode,
       inspectorPh,
       identities,
+      selectedPhIds,
+      bulkDeleting,
+      purgingUnknown,
+      purgeOlderThanDays,
       identityGroups,
       unidentifiedCount,
+      tableMergeCandidates,
       headers,
       identityOptions,
       roomOptions,
@@ -538,13 +668,23 @@ export default {
       debouncedSearch,
       onTableOptions,
       openInspector,
+      openInspectorById,
       onDrawerApply,
+      deleteSelected,
+      purgeUnknown,
       loadRevisions,
       loadMoreRevisions,
       kindColor,
       kindIcon,
+      confirmDialogOpen,
+      confirmTitle,
+      confirmText,
+      confirmLabel,
+      cancelLabel,
+      confirmColor,
+      onConfirm,
+      onCancel,
     };
   },
 };
 </script>
-

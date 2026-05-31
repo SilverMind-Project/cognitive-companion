@@ -764,7 +764,7 @@
     <template v-else>
       <v-row>
         <!-- Floor plan SVG -->
-        <v-col cols="12" :md="activePersons.length > 0 ? 9 : 12">
+        <v-col cols="12" md="9">
           <v-card class="glass-card">
             <v-card-title class="d-flex align-center">
               <span>Live Floor Plan</span>
@@ -947,7 +947,7 @@
         </v-col>
 
         <!-- Active persons sidebar -->
-        <v-col v-if="activePersons.length > 0" cols="12" md="3">
+        <v-col cols="12" md="3">
           <v-card class="glass-card">
             <v-card-title class="text-subtitle-2 d-flex align-center">
               <v-icon start size="16" color="success">mdi-account-multiple</v-icon>
@@ -992,6 +992,9 @@
                     </span>
                   </div>
                 </template>
+              </v-list-item>
+              <v-list-item v-if="activePersons.length === 0" class="text-medium-emphasis text-caption">
+                No active identified people
               </v-list-item>
             </v-list>
           </v-card>

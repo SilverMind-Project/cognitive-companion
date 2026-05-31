@@ -157,6 +157,16 @@ class BatchCorrectRequest(BaseModel):
     corrections: list[BatchCorrectItem] = Field(..., min_length=1, max_length=50)
 
 
+class BatchDeleteRequest(BaseModel):
+    ph_ids: list[str] = Field(..., min_length=1, max_length=500)
+    reason: str = Field(default="manual_delete", max_length=512)
+
+
+class PurgeUnknownRequest(BaseModel):
+    older_than_days: int = Field(..., ge=1, le=3650)
+    limit: int = Field(default=1000, ge=1, le=10000)
+
+
 # ---------------------------------------------------------------------------
 # Correction response bodies
 # ---------------------------------------------------------------------------
@@ -181,6 +191,16 @@ class BatchCorrectResponse(BaseModel):
     revisions: list[RevisionResponse]
     applied: int
     errors: list[dict[str, str]] = Field(default_factory=list)
+
+
+class BatchDeleteResponse(BaseModel):
+    deleted: int
+
+
+class PurgeUnknownResponse(BaseModel):
+    deleted: int
+    cutoff: datetime
+    older_than_days: int
 
 
 # ---------------------------------------------------------------------------

@@ -182,6 +182,36 @@ def test_batch_delete_forwards_ids_reason_and_idempotency(test_client, client_mo
     assert call_kwargs["idempotency_key"] == "idem-delete"
 
 
+def test_batch_merge_forwards_ids_reason_and_idempotency(test_client, client_mock):
+    client_mock.batch_merge_phs.return_value = {
+        "revisions": [
+            {"revision_id": "rev-1", "ph_id": "ph-1", "applied_at": None},
+            {"revision_id": "rev-2", "ph_id": "ph-2", "applied_at": None},
+        ],
+        "applied": 2,
+        "source_ph_ids": ["ph-1", "ph-2"],
+        "target_ph_id": "ph-3",
+    }
+
+    response = test_client.post(
+        "/api/v1/cts/ph/batch_merge",
+        json={
+            "source_ph_ids": ["ph-1", "ph-2"],
+            "target_ph_id": "ph-3",
+            "reason": "same person",
+        },
+        headers={"X-Idempotency-Key": "idem-merge"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["applied"] == 2
+    call_kwargs = client_mock.batch_merge_phs.call_args.kwargs
+    assert call_kwargs["source_ph_ids"] == ["ph-1", "ph-2"]
+    assert call_kwargs["target_ph_id"] == "ph-3"
+    assert call_kwargs["reason"] == "same person"
+    assert call_kwargs["idempotency_key"] == "idem-merge"
+
+
 def test_purge_unknown_forwards_config(test_client, client_mock):
     client_mock.purge_unknown_phs.return_value = {
         "deleted": 5,

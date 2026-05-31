@@ -38,6 +38,8 @@ Add the business logic to an existing service in `backend/services/` or create a
 
 When the BFF adapts an upstream service, validate the upstream envelope before enrichment. Required list/object/scalar fields must be present with the expected shape. Treat missing fields, wrong JSON types, and upstream 5xx responses as contract failures: log with upstream URL/status and return a typed 502/503. Do not use `.get("required_field", [])` for required data; that converts contract drift into an empty UI and makes incidents invisible.
 
+For bulk mutations, expose one explicit batch contract through the BFF and upstream service. Do not make the browser loop over single-item endpoints for merge/delete/correct workflows: client-side loops create partial-success ambiguity, make retry/idempotency difficult, and hide the true unit of work from audit logs. Batch mutation responses must include `applied` plus the source/target identifiers needed to reconcile the UI.
+
 ```python
 # backend/services/my_service.py
 async def get_my_resource(resource_id: str) -> MyResourceEnvelope:

@@ -390,6 +390,30 @@ class OrchestratorClient(UpstreamClient):
         )
         return r.json()
 
+    async def batch_merge_phs(
+        self,
+        *,
+        source_ph_ids: list[str],
+        target_ph_id: str,
+        reason: str = "manual_bulk_merge",
+        actor: str = "system",
+        idempotency_key: str | None = None,
+    ) -> dict:
+        headers: dict[str, str] = {"X-Actor-Subject": actor}
+        if idempotency_key:
+            headers["X-Idempotency-Key"] = idempotency_key
+        r = await self._request(
+            "POST",
+            "/ph/batch_merge",
+            json={
+                "source_ph_ids": source_ph_ids,
+                "target_ph_id": target_ph_id,
+                "reason": reason,
+            },
+            headers=headers,
+        )
+        return r.json()
+
     async def split_ph(
         self,
         ph_id: str,

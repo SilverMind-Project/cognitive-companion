@@ -20,7 +20,7 @@ describe("usePHList", () => {
     expect(composable.actions).toHaveProperty("handleWsEvent");
   });
 
-  it("state.filters includes all ten filter params", () => {
+  it("state.filters includes caregiver-facing table params", () => {
     const { state } = usePHList();
     const filterKeys = Object.keys(state.filters);
     expect(filterKeys).toContain("identity_id");
@@ -30,7 +30,7 @@ describe("usePHList", () => {
     expect(filterKeys).toContain("state");
     expect(filterKeys).toContain("include_transient");
     expect(filterKeys).toContain("min_duration_s");
-    expect(filterKeys).toContain("search");
+    expect(filterKeys).not.toContain("search");
   });
 
   it("handleWsEvent updates row in place for cts_ph_update", async () => {

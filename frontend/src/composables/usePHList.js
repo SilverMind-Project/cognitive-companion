@@ -3,7 +3,7 @@
  *
  * Returns { state, actions } per engineering-standards Section 17.
  *
- * state.filters includes all ten filter params supported by the backend.
+ * state.filters includes the caregiver-facing table filters.
  */
 
 import { ref, reactive } from "vue";
@@ -24,7 +24,6 @@ export function usePHList() {
     state: null,
     include_transient: false,
     min_duration_s: null,
-    search: null,
   });
 
   const pagination = reactive({
@@ -47,7 +46,6 @@ export function usePHList() {
       if (filters.state) params.state = filters.state;
       if (filters.include_transient) params.include_transient = true;
       if (filters.min_duration_s != null) params.min_duration_s = filters.min_duration_s;
-      if (filters.search) params.search = filters.search;
 
       const data = await ctsPh.list(params);
       items.value = data.items || [];

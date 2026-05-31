@@ -23,6 +23,8 @@ from backend.schemas.cts_ph import (
     BatchCorrectResponse,
     BatchDeleteRequest,
     BatchDeleteResponse,
+    BatchMergeRequest,
+    BatchMergeResponse,
     CorrectIdentityRequest,
     CorrectIdentityResponse,
     MergeRequest,
@@ -318,6 +320,25 @@ async def merge_phs(
         idempotency_key=idempotency_key,
     )
     return MergeResponse(**data)
+
+
+@router.post("/ph/batch_merge", response_model=BatchMergeResponse)
+async def batch_merge_phs(
+    body: BatchMergeRequest,
+    request: Request,
+    client: OrchestratorClient = Depends(get_orchestrator_client),
+    _auth=Depends(require_permission("cts.identity.correct")),
+) -> BatchMergeResponse:
+    cts_enabled()
+    idempotency_key = request.headers.get("X-Idempotency-Key")
+    data = await client.batch_merge_phs(
+        source_ph_ids=body.source_ph_ids,
+        target_ph_id=body.target_ph_id,
+        reason=body.reason,
+        actor=_actor(request),
+        idempotency_key=idempotency_key,
+    )
+    return BatchMergeResponse(**data)
 
 
 @router.post("/ph/{ph_id}/split", response_model=SplitResponse)

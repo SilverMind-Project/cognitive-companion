@@ -7,7 +7,7 @@ from typing import Any
 
 from backend.services.cts._types import IdentityLookupClient
 
-ImageUrlFactory = Callable[[str], str]
+ImageUrlFactory = Callable[[str], str | None]
 
 
 class PHEnrichmentService:

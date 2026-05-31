@@ -71,6 +71,16 @@ The global stylesheet automatically applies frosted-glass to:
 
 ## Component patterns
 
+### Human-interface baseline
+
+Follow the durable parts of Apple Human Interface Guidelines and Google Material Design:
+
+- Prefer recognition over recall. Caregivers should choose from visible tracks, identities, thumbnails, and labels; do not ask them to paste opaque IDs unless the ID is also easy to copy from the same workflow.
+- Keep destructive and irreversible actions explicit. Bulk delete, merge, split, and identity reassignment require a visible review step and a `useConfirm()` confirmation before the mutation request is sent.
+- Maintain layout stability. Drawers and dialogs must overlay content without resizing the primary work surface. Filter bars and table columns need stable dimensions so data does not jump as values change.
+- Reuse established controls. Use the shared dialog/header/editor components before creating a one-off surface; one task should not have multiple visual languages.
+- Progressive disclosure beats empty panels. Detail drawers should show the best available evidence first: identity label, short PH ID, room/camera, recent keyframes, and timestamp context.
+
 ### Router configuration
 
 Vue Router warnings are production defects, even when tests pass.
@@ -360,6 +370,25 @@ Use `width: 200` for the Actions column when there are 4+ icon buttons (edit, ap
 - Version/ID columns: `width: 80`
 - Datetime columns: import `DATETIME_COLUMN_WIDTH` from `@/services/timezone.js`
 - Tag/chip-list columns (e.g. trigger types, labels): `width: 160` to constrain without truncating typical values
+- Identity/track columns should combine a human label with a short stable ID in a secondary line. Do not expose only a raw UUID when the user must compare or merge tracks.
+
+### Bulk table actions
+
+Bulk actions belong in the table toolbar and operate on `v-data-table-server` selected item IDs. The flow is:
+
+1. Selection count chip.
+2. One explicit action button per supported bulk operation.
+3. A persistent review dialog when the operation needs additional choices, such as the merge target.
+4. `useConfirm()` immediately before the API mutation.
+5. One BFF batch endpoint for the mutation. Do not loop over single-row endpoints in the browser for merge/delete/correct operations; partial success is hard for caregivers to reason about and hard to recover from.
+
+Bulk merge dialogs must show each candidate with display name, short PH ID, room/camera context, and last-seen time. The user chooses the target track to keep; all other selected PHs become sources.
+
+### Annotation editor reuse
+
+Keyframe thumbnails that open an editable image must use `components/cts/keyframes/KeyframeAnnotationDialog.vue`. Do not create custom image lightboxes for annotation-capable keyframes. The dialog already owns the standard header, bbox canvas, confidence filter, pending-change summary, save/cancel actions, and backend bbox batch contract.
+
+When a PH keyframe thumbnail is clicked, pass the real `keyframe_id` and unmodified image URL to `KeyframeAnnotationDialog`; thumbnail privacy/blur rendering stays in the thumbnail component.
 
 ### Compact option selectors in page headers and table toolbars
 

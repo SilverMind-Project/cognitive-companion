@@ -161,53 +161,15 @@
       </div>
     </div>
 
-    <!-- Keyframe lightbox dialog -->
-    <v-dialog v-model="lightboxOpen" max-width="900" @click:outside="lightboxOpen = false">
-      <v-card>
-        <v-card-title class="d-flex align-center">
-          <span class="text-body-1">
-            <v-icon start size="16">mdi-cctv</v-icon>
-            {{ lightboxFrame?.camera_id || '' }}
-          </span>
-          <span v-if="lightboxFrame?.observed_at" class="text-caption text-medium-emphasis ml-2">
-            {{ formatRelative(lightboxFrame.observed_at) }}
-          </span>
-          <v-spacer />
-          <v-btn
-            v-if="mode === 'correct' || mode === 'view'"
-            size="small"
-            variant="tonal"
-            color="primary"
-            prepend-icon="mdi-account-edit"
-            class="mr-2"
-            @click="lightboxOpen = false; toggleForm('correct')"
-          >
-            Correct Identity
-          </v-btn>
-          <v-btn icon="mdi-close" variant="text" size="small" @click="lightboxOpen = false" />
-        </v-card-title>
-        <v-divider />
-        <v-card-text class="pa-0">
-          <v-img
-            v-if="lightboxFrame"
-            :src="displaySrc(lightboxImageSrc)"
-            max-height="640"
-            contain
-          >
-            <template #placeholder>
-              <div class="d-flex align-center justify-center fill-height">
-                <v-progress-circular indeterminate color="primary" />
-              </div>
-            </template>
-            <template #error>
-              <div class="d-flex align-center justify-center fill-height pa-6">
-                <v-icon size="40" color="medium-emphasis">mdi-image-broken</v-icon>
-              </div>
-            </template>
-          </v-img>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
+    <KeyframeAnnotationDialog
+      v-if="lightboxFrame"
+      v-model="lightboxOpen"
+      :image-url="annotationImageUrl"
+      :keyframe-id="annotationKeyframeId"
+      :identities="identities"
+      @saved="onAnnotationSaved"
+      @error="notify.error($event)"
+    />
 
     <!-- Confirmation dialog: persistent so backdrop-click doesn't leave Promise hanging -->
     <v-dialog v-model="confirmDialogOpen" max-width="400" persistent>
@@ -227,8 +189,6 @@
 <script>
 import { ref, computed, watch, onMounted } from "vue";
 import { formatRelative } from "@/composables/useFormatRelative";
-import { identityColor } from "@/composables/useIdentityColor";
-import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode";
 import { usePHDetail } from "@/composables/usePHDetail";
 import { usePHCorrection } from "@/composables/usePHCorrection";
 import { useNotify } from "@/composables/useNotify";
@@ -240,6 +200,7 @@ import PHTrailMiniFloorPlan from "./PHTrailMiniFloorPlan.vue";
 import PHCorrectionForm from "./PHCorrectionForm.vue";
 import PHRevisionsFeed from "./PHRevisionsFeed.vue";
 import PHListPanel from "./PHListPanel.vue";
+import KeyframeAnnotationDialog from "@/components/cts/keyframes/KeyframeAnnotationDialog.vue";
 
 export default {
   name: "PHInspectorDrawer",
@@ -251,6 +212,7 @@ export default {
     PHCorrectionForm,
     PHRevisionsFeed,
     PHListPanel,
+    KeyframeAnnotationDialog,
   },
   props: {
     phId: { type: String, required: true },
@@ -275,8 +237,6 @@ export default {
       onCancel,
     } = useConfirm();
     const correction = usePHCorrection(notify);
-    const { blurMode } = useBlurMode();
-    const { displaySrc } = useDisplaySrc(blurMode);
 
     const activeForm = ref(null);
     const selectedObservationId = ref("");
@@ -285,13 +245,14 @@ export default {
     const lightboxOpen = ref(false);
     const lightboxFrame = ref(null);
 
-    const lightboxImageSrc = computed(() => {
+    const annotationImageUrl = computed(() => {
       if (!lightboxFrame.value) return "";
-      if (blurMode.value && lightboxFrame.value.blurred_image_url) {
-        return lightboxFrame.value.blurred_image_url;
-      }
       return lightboxFrame.value.image_url || lightboxFrame.value.latest_keyframe_image_url || "";
     });
+
+    const annotationKeyframeId = computed(() =>
+      lightboxFrame.value?.keyframe_id || lightboxFrame.value?.observation_id || ""
+    );
 
     const posteriorTopLabel = computed(() => {
       const ph = detail.state.detail.value;
@@ -334,8 +295,18 @@ export default {
     }
 
     function onKeyframeSelect(frame) {
+      const keyframeId = frame?.keyframe_id || frame?.observation_id;
+      if (!keyframeId) {
+        notify.error("This keyframe is missing an annotation ID.");
+        return;
+      }
       lightboxFrame.value = frame;
       lightboxOpen.value = true;
+    }
+
+    async function onAnnotationSaved() {
+      notify.success("Annotations saved");
+      await detail.actions.fetch(props.phId);
     }
 
     async function copyPhId() {
@@ -400,7 +371,8 @@ export default {
       selectedObservationId,
       lightboxOpen,
       lightboxFrame,
-      lightboxImageSrc,
+      annotationImageUrl,
+      annotationKeyframeId,
       posteriorTopLabel,
       posteriorTopProb,
       coPresentItems,
@@ -413,12 +385,11 @@ export default {
       confirmColor,
       onConfirm,
       onCancel,
-      displaySrc,
       formatRelative,
-      identityColor,
       toggleForm,
       onObservationSelect,
       onKeyframeSelect,
+      onAnnotationSaved,
       copyPhId,
       onCorrectSubmit,
       onMergeSubmit,

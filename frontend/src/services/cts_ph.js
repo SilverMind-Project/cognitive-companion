@@ -44,7 +44,6 @@ export const ctsPh = {
     if (params.state) qs.set("state", params.state);
     if (params.include_transient) qs.set("include_transient", "true");
     if (params.min_duration_s != null) qs.set("min_duration_s", String(params.min_duration_s));
-    if (params.search) qs.set("search", params.search);
     qs.set("limit", String(params.limit ?? 50));
     qs.set("offset", String(params.offset ?? 0));
     return req(`/ph?${qs}`);
@@ -87,6 +86,12 @@ export const ctsPh = {
     req("/ph/merge", {
       method: "POST",
       body: JSON.stringify({ source_ph_id, target_ph_id, reason }),
+    }),
+
+  batchMerge: ({ source_ph_ids = [], target_ph_id, reason = "manual_bulk_merge" } = {}) =>
+    req("/ph/batch_merge", {
+      method: "POST",
+      body: JSON.stringify({ source_ph_ids, target_ph_id, reason }),
     }),
 
   split: (phId, { at_observation_id, reason = "manual" } = {}) =>

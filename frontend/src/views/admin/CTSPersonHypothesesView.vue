@@ -52,84 +52,73 @@
     <!-- ─────────────── TAB: Hypotheses ─────────────── -->
     <v-card v-if="activeTab === 'hypotheses'" class="glass-card">
       <!-- Filter bar -->
-      <v-card variant="flat" class="px-4 py-2" border>
-        <v-row dense align="center">
-          <v-col cols="12" sm="4" md="3">
-            <v-select
-              v-model="phList.state.filters.identity_id"
-              :items="identityOptions"
-              label="Identity"
-              variant="outlined"
-              density="compact"
-              clearable
-              hide-details
-              @update:model-value="onFilterChange()"
-            />
-          </v-col>
-          <v-col cols="6" sm="4" md="2">
-            <v-select
-              v-model="phList.state.filters.room_id"
-              :items="roomOptions"
-              label="Room"
-              variant="outlined"
-              density="compact"
-              clearable
-              hide-details
-              @update:model-value="onFilterChange()"
-            />
-          </v-col>
-          <v-col cols="6" sm="4" md="2">
-            <v-select
-              v-model="phList.state.filters.state"
-              :items="stateOptions"
-              label="State"
-              variant="outlined"
-              density="compact"
-              clearable
-              hide-details
-              @update:model-value="onFilterChange()"
-            />
-          </v-col>
-          <v-col cols="6" sm="4" md="2">
-            <v-switch
-              v-model="phList.state.filters.include_transient"
-              label="Transient"
-              density="compact"
-              hide-details
-              color="primary"
-              @update:model-value="onFilterChange()"
-            />
-          </v-col>
-          <v-col cols="6" sm="4" md="2">
-            <v-select
-              v-model="phList.state.filters.min_duration_s"
-              :items="durationOptions"
-              label="Min duration"
-              variant="outlined"
-              density="compact"
-              clearable
-              hide-details
-              @update:model-value="onFilterChange()"
-            />
-          </v-col>
-          <v-col cols="6" sm="4" md="3">
-            <v-text-field
-              v-model="phList.state.filters.search"
-              label="Search by name"
-              variant="outlined"
-              density="compact"
-              clearable
-              hide-details
-              @update:model-value="debouncedSearch"
-            />
-          </v-col>
-        </v-row>
-      </v-card>
+      <div class="ph-filter-bar px-4 py-3">
+        <div class="ph-filter-grid">
+          <v-select
+            v-model="phList.state.filters.identity_id"
+            :items="identityOptions"
+            label="Identity"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+            @update:model-value="onFilterChange()"
+          />
+          <v-select
+            v-model="phList.state.filters.room_id"
+            :items="roomOptions"
+            label="Room"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+            @update:model-value="onFilterChange()"
+          />
+          <v-select
+            v-model="phList.state.filters.state"
+            :items="stateOptions"
+            label="State"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+            @update:model-value="onFilterChange()"
+          />
+          <v-select
+            v-model="phList.state.filters.min_duration_s"
+            :items="durationOptions"
+            label="Min duration"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+            @update:model-value="onFilterChange()"
+          />
+          <v-switch
+            v-model="phList.state.filters.include_transient"
+            label="Include transient"
+            density="compact"
+            hide-details
+            color="primary"
+            @update:model-value="onFilterChange()"
+          />
+        </div>
+      </div>
 
       <div class="d-flex align-center flex-wrap ga-3 px-4 py-3">
         <v-chip v-if="selectedPhIds.length" size="small" color="primary" variant="tonal">
           {{ selectedPhIds.length }} selected
         </v-chip>
+        <v-btn
+          v-if="selectedPhIds.length"
+          color="primary"
+          variant="tonal"
+          prepend-icon="mdi-merge"
+          :disabled="selectedPhIds.length < 2"
+          @click="openBulkMergeDialog"
+        >
+          Merge selected
+        </v-btn>
         <v-btn
           v-if="selectedPhIds.length"
           color="error"
@@ -180,22 +169,29 @@
         @click:row="(_event, { item }) => openInspector(item, 'view')"
         @update:options="onTableOptions"
       >
-        <!-- Identity -->
-        <template #item.current_identity_id="{ item }">
-          <div class="d-flex align-center ga-2">
+        <!-- Hypothesis -->
+        <template #item.hypothesis="{ item }">
+          <div class="d-flex flex-column ga-1">
             <v-chip
               :color="item.current_identity_id ? 'success' : 'warning'"
               size="small"
               variant="tonal"
+              class="align-self-start"
             >
               {{ item.identity_display_name || item.current_identity_id || "UNKNOWN" }}
             </v-chip>
+            <span class="cc-code text-caption">{{ shortPhId(item.ph_id) }}</span>
           </div>
         </template>
 
         <!-- Duration -->
         <template #item.duration="{ item }">
           <span class="text-body-2">{{ formatDuration(item) }}</span>
+        </template>
+
+        <!-- Room -->
+        <template #item.room_name="{ item }">
+          <span class="text-body-2">{{ item.room_name || "—" }}</span>
         </template>
 
         <!-- Cameras -->
@@ -225,7 +221,12 @@
             >
               Inspect
             </v-btn>
-            <v-btn size="small" variant="outlined" prepend-icon="mdi-account-edit" @click.stop="openInspector(item, 'correct')">
+            <v-btn
+              size="small"
+              variant="outlined"
+              prepend-icon="mdi-account-edit"
+              @click.stop="openInspector(item, 'correct')"
+            >
               Correct
             </v-btn>
           </div>
@@ -330,13 +331,82 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="bulkMergeDialogOpen" max-width="640" persistent>
+      <v-card>
+        <DialogHeader
+          icon="mdi-merge"
+          label="Person Hypotheses"
+          title="Merge Selected Tracks"
+          @close="closeBulkMergeDialog"
+        />
+        <v-card-text>
+          <v-alert type="warning" variant="tonal" density="compact" class="mb-4">
+            Choose the track to keep. All other selected PHs will be merged into it.
+          </v-alert>
+          <v-radio-group v-model="bulkMergeTargetId" hide-details>
+            <div class="bulk-merge-list">
+              <v-radio
+                v-for="ph in selectedPhRows"
+                :key="ph.ph_id"
+                :value="ph.ph_id"
+                class="bulk-merge-option"
+              >
+                <template #label>
+                  <div class="d-flex flex-column ga-1">
+                    <div class="d-flex align-center ga-2 flex-wrap">
+                      <v-chip
+                        :color="ph.current_identity_id ? 'success' : 'warning'"
+                        size="x-small"
+                        variant="tonal"
+                      >
+                        {{ ph.identity_display_name || ph.current_identity_id || "UNKNOWN" }}
+                      </v-chip>
+                      <span class="text-caption text-medium-emphasis">{{ shortPhId(ph.ph_id) }}</span>
+                    </div>
+                    <div class="text-caption text-medium-emphasis">
+                      {{ ph.room_name || ph.last_seen_camera || "location unknown" }} ·
+                      {{ formatRelative(ph.last_seen_at) }}
+                    </div>
+                  </div>
+                </template>
+              </v-radio>
+            </div>
+          </v-radio-group>
+          <v-text-field
+            v-model="bulkMergeReason"
+            label="Reason"
+            variant="outlined"
+            density="compact"
+            hide-details
+            class="mt-4"
+          />
+        </v-card-text>
+        <v-divider />
+        <v-card-actions class="pa-4">
+          <span class="text-caption text-medium-emphasis">
+            {{ bulkMergeSourceCount }} source{{ bulkMergeSourceCount === 1 ? "" : "s" }} will be merged.
+          </span>
+          <v-spacer />
+          <v-btn variant="text" @click="closeBulkMergeDialog">Cancel</v-btn>
+          <v-btn
+            color="warning"
+            variant="flat"
+            :disabled="!bulkMergeTargetId || bulkMergeSourceCount < 1"
+            :loading="bulkMerging"
+            @click="mergeSelected"
+          >
+            Merge
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <script>
 import { ref, computed, watch, onMounted } from "vue";
 import { formatRelative } from "@/composables/useFormatRelative";
-import { identityColor } from "@/composables/useIdentityColor";
 import { usePHList } from "@/composables/usePHList";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket";
 import { useConfirm } from "@/composables/useConfirm";
@@ -345,8 +415,7 @@ import { ctsPh } from "@/services/cts_ph";
 import PHInspectorDrawer from "@/components/cts/ph/PHInspectorDrawer.vue";
 import PHPeopleSummary from "@/components/cts/ph/PHPeopleSummary.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
-
-let searchTimer = null;
+import DialogHeader from "@/components/common/DialogHeader.vue";
 
 const stateOptions = [
   { title: "Active", value: "active" },
@@ -365,7 +434,7 @@ const durationOptions = [
 export default {
   name: "CTSPersonHypothesesView",
 
-  components: { PHInspectorDrawer, PHPeopleSummary, BlurToggle },
+  components: { PHInspectorDrawer, PHPeopleSummary, BlurToggle, DialogHeader },
 
   setup() {
     const phList = usePHList();
@@ -390,6 +459,10 @@ export default {
     const activeTab = ref("hypotheses");
     const selectedPhIds = ref([]);
     const bulkDeleting = ref(false);
+    const bulkMerging = ref(false);
+    const bulkMergeDialogOpen = ref(false);
+    const bulkMergeTargetId = ref("");
+    const bulkMergeReason = ref("manual_bulk_merge");
     const purgingUnknown = ref(false);
     const purgeOlderThanDays = ref(7);
 
@@ -458,11 +531,12 @@ export default {
 
     // ── Table ──
     const headers = [
-      { title: "Identity", key: "current_identity_id", sortable: false, width: 180 },
-      { title: "Duration", key: "duration", sortable: false, width: 90 },
-      { title: "Cameras", key: "active_cameras", sortable: false, width: 180 },
-      { title: "Last seen", key: "last_seen_at", sortable: false, width: 120 },
-      { title: "", key: "actions", sortable: false, width: 210 },
+      { title: "Hypothesis", key: "hypothesis", sortable: false, width: 230 },
+      { title: "Duration", key: "duration", sortable: false, width: 100 },
+      { title: "Room", key: "room_name", sortable: false, width: 150 },
+      { title: "Cameras", key: "active_cameras", sortable: false, width: 210 },
+      { title: "Last seen", key: "last_seen_at", sortable: false, width: 130 },
+      { title: "", key: "actions", sortable: false, width: 190 },
     ];
 
     const identityOptions = computed(() => {
@@ -506,27 +580,38 @@ export default {
       return rem ? `${hr}h ${rem}m` : `${hr}h`;
     }
 
+    function shortPhId(phId) {
+      return phId ? phId.slice(0, 8) : "";
+    }
+
+    const selectedPhRows = computed(() => {
+      const selected = new Set(selectedPhIds.value);
+      return phList.state.items.value.filter((ph) => selected.has(ph.ph_id));
+    });
+
+    const bulkMergeSourceIds = computed(() =>
+      selectedPhRows.value.map((ph) => ph.ph_id).filter((phId) => phId !== bulkMergeTargetId.value)
+    );
+
+    const bulkMergeSourceCount = computed(() => bulkMergeSourceIds.value.length);
+
     // ── Filter / pagination ──
     function onFilterChange() {
+      selectedPhIds.value = [];
       phList.state.pagination.page = 1;
       phList.actions.fetch();
     }
 
-    function debouncedSearch(val) {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
-        phList.state.pagination.page = 1;
-        phList.actions.fetch();
-      }, 300);
-    }
-
     function onTableOptions(opts) {
+      const pageChanged = opts.page !== phList.state.pagination.page;
+      const sizeChanged = opts.itemsPerPage !== phList.state.pagination.itemsPerPage;
       if (opts.itemsPerPage !== phList.state.pagination.itemsPerPage) {
         phList.state.pagination.itemsPerPage = opts.itemsPerPage;
         phList.state.pagination.page = 1;
       } else {
         phList.state.pagination.page = opts.page;
       }
+      if (pageChanged || sizeChanged) selectedPhIds.value = [];
       phList.actions.fetch();
     }
 
@@ -567,6 +652,53 @@ export default {
         notify(String(err.message || err), "error");
       } finally {
         bulkDeleting.value = false;
+      }
+    }
+
+    function openBulkMergeDialog() {
+      if (selectedPhIds.value.length < 2) {
+        notify("Select at least two Person Hypotheses to merge.", "warning");
+        return;
+      }
+      const identified = selectedPhRows.value.find((ph) => ph.current_identity_id);
+      bulkMergeTargetId.value = identified?.ph_id || selectedPhIds.value[0] || "";
+      bulkMergeReason.value = "manual_bulk_merge";
+      bulkMergeDialogOpen.value = true;
+    }
+
+    function closeBulkMergeDialog() {
+      if (bulkMerging.value) return;
+      bulkMergeDialogOpen.value = false;
+      bulkMergeTargetId.value = "";
+      bulkMergeReason.value = "manual_bulk_merge";
+    }
+
+    async function mergeSelected() {
+      if (!bulkMergeTargetId.value || bulkMergeSourceIds.value.length < 1) return;
+      const ok = await confirm(
+        `Merge ${bulkMergeSourceIds.value.length} selected Person Hypotheses into ${bulkMergeTargetId.value}? This cannot be undone.`,
+        { confirmText: "Merge", color: "warning" }
+      );
+      if (!ok) return;
+
+      bulkMerging.value = true;
+      try {
+        const data = await ctsPh.batchMerge({
+          source_ph_ids: bulkMergeSourceIds.value,
+          target_ph_id: bulkMergeTargetId.value,
+          reason: bulkMergeReason.value || "manual_bulk_merge",
+        });
+        notify(`Merged ${data.applied} Person Hypotheses`, "success");
+        selectedPhIds.value = [];
+        bulkMergeDialogOpen.value = false;
+        bulkMergeTargetId.value = "";
+        bulkMergeReason.value = "manual_bulk_merge";
+        await phList.actions.fetch();
+        loadIdentities();
+      } catch (err) {
+        notify(String(err.message || err), "error");
+      } finally {
+        bulkMerging.value = false;
       }
     }
 
@@ -648,11 +780,17 @@ export default {
       identities,
       selectedPhIds,
       bulkDeleting,
+      bulkMerging,
+      bulkMergeDialogOpen,
+      bulkMergeTargetId,
+      bulkMergeReason,
       purgingUnknown,
       purgeOlderThanDays,
       identityGroups,
       unidentifiedCount,
       tableMergeCandidates,
+      selectedPhRows,
+      bulkMergeSourceCount,
       headers,
       identityOptions,
       roomOptions,
@@ -662,15 +800,17 @@ export default {
       revisionsKindFilter,
       loadingRevisions,
       formatRelative,
-      identityColor,
       formatDuration,
+      shortPhId,
       onFilterChange,
-      debouncedSearch,
       onTableOptions,
       openInspector,
       openInspectorById,
       onDrawerApply,
       deleteSelected,
+      openBulkMergeDialog,
+      closeBulkMergeDialog,
+      mergeSelected,
       purgeUnknown,
       loadRevisions,
       loadMoreRevisions,
@@ -688,3 +828,41 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.ph-filter-bar {
+  border-bottom: 1px solid var(--cc-divider);
+}
+
+.ph-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(140px, 0.8fr) minmax(160px, 0.9fr) minmax(170px, auto);
+  gap: 12px;
+  align-items: center;
+}
+
+.bulk-merge-list {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.bulk-merge-option {
+  border: 1px solid var(--cc-divider);
+  border-radius: var(--cc-radius-sm);
+  padding: 8px;
+}
+
+@media (max-width: 960px) {
+  .ph-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .ph-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

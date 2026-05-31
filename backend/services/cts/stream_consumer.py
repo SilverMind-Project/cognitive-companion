@@ -63,7 +63,14 @@ class StreamConsumer[T](ABC):
     async def handle(self, msg: T) -> bool: ...
 
     async def start(self) -> None:
-        self._redis = aioredis.from_url(self._cfg.redis_url, decode_responses=False)
+        read_timeout_s = max((self._cfg.block_ms / 1000.0) + 5.0, 10.0)
+        self._redis = aioredis.from_url(
+            self._cfg.redis_url,
+            decode_responses=False,
+            socket_timeout=read_timeout_s,
+            socket_connect_timeout=5.0,
+            health_check_interval=30,
+        )
         await self._ensure_group()
         logger.info(
             "cts_stream_consumer_started",

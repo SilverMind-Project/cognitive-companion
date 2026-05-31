@@ -299,14 +299,15 @@
     </v-dialog>
 
     <!-- Detail Drawer: Location History + Sightings -->
-    <v-navigation-drawer v-model="detailDrawer" location="right" temporary width="500" class="cc-drawer-right">
-      <v-card flat class="h-100 d-flex flex-column">
-        <v-card-title class="d-flex align-center">
+    <v-navigation-drawer v-model="detailDrawer" location="right" temporary width="480" class="cc-drawer-right">
+      <div class="h-100 d-flex flex-column">
+        <div class="d-flex align-center px-4 py-3">
           <v-icon class="mr-2">mdi-account-circle</v-icon>
-          {{ detailMember?.name || 'Details' }}
+          <span class="text-subtitle-1 font-weight-semibold">{{ detailMember?.name || 'Details' }}</span>
           <v-spacer />
           <v-btn icon="mdi-close" variant="text" size="small" @click="detailDrawer = false" />
-        </v-card-title>
+        </div>
+        <v-divider />
 
         <!-- Current Location -->
         <v-card-text v-if="detailLocation" class="pb-0">
@@ -394,7 +395,7 @@
             </v-card-text>
           </v-window-item>
         </v-window>
-      </v-card>
+      </div>
     </v-navigation-drawer>
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
@@ -697,23 +698,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.tracking-tight {
-  letter-spacing: -0.018em;
-}
-
-/* Right-side drawer: pin to viewport, clear app bar, independent scroll */
-.cc-drawer-right {
-  position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
-}
-.cc-drawer-right :deep(.v-navigation-drawer__content) {
-  flex: 1 1 0;
-  min-height: 0;
-  padding-top: 64px;
-}
-
 /* Allow the tab window to shrink and scroll inside the flex column */
 .detail-window {
   min-height: 0;

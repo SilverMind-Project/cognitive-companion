@@ -100,6 +100,18 @@
               @update:model-value="onFilterChange()"
             />
           </v-col>
+          <v-col cols="6" sm="4" md="2">
+            <v-select
+              v-model="phList.state.filters.min_duration_s"
+              :items="durationOptions"
+              label="Min duration"
+              variant="outlined"
+              density="compact"
+              clearable
+              hide-details
+              @update:model-value="onFilterChange()"
+            />
+          </v-col>
           <v-col cols="6" sm="4" md="3">
             <v-text-field
               v-model="phList.state.filters.search"
@@ -284,6 +296,14 @@ const stateOptions = [
   { title: "Active", value: "active" },
   { title: "Coasting", value: "coasting" },
   { title: "Ended", value: "ended" },
+];
+
+const durationOptions = [
+  { title: "> 10s", value: 10 },
+  { title: "> 30s", value: 30 },
+  { title: "> 1m", value: 60 },
+  { title: "> 5m", value: 300 },
+  { title: "> 30m", value: 1800 },
 ];
 
 export default {
@@ -506,6 +526,7 @@ export default {
       headers,
       identityOptions,
       roomOptions,
+      durationOptions,
       revisions,
       revisionsHasMore,
       revisionsKindFilter,
@@ -527,17 +548,3 @@ export default {
 };
 </script>
 
-<style scoped>
-/* Right-side drawer: pin to viewport, clear app bar, independent scroll */
-.cc-drawer-right {
-  position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
-}
-.cc-drawer-right :deep(.v-navigation-drawer__content) {
-  flex: 1 1 0;
-  min-height: 0;
-  padding-top: 64px;
-}
-</style>

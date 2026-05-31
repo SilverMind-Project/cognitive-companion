@@ -113,12 +113,13 @@
 
     <!-- Evidence drawer -->
     <v-navigation-drawer v-model="drawerOpen" location="right" width="480" temporary class="cc-drawer-right">
-      <v-card flat class="h-100 d-flex flex-column">
-        <v-card-title class="d-flex align-center py-3">
-          Evidence
+      <div class="h-100 d-flex flex-column">
+        <div class="d-flex align-center px-4 py-3">
+          <span class="text-subtitle-1 font-weight-semibold">Evidence</span>
           <v-spacer />
           <v-btn icon="mdi-close" variant="text" size="small" @click="drawerOpen = false" />
-        </v-card-title>
+        </div>
+        <v-divider />
         <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
           <v-card-text>
             <div v-if="evidenceLoading" class="text-center py-4">
@@ -154,7 +155,7 @@
             </template>
           </v-card-text>
         </div>
-      </v-card>
+      </div>
     </v-navigation-drawer>
   </div>
 </template>
@@ -264,16 +265,3 @@ async function openEvidence(_row, col) {
 onMounted(loadSignals);
 </script>
 
-<style scoped>
-.cc-drawer-right {
-  position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  height: auto !important;
-}
-.cc-drawer-right :deep(.v-navigation-drawer__content) {
-  flex: 1 1 0;
-  min-height: 0;
-  padding-top: 64px;
-}
-</style>

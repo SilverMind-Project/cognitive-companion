@@ -6,6 +6,8 @@ The backend is a FastAPI BFF gateway for the continuous tracking, scene analysis
 
 **Documentation:** [silvermind-project.github.io](https://silvermind-project.github.io)
 
+**Architecture reference:** [docs/systems-architecture.md](docs/systems-architecture.md) covers the sensors and integrations, the rules engine and trigger types, event aggregation, the plugin systems (steps, channels, filters), the PWA companion view, the Gemini Live realtime voice path, and a current bugs-and-gaps checklist.
+
 ## Architecture
 
 ```mermaid

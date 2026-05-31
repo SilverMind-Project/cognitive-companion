@@ -22,4 +22,3 @@ kubernetes/local/
 .claude/settings.local.json
 .qwen/
 .kiro/
-docs/

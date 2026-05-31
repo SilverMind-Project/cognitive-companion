@@ -563,6 +563,29 @@ All handlers call `cts_enabled()` (imported from `backend.routers.cts_deps`) and
 
 `PresenceService` (Block 3 chain in `config/presence.yaml`): provider order is `night_anchor`, `ha_bed_sensor`, `cts_location`, `ha_device_tracker`, plus stale fallback / unknown sentinel. Build with `services/presence/factory.py`. The `PresenceQueryHandler` step + `presence_status` / `presence_dwell` / `home_state` filters read this service.
 
+### 10.5b Identity revision flow (how a face signal reaches CC)
+
+When ArcFace identifies a person on the CTS side, the full path is:
+
+1. `FaceIdentityStage` (stage 6) emits a `FaceAnchor{person_id, confidence, detection_id}`.
+2. `WorldTrackingStage` (stage 7) calls `WorldTracker.step`, which maps `detection_id` to `ph_id` via `det_to_ph` after Hungarian association.
+3. The Bayesian identity resolver commits the identity to the PH (`ph_repo.update_identity`).
+4. If the identity changed, `RevisionsStage` (stage 13) publishes an `IdentityRevision` proto to `tracking.revisions`.
+5. CC's `IdentityRevisionSubscriber` soft-deletes the superseded `PersonLocationHistory` row (stamps `superseded_by_revision_id`) and inserts a corrected replacement covering the same time window.
+
+The wire identifier is always `ph_id` (UUID). There is no separate per-camera track ID exposed to CC. The identity field on `PersonLocationEnvelope` is the Bayesian resolver's committed result, not a per-camera classification.
+
+### 10.5c Cross-camera identity carriers (CC consumer view)
+
+From the CC side, all four cross-camera identity paths are invisible; `ph_id` is the single identifier regardless of which path carried the identity:
+
+1. **Pre-association dedup**: two calibrated cameras that share a field of view collapse into one PH before the tracker runs. CC sees one `ph_id` with `active_cameras` listing both cameras.
+2. **Shared ReID gallery**: the CTS Bayesian resolver searches the PH's gallery against all enrolled identities, including entries written from other cameras.
+3. **Cross-GT face propagation**: a face match on one camera creates a synthetic anchor on another camera, propagated automatically by the resolver before CC sees any event.
+4. **PH continuation**: when a person leaves and re-enters, the orchestrator emits a `PHContinuationCandidate` linking the old and new `ph_id`. CC receives a new `TrackingEvent` with the new `ph_id` already carrying the inherited identity.
+
+For uncalibrated home cameras, only paths 2-4 operate (dedup skips uncalibrated observations).
+
 ### 10.6 Per-person CTS alert configuration
 
 `HouseholdMember.cts_alert_config` is a nullable JSONB column (migration `0012_cts_alert_config`) that controls which dementia signal kinds and minimum severity a person receives. `NULL` means all kinds at `info` severity (permissive default).

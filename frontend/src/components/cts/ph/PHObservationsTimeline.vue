@@ -1,14 +1,19 @@
 <template>
   <div class="pa-3">
     <div class="text-caption font-weight-medium mb-2">Observations</div>
-    <div v-if="observations.length === 0" class="text-caption text-medium-emphasis">
+    <v-alert v-if="error" type="error" density="compact" variant="tonal" class="mb-2">
+      {{ error }}
+    </v-alert>
+    <div v-else-if="observations.length === 0" class="text-caption text-medium-emphasis">
       No observations recorded.
     </div>
     <div
       v-for="obs in observations.slice(0, maxItems)"
       :key="obs.observation_id || obs.captured_at"
-      class="d-flex align-center ga-2 py-1"
+      class="observation-row d-flex align-center ga-2 py-1"
+      :class="{ selected: obs.observation_id && obs.observation_id === selectedObservationId }"
       style="font-size: 0.75rem;"
+      @click="$emit('select', obs)"
     >
       <span class="text-caption text-medium-emphasis" style="width: 80px; flex-shrink: 0;">
         {{ formatRelative(obs.captured_at) }}
@@ -27,9 +32,26 @@ export default {
   props: {
     observations: { type: Array, default: () => [] },
     maxItems: { type: Number, default: 50 },
+    selectedObservationId: { type: String, default: "" },
+    error: { type: String, default: "" },
   },
+  emits: ["select"],
   setup() {
     return { formatRelative };
   },
 };
 </script>
+
+<style scoped>
+.observation-row {
+  cursor: pointer;
+  border-radius: var(--cc-radius-sm);
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.observation-row:hover,
+.observation-row.selected {
+  background: var(--cc-surface-2);
+}
+</style>

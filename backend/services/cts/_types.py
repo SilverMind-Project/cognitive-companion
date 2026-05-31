@@ -17,6 +17,7 @@ from backend.services.cts.location_repository import LocationRepository
 __all__ = [
     "ConnectionManager",
     "DBSessionFactory",
+    "IdentityLookupClient",
     "LocationRepository",
     "MinioClient",
     "PipelineExecutor",
@@ -78,6 +79,12 @@ class SemanticMemoryClient(Protocol):
     def configured(self) -> bool: ...
 
     async def create_observation(self, observation: Any) -> Any | None: ...
+
+
+class IdentityLookupClient(Protocol):
+    """Orchestrator identity lookup subset used by PH enrichment."""
+
+    async def get_identities(self, *, active_only: bool = True) -> list[dict[str, Any]]: ...
 
 
 # DBSessionFactory: callable that returns a new SQLAlchemy Session.

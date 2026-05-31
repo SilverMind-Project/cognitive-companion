@@ -67,6 +67,7 @@ class PHDetailResponse(EnrichedFields):
     last_posture: str | None = None
     height_estimate_m: float | None = None
     state_mean: list[float] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -195,13 +196,26 @@ class PaginatedPHList(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Keyframes placeholder
+# Keyframes
 # ---------------------------------------------------------------------------
+
+
+class PHKeyframeResponse(BaseModel):
+    observation_id: str
+    observed_at: datetime | None = None
+    camera_id: str = ""
+    minio_key: str = ""
+    floor_x_mm: float | None = None
+    floor_y_mm: float | None = None
+    pose_class: str | None = None
+    reid_confidence: float | None = None
+    image_url: str | None = None
+    blurred_image_url: str | None = None
 
 
 class PHKeyframesResponse(BaseModel):
     ph_id: str
-    items: list[dict[str, Any]] = Field(default_factory=list)
+    items: list[PHKeyframeResponse] = Field(default_factory=list)
     count: int = 0
 
 
@@ -221,9 +235,16 @@ class PHTrailResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class PHCoPresentItemResponse(EnrichedFields):
+    ph_id: str
+    current_identity_id: str | None = None
+    last_seen_at: datetime | None = None
+    last_seen_camera: str = ""
+
+
 class PHCoPresentResponse(BaseModel):
     ph_id: str
-    co_present: list[str] = Field(default_factory=list)
+    co_present: list[PHCoPresentItemResponse] = Field(default_factory=list)
     radius_m: float = 5.0
 
 

@@ -558,10 +558,12 @@ async def lifespan(app: FastAPI):
 
     # -- CTS gateway clients + runtime (gated by cts.enabled) --------------
     cts_runtime = None
+    app.state.ph_enrichment_service = None
     app.state.person_location_service = None
     if settings.as_bool("cts.enabled"):
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
+        from backend.services.cts.ph_enrichment import PHEnrichmentService
         from backend.services.cts.runtime import CTSRuntime, CTSRuntimeConfig
         from backend.services.person_location.repositories import (
             SqlAlchemyObservationRepository,
@@ -571,6 +573,7 @@ async def lifespan(app: FastAPI):
 
         app.state.ingress_admin_client = IngressAdminClient()
         app.state.orchestrator_client = OrchestratorClient()
+        app.state.ph_enrichment_service = PHEnrichmentService(app.state.orchestrator_client)
 
         redis_url = settings.as_str("redis.url", allow_empty=False)
         consumer_id = settings.as_str("cts.consumer_id", allow_empty=False)
@@ -683,6 +686,7 @@ async def lifespan(app: FastAPI):
     else:
         app.state.ingress_admin_client = None
         app.state.orchestrator_client = None
+        app.state.ph_enrichment_service = None
         app.state.cts_runtime = None
         app.state.dementia_signal_subscriber = None
         app.state.tracking_event_subscriber = None

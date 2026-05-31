@@ -13,7 +13,7 @@ from backend.core.auth import require_permission
 from backend.core.logging import get_logger
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.routers.cts_deps import cts_enabled, presigned_image_url
-from backend.routers.dependencies import get_orchestrator_client
+from backend.routers.dependencies import get_orchestrator_client, get_ph_enrichment_service
 from backend.schemas.cts_ph import (
     BatchCorrectRequest,
     BatchCorrectResponse,
@@ -32,37 +32,11 @@ from backend.schemas.cts_ph import (
     SplitRequest,
     SplitResponse,
 )
+from backend.services.cts.ph_enrichment import PHEnrichmentService
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/cts", tags=["cts-ph"])
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _enrich(obj: dict, request: Request) -> dict:
-    """Add presigned image URLs and posterior top-label data.
-
-    Identity display-name and room-name enrichment is deferred to a
-    future registry wiring pass — those services are not yet on app.state.
-    """
-    minio_key = obj.get("latest_keyframe_minio_key")
-    if minio_key:
-        obj["latest_keyframe_image_url"] = presigned_image_url(request, minio_key)
-    blurred_key = obj.get("latest_keyframe_blurred_minio_key")
-    if blurred_key:
-        obj["latest_keyframe_blurred_url"] = presigned_image_url(request, blurred_key)
-    # Posterior top-label / top-prob (from upstream dict, no registry needed)
-    posterior_label = obj.get("posterior_top_label")
-    posterior_prob = obj.get("posterior_top_prob")
-    if posterior_label is not None:
-        obj["posterior_top_label"] = posterior_label
-    if posterior_prob is not None:
-        obj["posterior_top_prob"] = float(posterior_prob)
-    return obj
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +58,7 @@ async def list_phs(
     limit: int = 50,
     offset: int = 0,
     client: OrchestratorClient = Depends(get_orchestrator_client),
+    enricher: PHEnrichmentService = Depends(get_ph_enrichment_service),
     _auth=Depends(require_permission("cts.identity.view")),
 ) -> PaginatedPHList:
     cts_enabled()
@@ -99,10 +74,11 @@ async def list_phs(
         limit=limit,
         offset=offset,
     )
-    items = []
-    for item in data.get("items", []):
-        _enrich(item, request)
-        items.append(PHSummaryResponse(**item))
+    enriched = await enricher.enrich_phs(
+        data.get("items", []),
+        image_url=lambda key: presigned_image_url(request, key),
+    )
+    items = [PHSummaryResponse(**item) for item in enriched]
     return PaginatedPHList(
         items=items,
         total=data.get("total", 0),
@@ -130,11 +106,12 @@ async def get_ph(
     ph_id: str,
     request: Request,
     client: OrchestratorClient = Depends(get_orchestrator_client),
+    enricher: PHEnrichmentService = Depends(get_ph_enrichment_service),
     _auth=Depends(require_permission("cts.identity.view")),
 ) -> PHDetailResponse:
     cts_enabled()
     data = await client.get_ph(ph_id)
-    _enrich(data, request)
+    data = await enricher.enrich_ph(data, image_url=lambda key: presigned_image_url(request, key))
     return PHDetailResponse(**data)
 
 
@@ -152,13 +129,19 @@ async def list_ph_observations(
 
 @router.get("/ph/{ph_id}/keyframes", response_model=PHKeyframesResponse)
 async def list_ph_keyframes(
+    request: Request,
     ph_id: str,
     limit: int = 24,
     client: OrchestratorClient = Depends(get_orchestrator_client),
+    enricher: PHEnrichmentService = Depends(get_ph_enrichment_service),
     _auth=Depends(require_permission("cts.identity.view")),
 ) -> PHKeyframesResponse:
     cts_enabled()
     data = await client.list_ph_keyframes(ph_id, limit=limit)
+    data["items"] = enricher.enrich_keyframes(
+        data.get("items", []),
+        image_url=lambda key: presigned_image_url(request, key),
+    )
     return PHKeyframesResponse(**data)
 
 
@@ -179,10 +162,16 @@ async def get_co_present(
     ph_id: str,
     radius_m: float = 5.0,
     client: OrchestratorClient = Depends(get_orchestrator_client),
+    enricher: PHEnrichmentService = Depends(get_ph_enrichment_service),
     _auth=Depends(require_permission("cts.identity.view")),
 ) -> PHCoPresentResponse:
     cts_enabled()
     data = await client.get_ph_co_present(ph_id, radius_m=radius_m)
+    display_names = await enricher.identity_display_names()
+    data["co_present"] = enricher.enrich_co_present(
+        data.get("co_present", []),
+        display_names=display_names,
+    )
     return PHCoPresentResponse(**data)
 
 

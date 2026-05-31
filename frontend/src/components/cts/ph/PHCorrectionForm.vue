@@ -39,13 +39,16 @@
       <v-divider />
       <div class="pa-3">
         <div class="text-subtitle-2 mb-2">Merge PHs</div>
-        <v-text-field
+        <v-autocomplete
           v-model="mergeTargetId"
-          label="Target PH ID"
+          :items="mergeTargetItems"
+          label="Target PH"
           variant="outlined"
           density="compact"
           hide-details
           class="mb-2"
+          no-data-text="No co-present PHs available"
+          clearable
         />
         <v-text-field
           v-model="mergeReason"
@@ -59,6 +62,7 @@
           block
           color="warning"
           :loading="saving"
+          :disabled="!mergeTargetId"
           @click="$emit('merge', { target_ph_id: mergeTargetId, reason: mergeReason })"
         >
           Merge
@@ -71,13 +75,15 @@
       <v-divider />
       <div class="pa-3">
         <div class="text-subtitle-2 mb-2">Split PH</div>
-        <v-text-field
+        <v-select
           v-model="splitObsId"
-          label="Observation ID to split at"
+          :items="observationItems"
+          label="Observation to split at"
           variant="outlined"
           density="compact"
           hide-details
           class="mb-2"
+          no-data-text="No observations available"
         />
         <v-text-field
           v-model="splitReason"
@@ -91,6 +97,7 @@
           block
           color="primary"
           :loading="saving"
+          :disabled="!splitObsId"
           @click="$emit('split', { at_observation_id: splitObsId, reason: splitReason })"
         >
           Split
@@ -101,7 +108,8 @@
 </template>
 
 <script>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
+import { formatRelative } from "@/composables/useFormatRelative";
 
 export default {
   name: "PHCorrectionForm",
@@ -110,6 +118,9 @@ export default {
     identities: { type: Array, default: () => [] },
     saving: { type: Boolean, default: false },
     mode: { type: String, default: "correct" },
+    mergeCandidates: { type: Array, default: () => [] },
+    observations: { type: Array, default: () => [] },
+    selectedObservationId: { type: String, default: "" },
   },
   emits: ["correct", "merge", "split"],
   setup(props) {
@@ -127,6 +138,33 @@ export default {
       }))
     );
 
+    const mergeTargetItems = computed(() =>
+      props.mergeCandidates.map((ph) => ({
+        title: [
+          ph.identity_display_name || ph.current_identity_id || "UNKNOWN",
+          ph.room_name || ph.last_seen_camera || ph.ph_id,
+        ].filter(Boolean).join(" · "),
+        value: ph.ph_id,
+      }))
+    );
+
+    const observationItems = computed(() =>
+      props.observations
+        .filter((obs) => obs.observation_id)
+        .map((obs) => ({
+          title: `${formatRelative(obs.captured_at)} · ${obs.camera_id || "camera"} · ${obs.observation_id}`,
+          value: obs.observation_id,
+        }))
+    );
+
+    watch(
+      () => props.selectedObservationId,
+      (id) => {
+        if (id) splitObsId.value = id;
+      },
+      { immediate: true }
+    );
+
     return {
       correctIdentityId,
       correctReason,
@@ -135,6 +173,8 @@ export default {
       splitObsId,
       splitReason,
       identityItems,
+      mergeTargetItems,
+      observationItems,
     };
   },
 };

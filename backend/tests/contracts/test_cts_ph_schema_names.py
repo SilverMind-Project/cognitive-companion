@@ -120,3 +120,79 @@ def test_presence_timeline_uses_person_id():
     assert "person_id" in CurrentInEntry.model_fields
     assert "global_track_id" not in PresenceSegmentOut.model_fields
     assert "tracklet_id" not in PresenceSegmentOut.model_fields
+
+
+def test_ph_schema_parity_accepts_orchestrator_payloads():
+    """CC PH schemas parse representative orchestrator response dictionaries."""
+    from backend.schemas.cts_ph import (
+        PHCoPresentResponse,
+        PHDetailResponse,
+        PHKeyframesResponse,
+        PHObservationsResponse,
+        PHTrailResponse,
+        RevisionsFeedResponse,
+    )
+
+    PHDetailResponse(
+        ph_id="ph-1",
+        current_identity_id="alice",
+        metadata={"posterior_entropy": 0.12},
+        state_mean=[1.0, 2.0, 0.0, 0.0],
+    )
+    PHObservationsResponse(
+        ph_id="ph-1",
+        items=[
+            {
+                "observation_id": "obs-1",
+                "camera_id": "cam-1",
+                "frame_index": 12,
+                "floor_x_m": 1.5,
+                "floor_y_m": 2.5,
+                "detection_confidence": 0.91,
+            }
+        ],
+        count=1,
+    )
+    PHKeyframesResponse(
+        ph_id="ph-1",
+        items=[
+            {
+                "observation_id": "obs-1",
+                "camera_id": "cam-1",
+                "minio_key": "cts/keyframes/obs-1.jpg",
+                "reid_confidence": 0.8,
+            }
+        ],
+        count=1,
+    )
+    PHTrailResponse(
+        ph_id="ph-1",
+        points=[
+            {"camera_id": "cam-1", "floor_x_m": 1.0, "floor_y_m": 2.0},
+            {"camera_id": "cam-2", "floor_x_m": 2.0, "floor_y_m": 3.0},
+        ],
+        count=2,
+    )
+    PHCoPresentResponse(
+        ph_id="ph-1",
+        co_present=[
+            {
+                "ph_id": "ph-2",
+                "current_identity_id": "bob",
+                "last_seen_camera": "cam-2",
+            }
+        ],
+        radius_m=5.0,
+    )
+    RevisionsFeedResponse(
+        items=[
+            {
+                "revision_id": "rev-1",
+                "ph_id": "ph-1",
+                "previous_identity_id": None,
+                "new_identity_id": "alice",
+                "kind": "manual_correct",
+            }
+        ],
+        has_more=False,
+    )

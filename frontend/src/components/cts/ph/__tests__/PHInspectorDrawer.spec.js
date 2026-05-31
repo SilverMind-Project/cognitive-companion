@@ -6,13 +6,22 @@ import PHInspectorDrawer from "../PHInspectorDrawer.vue";
 vi.mock("@/composables/usePHDetail", () => ({
   usePHDetail: () => ({
     state: {
-      detail: { value: { ph_id: "ph-1", current_identity_id: "alice", last_seen_at: null, active_cameras: [] } },
+      detail: {
+        value: {
+          ph_id: "ph-1",
+          current_identity_id: "alice",
+          identity_display_name: "Alice Rivera",
+          last_seen_at: null,
+          active_cameras: [],
+        },
+      },
       observations: { value: [] },
       keyframes: { value: [] },
       trail: { value: [] },
       coPresent: { value: [] },
       loading: { value: false },
       errors: { value: [] },
+      panelErrors: { value: { detail: "", observations: "", keyframes: "", trail: "", coPresent: "" } },
     },
     actions: { fetch: vi.fn() },
   }),
@@ -35,12 +44,14 @@ vi.mock("@/composables/useConfirm", () => ({
 
 const stubs = {
   "v-btn": { template: '<button @click="$emit(\'click\', $event)"><slot /></button>' },
+  "v-alert": { template: "<div><slot /></div>" },
   "v-chip": { template: "<span><slot /></span>", props: ["color", "size", "variant"] },
   "v-divider": { template: "<hr />" },
   "v-icon": { template: "<i><slot /></i>" },
   "v-progress-linear": { template: "<div />" },
   "v-spacer": { template: "<span />" },
   PHPosteriorPanel: true,
+  PHKeyframeStrip: true,
   PHObservationsTimeline: true,
   PHTrailMiniFloorPlan: true,
   PHCorrectionForm: true,
@@ -66,5 +77,10 @@ describe("PHInspectorDrawer", () => {
     const spy = vi.spyOn(console, "error");
     mountDrawer();
     expect(spy).not.toHaveBeenCalledWith(expect.stringContaining("[ph-drawer]"));
+  });
+
+  it("renders display names from the BFF", () => {
+    const wrapper = mountDrawer();
+    expect(wrapper.text()).toContain("Alice Rivera");
   });
 });

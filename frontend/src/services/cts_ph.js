@@ -24,7 +24,9 @@ async function req(path, options = {}) {
     const body = await resp.json().catch(() => ({}));
     const detail = body.detail;
     const msg =
-      typeof detail === "object" ? detail.message || JSON.stringify(detail) : detail;
+      typeof detail === "object"
+        ? [detail.code, detail.message].filter(Boolean).join(": ") || JSON.stringify(detail)
+        : detail;
     throw new Error(msg || `HTTP ${resp.status}`);
   }
   if (resp.status === 204) return null;
@@ -36,8 +38,13 @@ export const ctsPh = {
   list: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.since) qs.set("since", params.since);
+    if (params.until) qs.set("until", params.until);
     if (params.room_id) qs.set("room_id", params.room_id);
     if (params.identity_id) qs.set("identity_id", params.identity_id);
+    if (params.state) qs.set("state", params.state);
+    if (params.include_transient) qs.set("include_transient", "true");
+    if (params.min_duration_s != null) qs.set("min_duration_s", String(params.min_duration_s));
+    if (params.search) qs.set("search", params.search);
     qs.set("limit", String(params.limit ?? 50));
     qs.set("offset", String(params.offset ?? 0));
     return req(`/ph?${qs}`);

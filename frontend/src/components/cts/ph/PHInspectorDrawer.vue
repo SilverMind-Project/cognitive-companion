@@ -66,24 +66,51 @@
       <PHPosteriorPanel
         :ph="detail.state.detail.value"
         :observations="detail.state.observations.value"
+        :loading="detail.state.loading.value"
+        :error="detail.state.panelErrors.value.detail"
+      />
+
+      <v-divider />
+
+      <PHKeyframeStrip
+        :keyframes="detail.state.keyframes.value"
+        :error="detail.state.panelErrors.value.keyframes"
       />
 
       <v-divider />
 
       <!-- Observations timeline -->
-      <PHObservationsTimeline :observations="detail.state.observations.value" />
+      <PHObservationsTimeline
+        :observations="detail.state.observations.value"
+        :selected-observation-id="selectedObservationId"
+        :error="detail.state.panelErrors.value.observations"
+        @select="onObservationSelect"
+      />
 
       <v-divider />
 
       <!-- Trail -->
-      <PHTrailMiniFloorPlan :trail="detail.state.trail.value" />
+      <PHTrailMiniFloorPlan
+        :trail="detail.state.trail.value"
+        :error="detail.state.panelErrors.value.trail"
+      />
 
       <v-divider />
 
       <!-- Co-present -->
       <div class="pa-3">
         <div class="text-caption font-weight-medium mb-2">Co-present PHs</div>
+        <v-alert
+          v-if="detail.state.panelErrors.value.coPresent"
+          type="error"
+          density="compact"
+          variant="tonal"
+          class="mb-2"
+        >
+          {{ detail.state.panelErrors.value.coPresent }}
+        </v-alert>
         <PHListPanel
+          v-else
           :items="coPresentItems"
           empty-message="No co-present PHs within 5m"
           @select="(ph) => $emit('inspect-ph', ph.ph_id)"
@@ -97,6 +124,9 @@
         :identities="identities"
         :saving="correction.state.saving.value"
         :mode="activeForm"
+        :merge-candidates="coPresentItems"
+        :observations="detail.state.observations.value"
+        :selected-observation-id="selectedObservationId"
         @correct="onCorrectSubmit"
         @merge="onMergeSubmit"
         @split="onSplitSubmit"
@@ -122,6 +152,7 @@ import { usePHCorrection } from "@/composables/usePHCorrection";
 import { useNotify } from "@/composables/useNotify";
 import { useConfirm } from "@/composables/useConfirm";
 import PHPosteriorPanel from "./PHPosteriorPanel.vue";
+import PHKeyframeStrip from "./PHKeyframeStrip.vue";
 import PHObservationsTimeline from "./PHObservationsTimeline.vue";
 import PHTrailMiniFloorPlan from "./PHTrailMiniFloorPlan.vue";
 import PHCorrectionForm from "./PHCorrectionForm.vue";
@@ -132,6 +163,7 @@ export default {
   name: "PHInspectorDrawer",
   components: {
     PHPosteriorPanel,
+    PHKeyframeStrip,
     PHObservationsTimeline,
     PHTrailMiniFloorPlan,
     PHCorrectionForm,
@@ -152,6 +184,7 @@ export default {
     const correction = usePHCorrection(notify);
 
     const activeForm = ref(null);
+    const selectedObservationId = ref("");
 
     const posteriorTopLabel = computed(() => {
       const ph = detail.state.detail.value;
@@ -165,18 +198,23 @@ export default {
       return ph.posterior_top_prob;
     });
 
-    const coPresentItems = computed(() =>
-      detail.state.coPresent.value.map((id) => ({ ph_id: id }))
-    );
+    const coPresentItems = computed(() => detail.state.coPresent.value || []);
 
     onMounted(() => detail.actions.fetch(props.phId));
 
     watch(() => props.phId, (newId) => {
-      if (newId) detail.actions.fetch(newId);
+      if (newId) {
+        selectedObservationId.value = "";
+        detail.actions.fetch(newId);
+      }
     });
 
     function toggleForm(formName) {
       activeForm.value = activeForm.value === formName ? null : formName;
+    }
+
+    function onObservationSelect(obs) {
+      selectedObservationId.value = obs?.observation_id || "";
     }
 
     async function onCorrectSubmit({ new_identity_id, reason }) {
@@ -229,12 +267,14 @@ export default {
       detail,
       correction,
       activeForm,
+      selectedObservationId,
       posteriorTopLabel,
       posteriorTopProb,
       coPresentItems,
       formatRelative,
       identityColor,
       toggleForm,
+      onObservationSelect,
       onCorrectSubmit,
       onMergeSubmit,
       onSplitSubmit,

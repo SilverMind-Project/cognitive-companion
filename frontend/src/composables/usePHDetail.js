@@ -15,10 +15,24 @@ export function usePHDetail() {
   const coPresent = ref([]);
   const loading = ref(false);
   const errors = ref([]);
+  const panelErrors = ref({
+    detail: "",
+    observations: "",
+    keyframes: "",
+    trail: "",
+    coPresent: "",
+  });
 
   async function fetch(phId) {
     loading.value = true;
     errors.value = [];
+    panelErrors.value = {
+      detail: "",
+      observations: "",
+      keyframes: "",
+      trail: "",
+      coPresent: "",
+    };
     detail.value = null;
     observations.value = [];
     keyframes.value = [];
@@ -35,22 +49,40 @@ export function usePHDetail() {
 
     const [detailR, obsR, kfR, trailR, coR] = results;
     if (detailR.status === "fulfilled") detail.value = detailR.value;
-    else errors.value.push("detail: " + (detailR.reason?.message || "failed"));
+    else {
+      panelErrors.value.detail = detailR.reason?.message || "failed";
+      errors.value.push("detail: " + panelErrors.value.detail);
+    }
 
     if (obsR.status === "fulfilled") observations.value = obsR.value.items || [];
-    else errors.value.push("observations: " + (obsR.reason?.message || "failed"));
+    else {
+      panelErrors.value.observations = obsR.reason?.message || "failed";
+      errors.value.push("observations: " + panelErrors.value.observations);
+    }
 
     if (kfR.status === "fulfilled") keyframes.value = kfR.value.items || [];
+    else {
+      panelErrors.value.keyframes = kfR.reason?.message || "failed";
+      errors.value.push("keyframes: " + panelErrors.value.keyframes);
+    }
 
     if (trailR.status === "fulfilled") trail.value = trailR.value.points || [];
+    else {
+      panelErrors.value.trail = trailR.reason?.message || "failed";
+      errors.value.push("trail: " + panelErrors.value.trail);
+    }
 
     if (coR.status === "fulfilled") coPresent.value = coR.value.co_present || [];
+    else {
+      panelErrors.value.coPresent = coR.reason?.message || "failed";
+      errors.value.push("co-present: " + panelErrors.value.coPresent);
+    }
 
     loading.value = false;
   }
 
   return {
-    state: { detail, observations, keyframes, trail, coPresent, loading, errors },
+    state: { detail, observations, keyframes, trail, coPresent, loading, errors, panelErrors },
     actions: { fetch },
   };
 }

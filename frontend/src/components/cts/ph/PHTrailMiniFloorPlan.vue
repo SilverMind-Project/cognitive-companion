@@ -1,7 +1,10 @@
 <template>
   <div class="pa-3">
     <div class="text-caption font-weight-medium mb-2">Floor Trail</div>
-    <div v-if="trail.length === 0" class="text-caption text-medium-emphasis">
+    <v-alert v-if="error" type="error" density="compact" variant="tonal" class="mb-2">
+      {{ error }}
+    </v-alert>
+    <div v-else-if="trail.length === 0" class="text-caption text-medium-emphasis">
       No trail data.
     </div>
     <div v-else-if="trail.length === 1" class="text-caption text-medium-emphasis">
@@ -37,6 +40,7 @@ export default {
     trail: { type: Array, default: () => [] },
     width: { type: Number, default: 240 },
     height: { type: Number, default: 160 },
+    error: { type: String, default: "" },
   },
   setup(props) {
     const strokeColor = "var(--cc-primary)";

@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from backend.integrations.tracking_orchestrator_client import OrchestratorClient
     from backend.mcp.gemini_adapter import GeminiToolAdapter
     from backend.services.conversation_manager import ConversationManager
+    from backend.services.cts.ph_enrichment import PHEnrichmentService
     from backend.services.cts.runtime import CTSRuntime
     from backend.services.event_aggregator import EventAggregator
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
@@ -61,6 +62,7 @@ __all__ = [
     "get_minio_client",
     "get_orchestrator_client",
     "get_person_location_service",
+    "get_ph_enrichment_service",
     "get_realtime_provider",
     "get_scheduler",
     "get_sensor_polling",
@@ -87,6 +89,14 @@ def get_orchestrator_client(request: Request) -> OrchestratorClient:
     if client is None:
         raise _raise_503("orchestrator_client", "Tracking orchestrator client")
     return client
+
+
+def get_ph_enrichment_service(request: Request) -> PHEnrichmentService:
+    """Return the lifespan-managed PH enrichment service (503 if unavailable)."""
+    service: PHEnrichmentService | None = request.app.state.ph_enrichment_service
+    if service is None:
+        raise _raise_503("ph_enrichment_service", "PH enrichment service")
+    return service
 
 
 def get_ingress_admin_client(request: Request) -> IngressAdminClient:

@@ -4,8 +4,8 @@ Exercises the two core flows: (1) first-sighting insert, (2) room change
 producing a close+insert pair on PersonLocationHistory, and (3) the
 source-authority veto path.
 
-Uses :class:`SqlAlchemyLocationRepository` wrapping the in-memory SQLite
-session provided by the ``db_factory`` conftest fixture.
+Uses :class:`SqlAlchemyLocationRepository` wrapping the PostgreSQL session
+provided by the ``db_factory`` conftest fixture.
 """
 
 from __future__ import annotations

@@ -853,12 +853,12 @@ All CTS routers follow the same pattern:
 
 ## 23. Supply-chain security
 
-### Toolchain versions (as of 2026-05-31)
+### Toolchain versions (as of 2026-06-01)
 
 | Component | Required minimum | Rationale |
 | --- | --- | --- |
-| Node.js | 20.18.0 (Vite 8 floor); target 24 LTS (Krypton) via `.nvmrc` | Node 20 is maintenance LTS; Node 24 is active LTS |
-| Vite | 8.x | Node 20.18+ required; Rolldown bundler, faster cold starts |
+| Node.js | 24.16.0 LTS (Krypton), enforced by `frontend/.nvmrc`, `frontend/package.json` engines, and `frontend/Dockerfile` | Node 24 is the latest active LTS; Node 20 is EOL. Keep local, CI, and Docker builds on the same latest LTS patch. |
+| Vite | 8.x | Node 24 LTS supported; Rolldown bundler, faster cold starts |
 | ECharts | 6.x with vue-echarts 8.x | Tree-shaking API unchanged; vue-echarts 8 requires ECharts 6 |
 | Vuetify | 3.12+ (v3 stable branch) | Vuetify 4 is a ground-up rewrite; v3 remains maintained |
 | Python | 3.14 | Minimum is set in `requires-python` in `pyproject.toml` |
@@ -871,6 +871,7 @@ All CTS routers follow the same pattern:
 - `frontend/package-lock.json` is committed and used in CI via `npm ci` (never `npm install`).
 - `backend/uv.lock` is committed and used in CI via `uv sync --frozen --extra dev`.
 - Neither lock file is edited by hand. Update the lock with `npm install` (frontend) or `uv lock --upgrade` (backend), then commit the change.
+- When the Node latest LTS patch changes, update `frontend/.nvmrc`, `frontend/package.json` engines, `frontend/Dockerfile`, and `frontend/package-lock.json` together. Verify with `nvm use $(cat frontend/.nvmrc)`, `npm run build`, `npm run test -- --reporter=dot`, and `npm audit --audit-level=high`.
 
 ### Dependency scanning
 

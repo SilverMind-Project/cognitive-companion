@@ -31,50 +31,47 @@ class _Widget(Base):
 
 
 @pytest.fixture
-def mem_db() -> Database:
-    """In-memory PostgreSQL-dialect Database with the _Widget table created.
-
-    Uses ``sqlite:///:memory:`` only for the narrow unit tests that verify
-    session mechanics (open, commit, close) without touching the real schema.
-    These tests never exercise type decorators or SQL server defaults.
-    """
-    d = Database("sqlite:///:memory:")
+def test_db(postgres_url: str) -> Database:
+    """PostgreSQL Database with the _Widget table created."""
+    d = Database(postgres_url)
     Base.metadata.create_all(bind=d.engine, tables=[_Widget.__table__])
     yield d
+    with d.engine.begin() as conn:
+        conn.execute(text('DROP TABLE IF EXISTS "_test_widgets"'))
     d.dispose()
 
 
 class TestDatabaseClass:
-    def test_engine_and_url(self, mem_db: Database) -> None:
-        assert mem_db.url == "sqlite:///:memory:"
-        assert mem_db.engine is not None
+    def test_engine_and_url(self, test_db: Database, postgres_url: str) -> None:
+        assert test_db.url == postgres_url
+        assert test_db.engine is not None
 
-    def test_session_returns_new_session_each_call(self, mem_db: Database) -> None:
-        s1 = mem_db.session()
-        s2 = mem_db.session()
+    def test_session_returns_new_session_each_call(self, test_db: Database) -> None:
+        s1 = test_db.session()
+        s2 = test_db.session()
         assert s1 is not s2
         s1.close()
         s2.close()
 
-    def test_session_can_insert_and_query(self, mem_db: Database) -> None:
-        sess = mem_db.session()
+    def test_session_can_insert_and_query(self, test_db: Database) -> None:
+        sess = test_db.session()
         sess.add(_Widget(name="alpha"))
         sess.commit()
         rows = sess.execute(text("SELECT name FROM _test_widgets")).fetchall()
         assert rows == [("alpha",)]
         sess.close()
 
-    def test_session_scope_closes_on_exit(self, mem_db: Database) -> None:
-        gen = mem_db.session_scope()
+    def test_session_scope_closes_on_exit(self, test_db: Database) -> None:
+        gen = test_db.session_scope()
         sess = next(gen)
         sess.add(_Widget(name="beta"))
         sess.commit()
         with pytest.raises(StopIteration):
             next(gen)
 
-    def test_dispose_is_idempotent(self, mem_db: Database) -> None:
-        mem_db.dispose()
-        mem_db.dispose()  # second call must not raise
+    def test_dispose_is_idempotent(self, test_db: Database) -> None:
+        test_db.dispose()
+        test_db.dispose()  # second call must not raise
 
 
 class TestPostgreSQLDialect:
@@ -98,29 +95,33 @@ class TestResolveUrl:
 
 
 class TestModuleFacade:
-    def test_reset_clears_cached_default(self) -> None:
-        db_module._default_database = Database("sqlite:///:memory:")
+    def test_reset_clears_cached_default(self, postgres_url: str) -> None:
+        db_module._default_database = Database(postgres_url)
         reset_default_database()
         assert db_module._default_database is None
 
-    def test_get_session_creates_default_on_demand(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_session_creates_default_on_demand(
+        self, monkeypatch: pytest.MonkeyPatch, postgres_url: str
+    ) -> None:
         reset_default_database()
         monkeypatch.setattr(
             db_module,
             "_resolve_url",
-            lambda _url=None: "sqlite:///:memory:",
+            lambda _url=None: postgres_url,
         )
         sess = get_session()
         assert sess is not None
         sess.close()
         reset_default_database()
 
-    def test_get_db_yields_then_closes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_db_yields_then_closes(
+        self, monkeypatch: pytest.MonkeyPatch, postgres_url: str
+    ) -> None:
         reset_default_database()
         monkeypatch.setattr(
             db_module,
             "_resolve_url",
-            lambda _url=None: "sqlite:///:memory:",
+            lambda _url=None: postgres_url,
         )
         gen = get_db()
         sess = next(gen)

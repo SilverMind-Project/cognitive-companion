@@ -21,43 +21,43 @@
     <circle
       :cx="x"
       :cy="y"
-      r="12"
+      :r="M.outerR"
       :fill="color"
-      fill-opacity="0.18"
+      fill-opacity="0.20"
       :stroke="color"
-      stroke-width="1.5"
-      :stroke-dasharray="ph.state === 'coasting' ? '5 3' : 'none'"
+      stroke-width="2"
+      :stroke-dasharray="ph.state === 'coasting' ? '6 4' : 'none'"
     />
 
     <!-- Inner dot -->
     <circle
       :cx="x"
       :cy="y"
-      r="6"
+      :r="M.innerR"
       :fill="color"
       stroke="#fff"
-      stroke-width="2"
+      stroke-width="2.5"
     />
 
     <!-- Posture badge -->
     <text
       :x="x"
-      :y="y + 4"
+      :y="y + 5"
       text-anchor="middle"
-      font-size="9"
+      :font-size="M.postureSize"
       fill="white"
       font-weight="bold"
     >
       {{ postureSymbol }}
     </text>
 
-    <!-- Label -->
+    <!-- Label: dark text on white halo (floor-plan / architectural drawing standard) -->
     <text
-      :x="x + 14"
-      :y="y - 10"
-      :fill="color"
-      font-size="12"
-      font-weight="bold"
+      v-bind="labelAttrs"
+      :x="x + 22"
+      :y="y - 13"
+      :font-size="M.labelSize"
+      font-weight="500"
       class="ph-marker-label"
     >
       {{ label }}
@@ -67,6 +67,7 @@
 
 <script>
 import { computed } from "vue";
+import { MAP_LABEL, MARKER } from "@/composables/useAnnotationStyle.js";
 
 export default {
   name: "PHMarker",
@@ -97,7 +98,7 @@ export default {
       }
     });
 
-    return { label, postureSymbol };
+    return { label, postureSymbol, M: MARKER, labelAttrs: MAP_LABEL.attrs() };
   },
 };
 </script>

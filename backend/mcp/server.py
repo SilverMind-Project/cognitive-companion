@@ -1351,6 +1351,7 @@ async def get_rule_bundle(rule_id: int) -> dict:
             db.query(Rule)
             .options(
                 joinedload(Rule.steps),
+                joinedload(Rule.edges),
                 joinedload(Rule.contexts),
                 joinedload(Rule.dependencies),
                 joinedload(Rule.cron_triggers),
@@ -1396,94 +1397,12 @@ async def import_rule_bundle(
     # Commit mode
     db = _svc.db_factory()
     try:
-        from backend.models.cron_trigger import CronTrigger
-        from backend.models.pipeline import PipelineStep
-        from backend.models.rule import Rule, RuleContext, RuleDependency
+        from backend.services.rule_importer import bundle_to_rule
 
-        # Validate first
-        report = validate_bundle(parsed, app_version)
+        report = bundle_to_rule(parsed, db, app_version=app_version)
         if report.status == "error":
             return report.model_dump(mode="json")
-
-        existing = db.query(Rule).filter(Rule.name == parsed.rule.name).first()
-        if existing:
-            return {"status": "error", "errors": [f"Rule '{parsed.rule.name}' already exists"]}
-
-        rule_def = parsed.rule
-        rule = Rule(
-            name=rule_def.name,
-            description=rule_def.description,
-            enabled=rule_def.enabled,
-            trigger_types=rule_def.trigger_types,
-            primary_sensor_id=rule_def.primary_sensor_ref.label
-            if rule_def.primary_sensor_ref
-            else None,
-            cool_off_minutes=rule_def.cool_off_minutes,
-            max_daily_triggers=rule_def.max_daily_triggers,
-            max_concurrent_executions=rule_def.max_concurrent_executions,
-            execution_timeout_minutes=rule_def.execution_timeout_minutes,
-            webhook_config=rule_def.webhook_config,
-            occupancy_config=rule_def.occupancy_config,
-            telegram_trigger_config=rule_def.telegram_trigger_config,
-        )
-        db.add(rule)
-        db.flush()
-
-        for ce in rule_def.cron_expressions:
-            ct = CronTrigger(
-                name=f"{rule_def.name} ({ce.expression})",
-                expression=ce.expression,
-                timezone=ce.timezone,
-            )
-            db.add(ct)
-            db.flush()
-            rule.cron_triggers.append(ct)
-
-        for ctx_bundle in parsed.contexts:
-            ctx = RuleContext(
-                rule_id=rule.id,
-                context_type=ctx_bundle.context_type,
-                config_json=ctx_bundle.config,
-                negate=ctx_bundle.negate,
-            )
-            db.add(ctx)
-
-        step_id_map: dict[str, int] = {}
-        for i, step_bundle in enumerate(parsed.steps):
-            step = PipelineStep(
-                rule_id=rule.id,
-                order=i,
-                step_type=step_bundle.step_type,
-                label=step_bundle.label,
-                config_json=step_bundle.config,
-                enabled=step_bundle.enabled,
-            )
-            db.add(step)
-            db.flush()
-            step_id_map[step_bundle.label] = step.id
-
-        for step_bundle in parsed.steps:
-            step_id = step_id_map[step_bundle.label]
-            step = db.get(PipelineStep, step_id)
-            if step and step_bundle.branches.on_true:
-                step.next_step_on_true = step_id_map.get(step_bundle.branches.on_true)
-            if step and step_bundle.branches.on_false:
-                step.next_step_on_false = step_id_map.get(step_bundle.branches.on_false)
-
-        for dep_bundle in parsed.dependencies:
-            parent = db.query(Rule).filter(Rule.name == dep_bundle.parent_rule_name).first()
-            if parent:
-                dep = RuleDependency(
-                    dependent_rule_id=rule.id,
-                    parent_rule_id=parent.id,
-                    lookback_minutes=dep_bundle.lookback_minutes,
-                    require_success=dep_bundle.require_success,
-                )
-                db.add(dep)
-
         db.commit()
-        report.rule_id = rule.id
-        report.status = "ok"
         return report.model_dump(mode="json")
     except Exception as e:
         db.rollback()

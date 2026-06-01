@@ -77,7 +77,16 @@ def client_on():
 def client_off():
     from unittest.mock import patch
 
-    cfg = Settings.from_dict({"cts": {"enabled": False}})
+    cfg = Settings.from_dict(
+        {
+            "cts": {"enabled": False},
+            "cts_ui": {
+                "calibration_enabled": False,
+                "dashboard_enabled": False,
+                "live_view_enabled": False,
+            },
+        }
+    )
 
     app = FastAPI()
     register_exception_handlers(app)

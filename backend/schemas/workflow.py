@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
@@ -41,17 +41,40 @@ class WorkflowExecutionListOut(OutSchema):
 
 
 class StepTimelineEntry(BaseModel):
+    step_id: int | None = None
     label: str
     step_type: str
     icon: str
     category: str
     status: Literal["success", "failed", "skipped", "in_progress", "cancelled"]
     elapsed_seconds: float | None
+    output_port: str = "main"
     resolved_config: dict[str, Any] | None = None
     outputs: dict[str, Any] | None = None
-    logs: list[str] = []
+    logs: list[str] = Field(default_factory=list)
     error: str | None = None
     cancellation_observed: bool = False
+
+
+class ExecutionGraphStep(BaseModel):
+    id: int
+    label: str
+    step_type: str
+    position_x: float = 0.0
+    position_y: float = 0.0
+    output_ports: list[str] = Field(default_factory=lambda: ["main"])
+
+
+class ExecutionGraphEdge(BaseModel):
+    source_step_id: int
+    source_port: str = "main"
+    target_step_id: int
+    target_port: str = "main"
+
+
+class ExecutionGraph(BaseModel):
+    steps: list[ExecutionGraphStep]
+    edges: list[ExecutionGraphEdge]
 
 
 class ExecutionDetailOut(BaseModel):
@@ -63,6 +86,7 @@ class ExecutionDetailOut(BaseModel):
     rule_name: str
     trigger_type: str
     trigger_summary: str
+    graph: ExecutionGraph | None = None
     timeline: list[StepTimelineEntry]
     cooloff_triggered: bool
     error: str | None = None

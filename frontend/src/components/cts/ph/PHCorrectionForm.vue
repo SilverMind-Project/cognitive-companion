@@ -14,7 +14,17 @@
           hide-details
           class="mb-2"
           clearable
+          no-data-text="No identities available"
         />
+        <v-alert
+          v-if="identityItems.length === 0"
+          type="info"
+          variant="tonal"
+          density="compact"
+          class="mb-2"
+        >
+          Add or activate household members, or seed the tracking gallery, to correct this PH.
+        </v-alert>
         <v-text-field
           v-model="correctReason"
           label="Reason"
@@ -150,10 +160,16 @@ export default {
     const splitReason = ref("manual");
 
     const identityItems = computed(() =>
-      props.identities.map((id) => ({
-        title: id.display_name || id.identity_id,
-        value: id.identity_id,
-      }))
+      props.identities
+        .map((id) => {
+          const identityId = id.identity_id || id.id;
+          if (!identityId) return null;
+          return {
+            title: id.display_name || id.name || identityId,
+            value: identityId,
+          };
+        })
+        .filter(Boolean)
     );
 
     const observationItems = computed(() =>

@@ -3,7 +3,6 @@
 from datetime import UTC, datetime
 
 from backend.schemas.rule_bundle import (
-    BranchTargets,
     CronExpressionRef,
     RuleBundle,
     RuleDefinition,
@@ -31,7 +30,6 @@ class TestValidateBundle:
                     label="scene_1",
                     step_type="scene_analysis",
                     config={"analysis_type": "objects"},
-                    branches=BranchTargets(),
                 ),
             ],
         )
@@ -51,7 +49,6 @@ class TestValidateBundle:
                     label="bad_1",
                     step_type="nonexistent_step_type",
                     config={},
-                    branches=BranchTargets(),
                 ),
             ],
         )
@@ -99,7 +96,6 @@ class TestValidateBundle:
                     step_type="scene_analysis",
                     schema_version=1,
                     config={},
-                    branches=BranchTargets(),
                 ),
             ],
         )

@@ -30,7 +30,7 @@
     </v-alert>
 
     <v-card class="glass-card">
-      <v-card-text class="d-flex ga-4 align-center pa-4">
+      <v-card-text class="d-flex flex-wrap ga-3 align-center pa-4 live-toolbar">
         <v-select
           v-model="layout"
           :items="layoutOptions"
@@ -85,14 +85,6 @@
           hide-details
         />
         <BlurToggle />
-        <v-spacer />
-        <v-btn
-          variant="tonal"
-          prepend-icon="mdi-account-edit"
-          :to="{ name: 'cts-identity-corrections' }"
-        >
-          Manage corrections
-        </v-btn>
       </v-card-text>
 
       <!-- Cross-camera presence panel: only shown when same identity seen on 2+ cameras -->
@@ -159,7 +151,10 @@
           </v-card-text>
           <div
             class="live-tile-frame"
-            :class="{ 'live-tile-stale': isCameraStale(cameraForSlot(slot)) }"
+            :class="[
+              `tile-density-${layout}`,
+              { 'live-tile-stale': isCameraStale(cameraForSlot(slot)) },
+            ]"
             :aria-label="`Live camera ${cameraIdForSlot(slot) || slot}`"
           >
             <img
@@ -212,7 +207,7 @@
                   :height="(det.bbox.y_max || 0) - (det.bbox.y_min || 0)"
                   fill="none"
                   :stroke="bboxColor(det)"
-                  :stroke-width="overlayStroke(cameraForSlot(slot), isMultiCamera(det) ? 2 : 1)"
+                  :stroke-width="overlayStroke(cameraForSlot(slot), isMultiCamera(det) ? 1.25 : 1)"
                   :opacity="isMultiCamera(det) ? undefined : 1"
                   style="cursor: pointer"
                   @click="openCorrection(det, cameraForSlot(slot))"
@@ -246,43 +241,36 @@
                   >{{ multiCameraCount(det) }}</text>
                 </g>
 
-                <!-- Identity label -->
+                <!-- Identity label: white text + dark halo (camera-feed standard) -->
                 <text
                   v-if="showIdLabels"
                   :x="(det.bbox.x_min || 0) + labelOffsetX(cameraForSlot(slot))"
                   :y="(det.bbox.y_min || 0) + labelOffsetY(cameraForSlot(slot))"
-                  fill="var(--cc-text-1)"
+                  fill="white"
                   :font-size="labelFontSize(cameraForSlot(slot))"
-                  font-weight="bold"
-                  :style="{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,0.6)', strokeWidth: overlayStroke(cameraForSlot(slot), 0.5) }"
+                  font-weight="500"
+                  :style="{
+                    paintOrder: 'stroke',
+                    stroke: HALO.color,
+                    strokeWidth: labelHaloStroke(cameraForSlot(slot)),
+                    strokeLinejoin: 'round',
+                  }"
                 >
                   {{ det.identity_id || "unknown" }}
                 </text>
-                <!-- "Also on" camera label for multi-camera detections -->
-                <text
-                  v-if="showIdLabels && isMultiCamera(det)"
-                  :x="(det.bbox.x_min || 0) + labelOffsetX(cameraForSlot(slot))"
-                  :y="(det.bbox.y_min || 0) + labelOffsetY(cameraForSlot(slot)) + labelFontSize(cameraForSlot(slot)) + 4"
-                  fill="var(--cc-text-2)"
-                  :font-size="smallFontSize(cameraForSlot(slot))"
-                  font-weight="500"
-                  :style="{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,0.6)', strokeWidth: overlayStroke(cameraForSlot(slot), 0.5) }"
-                >
-                  {{ otherCameraNames(det, cameraForSlot(slot)) }}
-                </text>
-
-                <!-- Posture label -->
+                <!-- Posture label: semantic color + dark halo -->
                 <text
                   v-if="showPosture && det.posture && det.posture !== 'unknown'"
                   :x="(det.bbox.x_min || 0) + labelOffsetX(cameraForSlot(slot))"
                   :y="postureLabelY(det, cameraForSlot(slot))"
                   :fill="postureColor(det.posture)"
                   :font-size="smallFontSize(cameraForSlot(slot))"
-                  font-weight="600"
+                  font-weight="500"
                   :style="{
                     paintOrder: 'stroke',
-                    stroke: 'rgba(0,0,0,0.7)',
-                    strokeWidth: overlayStroke(cameraForSlot(slot), 0.5),
+                    stroke: HALO.color,
+                    strokeWidth: labelHaloStroke(cameraForSlot(slot)),
+                    strokeLinejoin: 'round',
                   }"
                 >{{ det.posture }}</text>
 
@@ -315,31 +303,43 @@
 
                 <!-- Evidence chip (top-right of bbox) -->
                 <g v-if="showEvidence && det.evidence">
+                  <title>{{ evidenceTooltip(det) }}</title>
                   <!-- Background pill -->
                   <rect
-                    :x="(det.bbox.x_max || 0) - evidencePillWidth(cameraForSlot(slot)) - 4"
-                    :y="(det.bbox.y_min || 0) + 2"
-                    :width="evidencePillWidth(cameraForSlot(slot)) + 4"
+                    :x="evidencePillX(det, cameraForSlot(slot))"
+                    :y="evidencePillY(det, cameraForSlot(slot))"
+                    :width="evidencePillWidth(cameraForSlot(slot))"
                     :height="evidencePillHeight(cameraForSlot(slot))"
-                    :rx="Math.round(evidencePillHeight(cameraForSlot(slot)) * 0.27)"
-                    fill="rgba(0,0,0,0.65)"
+                    :rx="Math.round(evidencePillHeight(cameraForSlot(slot)) * 0.18)"
+                    fill="rgba(0,0,0,0.72)"
                   />
+                  <text
+                    :x="evidencePillX(det, cameraForSlot(slot)) + evidencePad(cameraForSlot(slot))"
+                    :y="evidencePillY(det, cameraForSlot(slot)) + evidenceTextY(cameraForSlot(slot))"
+                    fill="white"
+                    :font-size="evidenceFontSize(cameraForSlot(slot))"
+                    font-weight="600"
+                    dominant-baseline="central"
+                    style="pointer-events: none"
+                  >
+                    {{ evidenceLabel(det) }}
+                  </text>
                   <!-- Top-1 bar -->
                   <rect
-                    :x="(det.bbox.x_max || 0) - evidencePillWidth(cameraForSlot(slot)) - 2"
-                    :y="(det.bbox.y_min || 0) + evidenceBarY(cameraForSlot(slot), 0)"
-                    :width="Math.round((evidencePillWidth(cameraForSlot(slot)) - 4) * (det.evidence.top_prob || 0))"
+                    :x="evidencePillX(det, cameraForSlot(slot)) + evidencePad(cameraForSlot(slot))"
+                    :y="evidencePillY(det, cameraForSlot(slot)) + evidenceBarY(cameraForSlot(slot), 0)"
+                    :width="evidenceBarWidth(det, cameraForSlot(slot), 'top_prob')"
                     :height="evidenceBarHeight(cameraForSlot(slot))"
                     :rx="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.5)"
                     :fill="det.evidence.face_anchor_used ? '#a78bfa' : '#34d399'"
                   />
                   <!-- Top-2 bar -->
                   <rect
-                    :x="(det.bbox.x_max || 0) - evidencePillWidth(cameraForSlot(slot)) - 2"
-                    :y="(det.bbox.y_min || 0) + evidenceBarY(cameraForSlot(slot), 1)"
-                    :width="Math.round((evidencePillWidth(cameraForSlot(slot)) - 4) * (det.evidence.top2_prob || 0))"
-                    :height="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.7)"
-                    :rx="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.35)"
+                    :x="evidencePillX(det, cameraForSlot(slot)) + evidencePad(cameraForSlot(slot))"
+                    :y="evidencePillY(det, cameraForSlot(slot)) + evidenceBarY(cameraForSlot(slot), 1)"
+                    :width="evidenceBarWidth(det, cameraForSlot(slot), 'top2_prob')"
+                    :height="Math.max(1, Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.72))"
+                    :rx="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.36)"
                     fill="#94a3b8"
                   />
                 </g>
@@ -435,6 +435,7 @@ import { cts } from "@/services/cts";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket.js";
 import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode.js";
 import { identityColor } from "@/composables/useIdentityColor.js";
+import { HALO, postureColor } from "@/composables/useAnnotationStyle.js";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
@@ -610,17 +611,6 @@ function isMultiCamera(det) {
 function multiCameraCount(det) {
   if (!det.identity_id) return 0;
   return identityCameraMap.value.get(det.identity_id)?.size ?? 0;
-}
-
-function otherCameraNames(det, currentCam) {
-  if (!det.identity_id) return "";
-  const cams = identityCameraMap.value.get(det.identity_id);
-  if (!cams || cams.size < 2) return "";
-  const others = [...cams].filter((c) => c !== currentCam?.camera_id);
-  if (others.length === 0) return "";
-  return others.length > 2
-    ? `+${others.length} other cameras`
-    : `also on ${others.join(", ")}`;
 }
 
 function multiCameraTooltip(det) {
@@ -961,43 +951,106 @@ function trailPoints(det, cam) {
   return det.trail.map((t) => `${t.x * fw},${t.y * fh}`).join(" ");
 }
 
-// Scale visual SVG elements relative to the camera's native resolution so
-// fonts, strokes, and badges remain readable regardless of tile display size.
-// For a 1920 px viewBox shown on a ~400 px tile (scale ≈ 0.21):
-//   labelFont  = 1920 × 0.04  = 77 SVG units → 77 × 0.21 ≈ 16 CSS px
-//   smallFont  = 1920 × 0.025 = 48 SVG units → 48 × 0.21 ≈ 10 CSS px
-//   baseStroke = 1920 × 0.004 =  8 SVG units →  8 × 0.21 ≈  2 CSS px
+// Scale SVG elements by both native frame size and selected layout. SVG text
+// lives in viewBox units, so a 1920px frame rendered in a 4-up tile needs much
+// larger user-space font values than the same frame rendered full width.
+const TILE_ESTIMATE_PX = {
+  1: 960,
+  4: 520,
+  9: 340,
+  16: 260,
+};
+
+function tileEstimatePx() {
+  return TILE_ESTIMATE_PX[layout.value] || 520;
+}
+
+function overlayUnits(cam, cssPx) {
+  return Math.round(cssPx * ((cam?.frame_width || 1920) / tileEstimatePx()));
+}
+
 function labelFontSize(cam) {
-  return Math.round((cam?.frame_width || 1920) * 0.015);
+  const targetPx = layout.value === 1 ? 13 : layout.value === 4 ? 11 : 10;
+  return overlayUnits(cam, targetPx);
 }
 function smallFontSize(cam) {
-  return Math.round((cam?.frame_width || 1920) * 0.01);
+  const targetPx = layout.value === 1 ? 11 : layout.value === 4 ? 10 : 9;
+  return overlayUnits(cam, targetPx);
+}
+// Halo stroke-width: ~20% of the label font-size, minimum 2 SVG units.
+// Keeps the dark outline proportional regardless of layout or frame resolution.
+// ~15% of font-size keeps the halo thin — just enough separation without
+// distorting letter shapes (industry cartographic standard).
+function labelHaloStroke(cam) {
+  return Math.max(2, Math.round(labelFontSize(cam) * 0.15));
 }
 function overlayStroke(cam, multiplier = 1) {
-  return Math.max(1, Math.round((cam?.frame_width || 1920) * 0.005 * multiplier));
+  const targetPx = layout.value === 1 ? 1.45 : layout.value === 4 ? 1.25 : 1.1;
+  return Math.max(1, overlayUnits(cam, targetPx * multiplier));
 }
 function badgeRadius(cam) {
-  return Math.round((cam?.frame_width || 1920) * 0.01);
+  const targetPx = layout.value === 1 ? 11 : layout.value === 4 ? 10 : 9;
+  return overlayUnits(cam, targetPx);
 }
 function evidenceBarY(cam, row) {
-  // row 0 = top bar, row 1 = bottom bar; returns y offset from bbox top
-  const fs = smallFontSize(cam);
-  const gap = Math.round(fs * 0.5);
-  const barH = Math.round(fs * 0.8);
-  return 2 + row * (barH + gap);
+  const pad = evidencePad(cam);
+  const textBand = Math.round(evidenceFontSize(cam) * 1.35);
+  const gap = Math.max(2, Math.round(evidenceBarHeight(cam) * 0.55));
+  return pad + textBand + row * (evidenceBarHeight(cam) + gap);
 }
 function evidenceBarHeight(cam) {
-  return Math.round(smallFontSize(cam) * 0.8);
+  const targetPx = layout.value === 1 ? 4 : layout.value === 4 ? 4 : 3.5;
+  return Math.max(2, overlayUnits(cam, targetPx));
 }
 function evidencePillWidth(cam) {
-  return Math.round((cam?.frame_width || 1920) * 0.06);
+  const targetPx = layout.value === 1 ? 92 : layout.value === 4 ? 84 : layout.value === 9 ? 76 : 70;
+  return overlayUnits(cam, targetPx);
 }
 function evidencePillHeight(cam) {
-  const fs = smallFontSize(cam);
-  return Math.round(fs * 1.8);
+  const targetPx = layout.value === 1 ? 32 : layout.value === 4 ? 30 : 28;
+  return overlayUnits(cam, targetPx);
+}
+function evidencePad(cam) {
+  return overlayUnits(cam, layout.value === 1 ? 5 : 4.5);
+}
+function evidenceFontSize(cam) {
+  const targetPx = layout.value === 1 ? 11 : layout.value === 4 ? 10 : 9;
+  return overlayUnits(cam, targetPx);
+}
+function evidenceTextY(cam) {
+  return Math.round(evidencePad(cam) + evidenceFontSize(cam) * 0.62);
+}
+function evidencePillX(det, cam) {
+  const pad = overlayUnits(cam, 4);
+  return Math.max(
+    pad,
+    (det.bbox.x_max || 0) - evidencePillWidth(cam) - pad
+  );
+}
+function evidencePillY(det, cam) {
+  const outsideY = (det.bbox.y_min || 0) - evidencePillHeight(cam) - overlayUnits(cam, 3);
+  if (outsideY >= overlayUnits(cam, 2)) return outsideY;
+  return (det.bbox.y_max || 0) + overlayUnits(cam, 3);
+}
+function evidenceBarTrackWidth(cam) {
+  return Math.max(1, evidencePillWidth(cam) - evidencePad(cam) * 2);
+}
+function evidenceBarWidth(det, cam, key) {
+  const prob = Math.max(0, Math.min(1, Number(det.evidence?.[key] || 0)));
+  return Math.round(evidenceBarTrackWidth(cam) * prob);
+}
+function evidenceLabel(det) {
+  const pct = Math.round(Math.max(0, Math.min(1, det.evidence?.top_prob || 0)) * 100);
+  return det.evidence?.face_anchor_used ? `face ${pct}%` : `${pct}% match`;
+}
+function evidenceTooltip(det) {
+  const top = Math.round(Math.max(0, Math.min(1, det.evidence?.top_prob || 0)) * 100);
+  const second = Math.round(Math.max(0, Math.min(1, det.evidence?.top2_prob || 0)) * 100);
+  const source = det.evidence?.face_anchor_used ? "face anchor" : "re-id";
+  return `Evidence: ${top}% top match, ${second}% second match (${source})`;
 }
 function labelOffsetY(cam) {
-  return Math.round(labelFontSize(cam) * 0.8);
+  return Math.round(labelFontSize(cam) * 0.92);
 }
 function labelOffsetX(cam) {
   return Math.round(labelFontSize(cam) * 0.22);
@@ -1006,22 +1059,10 @@ function crownOffsetY(cam) {
   return Math.round(labelFontSize(cam) * 1.0);
 }
 
-function postureColor(posture) {
-  const colors = {
-    standing: "#4ade80",
-    sitting: "#fbbf24",
-    walking: "#60a5fa",
-    lying: "#c084fc",
-  };
-  return colors[posture] || "var(--cc-text-2)";
-}
 
 function postureLabelY(det, cam) {
   const fs = labelFontSize(cam);
-  let yOff = labelOffsetY(cam) + fs + 4;
-  if (showIdLabels.value && isMultiCamera(det)) {
-    yOff += smallFontSize(cam) + 4;
-  }
+  const yOff = labelOffsetY(cam) + fs + 4;
   return (det.bbox.y_min || 0) + yOff;
 }
 
@@ -1059,18 +1100,22 @@ async function submitCorrection() {
 .live-grid {
   display: grid;
   gap: 16px;
+  align-items: start;
 }
 .grid-1 {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 .grid-2 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
 }
 .grid-3 {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
 }
 .grid-4 {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+}
+.live-toolbar-action {
+  margin-left: auto;
 }
 .camera-picker {
   flex: 1 1 auto;
@@ -1078,6 +1123,10 @@ async function submitCorrection() {
 }
 .live-tile {
   background: var(--cc-surface-2);
+  min-width: 0;
+}
+.live-tile :deep(.v-card-text:first-child) {
+  flex-wrap: wrap;
 }
 .live-tile-frame {
   position: relative;
@@ -1159,6 +1208,31 @@ async function submitCorrection() {
   font-size: 10px;
   font-weight: 700;
   margin-left: 2px;
+}
+
+@media (max-width: 1400px) {
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .grid-3 {
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .live-toolbar-action {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 </style>

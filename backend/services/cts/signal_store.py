@@ -5,8 +5,8 @@ Cognitive Companion.  The DementiaSignalSubscriber delegates inserts to
 SignalStore; the cts_signals router delegates reads to it.
 
 All methods are async and accept a ``db_factory`` callable that returns
-a SQLAlchemy ``Session``.  Tests inject a factory backed by the in-memory
-SQLite fixture.
+a SQLAlchemy ``Session``.  Tests inject a factory backed by the shared
+PostgreSQL fixture.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class SignalStore:
     db_factory:
         Callable that returns a new SQLAlchemy ``Session``.  In production
         this is ``backend.core.database.get_session``; in tests it wraps
-        the in-memory fixture.
+        the PostgreSQL fixture.
     """
 
     def __init__(self, db_factory: Callable[[], Session]) -> None:
@@ -322,7 +322,7 @@ class SignalStore:
             # Pivot into per-day dicts.
             days_dict: dict[str, dict[str, Any]] = {}
             for i in range(days):
-                day_str = (now - timedelta(days=days - 1 + i)).strftime("%Y-%m-%d")
+                day_str = (now - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d")
                 days_dict[day_str] = {"date": day_str, "count": 0, "by_severity": {}}
 
             for row in rows:
@@ -376,9 +376,9 @@ class SignalStore:
         """SQL GROUP BY room_name from context_json."""
         db = self._db_factory()
         try:
-            room_expr = func.json_extract(DementiaSignal.context_json, "$.room_name").label(
+            room_expr = DementiaSignal.context_json.op("->>")(
                 "room_name"
-            )
+            ).label("room_name")
             q = (
                 select(
                     room_expr,
@@ -403,12 +403,14 @@ class SignalStore:
 
     @staticmethod
     def _to_dict(row: DementiaSignal) -> dict[str, Any]:
+        fired_at = row.window_end.isoformat() if row.window_end else None
         return {
             "id": row.id,
             "signal_id": row.signal_id,
             "person_id": row.person_id,
             "signal_type": row.signal_type,
             "severity": row.severity,
+            "fired_at": fired_at,
             "window_start": row.window_start.isoformat() if row.window_start else None,
             "window_end": row.window_end.isoformat() if row.window_end else None,
             "value": row.value,

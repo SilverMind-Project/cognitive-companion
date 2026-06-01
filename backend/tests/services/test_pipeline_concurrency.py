@@ -16,7 +16,7 @@ import pytest
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
-from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.models.rule import Rule
 from backend.services.pipeline_executor import (
     PipelineExecutor,
@@ -62,6 +62,19 @@ def _make_step(
     db.add(step)
     db.flush()
     return step
+
+
+def _connect(db: Session, rule: Rule, source: PipelineStep, target: PipelineStep) -> PipelineEdge:
+    edge = PipelineEdge(
+        rule_id=rule.id,
+        source_step_id=source.id,
+        source_port="main",
+        target_step_id=target.id,
+        target_port="main",
+    )
+    db.add(edge)
+    db.flush()
+    return edge
 
 
 def _make_execution(db: Session, rule: Rule, status: str = "running") -> WorkflowExecution:
@@ -415,9 +428,11 @@ class TestConcurrencyIntegration:
     async def test_multiple_steps_with_concurrent_updates(self, db_session: Session, db_factory):
         """Multiple steps must handle concurrent updates correctly."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
-        _make_step(db_session, rule, order=2, step_type="step_b")
-        _make_step(db_session, rule, order=3, step_type="step_c")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b")
+        step_c = _make_step(db_session, rule, order=3, step_type="step_c")
+        _connect(db_session, rule, step_a, step_b)
+        _connect(db_session, rule, step_b, step_c)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -450,9 +465,11 @@ class TestConcurrencyIntegration:
 
         executor = _make_executor(db_factory)
 
-        async def mock_run_steps(execution, steps, trigger, db):
+        async def mock_run_steps(execution, steps, trigger, db, adjacency, entry_step_ids):
             # Verify data is preserved
             assert execution.pipeline_data_json["step1_output"] == "preserved"
+            assert adjacency == {}
+            assert entry_step_ids == []
             return execution
 
         with patch.object(executor, "_run_steps", side_effect=mock_run_steps):

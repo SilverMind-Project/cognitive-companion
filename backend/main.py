@@ -579,11 +579,13 @@ async def lifespan(app: FastAPI):
         consumer_id = settings.as_str("cts.consumer_id", allow_empty=False)
 
         # PersonLocationService with session-aware repos.
+        # Each repo method opens a short-lived session via the factory,
+        # committing and closing after each operation so that TimescaleDB
+        # chunk-creation locks are never held across idle periods.
         def _make_pls() -> PersonLocationService:
-            session = get_session()
             return PersonLocationService(
-                obs_repo=SqlAlchemyObservationRepository(session),
-                seg_repo=SqlAlchemySegmentRepository(session),
+                obs_repo=SqlAlchemyObservationRepository(get_session),
+                seg_repo=SqlAlchemySegmentRepository(get_session),
             )
 
         person_location_service = _make_pls()

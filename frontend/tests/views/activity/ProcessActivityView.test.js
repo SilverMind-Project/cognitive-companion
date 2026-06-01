@@ -43,7 +43,7 @@ vi.mock("@/components/process/CcDagChart.vue", () => ({
   default: {
     name: "CcDagChart",
     template: '<div data-testid="cc-dag-chart" />',
-    props: ["nodes", "edges", "activeNodeId", "loading", "error"],
+    props: ["nodes", "edges", "activeNodeId", "activeEdges", "nodeTimings", "loading", "error"],
   },
 }));
 
@@ -59,8 +59,11 @@ vi.mock("@/components/dashboard/CcMetricTile.vue", () => ({
   default: { template: '<div />', props: ["label", "value", "status"] },
 }));
 
-vi.mock("@/components/pipeline/ExecutionDetail.vue", () => ({
-  default: { template: '<div data-testid="execution-detail" />', props: ["execution", "live"] },
+vi.mock("@/components/pipeline/ExecutionInspector.vue", () => ({
+  default: {
+    template: '<div data-testid="execution-inspector" />',
+    props: ["executionId", "source", "ruleId", "liveRun"],
+  },
 }));
 
 vi.mock("vue-router", () => ({

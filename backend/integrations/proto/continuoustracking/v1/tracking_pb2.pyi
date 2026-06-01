@@ -1,9 +1,28 @@
 from google.protobuf.internal import containers as _containers
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+
+class PresenceEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    PRESENCE_EVENT_TYPE_UNSPECIFIED: _ClassVar[PresenceEventType]
+    PRESENCE_EVENT_TYPE_APPEARED: _ClassVar[PresenceEventType]
+    PRESENCE_EVENT_TYPE_DISAPPEARED: _ClassVar[PresenceEventType]
+
+class DwellEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    DWELL_EVENT_TYPE_UNSPECIFIED: _ClassVar[DwellEventType]
+    DWELL_EVENT_TYPE_STARTED: _ClassVar[DwellEventType]
+    DWELL_EVENT_TYPE_ENDED: _ClassVar[DwellEventType]
+PRESENCE_EVENT_TYPE_UNSPECIFIED: PresenceEventType
+PRESENCE_EVENT_TYPE_APPEARED: PresenceEventType
+PRESENCE_EVENT_TYPE_DISAPPEARED: PresenceEventType
+DWELL_EVENT_TYPE_UNSPECIFIED: DwellEventType
+DWELL_EVENT_TYPE_STARTED: DwellEventType
+DWELL_EVENT_TYPE_ENDED: DwellEventType
 
 class TrackingEvent(_message.Message):
     __slots__ = ("camera_id", "event_time_unix_ns", "frame_ref", "detections", "identity_revisions", "room_name", "event_id", "identity_snapshots")
@@ -170,3 +189,33 @@ class IdentityCandidate(_message.Message):
     display_name: str
     probability: float
     def __init__(self, identity_id: _Optional[str] = ..., display_name: _Optional[str] = ..., probability: _Optional[float] = ...) -> None: ...
+
+class PresenceEvent(_message.Message):
+    __slots__ = ("ph_id", "identity_id", "event_type", "room_name", "event_time_unix_ns")
+    PH_ID_FIELD_NUMBER: _ClassVar[int]
+    IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    ROOM_NAME_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TIME_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
+    ph_id: str
+    identity_id: str
+    event_type: PresenceEventType
+    room_name: str
+    event_time_unix_ns: int
+    def __init__(self, ph_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., event_type: _Optional[_Union[PresenceEventType, str]] = ..., room_name: _Optional[str] = ..., event_time_unix_ns: _Optional[int] = ...) -> None: ...
+
+class DwellEvent(_message.Message):
+    __slots__ = ("ph_id", "identity_id", "event_type", "room_name", "event_time_unix_ns", "duration_s")
+    PH_ID_FIELD_NUMBER: _ClassVar[int]
+    IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    ROOM_NAME_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TIME_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
+    DURATION_S_FIELD_NUMBER: _ClassVar[int]
+    ph_id: str
+    identity_id: str
+    event_type: DwellEventType
+    room_name: str
+    event_time_unix_ns: int
+    duration_s: int
+    def __init__(self, ph_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., event_type: _Optional[_Union[DwellEventType, str]] = ..., room_name: _Optional[str] = ..., event_time_unix_ns: _Optional[int] = ..., duration_s: _Optional[int] = ...) -> None: ...

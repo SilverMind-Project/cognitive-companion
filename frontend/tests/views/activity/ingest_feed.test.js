@@ -61,8 +61,8 @@ vi.mock("@/components/dashboard/CcMetricTile.vue", () => ({
   },
 }));
 
-vi.mock("@/components/pipeline/ExecutionDetail.vue", () => ({
-  default: { template: '<div />', props: ["execution", "live"] },
+vi.mock("@/components/pipeline/ExecutionInspector.vue", () => ({
+  default: { template: '<div />', props: ["executionId", "source", "ruleId", "liveRun"] },
 }));
 
 vi.mock("vue-router", () => ({

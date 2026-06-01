@@ -108,6 +108,19 @@ class TestGetRun:
         assert resp.status_code == 200
         assert resp.json()["execution_id"] == 42
 
+    def test_envelope_is_list_level_only(self):
+        svc = MagicMock()
+        svc.get_run.return_value = _make_envelope(42)
+        tc = _build_app(svc)
+
+        resp = tc.get("/api/v1/pipeline/runs/42")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "timeline" not in body
+        assert "graph" not in body
+        assert "pipeline_data_json" not in body
+
     def test_404_for_missing_execution(self):
         """Rule 15: missing execution must return 404, not a fabricated envelope."""
         svc = MagicMock()

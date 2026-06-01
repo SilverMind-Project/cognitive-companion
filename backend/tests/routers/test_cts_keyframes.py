@@ -12,7 +12,8 @@ from backend.core.auth import AuthContext, get_auth_context
 from backend.core.config import Settings
 from backend.core.exceptions import register_exception_handlers
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
-from backend.routers.cts_keyframes import _get_orchestrator_client, router
+from backend.routers.cts_keyframes import router
+from backend.routers.dependencies import get_orchestrator_client
 
 _SAMPLE_KEYFRAME = {
     "sample_id": "01HXYZ",
@@ -38,14 +39,15 @@ def _build_app(cts_enabled: bool = True, orchestrator: OrchestratorClient | None
         orchestrator.retain_keyframe = AsyncMock(return_value={"retained": True})
 
     app = FastAPI()
+    app.state.minio_client = None
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
     app.dependency_overrides[get_auth_context] = lambda: AuthContext(
         key="x", name="tester", permissions=["*"]
     )
-    app.dependency_overrides[_get_orchestrator_client] = lambda: orchestrator
+    app.dependency_overrides[get_orchestrator_client] = lambda: orchestrator
 
-    patcher = patch("backend.routers.cts_keyframes.settings", cfg)
+    patcher = patch("backend.routers.cts_deps.settings", cfg)
     patcher.start()
     return TestClient(app), orchestrator, patcher
 

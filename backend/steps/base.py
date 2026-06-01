@@ -61,7 +61,7 @@ class StepResult:
     success: bool = True
     data: dict = field(default_factory=dict)
     should_continue: bool = True
-    next_step_id: int | None = None
+    output_ports: tuple[str, ...] = ("main",)
     wait_until: datetime | None = None
 
 
@@ -85,6 +85,7 @@ class StepMetadata:
     ui_hints: dict = field(default_factory=dict)  # x-ui widget hints for SchemaForm
     output_schema: dict = field(default_factory=dict)  # JSONSchema for step outputs
     tags: tuple[str, ...] = ()  # for palette grouping/search
+    output_ports: tuple[str, ...] = ("main",)
 
 
 @dataclass
@@ -102,6 +103,7 @@ class ServiceContainer:
     ha_client: HomeAssistantClient | None = None
     event_aggregator: EventAggregator | None = None
     scheduler: SchedulerBridge | None = None
+    rag_service: MemoryQueryService | None = None
     llm_model_registry: LLMModelRegistry | None = None
     ha_state_cache: HaStateCache | None = None
     presence: PresenceService | None = None

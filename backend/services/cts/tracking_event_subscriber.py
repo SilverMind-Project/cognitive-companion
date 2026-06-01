@@ -42,6 +42,17 @@ FIELD = b"event"
 _LIVE_FRAME_TTL = 30
 
 
+def _positive_probability(value: Any) -> float | None:
+    """Return a usable probability, or None when evidence is absent."""
+    try:
+        probability = float(value)
+    except (TypeError, ValueError):
+        return None
+    if probability <= 0:
+        return None
+    return probability
+
+
 class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
     """Consume ``tracking.events`` and apply them to PersonLocationState."""
 
@@ -290,13 +301,14 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                     ph_id = snap.get("ph_id", "")
                     if not ph_id:
                         continue
+                    posterior_prob = _positive_probability(snap.get("top_probability"))
                     evt = PHUpdateEvent(
                         ph_id=ph_id,
                         current_identity_id=snap.get("identity_id") or None,
                         identity_committed=bool(snap.get("identity_id")),
                         state="active",
-                        posterior_top_label=snap.get("identity_id") or None,
-                        posterior_top_prob=float(snap.get("top_probability", 0.0)),
+                        posterior_top_label=snap.get("identity_id") if posterior_prob else None,
+                        posterior_top_prob=posterior_prob,
                         last_observed_at=event.get("capture_time"),
                     )
                     payload = evt.model_dump(mode="json")
@@ -353,7 +365,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 "identity_id": snap.get("identity_id"),
                 "display_name": snap.get("identity_id"),
                 "color": "#888888",
-                "top_prob": snap.get("top_probability", 0.0),
+                "top_prob": snap.get("top_probability"),
             }
         phs: list[dict[str, Any]] = []
         for det in event.get("detections", []):
@@ -361,6 +373,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             ph_id = det.get("ph_id", "")
             identity = identity_map.get(ph_id, {})
             calibrated = det.get("floor_calibrated", False)
+            posterior_prob = _positive_probability(identity.get("top_prob"))
             phs.append(
                 {
                     "ph_id": ph_id,
@@ -368,8 +381,8 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                     "identity_display_name": identity.get("display_name"),
                     "identity_color": identity.get("color", "#888888"),
                     "identity_committed": bool(identity.get("identity_id")),
-                    "posterior_top_label": identity.get("identity_id"),
-                    "posterior_top_prob": identity.get("top_prob", 0.0),
+                    "posterior_top_label": identity.get("identity_id") if posterior_prob else None,
+                    "posterior_top_prob": posterior_prob,
                     "room_id": None,
                     "room_name": event.get("room_name") or "",
                     "room_has_camera": True,

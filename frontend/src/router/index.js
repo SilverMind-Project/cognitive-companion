@@ -83,8 +83,12 @@ const routes = [
       },
       {
         path: "workflows",
-        name: "admin-workflows",
-        component: () => import("../views/admin/WorkflowsView.vue"),
+        redirect: "/admin/executions?tab=history",
+      },
+      {
+        path: "executions",
+        name: "admin-executions",
+        component: () => import("../views/admin/ExecutionsView.vue"),
       },
       {
         path: "eink-templates",
@@ -133,8 +137,7 @@ const routes = [
       // ── Process Activity view (U5) ───────────────────────────────────────────
       {
         path: "activity",
-        name: "process-activity",
-        component: () => import("../views/activity/ProcessActivityView.vue"),
+        redirect: "/admin/executions?tab=live",
       },
 
       // ── Tracking - Setup (configuration tools, kept distinct from monitoring) ─

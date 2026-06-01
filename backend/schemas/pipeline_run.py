@@ -19,7 +19,9 @@ class DagNode(BaseModel):
 
 class DagEdge(BaseModel):
     source: str
+    source_handle: str = "main"
     target: str
+    target_handle: str = "main"
 
 
 class PipelineRunEnvelope(BaseModel):
@@ -57,6 +59,8 @@ class PipelineExecutionEvent(BaseModel):
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error_code: str | None = None
+    output_port: str | None = None
+    elapsed_ms: int | None = None
     sequence: int = 0
 
 

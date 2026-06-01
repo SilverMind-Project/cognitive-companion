@@ -1,19 +1,13 @@
 """Shared pytest fixtures for the backend test suite.
 
 Container lifecycle guarantees
---------------------------------
+------------------------------
 - The PostgreSQL container is started exactly once per pytest session via the
-  ``_postgres_container`` session-scoped fixture, which is forced to run before
-  any test through the ``_ensure_container_started`` autouse fixture.
-- The container is given a fixed name (``cc-test-postgres``) so it can be
-  identified and killed by name even if the fixture reference is lost.
-- Any pre-existing container with the same name is force-killed before
-  starting, preventing conflicts from a previous interrupted run.
-- Teardown uses ``docker kill`` (SIGKILL) via the Docker SDK for an immediate,
-  unconditional stop rather than a graceful shutdown.
-- Ryuk (testcontainers' GC sidecar) is disabled; we own the full lifecycle.
-- An ``atexit`` handler is registered as a belt-and-suspenders fallback for
-  hard crashes that bypass normal pytest teardown.
+  ``_postgres_container`` session-scoped fixture.
+- Each pytest session gets a unique container name, avoiding cross-process
+  teardown races when multiple test commands run close together.
+- Teardown removes the container by that unique name.  An ``atexit`` handler is
+  registered as a fallback for hard crashes that bypass normal pytest teardown.
 
 Schema isolation
 -----------------
@@ -30,6 +24,8 @@ from __future__ import annotations
 
 import atexit
 import logging
+import os
+import uuid
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
@@ -44,8 +40,9 @@ logger = logging.getLogger(__name__)
 # Constants and helpers -- defined first so atexit can reference them.
 # ---------------------------------------------------------------------------
 
-_CONTAINER_NAME = "cc-test-postgres"
+_CONTAINER_NAME_PREFIX = "cc-test-postgres"
 _container_ref: PostgresContainer | None = None
+_container_name: str | None = None
 
 
 def _force_kill_container(name: str) -> None:
@@ -69,10 +66,11 @@ def _force_kill_container(name: str) -> None:
 
 def _stop_container_atexit() -> None:
     """Belt-and-suspenders cleanup called on interpreter exit."""
-    global _container_ref
-    if _container_ref is not None:
-        _force_kill_container(_CONTAINER_NAME)
+    global _container_ref, _container_name
+    if _container_name is not None:
+        _force_kill_container(_container_name)
         _container_ref = None
+        _container_name = None
 
 
 atexit.register(_stop_container_atexit)
@@ -87,33 +85,24 @@ atexit.register(_stop_container_atexit)
 def _postgres_container():
     """Start a named PostgreSQL 17 container for the entire test session.
 
-    - Fixed name ``cc-test-postgres`` allows force-kill by name even if the
-      fixture reference is lost (e.g. after a crash).
-    - Any leftover container from a previous interrupted run is killed first.
-    - Ryuk (testcontainers' GC sidecar) is disabled: we manage the full
-      lifecycle ourselves via ``_force_kill_container``.
-    - Teardown is unconditional: ``docker kill`` (SIGKILL) fires in ``finally``
-      regardless of whether the tests passed or failed.
+    The image defaults to the TimescaleDB PostgreSQL image used by the stack,
+    and can be overridden with ``CC_TEST_POSTGRES_IMAGE``.
     """
-    global _container_ref
+    global _container_ref, _container_name
 
-    # Remove any leftover from a previous crashed run.
-    _force_kill_container(_CONTAINER_NAME)
-
-    # Disable the Ryuk reaper -- we own the container lifecycle entirely.
-    from testcontainers.core.config import testcontainers_config
-
-    testcontainers_config.ryuk_disabled = True
-
-    container = PostgresContainer("timescale/timescaledb-ha:pg18").with_name(_CONTAINER_NAME)
+    _container_name = f"{_CONTAINER_NAME_PREFIX}-{uuid.uuid4().hex[:12]}"
+    image = os.environ.get("CC_TEST_POSTGRES_IMAGE", "timescale/timescaledb-ha:pg18")
+    container = PostgresContainer(image).with_name(_container_name)
     try:
         container.start()
         _container_ref = container
         logger.info("postgres testcontainer started: %s", container.get_container_host_ip())
         yield container
     finally:
-        _force_kill_container(_CONTAINER_NAME)
+        if _container_name is not None:
+            _force_kill_container(_container_name)
         _container_ref = None
+        _container_name = None
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -68,6 +68,14 @@ class OrchestratorClient(UpstreamClient):
         matrix: list[list[float]],
         points: list[dict],
         meta: dict | None = None,
+        *,
+        floor_plan_id: str,
+        image_width: int,
+        image_height: int,
+        max_residual_m: float,
+        mean_residual_m: float,
+        quality_status: str,
+        quality_point_count: int,
     ) -> dict:
         r = await self._request(
             "POST",
@@ -77,6 +85,13 @@ class OrchestratorClient(UpstreamClient):
                 "matrix": matrix,
                 "points": points,
                 "meta": meta or {},
+                "floor_plan_id": floor_plan_id,
+                "image_width": image_width,
+                "image_height": image_height,
+                "max_residual_m": max_residual_m,
+                "mean_residual_m": mean_residual_m,
+                "quality_status": quality_status,
+                "quality_point_count": quality_point_count,
             },
         )
         return r.json() if r.content else {}

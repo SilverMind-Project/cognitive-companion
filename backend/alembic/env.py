@@ -1,3 +1,5 @@
+import os
+import re
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -8,9 +10,48 @@ workspace_root = Path(__file__).resolve().parent.parent.parent
 if str(workspace_root) not in sys.path:
     sys.path.insert(0, str(workspace_root))
 
+
+def _load_dotenv(path: Path) -> None:
+    """Load repo .env values for local Alembic CLI runs.
+
+    Docker injects these variables through compose, but direct `alembic`
+    commands do not. Existing process environment wins so deployment overrides
+    are preserved.
+    """
+    if not path.exists():
+        return
+
+    try:
+        from dotenv import load_dotenv
+    except ModuleNotFoundError:
+        _load_dotenv_fallback(path)
+        return
+
+    load_dotenv(path, override=False)
+
+
+def _load_dotenv_fallback(path: Path) -> None:
+    env_ref = re.compile(r"\$\{([^}]+)\}")
+
+    for line in path.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, raw_value = stripped.split("=", 1)
+        key = key.strip()
+        if key.startswith("export "):
+            key = key.removeprefix("export ").strip()
+        if key in os.environ:
+            continue
+        value = raw_value.strip().strip("\"'")
+        os.environ[key] = env_ref.sub(lambda match: os.environ.get(match.group(1), ""), value)
+
+
+_load_dotenv(workspace_root / ".env")
+
 from sqlalchemy import engine_from_config, pool  # noqa: E402
 
-import backend.models  # noqa: E402 F401
+import backend.models  # noqa: E402, F401
 from alembic import context  # noqa: E402
 
 # Import settings to read database URL
@@ -46,6 +87,13 @@ config.set_section_option(config.config_ini_section, "sqlalchemy.url", url)
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
+_IGNORED_TABLES = {"spatial_ref_sys"}
+
+
+def _include_object(object_, name, type_, reflected, compare_to) -> bool:
+    """Exclude extension-owned tables from autogenerate drift checks."""
+    return not (type_ == "table" and name in _IGNORED_TABLES)
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -68,6 +116,7 @@ def run_migrations_offline() -> None:
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        include_object=_include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -90,7 +139,11 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=_include_object,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

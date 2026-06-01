@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,8 +49,8 @@ STEP_TYPES = get_step_types()
 class PipelineStep(Base):
     """A single step in a rule's composable pipeline.
 
-    Steps are executed in ``order`` sequence. Condition steps may override
-    the next step via ``next_step_on_true`` / ``next_step_on_false``.
+    ``order`` remains a deterministic authoring and topology tiebreaker.
+    Runtime sequencing follows ``PipelineEdge`` rows.
     """
 
     __tablename__ = "pipeline_steps"
@@ -62,23 +62,35 @@ class PipelineStep(Base):
     label: Mapped[str] = mapped_column(String(256), server_default="")
     config_json: Mapped[dict] = mapped_column(JSON, default=dict)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-
-    # Branching: only used by condition steps
-    next_step_on_true: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_steps.id"), nullable=True
-    )
-    next_step_on_false: Mapped[int | None] = mapped_column(
-        ForeignKey("pipeline_steps.id"), nullable=True
-    )
+    position_x: Mapped[float] = mapped_column(default=0.0, server_default="0")
+    position_y: Mapped[float] = mapped_column(default=0.0, server_default="0")
 
     rule: Mapped[Rule] = relationship(back_populates="steps")
 
-    true_branch: Mapped[PipelineStep | None] = relationship(
-        foreign_keys=[next_step_on_true], remote_side=[id], uselist=False
+
+class PipelineEdge(Base):
+    """A directed edge between two pipeline steps."""
+
+    __tablename__ = "pipeline_edges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id", ondelete="CASCADE"), index=True)
+    source_step_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_steps.id", ondelete="CASCADE")
     )
-    false_branch: Mapped[PipelineStep | None] = relationship(
-        foreign_keys=[next_step_on_false], remote_side=[id], uselist=False
+    source_port: Mapped[str] = mapped_column(String(64))
+    target_step_id: Mapped[int] = mapped_column(
+        ForeignKey("pipeline_steps.id", ondelete="CASCADE")
     )
+    target_port: Mapped[str] = mapped_column(String(64), server_default="main")
+
+    __table_args__ = (
+        UniqueConstraint("source_step_id", "source_port", name="uq_edge_source_port"),
+    )
+
+    rule: Mapped[Rule] = relationship(back_populates="edges")
+    source_step: Mapped[PipelineStep] = relationship(foreign_keys=[source_step_id])
+    target_step: Mapped[PipelineStep] = relationship(foreign_keys=[target_step_id])
 
 
 class WorkflowExecution(Base):

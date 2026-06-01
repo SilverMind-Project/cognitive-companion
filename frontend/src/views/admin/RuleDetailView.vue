@@ -183,7 +183,7 @@
       <v-window-item value="pipeline">
         <v-card>
           <v-card-text>
-            <PipelineBuilder :rule-id="ruleId" @updated="loadRule" />
+            <PipelineCanvas :rule-id="ruleId" @updated="loadRule" />
           </v-card-text>
         </v-card>
       </v-window-item>
@@ -737,6 +737,25 @@
             </div>
             <v-spacer />
             <v-btn
+              v-if="liveExecution.can_cancel"
+              size="small"
+              variant="text"
+              color="error"
+              prepend-icon="mdi-stop-circle"
+              @click="cancelLiveExecution"
+            >
+              Cancel
+            </v-btn>
+            <v-btn
+              v-if="liveExecution.can_rerun"
+              size="small"
+              variant="text"
+              prepend-icon="mdi-replay"
+              @click="rerunLiveExecution"
+            >
+              Rerun
+            </v-btn>
+            <v-btn
               size="small"
               variant="text"
               :prepend-icon="livePolling ? 'mdi-pause' : 'mdi-play'"
@@ -752,14 +771,29 @@
             >
               Copy
             </v-btn>
+            <v-btn-toggle
+              v-model="liveRunView"
+              density="compact"
+              mandatory
+              variant="outlined"
+              divided
+              class="ml-1"
+            >
+              <v-btn value="canvas" size="small" prepend-icon="mdi-vector-polyline">
+                Pipeline
+              </v-btn>
+              <v-btn value="detail" size="small" prepend-icon="mdi-format-list-bulleted">
+                Detail
+              </v-btn>
+            </v-btn-toggle>
             <v-btn
               size="small"
               variant="text"
               prepend-icon="mdi-open-in-new"
-              :to="`/admin/activity`"
-              title="Open in Activity view"
+              :to="`/admin/executions?tab=live&execution=${liveExecution.id}`"
+              title="Open in Executions view"
             >
-              Activity
+              Executions
             </v-btn>
             <v-btn
               icon="mdi-close"
@@ -769,11 +803,16 @@
               @click="closeLiveExecution"
             />
           </div>
-          <ExecutionDetail
+          <PipelineMonitorCanvas
+            v-if="liveRunView === 'canvas'"
+            :rule-id="ruleId"
+            :execution-id="liveExecution.id"
             :execution="liveExecution"
-            :live="true"
-            @cancel="cancelLiveExecution"
-            @rerun="rerunLiveExecution"
+            @step-selected="liveSelectedStep = $event"
+          />
+          <StepInspectorPanel
+            v-else
+            :step="liveSelectedStep || liveExecution.timeline?.[0] || null"
           />
         </template>
         <v-card v-else>
@@ -799,8 +838,9 @@ import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { formatDateTime, getAppTimezone, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 import CronBuilder from "../../components/pipeline/CronBuilder.vue";
-import PipelineBuilder from "../../components/pipeline/PipelineBuilder.vue";
-import ExecutionDetail from "../../components/pipeline/ExecutionDetail.vue";
+import PipelineCanvas from "../../components/pipeline/PipelineCanvas.vue";
+import PipelineMonitorCanvas from "../../components/pipeline/PipelineMonitorCanvas.vue";
+import StepInspectorPanel from "../../components/pipeline/StepInspectorPanel.vue";
 
 const route = useRoute();
 const ruleId = computed(() => Number(route.params.id));
@@ -902,7 +942,9 @@ const execHeaders = [
 // Live execution view (polled while running)
 const liveExecutionId = ref(null);
 const liveExecution = ref(null);
+const liveSelectedStep = ref(null);
 const livePolling = ref(false);
+const liveRunView = ref("canvas");
 let livePollTimer = null;
 
 const pipelineDataPretty = computed(() => {
@@ -935,6 +977,7 @@ function humanize(s) {
 
 function openLiveExecution(id) {
   liveExecutionId.value = id;
+  liveRunView.value = "canvas";
   tab.value = "liverun";
   fetchLiveExecution();
   startLivePolling();
@@ -952,6 +995,7 @@ async function fetchLiveExecution() {
   try {
     const exec = await api.getWorkflowDetail(liveExecutionId.value);
     liveExecution.value = exec;
+    liveSelectedStep.value = exec.timeline?.[0] || null;
     if (!["running", "waiting"].includes(exec.status)) {
       stopLivePolling();
       loadExecutions();

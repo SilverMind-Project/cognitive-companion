@@ -52,12 +52,24 @@ def("rules.list", "array");
 def("rules.single", "object");
 def("rules.export", "object");
 def("rules.import", "object");
+def("rule.edges.list", [{ id: "number", rule_id: "number", source_step_id: "number", source_port: "string", target_step_id: "number", target_port: "string" }]);
+def("rule.edges.replace", [{ id: "number", rule_id: "number", source_step_id: "number", source_port: "string", target_step_id: "number", target_port: "string" }]);
+def("rule.steps.positions.update", { updated: "number" });
 
 // ---------------------------------------------------------------------------
 // Workflows
 // ---------------------------------------------------------------------------
 def("workflows.list", "array");
 def("workflows.single", "object");
+def("workflows.detail", {
+  id: "number",
+  rule_id: "number",
+  status: "string",
+  graph: "?",
+  timeline: "array",
+  can_cancel: "boolean",
+  can_rerun: "boolean",
+});
 
 // ---------------------------------------------------------------------------
 // Rooms, Sensors, Persons

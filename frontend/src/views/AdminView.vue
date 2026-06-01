@@ -238,9 +238,8 @@ const navSections = [
     title: "Automation",
     items: [
       { to: "/admin/rules",     icon: "mdi-shield-check-outline", title: "Rules"     },
-      { to: "/admin/workflows", icon: "mdi-sitemap-outline",       title: "Workflows" },
+      { to: "/admin/executions", icon: "mdi-sitemap-outline",      title: "Executions" },
       { to: "/admin/events",    icon: "mdi-calendar-text-outline", title: "Events"    },
-      { to: "/admin/activity",  icon: "mdi-pulse",                 title: "Activity"  },
     ],
   },
   {

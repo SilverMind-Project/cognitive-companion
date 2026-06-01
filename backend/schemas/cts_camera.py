@@ -92,6 +92,13 @@ class CtsCameraOut(CtsCameraFields, OutSchema):
     room: RoomRef | None = None
     has_homography: bool
     homography_residuals: list[float] | None
+    homography_matrix: list[list[float]] | None = None
+    homography_residual_m: float | None = None
+    homography_method: str | None = None
+    homography_set_at: UTCDatetime | None = None
+    homography_floor_plan_id: str | None = None
+    frame_natural_width: int | None = None
+    frame_natural_height: int | None = None
     privacy_zone_count: int
     health: dict | None
     snapshot_width: int | None = None

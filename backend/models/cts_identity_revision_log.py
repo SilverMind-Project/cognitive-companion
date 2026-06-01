@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Integer, String, func
+from sqlalchemy import Index, Integer, String, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.core.database import Base
@@ -19,6 +20,11 @@ from backend.core.time import UTCDateTime
 
 class CtsIdentityRevisionLog(Base):
     __tablename__ = "cts_identity_revision_log"
+    __table_args__ = (
+        Index("ix_cts_identity_revision_log_applied_at", text("applied_at DESC")),
+        Index("ix_cts_identity_revision_log_ph_applied", "ph_id", text("applied_at DESC")),
+        Index("ix_cts_identity_revision_log_kind_applied", "kind", text("applied_at DESC")),
+    )
 
     revision_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     ph_id: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -32,5 +38,5 @@ class CtsIdentityRevisionLog(Base):
     kind: Mapped[str] = mapped_column(
         String(32), nullable=False
     )  # auto | manual_correct | manual_merge
-    rewritten_rows: Mapped[int] = mapped_column(Integer, default=0)
-    evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    rewritten_rows: Mapped[int | None] = mapped_column(Integer, default=0, nullable=True)
+    evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

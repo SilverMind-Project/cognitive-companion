@@ -15,6 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base, TimestampMixin
@@ -57,7 +58,7 @@ class HouseholdMember(Base, TimestampMixin):
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Per-person CTS alert configuration. Keys: enabled_kinds (list[str]), min_severity (str).
     # NULL means "use the default profile" (all kinds, info severity).
-    cts_alert_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    cts_alert_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     sightings: Mapped[list[PersonSighting]] = relationship(back_populates="person")
     location_state: Mapped[PersonLocationState | None] = relationship(

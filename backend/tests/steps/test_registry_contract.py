@@ -117,6 +117,13 @@ def test_step_ui_hints_version_is_positive(handler, meta):
     assert meta.ui_hints_version >= 1, f"{meta.type_name}: ui_hints_version must be >= 1"
 
 
+@pytest.mark.parametrize(("handler", "meta"), _all_step_handlers())
+def test_step_output_ports_match_registered_contract(handler, meta):
+    """Every step exposes main, except condition which exposes true and false."""
+    expected = ("true", "false") if meta.type_name == "condition" else ("main",)
+    assert meta.output_ports == expected
+
+
 # -- Filter contract tests -------------------------------------------------
 
 

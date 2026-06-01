@@ -81,6 +81,28 @@ def test_enrichment_populates_display_name(test_client, client_mock):
     assert items[1]["identity_display_name"] == "missing"
 
 
+def test_enrichment_populates_room_from_upstream_metadata(test_client, client_mock):
+    client_mock.list_phs.return_value = {
+        "items": [
+            {
+                "ph_id": "ph-1",
+                "observation_count": 3,
+                "metadata": {"last_room_id": "kitchen", "last_room_name": "Kitchen"},
+            },
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0,
+    }
+
+    response = test_client.get("/api/v1/cts/ph")
+
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert item["room_id"] == "kitchen"
+    assert item["room_name"] == "Kitchen"
+
+
 def test_enrichment_fetches_identity_map_once_for_list(test_client, client_mock):
     client_mock.list_phs.return_value = {
         "items": [

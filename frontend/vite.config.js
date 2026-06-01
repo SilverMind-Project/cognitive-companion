@@ -15,6 +15,20 @@ export default defineConfig({
       "/ws": { target: "ws://localhost:8000", ws: true },
     },
   },
+  build: {
+    sourcemap: true,
+    chunkSizeWarningLimit: 900,
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("@vue-flow")) return "vue-flow";
+          if (id.includes("echarts") || id.includes("vue-echarts")) return "echarts";
+          if (id.includes("vuetify")) return "vuetify";
+          if (id.includes("@codemirror") || id.includes("@lezer")) return "codemirror";
+        },
+      },
+    },
+  },
   test: {
     environment: "happy-dom",
     globals: true,

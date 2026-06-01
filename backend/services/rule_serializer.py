@@ -10,10 +10,10 @@ from datetime import UTC, datetime
 
 from backend.models.rule import Rule
 from backend.schemas.rule_bundle import (
-    BranchTargets,
     ContextBundle,
     CronExpressionRef,
     DependencyBundle,
+    EdgeBundle,
     ImportReport,
     ReferenceBlock,
     RuleBundle,
@@ -62,6 +62,21 @@ def rule_to_bundle(
             elif val:
                 persons.add(str(val))
 
+    step_label_by_id = {step.id: step.label for step in rule.steps}
+    edges: list[EdgeBundle] = []
+    for edge in rule.edges:
+        source_label = step_label_by_id.get(edge.source_step_id)
+        target_label = step_label_by_id.get(edge.target_step_id)
+        if source_label and target_label:
+            edges.append(
+                EdgeBundle(
+                    source_label=source_label,
+                    source_port=edge.source_port,
+                    target_label=target_label,
+                    target_port=edge.target_port,
+                )
+            )
+
     return RuleBundle(
         exported_at=now,
         exported_by=exported_by,
@@ -105,14 +120,13 @@ def rule_to_bundle(
                 label=step.label or step.step_type,
                 step_type=step.step_type,
                 enabled=step.enabled,
+                position_x=step.position_x,
+                position_y=step.position_y,
                 config=step.config_json or {},
-                branches=BranchTargets(
-                    on_true=_label_for_id(rule, step.next_step_on_true),
-                    on_false=_label_for_id(rule, step.next_step_on_false),
-                ),
             )
             for step in sorted(rule.steps, key=lambda s: s.order)
         ],
+        edges=edges,
         dependencies=[
             DependencyBundle(
                 parent_rule_name=dep.parent_rule.name,
@@ -221,15 +235,6 @@ def validate_bundle(bundle: RuleBundle, current_app_version: str) -> ImportRepor
 
 
 # -- helpers ------------------------------------------------------------------
-
-
-def _label_for_id(rule: Rule, step_id: int | None) -> str | None:
-    if step_id is None:
-        return None
-    for step in rule.steps:
-        if step.id == step_id:
-            return step.label
-    return None
 
 
 def _get_step_metadata(step_type: str):

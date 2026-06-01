@@ -24,6 +24,7 @@
 
 <script setup>
 import { computed } from "vue";
+import dagre from "@dagrejs/dagre";
 import VChart from "vue-echarts";
 import "@/components/charts/echarts.js";
 import { useChartTheme } from "@/composables/useChartTheme.js";
@@ -46,6 +47,14 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  activeEdges: {
+    type: Object,
+    default: () => new Set(),
+  },
+  nodeTimings: {
+    type: Object,
+    default: () => ({}),
+  },
   loading: {
     type: Boolean,
     default: false,
@@ -60,6 +69,26 @@ const { chartTheme } = useChartTheme();
 
 const isEmpty = computed(() => !props.nodes?.length);
 
+function _computePositions(nodes, edges) {
+  if (!nodes.length) return {};
+  const graph = new dagre.graphlib.Graph();
+  graph.setDefaultEdgeLabel(() => ({}));
+  graph.setGraph({ rankdir: "LR", nodesep: 60, ranksep: 120 });
+  for (const node of nodes) {
+    graph.setNode(node.id, { width: 120, height: 48 });
+  }
+  for (const edge of edges) {
+    graph.setEdge(edge.source, edge.target);
+  }
+  dagre.layout(graph);
+  return Object.fromEntries(
+    nodes.map((node) => {
+      const position = graph.node(node.id) || { x: 0, y: 0 };
+      return [node.id, { x: position.x, y: position.y }];
+    }),
+  );
+}
+
 function nodeColor(status, id, th) {
   if (id === props.activeNodeId || status === "running") return th._severity.running;
   const map = {
@@ -73,10 +102,13 @@ function nodeColor(status, id, th) {
 
 const chartOption = computed(() => {
   const th = chartTheme.value;
+  const positions = _computePositions(props.nodes, props.edges);
 
   const graphNodes = props.nodes.map((n) => ({
     id: n.id,
     name: n.label ?? n.id,
+    x: positions[n.id]?.x ?? 0,
+    y: positions[n.id]?.y ?? 0,
     symbolSize:
       n.id === props.activeNodeId || n.status === "running" ? 24 : 16,
     itemStyle: {
@@ -93,14 +125,25 @@ const chartOption = computed(() => {
     _status: n.status,
   }));
 
-  const graphEdges = props.edges.map((e) => ({
-    source: e.source,
-    target: e.target,
-    lineStyle: {
-      color: th.xAxis.axisLine.lineStyle.color,
-      curveness: 0.1,
-    },
-  }));
+  const graphEdges = props.edges.map((e) => {
+    const sourceHandle = e.sourceHandle || e.source_handle || "main";
+    const isActive = props.activeEdges?.has?.(`${e.source}:${sourceHandle}`);
+    return {
+      source: e.source,
+      target: e.target,
+      lineStyle: {
+        color: isActive ? th._severity.succeeded : th.xAxis.axisLine.lineStyle.color,
+        width: isActive ? 3 : 1.5,
+        curveness: 0.1,
+      },
+      label: {
+        show: Boolean(sourceHandle && sourceHandle !== "main"),
+        formatter: sourceHandle || "",
+        color: th.textStyle.color,
+        fontSize: 10,
+      },
+    };
+  });
 
   return {
     backgroundColor: "transparent",
@@ -109,7 +152,9 @@ const chartOption = computed(() => {
       ...th.tooltip,
       formatter: (p) => {
         if (p.dataType === "node") {
-          return `${p.name}<br/>Status: ${p.data._status ?? "unknown"}`;
+          const timing = props.nodeTimings?.[p.data.id];
+          const timingStr = timing != null ? `<br/>${(timing / 1000).toFixed(1)}s` : "";
+          return `${p.name}<br/>Status: ${p.data._status ?? "unknown"}${timingStr}`;
         }
         return "";
       },
@@ -117,15 +162,10 @@ const chartOption = computed(() => {
     series: [
       {
         type: "graph",
-        layout: "force",
+        layout: "none",
         data: graphNodes,
         edges: graphEdges,
         roam: true,
-        force: {
-          repulsion: 120,
-          edgeLength: [80, 150],
-          gravity: 0.1,
-        },
         lineStyle: { opacity: 0.7 },
         emphasis: {
           focus: "adjacency",

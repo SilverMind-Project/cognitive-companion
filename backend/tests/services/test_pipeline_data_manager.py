@@ -492,5 +492,5 @@ def test_resolve_pipeline_value_list_index():
 
 def test_reserved_pipeline_keys_contains_expected():
     keys = reserved_pipeline_keys()
-    for expected in ("trigger", "system", "_pipeline", "_step_timings", "steps", "error"):
+    for expected in ("trigger", "system", "_pipeline", "_graph", "_step_timings", "steps", "error"):
         assert expected in keys

@@ -7,6 +7,10 @@ GET /pipeline/ingest/activity     -- recent ingest events
 All endpoints require the ``caregiver`` permission (same gate as
 ``/workflows``).  A missing execution returns 404; no fabricated envelope
 (rule 15).
+
+M7 boundary: these envelopes are lightweight live-list/dashboard seeds. Rich
+execution detail, graph snapshots, and per-step inspector data are canonical
+under GET /workflows/{execution_id}/detail.
 """
 
 from __future__ import annotations

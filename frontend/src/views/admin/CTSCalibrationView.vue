@@ -234,11 +234,12 @@
                       :fill="pointColor(i)"
                     />
                     <text
+                      v-bind="haloLg"
                       :x="pt.pixel[0] + 18"
                       :y="pt.pixel[1] - 10"
                       :fill="pointColor(i)"
                       font-size="48"
-                      font-weight="bold"
+                      font-weight="500"
                       style="pointer-events:none"
                     >{{ i + 1 }}</text>
                   </g>
@@ -283,11 +284,12 @@
                       fill="#f59e0b"
                     />
                     <text
+                      v-bind="haloLg"
                       :x="pendingPixel[0] + 18"
                       :y="pendingPixel[1] - 10"
                       fill="#f59e0b"
                       font-size="48"
-                      font-weight="bold"
+                      font-weight="500"
                     >{{ points.length + 1 }}?</text>
                   </g>
                 </svg>
@@ -350,7 +352,7 @@
                       v-if="previewCoveragePolygon"
                       :points="previewCoveragePolygon"
                       fill="rgba(99,102,241,0.12)"
-                      :stroke="previewStatus === 'ok' ? '#4caf50' : previewStatus === 'warning' ? '#ff9800' : '#f44336'"
+                      :stroke="qualityColor(previewStatus === 'ok' ? 0 : previewStatus === 'warning' ? 0.10 : 0.30)"
                       stroke-width="2"
                       stroke-dasharray="8 4"
                     />
@@ -358,7 +360,7 @@
                       v-if="previewCoveragePolygon && previewStatus"
                       x="8"
                       y="20"
-                      :fill="previewStatus === 'ok' ? '#4caf50' : previewStatus === 'warning' ? '#ff9800' : '#f44336'"
+                      :fill="qualityColor(previewStatus === 'ok' ? 0 : previewStatus === 'warning' ? 0.10 : 0.30)"
                       font-size="13"
                       font-weight="700"
                     >
@@ -393,11 +395,12 @@
                         :fill="pointColor(i)"
                       />
                       <text
+                        v-bind="haloSm"
                         :x="(pt.floor_m[0] / (fpWidth * fpMpp)) * fpImgRect.width + 12"
                         :y="(pt.floor_m[1] / (fpHeight * fpMpp)) * fpImgRect.height - 6"
                         :fill="pointColor(i)"
                         font-size="12"
-                        font-weight="bold"
+                        font-weight="700"
                         style="pointer-events:none"
                       >{{ i + 1 }}</text>
                     </g>
@@ -763,8 +766,16 @@ import { household } from "../../services/household.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import { useCtsWebSocket } from "../../composables/useCtsWebSocket.js";
+import { HALO, qualityColor } from "../../composables/useAnnotationStyle.js";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
 import CalibrationHealthPanel from "../../components/cts/CalibrationHealthPanel.vue";
+
+// haloLg: camera natural-resolution SVG (viewBox ~1920×1080, font-size 48)
+//   stroke-width 8 ≈ 17% of 48 — thin enough to not distort letterforms
+// haloSm: floor-plan display-pixel SVG (viewBox = displayed size, font-size 12)
+//   stroke-width 2 ≈ 17% of 12
+const haloLg = HALO.attrs(8);
+const haloSm = HALO.attrs(2);
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { blurMode } = useBlurMode();
@@ -827,10 +838,7 @@ const scaleReady = computed(() => !!(fpMpp.value && fpWidth.value && fpHeight.va
 function pointColor(i) {
   const residuals = result.value?.residuals_m ?? previewResiduals.value;
   if (!residuals || residuals.length <= i) return "var(--cc-brand)";
-  const r = residuals[i];
-  if (r < 0.05) return "#4caf50";
-  if (r < 0.15) return "#ff9800";
-  return "#f44336";
+  return qualityColor(residuals[i]);
 }
 
 // ── Point-in-quadrant helper ───────────────────────────────────────────────

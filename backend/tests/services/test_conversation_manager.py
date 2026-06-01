@@ -1,7 +1,7 @@
 """Tests for ``ConversationManager``.
 
 Uses the shared ``db_factory`` fixture from ``backend/tests/conftest.py`` so
-every test runs against an isolated in-memory SQLite database with the real
+every test runs against an isolated PostgreSQL test database with the real
 ORM schema.
 """
 

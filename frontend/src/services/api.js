@@ -216,17 +216,30 @@ export const api = {
 
   // Pipeline Steps
   getRuleSteps: (ruleId) => request(`/rules/${ruleId}/steps`),
+  getRuleEdges: (ruleId) => request(`/rules/${ruleId}/edges`, { contract: "rule.edges.list" }),
+  replaceRuleEdges: (ruleId, edges) =>
+    request(`/rules/${ruleId}/edges`, {
+      method: "PUT",
+      body: JSON.stringify({ edges }),
+      contract: "rule.edges.replace",
+    }),
   addRuleStep: (ruleId, data) =>
     request(`/rules/${ruleId}/steps`, { method: "POST", body: JSON.stringify(data) }),
   updateRuleStep: (ruleId, stepId, data) =>
     request(`/rules/${ruleId}/steps/${stepId}`, { method: "PUT", body: JSON.stringify(data) }),
+  updateRuleStepPosition: (ruleId, stepId, { position_x, position_y }) =>
+    request(`/rules/${ruleId}/steps/${stepId}`, {
+      method: "PUT",
+      body: JSON.stringify({ position_x, position_y }),
+    }),
+  batchUpdateStepPositions: (ruleId, positions) =>
+    request(`/rules/${ruleId}/steps/positions`, {
+      method: "PUT",
+      body: JSON.stringify({ positions }),
+      contract: "rule.steps.positions.update",
+    }),
   deleteRuleStep: (ruleId, stepId) =>
     request(`/rules/${ruleId}/steps/${stepId}`, { method: "DELETE" }),
-  reorderRuleSteps: (ruleId, steps) =>
-    request(`/rules/${ruleId}/steps/reorder`, {
-      method: "PUT",
-      body: JSON.stringify({ steps }),
-    }),
   executeRule: (ruleId) =>
     request(`/rules/${ruleId}/execute`, { method: "POST" }),
 
@@ -237,8 +250,8 @@ export const api = {
   },
   getWorkflow: (id) => request(`/workflows/${id}`, { contract: "workflows.single" }),
   cancelWorkflow: (id) => request(`/workflows/${id}/cancel`, { method: "POST" }),
-  getWorkflowDetail: (id) => request(`/workflows/${id}/detail`),
-  rerunWorkflow: (id) => request(`/workflows/${id}/rerun`, { method: "POST" }),
+  getWorkflowDetail: (id) => request(`/workflows/${id}/detail`, { contract: "workflows.detail" }),
+  rerunWorkflow: (id) => request(`/workflows/${id}/rerun`, { method: "POST", body: JSON.stringify({}) }),
 
   // Activities
   getActivities: (params = {}) => {

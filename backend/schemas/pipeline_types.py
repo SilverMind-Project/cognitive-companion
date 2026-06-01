@@ -18,6 +18,35 @@ class StepTypeOut(BaseModel):
     ui_hints: dict | None = None
     output_schema: dict | None = None
     tags: list[str] = []
+    output_ports: list[str] = ["main"]
+
+
+class PipelineEdgeCreate(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    source_step_id: int
+    source_port: str = "main"
+    target_step_id: int
+    target_port: str = "main"
+
+
+class PipelineEdgeOut(BaseModel):
+    id: int
+    rule_id: int
+    source_step_id: int
+    source_port: str
+    target_step_id: int
+    target_port: str
+
+    model_config = {"from_attributes": True}
+
+
+class PipelineEdgeBulkUpdate(BaseModel):
+    """Replace all edges for a rule in one atomic operation."""
+
+    model_config = {"extra": "forbid"}
+
+    edges: list[PipelineEdgeCreate]
 
 
 class ChannelTypeOut(BaseModel):

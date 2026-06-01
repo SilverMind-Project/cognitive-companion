@@ -397,8 +397,8 @@ class SeniorKnowledgeQuery(Base):
 
 # B-tree indices for timestamp-sorted queries (declared outside the model for
 # tables that only need indexes, not constraints).
-Index("idx_quiz_sessions_started_at", QuizSession.started_at.desc())
-Index("idx_info_deliveries_at", InfoCardDelivery.delivered_at.desc())
+Index("idx_quiz_sessions_started_at", QuizSession.started_at)
+Index("idx_info_deliveries_at", InfoCardDelivery.delivered_at)
 
 # StreamingDiskANN (pgvectorscale) cosine-distance index for RAG search.
 Index(

@@ -8,14 +8,10 @@ from unittest.mock import patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-import backend.models  # noqa: F401
 from backend.core.auth import AuthContext, get_auth_context
 from backend.core.config import Settings
-from backend.core.database import Base
+from backend.core.database import get_db
 from backend.core.exceptions import register_exception_handlers
 from backend.routers.cts_signals import _get_signal_store, router
 from backend.services.cts.signal_store import SignalStore
@@ -35,22 +31,14 @@ _BASE_SIGNAL = {
 # ---------------------------------------------------------------------------
 
 
-def _build_app(cts_enabled: bool = True):
-    """Return (TestClient, SignalStore) backed by an in-memory SQLite DB."""
+def _missing_db_factory():
+    raise RuntimeError("CTS signal store was used without a database fixture")
+
+
+def _build_app(db_factory=None, cts_enabled: bool = True):
+    """Return (TestClient, SignalStore) backed by the shared PostgreSQL fixture."""
     cfg = Settings.from_dict({"cts": {"enabled": cts_enabled}})
-
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(bind=engine)
-    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-
-    def _session():
-        return Session()
-
-    store = SignalStore(db_factory=_session)
+    store = SignalStore(db_factory=db_factory or _missing_db_factory)
 
     app = FastAPI()
     register_exception_handlers(app)
@@ -59,22 +47,32 @@ def _build_app(cts_enabled: bool = True):
         key="x", name="tester", permissions=["*"]
     )
     app.dependency_overrides[_get_signal_store] = lambda: store
+    if db_factory is not None:
 
-    patcher = patch("backend.routers.cts_signals.settings", cfg)
+        def _override_get_db():
+            db = db_factory()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[get_db] = _override_get_db
+
+    patcher = patch("backend.routers.cts_deps.settings", cfg)
     patcher.start()
     return TestClient(app), store, patcher
 
 
 @pytest.fixture
-def client_and_store():
-    c, s, p = _build_app(cts_enabled=True)
+def client_and_store(db_factory):
+    c, s, p = _build_app(db_factory=db_factory, cts_enabled=True)
     yield c, s
     p.stop()
 
 
 @pytest.fixture
-def client_off():
-    c, _, p = _build_app(cts_enabled=False)
+def client_off(db_factory):
+    c, _, p = _build_app(db_factory=db_factory, cts_enabled=False)
     yield c
     p.stop()
 

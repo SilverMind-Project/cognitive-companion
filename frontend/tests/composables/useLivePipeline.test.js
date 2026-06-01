@@ -47,7 +47,7 @@ const ACTIVE_RUN = {
     { id: "101", label: "Filter",  step_type: "condition",    status: "pending" },
     { id: "102", label: "Notify",  step_type: "notification", status: "pending" },
   ],
-  edges: [{ source: "101", target: "102" }],
+  edges: [{ source: "101", source_handle: "true", target: "102" }],
 };
 
 function mountComposable() {
@@ -132,6 +132,60 @@ describe("useLivePipeline — active runs (D1)", () => {
       .find((r) => r.execution_id === 10)
       ?.nodes.find((n) => n.id === "101");
     expect(node?.status).toBe("running");
+    expect(result.activeRuns.value.find((r) => r.execution_id === 10)?.active_node_id).toBe("101");
+  });
+
+  it("seeds nodes and edges from pipeline_started event payload", async () => {
+    const { result } = mountComposable();
+    await flushPromises();
+
+    capturedOnMessage?.({
+      type: "pipeline_event",
+      event_type: "pipeline_started",
+      execution_id: 20,
+      rule_id: 2,
+      rule_name: "doorbell",
+      status: "running",
+      started_at: "2026-06-01T10:01:00Z",
+      steps: [
+        { id: "201", label: "Condition", step_type: "condition", enabled: true },
+        { id: "202", label: "Notify", step_type: "notification", enabled: true },
+      ],
+      edges: [
+        { source: "201", source_handle: "false", target: "202", target_handle: "main" },
+      ],
+      sequence: 1,
+    });
+
+    const run = result.activeRuns.value.find((r) => r.execution_id === 20);
+    expect(run?.nodes).toHaveLength(2);
+    expect(run?.edges[0].sourceHandle).toBe("false");
+    expect(run?.active_edges).toBeInstanceOf(Set);
+  });
+
+  it("tracks active_edges when step_completed event has output_port", async () => {
+    const { result } = mountComposable();
+    await flushPromises();
+
+    capturedOnMessage?.({
+      type: "pipeline_event",
+      event_type: "step_completed",
+      execution_id: 10,
+      rule_id: 1,
+      rule_name: "motion-alert",
+      step_id: "101",
+      status: "succeeded",
+      output_port: "true",
+      elapsed_ms: 42,
+      sequence: 3,
+    });
+
+    const run = result.activeRuns.value.find((r) => r.execution_id === 10);
+    const node = run?.nodes.find((n) => n.id === "101");
+    expect(run?.active_edges.has("101:true")).toBe(true);
+    expect(run?.edges[0].active).toBe(true);
+    expect(node?.output_port).toBe("true");
+    expect(node?.elapsed_ms).toBe(42);
   });
 
   it("pipeline_completed removes run from activeRuns", async () => {

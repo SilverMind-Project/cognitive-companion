@@ -24,7 +24,7 @@ app:
   log_level: INFO
   name: ${APP_NAME}
 database:
-  url: sqlite:///./data/test.db
+  url: postgresql+psycopg://cc:cc@localhost:5432/cc_test
 llm:
   vision:
     model: fake-vision
@@ -112,7 +112,7 @@ class TestLoadFromYaml:
     def test_basic_get(self, config_dir: Path) -> None:
         s = Settings(config_dir=config_dir, env={})
         assert s.get("app.log_level") == "INFO"
-        assert s.get("database.url") == "sqlite:///./data/test.db"
+        assert s.get("database.url") == "postgresql+psycopg://cc:cc@localhost:5432/cc_test"
 
     def test_missing_returns_default(self, config_dir: Path) -> None:
         s = Settings(config_dir=config_dir, env={})

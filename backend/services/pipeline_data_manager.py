@@ -45,12 +45,13 @@ step label to look under.
 from __future__ import annotations
 
 import copy
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any
 
 from backend.core.logging import get_logger
 from backend.core.template import resolve_path
+from backend.models.pipeline import PipelineEdge, PipelineStep
 
 logger = get_logger(__name__)
 
@@ -62,6 +63,7 @@ _RESERVED_KEYS: frozenset[str] = frozenset(
         "trigger",
         "system",
         "_pipeline",
+        "_graph",
         "_step_timings",
         "_cooloff_triggered",
         "_pending_interactive_step_id",
@@ -165,6 +167,38 @@ def build_initial_pipeline_data(
     if webhook_payload:
         data["trigger_input"] = webhook_payload
     return data
+
+
+def build_graph_snapshot(
+    steps: list[PipelineStep],
+    edges: list[PipelineEdge],
+    output_ports_for_step_type: Callable[[str], tuple[str, ...]],
+) -> dict[str, Any]:
+    """Build the immutable graph payload stored on a workflow execution."""
+    enabled_step_ids = {step.id for step in steps}
+    return {
+        "steps": [
+            {
+                "id": step.id,
+                "label": step.label or step.step_type,
+                "step_type": step.step_type,
+                "position_x": step.position_x,
+                "position_y": step.position_y,
+                "output_ports": list(output_ports_for_step_type(step.step_type)),
+            }
+            for step in steps
+        ],
+        "edges": [
+            {
+                "source_step_id": edge.source_step_id,
+                "source_port": edge.source_port,
+                "target_step_id": edge.target_step_id,
+                "target_port": edge.target_port,
+            }
+            for edge in edges
+            if edge.source_step_id in enabled_step_ids and edge.target_step_id in enabled_step_ids
+        ],
+    }
 
 
 def apply_step_result(

@@ -65,7 +65,13 @@
           <v-btn icon="mdi-close" variant="text" @click="detailOpen = false" />
         </v-card-title>
         <v-card-text>
-          <ExecutionDetail :execution="detail" :live="false" @rerun="rerunDetail" />
+          <ExecutionInspector
+            v-if="detail"
+            :execution-id="detail.id"
+            source="historic"
+            :rule-id="detail.rule_id"
+            @rerun="rerunDetail"
+          />
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -77,7 +83,7 @@ import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "../../services/api.js";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
-import ExecutionDetail from "../../components/pipeline/ExecutionDetail.vue";
+import ExecutionInspector from "../../components/pipeline/ExecutionInspector.vue";
 import { useNotify } from "../../composables/useNotify.js";
 
 const router = useRouter();

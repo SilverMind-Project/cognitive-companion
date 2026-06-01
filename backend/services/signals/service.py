@@ -4,8 +4,8 @@ Wraps :class:`~backend.services.cts.signal_store.SignalStore` so pipeline
 steps never touch ``db_factory`` or ``SignalStore`` directly.
 
 All methods are async and accept a ``db_factory`` callable that returns
-a SQLAlchemy ``Session``.  Tests inject a factory backed by the in-memory
-SQLite fixture.
+a SQLAlchemy ``Session``.  Tests inject a factory backed by the shared
+PostgreSQL fixture.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class SignalsService:
     db_factory:
         Callable that returns a new SQLAlchemy ``Session``.  In production
         this is ``backend.core.database.get_session``; in tests it wraps
-        the in-memory fixture.
+        the PostgreSQL fixture.
     """
 
     def __init__(self, db_factory) -> None:

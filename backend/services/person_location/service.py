@@ -387,24 +387,9 @@ class PersonLocationService:
     # ------------------------------------------------------------------
 
     async def _apply_decision(self, decision: SegmentDecision) -> None:
-        for sw in decision.writes:
-            await self._seg.insert(sw.segment)
-        for sc in decision.closes:
-            await self._seg.close_segment(sc.segment_id, sc.exited_at, sc.exit_source)
-        for ss in decision.supersedes:
-            existing = await self._seg.get_by_id(ss.segment_id)
-            if existing is not None:
-                updated = PresenceSegment(
-                    id=existing.id,
-                    person_id=existing.person_id,
-                    room_id=existing.room_id,
-                    entered_at=existing.entered_at,
-                    exited_at=existing.exited_at,
-                    entry_source=existing.entry_source,
-                    exit_source=existing.exit_source,
-                    confidence=existing.confidence,
-                    last_observed_at=existing.last_observed_at,
-                    superseded_by=ss.superseded_by,
-                    metadata=existing.metadata,
-                )
-                await self._seg.update(updated)
+        """Apply a segment decision atomically."""
+        await self._seg.apply_decision(
+            writes=[sw.segment for sw in decision.writes],
+            closes=[(sc.segment_id, sc.exited_at, sc.exit_source) for sc in decision.closes],
+            supersedes=[(ss.segment_id, ss.superseded_by) for ss in decision.supersedes],
+        )

@@ -63,6 +63,11 @@ class PersonDetection:
         direction: Raw direction string from the person-ID service, or None.
         frame_index: Index into the ``media_paths`` list passed to
             :meth:`PersonTrackingService.process_camera_event`, or None.
+        recognition_state: Three-valued state ("recognized" / "candidate" /
+            "unrecognized").  Steps can use this to gate behaviour on face
+            quality without a second network call.
+        similarity: Raw cosine similarity to the best gallery centroid.
+        yaw_deg: Head pose yaw in degrees (primary frontality axis).
     """
 
     person_id: str
@@ -71,6 +76,10 @@ class PersonDetection:
     bbox: list[float]
     direction: str | None = None
     frame_index: int | None = None
+    # Rich face evidence forwarded from person-identification-service.
+    recognition_state: str = "recognized"
+    similarity: float = 0.0
+    yaw_deg: float = 0.0
 
     def dict(self) -> dict:
         return {
@@ -80,6 +89,11 @@ class PersonDetection:
             "bbox": self.bbox,
             "direction": self.direction,
             "frame_index": self.frame_index,
+            # Rich face evidence exposed to pipeline-data expression resolution
+            # so steps can reference e.g. {{person_detections.0.recognition_state}}.
+            "recognition_state": self.recognition_state,
+            "similarity": self.similarity,
+            "yaw_deg": self.yaw_deg,
         }
 
 
@@ -220,6 +234,10 @@ class PersonTrackingService:
                         bbox=face.bbox,
                         direction=direction_map.get(face.person_id),
                         frame_index=frame_idx,
+                        # Rich face evidence forwarded from person-id service.
+                        recognition_state=face.recognition_state,
+                        similarity=face.similarity,
+                        yaw_deg=face.yaw_deg,
                     )
 
         detections = list(best.values())

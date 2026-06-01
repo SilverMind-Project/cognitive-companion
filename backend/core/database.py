@@ -69,11 +69,16 @@ class TimestampMixin:
 
 
 @contextmanager
-def transaction(db_factory: Callable[[], Session]) -> Generator[Session]:
+def transaction(
+    db_factory: Callable[[], Session],
+    *,
+    lock_timeout_s: int = 30,
+) -> Generator[Session]:
     """Context manager that yields a DB session and commits on success.
 
     Rolls back on exception and always closes the session in a finally block.
-    Use in services that follow the session-per-call pattern.
+    Sets ``lock_timeout`` at the session level so no statement waits longer
+    than *lock_timeout_s* seconds for a lock before raising.
 
     Usage::
 
@@ -81,8 +86,11 @@ def transaction(db_factory: Callable[[], Session]) -> Generator[Session]:
             row = db.get(Model, id)
             row.field = value
     """
+    from sqlalchemy import text
+
     db = db_factory()
     try:
+        db.execute(text(f"SET LOCAL lock_timeout = '{lock_timeout_s}s'"))
         yield db
         db.commit()
     except Exception:
@@ -177,8 +185,6 @@ class Database:
         pool_pre_ping = settings.as_bool("database.pool_pre_ping")
         echo = settings.as_bool("database.echo")
 
-        # StaticPool (SQLite default) and NullPool don't accept pool_size/max_overflow/pool_timeout.
-        # Build the engine with pool params first; if the pool type rejects them, retry without.
         engine_kwargs: dict[str, Any] = {
             "url": url,
             "echo": echo,
@@ -189,13 +195,7 @@ class Database:
             "pool_timeout": pool_timeout,
         }
 
-        try:
-            self._engine: Engine = create_engine(**engine_kwargs)
-        except TypeError:
-            del engine_kwargs["pool_size"]
-            del engine_kwargs["max_overflow"]
-            del engine_kwargs["pool_timeout"]
-            self._engine = create_engine(**engine_kwargs)
+        self._engine: Engine = create_engine(**engine_kwargs)
 
         pool_type = type(self._engine.pool).__name__
         if pool_type == "QueuePool":

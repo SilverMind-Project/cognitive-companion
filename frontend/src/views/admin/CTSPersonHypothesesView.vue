@@ -140,7 +140,7 @@
           variant="outlined"
           density="compact"
           hide-details
-          style="max-width: 230px"
+          style="max-width: 170px"
         />
         <v-btn
           color="warning"
@@ -169,19 +169,24 @@
         @click:row="(_event, { item }) => openInspector(item, 'view')"
         @update:options="onTableOptions"
       >
-        <!-- Hypothesis -->
+        <!-- Identity -->
         <template #item.hypothesis="{ item }">
-          <div class="d-flex flex-column ga-1">
-            <v-chip
-              :color="item.current_identity_id ? 'success' : 'warning'"
-              size="small"
-              variant="tonal"
-              class="align-self-start"
-            >
-              {{ item.identity_display_name || item.current_identity_id || "UNKNOWN" }}
-            </v-chip>
-            <span class="cc-code text-caption">{{ shortPhId(item.ph_id) }}</span>
-          </div>
+          <v-chip
+            :color="item.current_identity_id ? 'success' : 'warning'"
+            size="small"
+            variant="tonal"
+            class="ph-identity-chip"
+          >
+            <v-icon start size="14">
+              {{ item.current_identity_id ? "mdi-account-check-outline" : "mdi-account-help-outline" }}
+            </v-icon>
+            {{ identityLabel(item) }}
+          </v-chip>
+        </template>
+
+        <!-- PH ID -->
+        <template #item.ph_id="{ item }">
+          <span class="cc-code text-caption">{{ shortPhId(item.ph_id) }}</span>
         </template>
 
         <!-- Duration -->
@@ -191,7 +196,15 @@
 
         <!-- Room -->
         <template #item.room_name="{ item }">
-          <span class="text-body-2">{{ item.room_name || "—" }}</span>
+          <div class="d-flex align-center ga-1">
+            <v-icon size="14" color="medium-emphasis">mdi-floor-plan</v-icon>
+            <span
+              class="text-body-2"
+              :class="{ 'text-medium-emphasis': !roomLabel(item) }"
+            >
+              {{ roomLabel(item) || "Unknown" }}
+            </span>
+          </div>
         </template>
 
         <!-- Cameras -->
@@ -211,24 +224,23 @@
 
         <!-- Actions -->
         <template #item.actions="{ item }">
-          <div class="d-flex ga-2">
+          <div class="d-flex ga-1 justify-end">
+            <v-btn
+              size="small"
+              variant="text"
+              icon="mdi-eye-outline"
+              title="Inspect"
+              :data-testid="`ph-row-${item.ph_id}`"
+              @click.stop="openInspector(item, 'view')"
+            />
             <v-btn
               size="small"
               variant="tonal"
-              prepend-icon="mdi-eye"
-              :data-testid="`ph-row-${item.ph_id}`"
-              @click.stop="openInspector(item, 'view')"
-            >
-              Inspect
-            </v-btn>
-            <v-btn
-              size="small"
-              variant="outlined"
-              prepend-icon="mdi-account-edit"
+              color="primary"
+              icon="mdi-account-edit-outline"
+              title="Correct identity"
               @click.stop="openInspector(item, 'correct')"
-            >
-              Correct
-            </v-btn>
+            />
           </div>
         </template>
 
@@ -496,11 +508,39 @@ export default {
     }, { immediate: true });
 
     async function loadIdentities() {
+      const byId = new Map();
       try {
         const { cts } = await import("@/services/cts");
         const data = await cts.getIdentities();
-        identities.value = data.identities || [];
-      } catch { /* identities are non-critical */ }
+        for (const identity of data.identities || []) {
+          const identityId = identity.identity_id || identity.id;
+          if (!identityId) continue;
+          byId.set(identityId, {
+            identity_id: identityId,
+            display_name: identity.display_name || identity.name || identityId,
+            source: "gallery",
+          });
+        }
+      } catch { /* gallery identities are non-critical */ }
+
+      try {
+        const { api } = await import("@/services/api");
+        const people = await api.getPersons();
+        for (const person of people || []) {
+          if (!person.id || person.is_active === false) continue;
+          if (!byId.has(person.id)) {
+            byId.set(person.id, {
+              identity_id: person.id,
+              display_name: person.name || person.id,
+              source: "household",
+            });
+          }
+        }
+      } catch { /* household members are non-critical */ }
+
+      identities.value = [...byId.values()].sort((a, b) =>
+        (a.display_name || a.identity_id).localeCompare(b.display_name || b.identity_id)
+      );
     }
 
     // ── Identity groups for People tab ──
@@ -531,12 +571,13 @@ export default {
 
     // ── Table ──
     const headers = [
-      { title: "Hypothesis", key: "hypothesis", sortable: false, width: 230 },
+      { title: "Identity", key: "hypothesis", sortable: false, width: 190 },
+      { title: "PH ID", key: "ph_id", sortable: false, width: 100 },
       { title: "Duration", key: "duration", sortable: false, width: 100 },
       { title: "Room", key: "room_name", sortable: false, width: 150 },
       { title: "Cameras", key: "active_cameras", sortable: false, width: 210 },
       { title: "Last seen", key: "last_seen_at", sortable: false, width: 130 },
-      { title: "", key: "actions", sortable: false, width: 190 },
+      { title: "", key: "actions", sortable: false, width: 96, align: "end" },
     ];
 
     const identityOptions = computed(() => {
@@ -558,14 +599,22 @@ export default {
       const seen = new Set();
       const opts = [];
       for (const ph of phList.state.items.value) {
-        const rn = ph.room_name;
-        if (rn && !seen.has(rn)) {
-          seen.add(rn);
-          opts.push({ title: rn, value: rn });
+        const roomValue = ph.room_id || ph.room_name;
+        if (roomValue && !seen.has(roomValue)) {
+          seen.add(roomValue);
+          opts.push({ title: ph.room_name || roomValue, value: roomValue });
         }
       }
       return opts;
     });
+
+    function identityLabel(ph) {
+      return ph.identity_display_name || ph.current_identity_id || "Unknown";
+    }
+
+    function roomLabel(ph) {
+      return ph.room_name || ph.room_id || "";
+    }
 
     function formatDuration(ph) {
       if (!ph.born_at) return "—";
@@ -802,6 +851,8 @@ export default {
       formatRelative,
       formatDuration,
       shortPhId,
+      identityLabel,
+      roomLabel,
       onFilterChange,
       onTableOptions,
       openInspector,
@@ -836,7 +887,9 @@ export default {
 
 .ph-filter-grid {
   display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(140px, 0.8fr) minmax(160px, 0.9fr) minmax(170px, auto);
+  /* Compact, fixed-width filter controls; trailing 1fr column absorbs slack
+     so the boxes stay narrow and left-packed instead of stretching. */
+  grid-template-columns: 170px 150px 130px 150px max-content 1fr;
   gap: 12px;
   align-items: center;
 }
@@ -852,6 +905,17 @@ export default {
   border: 1px solid var(--cc-divider);
   border-radius: var(--cc-radius-sm);
   padding: 8px;
+}
+
+.ph-identity-chip {
+  max-width: 180px;
+}
+
+.ph-identity-chip :deep(.v-chip__content) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 960px) {

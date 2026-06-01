@@ -71,6 +71,7 @@ class ConditionHandler(StepHandler):
                     "branch": {"type": "string"},
                 },
             },
+            output_ports=("true", "false"),
         )
 
     async def execute(
@@ -89,7 +90,7 @@ class ConditionHandler(StepHandler):
 
         result = evaluate_condition(expression, pipeline_data)
 
-        next_step_id = step.next_step_on_true if result else step.next_step_on_false
+        activated_port = "true" if result else "false"
 
         result_data: dict = {
             "condition": {
@@ -104,6 +105,6 @@ class ConditionHandler(StepHandler):
 
         return StepResult(
             data=result_data,
-            next_step_id=next_step_id,
-            should_continue=result if next_step_id is None else True,
+            output_ports=(activated_port,),
+            should_continue=True,
         )

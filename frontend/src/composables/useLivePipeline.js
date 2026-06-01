@@ -32,10 +32,40 @@ export function useLivePipeline() {
   async function fetchActiveRuns() {
     try {
       const runs = await api.getPipelineRuns({ status: "active" });
-      activeRuns.value = runs || [];
+      activeRuns.value = (runs || []).map(normalizeRun);
     } catch (e) {
       error.value = e?.message || "Failed to load active runs";
     }
+  }
+
+  function edgeKey(source, sourceHandle = "main") {
+    return `${source}:${sourceHandle || "main"}`;
+  }
+
+  function normalizeRun(run) {
+    const activeEdges = run.active_edges instanceof Set
+      ? run.active_edges
+      : new Set(run.active_edges || []);
+    return {
+      ...run,
+      nodes: (run.nodes || []).map((node) => ({
+        ...node,
+        status: node.status || "pending",
+        elapsed_ms: node.elapsed_ms ?? null,
+        output_port: node.output_port ?? null,
+      })),
+      edges: (run.edges || []).map((edge) => {
+        const sourceHandle = edge.sourceHandle || edge.source_handle || "main";
+        return {
+          ...edge,
+          sourceHandle,
+          targetHandle: edge.targetHandle || edge.target_handle || "main",
+          active: activeEdges.has(edgeKey(edge.source, sourceHandle)),
+        };
+      }),
+      active_node_id: run.active_node_id ?? null,
+      active_edges: activeEdges,
+    };
   }
 
   function _handleEvent(data) {
@@ -45,17 +75,33 @@ export function useLivePipeline() {
     if (et === "pipeline_started") {
       // Add a placeholder if not already present.
       if (!activeRuns.value.find((r) => r.execution_id === id)) {
+        const activeEdges = new Set();
         activeRuns.value = [
           ...activeRuns.value,
-          {
+          normalizeRun({
             execution_id: id,
             rule_id: data.rule_id,
             rule_name: data.rule_name,
             status: "running",
             started_at: data.started_at,
-            nodes: [],
-            edges: [],
-          },
+            nodes: (data.steps || []).map((step) => ({
+              id: step.id,
+              label: step.label,
+              step_type: step.step_type,
+              status: "pending",
+              elapsed_ms: null,
+              output_port: null,
+            })),
+            edges: (data.edges || []).map((edge) => ({
+              source: edge.source,
+              sourceHandle: edge.source_handle || edge.sourceHandle || "main",
+              target: edge.target,
+              targetHandle: edge.target_handle || edge.targetHandle || "main",
+              active: false,
+            })),
+            active_node_id: null,
+            active_edges: activeEdges,
+          }),
         ];
       }
     } else if (et === "pipeline_completed" || et === "pipeline_failed" || et === "pipeline_cancelled") {
@@ -70,6 +116,7 @@ export function useLivePipeline() {
         if (r.execution_id !== id) return r;
         return {
           ...r,
+          active_node_id: data.step_id,
           nodes: r.nodes.map((n) =>
             n.id === data.step_id ? { ...n, status: "running" } : n,
           ),
@@ -78,11 +125,30 @@ export function useLivePipeline() {
     } else if (et === "step_completed") {
       activeRuns.value = activeRuns.value.map((r) => {
         if (r.execution_id !== id) return r;
+        const outputPort = data.output_port || "main";
+        const nextActiveEdges = new Set([...(r.active_edges || []), edgeKey(data.step_id, outputPort)]);
         return {
           ...r,
           nodes: r.nodes.map((n) =>
-            n.id === data.step_id ? { ...n, status: data.status } : n,
+            n.id === data.step_id
+              ? {
+                  ...n,
+                  status: data.status,
+                  output_port: outputPort,
+                  elapsed_ms: data.elapsed_ms ?? n.elapsed_ms ?? null,
+                }
+              : n,
           ),
+          edges: r.edges.map((edge) => {
+            const sourceHandle = edge.sourceHandle || edge.source_handle || "main";
+            return {
+              ...edge,
+              sourceHandle,
+              active: nextActiveEdges.has(edgeKey(edge.source, sourceHandle)),
+            };
+          }),
+          active_edges: nextActiveEdges,
+          active_node_id: null,
         };
       });
     }

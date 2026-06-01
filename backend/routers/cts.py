@@ -31,8 +31,10 @@ async def get_status(
     _auth: AuthContext = Depends(require_permission("cts.view")),
 ) -> dict:
     """Live CTS health snapshot: orchestrator reachability + subscriber states."""
-    orch_client: OrchestratorClient | None = request.app.state.orchestrator_client
-    cts_runtime: CTSRuntime | None = request.app.state.cts_runtime
+    orch_client: OrchestratorClient | None = getattr(
+        request.app.state, "orchestrator_client", None
+    )
+    cts_runtime: CTSRuntime | None = getattr(request.app.state, "cts_runtime", None)
 
     orchestrator: dict = {"reachable": False, "error": None}
     if orch_client is not None:
@@ -50,6 +52,9 @@ async def get_status(
 
     return {
         "enabled": settings.as_bool("cts.enabled"),
+        "calibration_enabled": settings.as_bool("cts_ui.calibration_enabled"),
+        "dashboard_enabled": settings.as_bool("cts_ui.dashboard_enabled"),
+        "live_view_enabled": settings.as_bool("cts_ui.live_view_enabled"),
         "orchestrator": orchestrator,
         "subscribers": subscribers,
     }

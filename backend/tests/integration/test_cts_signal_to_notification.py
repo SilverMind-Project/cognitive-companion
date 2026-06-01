@@ -37,11 +37,12 @@ class TestCtsSignalPersistence:
         )
         assert signal_id > 0
 
-        signals = await signal_store.list_recent(
+        signals, total = await signal_store.list_recent(
             person_id="person-1",
             signal_type="pacing",
             window_hours=2,
         )
+        assert total == 1
         assert len(signals) == 1
         assert signals[0]["signal_type"] == "pacing"
         assert signals[0]["severity"] == "warning"
@@ -64,7 +65,8 @@ class TestCtsSignalPersistence:
             )
             assert sid > 0
 
-        all_signals = await signal_store.list_recent(person_id="person-1", window_hours=2)
+        all_signals, total = await signal_store.list_recent(person_id="person-1", window_hours=2)
+        assert total == 3
         assert len(all_signals) == 3
 
     async def test_query_filters_by_signal_type(self, signal_store):
@@ -93,12 +95,14 @@ class TestCtsSignalPersistence:
             }
         )
 
-        pacing = await signal_store.list_recent(
+        pacing, pacing_total = await signal_store.list_recent(
             person_id="person-1", signal_type="pacing", window_hours=2
         )
-        absence = await signal_store.list_recent(
+        absence, absence_total = await signal_store.list_recent(
             person_id="person-1", signal_type="absence", window_hours=2
         )
+        assert pacing_total == 1
+        assert absence_total == 1
         assert len(pacing) == 1
         assert len(absence) == 1
 
@@ -128,8 +132,9 @@ class TestCtsSignalPersistence:
             }
         )
 
-        results = await signal_store.list_recent(
+        results, total = await signal_store.list_recent(
             person_id="person-1", signal_type="pacing", severity="emergency", window_hours=2
         )
+        assert total == 1
         assert len(results) == 1
         assert results[0]["severity"] == "emergency"

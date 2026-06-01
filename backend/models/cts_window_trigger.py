@@ -9,13 +9,15 @@ thresholds. Each trigger can be linked to one or more rules via the
 from __future__ import annotations
 
 import uuid as _uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, func
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base, TimestampMixin
+from backend.core.time import UTCDateTime
 
 if TYPE_CHECKING:
     from backend.models.rule import Rule
@@ -37,6 +39,9 @@ class CtsWindowTrigger(Base, TimestampMixin):
     rooms: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     cooldown_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     rules: Mapped[list[Rule]] = relationship(
         secondary="rule_cts_window_triggers",
@@ -48,6 +53,10 @@ class RuleCtsWindowTrigger(Base):
     """Many-to-many join table linking rules to CTS window triggers."""
 
     __tablename__ = "rule_cts_window_triggers"
+    __table_args__ = (
+        Index("ix_rule_cts_window_triggers_rule_id", "rule_id"),
+        Index("ix_rule_cts_window_triggers_ct_id", "cts_window_trigger_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id", ondelete="CASCADE"), nullable=False)

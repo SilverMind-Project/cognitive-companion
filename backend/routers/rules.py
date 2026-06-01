@@ -5,15 +5,20 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.database import get_db
-from backend.core.exceptions import ConflictError, NotFoundError
+from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.models.cron_trigger import CronTrigger
-from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.models.rule import Rule, RuleContext, RuleDependency
+from backend.schemas.pipeline_types import (
+    PipelineEdgeBulkUpdate,
+    PipelineEdgeOut,
+)
 from backend.schemas.rule import (
     ContextCreate,
     CronTriggerCreate,
@@ -22,7 +27,6 @@ from backend.schemas.rule import (
     DependencyCreate,
     PipelineStepCreate,
     PipelineStepOut,
-    PipelineStepReorder,
     PipelineStepUpdate,
     RuleContextOut,
     RuleCreate,
@@ -33,10 +37,26 @@ from backend.schemas.rule import (
     RuleUpdate,
 )
 from backend.schemas.rule_bundle import ImportReport, RuleBundle
+from backend.services.pipeline_graph import validate_graph
+from backend.services.rule_importer import bundle_to_rule
 from backend.services.rule_serializer import rule_to_bundle, validate_bundle
 from backend.services.template_validator import validate_step_config
 
 router = APIRouter(prefix="/rules", tags=["rules"])
+
+
+class StepPositionUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    step_id: int
+    position_x: float
+    position_y: float
+
+
+class BatchPositionUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    positions: list[StepPositionUpdate]
 
 
 def _app_version() -> str:
@@ -198,12 +218,6 @@ def delete_rule(
         synchronize_session=False
     )
 
-    # FK dependency order:
-    #   event_logs.workflow_execution_id → workflow_executions.id
-    #   event_logs.rule_id              → rules.id
-    #   workflow_executions.rule_id     → rules.id
-    #   pipeline_steps (self-ref)       next_step_on_true/false → pipeline_steps.id
-
     exec_ids = [
         row[0]
         for row in db.query(WorkflowExecution.id).filter(WorkflowExecution.rule_id == rule_id).all()
@@ -219,12 +233,6 @@ def delete_rule(
 
     db.query(WorkflowExecution).filter(WorkflowExecution.rule_id == rule_id).delete(
         synchronize_session=False
-    )
-
-    # Clear self-referential step branch FKs so cascade delete can proceed
-    db.query(PipelineStep).filter(PipelineStep.rule_id == rule_id).update(
-        {"next_step_on_true": None, "next_step_on_false": None},
-        synchronize_session=False,
     )
 
     db.delete(rule)
@@ -252,6 +260,59 @@ def list_steps(
         .all()
     )
     return steps
+
+
+@router.get("/{rule_id}/edges", response_model=list[PipelineEdgeOut])
+def list_rule_edges(
+    rule_id: int,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:read")),
+) -> list[PipelineEdge]:
+    rule = db.get(Rule, rule_id)
+    if not rule:
+        raise NotFoundError("Rule", rule_id)
+    return (
+        db.query(PipelineEdge)
+        .filter(PipelineEdge.rule_id == rule_id)
+        .order_by(PipelineEdge.id)
+        .all()
+    )
+
+
+@router.put("/{rule_id}/edges", response_model=list[PipelineEdgeOut])
+def replace_rule_edges(
+    rule_id: int,
+    payload: PipelineEdgeBulkUpdate,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("rules:write")),
+) -> list[PipelineEdge]:
+    rule = db.query(Rule).options(joinedload(Rule.steps)).filter(Rule.id == rule_id).first()
+    if not rule:
+        raise NotFoundError("Rule", rule_id)
+
+    new_edges = [
+        PipelineEdge(
+            rule_id=rule_id,
+            source_step_id=edge.source_step_id,
+            source_port=edge.source_port,
+            target_step_id=edge.target_step_id,
+            target_port=edge.target_port,
+        )
+        for edge in payload.edges
+    ]
+
+    _validate_rule_graph_or_raise(list(rule.steps), new_edges)
+
+    db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule_id).delete(synchronize_session=False)
+    db.add_all(new_edges)
+    db.commit()
+
+    return (
+        db.query(PipelineEdge)
+        .filter(PipelineEdge.rule_id == rule_id)
+        .order_by(PipelineEdge.id)
+        .all()
+    )
 
 
 def _generate_default_label(db: Session, rule_id: int, step_type: str) -> str:
@@ -304,6 +365,27 @@ def _assert_valid_templates(step_type: str, config: dict, known_labels: list[str
         )
 
 
+def _collect_step_output_ports(steps: list[PipelineStep]) -> dict[int, tuple[str, ...]]:
+    from backend.steps import StepRegistry
+
+    StepRegistry.discover()
+    output_ports: dict[int, tuple[str, ...]] = {}
+    for step in steps:
+        handler = StepRegistry.get(step.step_type)
+        output_ports[step.id] = handler.metadata().output_ports if handler else ("main",)
+    return output_ports
+
+
+def _validate_rule_graph_or_raise(steps: list[PipelineStep], edges: list[PipelineEdge]) -> None:
+    errors = validate_graph(
+        {step.id for step in steps},
+        edges,
+        _collect_step_output_ports(steps),
+    )
+    if errors:
+        raise ValidationError("; ".join(errors))
+
+
 @router.post("/{rule_id}/steps", response_model=PipelineStepOut, status_code=201)
 def add_step(
     rule_id: int,
@@ -346,36 +428,37 @@ def add_step(
     return step
 
 
-@router.put("/{rule_id}/steps/reorder", response_model=list[PipelineStepOut])
-def reorder_steps(
+@router.put("/{rule_id}/steps/positions")
+def batch_update_step_positions(
     rule_id: int,
-    payload: PipelineStepReorder,
+    payload: BatchPositionUpdate,
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:write")),
-):
-    rule = db.get(Rule, rule_id)
+) -> dict[str, int]:
+    rule = db.query(Rule).options(joinedload(Rule.steps)).filter(Rule.id == rule_id).first()
     if not rule:
         raise NotFoundError("Rule", rule_id)
 
-    for new_order, step_id in enumerate(payload.steps):
-        step = (
-            db.query(PipelineStep)
-            .filter(PipelineStep.id == step_id, PipelineStep.rule_id == rule_id)
-            .first()
+    step_ids = {step.id for step in rule.steps}
+    for position in payload.positions:
+        if position.step_id not in step_ids:
+            raise ValidationError(f"Step {position.step_id} not in rule {rule_id}")
+        db.query(PipelineStep).filter(
+            PipelineStep.id == position.step_id,
+            PipelineStep.rule_id == rule_id,
+        ).update(
+            {
+                "position_x": position.position_x,
+                "position_y": position.position_y,
+            },
+            synchronize_session=False,
         )
-        if step:
-            step.order = new_order
+
     db.commit()
-
-    return (
-        db.query(PipelineStep)
-        .filter(PipelineStep.rule_id == rule_id)
-        .order_by(PipelineStep.order)
-        .all()
-    )
+    return {"updated": len(payload.positions)}
 
 
-@router.put("/{rule_id}/steps/{step_id}", response_model=PipelineStepOut)
+@router.put("/{rule_id}/steps/{step_id:int}", response_model=PipelineStepOut)
 def update_step(
     rule_id: int,
     step_id: int,
@@ -410,7 +493,7 @@ def update_step(
     return step
 
 
-@router.delete("/{rule_id}/steps/{step_id}", status_code=204)
+@router.delete("/{rule_id}/steps/{step_id:int}", status_code=204)
 def delete_step(
     rule_id: int,
     step_id: int,
@@ -427,15 +510,8 @@ def delete_step(
     if not step:
         raise NotFoundError("PipelineStep", step_id)
 
-    # Clear inbound FK references before deleting
     db.query(WorkflowExecution).filter(WorkflowExecution.current_step_id == step_id).update(
         {"current_step_id": None}, synchronize_session=False
-    )
-    db.query(PipelineStep).filter(PipelineStep.next_step_on_true == step_id).update(
-        {"next_step_on_true": None}, synchronize_session=False
-    )
-    db.query(PipelineStep).filter(PipelineStep.next_step_on_false == step_id).update(
-        {"next_step_on_false": None}, synchronize_session=False
     )
 
     db.delete(step)
@@ -477,7 +553,21 @@ def validate_rule(
         if errors:
             all_errors[step.label] = [e.to_dict() for e in errors]
 
-    return {"rule_id": rule_id, "errors": all_errors, "valid": len(all_errors) == 0}
+    graph_errors: list[str] = []
+    if steps:
+        edges = db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule_id).all()
+        graph_errors = validate_graph(
+            {step.id for step in steps},
+            edges,
+            _collect_step_output_ports(steps),
+        )
+
+    return {
+        "rule_id": rule_id,
+        "errors": all_errors,
+        "graph_errors": graph_errors,
+        "valid": len(all_errors) == 0 and len(graph_errors) == 0,
+    }
 
 
 @router.post("/{rule_id}/execute", status_code=202)
@@ -699,6 +789,7 @@ def export_rule(
         db.query(Rule)
         .options(
             joinedload(Rule.steps),
+            joinedload(Rule.edges),
             joinedload(Rule.contexts),
             joinedload(Rule.dependencies),
             joinedload(Rule.cron_triggers),
@@ -731,104 +822,8 @@ def import_rule(
     _auth: AuthContext = Depends(require_permission("rules:write")),
 ):
     """Import a rule from a portable bundle. All-or-nothing within a transaction."""
-    from backend.models.pipeline import PipelineStep
-
-    # Validate first
-    report = validate_bundle(bundle, _app_version())
+    report = bundle_to_rule(bundle, db, app_version=_app_version())
     if report.status == "error":
         return report
-
-    # Check for name conflict
-    existing = db.query(Rule).filter(Rule.name == bundle.rule.name).first()
-    if existing:
-        raise ConflictError(f"Rule '{bundle.rule.name}' already exists")
-
-    rule_def = bundle.rule
-
-    # Create rule
-    rule = Rule(
-        name=rule_def.name,
-        description=rule_def.description,
-        enabled=rule_def.enabled,
-        trigger_types=rule_def.trigger_types,
-        primary_sensor_id=rule_def.primary_sensor_ref.label
-        if rule_def.primary_sensor_ref
-        else None,
-        cool_off_minutes=rule_def.cool_off_minutes,
-        max_daily_triggers=rule_def.max_daily_triggers,
-        max_concurrent_executions=rule_def.max_concurrent_executions,
-        execution_timeout_minutes=rule_def.execution_timeout_minutes,
-        webhook_config=rule_def.webhook_config,
-        occupancy_config=rule_def.occupancy_config,
-        telegram_trigger_config=rule_def.telegram_trigger_config,
-    )
-    db.add(rule)
-    db.flush()
-
-    # Create cron triggers
-    for ce in rule_def.cron_expressions:
-        ct = CronTrigger(
-            name=f"{rule_def.name} ({ce.expression})",
-            expression=ce.expression,
-            timezone=ce.timezone,
-        )
-        db.add(ct)
-        db.flush()
-        rule.cron_triggers.append(ct)
-
-    # Create contexts
-    for ctx_bundle in bundle.contexts:
-        ctx = RuleContext(
-            rule_id=rule.id,
-            context_type=ctx_bundle.context_type,
-            config_json=ctx_bundle.config,
-            negate=ctx_bundle.negate,
-        )
-        db.add(ctx)
-
-    # Create steps
-    step_id_map: dict[str, int] = {}
-    for i, step_bundle in enumerate(bundle.steps):
-        step = PipelineStep(
-            rule_id=rule.id,
-            order=i,
-            step_type=step_bundle.step_type,
-            label=step_bundle.label,
-            config_json=step_bundle.config,
-            enabled=step_bundle.enabled,
-        )
-        db.add(step)
-        db.flush()
-        step_id_map[step_bundle.label] = step.id
-
-    # Wire up branch targets (now that all steps have ids)
-    for step_bundle in bundle.steps:
-        step_id = step_id_map[step_bundle.label]
-        step = db.get(PipelineStep, step_id)
-        if step and step_bundle.branches.on_true:
-            step.next_step_on_true = step_id_map.get(step_bundle.branches.on_true)
-        if step and step_bundle.branches.on_false:
-            step.next_step_on_false = step_id_map.get(step_bundle.branches.on_false)
-
-    # Create dependencies (resolved by rule name)
-    for dep_bundle in bundle.dependencies:
-        parent = db.query(Rule).filter(Rule.name == dep_bundle.parent_rule_name).first()
-        if parent:
-            dep = RuleDependency(
-                dependent_rule_id=rule.id,
-                parent_rule_id=parent.id,
-                lookback_minutes=dep_bundle.lookback_minutes,
-                require_success=dep_bundle.require_success,
-            )
-            db.add(dep)
-        else:
-            report.warnings.append(
-                f"Dependency on rule '{dep_bundle.parent_rule_name}' could not be resolved; skipped"
-            )
-
     db.commit()
-    db.refresh(rule)
-
-    report.rule_id = rule.id
-    report.status = "ok"
     return report

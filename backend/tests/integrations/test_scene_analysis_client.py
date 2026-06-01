@@ -76,6 +76,8 @@ def _make_http_mock(json_payload: dict, status_code: int = 200) -> MagicMock:
     http_client.post = AsyncMock(return_value=response)
 
     ctx = MagicMock()
+    ctx.get = http_client.get
+    ctx.post = http_client.post
     ctx.__aenter__ = AsyncMock(return_value=http_client)
     ctx.__aexit__ = AsyncMock(return_value=False)
 

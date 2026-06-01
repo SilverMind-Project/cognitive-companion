@@ -19,7 +19,7 @@
             :style="{ background: identityColor(ph.current_identity_id || topLabel) }"
           />
           <span class="text-body-2 font-weight-medium">
-            {{ ph.identity_display_name || topLabel }}
+            {{ topLabel }}
           </span>
           <v-spacer />
           <span v-if="confidencePercent !== null" class="text-caption text-medium-emphasis">
@@ -66,12 +66,14 @@ export default {
   setup(props) {
     const hasObservations = computed(() => props.observations.length > 0);
     const topLabel = computed(() =>
-      props.ph?.posterior_top_label || props.ph?.current_identity_id || null
+      props.ph?.posterior_top_label || null
     );
     const confidencePercent = computed(() => {
       const prob = props.ph?.posterior_top_prob;
       if (prob === null || prob === undefined) return null;
-      return Math.max(0, Math.min(100, Number(prob) * 100));
+      const numericProb = Number(prob);
+      if (!Number.isFinite(numericProb)) return null;
+      return Math.max(0, Math.min(100, numericProb * 100));
     });
 
     return { identityColor, hasObservations, topLabel, confidencePercent };

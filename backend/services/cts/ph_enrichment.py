@@ -55,7 +55,12 @@ class PHEnrichmentService:
         *,
         display_names: dict[str, str],
     ) -> list[dict[str, Any]]:
-        return [self._apply_identity_name(dict(item), display_names) for item in items]
+        enriched: list[dict[str, Any]] = []
+        for item in items:
+            payload = self._apply_identity_name(dict(item), display_names)
+            self._apply_room_fields(payload)
+            enriched.append(payload)
+        return enriched
 
     def enrich_keyframes(
         self,
@@ -73,6 +78,7 @@ class PHEnrichmentService:
         image_url: ImageUrlFactory | None,
     ) -> dict[str, Any]:
         self._apply_identity_name(item, display_names)
+        self._apply_room_fields(item)
         if image_url is not None:
             self._apply_latest_keyframe_urls(item, image_url=image_url)
         posterior_prob = item.get("posterior_top_prob")
@@ -89,6 +95,23 @@ class PHEnrichmentService:
         if isinstance(identity_id, str) and identity_id:
             item["identity_display_name"] = display_names.get(identity_id, identity_id)
         return item
+
+    def _apply_room_fields(self, item: dict[str, Any]) -> None:
+        metadata = item.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+
+        room_id = item.get("room_id") or metadata.get("last_room_id") or metadata.get("room_id")
+        room_name = (
+            item.get("room_name")
+            or metadata.get("last_room_name")
+            or metadata.get("room_name")
+            or room_id
+        )
+        if room_id:
+            item["room_id"] = str(room_id)
+        if room_name:
+            item["room_name"] = str(room_name)
 
     def _apply_latest_keyframe_urls(
         self,

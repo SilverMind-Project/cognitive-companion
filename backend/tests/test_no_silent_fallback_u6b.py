@@ -84,7 +84,7 @@ async def test_room_transition_decode_logs_warning(caplog):
     sub = RoomTransitionSubscriber.__new__(RoomTransitionSubscriber)
     with caplog.at_level(logging.WARNING, logger="backend.services.cts.room_transition_subscriber"):
         # Pass a dict with a bad event_time that causes fromisoformat to fail.
-        result = await sub.decode(
+        result = sub.decode(
             message_id="msg-1",
             fields={
                 b"identity_id": b"alice",

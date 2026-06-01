@@ -223,8 +223,9 @@ class TestInteractivePromptHandlerExecute:
         # Verify voice prompt was sent
         mock_notification_dispatcher.connection_manager.send_backend_task.assert_called_once()
         call_args = mock_notification_dispatcher.connection_manager.send_backend_task.call_args
-        assert "execution_id=124" in call_args[1]["prompt"]
-        assert "step_id=2" in call_args[1]["prompt"]
+        assert call_args[1]["prompt"] == "Do you need help?"
+        assert call_args[1]["metadata"]["execution_id"] == 124
+        assert call_args[1]["metadata"]["step_id"] == 2
 
         # Voice-only path still broadcasts the enable_microphone signal so
         # the frontend can auto-enable the mic for Gemini Live replies.

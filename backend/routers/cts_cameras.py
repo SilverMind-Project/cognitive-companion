@@ -30,6 +30,7 @@ from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
 from backend.integrations.ingress_admin_client import IngressAdminClient
 from backend.models.cts_camera import CtsCamera
+from backend.models.household_settings import HouseholdSettings
 from backend.models.room import Room
 from backend.routers.cts_deps import cts_enabled
 from backend.routers.dependencies import get_ingress_admin_client
@@ -88,11 +89,21 @@ def _has_committed_homography(cam: CtsCamera) -> bool:
     return method not in {"depth_auto", "depth_auto_draft"}
 
 
+def _shared_floor_plan_id(db: Session | None) -> str:
+    if db is None:
+        return "household:1"
+    settings = db.get(HouseholdSettings, 1)
+    if settings and settings.floor_plan_key:
+        return settings.floor_plan_key
+    return "household:1"
+
+
 def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
     residuals = cam.homography_residuals
     room = None
     if db is not None and cam.room_id is not None:
         room = _resolve_room(db, cam.room_id)
+    floor_plan_id = _shared_floor_plan_id(db) if _has_committed_homography(cam) else None
     return CtsCameraOut(
         id=cam.id,
         name=cam.name,
@@ -111,6 +122,13 @@ def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
         room=room,
         has_homography=_has_committed_homography(cam),
         homography_residuals=residuals if residuals else None,
+        homography_matrix=cam.homography_matrix,
+        homography_residual_m=cam.homography_residual_m,
+        homography_method=cam.homography_method,
+        homography_set_at=cam.homography_set_at,
+        homography_floor_plan_id=floor_plan_id,
+        frame_natural_width=cam.frame_natural_width,
+        frame_natural_height=cam.frame_natural_height,
         privacy_zone_count=len(cam.privacy_zones) if cam.privacy_zones else 0,
         health=cam.health_json,
         snapshot_width=cam.snapshot_width,

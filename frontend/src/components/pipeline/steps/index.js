@@ -99,39 +99,4 @@ export const severityItems = [
   { label: "Emergency", value: "emergency" },
 ];
 
-export const STEP_ICONS = {
-  person_identification: "mdi-face-recognition",
-  scene_analysis: "mdi-image-search",
-  object_trend_analysis: "mdi-chart-line",
-  llm_call: "mdi-brain",
-  notification: "mdi-bell-outline",
-  ha_action: "mdi-home-automation",
-  activity_detection: "mdi-run",
-  activity_session_start: "mdi-play",
-  activity_session_end: "mdi-stop",
-  daily_report: "mdi-file-chart",
-  wait: "mdi-timer-sand",
-  condition: "mdi-help-circle-outline",
-  verification: "mdi-check-decagram-outline",
-  interactive_prompt: "mdi-message-question",
-  semantic_memory_write: "mdi-database-plus-outline",
-  semantic_memory_query: "mdi-database-search-outline",
-  presence_query: "mdi-map-marker-radius",
-  home_state: "mdi-home-variant",
-  cts_window_poll: "mdi-camera-burst",
-  recamera_media_poll: "mdi-camera-wireless-outline",
-  info_card: "mdi-card-text-outline",
-  image_crop: "mdi-crop",
-};
-
-export const STEP_LABELS = {
-  activity_detection: "Record Activity",
-  verification: "Verify Activity",
-  person_identification: "Person Identification",
-  activity_session_start: "Start Activity Session",
-  activity_session_end: "End Activity Session",
-  daily_report: "Generate Daily Report",
-  object_trend_analysis: "Room Trend Query",
-  scene_analysis: "Scene Analysis",
-  image_crop: "Crop Image",
-};
+export { STEP_ICONS, STEP_LABELS } from "./stepMeta.js";

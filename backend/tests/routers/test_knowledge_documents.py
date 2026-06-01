@@ -1,44 +1,30 @@
 """Integration tests for knowledge document router."""
 
+from unittest.mock import Mock
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from backend.core.auth import AuthContext
-from backend.core.database import Base, get_db
 from backend.core.exceptions import register_exception_handlers
 from backend.routers.knowledge import router
+from backend.services.knowledge.ingestion_service import KnowledgeIngestionService
 
 
 @pytest.fixture
-def db_session():
-    engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-
-
-@pytest.fixture
-def client(db_session):
+def client(db_factory):
     app = FastAPI()
     register_exception_handlers(app)
-
-    async def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
-
-    app.dependency_overrides[get_db] = override_get_db
+    minio = Mock()
+    minio.generate_presigned_url.return_value = None
+    image_pipeline = Mock()
+    app.state.minio_client = minio
+    app.state.knowledge_ingestion = KnowledgeIngestionService(
+        db_factory=db_factory,
+        minio_client=minio,
+        image_pipeline=image_pipeline,
+    )
 
     # Override auth with admin context
     async def override_auth():

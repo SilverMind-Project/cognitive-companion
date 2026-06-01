@@ -13,7 +13,7 @@ from backend.core.database import Base, TimestampMixin
 if TYPE_CHECKING:
     from backend.models.cron_trigger import CronTrigger
     from backend.models.cts_window_trigger import CtsWindowTrigger
-    from backend.models.pipeline import PipelineStep
+    from backend.models.pipeline import PipelineEdge, PipelineStep
 
 
 class Rule(Base, TimestampMixin):
@@ -55,6 +55,10 @@ class Rule(Base, TimestampMixin):
         back_populates="rule",
         cascade="all, delete-orphan",
         order_by="PipelineStep.order",
+    )
+    edges: Mapped[list[PipelineEdge]] = relationship(
+        back_populates="rule",
+        cascade="all, delete-orphan",
     )
     contexts: Mapped[list[RuleContext]] = relationship(
         back_populates="rule", cascade="all, delete-orphan"

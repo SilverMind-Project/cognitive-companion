@@ -24,6 +24,21 @@ class FaceResult:
     name: str
     confidence: float
     bbox: list[float]
+    # Rich face evidence: three-valued recognition state from person-identification-service.
+    # "recognized" (strong positive), "candidate" (grey zone), "unrecognized".
+    recognition_state: str = "recognized"
+    # Rich face evidence: nearest centroid person_id, set even when similarity is below threshold.
+    best_candidate_id: str | None = None
+    # Rich face evidence: raw cosine similarity to the best candidate centroid.
+    similarity: float = 0.0
+    # Rich face evidence: head pose yaw in degrees (primary frontality axis).
+    yaw_deg: float = 0.0
+    # Rich face evidence: head pose pitch in degrees.
+    pitch_deg: float = 0.0
+    # Rich face evidence: head pose roll in degrees.
+    roll_deg: float = 0.0
+    # Rich face evidence: SCRFD face detection confidence score.
+    det_score: float = 0.0
 
 
 @dataclass
@@ -197,6 +212,13 @@ class PersonIDClient:
                 name=f["name"],
                 confidence=f["confidence"],
                 bbox=f["bbox"],
+                recognition_state=f.get("recognition_state", "recognized"),
+                best_candidate_id=f.get("best_candidate_id"),
+                similarity=f.get("similarity", 0.0),
+                yaw_deg=f.get("yaw_deg", 0.0),
+                pitch_deg=f.get("pitch_deg", 0.0),
+                roll_deg=f.get("roll_deg", 0.0),
+                det_score=f.get("det_score", 0.0),
             )
             for f in data.get("faces", [])
         ]
@@ -382,6 +404,13 @@ class PersonIDClient:
                     name=f["name"],
                     confidence=f["confidence"],
                     bbox=f["bbox"],
+                    recognition_state=f.get("recognition_state", "recognized"),
+                    best_candidate_id=f.get("best_candidate_id"),
+                    similarity=f.get("similarity", 0.0),
+                    yaw_deg=f.get("yaw_deg", 0.0),
+                    pitch_deg=f.get("pitch_deg", 0.0),
+                    roll_deg=f.get("roll_deg", 0.0),
+                    det_score=f.get("det_score", 0.0),
                 )
                 for f in frame.get("faces", [])
             ]

@@ -49,6 +49,7 @@ from backend.schemas.cts_camera import (
     PrivacyZonesRequest,
     VisibilityPolygonsResponse,
 )
+from backend.services.cts.calibration_validator import validate_homography
 from backend.services.cts_visibility import compute_visibility_from_homography
 
 logger = get_logger(__name__)
@@ -64,6 +65,12 @@ def _has_committed_homography(cam: CtsCamera) -> bool:
         return False
     method = cam.homography.get("method") if isinstance(cam.homography, dict) else None
     return method not in {"depth_auto", "depth_auto_draft"}
+
+
+def _shared_floor_plan_id(settings: HouseholdSettings | None) -> str:
+    if settings and settings.floor_plan_key:
+        return settings.floor_plan_key
+    return "household:1"
 
 
 def _refresh_visibility_polygon(
@@ -237,10 +244,6 @@ async def post_homography(
     max_residual: float = result["max_residual_m"]
 
     # Server-side validation: reject degenerate or high-error matrices.
-    from backend.services.cts.calibration_validator import (
-        validate_homography,
-    )
-
     validation = validate_homography(
         matrix=matrix,
         residuals=residuals,
@@ -274,11 +277,37 @@ async def post_homography(
     cam.frame_natural_width = body.image_width
     cam.frame_natural_height = body.image_height
     poly_status = _refresh_visibility_polygon(cam, db)
+    settings = db.get(HouseholdSettings, 1)
+    floor_plan_id = _shared_floor_plan_id(settings)
     db.commit()
+
+    mean_residual = sum(residuals) / len(residuals) if residuals else 0.0
+    try:
+        await orchestrator.post_homography(
+            camera_id=body.camera_id,
+            matrix=matrix,
+            points=points_raw,
+            meta={"method": "manual", "visibility_polygon_computed": poly_status["computed"]},
+            floor_plan_id=floor_plan_id,
+            image_width=body.image_width,
+            image_height=body.image_height,
+            max_residual_m=max_residual,
+            mean_residual_m=mean_residual,
+            quality_status=result.get("status", validation.severity),
+            quality_point_count=len(points_raw),
+        )
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable) as exc:
+        logger.exception(
+            "cts_homography_runtime_sync_failed",
+            camera_id=body.camera_id,
+            floor_plan_id=floor_plan_id,
+        )
+        raise _upstream_to_http(exc) from exc
 
     logger.info(
         "cts_homography_saved",
         camera_id=body.camera_id,
+        floor_plan_id=floor_plan_id,
         snapshot_dims=f"{body.image_width}x{body.image_height}",
         max_residual_m=round(max_residual, 4),
         validation_severity=validation.severity,

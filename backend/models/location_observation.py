@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, Integer, PrimaryKeyConstraint, String, Text
+from sqlalchemy import Float, ForeignKey, Index, Integer, PrimaryKeyConstraint, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,7 +16,12 @@ class LocationObservation(Base):
     __tablename__ = "location_observations"
     # Composite PK because this is a TimescaleDB hypertable. household_members.id
     # is String(64) and rooms.id is Integer per the pre-existing schema.
-    __table_args__ = (PrimaryKeyConstraint("id", "observed_at", name="location_observations_pkey"),)
+    __table_args__ = (
+        PrimaryKeyConstraint("id", "observed_at", name="location_observations_pkey"),
+        Index("location_observations_observed_at_idx", text("observed_at DESC")),
+        Index("idx_loc_obs_person", "person_id", text("observed_at DESC")),
+        Index("idx_loc_obs_room", "room_id", text("observed_at DESC")),
+    )
 
     id: Mapped[str] = mapped_column(UUID, nullable=False)
     person_id: Mapped[str] = mapped_column(

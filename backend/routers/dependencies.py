@@ -208,7 +208,6 @@ def get_knowledge_delivery(request: Request) -> KnowledgeDeliveryService:
 
 def get_person_location_service(request: Request) -> PersonLocationService:
     """Return a per-request PersonLocationService (503 if unavailable)."""
-    db = next(get_session())
     try:
         from backend.services.person_location.repositories import (
             SqlAlchemyObservationRepository,
@@ -217,8 +216,8 @@ def get_person_location_service(request: Request) -> PersonLocationService:
         from backend.services.person_location.service import PersonLocationService
 
         return PersonLocationService(
-            obs_repo=SqlAlchemyObservationRepository(db),
-            seg_repo=SqlAlchemySegmentRepository(db),
+            obs_repo=SqlAlchemyObservationRepository(get_session),
+            seg_repo=SqlAlchemySegmentRepository(get_session),
         )
     except Exception as exc:
         raise _raise_503("person_location_service", "Person location service") from exc

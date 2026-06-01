@@ -11,6 +11,8 @@ This skill covers how to add charts and data displays to the Cognitive Companion
 
 - **`echarts`**: the charting engine. Always use explicit module imports; never import the full bundle.
 - **`vue-echarts`**: the Vue 3 wrapper. Import via `import VChart from 'vue-echarts'`.
+- **`@vue-flow/core`**: permitted only for the interactive pipeline editor canvas. Not a charting
+  library; serves workflow authoring. ECharts (`CcDagChart`) handles all read-only monitoring.
 - **No second charting library.** No `chart.js`, `d3`, `recharts`, or similar.
 - **`useChartTheme`**: the theme composable. Pass its `theme` to every `v-chart` instance.
 

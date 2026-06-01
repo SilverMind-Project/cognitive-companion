@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from backend.models.event import EventLog
-from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.models.rule import Rule
 from backend.services.pipeline_run_service import PipelineRunService
 
@@ -64,6 +64,25 @@ def _make_execution(
     db.commit()
     db.refresh(ex)
     return ex
+
+
+def _make_edge(
+    db,
+    rule: Rule,
+    source: PipelineStep,
+    target: PipelineStep,
+    source_port: str = "main",
+) -> PipelineEdge:
+    edge = PipelineEdge(
+        rule_id=rule.id,
+        source_step_id=source.id,
+        source_port=source_port,
+        target_step_id=target.id,
+        target_port="main",
+    )
+    db.add(edge)
+    db.flush()
+    return edge
 
 
 # ---------------------------------------------------------------------------
@@ -118,12 +137,14 @@ class TestGetRun:
         assert envelope.nodes[0].label == "Filter"
         assert envelope.nodes[1].label == "Notify"
 
-    def test_sequential_edges_built(self, db_factory):
+    def test_authored_edges_built(self, db_factory):
         db = db_factory()
         rule = _make_rule(db, "edge-rule")
         s1 = _make_step(db, rule, order=1, label="A")
         s2 = _make_step(db, rule, order=2, label="B")
         s3 = _make_step(db, rule, order=3, label="C")
+        _make_edge(db, rule, s1, s2, source_port="true")
+        _make_edge(db, rule, s2, s3)
         ex = _make_execution(db, rule, status="completed")
         db.close()
 
@@ -132,8 +153,10 @@ class TestGetRun:
 
         assert len(envelope.edges) == 2
         assert envelope.edges[0].source == str(s1.id)
+        assert envelope.edges[0].source_handle == "true"
         assert envelope.edges[0].target == str(s2.id)
         assert envelope.edges[1].source == str(s2.id)
+        assert envelope.edges[1].source_handle == "main"
         assert envelope.edges[1].target == str(s3.id)
 
 

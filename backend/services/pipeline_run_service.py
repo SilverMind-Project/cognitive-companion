@@ -14,12 +14,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Literal
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from backend.core.logging import get_logger
 from backend.models.event import EventLog
 from backend.models.media_cache import MediaCache
-from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.schemas.pipeline_run import (
     DagEdge,
     DagNode,
@@ -186,10 +186,22 @@ def _build_envelope(execution: WorkflowExecution) -> PipelineRunEnvelope:
             )
         )
 
-    # Sequential edges (step[i] → step[i+1]).
+    # Authored DAG edges between enabled steps.
     edges: list[DagEdge] = []
-    for i in range(len(nodes) - 1):
-        edges.append(DagEdge(source=nodes[i].id, target=nodes[i + 1].id))
+    enabled_step_ids = {int(node.id) for node in nodes}
+    db = object_session(execution)
+    if rule is not None and db is not None:
+        for edge in db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule_id).all():
+            if edge.source_step_id not in enabled_step_ids or edge.target_step_id not in enabled_step_ids:
+                continue
+            edges.append(
+                DagEdge(
+                    source=str(edge.source_step_id),
+                    source_handle=edge.source_port,
+                    target=str(edge.target_step_id),
+                    target_handle=edge.target_port,
+                )
+            )
 
     return PipelineRunEnvelope(
         execution_id=execution.id,

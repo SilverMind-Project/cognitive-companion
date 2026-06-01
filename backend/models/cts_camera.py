@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Float, Integer, String, func
+from sqlalchemy import JSON, Boolean, Float, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,7 +25,9 @@ class CtsCamera(Base):
     name: Mapped[str] = mapped_column(String(256), index=True)
     rtsp_url: Mapped[str] = mapped_column(String(1024), default="")
     room_name: Mapped[str] = mapped_column(String(256), default="")
-    room_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    room_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("rooms.id"), nullable=True, index=True
+    )
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Clockwise rotation applied by rtsp-ingress at ingest time.

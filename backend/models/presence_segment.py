@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, Integer, String
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +14,11 @@ from backend.core.time import UTCDateTime
 
 class PresenceSegment(Base):
     __tablename__ = "presence_segments"
+    __table_args__ = (
+        Index("idx_ps_person_open", "person_id", postgresql_where=text("exited_at IS NULL")),
+        Index("idx_ps_person_time", "person_id", text("entered_at DESC")),
+        Index("idx_ps_room_time", "room_id", text("entered_at DESC")),
+    )
 
     id: Mapped[str] = mapped_column(UUID, primary_key=True)
     # household_members.id is String(64) and rooms.id is Integer per the

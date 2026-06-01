@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { usePHList } from "../usePHList";
+import { usePHList } from "@/composables/usePHList.js";
 
 vi.mock("@/services/cts_ph", () => ({
   ctsPh: {

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
-from backend.core.database import get_db
+from backend.core.database import get_db, get_session
 from backend.core.logging import get_logger
 from backend.models.person import HouseholdMember
 from backend.schemas.cts_envelopes import (
@@ -31,10 +31,10 @@ router = APIRouter(prefix="/api/v1", tags=["persons-location"])
 logger = get_logger(__name__)
 
 
-def _get_service(db: Session = Depends(get_db)) -> PersonLocationService:
+def _get_service() -> PersonLocationService:
     return PersonLocationService(
-        obs_repo=SqlAlchemyObservationRepository(db),
-        seg_repo=SqlAlchemySegmentRepository(db),
+        obs_repo=SqlAlchemyObservationRepository(get_session),
+        seg_repo=SqlAlchemySegmentRepository(get_session),
     )
 
 

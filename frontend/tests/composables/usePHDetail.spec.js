@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { usePHDetail } from "../usePHDetail";
+import { usePHDetail } from "@/composables/usePHDetail.js";
 
 describe("usePHDetail", () => {
   it("returns { state, actions } shape", () => {

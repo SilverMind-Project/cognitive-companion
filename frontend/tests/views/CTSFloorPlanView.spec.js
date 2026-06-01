@@ -128,12 +128,11 @@ describe("CTSFloorPlanView — world snapshot handling", () => {
     expect(Array.isArray(markers)).toBe(true);
   });
 
-  it("has zero references to identityTrails reactive map", async () => {
+  it("does not expose an identityTrails reactive map (removed in N4 refactor)", async () => {
     const wrapper = await mountView();
-    const state = wrapper.vm.$.setupState;
-    // identityTrails still exists but is a computed returning {} (no-op)
-    const trails = state.identityTrails;
-    expect(Object.keys(trails)).toHaveLength(0);
+    // identityTrails was removed when the world-snapshot composable took over
+    // trail management. The property no longer exists on the setup state.
+    expect(wrapper.vm.$.setupState.identityTrails).toBeUndefined();
   });
 
   it("world snapshot empty state shows when no markers", async () => {

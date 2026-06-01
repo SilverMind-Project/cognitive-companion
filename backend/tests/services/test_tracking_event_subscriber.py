@@ -164,6 +164,53 @@ class TestHandle:
         ok = await sub.handle(event)
         assert ok is False
 
+    def test_world_snapshot_omits_posterior_when_probability_is_zero(self, subscriber):
+        sub, _ = subscriber
+        phs = sub._build_ph_entries(  # noqa: SLF001
+            {
+                "capture_time": "2026-01-01T12:00:00Z",
+                "room_name": "kitchen",
+                "identity_snapshots": [
+                    {"ph_id": "gt-1", "identity_id": "grandma", "top_probability": 0.0}
+                ],
+                "detections": [
+                    {
+                        "ph_id": "gt-1",
+                        "floor_calibrated": True,
+                        "floor_x": 1.0,
+                        "floor_y": 2.0,
+                    }
+                ],
+            }
+        )
+
+        assert phs[0]["identity_id"] == "grandma"
+        assert phs[0]["posterior_top_label"] is None
+        assert phs[0]["posterior_top_prob"] is None
+
+    def test_world_snapshot_keeps_positive_posterior_probability(self, subscriber):
+        sub, _ = subscriber
+        phs = sub._build_ph_entries(  # noqa: SLF001
+            {
+                "capture_time": "2026-01-01T12:00:00Z",
+                "room_name": "kitchen",
+                "identity_snapshots": [
+                    {"ph_id": "gt-1", "identity_id": "grandma", "top_probability": 0.87}
+                ],
+                "detections": [
+                    {
+                        "ph_id": "gt-1",
+                        "floor_calibrated": True,
+                        "floor_x": 1.0,
+                        "floor_y": 2.0,
+                    }
+                ],
+            }
+        )
+
+        assert phs[0]["posterior_top_label"] == "grandma"
+        assert phs[0]["posterior_top_prob"] == pytest.approx(0.87)
+
 
 class TestHandleWithBroadcast:
     """WebSocket broadcast payload contracts for cts_live_frame messages."""

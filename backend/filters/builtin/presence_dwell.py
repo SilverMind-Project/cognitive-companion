@@ -46,6 +46,10 @@ class PresenceDwellFilter(ContextFilter):
                         "default": 5,
                         "description": "Minimum dwell time in minutes.",
                     },
+                    "status": {
+                        "type": "string",
+                        "description": "Optional required presence status.",
+                    },
                 },
                 "required": ["min_minutes"],
             },
@@ -105,6 +109,9 @@ class PresenceDwellFilter(ContextFilter):
                 return False
             dwell_mins = snapshot.dwell_minutes
             if dwell_mins is None:
+                return False
+            status = config.get("status")
+            if status and snapshot.status.value != status:
                 return False
             return dwell_mins >= min_minutes
 

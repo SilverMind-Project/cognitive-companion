@@ -63,15 +63,15 @@ class TestBathroomInferredDwellE2E:
     """C3: 25-minute camera-blind bathroom dwell produces inferred_dwell_exceeded."""
 
     @pytest.mark.asyncio
-    async def test_inferred_dwell_exceeded_fires_after_threshold(self, db_session: Session) -> None:
+    async def test_inferred_dwell_exceeded_fires_after_threshold(self, db_session: Session, db_factory) -> None:
         """After 25 minutes in a camera-blind bathroom, inferred_dwell_exceeded fires."""
         bathroom_room_id = _seed_room(db_session, has_camera=False)
         hallway_room_id = _seed_room(db_session, has_camera=True)
         _seed_person(db_session, PERSON_ID)
         db_session.commit()
 
-        obs_repo = SqlAlchemyObservationRepository(db_session)
-        seg_repo = SqlAlchemySegmentRepository(db_session)
+        obs_repo = SqlAlchemyObservationRepository(db_factory)
+        seg_repo = SqlAlchemySegmentRepository(db_factory)
         svc = PersonLocationService(obs_repo, seg_repo, _TEST_CFG)
 
         # Person walks through the hallway→bathroom transit zone.
@@ -85,7 +85,6 @@ class TestBathroomInferredDwellE2E:
             floor_y_m=2.0,
             event_time=T_ENTER,
         )
-        db_session.commit()
 
         # Verify segment exists with inferred_transit entry source.
         open_seg = await seg_repo.get_open(PERSON_ID)
@@ -98,7 +97,6 @@ class TestBathroomInferredDwellE2E:
 
         # Advance time 25 minutes and fire the dwell tick.
         signals = await svc.tick(T_TICK)
-        db_session.commit()
 
         # Segment must now be closed by timeout.
         closed_seg = await seg_repo.get_open(PERSON_ID)
@@ -122,7 +120,7 @@ class TestBathroomInferredDwellE2E:
         # Persist the signal (mirroring what CTSRuntime does) and assert the DB row.
         from backend.services.cts.signal_store import SignalStore
 
-        store = SignalStore(db_factory=lambda: db_session)
+        store = SignalStore(db_factory=db_factory)
         _, action = await store.upsert(sig)
         assert action == "new", f"Signal upsert must be 'new', got '{action}'"
 
@@ -138,15 +136,15 @@ class TestBathroomInferredDwellE2E:
         assert rows[0]["person_id"] == PERSON_ID
 
     @pytest.mark.asyncio
-    async def test_dwell_below_threshold_does_not_fire(self, db_session: Session) -> None:
+    async def test_dwell_below_threshold_does_not_fire(self, db_session: Session, db_factory) -> None:
         """A dwell shorter than the threshold must not emit a signal."""
         bathroom_room_id = _seed_room(db_session, has_camera=False)
         hallway_room_id = _seed_room(db_session, has_camera=True)
         _seed_person(db_session, PERSON_ID + "-short")
         db_session.commit()
 
-        obs_repo = SqlAlchemyObservationRepository(db_session)
-        seg_repo = SqlAlchemySegmentRepository(db_session)
+        obs_repo = SqlAlchemyObservationRepository(db_factory)
+        seg_repo = SqlAlchemySegmentRepository(db_factory)
         svc = PersonLocationService(obs_repo, seg_repo, _TEST_CFG)
 
         person = PERSON_ID + "-short"
@@ -160,7 +158,6 @@ class TestBathroomInferredDwellE2E:
             floor_y_m=2.0,
             event_time=T_ENTER,
         )
-        db_session.commit()
 
         # Only 10 minutes in — below the 20-minute threshold.
         signals = await svc.tick(T0 + timedelta(minutes=10))

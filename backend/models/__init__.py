@@ -4,10 +4,12 @@ from backend.models.alert import EmergencyAlert
 from backend.models.conversation import ConversationSession, ConversationTurn
 from backend.models.cron_trigger import CronTrigger, RuleCronTrigger
 from backend.models.cts_camera import CtsCamera
+from backend.models.cts_dashboard import CtsAlertSuppression, CtsCameraOverlapGroup
 from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 from backend.models.cts_signal import DementiaSignal
 from backend.models.cts_window_trigger import CtsWindowTrigger, RuleCtsWindowTrigger
 from backend.models.event import EventLog
+from backend.models.household_settings import HouseholdSettings
 from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
 from backend.models.interactive_response import InteractiveResponse
@@ -24,6 +26,7 @@ from backend.models.knowledge import (
     QuizSession,
     SeniorKnowledgeQuery,
 )
+from backend.models.location_observation import LocationObservation
 from backend.models.media_cache import MediaCache
 from backend.models.occupancy import RoomOccupancyState
 from backend.models.person import (
@@ -36,10 +39,12 @@ from backend.models.person import (
     PersonLocationState,
     PersonSighting,
 )
-from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
+from backend.models.presence_segment import PresenceSegment
 from backend.models.room import Room
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.models.sensor import Sensor
+from backend.models.transit_zone import TransitZone
 
 __all__ = [
     "ActiveImageState",
@@ -48,7 +53,9 @@ __all__ = [
     "ConversationSession",
     "ConversationTurn",
     "CronTrigger",
+    "CtsAlertSuppression",
     "CtsCamera",
+    "CtsCameraOverlapGroup",
     "CtsIdentityRevisionLog",
     "CtsWindowTrigger",
     "DailyReport",
@@ -56,6 +63,7 @@ __all__ = [
     "EmergencyAlert",
     "EventLog",
     "HouseholdMember",
+    "HouseholdSettings",
     "ImageTemplate",
     "InfoCard",
     "InfoCardDelivery",
@@ -64,12 +72,15 @@ __all__ = [
     "KnowledgeDocument",
     "KnowledgeDocumentChunk",
     "KnowledgeDocumentImage",
+    "LocationObservation",
     "MediaCache",
     "PersonActivity",
     "PersonLocationHistory",
     "PersonLocationState",
     "PersonSighting",
+    "PipelineEdge",
     "PipelineStep",
+    "PresenceSegment",
     "Quiz",
     "QuizQuestion",
     "QuizResponse",
@@ -83,5 +94,6 @@ __all__ = [
     "RuleDependency",
     "SeniorKnowledgeQuery",
     "Sensor",
+    "TransitZone",
     "WorkflowExecution",
 ]

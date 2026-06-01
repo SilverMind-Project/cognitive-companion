@@ -17,8 +17,8 @@ class PipelineStepCreate(BaseModel):
     label: str | None = None
     config_json: dict[str, Any] = {}
     enabled: bool = True
-    next_step_on_true: int | None = None
-    next_step_on_false: int | None = None
+    position_x: float = 0.0
+    position_y: float = 0.0
 
     @field_validator("label")
     @classmethod
@@ -33,8 +33,8 @@ class PipelineStepUpdate(BaseModel):
     label: str | None = None
     config_json: dict[str, Any] | None = None
     enabled: bool | None = None
-    next_step_on_true: int | None = None
-    next_step_on_false: int | None = None
+    position_x: float | None = None
+    position_y: float | None = None
 
     @field_validator("label")
     @classmethod
@@ -52,14 +52,8 @@ class PipelineStepOut(OutSchema):
     label: str | None
     config_json: dict[str, Any]
     enabled: bool
-    next_step_on_true: int | None
-    next_step_on_false: int | None
-
-
-class PipelineStepReorder(BaseModel):
-    """Ordered list of step IDs; position in the list becomes the new order value."""
-
-    steps: list[int]
+    position_x: float
+    position_y: float
 
 
 # -- Rule --------------------------------------------------------------------

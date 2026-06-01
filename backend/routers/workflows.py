@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.auth import AuthContext, require_permission
@@ -12,6 +13,7 @@ from backend.models.pipeline import WorkflowExecution
 from backend.models.rule import Rule
 from backend.schemas.workflow import (
     ExecutionDetailOut,
+    ExecutionGraph,
     RerunRequest,
     StepTimelineEntry,
     WorkflowExecutionListOut,
@@ -19,6 +21,8 @@ from backend.schemas.workflow import (
 )
 from backend.services.scheduler import SchedulerBridge
 
+# Canonical execution detail lives at GET /workflows/{id}/detail. Pipeline
+# run envelopes stay lightweight for live list seeding and dashboards.
 logger = get_logger(__name__)
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -128,30 +132,18 @@ def get_execution_detail(
     trigger_type = trigger_data.get("type", "unknown")
     trigger_summary = _build_trigger_summary(trigger_type, trigger_data)
 
-    timeline: list[StepTimelineEntry] = []
-    for timing in pd.get("_step_timings", []):
-        step_type = timing.get("step_type", "")
-        label = timing.get("label", "")
-        meta = None
-        handler = StepRegistry.get(step_type)
-        if handler:
-            meta = handler.metadata()
-
-        timeline.append(
-            StepTimelineEntry(
-                label=label,
-                step_type=step_type,
-                icon=meta.icon if meta else "mdi-cog",
-                category=meta.category if meta else "flow",
-                status="success" if timing.get("success") else "failed",
-                elapsed_seconds=timing.get("elapsed_seconds"),
-                resolved_config=timing.get("resolved_config"),
-                outputs=pd.get("steps", {}).get(label, {}).get("outputs"),
-                logs=timing.get("logs", []),
-                error=timing.get("error"),
-                cancellation_observed=timing.get("cancellation_observed", False),
-            )
-        )
+    graph = _parse_execution_graph(pd.get("_graph"), execution_id=execution.id)
+    timing_entries = [
+        _timing_to_entry(timing, pd, StepRegistry)
+        for timing in pd.get("_step_timings", [])
+    ]
+    timeline = _merge_graph_timeline(
+        graph=graph,
+        timing_entries=timing_entries,
+        current_step_id=execution.current_step_id,
+        execution_status=execution.status,
+        step_registry=StepRegistry,
+    )
 
     return ExecutionDetailOut(
         id=execution.id,
@@ -162,11 +154,12 @@ def get_execution_detail(
         rule_name=execution.rule.name if execution.rule else "Unknown",
         trigger_type=trigger_type,
         trigger_summary=trigger_summary,
+        graph=graph,
         timeline=timeline,
         cooloff_triggered=pd.get("_cooloff_triggered", False),
         error=execution.error,
         can_cancel=execution.status in ("running", "waiting"),
-        can_rerun=True,
+        can_rerun=execution.status not in ("running", "waiting"),
     )
 
 
@@ -220,8 +213,102 @@ async def rerun_execution(
 
     return {
         "execution_id": new_execution.id,
+        "rule_id": new_execution.rule_id,
         "status": new_execution.status,
     }
+
+
+def _parse_execution_graph(raw_graph: object, *, execution_id: int) -> ExecutionGraph | None:
+    if raw_graph is None:
+        return None
+    try:
+        return ExecutionGraph.model_validate(raw_graph)
+    except PydanticValidationError:
+        logger.warning("execution_graph_invalid", execution_id=execution_id)
+        return None
+
+
+def _timing_to_entry(timing: dict, pd: dict, step_registry) -> StepTimelineEntry:
+    step_type = timing.get("step_type", "")
+    label = timing.get("label", "")
+    meta = _step_meta(step_registry, step_type)
+    if timing.get("cancellation_observed", False):
+        status = "cancelled"
+    else:
+        status = "success" if timing.get("success") else "failed"
+
+    return StepTimelineEntry(
+        step_id=timing.get("step_id"),
+        label=label,
+        step_type=step_type,
+        icon=meta.icon if meta else "mdi-cog",
+        category=meta.category if meta else "flow",
+        status=status,
+        elapsed_seconds=timing.get("elapsed_seconds"),
+        output_port=timing.get("output_port", "main"),
+        resolved_config=timing.get("resolved_config"),
+        outputs=pd.get("steps", {}).get(label, {}).get("outputs"),
+        logs=timing.get("logs", []),
+        error=timing.get("error"),
+        cancellation_observed=timing.get("cancellation_observed", False),
+    )
+
+
+def _merge_graph_timeline(
+    *,
+    graph: ExecutionGraph | None,
+    timing_entries: list[StepTimelineEntry],
+    current_step_id: int | None,
+    execution_status: str,
+    step_registry,
+) -> list[StepTimelineEntry]:
+    if graph is None:
+        return timing_entries
+
+    by_step_id = {
+        entry.step_id: entry
+        for entry in timing_entries
+        if entry.step_id is not None
+    }
+    graph_step_ids = {step.id for step in graph.steps}
+    timeline: list[StepTimelineEntry] = []
+
+    for step in graph.steps:
+        existing = by_step_id.get(step.id)
+        if existing is not None:
+            timeline.append(existing)
+            continue
+
+        meta = _step_meta(step_registry, step.step_type)
+        status = (
+            "in_progress"
+            if step.id == current_step_id and execution_status in ("running", "waiting")
+            else "skipped"
+        )
+        timeline.append(
+            StepTimelineEntry(
+                step_id=step.id,
+                label=step.label,
+                step_type=step.step_type,
+                icon=meta.icon if meta else "mdi-cog",
+                category=meta.category if meta else "flow",
+                status=status,
+                elapsed_seconds=None,
+                output_port="main",
+            )
+        )
+
+    timeline.extend(
+        entry
+        for entry in timing_entries
+        if entry.step_id is None or entry.step_id not in graph_step_ids
+    )
+    return timeline
+
+
+def _step_meta(step_registry, step_type: str):
+    handler = step_registry.get(step_type)
+    return handler.metadata() if handler else None
 
 
 def _build_trigger_summary(trigger_type: str, trigger_data: dict) -> str:

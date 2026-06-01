@@ -118,9 +118,11 @@
                 <div class="text-subtitle-2 mb-2">Step DAG</div>
                 <div style="height: 260px" data-testid="dag-chart-wrapper">
                   <CcDagChart
-                    :nodes="selectedRun.nodes"
-                    :edges="selectedRun.edges"
-                    :active-node-id="activeNodeId"
+                    :nodes="dagNodes"
+                    :edges="dagEdges"
+                    :active-node-id="selectedRun?.active_node_id || activeNodeId"
+                    :active-edges="selectedRun?.active_edges"
+                    :node-timings="selectedRunTimings"
                     :loading="false"
                     data-testid="cc-dag-chart"
                   />
@@ -221,7 +223,7 @@
       v-model="drawerOpen"
       location="right"
       temporary
-      width="480"
+      width="640"
       class="cc-drawer-right"
     >
       <div class="h-100 d-flex flex-column">
@@ -236,10 +238,12 @@
         <v-divider />
         <div class="flex-grow-1 overflow-y-auto" style="min-height: 0">
           <v-card-text>
-            <ExecutionDetail
+            <ExecutionInspector
               v-if="fullExecution"
-              :execution="fullExecution"
-              :live="selectedRun.status === 'running'"
+              :execution-id="fullExecution.id"
+              :source="selectedRun.status === 'running' || selectedRun.status === 'waiting' ? 'live' : 'historic'"
+              :rule-id="fullExecution.rule_id"
+              :live-run="selectedRun"
             />
             <div v-else class="text-medium-emphasis text-center pa-4">
               <v-progress-circular indeterminate size="24" />
@@ -261,7 +265,7 @@ import CcDagChart from "@/components/process/CcDagChart.vue";
 import CcStatusTimeline from "@/components/process/CcStatusTimeline.vue";
 import CcLiveActivityFeed from "@/components/process/CcLiveActivityFeed.vue";
 import CcMetricTile from "@/components/dashboard/CcMetricTile.vue";
-import ExecutionDetail from "@/components/pipeline/ExecutionDetail.vue";
+import ExecutionInspector from "@/components/pipeline/ExecutionInspector.vue";
 
 const { notify } = useNotify();
 const { connectionState, activeRuns, ingestEvents, error, refresh: refreshSocket } = useLivePipeline();
@@ -310,6 +314,23 @@ const activeNodeId = computed(() => {
   const running = selectedRun.value.nodes?.find((n) => n.status === "running");
   return running?.id || null;
 });
+
+const dagNodes = computed(() => selectedRun.value?.nodes || []);
+
+const dagEdges = computed(() =>
+  (selectedRun.value?.edges || []).map((edge) => ({
+    ...edge,
+    sourceHandle: edge.sourceHandle || edge.source_handle || "main",
+  })),
+);
+
+const selectedRunTimings = computed(() =>
+  Object.fromEntries(
+    (selectedRun.value?.nodes || [])
+      .filter((node) => node.elapsed_ms != null)
+      .map((node) => [node.id, node.elapsed_ms]),
+  ),
+);
 
 function selectRun(run) {
   selectedRunId.value = run.execution_id;
@@ -476,4 +497,3 @@ watch(
 
 defineExpose({ connectionState, activeRuns, activeTab, selectedRun, feedEvents, ingestEvents, selectRun });
 </script>
-

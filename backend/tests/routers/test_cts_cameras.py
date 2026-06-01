@@ -95,6 +95,43 @@ class TestListCameras:
         assert r.status_code == 404
         assert r.json()["detail"]["code"] == "cts.disabled"
 
+    def test_list_includes_homography_matrix_for_cts_sync(
+        self, client: TestClient, db_engine: Engine
+    ):
+        from backend.models.cts_camera import CtsCamera
+        from backend.models.household_settings import HouseholdSettings
+
+        matrix = [[1.0, 0.0, 0.1], [0.0, 1.0, 0.2], [0.0, 0.0, 1.0]]
+        Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+        with Session() as db:
+            db.add(HouseholdSettings(id=1, floor_plan_key="floor-plans/main.png"))
+            db.add(
+                CtsCamera(
+                    id="synced-cam",
+                    name="Synced",
+                    rtsp_url="rtsp://x",
+                    room_name="Kitchen",
+                    homography_matrix=matrix,
+                    homography_residuals=[0.01, 0.02, 0.01, 0.02],
+                    homography_residual_m=0.02,
+                    homography_method="manual",
+                    frame_natural_width=1920,
+                    frame_natural_height=1080,
+                )
+            )
+            db.commit()
+
+        r = client.get("/api/v1/cts/cameras")
+
+        assert r.status_code == 200
+        body = r.json()[0]
+        assert body["homography_matrix"] == matrix
+        assert body["homography_residual_m"] == 0.02
+        assert body["homography_method"] == "manual"
+        assert body["homography_floor_plan_id"] == "floor-plans/main.png"
+        assert body["frame_natural_width"] == 1920
+        assert body["frame_natural_height"] == 1080
+
 
 class TestCreateCamera:
     def test_creates_camera(self, client: TestClient):

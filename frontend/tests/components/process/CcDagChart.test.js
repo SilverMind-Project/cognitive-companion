@@ -132,4 +132,55 @@ describe("CcDagChart", () => {
     });
     expect(w.vm.isEmpty).toBe(true);
   });
+
+  it("uses a deterministic dagre layout", () => {
+    const w = mount(CcDagChart, {
+      props: { nodes: NODES, edges: EDGES },
+      global: { stubs: stubComponents },
+    });
+    const series = w.vm.chartOption.series[0];
+    expect(series.layout).toBe("none");
+    expect(series.data[0].x).toEqual(expect.any(Number));
+    expect(series.data[0].y).toEqual(expect.any(Number));
+  });
+
+  it("colors active edges with success color when in activeEdges set", () => {
+    const w = mount(CcDagChart, {
+      props: {
+        nodes: NODES,
+        edges: [{ source: "step-1", sourceHandle: "true", target: "step-2" }],
+        activeEdges: new Set(["step-1:true"]),
+      },
+      global: { stubs: stubComponents },
+    });
+    const edge = w.vm.chartOption.series[0].edges[0];
+    expect(edge.lineStyle.color).toBe(SUCCEEDED_COLOR);
+    expect(edge.lineStyle.width).toBe(3);
+  });
+
+  it("shows port label on edges with non-main sourceHandle", () => {
+    const w = mount(CcDagChart, {
+      props: {
+        nodes: NODES,
+        edges: [{ source: "step-1", sourceHandle: "false", target: "step-2" }],
+      },
+      global: { stubs: stubComponents },
+    });
+    const edge = w.vm.chartOption.series[0].edges[0];
+    expect(edge.label.show).toBe(true);
+    expect(edge.label.formatter).toBe("false");
+  });
+
+  it("includes elapsed_ms in tooltip text when nodeTimings provided", () => {
+    const w = mount(CcDagChart, {
+      props: { nodes: NODES, edges: EDGES, nodeTimings: { "step-1": 1500 } },
+      global: { stubs: stubComponents },
+    });
+    const tooltipText = w.vm.chartOption.tooltip.formatter({
+      dataType: "node",
+      name: "Ingest",
+      data: { id: "step-1", _status: "succeeded" },
+    });
+    expect(tooltipText).toContain("1.5s");
+  });
 });

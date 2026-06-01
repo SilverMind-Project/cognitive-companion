@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from backend.channels.builtin.telegram import TelegramChannel
+from backend.core.config import Settings
 
 # ---------------------------------------------------------------------------
 # Fakes
@@ -50,16 +51,10 @@ def _fake_image_bytes(url: str) -> bytes:
 
 
 def _patch_settings(targets, max_side=1920):
-    cfg = {
-        "notifications.telegram.targets": targets,
-        "notifications.telegram.max_image_side": max_side,
-    }
-
-    class _S:
-        def get(self, key, default=None):
-            return cfg.get(key, default)
-
-    return patch("backend.channels.builtin.telegram.settings", _S())
+    cfg = Settings.from_dict(
+        {"notifications": {"telegram": {"targets": targets, "max_image_side": max_side}}}
+    )
+    return patch("backend.channels.builtin.telegram.settings", cfg)
 
 
 def _patch_fetch(side_effect=None, return_value=b"img"):

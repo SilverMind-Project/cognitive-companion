@@ -80,6 +80,7 @@ def _make_client(
             "warning": None,
         }
     )
+    orchestrator.post_homography = AsyncMock(return_value=None)
     orchestrator.post_privacy_zones = AsyncMock(return_value=None)
     orchestrator.post_adjacency = AsyncMock(return_value=None)
     orchestrator.post_reload = AsyncMock(return_value=None)
@@ -171,6 +172,26 @@ class TestHomographyEndpoint:
         assert body["status"] in ("ok", "warning", "error")
         # Verify the orchestrator was called (not local cv2).
         client._orchestrator.fit_homography.assert_called_once()  # type: ignore[attr-defined]
+        client._orchestrator.post_homography.assert_called_once()  # type: ignore[attr-defined]
+
+    def test_post_homography_pushes_committed_runtime_payload(
+        self, client: TestClient, camera_id: str
+    ):
+        r = client.post(
+            "/api/v1/cts/calibration/homography",
+            json=_homography_payload(camera_id),
+        )
+
+        assert r.status_code == 200
+        call_kwargs = client._orchestrator.post_homography.call_args.kwargs  # type: ignore[attr-defined]
+        assert call_kwargs["camera_id"] == camera_id
+        assert call_kwargs["floor_plan_id"] == "household:1"
+        assert call_kwargs["image_width"] == 640
+        assert call_kwargs["image_height"] == 480
+        assert call_kwargs["max_residual_m"] == pytest.approx(0.001)
+        assert call_kwargs["mean_residual_m"] == pytest.approx(0.001)
+        assert call_kwargs["quality_status"] == "ok"
+        assert call_kwargs["quality_point_count"] == 4
 
     def test_post_homography_persists_to_db(
         self, client: TestClient, camera_id: str, db_session: Session

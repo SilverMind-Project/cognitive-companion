@@ -80,7 +80,7 @@
         </template>
         <template #item.execution_id="{ item }">
           <a
-            :href="`/admin/workflows/executions/${item.execution_id}`"
+            :href="`/admin/executions?tab=history&execution=${item.execution_id}`"
             class="text-primary text-decoration-none"
             @click.prevent="navigateToExecution(item.execution_id)"
           >
@@ -182,7 +182,7 @@ function getActionColor(action) {
 }
 
 function navigateToExecution(executionId) {
-  router.push(`/admin/workflows/executions/${executionId}`);
+  router.push(`/admin/executions?tab=history&execution=${executionId}`);
 }
 
 async function loadResponses() {

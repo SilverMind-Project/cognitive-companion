@@ -7,8 +7,9 @@ files, a lightweight request stub).  Every scenario is exercised by injecting
 known image bytes, recording a matching or mismatching ``ActiveImageState``,
 and asserting on the HTTP response returned.
 
-The ``db_session`` fixture is function-scoped (fresh in-memory SQLite per
-test), so commits inside the helper do not bleed across tests.
+The ``db_session`` fixture is function-scoped and backed by the shared
+PostgreSQL test database, so commits inside the helper do not bleed across
+tests.
 """
 
 from __future__ import annotations

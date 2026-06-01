@@ -1,6 +1,6 @@
 """Unit tests for :class:`~backend.services.signals.SignalsService`.
 
-Uses the in-memory SQLite fixture from conftest so no mocking is needed.
+Uses the shared PostgreSQL fixture from conftest so no mocking is needed.
 """
 
 from __future__ import annotations

@@ -4,6 +4,7 @@
  * Maps an identity_id string to a deterministic colour so each resident
  * always appears with the same colour across views.
  */
+import { ccToken } from "./useChartTheme.js";
 
 // Distinctive palette optimised for contrast on dark backgrounds.
 const PALETTE = [
@@ -17,10 +18,10 @@ const PALETTE = [
  * Return a stable colour for *identityId*.
  *
  * Uses djb2 hash so the same string always maps to the same palette entry.
- * Returns ``"#888888"`` for empty / unknown inputs.
+ * Returns the ``--cc-annotation-unknown`` token (orange) for empty / unknown inputs.
  */
 export function identityColor(identityId) {
-  if (!identityId) return "#888888";
+  if (!identityId) return ccToken("--cc-annotation-unknown") || "#fb923c";
   let hash = 5381;
   for (let i = 0; i < identityId.length; i++) {
     hash = ((hash << 5) + hash) + identityId.charCodeAt(i); // hash * 33 + c

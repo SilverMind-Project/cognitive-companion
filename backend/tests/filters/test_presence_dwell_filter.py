@@ -40,11 +40,12 @@ def now():
     return datetime.now(UTC)
 
 
-def test_match_dwell_above_threshold(now):
+@pytest.mark.asyncio
+async def test_match_dwell_above_threshold(now):
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM, dwell_minutes=20.0)
     filter_instance = PresenceDwellFilter()
     services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
-    result = filter_instance.evaluate(
+    result = await filter_instance.evaluate(
         config={"person_id": "mom", "min_minutes": 15},
         sensor=None,
         now=now,
@@ -53,11 +54,12 @@ def test_match_dwell_above_threshold(now):
     assert result is True
 
 
-def test_no_match_dwell_below_threshold(now):
+@pytest.mark.asyncio
+async def test_no_match_dwell_below_threshold(now):
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM, dwell_minutes=3.0)
     filter_instance = PresenceDwellFilter()
     services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
-    result = filter_instance.evaluate(
+    result = await filter_instance.evaluate(
         config={"person_id": "mom", "min_minutes": 10},
         sensor=None,
         now=now,
@@ -66,11 +68,12 @@ def test_no_match_dwell_below_threshold(now):
     assert result is False
 
 
-def test_status_filter_matches(now):
+@pytest.mark.asyncio
+async def test_status_filter_matches(now):
     snapshot = _make_snapshot(PresenceStatus.ASLEEP, dwell_minutes=120.0)
     filter_instance = PresenceDwellFilter()
     services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
-    result = filter_instance.evaluate(
+    result = await filter_instance.evaluate(
         config={"person_id": "mom", "status": "asleep", "min_minutes": 60},
         sensor=None,
         now=now,
@@ -79,11 +82,12 @@ def test_status_filter_matches(now):
     assert result is True
 
 
-def test_status_filter_no_match(now):
+@pytest.mark.asyncio
+async def test_status_filter_no_match(now):
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM, dwell_minutes=120.0)
     filter_instance = PresenceDwellFilter()
     services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
-    result = filter_instance.evaluate(
+    result = await filter_instance.evaluate(
         config={"person_id": "mom", "status": "asleep", "min_minutes": 60},
         sensor=None,
         now=now,
@@ -92,11 +96,12 @@ def test_status_filter_no_match(now):
     assert result is False
 
 
-def test_no_dwell_returns_false(now):
+@pytest.mark.asyncio
+async def test_no_dwell_returns_false(now):
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM, dwell_minutes=None)
     filter_instance = PresenceDwellFilter()
     services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
-    result = filter_instance.evaluate(
+    result = await filter_instance.evaluate(
         config={"person_id": "mom", "min_minutes": 5},
         sensor=None,
         now=now,
@@ -105,10 +110,11 @@ def test_no_dwell_returns_false(now):
     assert result is False
 
 
-def test_no_person_returns_false(now):
+@pytest.mark.asyncio
+async def test_no_person_returns_false(now):
     filter_instance = PresenceDwellFilter()
     services = type("Svc", (), {"presence": None})()
-    result = filter_instance.evaluate(
+    result = await filter_instance.evaluate(
         config={"min_minutes": 5},
         sensor=None,
         now=now,

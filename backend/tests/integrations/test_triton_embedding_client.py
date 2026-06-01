@@ -15,6 +15,17 @@ from backend.integrations.triton_embedding_client import (
     TritonEmbeddingError,
 )
 
+_BASE_SETTINGS = {
+    "embedding": {
+        "dim": 768,
+        "triton_url": "localhost:8701",
+        "model_name": "test-model",
+        "tokenizer_path": "/tmp/tokenizer.json",
+        "max_seq_len": 512,
+        "batch_size": 32,
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -38,6 +49,16 @@ def _make_mock_grpc_client():
     return mock
 
 
+@pytest.fixture(autouse=True)
+def _embedding_settings():
+    """Provide the required embedding settings explicitly for every test."""
+    with patch(
+        "backend.integrations.triton_embedding_client.settings",
+        Settings.from_dict(_BASE_SETTINGS),
+    ):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Constructor / dim
 # ---------------------------------------------------------------------------
@@ -50,7 +71,7 @@ class TestConstructor:
         assert client._embedder is None
 
     def test_dim_default(self):
-        """dim falls back to the package default when no settings override."""
+        """dim is read from the configured package default."""
         client = TritonEmbeddingClient()
         assert client.dim == 768
 
@@ -149,7 +170,7 @@ class TestEmbedChunks:
         mock_embedder = _make_mock_embedder()
         mock_embedder.embed_chunks = AsyncMock(side_effect=lambda batch: [[0.1]] * len(batch))
 
-        s = Settings.from_dict({"embedding": {"batch_size": 2}})
+        s = Settings.from_dict({"embedding": {**_BASE_SETTINGS["embedding"], "batch_size": 2}})
         client = TritonEmbeddingClient()
         client._embedder = mock_embedder
 

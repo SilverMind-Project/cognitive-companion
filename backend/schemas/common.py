@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, PlainSerializer
+from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 
 from backend.core.time import normalize_utc_datetime
 
@@ -36,13 +36,26 @@ def _to_utc_iso(v: datetime | None) -> str | None:
     return normalized.isoformat().replace("+00:00", "Z")
 
 
+def _normalize_utc_datetime_input(v: datetime | str | None) -> datetime | None:
+    if isinstance(v, str):
+        v = datetime.fromisoformat(v.replace("Z", "+00:00"))
+    return normalize_utc_datetime(v)
+
+
 #: Drop-in replacement for ``datetime`` in Pydantic output schemas.
-#: Validates identically to ``AwareDatetime``; serialises to JSON with "Z" suffix.
-UTCDatetime = Annotated[AwareDatetime, PlainSerializer(_to_utc_iso, when_used="json")]
+#: Accepts ISO strings and datetimes, normalises them to UTC, and serialises
+#: JSON with a "Z" suffix.
+UTCDatetime = Annotated[
+    datetime,
+    BeforeValidator(_normalize_utc_datetime_input),
+    PlainSerializer(_to_utc_iso, when_used="json"),
+]
 
 #: Nullable variant of UTCDatetime.
 OptionalUTCDatetime = Annotated[
-    AwareDatetime | None, PlainSerializer(_to_utc_iso, when_used="json")
+    datetime | None,
+    BeforeValidator(_normalize_utc_datetime_input),
+    PlainSerializer(_to_utc_iso, when_used="json"),
 ]
 
 

@@ -3,10 +3,12 @@ step timing, completed_at tracking, and execution timeout enforcement."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 from unittest.mock import AsyncMock, patch
 
 from backend.models.event import EventLog
-from backend.models.pipeline import PipelineStep
+from backend.models.pipeline import PipelineEdge, PipelineStep
 from backend.models.rule import Rule
 from backend.services.pipeline_executor import PipelineExecutor
 from backend.steps.base import StepResult, TriggerContext
@@ -37,6 +39,28 @@ def _make_step(db, rule, order, step_type="notification", config=None, enabled=T
     db.add(step)
     db.flush()
     return step
+
+
+def _connect(db, rule, source, target, source_port="main"):
+    edge = PipelineEdge(
+        rule_id=rule.id,
+        source_step_id=source.id,
+        source_port=source_port,
+        target_step_id=target.id,
+        target_port="main",
+    )
+    db.add(edge)
+    db.flush()
+    return edge
+
+
+def _connect_linear(db, rule, *steps):
+    for source, target in pairwise(steps):
+        _connect(db, rule, source, target)
+
+
+async def _append_event(events, event):
+    events.append(event)
 
 
 def _make_executor(db_factory):
@@ -70,9 +94,10 @@ class TestPipelineExecutorSequencing:
 
     async def test_steps_executed_in_order(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
-        _make_step(db_session, rule, order=2, step_type="step_b")
-        _make_step(db_session, rule, order=3, step_type="step_c")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b")
+        step_c = _make_step(db_session, rule, order=3, step_type="step_c")
+        _connect_linear(db_session, rule, step_a, step_b, step_c)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -90,9 +115,10 @@ class TestPipelineExecutorSequencing:
 
     async def test_disabled_steps_skipped(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a")
         _make_step(db_session, rule, order=2, step_type="step_b", enabled=False)
-        _make_step(db_session, rule, order=3, step_type="step_c")
+        step_c = _make_step(db_session, rule, order=3, step_type="step_c")
+        _connect(db_session, rule, step_a, step_c)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -111,8 +137,9 @@ class TestPipelineExecutorSequencing:
 
     async def test_should_continue_false_stops_pipeline(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
-        _make_step(db_session, rule, order=2, step_type="step_b")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b")
+        _connect(db_session, rule, step_a, step_b)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -131,8 +158,9 @@ class TestPipelineExecutorSequencing:
 
     async def test_pipeline_data_accumulates_across_steps(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
-        _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
+        _connect(db_session, rule, step_a, step_b)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -152,19 +180,20 @@ class TestPipelineExecutorSequencing:
 
 
 class TestPipelineExecutorBranching:
-    async def test_branch_target_not_found_logs_warning(self, db_session, db_factory):
-        """When a condition step targets a non-existent step, execution should
-        stop and a warning should be logged (not silently succeed)."""
+    async def test_missing_edge_target_logs_warning(self, db_session, db_factory):
+        """If an edge points outside the enabled step set, execution logs and continues."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="condition")
+        step = _make_step(db_session, rule, order=1, step_type="notification")
         db_session.commit()
 
         executor = _make_executor(db_factory)
         trigger = _make_trigger()
 
+        adjacency = {step.id: {"main": 99999}}
+        entry_ids = [step.id]
+
         async def mock_execute(step, execution, pipeline_data, trigger):
-            # Return a branch to a non-existent step ID
-            return StepResult(success=True, next_step_id=99999)
+            return StepResult(success=True)
 
         # Structlog doesn't propagate to Python logging so we patch the module logger.
         import backend.services.pipeline_executor as pe_module
@@ -173,19 +202,46 @@ class TestPipelineExecutorBranching:
             patch.object(pe_module, "logger") as mock_logger,
             patch.object(executor, "_execute_step", side_effect=mock_execute),
         ):
-            result = await executor.execute(rule, trigger, db_session)
+            event_log = EventLog(
+                rule_id=rule.id,
+                rule_name=rule.name,
+                trigger_type=trigger.trigger_type,
+                status="processing",
+            )
+            db_session.add(event_log)
+            db_session.flush()
+            from backend.models.pipeline import WorkflowExecution
+
+            execution = WorkflowExecution(
+                rule_id=rule.id,
+                event_log_id=event_log.id,
+                status="running",
+                pipeline_data_json={"steps": {}, "_pipeline": {}},
+            )
+            db_session.add(execution)
+            db_session.commit()
+            result = await executor._run_steps(
+                execution,
+                [step],
+                trigger,
+                db_session,
+                adjacency,
+                entry_ids,
+            )
 
         assert result.status == "completed"
         mock_logger.warning.assert_called_once()
         call_kwargs = mock_logger.warning.call_args
-        assert "branch_target_not_found" in call_kwargs[0][0]
+        assert "dag_step_not_found" in call_kwargs[0][0]
 
-    async def test_valid_branch_skips_linear_sequence(self, db_session, db_factory):
-        """A condition branching to step C should skip step B."""
+    async def test_condition_true_port_skips_false_branch(self, db_session, db_factory):
+        """A condition activating true should follow only the true edge."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="condition")
-        _make_step(db_session, rule, order=2, step_type="step_b")
+        condition = _make_step(db_session, rule, order=1, step_type="condition")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b")
         step_c = _make_step(db_session, rule, order=3, step_type="step_c")
+        _connect(db_session, rule, condition, step_c, source_port="true")
+        _connect(db_session, rule, condition, step_b, source_port="false")
         db_session.commit()
 
         # Reload to get IDs
@@ -198,7 +254,7 @@ class TestPipelineExecutorBranching:
         async def mock_execute(step, execution, pipeline_data, trigger):
             executed.append(step.step_type)
             if step.step_type == "condition":
-                return StepResult(success=True, next_step_id=step_c.id)
+                return StepResult(success=True, output_ports=("true",))
             return StepResult(success=True)
 
         with patch.object(executor, "_execute_step", side_effect=mock_execute):
@@ -206,6 +262,105 @@ class TestPipelineExecutorBranching:
 
         assert "step_b" not in executed
         assert "step_c" in executed
+
+    async def test_condition_false_port_skips_true_branch(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        condition = _make_step(db_session, rule, order=1, step_type="condition")
+        true_step = _make_step(db_session, rule, order=2, step_type="step_true")
+        false_step = _make_step(db_session, rule, order=3, step_type="step_false")
+        _connect(db_session, rule, condition, true_step, source_port="true")
+        _connect(db_session, rule, condition, false_step, source_port="false")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        executed = []
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            executed.append(step.step_type)
+            if step.step_type == "condition":
+                return StepResult(success=True, output_ports=("false",))
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            await executor.execute(rule, _make_trigger(), db_session)
+
+        assert executed == ["condition", "step_false"]
+
+    async def test_diamond_merge_node_runs_once(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        condition = _make_step(db_session, rule, order=1, step_type="condition")
+        branch_a = _make_step(db_session, rule, order=2, step_type="branch_a")
+        branch_b = _make_step(db_session, rule, order=3, step_type="branch_b")
+        merge = _make_step(db_session, rule, order=4, step_type="merge")
+        _connect(db_session, rule, condition, branch_a, source_port="true")
+        _connect(db_session, rule, condition, branch_b, source_port="false")
+        _connect(db_session, rule, branch_a, merge)
+        _connect(db_session, rule, branch_b, merge)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        executed = []
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            executed.append(step.step_type)
+            if step.step_type == "condition":
+                return StepResult(success=True, output_ports=("true", "false"))
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            await executor.execute(rule, _make_trigger(), db_session)
+
+        assert executed.count("merge") == 1
+        assert executed == ["condition", "branch_a", "branch_b", "merge"]
+
+    async def test_wait_step_pauses_execution_before_following_edge(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        wait_step = _make_step(db_session, rule, order=1, step_type="wait")
+        next_step = _make_step(db_session, rule, order=2, step_type="notification")
+        _connect(db_session, rule, wait_step, next_step)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        executed = []
+        resume_at = datetime.now(UTC) + timedelta(minutes=5)
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            executed.append(step.step_type)
+            if step.step_type == "wait":
+                return StepResult(success=True, wait_until=resume_at)
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, _make_trigger(), db_session)
+
+        assert result.status == "waiting"
+        assert executed == ["wait"]
+
+    async def test_step_completed_event_includes_output_port(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        condition = _make_step(db_session, rule, order=1, step_type="condition")
+        next_step = _make_step(db_session, rule, order=2, step_type="notification")
+        _connect(db_session, rule, condition, next_step, source_port="true")
+        db_session.commit()
+
+        events = []
+        executor = PipelineExecutor(
+            db_session_factory=db_factory,
+            event_publisher=lambda event: _append_event(events, event),
+        )
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            if step.step_type == "condition":
+                return StepResult(success=True, output_ports=("true",))
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            await executor.execute(rule, _make_trigger(), db_session)
+
+        completed = [
+            event for event in events if event.get("event_type") == "step_completed"
+        ]
+        assert completed[0]["output_port"] == "true"
 
 
 class TestPipelineExecutorErrors:
@@ -253,8 +408,9 @@ class TestPipelineExecutorStepTiming:
 
     async def test_step_timing_recorded_for_each_step(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
-        _make_step(db_session, rule, order=2, step_type="step_b")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b")
+        _connect(db_session, rule, step_a, step_b)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -296,6 +452,83 @@ class TestPipelineExecutorStepTiming:
             assert field in entry, f"Missing field: {field}"
         assert entry["success"] is True
         assert entry["elapsed_seconds"] >= 0
+        assert entry["output_port"] == "main"
+
+    async def test_execution_persists_graph_snapshot(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        step_a = _make_step(db_session, rule, order=1, step_type="condition")
+        step_b = _make_step(db_session, rule, order=2, step_type="notification")
+        _connect(db_session, rule, step_a, step_b, source_port="true")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            if step.step_type == "condition":
+                return StepResult(success=True, output_ports=("true",))
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, _make_trigger(), db_session)
+
+        graph = result.pipeline_data_json.get("_graph")
+        assert graph is not None
+        assert [step["id"] for step in graph["steps"]] == [step_a.id, step_b.id]
+        assert graph["steps"][0]["output_ports"] == ["true", "false"]
+        assert graph["edges"] == [
+            {
+                "source_step_id": step_a.id,
+                "source_port": "true",
+                "target_step_id": step_b.id,
+                "target_port": "main",
+            }
+        ]
+
+    async def test_step_timing_records_output_port(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        condition = _make_step(db_session, rule, order=1, step_type="condition")
+        next_step = _make_step(db_session, rule, order=2, step_type="notification")
+        _connect(db_session, rule, condition, next_step, source_port="false")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            if step.step_type == "condition":
+                return StepResult(success=True, output_ports=("false",))
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, _make_trigger(), db_session)
+
+        timing = result.pipeline_data_json["_step_timings"][0]
+        assert timing["step_id"] == condition.id
+        assert timing["output_port"] == "false"
+
+    async def test_graph_snapshot_is_stable_after_rule_edit(self, db_session, db_factory):
+        rule = _make_rule(db_session)
+        step_a = _make_step(db_session, rule, order=1, step_type="condition")
+        true_step = _make_step(db_session, rule, order=2, step_type="notification", label="true_notify")
+        false_step = _make_step(db_session, rule, order=3, step_type="notification", label="false_notify")
+        true_edge = _connect(db_session, rule, step_a, true_step, source_port="true")
+        _connect(db_session, rule, step_a, false_step, source_port="false")
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            if step.step_type == "condition":
+                return StepResult(success=True, output_ports=("true",))
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, _make_trigger(), db_session)
+
+        snapshot_edges = list(result.pipeline_data_json["_graph"]["edges"])
+        true_edge.target_step_id = false_step.id
+        db_session.commit()
+
+        assert result.pipeline_data_json["_graph"]["edges"] == snapshot_edges
 
     async def test_failed_step_timing_recorded_with_error(self, db_session, db_factory):
         rule = _make_rule(db_session)
@@ -525,9 +758,10 @@ class TestPipelineExecutorPersistence:
 
     async def test_multi_step_pipeline_data_persists_across_commits(self, db_session, db_factory):
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
-        _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
-        _make_step(db_session, rule, order=3, step_type="step_c", label="step_c_1")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
+        step_c = _make_step(db_session, rule, order=3, step_type="step_c", label="step_c_1")
+        _connect_linear(db_session, rule, step_a, step_b, step_c)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -561,8 +795,9 @@ class TestPipelineExecutorPersistence:
         change to survive ``db.refresh``.
         """
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a")
-        _make_step(db_session, rule, order=2, step_type="step_b")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b")
+        _connect(db_session, rule, step_a, step_b)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -588,8 +823,9 @@ class TestPipelineExecutorPersistence:
         """The event log snapshot written on completion must include every
         step's output under steps.<label>.outputs."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
-        _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
+        step_a = _make_step(db_session, rule, order=1, step_type="step_a", label="step_a_1")
+        step_b = _make_step(db_session, rule, order=2, step_type="step_b", label="step_b_1")
+        _connect(db_session, rule, step_a, step_b)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -938,8 +1174,9 @@ class TestCanonicalStepNamespace:
     async def test_two_same_type_steps_both_in_canonical_namespace(self, db_session, db_factory):
         """Two llm_call steps with distinct labels must both survive in steps."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="llm_call", label="vision_call")
-        _make_step(db_session, rule, order=2, step_type="llm_call", label="logic_call")
+        vision = _make_step(db_session, rule, order=1, step_type="llm_call", label="vision_call")
+        logic = _make_step(db_session, rule, order=2, step_type="llm_call", label="logic_call")
+        _connect(db_session, rule, vision, logic)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -1022,8 +1259,9 @@ class TestCanonicalStepNamespace:
     async def test_two_steps_with_same_output_key_both_survive(self, db_session, db_factory):
         """Two steps that write the same output key must each be accessible via their label."""
         rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1, step_type="llm_call", label="step_a")
-        _make_step(db_session, rule, order=2, step_type="llm_call", label="step_b")
+        step_a = _make_step(db_session, rule, order=1, step_type="llm_call", label="step_a")
+        step_b = _make_step(db_session, rule, order=2, step_type="llm_call", label="step_b")
+        _connect(db_session, rule, step_a, step_b)
         db_session.commit()
 
         executor = _make_executor(db_factory)
@@ -1089,6 +1327,7 @@ class TestInteractivePromptResumeIntegration:
             config={"output_key": "interactive_response", "auto_escalate": False},
         )
         next_step = _make_step(db_session, rule, order=2, step_type="notification")
+        _connect(db_session, rule, prompt_step, next_step)
         db_session.commit()
         db_session.refresh(prompt_step)
         db_session.refresh(next_step)

@@ -109,6 +109,11 @@ describe("PHInspectorDrawer", () => {
     expect(wrapper.text()).toContain("Alice Rivera");
   });
 
+  it("does not render missing posterior evidence as 0%", () => {
+    const wrapper = mountDrawer();
+    expect(wrapper.text()).not.toContain("alice 0%");
+  });
+
   it("emits close when close button is clicked", async () => {
     const wrapper = mountDrawer();
     // The close button is the last v-btn in the header (icon=mdi-close)

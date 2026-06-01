@@ -14,6 +14,18 @@ function makeRouter() {
 }
 
 describe("Router redirects (U4)", () => {
+  it("/admin/activity redirects to executions live tab", async () => {
+    const router = makeRouter();
+    await router.push("/admin/activity");
+    expect(router.currentRoute.value.fullPath).toBe("/admin/executions?tab=live");
+  });
+
+  it("/admin/workflows redirects to executions history tab", async () => {
+    const router = makeRouter();
+    await router.push("/admin/workflows");
+    expect(router.currentRoute.value.fullPath).toBe("/admin/executions?tab=history");
+  });
+
   it("/admin/cts/dashboard redirects to /admin/tracking with panel=overview", async () => {
     const router = makeRouter();
     await router.push("/admin/cts/dashboard");

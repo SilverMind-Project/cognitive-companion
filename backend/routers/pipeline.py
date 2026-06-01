@@ -48,6 +48,7 @@ def list_step_types(
             ui_hints=m.ui_hints if m.ui_hints else None,
             output_schema=m.output_schema if m.output_schema else None,
             tags=list(m.tags),
+            output_ports=list(m.output_ports),
         )
         for m in StepRegistry.all_metadata()
     ]

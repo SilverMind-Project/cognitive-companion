@@ -69,8 +69,6 @@ class _FakeStep:
     config_json: dict | None = None
     order: int = 0
     enabled: bool = True
-    next_step_on_true: int | None = None
-    next_step_on_false: int | None = None
 
 
 @dataclass

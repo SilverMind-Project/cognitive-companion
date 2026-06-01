@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base, TimestampMixin
@@ -30,6 +30,10 @@ class CronTrigger(Base, TimestampMixin):
 
 class RuleCronTrigger(Base):
     __tablename__ = "rule_cron_triggers"
+    __table_args__ = (
+        Index("ix_rule_cron_triggers_rule_id", "rule_id"),
+        Index("ix_rule_cron_triggers_cron_trigger_id", "cron_trigger_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id"), nullable=False)

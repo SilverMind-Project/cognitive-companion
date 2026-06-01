@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 class EnrichedFields(BaseModel):
     identity_display_name: str | None = None
     identity_color: str | None = None
+    room_id: str | None = None
     room_name: str | None = None
     latest_keyframe_image_url: str | None = None
     latest_keyframe_blurred_url: str | None = None
@@ -234,7 +235,7 @@ class PaginatedPHList(BaseModel):
 
 
 class PHKeyframeResponse(BaseModel):
-    keyframe_id: str
+    keyframe_id: str | None = None
     observation_id: str
     observed_at: datetime | None = None
     camera_id: str = ""

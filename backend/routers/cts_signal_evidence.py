@@ -179,9 +179,9 @@ async def signal_explorer(
 
     window_hours = 720  # 30 days
     signals, _ = await store.list_recent(
-        person_id=person_id[0] if person_id else None,
-        signal_type=kind[0] if kind else None,
-        severity=severity[0] if severity else None,
+        person_id=person_id[0] if person_id and len(person_id) == 1 else None,
+        signal_type=kind[0] if kind and len(kind) == 1 else None,
+        severity=severity[0] if severity and len(severity) == 1 else None,
         window_hours=window_hours,
         limit=limit,
         offset=offset,
@@ -339,5 +339,5 @@ def _in_window(fired_at: str | None, ws: datetime, we: datetime) -> bool:
     try:
         t = _parse_iso(fired_at)
         return ws <= t <= we
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return False

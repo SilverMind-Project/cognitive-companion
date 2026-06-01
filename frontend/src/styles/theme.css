@@ -11,6 +11,12 @@
 :root {
   /* Brand */
   --cc-brand: #0a84ff;
+
+  /* Canvas annotation tokens — used by spatial renderers (floor plan, calibration, polygon editor).
+     Theme-invariant: these colors must read against photographic/map backgrounds, not UI surfaces. */
+  --cc-annotation-unknown: #fb923c;   /* tracking entity with no assigned identity */
+  --cc-annotation-pending: #f59e0b;   /* point placed, awaiting second click to confirm */
+  --cc-annotation-halo: rgba(0, 0, 0, 0.55); /* legibility stroke behind SVG text labels */
   --cc-brand-strong: #0071e3;
   --cc-brand-soft: rgba(10, 132, 255, 0.12);
   --cc-brand-softer: rgba(10, 132, 255, 0.06);
@@ -493,6 +499,38 @@ kbd {
   flex: 1 1 0;
   min-height: 0;
   padding-top: 0;
+}
+
+/* ── Spatial canvas controls ─────────────────────────────────────────── */
+
+/* Zoom control pill: pinned to bottom-right of the nearest position:relative
+   ancestor. Used by CcZoomControls inside any zoomable canvas surface.
+   Never place this class on an element that is itself positioned relative —
+   it must sit as an absolute child inside the canvas outer container. */
+.cc-zoom-controls {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 10;
+  background: var(--cc-surface);
+  border: 1px solid var(--cc-glass-border);
+  border-radius: 8px;
+  padding: 3px;
+  box-shadow: var(--cc-shadow-sm);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: all;
+}
+
+/* Zoom percentage label inside CcZoomControls */
+.cc-zoom-pct {
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+  font-size: 11px;
+  height: 22px;
 }
 
 /* Stat card: elevated dashboard metric panels */

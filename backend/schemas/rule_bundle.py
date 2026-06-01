@@ -44,13 +44,9 @@ class StepBundle(BaseModel):
     step_type: str
     schema_version: int = 1
     enabled: bool = True
+    position_x: float = 0.0
+    position_y: float = 0.0
     config: dict[str, Any] = {}
-    branches: BranchTargets
-
-
-class BranchTargets(BaseModel):
-    on_true: str | None = None  # label of the next step, or None
-    on_false: str | None = None
 
 
 # -- Contexts -----------------------------------------------------------------
@@ -70,6 +66,18 @@ class DependencyBundle(BaseModel):
     parent_rule_name: str  # resolved by name on import
     lookback_minutes: int = 30
     require_success: bool = True
+
+
+# -- Edges --------------------------------------------------------------------
+
+
+class EdgeBundle(BaseModel):
+    """Portable representation of a pipeline edge."""
+
+    source_label: str
+    source_port: str
+    target_label: str
+    target_port: str = "main"
 
 
 # -- Rule ---------------------------------------------------------------------
@@ -116,6 +124,7 @@ class RuleBundle(BaseModel):
     references: ReferenceBlock = ReferenceBlock()
     contexts: list[ContextBundle] = []
     steps: list[StepBundle] = []
+    edges: list[EdgeBundle] = []
     dependencies: list[DependencyBundle] = []
 
 

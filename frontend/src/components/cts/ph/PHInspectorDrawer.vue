@@ -16,8 +16,8 @@
         >
           {{ detail.state.detail.value.identity_display_name || detail.state.detail.value.current_identity_id || "UNKNOWN" }}
         </v-chip>
-        <v-chip v-if="posteriorTopLabel" size="x-small" variant="text" class="text-caption ml-1">
-          {{ posteriorTopLabel }} {{ (posteriorTopProb * 100).toFixed(0) }}%
+        <v-chip v-if="posteriorTopPercent !== null" size="x-small" variant="text" class="text-caption ml-1">
+          {{ posteriorTopLabel }} {{ posteriorTopPercent.toFixed(0) }}%
         </v-chip>
       </template>
       <span v-else class="text-body-2 text-medium-emphasis">No data</span>
@@ -238,7 +238,7 @@ export default {
     } = useConfirm();
     const correction = usePHCorrection(notify);
 
-    const activeForm = ref(null);
+    const activeForm = ref(props.mode === "correct" ? "correct" : null);
     const selectedObservationId = ref("");
 
     // Lightbox state
@@ -257,13 +257,15 @@ export default {
     const posteriorTopLabel = computed(() => {
       const ph = detail.state.detail.value;
       if (!ph) return null;
-      return ph.posterior_top_label || ph.current_identity_id || null;
+      return ph.posterior_top_label || null;
     });
 
-    const posteriorTopProb = computed(() => {
+    const posteriorTopPercent = computed(() => {
       const ph = detail.state.detail.value;
-      if (!ph?.posterior_top_prob) return 0;
-      return ph.posterior_top_prob;
+      if (!posteriorTopLabel.value) return null;
+      const prob = Number(ph?.posterior_top_prob);
+      if (!Number.isFinite(prob)) return null;
+      return Math.max(0, Math.min(100, prob * 100));
     });
 
     const coPresentItems = computed(() => detail.state.coPresent.value || []);
@@ -282,7 +284,16 @@ export default {
       if (newId) {
         selectedObservationId.value = "";
         lightboxOpen.value = false;
+        activeForm.value = props.mode === "correct" ? "correct" : null;
         detail.actions.fetch(newId);
+      }
+    });
+
+    watch(() => props.mode, (newMode) => {
+      if (newMode === "correct") {
+        activeForm.value = "correct";
+      } else if (activeForm.value === "correct") {
+        activeForm.value = null;
       }
     });
 
@@ -374,7 +385,7 @@ export default {
       annotationImageUrl,
       annotationKeyframeId,
       posteriorTopLabel,
-      posteriorTopProb,
+      posteriorTopPercent,
       coPresentItems,
       mergeCandidateItems,
       confirmDialogOpen,

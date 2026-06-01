@@ -4,9 +4,8 @@ Unit tests for lock contention monitoring in database.py.
 Tests verify that SQLAlchemy event listeners correctly track and log
 lock wait times for SELECT FOR UPDATE queries.
 
-Note: These tests use mocking to simulate FOR UPDATE queries since SQLite
-doesn't support this syntax. In production with PostgreSQL, the monitoring
-will work with actual FOR UPDATE queries.
+PostgreSQL integration tests exercise listener installation, while focused
+unit tests use mocks to trigger the event callbacks directly.
 """
 
 from __future__ import annotations

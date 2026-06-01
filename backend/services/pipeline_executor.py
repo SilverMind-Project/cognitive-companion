@@ -68,14 +68,33 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import StaleDataError
 
 from backend.core.config import settings
+from backend.core.exceptions import ValidationError
 from backend.core.logging import get_logger
 from backend.models.event import EventLog
-from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.models.rule import Rule
+from backend.schemas.pipeline_ws import (
+    EdgeRef,
+    PipelineCancelledEvent,
+    PipelineCompletedEvent,
+    PipelineFailedEvent,
+    PipelineStartedEvent,
+    PipelineWaitingEvent,
+    StepCompletedEvent,
+    StepNodeRef,
+    StepStartedEvent,
+)
 from backend.services.pipeline_data_manager import (
     apply_step_result,
+    build_graph_snapshot,
     build_initial_pipeline_data,
     copy_pipeline_snapshot,
+)
+from backend.services.pipeline_graph import (
+    build_adjacency,
+    find_descendants,
+    find_entry_step_ids,
+    validate_graph,
 )
 from backend.steps import StepRegistry
 from backend.steps.base import ServiceContainer, StepResult, TriggerContext
@@ -254,6 +273,13 @@ class PipelineExecutor:
             trigger_type=trigger.trigger_type,
             sensor_id=trigger.sensor_id,
         )
+        steps = sorted(
+            [s for s in rule.steps if s.enabled],
+            key=lambda s: s.order,
+        )
+        edges = db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule.id).all()
+        adjacency, entry_step_ids = _prepare_execution_graph(steps, edges)
+
         # Create event log
         event_log = EventLog(
             rule_id=rule.id,
@@ -282,6 +308,8 @@ class PipelineExecutor:
             now_local=now_local,
             timezone_name=str(local_tz),
         )
+        graph_snapshot = build_graph_snapshot(steps, edges, _output_ports_for_step_type)
+        pipeline_data["_graph"] = graph_snapshot
 
         execution = WorkflowExecution(
             rule_id=rule.id,
@@ -299,22 +327,34 @@ class PipelineExecutor:
         # Emit pipeline_started event.
         rule_name_str = rule.name
         await self._emit(
-            {
-                "type": "pipeline_event",
-                "event_type": "pipeline_started",
-                "execution_id": execution.id,
-                "rule_id": rule.id,
-                "rule_name": rule_name_str,
-                "status": "running",
-                "started_at": now_utc.isoformat(),
-                "sequence": self._next_seq(),
-            }
+            PipelineStartedEvent(
+                execution_id=execution.id,
+                rule_id=rule.id,
+                rule_name=rule_name_str,
+                status="running",
+                started_at=now_utc,
+                sequence=self._next_seq(),
+                steps=[
+                    StepNodeRef(
+                        id=str(step["id"]),
+                        label=step["label"],
+                        step_type=step["step_type"],
+                        enabled=True,
+                    )
+                    for step in graph_snapshot["steps"]
+                ],
+                edges=[
+                    EdgeRef(
+                        source=str(edge["source_step_id"]),
+                        source_handle=edge["source_port"],
+                        target=str(edge["target_step_id"]),
+                        target_handle=edge["target_port"],
+                    )
+                    for edge in graph_snapshot["edges"]
+                ],
+            ).model_dump(mode="json")
         )
 
-        steps = sorted(
-            [s for s in rule.steps if s.enabled],
-            key=lambda s: s.order,
-        )
         if not steps:
             completed_at = datetime.now(UTC)
             execution.status = "completed"
@@ -331,7 +371,7 @@ class PipelineExecutor:
 
         try:
             return await asyncio.wait_for(
-                self._run_steps(execution, steps, trigger, db),
+                self._run_steps(execution, steps, trigger, db, adjacency, entry_step_ids),
                 timeout=timeout_seconds,
             )
         except TimeoutError:
@@ -371,13 +411,13 @@ class PipelineExecutor:
             [s for s in rule.steps if s.enabled],
             key=lambda s: s.order,
         )
+        edges = db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule.id).all()
+        adjacency, _entry_step_ids = _prepare_execution_graph(steps, edges)
 
-        current_order = None
         current_step: PipelineStep | None = None
         if execution.current_step_id:
             for s in steps:
                 if s.id == execution.current_step_id:
-                    current_order = s.order
                     current_step = s
                     break
 
@@ -394,8 +434,18 @@ class PipelineExecutor:
                 )
                 return execution
 
-        if current_order is not None:
-            steps = [s for s in steps if s.order > current_order]
+        if current_step is not None:
+            all_step_ids = {s.id for s in steps}
+            descendant_ids = find_descendants(current_step.id, all_step_ids, edges)
+            steps = [s for s in steps if s.id in descendant_ids]
+            remaining_step_ids = {s.id for s in steps}
+            entry_ids_for_resume = [
+                next_id
+                for port in ("main",)
+                if (next_id := adjacency.get(current_step.id, {}).get(port)) in remaining_step_ids
+            ]
+        else:
+            entry_ids_for_resume = find_entry_step_ids({s.id for s in steps}, edges)
 
         execution.status = "running"
         execution.resume_at = None
@@ -416,7 +466,14 @@ class PipelineExecutor:
 
         try:
             return await asyncio.wait_for(
-                self._run_steps(execution, steps, trigger, db),
+                self._run_steps(
+                    execution,
+                    steps,
+                    trigger,
+                    db,
+                    adjacency,
+                    entry_ids_for_resume,
+                ),
                 timeout=timeout_seconds,
             )
         except TimeoutError:
@@ -486,8 +543,10 @@ class PipelineExecutor:
         steps: list[PipelineStep],
         trigger: TriggerContext,
         db: Session,
+        adjacency: dict[int, dict[str, int]],
+        entry_step_ids: list[int],
     ) -> WorkflowExecution:
-        """Iterate through steps, handling branching, timing, and early exit.
+        """Traverse the pipeline DAG, handling timing, waits, and early exit.
 
         ``execution.pipeline_data_json`` is wrapped by
         :class:`sqlalchemy.ext.mutable.MutableDict` (see the column definition
@@ -511,35 +570,29 @@ class PipelineExecutor:
         step_timings: list = list(pipeline_data.get("_step_timings", []))
 
         step_by_id = {s.id: s for s in steps}
-        step_index = 0
-        step_list = list(steps)
-        override_step_id: int | None = None
+        visited: set[int] = set()
+        queue: list[int] = list(entry_step_ids)
 
         # Tracked so the except-block can record a timing entry for a failed step
         _active_step: PipelineStep | None = None
         _active_step_started_at: datetime | None = None
 
         try:
-            while step_index < len(step_list) or override_step_id is not None:
-                if override_step_id is not None:
-                    step = step_by_id.get(override_step_id)
-                    target_id = override_step_id
-                    override_step_id = None
-                    if not step:
-                        logger.warning(
-                            "branch_target_not_found",
-                            rule=execution.rule.name,
-                            target_step_id=target_id,
-                        )
-                        break
-                    try:
-                        linear_pos = step_list.index(step)
-                        step_index = linear_pos + 1
-                    except ValueError:
-                        pass
-                else:
-                    step = step_list[step_index]
-                    step_index += 1
+            while queue:
+                step_id = queue.pop(0)
+                if step_id in visited:
+                    continue
+
+                step = step_by_id.get(step_id)
+                if step is None:
+                    logger.warning(
+                        "dag_step_not_found",
+                        rule=execution.rule.name,
+                        step_id=step_id,
+                    )
+                    continue
+
+                visited.add(step_id)
 
                 execution.current_step_id = step.id
                 db.commit()
@@ -568,6 +621,16 @@ class PipelineExecutor:
                         rule=execution.rule.name,
                         step_label=step.label,
                     )
+                    await self._emit(
+                        PipelineCancelledEvent(
+                            execution_id=execution.id,
+                            rule_id=execution.rule_id,
+                            rule_name=execution.rule.name,
+                            status="cancelled",
+                            finished_at=datetime.now(UTC),
+                            sequence=self._next_seq(),
+                        ).model_dump(mode="json")
+                    )
                     return execution
 
                 logger.info(
@@ -583,19 +646,17 @@ class PipelineExecutor:
 
                 # Emit step_started (one event per transition, one increment per code path).
                 await self._emit(
-                    {
-                        "type": "pipeline_event",
-                        "event_type": "step_started",
-                        "execution_id": execution.id,
-                        "rule_id": execution.rule_id,
-                        "rule_name": execution.rule.name,
-                        "step_id": str(step.id),
-                        "step_name": step.label or step.step_type,
-                        "step_type": step.step_type,
-                        "status": "running",
-                        "started_at": _active_step_started_at.isoformat(),
-                        "sequence": self._next_seq(),
-                    }
+                    StepStartedEvent(
+                        execution_id=execution.id,
+                        rule_id=execution.rule_id,
+                        rule_name=execution.rule.name,
+                        step_id=str(step.id),
+                        step_name=step.label or step.step_type,
+                        step_type=step.step_type,
+                        status="running",
+                        started_at=_active_step_started_at,
+                        sequence=self._next_seq(),
+                    ).model_dump(mode="json")
                 )
 
                 # Per-step timeout (coarse safety net for stuck LLM calls)
@@ -611,38 +672,40 @@ class PipelineExecutor:
                     )
 
                 step_completed_at = datetime.now(UTC)
+                step_started_at = _active_step_started_at
+                assert step_started_at is not None
+                output_port = result.output_ports[0] if result.output_ports else "main"
                 step_timings.append(
                     _make_step_timing(
                         step,
-                        _active_step_started_at,
+                        step_started_at,
                         step_completed_at,
                         result.success,
                         error=result.data.get("error") if not result.success else None,
+                        output_port=output_port,
                     )
+                )
+                # Emit step_completed (one event per transition, one increment per code path).
+                elapsed_ms = int((step_completed_at - step_started_at).total_seconds() * 1000)
+                await self._emit(
+                    StepCompletedEvent(
+                        execution_id=execution.id,
+                        rule_id=execution.rule_id,
+                        rule_name=execution.rule.name,
+                        step_id=str(step.id),
+                        step_name=step.label or step.step_type,
+                        step_type=step.step_type,
+                        status="succeeded" if result.success else "failed",
+                        started_at=step_started_at,
+                        finished_at=step_completed_at,
+                        error_code=(result.data.get("error") if not result.success else None),
+                        output_port=output_port,
+                        elapsed_ms=elapsed_ms,
+                        sequence=self._next_seq(),
+                    ).model_dump(mode="json")
                 )
                 # Signal to the except-block that this step's timing is already saved
                 _active_step_started_at = None
-
-                # Emit step_completed (one event per transition, one increment per code path).
-                await self._emit(
-                    {
-                        "type": "pipeline_event",
-                        "event_type": "step_completed",
-                        "execution_id": execution.id,
-                        "rule_id": execution.rule_id,
-                        "rule_name": execution.rule.name,
-                        "step_id": str(step.id),
-                        "step_name": step.label or step.step_type,
-                        "step_type": step.step_type,
-                        "status": "succeeded" if result.success else "failed",
-                        "started_at": _active_step_started_at.isoformat()
-                        if _active_step_started_at
-                        else None,
-                        "finished_at": step_completed_at.isoformat(),
-                        "error_code": (result.data.get("error") if not result.success else None),
-                        "sequence": self._next_seq(),
-                    }
-                )
 
                 # Merge step output into the tracked dict via the canonical helper.
                 # apply_step_result writes steps.<label>.outputs and promotes
@@ -676,15 +739,13 @@ class PipelineExecutor:
                         resume_at=result.wait_until.isoformat(),
                     )
                     await self._emit(
-                        {
-                            "type": "pipeline_event",
-                            "event_type": "pipeline_waiting",
-                            "execution_id": execution.id,
-                            "rule_id": execution.rule_id,
-                            "rule_name": execution.rule.name,
-                            "status": "waiting",
-                            "sequence": self._next_seq(),
-                        }
+                        PipelineWaitingEvent(
+                            execution_id=execution.id,
+                            rule_id=execution.rule_id,
+                            rule_name=execution.rule.name,
+                            status="waiting",
+                            sequence=self._next_seq(),
+                        ).model_dump(mode="json")
                     )
                     return execution
 
@@ -718,9 +779,10 @@ class PipelineExecutor:
                     )
                     return execution
 
-                # Handle branching
-                if result.next_step_id:
-                    override_step_id = result.next_step_id
+                for port in result.output_ports:
+                    next_id = adjacency.get(step.id, {}).get(port)
+                    if next_id is not None and next_id not in visited:
+                        queue.append(next_id)
 
             # All steps completed
             completed_at = datetime.now(UTC)
@@ -744,16 +806,14 @@ class PipelineExecutor:
                 cooloff_triggered=pipeline_data.get("_cooloff_triggered", False),
             )
             await self._emit(
-                {
-                    "type": "pipeline_event",
-                    "event_type": "pipeline_completed",
-                    "execution_id": execution.id,
-                    "rule_id": execution.rule_id,
-                    "rule_name": execution.rule.name,
-                    "status": "completed",
-                    "finished_at": completed_at.isoformat(),
-                    "sequence": self._next_seq(),
-                }
+                PipelineCompletedEvent(
+                    execution_id=execution.id,
+                    rule_id=execution.rule_id,
+                    rule_name=execution.rule.name,
+                    status="completed",
+                    finished_at=completed_at,
+                    sequence=self._next_seq(),
+                ).model_dump(mode="json")
             )
             return execution
 
@@ -805,17 +865,15 @@ class PipelineExecutor:
                 event_log.pipeline_data_json = copy_pipeline_snapshot(pipeline_data)
             db.commit()
             await self._emit(
-                {
-                    "type": "pipeline_event",
-                    "event_type": "pipeline_failed",
-                    "execution_id": execution.id,
-                    "rule_id": execution.rule_id,
-                    "rule_name": execution.rule.name,
-                    "status": "failed",
-                    "error_code": str(e),
-                    "finished_at": completed_at.isoformat(),
-                    "sequence": self._next_seq(),
-                }
+                PipelineFailedEvent(
+                    execution_id=execution.id,
+                    rule_id=execution.rule_id,
+                    rule_name=execution.rule.name,
+                    status="failed",
+                    error_code=str(e),
+                    finished_at=completed_at,
+                    sequence=self._next_seq(),
+                ).model_dump(mode="json")
             )
             return execution
 
@@ -895,6 +953,7 @@ def _make_step_timing(
     success: bool,
     error: str | None = None,
     cancellation_observed: bool = False,
+    output_port: str = "main",
 ) -> dict:
     """Build a timing entry dict for a single pipeline step."""
     entry: dict = {
@@ -905,6 +964,7 @@ def _make_step_timing(
         "completed_at": completed_at.isoformat(),
         "elapsed_seconds": round((completed_at - started_at).total_seconds(), 3),
         "success": success,
+        "output_port": output_port,
         "logs": [],
     }
     if error is not None:
@@ -912,6 +972,39 @@ def _make_step_timing(
     if cancellation_observed:
         entry["cancellation_observed"] = True
     return entry
+
+
+def _prepare_execution_graph(
+    steps: list[PipelineStep],
+    edges: list[PipelineEdge],
+) -> tuple[dict[int, dict[str, int]], list[int]]:
+    """Validate enabled-step topology and return routing maps for execution."""
+    if not steps:
+        return {}, []
+
+    errors = validate_graph(
+        {step.id for step in steps},
+        edges,
+        _collect_step_output_ports(steps),
+    )
+    if errors:
+        raise ValidationError("; ".join(errors))
+
+    return build_adjacency(edges), find_entry_step_ids({step.id for step in steps}, edges)
+
+
+def _collect_step_output_ports(steps: list[PipelineStep]) -> dict[int, tuple[str, ...]]:
+    StepRegistry.discover()
+    output_ports: dict[int, tuple[str, ...]] = {}
+    for step in steps:
+        output_ports[step.id] = _output_ports_for_step_type(step.step_type)
+    return output_ports
+
+
+def _output_ports_for_step_type(step_type: str) -> tuple[str, ...]:
+    StepRegistry.discover()
+    handler = StepRegistry.get(step_type)
+    return handler.metadata().output_ports if handler else ("main",)
 
 
 _PER_STEP_TIMEOUT = 60.0  # seconds; coarse safety net for stuck LLM calls

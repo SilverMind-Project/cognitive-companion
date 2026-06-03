@@ -39,18 +39,6 @@
       stroke-width="2.5"
     />
 
-    <!-- Posture badge -->
-    <text
-      :x="x"
-      :y="y + 5"
-      text-anchor="middle"
-      :font-size="M.postureSize"
-      fill="white"
-      font-weight="bold"
-    >
-      {{ postureSymbol }}
-    </text>
-
     <!-- Label: dark text on white halo (floor-plan / architectural drawing standard) -->
     <text
       v-bind="labelAttrs"
@@ -88,17 +76,7 @@ export default {
       return (props.ph.ph_id || "").slice(0, 8);
     });
 
-    const postureSymbol = computed(() => {
-      switch (props.ph.posture) {
-        case "standing": return "S";
-        case "sitting": return "s";
-        case "lying": return "—";
-        case "walking": return "W";
-        default: return "";
-      }
-    });
-
-    return { label, postureSymbol, M: MARKER, labelAttrs: MAP_LABEL.attrs() };
+    return { label, M: MARKER, labelAttrs: MAP_LABEL.attrs() };
   },
 };
 </script>

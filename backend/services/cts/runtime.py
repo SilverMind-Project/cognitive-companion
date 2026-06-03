@@ -33,6 +33,8 @@ from backend.services.cts.identity_revision_subscriber import IdentityRevisionSu
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.location_repository import SqlAlchemyLocationRepository
 from backend.services.cts.location_writer import LocationWriter
+from backend.services.cts.ph_continuation_subscriber import PHContinuationSubscriber
+from backend.services.cts.room_transition_subscriber import RoomTransitionSubscriber
 from backend.services.cts.scene_sample_subscriber import SceneSampleSubscriber
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.source_authority import SourceAuthority
@@ -40,7 +42,9 @@ from backend.services.cts.stream_consumer import StreamConsumer
 from backend.services.cts.subscriber import DementiaSignalSubscriber
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 from backend.services.cts.tracking_response_subscriber import TrackingResponseSubscriber
+from backend.services.cts.world_observation_subscriber import WorldObservationSubscriber
 from backend.services.cts.world_snapshot_publisher import WorldSnapshotPublisher
+from backend.services.occupancy.read_model import OccupancyReadModel
 
 logger = get_logger(__name__)
 
@@ -91,9 +95,7 @@ class CTSRuntime:
         authority: SourceAuthority | None = None,
         recamera_subscriber: object | None = None,
         person_location_service: object | None = None,
-        world_observation_subscriber: object | None = None,
-        room_transition_subscriber: object | None = None,
-        ph_continuation_subscriber: object | None = None,
+        occupancy_read_model: OccupancyReadModel | None = None,
     ) -> None:
         self._cfg = config
         self._db_factory = db_factory
@@ -113,12 +115,16 @@ class CTSRuntime:
         camera_map = camera_room_map if camera_room_map is not None else {}
         if not camera_map and db_factory is not None:
             camera_map = _load_camera_room_map(db_factory)
+        # camera→room_id map: the WorldObservationSubscriber resolves room
+        # membership from this directly (no name→int coercion).
+        camera_id_map: dict[str, int] = {}
+        if db_factory is not None:
+            camera_id_map = _load_camera_room_id_map(db_factory)
 
         self.location_writer = LocationWriter(
             repo_factory=_repo_factory,
             authority=self.authority,
             camera_room_map=camera_map,
-            db_factory=db_factory,
         )
         self.identity_rewriter = IdentityRewriter(db_factory=db_factory, ws_manager=ws_manager)
         self.signal_store = SignalStore(db_factory=db_factory)
@@ -138,11 +144,31 @@ class CTSRuntime:
             person_location_service=person_location_service,
         )
 
-        # WTR4: M4 subscribers owned by CTSRuntime.
+        # WTR4: M4 subscribers owned and constructed by CTSRuntime. They are
+        # built here (not in main.py) so the runtime can wire the camera→room
+        # id map and occupancy read-model that the world tracker needs.
         self._person_location_service = person_location_service
-        self._world_observation_subscriber = world_observation_subscriber
-        self._room_transition_subscriber = room_transition_subscriber
-        self._ph_continuation_subscriber = ph_continuation_subscriber
+        self.occupancy_read_model = occupancy_read_model
+        self._world_observation_subscriber: WorldObservationSubscriber | None = None
+        self._room_transition_subscriber: RoomTransitionSubscriber | None = None
+        self._ph_continuation_subscriber: PHContinuationSubscriber | None = None
+        if person_location_service is not None:
+            self._world_observation_subscriber = WorldObservationSubscriber(
+                redis_url=config.redis_url,
+                location_service=person_location_service,  # type: ignore[arg-type]
+                camera_room_id_map=camera_id_map,
+                camera_room_name_map=camera_map,
+                occupancy=occupancy_read_model,
+                db_factory=db_factory,
+            )
+            self._room_transition_subscriber = RoomTransitionSubscriber(
+                redis_url=config.redis_url,
+                location_service=person_location_service,  # type: ignore[arg-type]
+            )
+            self._ph_continuation_subscriber = PHContinuationSubscriber(
+                redis_url=config.redis_url,
+                location_service=person_location_service,  # type: ignore[arg-type]
+            )
 
         self.tracking_event_subscriber = TrackingEventSubscriber(
             redis_url=config.redis_url,
@@ -374,6 +400,37 @@ def _load_camera_room_map(db_factory: DBSessionFactory) -> dict[str, str]:
         return {cam.id: cam.room_name or "" for cam in cameras}
     except Exception:
         logger.exception("cts_camera_room_map_load_error")
+        raise
+    finally:
+        db.close()
+
+
+def _load_camera_room_id_map(db_factory: DBSessionFactory) -> dict[str, int]:
+    """Load camera_id → room_id mapping for enabled cameras.
+
+    A camera contributes room membership when it has *either* a non-null
+    ``room_id`` (preferred) or a ``room_name`` that resolves to a row in the
+    ``rooms`` table (fallback). This matters because cameras are commonly
+    configured with only a ``room_name`` and a null ``room_id`` -- without the
+    fallback the map would be empty and every detection would be skipped (the
+    exact break this work fixes). Cameras that resolve to no room are omitted;
+    their detections are skipped with a logged warning, not silently dropped.
+    """
+    from backend.models.room import Room
+
+    db = db_factory()
+    try:
+        rooms_by_name = {r.name: r.id for r in db.query(Room).all()}
+        cameras = db.query(CtsCamera).filter(CtsCamera.enabled.is_(True)).all()
+        result: dict[str, int] = {}
+        for cam in cameras:
+            if cam.room_id is not None:
+                result[cam.id] = cam.room_id
+            elif cam.room_name and cam.room_name in rooms_by_name:
+                result[cam.id] = rooms_by_name[cam.room_name]
+        return result
+    except Exception:
+        logger.exception("cts_camera_room_id_map_load_error")
         raise
     finally:
         db.close()

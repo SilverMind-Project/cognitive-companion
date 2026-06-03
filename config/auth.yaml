@@ -79,8 +79,6 @@ permission_map:
 
   caregiver:
     - "GET /api/v1/*"
-    - "POST /api/v1/alerts/*/action"
-    - "DELETE /api/v1/alerts/*"
     - "POST /api/v1/persons/*/enroll"
     - "DELETE /api/v1/persons/*/enrollment"
     - "GET /api/v1/conversations/*"
@@ -104,6 +102,9 @@ permission_map:
     - "POST /api/v1/cts/presence-config/reload"
     # M2: calibration health (read-only)
     - "GET /api/v1/cts/diagnostics/calibration"
+    # M2: heatmap analytics
+    - "cts.analytics.heatmap.view"
+    - "GET /api/v1/cts/analytics/heatmap"
     # Knowledge repository endpoints
     - "GET /api/v1/knowledge/documents*"
     - "POST /api/v1/knowledge/documents*"
@@ -122,8 +123,6 @@ permission_map:
 
   caregiver_admin:
     - "GET /api/v1/*"
-    - "POST /api/v1/alerts/*/action"
-    - "DELETE /api/v1/alerts/*"
     - "POST /api/v1/cts/identity/*"
     - "GET /api/v1/activities*"
     - "GET /ws/cts"
@@ -168,6 +167,9 @@ permission_map:
     # CTS weekly reports (N7)
     - "cts.reports.weekly.view"
     - "POST /api/v1/cts/reports/weekly"
+    # M2: heatmap analytics
+    - "cts.analytics.heatmap.view"
+    - "GET /api/v1/cts/analytics/heatmap"
 
   operator:
     - "*"
@@ -182,7 +184,7 @@ permission_map:
   mcp_readonly:
     - "GET /api/v1/rooms*"
     - "GET /api/v1/sensors*"
-    - "GET /api/v1/alerts*"
+    - "GET /api/v1/signals/feed*"
     - "GET /api/v1/events*"
     - "GET /api/v1/rules*"
     - "GET /api/v1/occupancy*"

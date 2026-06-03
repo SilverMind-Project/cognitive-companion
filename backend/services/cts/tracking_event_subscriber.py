@@ -175,7 +175,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 }
             )
 
-        # N2: extract identity snapshots for PH update broadcasts
+        # extract identity snapshots for PH update broadcasts
         identity_snapshots: list[dict[str, Any]] = []
         for snap in message.identity_snapshots:
             if snap.identity_id:
@@ -294,7 +294,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             except Exception:
                 logger.exception("cts_live_broadcast_error")
 
-            # N2: broadcast PH updates from identity snapshots
+            # broadcast PH updates from identity snapshots
             # Per-PH 200 ms debounce to avoid flooding the WebSocket bus.
             try:
                 for snap in event.get("identity_snapshots", []):
@@ -328,11 +328,14 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
             except Exception:
                 logger.exception("cts_ph_update_broadcast_error")
 
-            # N4: delegate world snapshot to debounced publisher
+            # delegate world snapshot to debounced publisher
             if self._snapshot_publisher is not None:
                 phs = self._build_ph_entries(event)
                 if phs:
-                    self._snapshot_publisher.mark_dirty(ph_data_list=phs)
+                    self._snapshot_publisher.mark_dirty(
+                        camera_id=event.get("camera_id", ""),
+                        ph_data_list=phs,
+                    )
 
         if self._pipeline is not None and touched:
             try:
@@ -363,8 +366,6 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         for snap in event.get("identity_snapshots", []):
             identity_map[snap.get("ph_id", "")] = {
                 "identity_id": snap.get("identity_id"),
-                "display_name": snap.get("identity_id"),
-                "color": "#888888",
                 "top_prob": snap.get("top_probability"),
             }
         phs: list[dict[str, Any]] = []
@@ -378,8 +379,8 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 {
                     "ph_id": ph_id,
                     "identity_id": identity.get("identity_id"),
-                    "identity_display_name": identity.get("display_name"),
-                    "identity_color": identity.get("color", "#888888"),
+                    # No identity_color: the frontend derives it via identityColor()
+                    # from identity_id/ph_id so every PH gets a stable distinct hue.
                     "identity_committed": bool(identity.get("identity_id")),
                     "posterior_top_label": identity.get("identity_id") if posterior_prob else None,
                     "posterior_top_prob": posterior_prob,

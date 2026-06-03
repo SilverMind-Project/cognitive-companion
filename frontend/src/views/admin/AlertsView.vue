@@ -143,16 +143,7 @@
         <template #item.actions="{ item }">
           <div class="d-flex align-center ga-1 justify-end">
             <v-btn
-              v-if="item._source === 'rule' && item.status === 'active'"
-              size="x-small"
-              variant="text"
-              color="success"
-              @click.stop="dismiss(item._raw)"
-            >
-              Dismiss
-            </v-btn>
-            <v-btn
-              v-else-if="item._source === 'cts' && item.status === 'pending'"
+              v-if="item._source === 'cts' && item.status === 'pending'"
               size="x-small"
               variant="text"
               color="primary"
@@ -161,12 +152,14 @@
               <v-icon start>mdi-check</v-icon>Ack
             </v-btn>
             <v-btn
+              v-if="item._source === 'cts'"
               icon="mdi-delete-outline"
               size="x-small"
               variant="text"
               color="error"
               @click.stop="deleteSingle(item)"
             />
+            <span v-else class="text-caption text-disabled">read-only</span>
           </div>
         </template>
 
@@ -336,15 +329,16 @@ function normalizeSeverity(sev) {
 }
 
 function toRuleRow(item) {
+  // item is a unified-feed SignalEnvelope with source === "pipeline_rule".
   return {
-    _id:     `rule-${item.id}`,
+    _id:     item.id, // already unique: "rule:<event_log_id>"
     _source: "rule",
     _raw:    item,
-    time:    item.timestamp,
-    type:    item.alert_type || "",
-    person:  null,
+    time:    item.created_at,
+    type:    item.kind || "",
+    person:  item.person_id || null,
     room:    item.room_name || null,
-    severity: null,
+    severity: normalizeSeverity(item.severity),
     status:  item.resolved ? "resolved" : "active",
   };
 }
@@ -413,11 +407,13 @@ function statusColor(row) {
 // ── Data loading ─────────────────────────────────────────────────────────────
 
 async function loadRules() {
-  const params = statusFilter.value
-    ? { resolved: statusFilter.value === "resolved" ? "true" : "false" }
-    : {};
+  // Pipeline-rule alerts come from the unified signals feed (read-only).
+  const params = { source: "pipeline_rule", limit: 100 };
+  if (severityFilter.value) {
+    params.severity_min = severityFilter.value === "critical" ? "emergency" : severityFilter.value;
+  }
   try {
-    const data = await api.getAlerts(params);
+    const data = await api.getSignalsFeed(params);
     ruleRows.value = (data || []).map(toRuleRow);
   } catch {
     ruleRows.value = [];
@@ -488,18 +484,6 @@ function onCtsSizeChange() {
 
 // ── Actions ──────────────────────────────────────────────────────────────────
 
-async function dismiss(raw) {
-  try {
-    await api.alertAction(raw.id, { action: "dismiss" });
-    ruleRows.value = ruleRows.value.map((r) =>
-      r._raw.id === raw.id ? { ...r, status: "resolved", _raw: { ...r._raw, resolved: true } } : r
-    );
-    notify("Alert dismissed", "success");
-  } catch (e) {
-    notify(e.message, "error");
-  }
-}
-
 async function acknowledge(raw) {
   try {
     await cts.acknowledgeSignal(raw.id);
@@ -519,7 +503,10 @@ function deleteSingle(item) {
 }
 
 function confirmBulkDelete() {
-  const items = displayRows.value.filter((r) => selected.value.includes(r._id));
+  // Only CTS signals are deletable; pipeline-rule feed rows are read-only.
+  const items = displayRows.value.filter(
+    (r) => selected.value.includes(r._id) && r._source === "cts"
+  );
   deleteTarget.value = items;
   deleteDialog.value = true;
 }
@@ -527,29 +514,23 @@ function confirmBulkDelete() {
 async function executeDelete() {
   deleting.value = true;
   try {
-    const ruleItems = deleteTarget.value.filter((r) => r._source === "rule");
-    const ctsItems  = deleteTarget.value.filter((r) => r._source === "cts");
-
-    const tasks = [];
-    if (ruleItems.length === 1) {
-      tasks.push(api.deleteAlert(ruleItems[0]._raw.id));
-    } else if (ruleItems.length > 1) {
-      tasks.push(...ruleItems.map((r) => api.deleteAlert(r._raw.id)));
+    const ctsItems = deleteTarget.value.filter((r) => r._source === "cts");
+    if (ctsItems.length === 0) {
+      notify("Only CTS signals can be deleted", "info");
+      return;
     }
+
     if (ctsItems.length === 1) {
-      tasks.push(cts.deleteSignal(ctsItems[0]._raw.id));
-    } else if (ctsItems.length > 1) {
-      tasks.push(cts.batchDeleteSignals(ctsItems.map((r) => r._raw.id)));
+      await cts.deleteSignal(ctsItems[0]._raw.id);
+    } else {
+      await cts.batchDeleteSignals(ctsItems.map((r) => r._raw.id));
     }
 
-    await Promise.all(tasks);
-
-    const deletedIds = new Set(deleteTarget.value.map((r) => r._id));
-    ruleRows.value = ruleRows.value.filter((r) => !deletedIds.has(r._id));
+    const deletedIds = new Set(ctsItems.map((r) => r._id));
     ctsRows.value  = ctsRows.value.filter((r) => !deletedIds.has(r._id));
     ctsTotal.value = Math.max(0, ctsTotal.value - ctsItems.length);
     selected.value = selected.value.filter((id) => !deletedIds.has(id));
-    notify(`Deleted ${deleteTarget.value.length} item${deleteTarget.value.length === 1 ? "" : "s"}`, "success");
+    notify(`Deleted ${ctsItems.length} signal${ctsItems.length === 1 ? "" : "s"}`, "success");
     window.dispatchEvent(new CustomEvent("cc:alerts-changed"));
   } catch (e) {
     notify(e.message || "Delete failed", "error");

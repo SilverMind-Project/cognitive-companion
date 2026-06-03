@@ -114,14 +114,14 @@
     <h3 class="text-h6 mt-6 mb-3">Recent Alerts</h3>
     <v-card>
       <v-list v-if="alerts.length">
-        <v-list-item v-for="alert in alerts" :key="alert.id" :subtitle="alert.description">
+        <v-list-item v-for="alert in alerts" :key="alert.id" :subtitle="alert.detail">
           <template #prepend>
-            <v-icon :color="alert.resolved ? 'grey' : 'error'">
+            <v-icon :color="alert.resolved ? 'grey' : severityColor(alert.severity)">
               {{ alert.resolved ? 'mdi-check-circle' : 'mdi-alert-circle' }}
             </v-icon>
           </template>
           <template #title>
-            {{ alert.alert_type }} &middot; {{ alert.room_name }}
+            {{ alert.kind }}<span v-if="alert.room_name"> &middot; {{ alert.room_name }}</span>
           </template>
           <template #append>
             <span class="text-caption text-medium-emphasis">{{ formatTime(alert.created_at) }}</span>
@@ -168,6 +168,11 @@ function locStatusColor(status) {
   return map[status] || "grey";
 }
 
+function severityColor(severity) {
+  const map = { emergency: "error", warning: "warning", info: "info", reminder: "grey" };
+  return map[severity] || "error";
+}
+
 async function loadData() {
   refreshing.value = true;
   try {
@@ -175,7 +180,7 @@ async function loadData() {
       api.getRooms().catch(() => []),
       api.getSensors().catch(() => []),
       api.getRules().catch(() => []),
-      api.getAlerts({ limit: 5 }).catch(() => []),
+      api.getSignalsFeed({ limit: 5 }).catch(() => []),
       api.getOccupancy().catch(() => ({ occupancy: {} })),
       api.getPersonLocations().catch(() => []),
     ]);

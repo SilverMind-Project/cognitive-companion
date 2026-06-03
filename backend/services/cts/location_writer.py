@@ -25,15 +25,12 @@ Behaviour
 
 from __future__ import annotations
 
-import contextlib
 from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
-from backend.models.person import PersonLocationState
 from backend.services.cts._time import parse_ts
 from backend.services.cts.source_authority import SourceAuthority
-from backend.services.occupancy_writer import upsert_room_occupancy
 
 logger = get_logger(__name__)
 
@@ -59,13 +56,10 @@ class LocationWriter:
         repo_factory,
         authority: SourceAuthority | None = None,
         camera_room_map: dict[str, str] | None = None,
-        db_factory=None,
     ) -> None:
         self._repo_factory = repo_factory
         self._authority = authority or SourceAuthority()
         self._camera_room_map: dict[str, str] = camera_room_map or {}
-        # Optional separate DB factory for occupancy writes after location commit.
-        self._db_factory = db_factory
 
     async def apply(self, event: dict[str, Any]) -> list[str]:
         """Apply one decoded tracking event. Returns the list of person_ids
@@ -81,8 +75,6 @@ class LocationWriter:
         )
 
         touched: list[str] = []
-        # Rooms that need occupancy state refresh after the location commit.
-        affected_rooms: set[str] = set()
 
         repo = self._repo_factory()
         try:
@@ -121,11 +113,6 @@ class LocationWriter:
                 )
 
                 if changed_room and room_name:
-                    # Track the previous room so we can refresh its occupancy.
-                    if current and current.current_room_name:
-                        affected_rooms.add(current.current_room_name)
-                    affected_rooms.add(room_name)
-
                     # Close the open prior row for this person.
                     repo.close_open_history(
                         person_id,
@@ -160,38 +147,4 @@ class LocationWriter:
         finally:
             repo.close()
 
-        if touched and affected_rooms and self._db_factory:
-            self._sync_room_occupancy(affected_rooms)
-
         return touched
-
-    def _sync_room_occupancy(self, rooms: set[str]) -> None:
-        """Refresh RoomOccupancyState for *rooms* based on current PersonLocationState."""
-        db = self._db_factory()
-        try:
-            for room in rooms:
-                persons = (
-                    db.query(PersonLocationState)
-                    .filter(PersonLocationState.current_room_name == room)
-                    .all()
-                )
-                # Exclude anonymous/unknown tracks from the identified persons list.
-                identified = [
-                    p.person_id
-                    for p in persons
-                    if p.person_id and not p.person_id.startswith("unknown")
-                ]
-                occupied = len(persons) > 0
-                upsert_room_occupancy(
-                    db,
-                    room_name=room,
-                    occupied=occupied,
-                    source="cts",
-                    person_ids=identified,
-                )
-        except Exception:
-            logger.exception("cts_occupancy_sync_error")
-            with contextlib.suppress(Exception):
-                db.rollback()
-        finally:
-            db.close()

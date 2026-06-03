@@ -1,6 +1,5 @@
 """Re-export all ORM models so that `import backend.models` registers them with Base."""
 
-from backend.models.alert import EmergencyAlert
 from backend.models.conversation import ConversationSession, ConversationTurn
 from backend.models.cron_trigger import CronTrigger, RuleCronTrigger
 from backend.models.cts_camera import CtsCamera
@@ -60,7 +59,6 @@ __all__ = [
     "CtsWindowTrigger",
     "DailyReport",
     "DementiaSignal",
-    "EmergencyAlert",
     "EventLog",
     "HouseholdMember",
     "HouseholdSettings",

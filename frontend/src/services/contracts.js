@@ -91,7 +91,7 @@ def("persons.sightings", "array");
 // ---------------------------------------------------------------------------
 // Alerts, Events, Activities
 // ---------------------------------------------------------------------------
-def("alerts.list", "array");
+def("signals.feed", "array");
 def("events.list", "array");
 def("activities.list", "array");
 
@@ -117,6 +117,11 @@ def("media.buffer", "array");
 // Interactive responses
 // ---------------------------------------------------------------------------
 def("interactive.responses.list", "array");
+
+// ---------------------------------------------------------------------------
+// CTS Analytics
+// ---------------------------------------------------------------------------
+def("cts.heatmap", { person_id: "string", bins: "array" });
 
 // ---------------------------------------------------------------------------
 // Pipeline runs

@@ -6,13 +6,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 
 // Mock the api module before importing the component
-vi.mock("../../../services/api.js", () => ({
+vi.mock("@/services/api.js", () => ({
   api: {
     // Stats calls
     getRooms: vi.fn().mockResolvedValue([]),
     getSensors: vi.fn().mockResolvedValue([]),
     getRules: vi.fn().mockResolvedValue([]),
-    getAlerts: vi.fn().mockResolvedValue([]),
+    getSignalsFeed: vi.fn().mockResolvedValue([]),
     getOccupancy: vi.fn().mockResolvedValue({ occupancy: {} }),
     getPersonLocations: vi.fn().mockResolvedValue([]),
     // Health checks (called before llmHealth)
@@ -29,7 +29,7 @@ vi.mock("../../../services/api.js", () => ({
 }));
 
 // Mock timezone service to avoid localStorage dependency
-vi.mock("../../../services/timezone.js", () => ({
+vi.mock("@/services/timezone.js", () => ({
   formatDateTimeShort: vi.fn((v) => v || ""),
 }));
 
@@ -49,8 +49,8 @@ const stubComponents = {
   "v-alert": { template: "<div><slot /></div>" },
 };
 
-import { api } from "../../../services/api.js";
-import DashboardView from "../DashboardView.vue";
+import { api } from "@/services/api.js";
+import DashboardView from "@/views/admin/DashboardView.vue";
 
 /**
  * Mount DashboardView with all Vuetify components stubbed.
@@ -98,7 +98,7 @@ describe("DashboardView — LLM health cards", () => {
     api.getRooms.mockResolvedValue([]);
     api.getSensors.mockResolvedValue([]);
     api.getRules.mockResolvedValue([]);
-    api.getAlerts.mockResolvedValue([]);
+    api.getSignalsFeed.mockResolvedValue([]);
     api.getOccupancy.mockResolvedValue({ occupancy: {} });
     api.getPersonLocations.mockResolvedValue([]);
     api.health.mockResolvedValue({ status: "ok", version: "1.0" });
@@ -244,7 +244,7 @@ describe("DashboardView — Tracking Orchestrator health", () => {
     api.getRooms.mockResolvedValue([]);
     api.getSensors.mockResolvedValue([]);
     api.getRules.mockResolvedValue([]);
-    api.getAlerts.mockResolvedValue([]);
+    api.getSignalsFeed.mockResolvedValue([]);
     api.getOccupancy.mockResolvedValue({ occupancy: {} });
     api.getPersonLocations.mockResolvedValue([]);
     api.health.mockResolvedValue({ status: "ok", version: "1.0" });
@@ -310,7 +310,7 @@ describe("api.js — llmHealth method", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     // Dynamically import the real module (bypassing the vi.mock at the top)
-    const { api: realApi } = await vi.importActual("../../../services/api.js");
+    const { api: realApi } = await vi.importActual("@/services/api.js");
     await realApi.llmHealth();
 
     expect(mockFetch).toHaveBeenCalledWith(

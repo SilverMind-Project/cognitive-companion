@@ -7,17 +7,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from math import floor
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from backend.core.database import transaction
 from backend.models.location_observation import LocationObservation as LOObs
 from backend.models.presence_segment import PresenceSegment as PSeg
 
-from .types import LocationObservation, PresenceSegment
+from .types import HeatmapBin, LocationObservation, PresenceSegment
 
 
 class ObservationRepository(Protocol):
@@ -28,6 +29,14 @@ class ObservationRepository(Protocol):
     async def list_for_source_ref(
         self, source_ref: str, since: datetime, until: datetime
     ) -> list[LocationObservation]: ...
+    async def list_heatmap_bins(
+        self,
+        person_id: str,
+        since: datetime,
+        until: datetime,
+        filter_start_hour: int | None = None,
+        filter_end_hour: int | None = None,
+    ) -> list[HeatmapBin]: ...
 
 
 class SegmentRepository(Protocol):
@@ -85,6 +94,31 @@ class InMemoryObservationRepository:
             for o in self._rows.values()
             if o.source_ref == source_ref and since <= o.observed_at <= until
         ]
+
+    async def list_heatmap_bins(
+        self,
+        person_id: str,
+        since: datetime,
+        until: datetime,
+        filter_start_hour: int | None = None,
+        filter_end_hour: int | None = None,
+    ) -> list[HeatmapBin]:
+        relevant = [
+            o
+            for o in self._rows.values()
+            if o.person_id == person_id
+            and since <= o.observed_at < until
+            and o.floor_point is not None
+            and (filter_start_hour is None or o.observed_at.hour >= filter_start_hour)
+            and (filter_end_hour is None or o.observed_at.hour < filter_end_hour)
+        ]
+        bins: dict[tuple[float, float], int] = {}
+        for o in relevant:
+            fp = o.floor_point
+            assert fp is not None
+            key = (floor(fp.x_m / 0.5) * 0.5, floor(fp.y_m / 0.5) * 0.5)
+            bins[key] = bins.get(key, 0) + 1
+        return [HeatmapBin(x_bin=x, y_bin=y, weight=w) for (x, y), w in bins.items()]
 
 
 class InMemorySegmentRepository:
@@ -243,6 +277,37 @@ class SqlAlchemyObservationRepository:
                 .all()
             )
         return [_obs_to_domain(r) for r in rows]
+
+    async def list_heatmap_bins(
+        self,
+        person_id: str,
+        since: datetime,
+        until: datetime,
+        filter_start_hour: int | None = None,
+        filter_end_hour: int | None = None,
+    ) -> list[HeatmapBin]:
+        hour_clauses = ""
+        if filter_start_hour is not None:
+            hour_clauses += "\n              AND EXTRACT(HOUR FROM time_bucket_15m) >= :start_hour"
+        if filter_end_hour is not None:
+            hour_clauses += "\n              AND EXTRACT(HOUR FROM time_bucket_15m) < :end_hour"
+        _SQL = text(f"""
+            SELECT x_bin, y_bin, SUM(weight) AS weight
+            FROM location_heatmaps_15m
+            WHERE person_id = :person_id
+              AND time_bucket_15m >= :since
+              AND time_bucket_15m < :until{hour_clauses}
+            GROUP BY x_bin, y_bin
+            ORDER BY weight DESC
+        """)
+        params: dict = {"person_id": person_id, "since": since, "until": until}
+        if filter_start_hour is not None:
+            params["start_hour"] = filter_start_hour
+        if filter_end_hour is not None:
+            params["end_hour"] = filter_end_hour
+        with transaction(self._db_factory) as db:
+            rows = db.execute(_SQL, params).all()
+        return [HeatmapBin(x_bin=float(r.x_bin), y_bin=float(r.y_bin), weight=int(r.weight)) for r in rows]
 
 
 class SqlAlchemySegmentRepository:

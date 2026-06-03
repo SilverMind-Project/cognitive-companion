@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from backend.core.auth import require_permission
+from backend.core.database import get_session
 from backend.core.logging import get_logger
 from backend.routers.cts_deps import cts_enabled
 from backend.schemas.presence_timeline import (
@@ -23,6 +24,7 @@ from backend.schemas.presence_timeline import (
     SignalMarkerOut,
     TimelineResponse,
 )
+from backend.services.cts.signal_store import SignalStore
 
 logger = get_logger(__name__)
 
@@ -103,8 +105,30 @@ async def get_timeline(
             )
         prev_room = seg.room_id
 
-    # Signals: stub — N7 adds full signal integration
+    # Signal markers: per-person CTS dementia signals within the window.
+    # SignalStore.list_recent anchors its lookback to *now*, so size the
+    # window from now back to since_dt (until_dt is always <= now), then
+    # post-filter to [since_dt, until_dt]. Sizing from (until-since) would
+    # under-fetch for a window that ends in the past.
     signals: list[SignalMarkerOut] = []
+    store = SignalStore(db_factory=get_session)
+    sig_rows, _ = await store.list_recent(
+        person_id=person_id,
+        window_hours=max(1, int((now - since_dt).total_seconds() // 3600) + 1),
+        limit=200,
+    )
+    for row in sig_rows:
+        fired = _parse_iso(row["window_end"]) if row.get("window_end") else None
+        if fired is not None and (fired < since_dt or fired > until_dt):
+            continue
+        signals.append(
+            SignalMarkerOut(
+                signal_id=str(row.get("signal_id") or row.get("id")),
+                signal_kind=str(row.get("signal_type", "")),
+                severity=str(row.get("severity", "info")),
+                fired_at=fired,
+            )
+        )
 
     return TimelineResponse(
         person_id=person_id,

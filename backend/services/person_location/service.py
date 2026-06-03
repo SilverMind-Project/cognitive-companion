@@ -12,6 +12,8 @@ from typing import Any
 from uuid import uuid4
 
 from backend.core.logging import get_logger
+from backend.schemas.cts_analytics import HeatmapBin as HeatmapBinSchema
+from backend.schemas.cts_analytics import HeatmapEnvelope
 
 from .config import PersonLocationConfig
 from .repositories import ObservationRepository, SegmentRepository
@@ -296,6 +298,31 @@ class PersonLocationService:
     async def current_dwell(self, person_id: str) -> PresenceSegment | None:
         """Return the currently-open segment (including inferred)."""
         return await self._seg.get_open(person_id)
+
+    async def get_heatmap(
+        self,
+        person_id: str,
+        start_time: datetime,
+        end_time: datetime,
+        filter_start_hour: int | None = None,
+        filter_end_hour: int | None = None,
+    ) -> HeatmapEnvelope:
+        """Return aggregated heatmap bins for a person over a time range.
+
+        ``filter_start_hour`` and ``filter_end_hour`` (0-23, UTC) restrict
+        which time-of-day buckets contribute to the density map.
+        """
+        bins = await self._obs.list_heatmap_bins(
+            person_id=person_id,
+            since=start_time,
+            until=end_time,
+            filter_start_hour=filter_start_hour,
+            filter_end_hour=filter_end_hour,
+        )
+        return HeatmapEnvelope(
+            person_id=person_id,
+            bins=[HeatmapBinSchema(x_m=b.x_bin, y_m=b.y_bin, weight=b.weight) for b in bins],
+        )
 
     async def where_is_everyone(self) -> dict[str, CurrentLocation]:
         """Return current location for every person with an open segment."""

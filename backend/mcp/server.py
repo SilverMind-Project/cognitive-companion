@@ -53,6 +53,8 @@ class MCPServices:
     ha_client: Any = None
     person_tracking: Any = None
     person_location_service: Any = None  # SSOT for location (replaces person_tracking reads)
+    occupancy_read_model: Any = None  # SSOT for room occupancy (world tracker + HA sensors)
+    signals_feed: Any = None  # SSOT for cross-source caregiver signal/alert feed
     activity_timeline: Any = None
     activity_session: Any = None
     daily_report: Any = None
@@ -74,6 +76,8 @@ def init_services(
     ha_client=None,
     person_tracking=None,
     person_location_service=None,
+    occupancy_read_model=None,
+    signals_feed=None,
     activity_timeline=None,
     activity_session=None,
     daily_report=None,
@@ -91,6 +95,8 @@ def init_services(
     _svc.ha_client = ha_client
     _svc.person_tracking = person_tracking
     _svc.person_location_service = person_location_service
+    _svc.occupancy_read_model = occupancy_read_model
+    _svc.signals_feed = signals_feed
     _svc.activity_timeline = activity_timeline
     _svc.activity_session = activity_session
     _svc.daily_report = daily_report
@@ -196,58 +202,24 @@ async def get_sensors(room_name: str | None = None, sensor_type: str | None = No
 
 @_register
 async def get_room_occupancy(room_name: str | None = None) -> list[dict]:
-    """Get current room occupancy from the PersonLocationService (SSOT).
+    """Get current room occupancy from the unified OccupancyReadModel (SSOT).
 
-    D6: reads PersonLocationService.occupants_of() -- same service function as
-    GET /api/v1/rooms/{room_id}/occupants.
-    dict to RoomOccupancyEnvelope-derived list; MCP back-compat intentionally
-    dropped (dev-stage, D7 escape hatch).
-
-    Returns a list of RoomOccupancyEnvelope dicts (one per room that has occupants,
-    or the specified room if room_name is given).
+    D6: reads OccupancyReadModel.get_occupancy() -- the same service function
+    that powers GET /api/v1/occupancy. Each record carries identified
+    ``person_ids`` plus ``unknown_count`` for hypotheses with no identity, and
+    a ``source`` provenance tag (world_tracker | ha_sensor | pipeline).
     """
-    from datetime import UTC, datetime
-
     from backend.observability.metrics import location_metrics
-    from backend.schemas.cts_envelopes import (
-        PersonLocationEnvelope,
-        RoomOccupancyEnvelope,
-        occupancy_to_mcp,
-    )
 
-    pls = _svc.person_location_service
-    if pls is None:
+    model = _svc.occupancy_read_model
+    if model is None:
         location_metrics.mcp_tool_dependency_unavailable_total.labels(
             tool="get_room_occupancy"
         ).inc()
-        raise RuntimeError("PersonLocationService not available")
+        raise RuntimeError("OccupancyReadModel not available")
 
-    rooms_all = await pls.where_is_everyone()
-    if not rooms_all:
-        return []
-
-    now = datetime.now(UTC)
-    # Group by room.
-    by_room: dict[int, list] = {}
-    for loc in rooms_all.values():
-        by_room.setdefault(loc.room_id, []).append(loc)
-
-    results: list[dict] = []
-    for room_id, locs in by_room.items():
-        first = locs[0]
-        if room_name and first.room_name.lower() != room_name.lower():
-            continue
-        envelope = RoomOccupancyEnvelope(
-            room_id=room_id,
-            room_name=first.room_name,
-            as_of=now,
-            occupants=[
-                PersonLocationEnvelope.from_current_location(loc, display_name="", now=now)
-                for loc in locs
-            ],
-        )
-        results.append(occupancy_to_mcp(envelope))
-    return results
+    records = await model.get_occupancy(room_name=room_name)
+    return [rec.to_mcp() for rec in records]
 
 
 @_register
@@ -268,38 +240,26 @@ async def get_light_level(entity_id: str) -> dict:
 
 
 @_register
-async def get_alerts(
-    resolved: bool | None = None,
+async def get_signals_feed(
+    source: str | None = None,
+    severity_min: str = "info",
     room_name: str | None = None,
     limit: int = 20,
 ) -> list[dict]:
-    """Get recent emergency alerts, optionally filtered by resolved state or room."""
-    from backend.models.alert import EmergencyAlert
+    """Get the unified caregiver signals feed (CTS signals + pipeline-rule alerts).
 
-    db: Session = _svc.db_factory()
-    try:
-        stmt = select(EmergencyAlert).order_by(EmergencyAlert.timestamp.desc())
-        if resolved is not None:
-            stmt = stmt.where(EmergencyAlert.resolved == resolved)
-        if room_name:
-            stmt = stmt.where(EmergencyAlert.room_name == room_name)
-        stmt = stmt.limit(limit)
-
-        alerts = db.execute(stmt).scalars().all()
-        return [
-            {
-                "id": a.id,
-                "timestamp": a.timestamp.isoformat() if a.timestamp else None,
-                "alert_type": a.alert_type,
-                "description": a.description,
-                "room_name": a.room_name,
-                "resolved": a.resolved,
-                "assistance_needed": a.assistance_needed,
-            }
-            for a in alerts
-        ]
-    finally:
-        db.close()
+    D6: reads SignalsFeedService.list_feed() -- the same service function that
+    powers GET /api/v1/signals/feed. Each row carries a ``source`` tag
+    (``cts`` | ``pipeline_rule``), ``severity``, ``room_name``, ``created_at``,
+    and ``resolved``.
+    """
+    svc = _svc.signals_feed
+    if svc is None:
+        raise RuntimeError("SignalsFeedService not available")
+    envelopes = await svc.list_feed(
+        source=source, severity_min=severity_min, room_name=room_name, limit=limit
+    )
+    return [e.to_mcp() for e in envelopes]
 
 
 @_register
@@ -1024,6 +984,53 @@ async def submit_user_response(
             error=str(e),
         )
         return {"error": f"Failed to record response: {e}"}
+
+
+# ---------------------------------------------------------------------------
+# CTS analytics MCP tools (M2)
+# ---------------------------------------------------------------------------
+
+
+@_register
+async def get_heatmap(
+    person_id: str,
+    start_time: str,
+    end_time: str,
+    start_hour: int | None = None,
+    end_hour: int | None = None,
+) -> dict:
+    """Return aggregated floor-plan heatmap bins for a person over a time range.
+
+    D6: calls PersonLocationService.get_heatmap() -- the same service function
+    as GET /api/v1/cts/analytics/heatmap.
+
+    Args:
+        person_id: Household member ID.
+        start_time: ISO 8601 UTC datetime string for the window start.
+        end_time: ISO 8601 UTC datetime string for the window end.
+        start_hour: Optional UTC hour (0-23) to restrict daily window start.
+        end_hour: Optional UTC hour (0-23) to restrict daily window end.
+    """
+    from datetime import datetime
+
+    pls = _svc.person_location_service
+    if pls is None:
+        return {"error": "PersonLocationService not available"}
+
+    try:
+        t_start = datetime.fromisoformat(start_time)
+        t_end = datetime.fromisoformat(end_time)
+    except ValueError as exc:
+        return {"error": f"Invalid datetime: {exc}"}
+
+    envelope = await pls.get_heatmap(
+        person_id=person_id,
+        start_time=t_start,
+        end_time=t_end,
+        filter_start_hour=start_hour,
+        filter_end_hour=end_hour,
+    )
+    return envelope.model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------

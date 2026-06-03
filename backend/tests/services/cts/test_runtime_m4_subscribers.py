@@ -49,6 +49,37 @@ async def test_runtime_does_not_require_recamera_subscriber():
     assert runtime._recamera_subscriber is None
 
 
+def test_load_camera_room_id_map_resolves_room_id_and_name_fallback():
+    """Cameras contribute via room_id OR a room_name that resolves to a room."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from backend.models.cts_camera import CtsCamera
+    from backend.models.room import Room
+    from backend.services.cts.runtime import _load_camera_room_id_map
+
+    rooms = [SimpleNamespace(id=5, name="kitchen")]
+    cameras = [
+        SimpleNamespace(id="cam-id", room_id=9, room_name="ignored"),  # room_id wins
+        SimpleNamespace(id="cam-name", room_id=None, room_name="kitchen"),  # name fallback
+        SimpleNamespace(id="cam-orphan", room_id=None, room_name="garage"),  # unresolved
+    ]
+
+    def _query(model):
+        q = MagicMock()
+        if model is Room:
+            q.all.return_value = rooms
+        elif model is CtsCamera:
+            q.filter.return_value.all.return_value = cameras
+        return q
+
+    db = MagicMock()
+    db.query.side_effect = _query
+
+    result = _load_camera_room_id_map(lambda: db)
+    assert result == {"cam-id": 9, "cam-name": 5}
+
+
 @pytest.mark.asyncio
 async def test_runtime_recamera_subscriber_has_start_stop_interface():
     """The RecameraObservationSubscriber must expose start() and stop() methods."""

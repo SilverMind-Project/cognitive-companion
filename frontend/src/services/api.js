@@ -156,15 +156,11 @@ export const api = {
     request("/rules/import", { method: "POST", body: JSON.stringify(bundle) }),
   validateRule: (id) => request(`/rules/${id}/validate`, { method: "POST" }),
 
-  // Alerts
-  getAlerts: (params = {}) => {
+  // Unified signals feed (CTS dementia signals + pipeline-rule notifications)
+  getSignalsFeed: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/alerts${qs ? "?" + qs : ""}`, { contract: "alerts.list" });
+    return request(`/signals/feed${qs ? "?" + qs : ""}`, { contract: "signals.feed" });
   },
-  alertAction: (id, action) =>
-    request(`/alerts/${id}/action`, { method: "POST", body: JSON.stringify(action) }),
-  deleteAlert: (id) =>
-    request(`/alerts/${id}`, { method: "DELETE" }),
 
   // Interactive Responses
   getInteractiveResponses: (params = {}) => {
@@ -204,6 +200,12 @@ export const api = {
     request(`/persons/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deletePerson: (id) => request(`/persons/${id}`, { method: "DELETE" }),
   getPersonLocations: () => request("/persons/locations", { contract: "persons.locations" }),
+  getHeatmap: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null))
+    ).toString();
+    return request(`/cts/analytics/heatmap${qs ? "?" + qs : ""}`, { contract: "cts.heatmap" });
+  },
   getPersonLocation: (id) => request(`/persons/${id}/location`, { contract: "persons.location" }),
   getPersonHistory: (id, hours = 24) => request(`/persons/${id}/history?hours=${hours}`, { contract: "persons.history" }),
   getPersonSightings: (id, limit = 20) => request(`/persons/${id}/sightings?limit=${limit}`, { contract: "persons.sightings" }),

@@ -50,6 +50,14 @@
         >
           Door Zones
         </v-btn>
+        <v-btn
+          size="small"
+          :variant="mode === 'heatmap' ? 'flat' : 'outlined'"
+          :color="mode === 'heatmap' ? 'primary' : undefined"
+          @click="mode = 'heatmap'"
+        >
+          Heatmap
+        </v-btn>
       </div>
     </div>
 
@@ -787,6 +795,177 @@
       </v-dialog>
     </template>
 
+    <!-- ── Heatmap view ──────────────────────────────────────────────────── -->
+    <template v-else-if="mode === 'heatmap'">
+      <v-row>
+        <!-- Floor plan canvas with heatmap overlay -->
+        <v-col cols="12" md="9">
+          <v-card class="glass-card">
+            <v-card-title class="text-subtitle-2 d-flex align-center">
+              Presence Heatmap
+              <v-spacer />
+              <v-chip
+                v-if="!floorPlanUrl"
+                color="warning"
+                size="small"
+                variant="tonal"
+                prepend-icon="mdi-alert-outline"
+              >
+                No floor plan
+              </v-chip>
+            </v-card-title>
+            <v-divider />
+            <v-card-text class="pa-2">
+              <div
+                ref="heatmapCanvasRef"
+                class="floor-plan-canvas"
+                :style="{ aspectRatio: `${canvasW}/${canvasH}`, maxHeight: '65vh' }"
+                @wheel.prevent="heatmapZoom.actions.onWheel"
+              >
+                <div
+                  class="floor-plan-zoom-content"
+                  :style="heatmapZoom.state.transformStyle"
+                  @mousedown="onHeatmapMouseDown"
+                >
+                  <svg
+                    :viewBox="`0 0 ${canvasW} ${canvasH}`"
+                    class="floor-plan-svg"
+                  >
+                    <image
+                      v-if="floorPlanUrl"
+                      :href="floorPlanUrl"
+                      :width="canvasW"
+                      :height="canvasH"
+                      opacity="0.45"
+                    />
+                    <g v-for="room in rooms" :key="room.id">
+                      <polygon
+                        v-if="room.floor_polygon && room.floor_polygon.length >= 3"
+                        :points="room.floor_polygon.map(([x, y]) => `${x * canvasW},${y * canvasH}`).join(' ')"
+                        class="room-poly"
+                      />
+                    </g>
+                    <!-- Heatmap bins -->
+                    <g>
+                      <rect
+                        v-for="bin in mappedHeatmapBins"
+                        :key="bin.key"
+                        :x="bin.canvasX"
+                        :y="bin.canvasY"
+                        :width="bin.canvasSize"
+                        :height="bin.canvasSize"
+                        :fill="_tokWarning"
+                        :opacity="bin.opacity"
+                      />
+                    </g>
+                    <text
+                      v-if="!heatmapState.loading && !mappedHeatmapBins.length"
+                      x="50%"
+                      y="50%"
+                      text-anchor="middle"
+                      fill="#888"
+                      :font-size="Math.round(canvasH * 0.025)"
+                    >
+                      {{ heatmapState.error ? heatmapState.error : 'Select a person and date range, then click Generate.' }}
+                    </text>
+                  </svg>
+                  <div
+                    v-if="heatmapState.loading"
+                    class="d-flex justify-center align-center"
+                    style="position: absolute; inset: 0; background: rgba(0,0,0,0.25)"
+                  >
+                    <v-progress-circular indeterminate color="primary" />
+                  </div>
+                </div>
+                <CcZoomControls
+                  :zoom="heatmapZoom.state.zoom"
+                  :pan-x="heatmapZoom.state.panX"
+                  :pan-y="heatmapZoom.state.panY"
+                  :max-zoom="5"
+                  :min-zoom="0.3"
+                  @zoom-in="heatmapZoom.actions.zoomIn(heatmapCanvasRef)"
+                  @zoom-out="heatmapZoom.actions.zoomOut(heatmapCanvasRef)"
+                  @reset="heatmapZoom.actions.reset()"
+                />
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-col>
+
+        <!-- Heatmap controls -->
+        <v-col cols="12" md="3">
+          <v-card class="glass-card">
+            <v-card-title class="text-subtitle-2">Filters</v-card-title>
+            <v-divider />
+            <v-card-text>
+              <v-select
+                v-model="heatmapPersonId"
+                :items="heatmapPersons"
+                item-title="name"
+                item-value="id"
+                label="Person"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="mb-4"
+              />
+              <div class="text-caption text-medium-emphasis mb-1">Date Range</div>
+              <v-text-field
+                v-model="heatmapStartDate"
+                type="date"
+                label="From"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="mb-3"
+              />
+              <v-text-field
+                v-model="heatmapEndDate"
+                type="date"
+                label="To"
+                variant="outlined"
+                density="compact"
+                hide-details
+                class="mb-4"
+              />
+              <div class="text-caption text-medium-emphasis mb-2">Time of Day (UTC)</div>
+              <div class="d-flex flex-wrap ga-2 mb-4">
+                <v-btn
+                  v-for="(preset, idx) in HOUR_PRESETS"
+                  :key="idx"
+                  size="x-small"
+                  :variant="heatmapPresetIdx === idx ? 'flat' : 'outlined'"
+                  :color="heatmapPresetIdx === idx ? 'primary' : undefined"
+                  @click="heatmapPresetIdx = idx"
+                >
+                  {{ preset.label }}
+                </v-btn>
+              </div>
+              <v-alert
+                v-if="heatmapState.error"
+                type="error"
+                density="compact"
+                variant="tonal"
+                class="mb-3"
+              >
+                {{ heatmapState.error }}
+              </v-alert>
+              <v-btn
+                color="primary"
+                variant="flat"
+                block
+                :loading="heatmapState.loading"
+                :disabled="!heatmapPersonId || !heatmapStartDate || !heatmapEndDate"
+                @click="runHeatmap"
+              >
+                Generate
+              </v-btn>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+    </template>
+
     <!-- ── Live view ─────────────────────────────────────────────────────── -->
     <template v-else>
       <v-row>
@@ -961,6 +1140,9 @@
                   <template v-if="person.confidence > 0">
                     &nbsp;·&nbsp;{{ Math.round(person.confidence * 100) }}%
                   </template>
+                  <template v-if="person.posture">
+                    &nbsp;·&nbsp;{{ person.posture }}
+                  </template>
                 </v-list-item-subtitle>
                 <template #append>
                   <div class="d-flex flex-column align-end ga-1">
@@ -990,7 +1172,7 @@
             <v-card-text class="pa-2">
               <InferredPresenceBadge
                 v-for="ir in worldInferredRooms"
-                :key="ir.room_id"
+                :key="`${ir.room_id}-${ir.person_id}`"
                 :room-name="ir.room_name"
                 :person-name="ir.person_id || ''"
                 :since="ir.since"
@@ -1050,8 +1232,10 @@ import { ccToken } from "@/composables/useChartTheme.js";
 import { useCanvasZoom } from "@/composables/useCanvasZoom.js";
 import { useWorldSnapshot } from "@/composables/useWorldSnapshot";
 import { useNotify } from "@/composables/useNotify";
+import { api } from "@/services/api.js";
 import { household } from "@/services/household";
 import { cts } from "@/services/cts";
+import { useHeatmap } from "@/composables/useHeatmap.js";
 import CcZoomControls from "@/components/common/CcZoomControls.vue";
 import PolygonOnSnapshot from "@/components/cts/PolygonOnSnapshot.vue";
 import PHMarker from "@/components/cts/floor/PHMarker.vue";
@@ -1200,6 +1384,24 @@ const coverageImgReady = ref(false);
 const coverageImgW = ref(0);
 const coverageImgH = ref(0);
 
+// ── Heatmap state ─────────────────────────────────────────────────────────
+const heatmapCanvasRef = ref(null);
+const heatmapZoom = useCanvasZoom({ maxZoom: 5, minZoom: 0.3 });
+const heatmapPersonId = ref(null);
+const heatmapPersons = ref([]);
+const heatmapStartDate = ref("");
+const heatmapEndDate = ref("");
+const heatmapPresetIdx = ref(0);
+const { state: heatmapState, actions: heatmapActions } = useHeatmap();
+
+const HOUR_PRESETS = [
+  { label: "All Day", startHour: null, endHour: null },
+  { label: "Morning 6–12 UTC", startHour: 6, endHour: 12 },
+  { label: "Afternoon 12–18 UTC", startHour: 12, endHour: 18 },
+  { label: "Evening 18–24 UTC", startHour: 18, endHour: 24 },
+  { label: "Night 0–6 UTC", startHour: 0, endHour: 6 },
+];
+
 // N4: world snapshot (PH-driven floor plan markers)
 // WS lifecycle is managed inside useWorldSnapshot.
 const {
@@ -1344,12 +1546,13 @@ const activePersons = computed(() => {
     .filter((ph) => ph.identity_id && ph.last_observed_at)
     .map((ph) => ({
       gtId: ph.ph_id,
-      displayName: ph.identity_display_name || ph.identity_id || "UNKNOWN",
-      color: ph.identity_color || "#888888",
+      displayName: ph.identity_id || "UNKNOWN",
+      color: identityColor(ph.identity_id || ph.ph_id),
       calibrated: !ph.uncalibrated,
       confidence: ph.posterior_top_prob ?? 0,
       lastSeen: new Date(ph.last_observed_at).getTime(),
       roomName: ph.room_name || worldMarkerByPhId.value.get(ph.ph_id)?.roomName || null,
+      posture: (ph.posture && ph.posture !== "unknown") ? ph.posture : null,
     }))
     .sort((a, b) => b.lastSeen - a.lastSeen);
 });
@@ -1435,6 +1638,54 @@ watch(
       loadCoverage();
     }
   }
+);
+
+// ── Heatmap computed + actions ────────────────────────────────────────────
+const mappedHeatmapBins = computed(() => {
+  const bins = heatmapState.data?.bins;
+  if (!bins?.length) return [];
+  const width = fpWidth.value;
+  const height = fpHeight.value;
+  const mpp = fpMpp.value;
+  if (!width || !height || !mpp) return [];
+  const maxWeight = bins.reduce((m, b) => Math.max(m, b.weight), 1);
+  const binSizePx = (0.5 / (width * mpp)) * canvasW.value;
+  return bins.map((bin) => ({
+    key: `${bin.x_m}_${bin.y_m}`,
+    canvasX: (bin.x_m / (width * mpp)) * canvasW.value,
+    canvasY: (bin.y_m / (height * mpp)) * canvasH.value,
+    canvasSize: binSizePx,
+    opacity: 0.2 + 0.8 * (bin.weight / maxWeight),
+  }));
+});
+
+async function runHeatmap() {
+  if (!heatmapPersonId.value || !heatmapStartDate.value || !heatmapEndDate.value) return;
+  const preset = HOUR_PRESETS[heatmapPresetIdx.value];
+  await heatmapActions.fetchHeatmap(
+    heatmapPersonId.value,
+    heatmapStartDate.value + "T00:00:00Z",
+    heatmapEndDate.value + "T23:59:59Z",
+    preset.startHour,
+    preset.endHour,
+  );
+}
+
+function onHeatmapMouseDown(e) {
+  heatmapZoom.actions.startPan(e);
+}
+
+watch(
+  () => mode.value,
+  async (newMode) => {
+    if (newMode === "heatmap" && heatmapPersons.value.length === 0) {
+      try {
+        heatmapPersons.value = await api.getPersons();
+      } catch {
+        // non-critical; user sees empty dropdown
+      }
+    }
+  },
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────

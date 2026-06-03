@@ -20,7 +20,7 @@ EXPECTED_TOOLS = {
     "get_room_occupancy",
     "get_recent_images",
     "get_light_level",
-    "get_alerts",
+    "get_signals_feed",
     "get_event_logs",
     "get_rules",
     "get_conversation_history",

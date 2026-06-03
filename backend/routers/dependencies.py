@@ -45,9 +45,11 @@ if TYPE_CHECKING:
     from backend.services.cts.runtime import CTSRuntime
     from backend.services.event_aggregator import EventAggregator
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
+    from backend.services.occupancy import OccupancyReadModel
     from backend.services.person_location.service import PersonLocationService
     from backend.services.scheduler import SchedulerBridge
     from backend.services.sensor_polling import SensorPollingService
+    from backend.services.signals.feed import SignalsFeedService
     from backend.websocket.connection_manager import ConnectionManager
 
 __all__ = [
@@ -60,12 +62,14 @@ __all__ = [
     "get_knowledge_delivery",
     "get_llm_model_registry",
     "get_minio_client",
+    "get_occupancy_read_model",
     "get_orchestrator_client",
     "get_person_location_service",
     "get_ph_enrichment_service",
     "get_realtime_provider",
     "get_scheduler",
     "get_sensor_polling",
+    "get_signals_feed",
     "get_ws_manager",
 ]
 
@@ -161,6 +165,14 @@ def get_sensor_polling(request: Request) -> SensorPollingService:
     return svc
 
 
+def get_signals_feed(request: Request) -> SignalsFeedService:
+    """Return the lifespan-managed unified signals feed (503 if unavailable)."""
+    svc: SignalsFeedService | None = request.app.state.signals_feed
+    if svc is None:
+        raise _raise_503("signals_feed", "Signals feed service")
+    return svc
+
+
 def get_scheduler(request: Request) -> SchedulerBridge:
     """Return the lifespan-managed scheduler bridge (503 if unavailable)."""
     svc: SchedulerBridge | None = request.app.state.scheduler
@@ -203,6 +215,14 @@ def get_knowledge_delivery(request: Request) -> KnowledgeDeliveryService:
     svc: KnowledgeDeliveryService | None = request.app.state.knowledge_delivery
     if svc is None:
         raise _raise_503("knowledge_delivery", "Knowledge delivery service")
+    return svc
+
+
+def get_occupancy_read_model(request: Request) -> OccupancyReadModel:
+    """Return the lifespan-managed occupancy read-model (503 if unavailable)."""
+    svc: OccupancyReadModel | None = request.app.state.occupancy_read_model
+    if svc is None:
+        raise _raise_503("occupancy_read_model", "Occupancy read-model")
     return svc
 
 

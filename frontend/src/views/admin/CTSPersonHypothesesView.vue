@@ -3,7 +3,7 @@
     <!-- Page header -->
     <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
-        <h2 class="text-h4 font-weight-bold tracking-tight">People & Hypotheses</h2>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Person Hypotheses</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
           Inspect, correct, merge, and split Person Hypotheses from the world-coordinate tracker.
         </div>
@@ -41,7 +41,6 @@
 
     <!-- Tabs -->
     <v-tabs v-model="activeTab" color="primary" class="mb-4" density="compact">
-      <v-tab value="people">People</v-tab>
       <v-tab value="hypotheses">
         Hypotheses
         <v-chip size="x-small" variant="tonal" class="ml-1">{{ phList.state.total.value }}</v-chip>
@@ -256,16 +255,6 @@
       </v-data-table-server>
     </v-card>
 
-    <!-- ─────────────── TAB: People ─────────────── -->
-    <div v-if="activeTab === 'people'">
-      <v-card class="glass-card pa-6">
-        <PHPeopleSummary
-          :identity-groups="identityGroups"
-          :unidentified-count="unidentifiedCount"
-        />
-      </v-card>
-    </div>
-
     <!-- ─────────────── TAB: History ─────────────── -->
     <v-card v-if="activeTab === 'history'" class="glass-card">
       <div class="pa-3 d-flex align-center ga-3">
@@ -425,7 +414,6 @@ import { useConfirm } from "@/composables/useConfirm";
 import { useNotify } from "@/composables/useNotify";
 import { ctsPh } from "@/services/cts_ph";
 import PHInspectorDrawer from "@/components/cts/ph/PHInspectorDrawer.vue";
-import PHPeopleSummary from "@/components/cts/ph/PHPeopleSummary.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 
@@ -446,7 +434,7 @@ const durationOptions = [
 export default {
   name: "CTSPersonHypothesesView",
 
-  components: { PHInspectorDrawer, PHPeopleSummary, BlurToggle, DialogHeader },
+  components: { PHInspectorDrawer, BlurToggle, DialogHeader },
 
   setup() {
     const phList = usePHList();
@@ -542,28 +530,6 @@ export default {
         (a.display_name || a.identity_id).localeCompare(b.display_name || b.identity_id)
       );
     }
-
-    // ── Identity groups for People tab ──
-    const identityGroups = computed(() => {
-      const byId = new Map();
-      for (const ph of phList.state.items.value) {
-        const id = ph.current_identity_id;
-        if (!id) continue;
-        if (!byId.has(id)) {
-          byId.set(id, {
-            identity_id: id,
-            display_name: ph.identity_display_name || id,
-            count: 0,
-          });
-        }
-        byId.get(id).count++;
-      }
-      return [...byId.values()];
-    });
-
-    const unidentifiedCount = computed(
-      () => phList.state.items.value.filter((ph) => !ph.current_identity_id).length
-    );
 
     const tableMergeCandidates = computed(() =>
       phList.state.items.value.filter((ph) => ph.ph_id !== inspectorPh.value?.ph_id)
@@ -835,8 +801,6 @@ export default {
       bulkMergeReason,
       purgingUnknown,
       purgeOlderThanDays,
-      identityGroups,
-      unidentifiedCount,
       tableMergeCandidates,
       selectedPhRows,
       bulkMergeSourceCount,

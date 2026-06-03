@@ -69,6 +69,13 @@ class PresenceSegment:
 
 
 @dataclass(frozen=True)
+class HeatmapBin:
+    x_bin: float
+    y_bin: float
+    weight: int
+
+
+@dataclass(frozen=True)
 class CurrentLocation:
     person_id: str
     room_id: int

@@ -67,20 +67,20 @@ async def test_get_person_location_raises_when_pls_unavailable():
 
 
 # ---------------------------------------------------------------------------
-# get_room_occupancy: raises when PLS unavailable
+# get_room_occupancy: raises when the occupancy read-model is unavailable
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_get_room_occupancy_raises_when_pls_unavailable():
-    _svc.person_location_service = None
-    with pytest.raises(RuntimeError, match="PersonLocationService not available"):
+async def test_get_room_occupancy_raises_when_model_unavailable():
+    _svc.occupancy_read_model = None
+    with pytest.raises(RuntimeError, match="OccupancyReadModel not available"):
         await get_room_occupancy()
 
 
 @pytest.mark.asyncio
 async def test_get_room_occupancy_never_returns_message_dict():
-    _svc.person_location_service = None
+    _svc.occupancy_read_model = None
     try:
         result = await get_room_occupancy()
     except RuntimeError:

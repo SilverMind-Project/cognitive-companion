@@ -46,8 +46,26 @@ vi.mock("@/services/household", () => ({
 vi.mock("@/services/cts", () => ({
   cts: {
     getVisibilityPolygons: vi.fn().mockResolvedValue({ cameras: [] }),
+    getTransitZones: vi.fn().mockResolvedValue([]),
   },
 }));
+
+vi.mock("@/services/api", () => ({
+  api: {
+    getPersons: vi.fn().mockResolvedValue([
+      { id: "p1", name: "Grandma" },
+      { id: "p2", name: "Bob" },
+    ]),
+    getHeatmap: vi.fn().mockResolvedValue({
+      person_id: "p1",
+      bins: [
+        { x_m: 1.0, y_m: 2.0, weight: 5 },
+        { x_m: 3.5, y_m: 0.5, weight: 2 },
+      ],
+    }),
+  },
+}));
+
 
 // Stub Vuetify components.
 const stubComponents = {
@@ -90,6 +108,8 @@ const stubComponents = {
   "v-slider": { template: "<input type='range' />" },
   PHMarker: { template: "<div />" },
   PolygonOnSnapshot: { template: "<div />" },
+  InferredPresenceBadge: { template: "<div />" },
+  CcZoomControls: { template: "<div />" },
   "router-link": { template: "<a><slot /></a>" },
 };
 
@@ -147,5 +167,115 @@ describe("CTSFloorPlanView — world snapshot handling", () => {
     expect(state.worldPhs).toBeDefined();
     expect(state.worldInferredRooms).toBeDefined();
     expect(state.worldIsStale).toBeDefined();
+  });
+});
+
+describe("CTSFloorPlanView — heatmap mode", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders Heatmap mode button", async () => {
+    const wrapper = await mountView();
+    expect(wrapper.html()).toContain("Heatmap");
+  });
+
+  it("shows heatmap controls panel when mode is heatmap", async () => {
+    const wrapper = await mountView();
+    // Use the proxy setter so the ref is correctly updated
+    wrapper.vm.$.setupState.mode = "heatmap";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.html()).toContain("Filters");
+    expect(wrapper.html()).toContain("Generate");
+  });
+
+  it("shows empty-state prompt in heatmap mode", async () => {
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.mode = "heatmap";
+    await wrapper.vm.$nextTick();
+    expect(wrapper.html()).toContain("Select a person and date range");
+  });
+
+  it("mappedHeatmapBins is empty when no floor plan config", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+    expect(state.mappedHeatmapBins).toBeDefined();
+    // fpWidth/fpHeight/fpMpp are null by default
+    expect(state.mappedHeatmapBins.length).toBe(0);
+  });
+
+  it("mappedHeatmapBins maps bins when floor plan and data are set", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+
+    // Provide floor plan config via proxy setter (unwraps refs automatically)
+    state.fpWidth = 10;
+    state.fpHeight = 8;
+    state.fpMpp = 0.01;
+    state.canvasW = 1000;
+    state.canvasH = 800;
+
+    // Inject heatmap data directly into the reactive state object
+    state.heatmapState.data = {
+      person_id: "p1",
+      bins: [
+        { x_m: 1.0, y_m: 2.0, weight: 10 },
+        { x_m: 3.5, y_m: 0.5, weight: 5 },
+      ],
+    };
+    await wrapper.vm.$nextTick();
+
+    expect(state.mappedHeatmapBins.length).toBe(2);
+    // Highest-weight bin gets opacity 1.0 (0.2 + 0.8 * 10/10)
+    expect(state.mappedHeatmapBins[0].opacity).toBeCloseTo(1.0, 3);
+    // Second bin gets half-weight opacity
+    expect(state.mappedHeatmapBins[1].opacity).toBeCloseTo(0.6, 3);
+  });
+
+  it("HOUR_PRESETS covers all day, morning, afternoon, evening, night", async () => {
+    const wrapper = await mountView();
+    const presets = wrapper.vm.$.setupState.HOUR_PRESETS;
+    expect(presets.length).toBe(5);
+    expect(presets[0].startHour).toBeNull();
+    expect(presets[1].label).toContain("Morning");
+    expect(presets[4].label).toContain("Night");
+  });
+
+  it("Generate button triggers api.getHeatmap with correct params", async () => {
+    const { api } = await import("@/services/api");
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+
+    // Switch to heatmap mode and populate required fields
+    state.mode = "heatmap";
+    state.heatmapPersonId = "p1";
+    state.heatmapStartDate = "2026-05-01";
+    state.heatmapEndDate = "2026-05-07";
+    await wrapper.vm.$nextTick();
+
+    // Click the Generate button (last button rendered in heatmap mode)
+    const buttons = wrapper.findAll("button");
+    const generateBtn = buttons.find((b) => b.text().includes("Generate"));
+    expect(generateBtn).toBeDefined();
+    await generateBtn.trigger("click");
+    await flushPromises();
+
+    expect(api.getHeatmap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        person_id: "p1",
+        start_time: "2026-05-01T00:00:00Z",
+        end_time: "2026-05-07T23:59:59Z",
+      }),
+    );
+  });
+
+  it("changing to heatmap mode loads persons via api.getPersons", async () => {
+    const { api } = await import("@/services/api");
+    const wrapper = await mountView();
+
+    wrapper.vm.$.setupState.mode = "heatmap";
+    await flushPromises();
+
+    expect(api.getPersons).toHaveBeenCalled();
   });
 });

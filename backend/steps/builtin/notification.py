@@ -403,6 +403,11 @@ class NotificationHandler(StepHandler):
         result_data = {
             "notification_dispatched": True,
             "notification_channels": results,
+            # Carried through so the unified signals feed can surface this
+            # rule outcome with a real severity and message (not a default).
+            "notification_severity": alert_level,
+            "notification_message": message,
+            "notification_room_name": trigger.room_name or "Unknown",
         }
 
         if config.get("trigger_cooloff", True):

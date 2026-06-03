@@ -166,7 +166,7 @@ class TestHandle:
 
     def test_world_snapshot_omits_posterior_when_probability_is_zero(self, subscriber):
         sub, _ = subscriber
-        phs = sub._build_ph_entries(  # noqa: SLF001
+        phs = sub._build_ph_entries(
             {
                 "capture_time": "2026-01-01T12:00:00Z",
                 "room_name": "kitchen",
@@ -190,7 +190,7 @@ class TestHandle:
 
     def test_world_snapshot_keeps_positive_posterior_probability(self, subscriber):
         sub, _ = subscriber
-        phs = sub._build_ph_entries(  # noqa: SLF001
+        phs = sub._build_ph_entries(
             {
                 "capture_time": "2026-01-01T12:00:00Z",
                 "room_name": "kitchen",

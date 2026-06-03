@@ -215,8 +215,18 @@ The graph validator rejects unknown step IDs, unknown source ports, cycles that 
 | `GET` | `/persons/{person_id}/presence-history` | Presence history |
 | `GET` | `/rooms/{room_id}/occupants` | Current room occupants |
 | `GET` | `/persons/{person_id}/dwell` | Dwell summary |
+| `GET` | `/occupancy` | Live room occupancy from the unified read-model (world tracker plus HA sensors); each room carries `person_ids`, `unknown_count`, and a `source` tag |
+| `GET` | `/signals/feed` | Unified caregiver signals feed: CTS dementia signals plus pipeline-rule notifications, each as a `SignalEnvelope` with `source`, `severity`, `room_name`, `created_at`, and `resolved` |
+
+The occupancy read-model and the signals feed each use one service function exposed through both the router and the matching MCP tool (`get_room_occupancy`, `get_signals_feed`). Room occupancy is keyed on PersonHypothesis with a short TTL, so unknown people are counted without a household identity. The legacy `emergency_alerts` table and `/alerts` endpoints were removed; caregiver alerts now flow through the signals feed.
 
 CTS routers expose camera admin, calibration, live data, PH identity review, presence configuration, signals, trajectories, overlap groups, and CTS window trigger definitions. These endpoints require CTS to be enabled through the shared `cts_enabled` dependency.
+
+### CTS analytics
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/cts/analytics/heatmap` | Aggregated floor-plan heatmap for a person. Query: `person_id`, `start_time`, `end_time`, optional `start_hour`/`end_hour` (0-23, UTC) for time-of-day filtering. Returns `HeatmapEnvelope` with `person_id` and `bins` (each with `x_m`, `y_m`, `weight`). Permission: `cts.analytics.heatmap.view`. Same service call as the `get_heatmap` MCP tool. |
 
 ## Knowledge and resident content
 

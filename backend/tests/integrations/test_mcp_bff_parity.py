@@ -17,9 +17,12 @@ from backend.core.auth import AuthContext, get_auth_context
 from backend.core.database import get_db
 from backend.core.exceptions import register_exception_handlers
 from backend.mcp.server import _svc
+from backend.mcp.server import get_heatmap as mcp_get_heatmap
 from backend.mcp.server import get_person_locations as mcp_get_person_locations
+from backend.routers.dependencies import get_person_location_service
 from backend.routers.persons_location import _get_service
 from backend.routers.persons_location import router as loc_router
+from backend.schemas.cts_analytics import HeatmapBin, HeatmapEnvelope
 from backend.services.person_location.types import CurrentLocation
 
 # ---------------------------------------------------------------------------
@@ -164,3 +167,102 @@ async def test_mcp_person_locations_empty_when_no_segments():
     _svc.person_location_service = svc_mock
     result = await mcp_get_person_locations()
     assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Heatmap parity: get_heatmap MCP vs GET /api/v1/cts/analytics/heatmap
+# ---------------------------------------------------------------------------
+
+_HEATMAP_ENVELOPE = HeatmapEnvelope(
+    person_id="alice",
+    bins=[
+        HeatmapBin(x_m=1.0, y_m=2.0, weight=5),
+        HeatmapBin(x_m=3.5, y_m=0.5, weight=2),
+    ],
+)
+
+_START = datetime(2026, 5, 1, 0, 0, 0, tzinfo=UTC)
+_END = datetime(2026, 5, 8, 0, 0, 0, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_heatmap_mcp_bff_same_person_id():
+    """MCP get_heatmap and BFF /cts/analytics/heatmap return the same person_id."""
+    svc_mock = AsyncMock()
+    svc_mock.get_heatmap = AsyncMock(return_value=_HEATMAP_ENVELOPE)
+
+    _svc.person_location_service = svc_mock
+    mcp_result = await mcp_get_heatmap(
+        person_id="alice",
+        start_time=_START.isoformat(),
+        end_time=_END.isoformat(),
+    )
+
+    from backend.routers.cts_analytics import router as analytics_router
+
+    app = FastAPI()
+    register_exception_handlers(app)
+    app.include_router(analytics_router)
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext(
+        key="x", name="tester", permissions=["*"]
+    )
+    svc_mock.get_heatmap.reset_mock(return_value=True)
+    svc_mock.get_heatmap = AsyncMock(return_value=_HEATMAP_ENVELOPE)
+    app.dependency_overrides[get_person_location_service] = lambda: svc_mock
+
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/cts/analytics/heatmap",
+        params={"person_id": "alice", "start_time": _START.isoformat(), "end_time": _END.isoformat()},
+    )
+    assert resp.status_code == 200
+    bff_result = resp.json()
+
+    assert mcp_result["person_id"] == bff_result["person_id"]
+
+
+@pytest.mark.asyncio
+async def test_heatmap_mcp_bff_same_bin_count():
+    """MCP and BFF return the same number of bins for the same input."""
+    svc_mock = AsyncMock()
+    svc_mock.get_heatmap = AsyncMock(return_value=_HEATMAP_ENVELOPE)
+
+    _svc.person_location_service = svc_mock
+    mcp_result = await mcp_get_heatmap(
+        person_id="alice",
+        start_time=_START.isoformat(),
+        end_time=_END.isoformat(),
+    )
+
+    from backend.routers.cts_analytics import router as analytics_router
+
+    app = FastAPI()
+    register_exception_handlers(app)
+    app.include_router(analytics_router)
+    app.dependency_overrides[get_auth_context] = lambda: AuthContext(
+        key="x", name="tester", permissions=["*"]
+    )
+    svc_mock.get_heatmap.reset_mock(return_value=True)
+    svc_mock.get_heatmap = AsyncMock(return_value=_HEATMAP_ENVELOPE)
+    app.dependency_overrides[get_person_location_service] = lambda: svc_mock
+
+    client = TestClient(app)
+    resp = client.get(
+        "/api/v1/cts/analytics/heatmap",
+        params={"person_id": "alice", "start_time": _START.isoformat(), "end_time": _END.isoformat()},
+    )
+    bff_result = resp.json()
+
+    assert len(mcp_result["bins"]) == len(bff_result["bins"])
+
+
+@pytest.mark.asyncio
+async def test_heatmap_mcp_returns_error_when_service_unavailable():
+    """MCP get_heatmap returns an error dict when PersonLocationService is None."""
+    _svc.person_location_service = None
+    result = await mcp_get_heatmap(
+        person_id="alice",
+        start_time=_START.isoformat(),
+        end_time=_END.isoformat(),
+    )
+    assert "error" in result

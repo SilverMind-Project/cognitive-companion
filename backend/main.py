@@ -375,6 +375,21 @@ async def lifespan(app: FastAPI):
     signals_service = SignalsService(db_factory=get_session)
     app.state.signals = signals_service
 
+    # -- Unified signals feed (cross-source caregiver alerts) -------------
+    from backend.services.signals.feed import SignalsFeedService
+
+    signals_feed_service = SignalsFeedService(db_factory=get_session)
+    app.state.signals_feed = signals_feed_service
+
+    # -- Occupancy read-model ---------------------------------------------
+    # Unified live room occupancy. Fed by the world tracker (when CTS is
+    # enabled) and merged-at-read with HA presence-sensor rows, so it serves
+    # /occupancy regardless of whether CTS is on.
+    from backend.services.occupancy import OccupancyReadModel
+
+    occupancy_read_model = OccupancyReadModel(db_factory=get_session)
+    app.state.occupancy_read_model = occupancy_read_model
+
     # -- Pipeline executor -------------------------------------------------
     from backend.services.pipeline_executor import PipelineExecutor
     from backend.services.pipeline_run_service import PipelineRunService
@@ -456,6 +471,8 @@ async def lifespan(app: FastAPI):
         sensor_polling_service=sensor_polling,
         ha_client=ha_client,
         person_tracking=person_tracking,
+        occupancy_read_model=occupancy_read_model,
+        signals_feed=signals_feed_service,
         activity_timeline=activity_timeline_service,
         activity_session=activity_session_service,
         daily_report=daily_report_service,
@@ -591,31 +608,9 @@ async def lifespan(app: FastAPI):
         person_location_service = _make_pls()
         app.state.person_location_service = person_location_service
 
-        # M4 subscribers: constructed once, injected into runtime.
-        from backend.services.cts.ph_continuation_subscriber import (
-            PHContinuationSubscriber,
-        )
-        from backend.services.cts.room_transition_subscriber import (
-            RoomTransitionSubscriber,
-        )
-        from backend.services.cts.world_observation_subscriber import (
-            WorldObservationSubscriber,
-        )
-
-        world_obs_sub = WorldObservationSubscriber(
-            redis_url=redis_url,
-            location_service=person_location_service,
-            camera_room_map={},  # populated by CC config sync at runtime
-        )
-        room_trans_sub = RoomTransitionSubscriber(
-            redis_url=redis_url,
-            location_service=person_location_service,
-        )
-        ph_cont_sub = PHContinuationSubscriber(
-            redis_url=redis_url,
-            location_service=person_location_service,
-        )
-
+        # M4 subscribers (world-observation, room-transition, ph-continuation)
+        # are constructed and owned by CTSRuntime, which wires the camera→room
+        # id map and occupancy read-model the world tracker needs.
         cts_runtime = CTSRuntime(
             config=CTSRuntimeConfig(
                 redis_url=redis_url,
@@ -630,9 +625,7 @@ async def lifespan(app: FastAPI):
             semantic_memory_client=semantic_memory_client,
             authority=shared_authority,
             person_location_service=person_location_service,
-            world_observation_subscriber=world_obs_sub,
-            room_transition_subscriber=room_trans_sub,
-            ph_continuation_subscriber=ph_cont_sub,
+            occupancy_read_model=occupancy_read_model,
         )
         app.state.cts_runtime = cts_runtime
         # Expose individual subscribers for tests / diagnostics.
@@ -684,6 +677,7 @@ async def lifespan(app: FastAPI):
         from backend.mcp.server import _svc as _mcp_svc
 
         _mcp_svc.cts_runtime = cts_runtime
+        _mcp_svc.person_location_service = person_location_service
         logger.info("cts_runtime_started")
     else:
         app.state.ingress_admin_client = None
@@ -747,9 +741,9 @@ def create_app() -> FastAPI:
         activities,
         admin,
         admin_metrics,
-        alerts,
         conversations,
         cts,
+        cts_analytics,
         cts_bboxes,
         cts_calibration,
         cts_calibration_health,
@@ -788,6 +782,7 @@ def create_app() -> FastAPI:
         rooms,
         rules,
         sensors,
+        signals_feed,
         webhooks,
         workflows,
         ws,
@@ -799,7 +794,7 @@ def create_app() -> FastAPI:
     app.include_router(sensors.router, prefix=api)
     app.include_router(rules.router, prefix=api)
     app.include_router(cts_window_triggers.router, prefix=api)
-    app.include_router(alerts.router, prefix=api)
+    app.include_router(signals_feed.router, prefix=api)
     app.include_router(events.router, prefix=api)
     app.include_router(device.router, prefix=api)
     app.include_router(image.router, prefix=api)
@@ -841,6 +836,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_overlap_groups.router, prefix=api)
     app.include_router(cts_diagnostics.router, prefix=api)
     app.include_router(cts_transit_zones.router, prefix=api)
+    app.include_router(cts_analytics.router)  # already has /api/v1 prefix
     app.include_router(persons_location.router)  # already has /api/v1 prefix
 
     # WebSocket routers (no /api/v1 prefix).

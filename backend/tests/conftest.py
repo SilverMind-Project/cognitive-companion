@@ -144,13 +144,27 @@ def db_engine(postgres_url):
         pool_pre_ping=True,
     )
 
-    # Ensure pgvector + pgvectorscale are available
+    # Extensions -- timescaledb must be loaded before create_all so that the
+    # hypertable call below succeeds.
     with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vectorscale CASCADE"))
         conn.commit()
 
     Base.metadata.create_all(bind=engine)
+
+    # Convert location_observations to a TimescaleDB hypertable so that
+    # continuous aggregates (used by the heatmap feature) work correctly.
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                "SELECT create_hypertable('location_observations', 'observed_at', "
+                "chunk_time_interval => INTERVAL '6 hours', "
+                "if_not_exists => TRUE, migrate_data => TRUE)"
+            )
+        )
+        conn.commit()
     yield engine
 
     try:

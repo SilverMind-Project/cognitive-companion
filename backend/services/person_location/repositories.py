@@ -10,6 +10,7 @@ from datetime import datetime
 from math import floor
 from typing import Protocol
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -19,6 +20,25 @@ from backend.models.location_observation import LocationObservation as LOObs
 from backend.models.presence_segment import PresenceSegment as PSeg
 
 from .types import HeatmapBin, LocationObservation, PresenceSegment
+
+
+def minute_of_day_in_window(
+    minute_of_day: int,
+    start_minute: int | None,
+    end_minute: int | None,
+) -> bool:
+    """Return whether a local minute-of-day (0-1439) falls inside the filter.
+
+    Both bounds are minutes since local midnight. The window is half-open
+    ``[start, end)``. When ``start_minute > end_minute`` the window wraps past
+    midnight (e.g. 22:00-03:00), so the predicate becomes an OR. When either
+    bound is ``None`` no time-of-day filtering is applied.
+    """
+    if start_minute is None or end_minute is None:
+        return True
+    if start_minute <= end_minute:
+        return start_minute <= minute_of_day < end_minute
+    return minute_of_day >= start_minute or minute_of_day < end_minute
 
 
 class ObservationRepository(Protocol):
@@ -34,8 +54,9 @@ class ObservationRepository(Protocol):
         person_id: str,
         since: datetime,
         until: datetime,
-        filter_start_hour: int | None = None,
-        filter_end_hour: int | None = None,
+        tz_name: str = "UTC",
+        filter_start_minute: int | None = None,
+        filter_end_minute: int | None = None,
     ) -> list[HeatmapBin]: ...
 
 
@@ -100,17 +121,25 @@ class InMemoryObservationRepository:
         person_id: str,
         since: datetime,
         until: datetime,
-        filter_start_hour: int | None = None,
-        filter_end_hour: int | None = None,
+        tz_name: str = "UTC",
+        filter_start_minute: int | None = None,
+        filter_end_minute: int | None = None,
     ) -> list[HeatmapBin]:
+        tz = ZoneInfo(tz_name)
+
+        def _local_minute(o: LocationObservation) -> int:
+            local = o.observed_at.astimezone(tz)
+            return local.hour * 60 + local.minute
+
         relevant = [
             o
             for o in self._rows.values()
             if o.person_id == person_id
             and since <= o.observed_at < until
             and o.floor_point is not None
-            and (filter_start_hour is None or o.observed_at.hour >= filter_start_hour)
-            and (filter_end_hour is None or o.observed_at.hour < filter_end_hour)
+            and minute_of_day_in_window(
+                _local_minute(o), filter_start_minute, filter_end_minute
+            )
         ]
         bins: dict[tuple[float, float], int] = {}
         for o in relevant:
@@ -283,28 +312,42 @@ class SqlAlchemyObservationRepository:
         person_id: str,
         since: datetime,
         until: datetime,
-        filter_start_hour: int | None = None,
-        filter_end_hour: int | None = None,
+        tz_name: str = "UTC",
+        filter_start_minute: int | None = None,
+        filter_end_minute: int | None = None,
     ) -> list[HeatmapBin]:
-        hour_clauses = ""
-        if filter_start_hour is not None:
-            hour_clauses += "\n              AND EXTRACT(HOUR FROM time_bucket_15m) >= :start_hour"
-        if filter_end_hour is not None:
-            hour_clauses += "\n              AND EXTRACT(HOUR FROM time_bucket_15m) < :end_hour"
+        # Local minute-of-day for each 15-minute bucket. ``time_bucket_15m`` is
+        # TIMESTAMPTZ (UTC); ``AT TIME ZONE :tz`` rotates it to wall-clock time
+        # in the application timezone so the filter is by *local* time of day.
+        params: dict = {"person_id": person_id, "since": since, "until": until, "tz": tz_name}
+        time_clause = ""
+        if filter_start_minute is not None and filter_end_minute is not None:
+            local_minute = (
+                "(EXTRACT(HOUR FROM time_bucket_15m AT TIME ZONE :tz)::int * 60"
+                " + EXTRACT(MINUTE FROM time_bucket_15m AT TIME ZONE :tz)::int)"
+            )
+            params["start_minute"] = filter_start_minute
+            params["end_minute"] = filter_end_minute
+            if filter_start_minute <= filter_end_minute:
+                time_clause = (
+                    f"\n              AND {local_minute} >= :start_minute"
+                    f"\n              AND {local_minute} < :end_minute"
+                )
+            else:
+                # Window wraps past midnight (e.g. 22:00-03:00).
+                time_clause = (
+                    f"\n              AND ({local_minute} >= :start_minute"
+                    f" OR {local_minute} < :end_minute)"
+                )
         _SQL = text(f"""
             SELECT x_bin, y_bin, SUM(weight) AS weight
             FROM location_heatmaps_15m
             WHERE person_id = :person_id
               AND time_bucket_15m >= :since
-              AND time_bucket_15m < :until{hour_clauses}
+              AND time_bucket_15m < :until{time_clause}
             GROUP BY x_bin, y_bin
             ORDER BY weight DESC
         """)
-        params: dict = {"person_id": person_id, "since": since, "until": until}
-        if filter_start_hour is not None:
-            params["start_hour"] = filter_start_hour
-        if filter_end_hour is not None:
-            params["end_hour"] = filter_end_hour
         with transaction(self._db_factory) as db:
             rows = db.execute(_SQL, params).all()
         return [HeatmapBin(x_bin=float(r.x_bin), y_bin=float(r.y_bin), weight=int(r.weight)) for r in rows]

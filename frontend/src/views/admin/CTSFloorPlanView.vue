@@ -20,6 +20,14 @@
         </v-btn>
         <v-btn
           size="small"
+          :variant="mode === 'heatmap' ? 'flat' : 'outlined'"
+          :color="mode === 'heatmap' ? 'primary' : undefined"
+          @click="mode = 'heatmap'"
+        >
+          Heatmap
+        </v-btn>
+        <v-btn
+          size="small"
           :variant="mode === 'edit' ? 'flat' : 'outlined'"
           :color="mode === 'edit' ? 'primary' : undefined"
           @click="mode = 'edit'"
@@ -49,14 +57,6 @@
           @click="mode = 'doors'"
         >
           Door Zones
-        </v-btn>
-        <v-btn
-          size="small"
-          :variant="mode === 'heatmap' ? 'flat' : 'outlined'"
-          :color="mode === 'heatmap' ? 'primary' : undefined"
-          @click="mode = 'heatmap'"
-        >
-          Heatmap
         </v-btn>
       </div>
     </div>
@@ -909,38 +909,85 @@
                 hide-details
                 class="mb-4"
               />
-              <div class="text-caption text-medium-emphasis mb-1">Date Range</div>
-              <v-text-field
-                v-model="heatmapStartDate"
-                type="date"
-                label="From"
-                variant="outlined"
-                density="compact"
-                hide-details
-                class="mb-3"
-              />
-              <v-text-field
-                v-model="heatmapEndDate"
-                type="date"
-                label="To"
-                variant="outlined"
-                density="compact"
-                hide-details
-                class="mb-4"
-              />
-              <div class="text-caption text-medium-emphasis mb-2">Time of Day (UTC)</div>
-              <div class="d-flex flex-wrap ga-2 mb-4">
+              <div class="text-caption text-medium-emphasis mb-2">Date Range</div>
+              <div class="d-flex flex-wrap ga-2 mb-3">
                 <v-btn
-                  v-for="(preset, idx) in HOUR_PRESETS"
-                  :key="idx"
+                  v-for="preset in DATE_PRESETS"
+                  :key="preset.key"
                   size="x-small"
-                  :variant="heatmapPresetIdx === idx ? 'flat' : 'outlined'"
-                  :color="heatmapPresetIdx === idx ? 'primary' : undefined"
-                  @click="heatmapPresetIdx = idx"
+                  :variant="heatmapDatePreset === preset.key ? 'flat' : 'outlined'"
+                  :color="heatmapDatePreset === preset.key ? 'primary' : undefined"
+                  @click="heatmapDatePreset = preset.key"
                 >
                   {{ preset.label }}
                 </v-btn>
               </div>
+              <template v-if="heatmapDatePreset === 'custom'">
+                <v-text-field
+                  v-model="heatmapStartDate"
+                  type="date"
+                  label="From"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-3"
+                />
+                <v-text-field
+                  v-model="heatmapEndDate"
+                  type="date"
+                  label="To"
+                  variant="outlined"
+                  density="compact"
+                  hide-details
+                  class="mb-3"
+                />
+              </template>
+
+              <div class="text-caption text-medium-emphasis mb-2">
+                Time of Day
+                <span class="text-disabled">({{ appTzLabel }})</span>
+              </div>
+              <div class="d-flex flex-wrap ga-2 mb-3">
+                <v-btn
+                  v-for="preset in TIME_PRESETS"
+                  :key="preset.key"
+                  size="x-small"
+                  :variant="heatmapTimePreset === preset.key ? 'flat' : 'outlined'"
+                  :color="heatmapTimePreset === preset.key ? 'primary' : undefined"
+                  @click="heatmapTimePreset = preset.key"
+                >
+                  {{ preset.label }}
+                </v-btn>
+              </div>
+              <template v-if="heatmapTimePreset === 'custom'">
+                <div class="d-flex ga-2 mb-1">
+                  <v-text-field
+                    v-model="heatmapStartTime"
+                    type="time"
+                    step="900"
+                    label="From"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                  <v-text-field
+                    v-model="heatmapEndTime"
+                    type="time"
+                    step="900"
+                    label="To"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                  />
+                </div>
+                <div class="text-caption text-disabled mb-3">
+                  A "From" later than "To" spans midnight (e.g. 21:00 to 03:00 is overnight).
+                </div>
+              </template>
+              <div v-else class="text-caption text-disabled mb-3">
+                {{ heatmapTimeWindowLabel }}
+              </div>
+
               <v-alert
                 v-if="heatmapState.error"
                 type="error"
@@ -955,7 +1002,7 @@
                 variant="flat"
                 block
                 :loading="heatmapState.loading"
-                :disabled="!heatmapPersonId || !heatmapStartDate || !heatmapEndDate"
+                :disabled="!heatmapPersonId || !heatmapRangeReady || !heatmapTimeReady"
                 @click="runHeatmap"
               >
                 Generate
@@ -1233,6 +1280,7 @@ import { useCanvasZoom } from "@/composables/useCanvasZoom.js";
 import { useWorldSnapshot } from "@/composables/useWorldSnapshot";
 import { useNotify } from "@/composables/useNotify";
 import { api } from "@/services/api.js";
+import { getAppTimezone, localDateToUTCISO } from "@/services/timezone.js";
 import { household } from "@/services/household";
 import { cts } from "@/services/cts";
 import { useHeatmap } from "@/composables/useHeatmap.js";
@@ -1389,18 +1437,74 @@ const heatmapCanvasRef = ref(null);
 const heatmapZoom = useCanvasZoom({ maxZoom: 5, minZoom: 0.3 });
 const heatmapPersonId = ref(null);
 const heatmapPersons = ref([]);
-const heatmapStartDate = ref("");
-const heatmapEndDate = ref("");
-const heatmapPresetIdx = ref(0);
 const { state: heatmapState, actions: heatmapActions } = useHeatmap();
 
-const HOUR_PRESETS = [
-  { label: "All Day", startHour: null, endHour: null },
-  { label: "Morning 6–12 UTC", startHour: 6, endHour: 12 },
-  { label: "Afternoon 12–18 UTC", startHour: 12, endHour: 18 },
-  { label: "Evening 18–24 UTC", startHour: 18, endHour: 24 },
-  { label: "Night 0–6 UTC", startHour: 0, endHour: 6 },
+// App timezone label for the time-of-day controls (all stored data is UTC; the
+// filter is applied in local wall-clock time on the backend).
+const appTzLabel = computed(() => getAppTimezone());
+
+// ── Date-range filter ──────────────────────────────────────────────────────
+// Presets are absolute rolling windows; "custom" reveals local calendar pickers.
+const DATE_PRESETS = [
+  { key: "last_24h", label: "24h", hours: 24 },
+  { key: "last_7d", label: "7d", hours: 24 * 7 },
+  { key: "last_14d", label: "14d", hours: 24 * 14 },
+  { key: "last_30d", label: "30d", hours: 24 * 30 },
+  { key: "custom", label: "Custom", hours: null },
 ];
+const heatmapDatePreset = ref("last_7d");
+const heatmapStartDate = ref(""); // "YYYY-MM-DD", custom range only
+const heatmapEndDate = ref("");   // "YYYY-MM-DD", custom range only
+
+// ── Time-of-day filter ─────────────────────────────────────────────────────
+// Minutes since LOCAL midnight. When start > end the window wraps past midnight
+// (e.g. Night 21:00-06:00). Ranges align with dementia behaviour indicators
+// (sundowning agitation late afternoon/evening, overnight wandering).
+const TIME_PRESETS = [
+  { key: "all", label: "All Day", start: null, end: null },
+  { key: "morning", label: "Morning", start: 6 * 60, end: 12 * 60 },      // 06:00-12:00
+  { key: "afternoon", label: "Afternoon", start: 12 * 60, end: 17 * 60 }, // 12:00-17:00
+  { key: "sundowning", label: "Sundowning", start: 16 * 60, end: 20 * 60 }, // 16:00-20:00
+  { key: "evening", label: "Evening", start: 17 * 60, end: 21 * 60 },     // 17:00-21:00
+  { key: "night", label: "Night", start: 21 * 60, end: 6 * 60 },          // 21:00-06:00 (wraps)
+  { key: "custom", label: "Custom", start: null, end: null },
+];
+const heatmapTimePreset = ref("all");
+const heatmapStartTime = ref("21:00"); // "HH:MM" local, custom only
+const heatmapEndTime = ref("06:00");   // "HH:MM" local, custom only
+
+// Custom date range needs both endpoints; custom time needs both times.
+const heatmapRangeReady = computed(() => {
+  if (heatmapDatePreset.value === "custom") {
+    return !!heatmapStartDate.value && !!heatmapEndDate.value;
+  }
+  return true;
+});
+const heatmapTimeReady = computed(() => {
+  if (heatmapTimePreset.value === "custom") {
+    return !!heatmapStartTime.value && !!heatmapEndTime.value;
+  }
+  return true;
+});
+
+// Format minutes-since-local-midnight as a friendly 12-hour clock (e.g. 360 ->
+// "6:00 AM"). Pure arithmetic so it stays independent of any Date/locale API.
+function _formatMinutes(min) {
+  const h24 = Math.floor(min / 60) % 24;
+  const m = min % 60;
+  const period = h24 < 12 ? "AM" : "PM";
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+// Human-readable description of the selected preset's time window, so it is
+// obvious what e.g. "Morning" or "Sundowning" actually covers.
+const heatmapTimeWindowLabel = computed(() => {
+  const preset = TIME_PRESETS.find((p) => p.key === heatmapTimePreset.value);
+  if (!preset || preset.start == null || preset.end == null) return "All times of day";
+  const wraps = preset.start > preset.end;
+  return `${_formatMinutes(preset.start)} – ${_formatMinutes(preset.end)}${wraps ? " (overnight)" : ""}`;
+});
 
 // N4: world snapshot (PH-driven floor plan markers)
 // WS lifecycle is managed inside useWorldSnapshot.
@@ -1659,15 +1763,63 @@ const mappedHeatmapBins = computed(() => {
   }));
 });
 
+// Parse "HH:MM" into minutes since midnight.
+function _timeStrToMinutes(t) {
+  const [h, m] = t.split(":").map((v) => parseInt(v, 10));
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+// Advance a "YYYY-MM-DD" calendar date by one day (pure UTC arithmetic, so the
+// browser timezone never shifts the date).
+function _nextCalendarDay(dateStr) {
+  const [y, mo, d] = dateStr.split("-").map((v) => parseInt(v, 10));
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+// Resolve the absolute UTC [start, end) window from the date-range selection.
+function _resolveDateWindow() {
+  if (heatmapDatePreset.value === "custom") {
+    // Local calendar day boundaries -> UTC. End is exclusive start-of-next-day
+    // so the whole "To" day is included.
+    return {
+      start: localDateToUTCISO(heatmapStartDate.value, "00:00"),
+      end: localDateToUTCISO(_nextCalendarDay(heatmapEndDate.value), "00:00"),
+    };
+  }
+  const preset = DATE_PRESETS.find((p) => p.key === heatmapDatePreset.value);
+  const now = Date.now();
+  return {
+    start: new Date(now - preset.hours * 3600_000).toISOString(),
+    end: new Date(now).toISOString(),
+  };
+}
+
+// Resolve the local time-of-day window in minutes (both null = all day).
+function _resolveTimeWindow() {
+  if (heatmapTimePreset.value === "custom") {
+    return {
+      start: _timeStrToMinutes(heatmapStartTime.value),
+      end: _timeStrToMinutes(heatmapEndTime.value),
+    };
+  }
+  const preset = TIME_PRESETS.find((p) => p.key === heatmapTimePreset.value);
+  return { start: preset.start, end: preset.end };
+}
+
 async function runHeatmap() {
-  if (!heatmapPersonId.value || !heatmapStartDate.value || !heatmapEndDate.value) return;
-  const preset = HOUR_PRESETS[heatmapPresetIdx.value];
+  if (!heatmapPersonId.value || !heatmapRangeReady.value || !heatmapTimeReady.value) return;
+  const window = _resolveDateWindow();
+  if (!window.start || !window.end) return;
+  const time = _resolveTimeWindow();
   await heatmapActions.fetchHeatmap(
     heatmapPersonId.value,
-    heatmapStartDate.value + "T00:00:00Z",
-    heatmapEndDate.value + "T23:59:59Z",
-    preset.startHour,
-    preset.endHour,
+    window.start,
+    window.end,
+    time.start,
+    time.end,
   );
 }
 

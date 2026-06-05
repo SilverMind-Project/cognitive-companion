@@ -20,22 +20,27 @@ async def get_heatmap(
     person_id: str,
     start_time: datetime,
     end_time: datetime,
-    start_hour: int | None = Query(None, ge=0, le=23),
-    end_hour: int | None = Query(None, ge=0, le=23),
+    start_minute: int | None = Query(None, ge=0, le=1439),
+    end_minute: int | None = Query(None, ge=0, le=1439),
     svc: PersonLocationService = Depends(get_person_location_service),
     _auth: AuthContext = Depends(require_permission("cts.analytics.heatmap.view")),
 ) -> HeatmapEnvelope:
     """Return aggregated floor-plan heatmap bins for a person over a time range.
 
-    ``start_hour`` and ``end_hour`` (0-23, UTC) restrict which time-of-day
-    buckets contribute to the density map (e.g. daytime-only heatmaps).
+    ``start_minute`` and ``end_minute`` (0-1439, minutes since *local* midnight
+    in ``app.timezone``) restrict which time-of-day buckets contribute to the
+    density map. When ``start_minute > end_minute`` the window wraps past
+    midnight (e.g. 22:00-03:00 for sundowning behaviours). Both bounds must be
+    supplied together, or neither (no time-of-day filter).
     """
     if start_time >= end_time:
         raise ValidationError("start_time must be before end_time")
+    if (start_minute is None) != (end_minute is None):
+        raise ValidationError("start_minute and end_minute must be supplied together")
     return await svc.get_heatmap(
         person_id=person_id,
         start_time=start_time,
         end_time=end_time,
-        filter_start_hour=start_hour,
-        filter_end_hour=end_hour,
+        filter_start_minute=start_minute,
+        filter_end_minute=end_minute,
     )

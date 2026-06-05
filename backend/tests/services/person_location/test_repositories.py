@@ -22,8 +22,77 @@ import pytest
 from sqlalchemy import text
 
 from backend.models.person import HouseholdMember
-from backend.services.person_location.repositories import SqlAlchemyObservationRepository
+from backend.services.person_location.repositories import (
+    InMemoryObservationRepository,
+    SqlAlchemyObservationRepository,
+    minute_of_day_in_window,
+)
 from backend.services.person_location.types import FloorPoint, LocationObservation
+
+# ---------------------------------------------------------------------------
+# Pure unit tests for the time-of-day window predicate (no DB)
+# ---------------------------------------------------------------------------
+
+
+def test_minute_window_none_bounds_matches_all() -> None:
+    assert minute_of_day_in_window(0, None, None) is True
+    assert minute_of_day_in_window(1439, None, None) is True
+
+
+def test_minute_window_normal_range_is_half_open() -> None:
+    # 09:00-17:00 -> [540, 1020)
+    assert minute_of_day_in_window(540, 540, 1020) is True
+    assert minute_of_day_in_window(1019, 540, 1020) is True
+    assert minute_of_day_in_window(1020, 540, 1020) is False
+    assert minute_of_day_in_window(539, 540, 1020) is False
+
+
+def test_minute_window_wraps_past_midnight() -> None:
+    # 22:00-03:00 -> start 1320, end 180 (wrap)
+    assert minute_of_day_in_window(1320, 1320, 180) is True  # 22:00
+    assert minute_of_day_in_window(1410, 1320, 180) is True  # 23:30
+    assert minute_of_day_in_window(0, 1320, 180) is True     # 00:00
+    assert minute_of_day_in_window(179, 1320, 180) is True   # 02:59
+    assert minute_of_day_in_window(180, 1320, 180) is False  # 03:00
+    assert minute_of_day_in_window(690, 1320, 180) is False  # 11:30
+
+
+@pytest.mark.asyncio
+async def test_inmemory_heatmap_local_tz_wrap() -> None:
+    """In-memory repo applies the same local-tz wrap filter as the SQL repo."""
+    repo = InMemoryObservationRepository()
+    # 18:00 UTC == 23:30 IST -> inside the 22:00-03:00 night window.
+    await repo.insert(
+        LocationObservation(
+            id=uuid.uuid4(),
+            person_id="kim",
+            observed_at=datetime(2024, 1, 15, 18, 0, tzinfo=UTC),
+            source="world_tracker",
+            floor_point=FloorPoint(x_m=1.0, y_m=1.0),
+        )
+    )
+    # 06:00 UTC == 11:30 IST -> outside the window.
+    await repo.insert(
+        LocationObservation(
+            id=uuid.uuid4(),
+            person_id="kim",
+            observed_at=datetime(2024, 1, 15, 6, 0, tzinfo=UTC),
+            source="world_tracker",
+            floor_point=FloorPoint(x_m=5.0, y_m=5.0),
+        )
+    )
+
+    bins = await repo.list_heatmap_bins(
+        "kim",
+        datetime(2024, 1, 15, 0, 0, tzinfo=UTC),
+        datetime(2024, 1, 16, 0, 0, tzinfo=UTC),
+        tz_name="Asia/Kolkata",
+        filter_start_minute=1320,
+        filter_end_minute=180,
+    )
+
+    assert len(bins) == 1
+    assert bins[0].x_bin == pytest.approx(1.0)
 
 # ---------------------------------------------------------------------------
 # Exact migration SQL -- must stay byte-for-byte identical to
@@ -207,6 +276,97 @@ async def test_weight_sorted_descending(db_engine, db_factory) -> None:
     assert len(bins) == 2
     assert bins[0].weight >= bins[1].weight
     assert bins[0].weight == 3
+
+
+# ---------------------------------------------------------------------------
+# Local-timezone, cross-midnight time-of-day filtering
+# ---------------------------------------------------------------------------
+
+# A full-day window so the time-of-day filter (not the absolute window) is what
+# selects buckets.
+_DAY_START = datetime(2024, 1, 15, 0, 0, 0, tzinfo=UTC)
+_DAY_END = datetime(2024, 1, 16, 0, 0, 0, tzinfo=UTC)
+
+# "Night" sundowning window 22:00-03:00 local -> wraps past midnight.
+_NIGHT_START_MIN = 22 * 60  # 1320
+_NIGHT_END_MIN = 3 * 60     # 180
+
+
+@pytest.mark.asyncio
+async def test_heatmap_local_tz_wrap_window_includes_evening(db_engine, db_factory) -> None:
+    """A bucket at 18:00 UTC is 23:30 IST and must match a 22:00-03:00 local
+    night window. Under a (wrong) UTC interpretation 18:00 falls outside the
+    window, so this asserts the AT TIME ZONE conversion direction and wrap."""
+    person_id = "ivy"
+    _seed_member(db_factory, person_id)
+    repo = _make_repo(db_factory)
+
+    # 18:00 UTC == 23:30 Asia/Kolkata (+5:30) -> local minute 1410.
+    await repo.insert(_obs(person_id, x=1.0, y=1.0, t=datetime(2024, 1, 15, 18, 0, tzinfo=UTC)))
+    _refresh(db_engine, _DAY_START, _DAY_END)
+
+    bins = await repo.list_heatmap_bins(
+        person_id,
+        _DAY_START,
+        _DAY_END,
+        tz_name="Asia/Kolkata",
+        filter_start_minute=_NIGHT_START_MIN,
+        filter_end_minute=_NIGHT_END_MIN,
+    )
+
+    assert len(bins) == 1
+    assert bins[0].x_bin == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_heatmap_local_tz_nonwrap_window(db_engine, db_factory) -> None:
+    """Non-wrap branch (start <= end): a 06:00-12:00 local morning window keeps
+    an 08:30-local bucket and drops a 23:30-local bucket."""
+    person_id = "liam"
+    _seed_member(db_factory, person_id)
+    repo = _make_repo(db_factory)
+
+    # 03:00 UTC == 08:30 IST -> minute 510, inside morning [360, 720).
+    await repo.insert(_obs(person_id, x=1.0, y=1.0, t=datetime(2024, 1, 15, 3, 0, tzinfo=UTC)))
+    # 18:00 UTC == 23:30 IST -> minute 1410, outside the morning window.
+    await repo.insert(_obs(person_id, x=4.0, y=4.0, t=datetime(2024, 1, 15, 18, 0, tzinfo=UTC)))
+    _refresh(db_engine, _DAY_START, _DAY_END)
+
+    bins = await repo.list_heatmap_bins(
+        person_id,
+        _DAY_START,
+        _DAY_END,
+        tz_name="Asia/Kolkata",
+        filter_start_minute=6 * 60,
+        filter_end_minute=12 * 60,
+    )
+
+    assert len(bins) == 1
+    assert bins[0].x_bin == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_heatmap_local_tz_wrap_window_excludes_daytime(db_engine, db_factory) -> None:
+    """A bucket at 06:00 UTC is 11:30 IST and must be excluded by the same
+    22:00-03:00 local night window (proves the filter actually filters)."""
+    person_id = "jack"
+    _seed_member(db_factory, person_id)
+    repo = _make_repo(db_factory)
+
+    # 06:00 UTC == 11:30 Asia/Kolkata -> local minute 690, outside the night.
+    await repo.insert(_obs(person_id, x=2.0, y=2.0, t=datetime(2024, 1, 15, 6, 0, tzinfo=UTC)))
+    _refresh(db_engine, _DAY_START, _DAY_END)
+
+    bins = await repo.list_heatmap_bins(
+        person_id,
+        _DAY_START,
+        _DAY_END,
+        tz_name="Asia/Kolkata",
+        filter_start_minute=_NIGHT_START_MIN,
+        filter_end_minute=_NIGHT_END_MIN,
+    )
+
+    assert bins == []
 
 
 # ---------------------------------------------------------------------------

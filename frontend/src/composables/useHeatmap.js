@@ -8,16 +8,16 @@ export function useHeatmap() {
     error: null,
   });
 
-  async function fetchHeatmap(personId, startDate, endDate, startHour, endHour) {
+  async function fetchHeatmap(personId, startTime, endTime, startMinute, endMinute) {
     state.loading = true;
     state.error = null;
     try {
       state.data = await api.getHeatmap({
         person_id: personId,
-        start_time: startDate,
-        end_time: endDate,
-        start_hour: startHour,
-        end_hour: endHour,
+        start_time: startTime,
+        end_time: endTime,
+        start_minute: startMinute,
+        end_minute: endMinute,
       });
     } catch (err) {
       state.error = err.message || String(err);

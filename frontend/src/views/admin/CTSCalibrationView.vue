@@ -336,7 +336,7 @@
                   <img
                     ref="fpImgEl"
                     :src="floorPlanUrl"
-                    class="snapshot-img"
+                    class="snapshot-img marauders-no-paint"
                     draggable="false"
                     alt="Floor plan"
                     @load="onFpImageLoad"

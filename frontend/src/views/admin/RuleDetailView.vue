@@ -37,12 +37,6 @@
       <v-tab value="contexts">Contexts</v-tab>
       <v-tab value="dependencies">Dependencies</v-tab>
       <v-tab value="executions">Executions</v-tab>
-      <v-tab value="liverun" v-if="liveExecutionId">
-        <v-icon start :color="livePolling ? 'info' : undefined">
-          {{ livePolling ? 'mdi-circle-medium' : 'mdi-flash-outline' }}
-        </v-icon>
-        Live Run
-      </v-tab>
     </v-tabs>
 
     <v-window v-model="tab" class="mt-4">
@@ -699,13 +693,25 @@
       <!-- Executions Tab -->
       <v-window-item value="executions">
         <v-card>
+          <v-card-title class="d-flex align-center">
+            <span class="text-subtitle-1">Recent executions</span>
+            <v-spacer />
+            <v-btn
+              size="small"
+              variant="tonal"
+              prepend-icon="mdi-sitemap-outline"
+              :to="{ name: 'admin-executions', query: { tab: 'history', rule_id: ruleId } }"
+            >
+              View all
+            </v-btn>
+          </v-card-title>
           <v-data-table
             :headers="execHeaders"
             :items="executions"
             :loading="execLoading"
             item-value="id"
             hover
-            @click:row="(_, { item }) => openLiveExecution(item.id)"
+            @click:row="(_, { item }) => openExecution(item)"
           >
             <template #item.status="{ item }">
               <v-chip
@@ -727,101 +733,6 @@
           </v-data-table>
         </v-card>
       </v-window-item>
-
-      <!-- Live Run Tab -->
-      <v-window-item value="liverun">
-        <template v-if="liveExecution">
-          <div class="d-flex align-center mb-3">
-            <div>
-              <div class="text-overline text-medium-emphasis">Execution #{{ liveExecution.id }}</div>
-            </div>
-            <v-spacer />
-            <v-btn
-              v-if="liveExecution.can_cancel"
-              size="small"
-              variant="text"
-              color="error"
-              prepend-icon="mdi-stop-circle"
-              @click="cancelLiveExecution"
-            >
-              Cancel
-            </v-btn>
-            <v-btn
-              v-if="liveExecution.can_rerun"
-              size="small"
-              variant="text"
-              prepend-icon="mdi-replay"
-              @click="rerunLiveExecution"
-            >
-              Rerun
-            </v-btn>
-            <v-btn
-              size="small"
-              variant="text"
-              :prepend-icon="livePolling ? 'mdi-pause' : 'mdi-play'"
-              @click="toggleLivePolling"
-            >
-              {{ livePolling ? "Pause" : "Resume" }}
-            </v-btn>
-            <v-btn
-              size="small"
-              variant="text"
-              prepend-icon="mdi-content-copy"
-              @click="copyPipelineData"
-            >
-              Copy
-            </v-btn>
-            <v-btn-toggle
-              v-model="liveRunView"
-              density="compact"
-              mandatory
-              variant="outlined"
-              divided
-              class="ml-1"
-            >
-              <v-btn value="canvas" size="small" prepend-icon="mdi-vector-polyline">
-                Pipeline
-              </v-btn>
-              <v-btn value="detail" size="small" prepend-icon="mdi-format-list-bulleted">
-                Detail
-              </v-btn>
-            </v-btn-toggle>
-            <v-btn
-              size="small"
-              variant="text"
-              prepend-icon="mdi-open-in-new"
-              :to="`/admin/executions?tab=live&execution=${liveExecution.id}`"
-              title="Open in Executions view"
-            >
-              Executions
-            </v-btn>
-            <v-btn
-              icon="mdi-close"
-              variant="text"
-              size="small"
-              title="Close live view"
-              @click="closeLiveExecution"
-            />
-          </div>
-          <PipelineMonitorCanvas
-            v-if="liveRunView === 'canvas'"
-            :rule-id="ruleId"
-            :execution-id="liveExecution.id"
-            :execution="liveExecution"
-            @step-selected="liveSelectedStep = $event"
-          />
-          <StepInspectorPanel
-            v-else
-            :step="liveSelectedStep || liveExecution.timeline?.[0] || null"
-          />
-        </template>
-        <v-card v-else>
-          <v-card-text class="text-center text-medium-emphasis py-8">
-            <v-icon size="48" class="mb-2">mdi-flash-outline</v-icon>
-            <div>Run a Test Run to see live pipeline state.</div>
-          </v-card-text>
-        </v-card>
-      </v-window-item>
     </v-window>
 
     <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
@@ -832,21 +743,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
-import { useRoute } from "vue-router";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { formatDateTime, getAppTimezone, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 import CronBuilder from "../../components/pipeline/CronBuilder.vue";
 import PipelineCanvas from "../../components/pipeline/PipelineCanvas.vue";
-import PipelineMonitorCanvas from "../../components/pipeline/PipelineMonitorCanvas.vue";
-import StepInspectorPanel from "../../components/pipeline/StepInspectorPanel.vue";
 
 const route = useRoute();
+const router = useRouter();
 const ruleId = computed(() => Number(route.params.id));
 
 const rule = ref(null);
-const tab = ref(route.query.tab || "settings");
+const tab = ref(route.query.tab === "liverun" ? "executions" : route.query.tab || "settings");
 const executing = ref(false);
 const exporting = ref(false);
 const { snack, snackText, snackColor, notify } = useNotify();
@@ -939,123 +849,16 @@ const execHeaders = [
   { title: "Duration", key: "_duration" },
 ];
 
-// Live execution view (polled while running)
-const liveExecutionId = ref(null);
-const liveExecution = ref(null);
-const liveSelectedStep = ref(null);
-const livePolling = ref(false);
-const liveRunView = ref("canvas");
-let livePollTimer = null;
-
-const pipelineDataPretty = computed(() => {
-  const timeline = liveExecution.value?.timeline || [];
-  const data = {};
-  for (const step of timeline) {
-    if (step.label && step.outputs) {
-      data[`steps.${step.label}.outputs`] = step.outputs;
-    }
-    if (step.resolved_config) {
-      data[`steps.${step.label}.resolved_config`] = step.resolved_config;
-    }
-  }
-  try {
-    return JSON.stringify(data, null, 2);
-  } catch {
-    return String(data);
-  }
-});
-
-const pipelineKeys = computed(() => {
-  const timeline = liveExecution.value?.timeline || [];
-  return timeline.filter((s) => s.label).map((s) => `steps.${s.label}`);
-});
-
-function humanize(s) {
-  if (!s) return "";
-  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function openLiveExecution(id) {
-  liveExecutionId.value = id;
-  liveRunView.value = "canvas";
-  tab.value = "liverun";
-  fetchLiveExecution();
-  startLivePolling();
-}
-
-function closeLiveExecution() {
-  stopLivePolling();
-  liveExecutionId.value = null;
-  liveExecution.value = null;
-  if (tab.value === "liverun") tab.value = "executions";
-}
-
-async function fetchLiveExecution() {
-  if (!liveExecutionId.value) return;
-  try {
-    const exec = await api.getWorkflowDetail(liveExecutionId.value);
-    liveExecution.value = exec;
-    liveSelectedStep.value = exec.timeline?.[0] || null;
-    if (!["running", "waiting"].includes(exec.status)) {
-      stopLivePolling();
-      loadExecutions();
-    }
-  } catch (e) {
-    console.error("Failed to fetch live execution:", e);
-    stopLivePolling();
-  }
-}
-
-async function cancelLiveExecution() {
-  try {
-    await api.cancelWorkflow(liveExecutionId.value);
-    notify.success("Execution cancelled.");
-    fetchLiveExecution();
-  } catch (e) {
-    notify.error("Cancel failed: " + (e.message || "Unknown error"));
-  }
-}
-
-async function rerunLiveExecution() {
-  try {
-    const result = await api.rerunWorkflow(liveExecutionId.value);
-    notify.success(`Rerun started (#${result.execution_id})`);
-    openLiveExecution(result.execution_id);
-  } catch (e) {
-    notify.error("Rerun failed: " + (e.message || "Unknown error"));
-  }
-}
-
-function startLivePolling() {
-  stopLivePolling();
-  livePolling.value = true;
-  livePollTimer = setInterval(fetchLiveExecution, 750);
-}
-
-function stopLivePolling() {
-  livePolling.value = false;
-  if (livePollTimer) {
-    clearInterval(livePollTimer);
-    livePollTimer = null;
-  }
-}
-
-function toggleLivePolling() {
-  if (livePolling.value) {
-    stopLivePolling();
-  } else {
-    startLivePolling();
-    fetchLiveExecution();
-  }
-}
-
-async function copyPipelineData() {
-  try {
-    await navigator.clipboard.writeText(pipelineDataPretty.value);
-    notify("Pipeline data copied");
-  } catch {
-    notify("Copy failed", "error");
-  }
+function openExecution(execution) {
+  const isLive = ["running", "waiting"].includes(execution.status);
+  router.push({
+    name: "admin-executions",
+    query: {
+      tab: isLive ? "live" : "history",
+      rule_id: ruleId.value,
+      execution: execution.id,
+    },
+  });
 }
 
 function sensorIcon(type) {
@@ -1238,13 +1041,20 @@ async function executeRule() {
     const result = await api.executeRule(ruleId.value);
     notify(`Execution started (#${result.execution_id})`);
     if (result.execution_id) {
-      openLiveExecution(result.execution_id);
+      await router.push({
+        name: "admin-executions",
+        query: {
+          tab: "live",
+          rule_id: ruleId.value,
+          execution: result.execution_id,
+        },
+      });
     }
-    await loadExecutions();
   } catch (e) {
     notify(e.message, "error");
+  } finally {
+    executing.value = false;
   }
-  executing.value = false;
 }
 
 async function exportRule() {
@@ -1379,13 +1189,14 @@ watch(() => ctxForm.value.context_type, (type) => {
 });
 
 onMounted(async () => {
+  if (route.query.tab === "liverun") {
+    await router.replace({
+      query: { ...route.query, tab: "executions" },
+    });
+  }
   await loadTelegramDefaults();   // must resolve before loadRule so the IIFE sees the defaults
   loadRule();
   loadReferenceData();
-});
-
-onBeforeUnmount(() => {
-  stopLivePolling();
 });
 </script>
 

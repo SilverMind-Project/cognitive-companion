@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -108,6 +108,37 @@ async def test_known_identity_transition_updates_segment():
     loc = await svc.where_is("alice")
     assert loc is not None
     assert loc.room_id == 3
+
+
+@pytest.mark.asyncio
+async def test_exit_transition_updates_segment_to_outside_room():
+    """An exit transition places the person in the outside room."""
+    svc = _make_service()
+    subscriber = RoomTransitionSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=svc,
+    )
+
+    enter_msg = {
+        "ph_id": "ph-1",
+        "identity_id": "alice",
+        "transit_zone_id": "tz-1",
+        "direction": "enter",
+        "inside_room_id": 3,
+        "outside_room_id": 5,
+        "floor_x_m": 1.5,
+        "floor_y_m": 3.2,
+        "event_time": datetime.now(UTC),
+    }
+    assert await subscriber.handle(enter_msg) is True
+
+    exit_msg = {**enter_msg, "direction": "exit", "event_time": enter_msg["event_time"] + timedelta(seconds=1)}
+    result = await subscriber.handle(exit_msg)
+    assert result is True
+
+    loc = await svc.where_is("alice")
+    assert loc is not None
+    assert loc.room_id == 5
 
 
 @pytest.mark.asyncio

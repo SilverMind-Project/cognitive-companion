@@ -113,11 +113,16 @@ def decide(
         )
 
     if event.kind == EventKind.TRANSIT_EXIT:
+        if event.room_id is None:
+            return _noop()
         if event.room_id == open_segment.room_id:
             return SegmentDecision(
                 closes=[SegmentClose(open_segment.id, event.at, "inferred_transit")],
             )
-        return _noop()
+        return SegmentDecision(
+            writes=[SegmentWrite(_new_segment(event, "inferred_transit"))],
+            closes=[SegmentClose(open_segment.id, event.at, "inferred_transit")],
+        )
 
     if event.kind == EventKind.TIMEOUT_TICK:
         if not open_segment.is_inferred:

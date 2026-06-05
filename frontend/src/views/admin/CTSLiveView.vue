@@ -199,8 +199,19 @@
                 />
 
                 <!-- Bounding box -->
+                <MaraudersInkBox
+                  v-if="showBboxes && maraudersState.enabled"
+                  :x="det.bbox.x_min || 0"
+                  :y="det.bbox.y_min || 0"
+                  :w="(det.bbox.x_max || 0) - (det.bbox.x_min || 0)"
+                  :h="(det.bbox.y_max || 0) - (det.bbox.y_min || 0)"
+                  :seed-key="String(det.track_id || det.detection_id || det.bbox.x_min)"
+                  :color="bboxColor(det)"
+                  style="cursor: pointer"
+                  @click="openCorrection(det, cameraForSlot(slot))"
+                />
                 <rect
-                  v-if="showBboxes"
+                  v-else-if="showBboxes"
                   :x="det.bbox.x_min || 0"
                   :y="det.bbox.y_min || 0"
                   :width="(det.bbox.x_max || 0) - (det.bbox.x_min || 0)"
@@ -436,10 +447,13 @@ import { useCtsWebSocket } from "@/composables/useCtsWebSocket.js";
 import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode.js";
 import { identityColor } from "@/composables/useIdentityColor.js";
 import { HALO, postureColor } from "@/composables/useAnnotationStyle.js";
+import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
+import MaraudersInkBox from "@/components/marauders/MaraudersInkBox.vue";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
 import BlurToggle from "@/components/cts/BlurToggle.vue";
 
+const { state: maraudersState } = useMaraudersMode();
 const STALE_THRESHOLD_S = 15;
 const SNAPSHOT_POLL_MS = 5_000;
 

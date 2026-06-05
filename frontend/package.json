@@ -20,6 +20,7 @@
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.0",
     "@dagrejs/dagre": "1.1.4",
+    "@fontsource/kalam": "^5.2.8",
     "@lezer/highlight": "^1.2.3",
     "@mdi/font": "^7.4.47",
     "@vue-flow/background": "1.3.2",
@@ -29,6 +30,7 @@
     "cronstrue": "^3.14.0",
     "echarts": "^6.1.0",
     "pinia": "^3.0.0",
+    "roughjs": "^4.6.6",
     "vue": "^3.5.35",
     "vue-echarts": "^8.0.1",
     "vue-router": "^4.6.4",
@@ -40,6 +42,7 @@
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^20.9.0",
     "jsdom": "^29.0.2",
+    "sass": "^1.93.2",
     "vite": "^8.0.14",
     "vitest": "^4.1.7"
   }

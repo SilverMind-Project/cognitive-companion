@@ -14,6 +14,23 @@
       @mouseup="onMouseUp"
       @mouseleave="onMouseUp"
     />
+    <!-- Ink overlay for committed boxes in marauders mode.
+         pointer-events: none so mouse events pass through to the canvas. -->
+    <svg
+      v-if="maraudersMode && imageNaturalWidth > 0"
+      class="bbox-ink-overlay"
+      :viewBox="`0 0 ${imageNaturalWidth} ${imageNaturalHeight}`"
+    >
+      <MaraudersInkBox
+        v-for="box in boxes"
+        :key="box.annotationId ?? `${box.x1}-${box.y1}`"
+        :x="box.x1"
+        :y="box.y1"
+        :w="box.x2 - box.x1"
+        :h="box.y2 - box.y1"
+        :seed-key="String(box.annotationId ?? box.x1)"
+      />
+    </svg>
     <Teleport to="body">
       <BboxTagPopover
         v-if="selectedBox && popoverPosition"
@@ -30,6 +47,7 @@
 <script setup>
 import { ref, reactive, watch } from "vue";
 import BboxTagPopover from "./BboxTagPopover.vue";
+import MaraudersInkBox from "@/components/marauders/MaraudersInkBox.vue";
 
 const props = defineProps({
   imageUrl: { type: String, required: true },
@@ -37,6 +55,7 @@ const props = defineProps({
   initialBboxes: { type: Array, default: () => [] },
   identities: { type: Array, default: () => [] },
   readonly: { type: Boolean, default: false },
+  maraudersMode: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -139,6 +158,10 @@ function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (const box of boxes.value) {
+    // In marauders mode, committed boxes are rendered by the SVG ink overlay.
+    // Only draw the selected/active box on canvas so drag handles stay precise.
+    if (props.maraudersMode && box !== selectedBox.value) continue;
+
     const { x: cx1, y: cy1 } = toCanvas(box.x1, box.y1);
     const { x: cx2, y: cy2 } = toCanvas(box.x2, box.y2);
     const w = cx2 - cx1;
@@ -458,5 +481,13 @@ watch(() => props.initialBboxes, () => {
   width: 100%;
   height: 100%;
   cursor: crosshair;
+}
+.bbox-ink-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 </style>

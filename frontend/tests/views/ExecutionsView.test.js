@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getWorkflows: vi.fn(),
   getIngestActivity: vi.fn(),
   replace: vi.fn(),
+  route: { query: {} },
   connectionState: { __v_isRef: true, value: "open" },
   activeRuns: { __v_isRef: true, value: [] },
   ingestEvents: { __v_isRef: true, value: [] },
@@ -40,7 +41,7 @@ vi.mock("@/services/timezone.js", () => ({
 }));
 
 vi.mock("vue-router", () => ({
-  useRoute: () => ({ query: {} }),
+  useRoute: () => mocks.route,
   useRouter: () => ({ replace: mocks.replace }),
 }));
 
@@ -113,6 +114,7 @@ beforeEach(() => {
   mocks.getIngestActivity.mockReset();
   mocks.replace.mockReset();
   mocks.refreshSocket.mockReset();
+  mocks.route.query = {};
   mocks.connectionState.value = "open";
   mocks.activeRuns.value = [ACTIVE_RUN];
   mocks.ingestEvents.value = [];
@@ -160,5 +162,21 @@ describe("ExecutionsView", () => {
     await wrapper.vm.loadHistory();
 
     expect(mocks.getWorkflows).toHaveBeenLastCalledWith({ status: "failed" });
+  });
+
+  it("applies a rule scope to active, recent, and historical executions", async () => {
+    mocks.route.query = { rule_id: "1" };
+    mocks.activeRuns.value = [
+      ACTIVE_RUN,
+      { ...ACTIVE_RUN, execution_id: 11, rule_id: 99, rule_name: "other-rule" },
+    ];
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="rule-scope-chip"]').text()).toContain("motion-alert");
+    expect(wrapper.findAll('[data-testid="run-item"]')).toHaveLength(1);
+    expect(mocks.getWorkflows).toHaveBeenCalledWith({ rule_id: 1, limit: 10 });
+    expect(mocks.getWorkflows).toHaveBeenCalledWith({ rule_id: 1 });
+    expect(mocks.getPipelineRuns).not.toHaveBeenCalled();
   });
 });

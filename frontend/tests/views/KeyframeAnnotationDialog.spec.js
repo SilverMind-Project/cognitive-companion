@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
+import { reactive } from "vue";
 
 // --- Mocks ------------------------------------------------------------------
 
@@ -17,11 +18,19 @@ vi.mock("@/components/common/DialogHeader.vue", () => ({
   default: { template: "<div />", props: ["icon", "label", "title"] },
 }));
 
+const maraudersState = reactive({ enabled: false, reducedMotion: false });
+vi.mock("@/composables/useMaraudersMode.js", () => ({
+  useMaraudersMode: () => ({
+    state: maraudersState,
+    actions: { enable: vi.fn(), disable: vi.fn(), toggle: vi.fn() },
+  }),
+}));
+
 vi.mock("@/components/cts/keyframes/BboxCanvas.vue", () => ({
   default: {
     name: "BboxCanvas",
     template: "<div class='mock-bbox-canvas' />",
-    props: ["imageUrl", "keyframeId", "initialBboxes", "identities"],
+    props: ["imageUrl", "keyframeId", "initialBboxes", "identities", "maraudersMode"],
     emits: ["bbox-tagged", "bbox-overridden", "bbox-created", "bbox-deleted"],
   },
 }));
@@ -58,6 +67,26 @@ async function mountDialog() {
   await flushPromises();
   return wrapper;
 }
+
+describe("KeyframeAnnotationDialog — M3 seam: marauders mode prop", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    maraudersState.enabled = false;
+  });
+
+  it("passes marauders-mode=false to BboxCanvas when marauders disabled", async () => {
+    const wrapper = await mountDialog();
+    const canvas = wrapper.findComponent({ name: "BboxCanvas" });
+    expect(canvas.props("maraudersMode")).toBe(false);
+  });
+
+  it("passes marauders-mode=true to BboxCanvas when marauders enabled", async () => {
+    maraudersState.enabled = true;
+    const wrapper = await mountDialog();
+    const canvas = wrapper.findComponent({ name: "BboxCanvas" });
+    expect(canvas.props("maraudersMode")).toBe(true);
+  });
+});
 
 describe("KeyframeAnnotationDialog — save handler", () => {
   beforeEach(() => {

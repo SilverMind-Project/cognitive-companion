@@ -36,6 +36,7 @@
             :keyframe-id="keyframeId"
             :initial-bboxes="filteredBboxes"
             :identities="identities"
+            :marauders-mode="maraudersState.enabled"
             @bbox-tagged="onBboxTagged"
             @bbox-overridden="onBboxOverridden"
             @bbox-created="onBboxCreated"
@@ -66,6 +67,7 @@
 import { ref, computed, watch } from "vue";
 import { cts } from "@/services/cts";
 import BboxCanvas from "./BboxCanvas.vue";
+import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 
 const props = defineProps({
@@ -77,6 +79,7 @@ const props = defineProps({
 
 const emit = defineEmits(["update:model-value", "saved", "error"]);
 
+const { state: maraudersState } = useMaraudersMode();
 const bboxes = ref([]);
 const loading = ref(false);
 const saving = ref(false);

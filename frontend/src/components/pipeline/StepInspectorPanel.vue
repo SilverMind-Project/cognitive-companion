@@ -10,6 +10,27 @@
         </v-chip>
       </v-card-title>
 
+      <div class="d-flex align-center flex-wrap ga-2 px-4 pb-2">
+        <v-chip v-if="step.elapsed_seconds != null" size="x-small" variant="tonal">
+          {{ formatElapsed(step.elapsed_seconds) }}
+        </v-chip>
+        <v-chip v-if="step.output_port" size="x-small" variant="tonal" prepend-icon="mdi-source-branch">
+          {{ step.output_port }}
+        </v-chip>
+        <v-chip v-if="step.cancellation_observed" size="x-small" color="warning" variant="tonal">
+          Cancellation observed
+        </v-chip>
+      </div>
+      <v-alert
+        v-if="step.error"
+        type="error"
+        density="compact"
+        variant="tonal"
+        class="mx-4 mb-2"
+      >
+        {{ step.error }}
+      </v-alert>
+
       <v-tabs v-model="detailTab" density="compact">
         <v-tab value="inputs">Inputs</v-tab>
         <v-tab value="outputs">Outputs</v-tab>
@@ -90,6 +111,11 @@ function jsonPretty(obj) {
   } catch {
     return String(obj);
   }
+}
+
+function formatElapsed(seconds) {
+  if (seconds < 1) return `${Math.round(seconds * 1000)} ms`;
+  return `${seconds.toFixed(seconds < 10 ? 2 : 1)} s`;
 }
 </script>
 

@@ -16,7 +16,21 @@
      Theme-invariant: these colors must read against photographic/map backgrounds, not UI surfaces. */
   --cc-annotation-unknown: #fb923c;   /* tracking entity with no assigned identity */
   --cc-annotation-pending: #f59e0b;   /* point placed, awaiting second click to confirm */
-  --cc-annotation-halo: rgba(0, 0, 0, 0.55); /* legibility stroke behind SVG text labels */
+  --cc-annotation-halo: rgba(0, 0, 0, 0.70); /* dark halo behind camera-feed SVG text labels */
+  --cc-annotation-halo-light: rgba(255, 255, 255, 0.92); /* light halo behind floor-plan labels */
+  --cc-annotation-ink: #1e293b;       /* floor-plan label text fill (slate-900, readable on light plans) */
+
+  /* Spatial render tokens — defaults match prior hardcoded values so ccDark/ccLight are unchanged.
+     M2 (ccMarauders) overrides these for the parchment re-skin. */
+  --cc-room-fill: rgba(99, 102, 241, 0.12); /* room polygon fill (indigo tint) */
+  --cc-marker-ring: #ffffff;           /* PHMarker inner dot ring stroke */
+  --cc-floor-plan-background-opacity: 0.55;
+
+  /* Posture semantic colors — M2 overrides for parchment legibility */
+  --cc-posture-standing: #4ade80;
+  --cc-posture-sitting:  #fbbf24;
+  --cc-posture-walking:  #60a5fa;
+  --cc-posture-lying:    #c084fc;
   --cc-brand-strong: #0071e3;
   --cc-brand-soft: rgba(10, 132, 255, 0.12);
   --cc-brand-softer: rgba(10, 132, 255, 0.06);
@@ -43,6 +57,10 @@
     "Helvetica Neue", Helvetica, Arial, sans-serif;
   --cc-font-mono:
     ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.cc-floor-plan-background-image {
+  opacity: var(--cc-floor-plan-background-opacity);
 }
 
 .v-theme--ccDark {
@@ -511,28 +529,36 @@ kbd {
    it must sit as an absolute child inside the canvas outer container. */
 .cc-zoom-controls {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
+  bottom: 10px;
+  right: 10px;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 5px;
   z-index: 10;
   background: var(--cc-surface);
   border: 1px solid var(--cc-glass-border);
   border-radius: 8px;
-  padding: 3px;
-  box-shadow: var(--cc-shadow-sm);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  padding: 5px;
+  box-shadow: var(--cc-shadow-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   pointer-events: all;
+}
+
+.cc-zoom-controls .v-btn {
+  min-width: 34px;
+}
+
+.cc-zoom-controls .v-btn:not(.v-btn--disabled):hover {
+  border-color: var(--cc-brand-soft);
 }
 
 /* Zoom percentage label inside CcZoomControls */
 .cc-zoom-pct {
   font-variant-numeric: tabular-nums;
   margin-left: 2px;
-  font-size: 11px;
-  height: 22px;
+  min-width: 56px;
+  justify-content: center;
 }
 
 /* Stat card: elevated dashboard metric panels */

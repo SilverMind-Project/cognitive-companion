@@ -150,6 +150,15 @@ Floor-plan overlays and bounding-box-on-keyframe rendering are the only cases wh
 3. The bespoke canvas component must live in `components/` (not inline in a view).
 4. Write a Vitest test that verifies the component mounts without throwing.
 
+### Themed spatial overlay variants
+
+A Marauder's Map-themed variant of a spatial overlay (for example, `MaraudersHeatmapLayer.vue` as the themed counterpart to the standard heatmap) follows the same bespoke canvas rules and adds two constraints:
+
+- It consumes the **same data path** as the standard overlay (e.g., `mappedHeatmapBins`). It must not introduce a separate fetch, fork the data path, or require a new BFF endpoint.
+- It is swapped in via a single `v-if` at the render seam. See the front-end skill's isolation boundary section for the full pattern.
+
+Floor-plan spatial bins stay on the floor-plan SVG overlay. Do not migrate them to `CcHeatmapCalendar`; that component handles day/hour intensity grids (calendar-shaped data), not spatial bins positioned on a floor plan.
+
 ## Testing visual components
 
 Visualization tests must be warning-clean. A chart or panel test that passes while Vue prints unresolved component, missing injection, or router warnings is incomplete.

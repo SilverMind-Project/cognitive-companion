@@ -44,6 +44,7 @@
               <template v-if="floorPlanUrl">
                 <img
                   :src="floorPlanUrl"
+                  class="marauders-no-paint"
                   style="display:block;width:100%;height:auto"
                   ref="mapImgRef"
                   @load="onMapImgLoad"

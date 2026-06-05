@@ -211,6 +211,19 @@ The primary CTS data paths are:
 
 Frontend code uses Vuetify design tokens from `frontend/src/styles/theme.css`. Read-only charts use ECharts shared components. Vue Flow is reserved for the interactive pipeline authoring canvas.
 
+### Marauder's Map mode
+
+The admin UI includes an optional cosmetic mode, "Marauder's Map," that re-skins the entire admin console to a parchment and hand-drawn aesthetic. It is a pure client-side feature with no backend endpoints, no database schema, and no contract impact.
+
+Key properties:
+
+- Implemented as a third registered Vuetify theme (`ccMarauders`) alongside the standard `ccDark` and `ccLight` themes.
+- Toggled per user; state persists in `localStorage` under the key `cc_marauders`. The user's prior theme is captured in `cc_theme` and restored on toggle-off.
+- All theme-specific render code lives under `components/marauders/`, `composables/useMaraudersMode.js`, `composables/useRoughSketch.js`, `composables/useFootprintTrail.js`, `styles/marauders.css`, and `assets/marauders/`. Edits to existing primary files are limited to theme registration, the toggle mount, the global SVG defs mount, and one `v-if` per render seam.
+- Room polygons and bounding boxes render as rough.js hand-drawn ink lines. Live person tracks render as fading footstep glyphs driven by real tracking data. The presence heatmap renders as themed ink stains. All images in the app receive a painterly SVG filter.
+
+When the mode is off, the app is byte-for-byte the standard `ccDark` / `ccLight` experience. See the front-end skill's "Alternate themes and the Marauder's Map mode" section for implementation patterns and rules.
+
 ## Operational notes
 
 - `config/settings.yaml` is the single source for application behavior and timezone.

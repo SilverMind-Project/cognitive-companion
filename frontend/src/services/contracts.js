@@ -122,6 +122,7 @@ def("interactive.responses.list", "array");
 // CTS Analytics
 // ---------------------------------------------------------------------------
 def("cts.heatmap", { person_id: "string", bins: "array" });
+def("cts.transitZones", "array");
 
 // ---------------------------------------------------------------------------
 // Pipeline runs

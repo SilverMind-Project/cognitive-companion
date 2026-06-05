@@ -6,15 +6,20 @@ import { initTimezone, getAppTimezone } from "./services/timezone.js";
 import { api } from "./services/api.js";
 
 // Vuetify
-import "vuetify/styles";
+import "./styles/vuetify.scss";
 import { createVuetify } from "vuetify";
 import * as components from "vuetify/components";
 import * as directives from "vuetify/directives";
 import "@mdi/font/css/materialdesignicons.css";
+import "@fontsource/kalam/latin-300.css";
+import "@fontsource/kalam/latin-400.css";
+import "@fontsource/kalam/latin-700.css";
 
 // Global theme tokens. Mirrors docs/.vitepress/theme/custom.css so the
 // marketing site and the in-product UI feel like the same product.
 import "./styles/theme.css";
+// Parchment token overrides for the ccMarauders Vuetify theme (M2).
+import "./styles/marauders.css";
 
 const vuetify = createVuetify({
   components,
@@ -63,6 +68,22 @@ const vuetify = createVuetify({
           background: "#f5f5f7",
           "on-surface": "#1d1d1f",
           "on-background": "#1d1d1f",
+        },
+      },
+      ccMarauders: {
+        dark: false, // parchment is a light surface; Vuetify computes on-colors from this
+        colors: {
+          background:      "#e9dcc0",
+          surface:         "#f0e6cf",
+          primary:         "#5b3a1a", // sepia ink
+          secondary:       "#7a5230",
+          error:           "#8a1c1c", // oxblood ink
+          info:            "#3a4a6b",
+          success:         "#3f5a36", // faded green ink
+          warning:         "#9a6a1a",
+          "on-background": "#3a2a16",
+          "on-surface":    "#3a2a16",
+          "on-primary":    "#f0e6cf",
         },
       },
     },

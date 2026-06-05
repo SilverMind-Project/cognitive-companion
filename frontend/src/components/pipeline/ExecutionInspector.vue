@@ -41,6 +41,24 @@
           Rerun
         </v-btn>
         <v-btn
+          v-if="isActiveExecution"
+          variant="text"
+          size="small"
+          :prepend-icon="polling ? 'mdi-pause' : 'mdi-play'"
+          @click="togglePolling"
+        >
+          {{ polling ? "Pause" : "Resume" }}
+        </v-btn>
+        <v-btn
+          v-if="detail"
+          variant="text"
+          size="small"
+          prepend-icon="mdi-content-copy"
+          @click="copyPipelineData"
+        >
+          Copy data
+        </v-btn>
+        <v-btn
           icon="mdi-refresh"
           variant="text"
           size="small"
@@ -66,6 +84,51 @@
 
       <div v-else-if="detail" class="execution-inspector__body">
         <div class="execution-inspector__canvas">
+          <div class="d-flex align-center flex-wrap ga-2 mb-3 text-caption">
+            <v-chip size="small" variant="tonal" prepend-icon="mdi-source-branch">
+              {{ detail.trigger_summary }}
+            </v-chip>
+            <span class="text-medium-emphasis">
+              Started {{ formatDateTime(detail.started_at) }}
+            </span>
+            <span v-if="detail.completed_at" class="text-medium-emphasis">
+              Completed {{ formatDateTime(detail.completed_at) }}
+            </span>
+            <span v-if="executionDuration" class="text-medium-emphasis">
+              Duration {{ executionDuration }}
+            </span>
+            <v-btn
+              v-if="resolvedRuleId"
+              size="x-small"
+              variant="text"
+              prepend-icon="mdi-pencil-outline"
+              :to="{ name: 'admin-rule-detail', params: { id: resolvedRuleId }, query: { tab: 'executions' } }"
+            >
+              Rule
+            </v-btn>
+          </div>
+
+          <v-alert
+            v-if="detail.error"
+            type="error"
+            density="compact"
+            variant="tonal"
+            class="mb-3"
+            data-testid="execution-error"
+          >
+            {{ detail.error }}
+          </v-alert>
+          <v-alert
+            v-if="detail.cooloff_triggered"
+            type="warning"
+            density="compact"
+            variant="tonal"
+            class="mb-3"
+            data-testid="cooloff-alert"
+          >
+            This execution triggered the rule cool-off limit.
+          </v-alert>
+
           <PipelineMonitorCanvas
             :source="source"
             :rule-id="resolvedRuleId"
@@ -122,11 +185,12 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { api } from "@/services/api.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { useNotify } from "@/composables/useNotify.js";
+import { formatDateTime } from "@/services/timezone.js";
 import PipelineMonitorCanvas from "./PipelineMonitorCanvas.vue";
 import StepInspectorPanel from "./StepInspectorPanel.vue";
 
@@ -145,6 +209,8 @@ const selectedStep = ref(null);
 const loading = ref(false);
 const busy = ref(false);
 const error = ref(null);
+const polling = ref(false);
+let pollTimer = null;
 const { snack, snackText, snackColor, notify } = useNotify();
 const {
   confirmDialog,
@@ -161,10 +227,19 @@ const {
 const runTitle = computed(() => props.liveRun?.rule_name || "Execution");
 const resolvedRuleId = computed(() => detail.value?.rule_id || props.ruleId || props.liveRun?.rule_id || null);
 const selectedStepKey = computed(() => stepKey(selectedStep.value));
+const isActiveExecution = computed(() =>
+  props.source === "live" && ["running", "waiting"].includes(detail.value?.status || props.liveRun?.status),
+);
+const executionDuration = computed(() => formatDuration(detail.value?.started_at, detail.value?.completed_at));
 
 watch(
-  () => props.executionId,
-  () => loadDetail(),
+  () => [props.executionId, props.source],
+  async () => {
+    stopPolling();
+    polling.value = props.source === "live";
+    await loadDetail();
+    syncPolling();
+  },
   { immediate: true },
 );
 
@@ -174,16 +249,72 @@ async function loadDetail() {
     selectedStep.value = null;
     return;
   }
+  if (loading.value) return;
+  const previousStepKey = selectedStepKey.value;
   loading.value = true;
   error.value = null;
   try {
     detail.value = await api.getWorkflowDetail(props.executionId);
-    selectedStep.value = detail.value?.timeline?.[0] || null;
+    selectedStep.value = detail.value?.timeline?.find((step) => stepKey(step) === previousStepKey)
+      || detail.value?.timeline?.[0]
+      || null;
     emit("updated", detail.value);
+    if (!["running", "waiting"].includes(detail.value?.status)) {
+      stopPolling();
+    }
   } catch (err) {
     error.value = err?.message || "Failed to load execution detail";
   } finally {
     loading.value = false;
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  polling.value = true;
+  pollTimer = setInterval(loadDetail, 1000);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  polling.value = false;
+}
+
+function syncPolling() {
+  if (polling.value && isActiveExecution.value) {
+    startPolling();
+  } else {
+    stopPolling();
+  }
+}
+
+function togglePolling() {
+  if (polling.value) {
+    stopPolling();
+  } else {
+    startPolling();
+    loadDetail();
+  }
+}
+
+async function copyPipelineData() {
+  const pipelineData = {};
+  for (const step of detail.value?.timeline || []) {
+    if (step.label && step.outputs) {
+      pipelineData[`steps.${step.label}.outputs`] = step.outputs;
+    }
+    if (step.label && step.resolved_config) {
+      pipelineData[`steps.${step.label}.resolved_config`] = step.resolved_config;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(pipelineData, null, 2));
+    notify.success("Pipeline data copied.");
+  } catch {
+    notify.error("Copy failed.");
   }
 }
 
@@ -218,7 +349,14 @@ async function rerunExecution() {
     const result = await api.rerunWorkflow(props.executionId);
     notify.success(`Rerun started (#${result.execution_id})`);
     emit("rerun", result);
-    router.push(`/admin/executions?tab=live&execution=${result.execution_id}`);
+    router.push({
+      name: "admin-executions",
+      query: {
+        tab: "live",
+        execution: result.execution_id,
+        ...(resolvedRuleId.value ? { rule_id: resolvedRuleId.value } : {}),
+      },
+    });
   } catch (err) {
     notify.error("Rerun failed: " + (err?.message || "Unknown error"));
   } finally {
@@ -229,6 +367,17 @@ async function rerunExecution() {
 function stepKey(step) {
   if (!step) return "";
   return String(step.step_id ?? step.label ?? "");
+}
+
+function formatDuration(startIso, endIso) {
+  if (!startIso || !endIso) return "";
+  const elapsedMs = new Date(endIso).getTime() - new Date(startIso).getTime();
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return "";
+  const seconds = Math.floor(elapsedMs / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
 function statusColor(status) {
@@ -252,7 +401,9 @@ function statusColor(status) {
   }
 }
 
-defineExpose({ loadDetail, selectStep, detail, selectedStep });
+onBeforeUnmount(stopPolling);
+
+defineExpose({ loadDetail, selectStep, detail, selectedStep, polling });
 </script>
 
 <style scoped>

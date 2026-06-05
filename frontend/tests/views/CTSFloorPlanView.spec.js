@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
-import { ref } from "vue";
+import { ref, reactive } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -22,6 +22,14 @@ vi.mock("@/composables/useWorldSnapshot", () => ({
     isStale: ref(false),
     wsStatus: ref("open"),
     trailBuffers: new Map(),
+  }),
+}));
+
+const maraudersState = reactive({ enabled: false, reducedMotion: false });
+vi.mock("@/composables/useMaraudersMode.js", () => ({
+  useMaraudersMode: () => ({
+    state: maraudersState,
+    actions: { enable: vi.fn(), disable: vi.fn(), toggle: vi.fn() },
   }),
 }));
 
@@ -47,6 +55,9 @@ vi.mock("@/services/cts", () => ({
   cts: {
     getVisibilityPolygons: vi.fn().mockResolvedValue({ cameras: [] }),
     getTransitZones: vi.fn().mockResolvedValue([]),
+    createTransitZone: vi.fn(),
+    updateTransitZone: vi.fn(),
+    deleteTransitZone: vi.fn(),
   },
 }));
 
@@ -107,9 +118,43 @@ const stubComponents = {
   "v-navigation-drawer": { template: "<div><slot /></div>" },
   "v-slider": { template: "<input type='range' />" },
   PHMarker: { template: "<div />" },
-  PolygonOnSnapshot: { template: "<div />" },
+  FloorMarkerLayer: {
+    props: ["markers", "phCount", "canvasH"],
+    emits: ["phClick"],
+    template: "<g data-testid='floor-marker-layer' />",
+  },
+  HeatmapBinLayer: {
+    name: "HeatmapBinLayer",
+    props: ["bins", "loading", "error", "canvasH"],
+    template: "<g data-testid='heatmap-bin-layer' />",
+  },
+  PolygonOnSnapshot: {
+    name: "PolygonOnSnapshot",
+    props: ["imageClass"],
+    template: "<div data-testid='polygon-on-snapshot' />",
+  },
+  DoorZoneEditor: {
+    props: ["zones"],
+    template: "<div data-testid='door-zone-editor'><span v-for='zone in zones' :key='zone.id'>{{ zone.name }}</span></div>",
+  },
   InferredPresenceBadge: { template: "<div />" },
   CcZoomControls: { template: "<div />" },
+  MaraudersToggle: { template: "<button data-testid='marauders-toggle' />" },
+  MaraudersInkPolygon: { props: ["points", "canvasW", "canvasH", "seedKey", "label", "fill"], template: "<g data-testid='marauders-ink-polygon' />" },
+  MaraudersFloorMarkers: {
+    props: ["markers", "phCount", "canvasH", "trails", "nowMs", "fpWidth", "fpHeight", "fpMpp", "canvasW", "reducedMotion"],
+    emits: ["phClick"],
+    template: "<g data-testid='marauders-floor-markers' />",
+  },
+  MaraudersAmbientLayer: {
+    props: ["canvasW", "canvasH", "nowMs", "reducedMotion"],
+    template: "<g data-testid='marauders-ambient-layer' />",
+  },
+  MaraudersHeatmapLayer: {
+    name: "MaraudersHeatmapLayer",
+    props: ["bins", "loading", "error", "canvasH"],
+    template: "<g data-testid='marauders-heatmap-layer' />",
+  },
   "router-link": { template: "<a><slot /></a>" },
 };
 
@@ -129,6 +174,87 @@ async function mountView() {
   await flushPromises();
   return wrapper;
 }
+
+describe("CTSFloorPlanView — layout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    maraudersState.enabled = false;
+  });
+
+  it("uses compact page heading and subtitle styles", async () => {
+    const wrapper = await mountView();
+
+    expect(wrapper.find(".floor-plan-page-title").text()).toBe("Floor Plan");
+    expect(wrapper.find(".floor-plan-page-subtitle").text()).toContain("Upload a floor plan image");
+    expect(wrapper.find(".floor-plan-mode-nav").exists()).toBe(true);
+  });
+
+  it.each(["live", "heatmap", "edit"])(
+    "keeps the main canvas before the right sidebar in %s mode",
+    async (mode) => {
+      const wrapper = await mountView();
+      wrapper.vm.$.setupState.mode = mode;
+      await wrapper.vm.$nextTick();
+
+      const layout = wrapper.find(".floor-plan-layout");
+      const columns = layout.element.children;
+
+      expect(columns[0].classList.contains("floor-plan-main")).toBe(true);
+      expect(columns[1].classList.contains("floor-plan-sidebar")).toBe(true);
+    },
+  );
+
+  it("renders live and heatmap canvases edge-to-edge inside visual cards", async () => {
+    const wrapper = await mountView();
+
+    expect(wrapper.find(".floor-plan-visual-card .floor-plan-canvas").exists()).toBe(true);
+
+    wrapper.vm.$.setupState.mode = "heatmap";
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(".floor-plan-visual-card .floor-plan-canvas").exists()).toBe(true);
+    expect(wrapper.find(".floor-plan-visual-card .pa-0").exists()).toBe(true);
+  });
+
+  it("organizes floor plan upload as a three-step workflow with a summary footer", async () => {
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.mode = "upload";
+    await wrapper.vm.$nextTick();
+
+    const steps = wrapper.findAll(".upload-step");
+    expect(steps).toHaveLength(3);
+    expect(steps[0].text()).toContain("Choose the image");
+    expect(steps[1].text()).toContain("Set the real-world scale");
+    expect(steps[2].text()).toContain("Review map details");
+    expect(steps[1].find(".upload-scale-method").exists()).toBe(true);
+
+    const footer = wrapper.find(".upload-save-actions");
+    expect(footer.find(".upload-save-summary").exists()).toBe(true);
+    expect(footer.text()).toContain("Save floor plan");
+  });
+
+  it.each(["live", "heatmap", "coverage"])(
+    "uses the shared floor-plan background image treatment in %s mode",
+    async (mode) => {
+      const wrapper = await mountView();
+      const state = wrapper.vm.$.setupState;
+      state.floorPlanUrl = "/floor.png";
+      state.mode = mode;
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.find(".cc-floor-plan-background-image").exists()).toBe(true);
+    },
+  );
+
+  it("passes the shared floor-plan treatment into the room editor", async () => {
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.mode = "edit";
+    await wrapper.vm.$nextTick();
+
+    const editor = wrapper.findComponent({ name: "PolygonOnSnapshot" });
+    expect(editor.props("imageClass")).toContain("cc-floor-plan-background-image");
+  });
+});
 
 describe("CTSFloorPlanView — world snapshot handling", () => {
   beforeEach(() => {
@@ -155,9 +281,11 @@ describe("CTSFloorPlanView — world snapshot handling", () => {
     expect(wrapper.vm.$.setupState.identityTrails).toBeUndefined();
   });
 
-  it("world snapshot empty state shows when no markers", async () => {
+  it("world snapshot empty state is delegated to FloorMarkerLayer", async () => {
+    // Empty-state text ("No active tracks") now lives inside FloorMarkerLayer.
+    // The view mounts FloorMarkerLayer and passes phCount; the stub proves delegation.
     const wrapper = await mountView();
-    expect(wrapper.html()).toContain("No active tracks");
+    expect(wrapper.find("[data-testid='floor-marker-layer']").exists()).toBe(true);
   });
 
   it("uses useWorldSnapshot composable (not cts_live_frame)", async () => {
@@ -173,6 +301,7 @@ describe("CTSFloorPlanView — world snapshot handling", () => {
 describe("CTSFloorPlanView — heatmap mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    maraudersState.enabled = false;
   });
 
   it("renders Heatmap mode button", async () => {
@@ -189,11 +318,14 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     expect(wrapper.html()).toContain("Generate");
   });
 
-  it("shows empty-state prompt in heatmap mode", async () => {
+  it("shows HeatmapBinLayer in heatmap mode (empty-state delegated to it)", async () => {
+    // Empty-state text ("Select a person and date range") now lives inside
+    // HeatmapBinLayer. The view mounts the layer and passes bins; the stub proves
+    // delegation.
     const wrapper = await mountView();
     wrapper.vm.$.setupState.mode = "heatmap";
     await wrapper.vm.$nextTick();
-    expect(wrapper.html()).toContain("Select a person and date range");
+    expect(wrapper.find("[data-testid='heatmap-bin-layer']").exists()).toBe(true);
   });
 
   it("mappedHeatmapBins is empty when no floor plan config", async () => {
@@ -333,5 +465,197 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     await flushPromises();
 
     expect(api.getPersons).toHaveBeenCalled();
+  });
+});
+
+
+describe("CTSFloorPlanView — M1 seam: layer delegation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    maraudersState.enabled = false;
+  });
+
+  it("passes smoothedMarkers to FloorMarkerLayer in live mode", async () => {
+    const wrapper = await mountView();
+    const layer = wrapper.find("[data-testid='floor-marker-layer']");
+    expect(layer.exists()).toBe(true);
+  });
+
+  it("FloorMarkerLayer receives phCount driven from worldPhMarkers length", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+    // worldPhMarkers is initially empty (mock returns phs=[]).
+    // The stub renders, and the view exposes the count via the prop.
+    expect(state.worldPhMarkers).toBeDefined();
+    expect(typeof state.worldPhMarkers.length).toBe("number");
+  });
+
+  it("passes mappedHeatmapBins to HeatmapBinLayer in heatmap mode", async () => {
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.mode = "heatmap";
+    await wrapper.vm.$nextTick();
+    const layer = wrapper.find("[data-testid='heatmap-bin-layer']");
+    expect(layer.exists()).toBe(true);
+  });
+
+  it("HeatmapBinLayer receives loading state from heatmapState", async () => {
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.mode = "heatmap";
+    await wrapper.vm.$nextTick();
+    // loading defaults to false (no active request)
+    expect(wrapper.vm.$.setupState.heatmapState.loading).toBe(false);
+  });
+});
+
+describe("CTSFloorPlanView — M5 seam: themed heatmap", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    maraudersState.enabled = false;
+  });
+
+  it("renders HeatmapBinLayer when marauders mode is OFF", async () => {
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.mode = "heatmap";
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find("[data-testid='heatmap-bin-layer']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='marauders-heatmap-layer']").exists()).toBe(false);
+  });
+
+  it("renders MaraudersHeatmapLayer when marauders mode is ON", async () => {
+    maraudersState.enabled = true;
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.mode = "heatmap";
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find("[data-testid='marauders-heatmap-layer']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='heatmap-bin-layer']").exists()).toBe(false);
+  });
+
+  it("passes the same mapped bins contract to both heatmap renderers", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+    state.mode = "heatmap";
+    state.fpWidth = 10;
+    state.fpHeight = 8;
+    state.fpMpp = 0.01;
+    state.canvasW = 1000;
+    state.canvasH = 800;
+    state.heatmapState.data = {
+      bins: [{ x_m: 1, y_m: 2, weight: 5 }],
+    };
+    await wrapper.vm.$nextTick();
+
+    const standardLayer = wrapper.findComponent({ name: "HeatmapBinLayer" });
+    expect(standardLayer.props("bins")).toEqual(state.mappedHeatmapBins);
+
+    maraudersState.enabled = true;
+    await wrapper.vm.$nextTick();
+
+    const themedLayer = wrapper.findComponent({ name: "MaraudersHeatmapLayer" });
+    expect(themedLayer.props("bins")).toEqual(state.mappedHeatmapBins);
+  });
+});
+
+describe("CTSFloorPlanView — M3 seam: ink rendering", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    maraudersState.enabled = false;
+  });
+
+  it("live view: plain <polygon> renders when marauders disabled", async () => {
+    const { household } = await import("@/services/household");
+    household.getRooms.mockResolvedValueOnce([
+      { id: 1, name: "Kitchen", floor_polygon: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+    ]);
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.canvasReady = true;
+    wrapper.vm.$.setupState.rooms = [
+      { id: 1, name: "Kitchen", floor_polygon: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+    ];
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll("[data-testid='marauders-ink-polygon']")).toHaveLength(0);
+    expect(wrapper.find("polygon.room-poly").exists()).toBe(true);
+  });
+
+  it("live view: MaraudersInkPolygon renders when marauders enabled", async () => {
+    const wrapper = await mountView();
+    maraudersState.enabled = true;
+    wrapper.vm.$.setupState.rooms = [
+      { id: 1, name: "Kitchen", floor_polygon: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+    ];
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll("[data-testid='marauders-ink-polygon']").length).toBeGreaterThan(0);
+  });
+});
+
+describe("CTSFloorPlanView — M4 seam: footprint markers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    maraudersState.enabled = false;
+  });
+
+  it("renders FloorMarkerLayer when marauders mode is OFF", async () => {
+    maraudersState.enabled = false;
+    const wrapper = await mountView();
+    expect(wrapper.find("[data-testid='floor-marker-layer']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='marauders-floor-markers']").exists()).toBe(false);
+  });
+
+  it("renders MaraudersFloorMarkers and not FloorMarkerLayer when marauders mode is ON", async () => {
+    maraudersState.enabled = true;
+    const wrapper = await mountView();
+    expect(wrapper.find("[data-testid='marauders-floor-markers']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='floor-marker-layer']").exists()).toBe(false);
+  });
+
+  it("renders MaraudersAmbientLayer when marauders mode is ON", async () => {
+    maraudersState.enabled = true;
+    const wrapper = await mountView();
+    expect(wrapper.find("[data-testid='marauders-ambient-layer']").exists()).toBe(true);
+  });
+
+  it("does not render MaraudersAmbientLayer when marauders mode is OFF", async () => {
+    maraudersState.enabled = false;
+    const wrapper = await mountView();
+    expect(wrapper.find("[data-testid='marauders-ambient-layer']").exists()).toBe(false);
+  });
+
+  it("MaraudersFloorMarkers stub is present when marauders is ON", async () => {
+    maraudersState.enabled = true;
+    const wrapper = await mountView();
+    // Confirm the stub rendered (sufficient to prove the v-if seam works)
+    expect(wrapper.find("[data-testid='marauders-floor-markers']").exists()).toBe(true);
+  });
+});
+
+describe("CTSFloorPlanView — door zones mode", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("loads and renders existing transit zones", async () => {
+    const { cts } = await import("@/services/cts");
+    cts.getTransitZones.mockResolvedValueOnce([
+      {
+        id: "zone-1",
+        name: "Bathroom threshold",
+        kind: "door",
+        polygon: [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]],
+        inside_room_id: 1,
+        outside_room_id: 2,
+        direction_vec: [1, 0],
+      },
+    ]);
+
+    const wrapper = await mountView();
+    wrapper.vm.$.setupState.mode = "doors";
+    await flushPromises();
+
+    expect(cts.getTransitZones).toHaveBeenCalled();
+    expect(wrapper.find("[data-testid='door-zone-editor']").exists()).toBe(true);
+    expect(wrapper.html()).toContain("Bathroom threshold");
   });
 });

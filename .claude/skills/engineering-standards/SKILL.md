@@ -598,6 +598,20 @@ def _get_client(request: Request) -> Any:
 - Extract a base class when 3+ handlers share the same lifecycle steps.
 - Don't abstract for "future use." The codebase already has a plugin system for that.
 
+### Theme-isolation boundary (sanctioned pattern)
+
+When a feature requires an alternate rendering of an existing component (not just a style change, but a different component tree), extract the themed variant into a dedicated folder and swap it at the render seam with a single `v-if`. The primary component stays unchanged.
+
+Reference: `components/marauders/` contains all Marauder's Map themed variants. Primary components (`CTSFloorPlanView.vue`, etc.) each have one `v-if` at the render seam. This lets themed code be maintained or removed without touching the primary app.
+
+Rules for this pattern:
+
+- One `v-if` per seam. If a seam needs more than one branch, the themed component absorbs the branching internally.
+- The themed variant consumes the same data path and composables as the primary component. It introduces no new fetches or BFF contracts.
+- All theme-specific files live in a single named folder (e.g., `components/marauders/`, `styles/marauders.css`, `assets/marauders/`).
+
+For spatial components that use rough.js or other procedural sketch generators, see the front-end skill's "rough.js and procedural sketch generators" section for the required seed and memoization rules.
+
 ## 20. MCP and BFF single-service-layer rule (D6)
 
 Any data exposed to the Vue UI through a FastAPI router must be exposed to MCP tools by reading the **same service function**. MCP tools contain no query logic of their own; they call service methods and adapt the result with `envelope_to_mcp()` or similar adapters.

@@ -7,7 +7,6 @@ directly by the image router or pipeline executor.
 
 from __future__ import annotations
 
-import shutil
 import textwrap
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -20,36 +19,73 @@ from sqlalchemy.orm import Session
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.integrations.minio_client import MinioClient
 from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
 from backend.models.sensor import Sensor
 
 logger = get_logger(__name__)
 
+_TEMPLATE_PREFIX = "eink/templates"
+_ACTIVE_PREFIX = "eink/active"
+
 
 class EInkRenderer:
-    """PIL-based renderer for e-ink display images."""
+    """PIL-based renderer for e-ink display images backed by MinIO."""
 
-    def __init__(self, db_session_factory: Callable[[], Session]) -> None:
+    def __init__(
+        self,
+        db_session_factory: Callable[[], Session],
+        minio_client: MinioClient,
+    ) -> None:
         self._db_factory = db_session_factory
+        self._minio = minio_client
 
         _backend_dir = Path(__file__).resolve().parents[1]
 
-        # Read paths from settings.yaml, fall back to defaults
-        template_dir = settings.as_str("image.template_dir")
-        output_dir = settings.as_str("image.output_dir")
-        font_dir = settings.as_str("image.font_dir")
-
-        self._templates_dir = (
-            Path(template_dir) if template_dir else _backend_dir / "assets" / "images" / "templates"
-        )
-        self._images_dir = Path(output_dir) if output_dir else _backend_dir / "assets" / "images"
-        self._fonts_dir = Path(font_dir) if font_dir else _backend_dir / "assets" / "fonts"
-        self._default_font = settings.as_str("image.default_font")
-        self._default_template = settings.as_str("image.default_template")
+        self._fonts_dir = Path(settings.as_str("image.font_dir", allow_empty=False))
+        self._default_font = settings.as_str("image.default_font", allow_empty=False)
+        self._default_template = settings.as_str("image.default_template", allow_empty=False)
         self._default_expiry = settings.as_int("image.default_expiry_minutes")
         self._display_width = settings.as_int("image.display_width")
         self._display_height = settings.as_int("image.display_height")
+
+        # Template dir is only used for seeding at startup; not accessed at render time.
+        self._local_templates_dir = Path(
+            settings.as_str("image.template_dir", allow_empty=False)
+        )
+
+    # ------------------------------------------------------------------
+    # Key helpers
+    # ------------------------------------------------------------------
+
+    def get_active_image_key(self, sensor_id: str) -> str:
+        return f"{_ACTIVE_PREFIX}/{sensor_id}.png"
+
+    def get_template_key(self, filename: str) -> str:
+        return f"{_TEMPLATE_PREFIX}/{filename}"
+
+    # ------------------------------------------------------------------
+    # Startup seed
+    # ------------------------------------------------------------------
+
+    def seed_templates(self) -> None:
+        """Upload bundled template PNGs to MinIO if they are not already there.
+
+        Idempotent: checks existing keys first and skips files that are
+        already present.  Called once during app lifespan startup so that
+        the default template fallback and any checked-in templates are
+        available immediately after a fresh deployment.
+        """
+        if not self._local_templates_dir.exists():
+            return
+
+        existing = set(self._minio.list_objects(_TEMPLATE_PREFIX))
+        for png_file in sorted(self._local_templates_dir.glob("*.png")):
+            key = self.get_template_key(png_file.name)
+            if key not in existing:
+                self._minio.upload_bytes(png_file.read_bytes(), key, "image/png")
+                logger.info("eink_template_seeded", key=key)
 
     # ------------------------------------------------------------------
     # Public API
@@ -65,13 +101,13 @@ class EInkRenderer:
         region_name: str | None = None,
         overlay_image: bytes | None = None,
     ) -> list[str]:
-        """Render text onto a template and save as active image for target devices.
+        """Render text onto a template and upload as active image for target devices.
 
         Returns list of sensor_ids that were rendered to.
         """
         db = self._db_factory()
         try:
-            template_path, regions, font_path = self._resolve_template(template, template_id, db)
+            template_bytes, regions, font_path = self._resolve_template(template, template_id, db)
             resolved_template_id = template_id
             targets = self._resolve_sensor_ids(sensor_ids, db)
 
@@ -80,13 +116,15 @@ class EInkRenderer:
                 return []
 
             img = self._render_image(
-                text, template_path, regions, font_path, region_name, overlay_image
+                text, template_bytes, regions, font_path, region_name, overlay_image
             )
 
-            self._images_dir.mkdir(parents=True, exist_ok=True)
+            buf = BytesIO()
+            img.save(buf, "PNG")
+            png_bytes = buf.getvalue()
+
             for sid in targets:
-                out_path = self.get_active_image_path(sid)
-                img.save(out_path, "PNG")
+                self._minio.upload_bytes(png_bytes, self.get_active_image_key(sid), "image/png")
                 self._upsert_image_state(sid, resolved_template_id, text, expires_in_minutes, db)
 
             db.commit()
@@ -110,13 +148,13 @@ class EInkRenderer:
         template_name: str | None = "alert",
         region_name: str | None = None,
     ) -> bytes:
-        """Render and return PNG bytes without saving to disk."""
+        """Render and return PNG bytes without saving to MinIO."""
         db = self._db_factory()
         try:
-            template_path, regions, font_path = self._resolve_template(
+            template_bytes, regions, font_path = self._resolve_template(
                 template_name, template_id, db
             )
-            img = self._render_image(text, template_path, regions, font_path, region_name)
+            img = self._render_image(text, template_bytes, regions, font_path, region_name)
             buf = BytesIO()
             img.save(buf, "PNG")
             return buf.getvalue()
@@ -130,7 +168,7 @@ class EInkRenderer:
         regions: list[dict],
         font_filename: str,
     ) -> bytes:
-        """Render text onto provided raw image bytes (no DB lookup needed)."""
+        """Render text onto provided raw image bytes (no DB or MinIO lookup needed)."""
         img: Image.Image = Image.open(BytesIO(image_bytes))
         img = img.resize((self._display_width, self._display_height), Image.Resampling.LANCZOS)
         img = img.convert("RGBA")
@@ -149,17 +187,17 @@ class EInkRenderer:
         regions_override: list[dict] | None = None,
         font_filename_override: str | None = None,
     ) -> bytes:
-        """Render preview using an existing template's image with optional region/font overrides."""
+        """Render preview using an existing template with optional region/font overrides."""
         db = self._db_factory()
         try:
-            template_path, regions, font_path = self._resolve_template(None, template_id, db)
+            template_bytes, regions, font_path = self._resolve_template(None, template_id, db)
             if regions_override is not None:
                 regions = regions_override
             if font_filename_override:
                 candidate = self._fonts_dir / font_filename_override
                 if candidate.exists():
                     font_path = candidate
-            result = self._render_image(text, template_path, regions, font_path)
+            result = self._render_image(text, template_bytes, regions, font_path)
             buf = BytesIO()
             result.save(buf, "PNG")
             return buf.getvalue()
@@ -171,14 +209,19 @@ class EInkRenderer:
         db = self._db_factory()
         try:
             targets = self._resolve_sensor_ids(sensor_ids, db)
-            default_path = self._templates_dir / f"{self._default_template}.png"
+            default_bytes = self._minio.get_object(
+                self.get_template_key(f"{self._default_template}.png")
+            )
 
             for sid in targets:
-                out_path = self.get_active_image_path(sid)
-                if default_path.exists():
-                    shutil.copy2(default_path, out_path)
-                elif out_path.exists():
-                    out_path.unlink()
+                active_key = self.get_active_image_key(sid)
+                if default_bytes is not None:
+                    self._minio.upload_bytes(default_bytes, active_key, "image/png")
+                else:
+                    try:
+                        self._minio.delete_object(active_key)
+                    except Exception:
+                        logger.warning("eink_reset_delete_failed", sensor_id=sid)
 
                 state = db.execute(
                     select(ActiveImageState).where(ActiveImageState.sensor_id == sid)
@@ -197,10 +240,6 @@ class EInkRenderer:
         finally:
             db.close()
 
-    def get_active_image_path(self, sensor_id: str) -> Path:
-        """Return the path to the active image for a sensor."""
-        return self._images_dir / f"active_{sensor_id}.png"
-
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -208,28 +247,33 @@ class EInkRenderer:
     def _render_image(
         self,
         text: str,
-        template: Path | Image.Image,
+        template: bytes | None | Image.Image,
         regions: list[dict],
         font_path: Path,
         region_name: str | None = None,
         overlay_image: bytes | None = None,
-    ):
-        """Core PIL rendering logic — renders text and optional image into regions.
+    ) -> Image.Image:
+        """Core PIL rendering logic.
 
-        template can be a filesystem Path or an already-loaded PIL Image.
+        template can be:
+        - bytes: PNG/image bytes fetched from MinIO
+        - Image.Image: already-loaded PIL image (from render_preview_inline)
+        - None: no template available; renders onto a white canvas
         """
-        if isinstance(template, Path):
-            if not template.exists():
-                default_path = self._templates_dir / f"{self._default_template}.png"
-                template = default_path if default_path.exists() else template
-            img = Image.open(template).copy()
+        if isinstance(template, bytes):
+            img = Image.open(BytesIO(template)).copy()
+        elif template is None:
+            img = Image.new(
+                "RGB",
+                (self._display_width, self._display_height),
+                color=(255, 255, 255),
+            )
         else:
             img = template.copy()
 
         draw = ImageDraw.Draw(img, "RGBA")
         img_width, img_height = img.size
 
-        # If no regions defined, use a default centered bounding box
         if not regions:
             pad_x = int(img_width * 0.1)
             pad_y = int(img_height * 0.15)
@@ -248,7 +292,6 @@ class EInkRenderer:
                 }
             ]
 
-        # Filter to target region if specified
         if region_name:
             regions = [r for r in regions if r.get("name") == region_name]
             if not regions:
@@ -260,13 +303,10 @@ class EInkRenderer:
             else:
                 self._render_region(draw, text, region, font_path)
 
-        # Convert to RGB (eInk doesn't need alpha)
         return img.convert("RGB")
 
     def _wrap_text(self, text: str, chars_per_line: int, multiline: bool) -> list[str]:
-        """Wrap text into lines, optionally respecting explicit newlines."""
         if multiline:
-            # Split on explicit newlines first, then word-wrap each paragraph
             result: list[str] = []
             for para in text.split("\n"):
                 if para.strip():
@@ -279,12 +319,11 @@ class EInkRenderer:
 
     def _render_region(
         self,
-        draw,
+        draw: ImageDraw.ImageDraw,
         text: str,
         region: dict,
         font_path: Path,
     ) -> None:
-        """Render text into a single bounding-box region."""
         bx = region.get("x", 0)
         by = region.get("y", 0)
         bw = region.get("width", 640)
@@ -296,7 +335,6 @@ class EInkRenderer:
         text_color = tuple(region.get("text_color", [255, 255, 255, 255]))
         multiline = region.get("multiline", True)
 
-        # Find the best font size to fit the bounding box
         font_size = font_size_max
         font = None
         lines: list[str] = [text]
@@ -323,14 +361,12 @@ class EInkRenderer:
         if font is None:
             font = ImageFont.load_default()  # type: ignore[assignment]
 
-        # Re-wrap with final font size
         avg_char_width = font_size * 0.6
         chars_per_line = max(1, int(bw / avg_char_width))
         lines = self._wrap_text(text, chars_per_line, multiline)
         line_height = font_size * 1.3
         total_height = line_height * len(lines)
 
-        # Draw background only if not fully transparent
         if len(bg_color) < 4 or bg_color[3] > 0:
             bg_margin = 10
             draw.rectangle(
@@ -338,7 +374,6 @@ class EInkRenderer:
                 fill=bg_color,
             )
 
-        # Draw text lines
         y_start = by + (bh - total_height) / 2
         for i, line in enumerate(lines):
             line_bbox = draw.textbbox((0, 0), line, font=font)
@@ -358,7 +393,6 @@ class EInkRenderer:
         overlay_bytes: bytes,
         region: dict,
     ) -> None:
-        """Composite a content image into a template image region."""
         bx = region.get("x", 0)
         by = region.get("y", 0)
         bw = region.get("width", 760)
@@ -375,51 +409,40 @@ class EInkRenderer:
         template_name: str | None,
         template_id: int | None,
         db: Session,
-    ) -> tuple[Path, list[dict], Path]:
-        """Resolve template to (image_path, regions, font_path)."""
+    ) -> tuple[bytes | None, list[dict], Path]:
+        """Resolve template to (image_bytes_or_None, regions, font_path).
+
+        Returns None for image bytes when the template is not found in MinIO;
+        _render_image will paint a white canvas in that case.
+        """
         if template_id is not None:
             tmpl = db.execute(
                 select(ImageTemplate).where(ImageTemplate.id == template_id)
             ).scalar_one_or_none()
             if tmpl:
-                return (
-                    self._templates_dir / tmpl.image_filename,
-                    tmpl.regions_json or [],
-                    self._fonts_dir / tmpl.font_filename,
-                )
+                img_bytes = self._minio.get_object(self.get_template_key(tmpl.image_filename))
+                return img_bytes, tmpl.regions_json or [], self._fonts_dir / tmpl.font_filename
 
-        # Filesystem fallback by name
         name = template_name or self._default_template
-        template_path = self._templates_dir / f"{name}.png"
-
-        # Check if there's a DB template with this name (for region definitions)
         db_tmpl = db.execute(
             select(ImageTemplate).where(ImageTemplate.name == name)
         ).scalar_one_or_none()
         if db_tmpl:
-            return (
-                self._templates_dir / db_tmpl.image_filename,
-                db_tmpl.regions_json or [],
-                self._fonts_dir / db_tmpl.font_filename,
-            )
+            img_bytes = self._minio.get_object(self.get_template_key(db_tmpl.image_filename))
+            return img_bytes, db_tmpl.regions_json or [], self._fonts_dir / db_tmpl.font_filename
 
-        # Pure filesystem fallback  no regions, default font
-        font_path = self._fonts_dir / self._default_font
-        if not font_path.exists():
-            font_path = self._fonts_dir / "NotoSans-Regular.ttf"
-        return template_path, [], font_path
+        # Pure MinIO fallback by name — no regions, default font
+        img_bytes = self._minio.get_object(f"{_TEMPLATE_PREFIX}/{name}.png")
+        return img_bytes, [], self._fonts_dir / self._default_font
 
     def _resolve_sensor_ids(self, sensor_ids: list[str] | None, db: Session) -> list[str]:
-        """Resolve target sensor IDs. None = all enabled eink sensors."""
         if sensor_ids:
             return sensor_ids
 
-        # Check notification config for default targets
         default_targets = settings.section("notifications.eink").as_list("default_targets")
         if default_targets:
             return default_targets
 
-        # Fall back to all eink-type sensors
         sensors = (
             db.execute(
                 select(Sensor.id).where(
@@ -440,7 +463,6 @@ class EInkRenderer:
         expires_minutes: int,
         db: Session,
     ) -> None:
-        """Insert or update ActiveImageState for the given sensor_id."""
         expires_at = datetime.now(UTC) + timedelta(minutes=expires_minutes)
         state = db.execute(
             select(ActiveImageState).where(ActiveImageState.sensor_id == sensor_id)

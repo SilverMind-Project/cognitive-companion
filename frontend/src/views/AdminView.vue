@@ -1,5 +1,6 @@
 <template>
   <v-app>
+    <AdminParticleBackground />
     <v-navigation-drawer
       :rail="!pinned"
       permanent
@@ -148,6 +149,7 @@ import { ref, reactive, onMounted, onBeforeUnmount, computed, nextTick } from "v
 import { useTheme } from "vuetify";
 import { api } from "../services/api.js";
 import { cts } from "../services/cts.js";
+import AdminParticleBackground from "../components/common/AdminParticleBackground.vue";
 
 const theme = useTheme();
 const isDark = computed(() => theme.global.name.value === "ccDark");

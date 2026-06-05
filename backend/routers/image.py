@@ -11,7 +11,6 @@ from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
-from fastapi.responses import FileResponse
 from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,8 +20,10 @@ from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
+from backend.integrations.minio_client import MinioClient
 from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
+from backend.routers.dependencies import get_config_minio_client
 from backend.schemas.image import (
     ActiveImageStateOut,
     ImageTemplateOut,
@@ -35,12 +36,9 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/image", tags=["image"])
 
-# Paths
+# Fonts remain on the filesystem; templates and rendered images live in MinIO.
 _ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
-_IMAGES_DIR = _ASSETS_DIR / "images"
-_TEMPLATES_DIR = _IMAGES_DIR / "templates"
 _FONTS_DIR = _ASSETS_DIR / "fonts"
-_DEFAULT_TEMPLATE = _TEMPLATES_DIR / "default.png"
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +46,12 @@ _DEFAULT_TEMPLATE = _TEMPLATES_DIR / "default.png"
 # ---------------------------------------------------------------------------
 
 
-def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> Response:
+def _serve_image_for_sensor(
+    sensor_id: str,
+    db: Session,
+    request: Request,
+    minio: MinioClient,
+) -> Response:
     """Serve the active image for a sensor, suppressing refresh when unchanged.
 
     Returns 204 No Content when the image hash matches what was last delivered
@@ -57,6 +60,7 @@ def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> Re
     """
     eink_renderer = request.app.state.eink_renderer
     refresh_window_minutes: int = settings.as_int("image.refresh_window_minutes")
+    default_template: str = settings.as_str("image.default_template", allow_empty=False)
 
     state = db.execute(
         select(ActiveImageState).where(ActiveImageState.sensor_id == sensor_id)
@@ -64,24 +68,24 @@ def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> Re
 
     now = datetime.now(UTC)
 
-    # --- Determine which image file to serve ---
+    # --- Determine which image bytes to serve ---
     if state and state.expires_at and state.expires_at < now:
         # Content has expired: fall back to the default template
-        serve_path: Path | None = _DEFAULT_TEMPLATE if _DEFAULT_TEMPLATE.exists() else None
+        image_bytes = minio.get_object(
+            eink_renderer.get_template_key(f"{default_template}.png")
+        )
     else:
-        active_path = eink_renderer.get_active_image_path(sensor_id)
-        if active_path.exists():
-            serve_path = active_path
-        elif _DEFAULT_TEMPLATE.exists():
-            serve_path = _DEFAULT_TEMPLATE
-        else:
-            serve_path = None
+        image_bytes = minio.get_object(eink_renderer.get_active_image_key(sensor_id))
+        if image_bytes is None:
+            # No rendered active image yet: fall back to the default template
+            image_bytes = minio.get_object(
+                eink_renderer.get_template_key(f"{default_template}.png")
+            )
 
-    if serve_path is None:
+    if image_bytes is None:
         raise NotFoundError("Image", f"active_{sensor_id}.png")
 
     # --- Decide whether the display actually needs a pixel refresh ---
-    image_bytes = serve_path.read_bytes()
     content_hash = hashlib.sha256(image_bytes).hexdigest()
 
     if (
@@ -109,28 +113,22 @@ def _serve_image_for_sensor(sensor_id: str, db: Session, request: Request) -> Re
 def serve_active_image(
     request: Request,
     db: Session = Depends(get_db),
+    minio: MinioClient = Depends(get_config_minio_client),
     auth: AuthContext = Depends(require_permission("image:read")),
 ):
     """Serve the active image for the authenticated device."""
     sensor_id = auth.sensor_id
     if not sensor_id:
-        # Non-device caller without sensor_id  serve default
-        if _DEFAULT_TEMPLATE.exists():
-            return FileResponse(_DEFAULT_TEMPLATE, media_type="image/png")
-        raise NotFoundError("Image", "no sensor_id in auth context")
+        eink_renderer = request.app.state.eink_renderer
+        default_template: str = settings.as_str("image.default_template", allow_empty=False)
+        default_bytes = minio.get_object(
+            eink_renderer.get_template_key(f"{default_template}.png")
+        )
+        if default_bytes is None:
+            raise NotFoundError("Image", "no sensor_id in auth context")
+        return Response(content=default_bytes, media_type="image/png")
 
-    return _serve_image_for_sensor(sensor_id, db, request)
-
-
-# @router.get("/active/{sensor_id}")
-# def serve_active_image_by_id(
-#     sensor_id: str,
-#     request: Request,
-#     db: Session = Depends(get_db),
-#     _auth: AuthContext = Depends(require_permission("image:read")),
-# ):
-#     """Serve the active image for a specific sensor (admin/preview use)."""
-#     return _serve_image_for_sensor(sensor_id, db, request)
+    return _serve_image_for_sensor(sensor_id, db, request, minio)
 
 
 # ---------------------------------------------------------------------------
@@ -197,9 +195,9 @@ async def preview_render_form(
 ):
     """Preview rendered image using an uploaded image or an existing template.
 
-    - If ``image`` is provided, it is used as the background (useful for new-template preview).
+    - If ``image`` is provided, it is used as the background.
     - If only ``template_id`` is provided, the stored template image is used but
-      regions/font from the form override the saved values (live edit preview).
+      regions/font from the form override the saved values.
     - Falls back to the default template when neither is supplied.
 
     Always returns PNG.
@@ -265,25 +263,25 @@ async def create_template(
     is_default: bool = Form(False),
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
+    minio: MinioClient = Depends(get_config_minio_client),
     _auth: AuthContext = Depends(require_permission("admin")),
 ):
     """Upload a new image template with bounding box regions.
 
-    Image is resized to 800x480 and converted to PNG.
+    Image is resized to 800x480, converted to PNG, and stored in MinIO.
     """
-    # Read and process uploaded image
     content = await image.read()
     img = Image.open(BytesIO(content))
     img = img.resize((800, 480), Image.Resampling.LANCZOS)  # type: ignore[assignment]
     img = img.convert("RGB")  # type: ignore[assignment]
 
-    # Save to templates directory
     safe_name = "".join(c for c in name if c.isalnum() or c in "-_").lower()
     filename = f"{safe_name}.png"
-    _TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-    img.save(_TEMPLATES_DIR / filename, "PNG")
 
-    # Parse regions
+    buf = BytesIO()
+    img.save(buf, "PNG")  # type: ignore[union-attr]
+    await minio.async_upload_bytes(buf.getvalue(), f"eink/templates/{filename}", "image/png")
+
     regions = json.loads(regions_json)
 
     tmpl = ImageTemplate(
@@ -317,7 +315,6 @@ def update_template(
         raise NotFoundError("ImageTemplate", str(template_id))
 
     updates = payload.model_dump(exclude_unset=True)
-    # Convert TextRegion objects to dicts for JSON storage
     if "regions_json" in updates and updates["regions_json"] is not None:
         updates["regions_json"] = [
             r.model_dump() if hasattr(r, "model_dump") else r for r in updates["regions_json"]
@@ -335,6 +332,7 @@ async def update_template_image(
     template_id: int,
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
+    minio: MinioClient = Depends(get_config_minio_client),
     _auth: AuthContext = Depends(require_permission("admin")),
 ):
     """Replace the template background image. Resizes to template dimensions."""
@@ -348,7 +346,12 @@ async def update_template_image(
     img = Image.open(BytesIO(content))
     img = img.resize((tmpl.width, tmpl.height), Image.Resampling.LANCZOS)  # type: ignore[assignment]
     img = img.convert("RGB")  # type: ignore[assignment]
-    img.save(_TEMPLATES_DIR / tmpl.image_filename, "PNG")
+
+    buf = BytesIO()
+    img.save(buf, "PNG")  # type: ignore[union-attr]
+    await minio.async_upload_bytes(
+        buf.getvalue(), f"eink/templates/{tmpl.image_filename}", "image/png"
+    )
 
     return {"status": "updated", "template_id": template_id}
 
@@ -357,19 +360,17 @@ async def update_template_image(
 def delete_template(
     template_id: int,
     db: Session = Depends(get_db),
+    minio: MinioClient = Depends(get_config_minio_client),
     _auth: AuthContext = Depends(require_permission("admin")),
 ):
-    """Delete a template and its image file."""
+    """Delete a template and its image from MinIO."""
     tmpl = db.execute(
         select(ImageTemplate).where(ImageTemplate.id == template_id)
     ).scalar_one_or_none()
     if not tmpl:
         raise NotFoundError("ImageTemplate", str(template_id))
 
-    # Remove image file
-    img_path = _TEMPLATES_DIR / tmpl.image_filename
-    if img_path.exists():
-        img_path.unlink()
+    minio.delete_object(f"eink/templates/{tmpl.image_filename}")
 
     db.delete(tmpl)
     db.commit()
@@ -379,6 +380,7 @@ def delete_template(
 def preview_template(
     template_id: int,
     db: Session = Depends(get_db),
+    minio: MinioClient = Depends(get_config_minio_client),
     _auth: AuthContext = Depends(require_permission("image:read")),
 ):
     """Serve the raw template image (no text rendered)."""
@@ -388,11 +390,11 @@ def preview_template(
     if not tmpl:
         raise NotFoundError("ImageTemplate", str(template_id))
 
-    img_path = _TEMPLATES_DIR / tmpl.image_filename
-    if not img_path.exists():
+    image_bytes = minio.get_object(f"eink/templates/{tmpl.image_filename}")
+    if image_bytes is None:
         raise NotFoundError("Image", tmpl.image_filename)
 
-    return FileResponse(img_path, media_type="image/png")
+    return Response(content=image_bytes, media_type="image/png")
 
 
 # ---------------------------------------------------------------------------

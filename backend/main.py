@@ -105,16 +105,18 @@ async def lifespan(app: FastAPI):
     # -- Integration clients -----------------------------------------------
     from backend.integrations.ha_state_cache import HaStateCache
     from backend.integrations.homeassistant import HomeAssistantClient
-    from backend.integrations.minio_client import get_minio_client
+    from backend.integrations.minio_client import get_config_minio_client, get_minio_client
     from backend.integrations.telegram import TelegramClient
     from backend.integrations.tts import TTSClient
 
     minio_client = get_minio_client()
+    config_minio_client = get_config_minio_client()
     ha_client = HomeAssistantClient()
     telegram_client = TelegramClient()
     tts_client = TTSClient()
 
     app.state.minio_client = minio_client
+    app.state.config_minio_client = config_minio_client
     app.state.ha_client = ha_client
     app.state.telegram_client = telegram_client
     app.state.tts_client = tts_client
@@ -159,7 +161,10 @@ async def lifespan(app: FastAPI):
     # -- E-Ink renderer (internal integration) --------------------------------
     from backend.integrations.eink_renderer import EInkRenderer
 
-    eink_renderer = EInkRenderer(db_session_factory=get_session)
+    eink_renderer = EInkRenderer(
+        db_session_factory=get_session, minio_client=config_minio_client
+    )
+    eink_renderer.seed_templates()
     app.state.eink_renderer = eink_renderer
 
     # -- Embedding client ---------------------------------------------------

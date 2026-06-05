@@ -996,8 +996,8 @@ async def get_heatmap(
     person_id: str,
     start_time: str,
     end_time: str,
-    start_hour: int | None = None,
-    end_hour: int | None = None,
+    start_minute: int | None = None,
+    end_minute: int | None = None,
 ) -> dict:
     """Return aggregated floor-plan heatmap bins for a person over a time range.
 
@@ -1008,14 +1008,20 @@ async def get_heatmap(
         person_id: Household member ID.
         start_time: ISO 8601 UTC datetime string for the window start.
         end_time: ISO 8601 UTC datetime string for the window end.
-        start_hour: Optional UTC hour (0-23) to restrict daily window start.
-        end_hour: Optional UTC hour (0-23) to restrict daily window end.
+        start_minute: Optional minute-of-day (0-1439, local time) for the
+            time-of-day window start. Must be supplied with ``end_minute``.
+        end_minute: Optional minute-of-day (0-1439, local time) for the
+            time-of-day window end. When ``start_minute > end_minute`` the
+            window wraps past midnight (e.g. 22:00-03:00).
     """
     from datetime import datetime
 
     pls = _svc.person_location_service
     if pls is None:
         return {"error": "PersonLocationService not available"}
+
+    if (start_minute is None) != (end_minute is None):
+        return {"error": "start_minute and end_minute must be supplied together"}
 
     try:
         t_start = datetime.fromisoformat(start_time)
@@ -1027,8 +1033,8 @@ async def get_heatmap(
         person_id=person_id,
         start_time=t_start,
         end_time=t_end,
-        filter_start_hour=start_hour,
-        filter_end_hour=end_hour,
+        filter_start_minute=start_minute,
+        filter_end_minute=end_minute,
     )
     return envelope.model_dump(mode="json")
 

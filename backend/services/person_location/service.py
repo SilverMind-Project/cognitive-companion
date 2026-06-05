@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+from backend.core.config import settings
 from backend.core.logging import get_logger
 from backend.schemas.cts_analytics import HeatmapBin as HeatmapBinSchema
 from backend.schemas.cts_analytics import HeatmapEnvelope
@@ -304,20 +305,25 @@ class PersonLocationService:
         person_id: str,
         start_time: datetime,
         end_time: datetime,
-        filter_start_hour: int | None = None,
-        filter_end_hour: int | None = None,
+        filter_start_minute: int | None = None,
+        filter_end_minute: int | None = None,
     ) -> HeatmapEnvelope:
         """Return aggregated heatmap bins for a person over a time range.
 
-        ``filter_start_hour`` and ``filter_end_hour`` (0-23, UTC) restrict
-        which time-of-day buckets contribute to the density map.
+        ``filter_start_minute`` and ``filter_end_minute`` (0-1439, minutes
+        since *local* midnight) restrict which time-of-day buckets contribute
+        to the density map. When ``start > end`` the window wraps past midnight
+        (e.g. 22:00-03:00). The local timezone is the application timezone
+        (``app.timezone``); stored buckets are UTC and converted in-query.
         """
+        tz_name = settings.as_str("app.timezone")
         bins = await self._obs.list_heatmap_bins(
             person_id=person_id,
             since=start_time,
             until=end_time,
-            filter_start_hour=filter_start_hour,
-            filter_end_hour=filter_end_hour,
+            tz_name=tz_name,
+            filter_start_minute=filter_start_minute,
+            filter_end_minute=filter_end_minute,
         )
         return HeatmapEnvelope(
             person_id=person_id,

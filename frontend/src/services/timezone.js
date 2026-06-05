@@ -235,18 +235,50 @@ export function localHHMMToUTCISO(timeStr) {
   const m = parseInt(mStr, 10);
   if (Number.isNaN(h) || Number.isNaN(m)) return null;
 
+  // Use today's date in the app timezone as the calendar anchor.
+  const localDateStr = new Date().toLocaleDateString("en-CA", {
+    timeZone: getAppTimezone(),
+  });
+  return _localWallToUTCISO(localDateStr, h, m);
+}
+
+/**
+ * Convert a calendar date plus an optional "HH:MM" wall-clock time, interpreted
+ * in the app timezone, into a UTC ISO-8601 string.  Used for date-range pickers
+ * where the user selects local calendar boundaries that must be sent to the
+ * backend as absolute UTC instants.
+ *
+ * @param {string|null|undefined} dateStr  "YYYY-MM-DD" in the app timezone.
+ * @param {string} [timeStr="00:00"]       "HH:MM" wall-clock time (app tz).
+ * @returns {string|null}  UTC ISO string, or null for empty input.
+ */
+export function localDateToUTCISO(dateStr, timeStr = "00:00") {
+  if (!dateStr) return null;
+  const [hStr, mStr] = timeStr.split(":");
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return _localWallToUTCISO(dateStr, h, m);
+}
+
+/**
+ * Core conversion: given a "YYYY-MM-DD" date and an hour/minute interpreted as
+ * wall-clock time in the app timezone, return the matching UTC ISO string.
+ *
+ * DST is handled by a single offset-correction step: we treat the wall-clock
+ * value as if it were UTC to get an approximate instant, observe what time that
+ * instant actually shows in the app timezone, then shift by the difference.
+ *
+ * @param {string} dateStr  "YYYY-MM-DD".
+ * @param {number} h        Hour (0-23).
+ * @param {number} m        Minute (0-59).
+ * @returns {string}        UTC ISO string.
+ */
+function _localWallToUTCISO(dateStr, h, m) {
   const tz = getAppTimezone();
-
-  // Step 1: Get today's date in the app timezone as "YYYY-MM-DD".
-  const now = new Date();
-  const localDateStr = now.toLocaleDateString("en-CA", { timeZone: tz });
-
-  // Step 2: Treat the target HH:MM as if it were UTC to get an approximate ms value.
   const approxUTC = new Date(
-    `${localDateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`
+    `${dateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`
   );
-
-  // Step 3: Find what HH:MM the approximate instant shows in the app timezone.
   const displayParts = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     hour: "2-digit",
@@ -255,8 +287,6 @@ export function localHHMMToUTCISO(timeStr) {
   }).formatToParts(approxUTC);
   const dh = parseInt(displayParts.find((p) => p.type === "hour")?.value ?? "0", 10);
   const dm = parseInt(displayParts.find((p) => p.type === "minute")?.value ?? "0", 10);
-
-  // Step 4: Shift by the difference to land on the correct UTC instant.
   const offsetMs = ((h - (dh === 24 ? 0 : dh)) * 60 + (m - dm)) * 60_000;
   return new Date(approxUTC.getTime() + offsetMs).toISOString();
 }

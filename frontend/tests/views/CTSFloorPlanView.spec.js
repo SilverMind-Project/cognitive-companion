@@ -232,28 +232,39 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     expect(state.mappedHeatmapBins[1].opacity).toBeCloseTo(0.6, 3);
   });
 
-  it("HOUR_PRESETS covers all day, morning, afternoon, evening, night", async () => {
+  it("DATE_PRESETS and TIME_PRESETS expose rolling-window and dementia-aligned options", async () => {
     const wrapper = await mountView();
-    const presets = wrapper.vm.$.setupState.HOUR_PRESETS;
-    expect(presets.length).toBe(5);
-    expect(presets[0].startHour).toBeNull();
-    expect(presets[1].label).toContain("Morning");
-    expect(presets[4].label).toContain("Night");
+    const { DATE_PRESETS, TIME_PRESETS } = wrapper.vm.$.setupState;
+
+    expect(DATE_PRESETS.map((p) => p.key)).toEqual([
+      "last_24h",
+      "last_7d",
+      "last_14d",
+      "last_30d",
+      "custom",
+    ]);
+
+    const timeKeys = TIME_PRESETS.map((p) => p.key);
+    expect(timeKeys).toEqual(
+      expect.arrayContaining(["all", "morning", "afternoon", "sundowning", "evening", "night", "custom"]),
+    );
+    // Night wraps past midnight: start (21:00) > end (06:00).
+    const night = TIME_PRESETS.find((p) => p.key === "night");
+    expect(night.start).toBe(21 * 60);
+    expect(night.end).toBe(6 * 60);
+    expect(night.start).toBeGreaterThan(night.end);
   });
 
-  it("Generate button triggers api.getHeatmap with correct params", async () => {
+  it("Generate (default presets) sends a rolling window with no time-of-day filter", async () => {
     const { api } = await import("@/services/api");
     const wrapper = await mountView();
     const state = wrapper.vm.$.setupState;
 
-    // Switch to heatmap mode and populate required fields
+    // Defaults: date preset last_7d, time preset all. Only a person is required.
     state.mode = "heatmap";
     state.heatmapPersonId = "p1";
-    state.heatmapStartDate = "2026-05-01";
-    state.heatmapEndDate = "2026-05-07";
     await wrapper.vm.$nextTick();
 
-    // Click the Generate button (last button rendered in heatmap mode)
     const buttons = wrapper.findAll("button");
     const generateBtn = buttons.find((b) => b.text().includes("Generate"));
     expect(generateBtn).toBeDefined();
@@ -263,8 +274,53 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     expect(api.getHeatmap).toHaveBeenCalledWith(
       expect.objectContaining({
         person_id: "p1",
-        start_time: "2026-05-01T00:00:00Z",
-        end_time: "2026-05-07T23:59:59Z",
+        start_time: expect.any(String),
+        end_time: expect.any(String),
+        start_minute: null,
+        end_minute: null,
+      }),
+    );
+  });
+
+  it("shows the resolved clock window for the selected time preset", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+
+    state.mode = "heatmap";
+    state.heatmapTimePreset = "morning";
+    await wrapper.vm.$nextTick();
+    expect(state.heatmapTimeWindowLabel).toBe("6:00 AM – 12:00 PM");
+
+    // Night wraps past midnight and is annotated as such.
+    state.heatmapTimePreset = "night";
+    await wrapper.vm.$nextTick();
+    expect(state.heatmapTimeWindowLabel).toBe("9:00 PM – 6:00 AM (overnight)");
+
+    state.heatmapTimePreset = "all";
+    await wrapper.vm.$nextTick();
+    expect(state.heatmapTimeWindowLabel).toBe("All times of day");
+  });
+
+  it("Generate with the Night preset sends a cross-midnight minute window", async () => {
+    const { api } = await import("@/services/api");
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+
+    state.mode = "heatmap";
+    state.heatmapPersonId = "p1";
+    state.heatmapTimePreset = "night";
+    await wrapper.vm.$nextTick();
+
+    const buttons = wrapper.findAll("button");
+    const generateBtn = buttons.find((b) => b.text().includes("Generate"));
+    await generateBtn.trigger("click");
+    await flushPromises();
+
+    expect(api.getHeatmap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        person_id: "p1",
+        start_minute: 21 * 60,
+        end_minute: 6 * 60,
       }),
     );
   });

@@ -72,6 +72,7 @@
   --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.35);
   --cc-shadow-glass: 0 2px 16px -4px rgba(0, 0, 0, 0.35);
   --cc-shadow-glass-hover: 0 6px 28px -6px rgba(0, 0, 0, 0.50);
+  --cc-particle: #0a84ff;
 }
 
 .v-theme--ccLight {
@@ -115,6 +116,7 @@
   --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.20);
   --cc-shadow-glass: 0 2px 12px -4px rgba(0, 0, 0, 0.08);
   --cc-shadow-glass-hover: 0 6px 24px -6px rgba(0, 0, 0, 0.12);
+  --cc-particle: #5856d6;
 }
 
 /* ----- Global resets / typographic polish ----- */
@@ -406,7 +408,7 @@ kbd {
 .glass-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--cc-shadow-glass-hover);
-  border-color: var(--cc-glass-border-strong);
+  border-color: var(--cc-brand-soft) !important;
 }
 
 /* Inset section: subtle card surface for grouping within dialogs or larger cards.

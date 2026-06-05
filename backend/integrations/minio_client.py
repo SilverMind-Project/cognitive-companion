@@ -262,6 +262,7 @@ class MinioClient:
 
 
 _instance: MinioClient | None = None
+_config_instance: MinioClient | None = None
 
 
 def get_minio_client() -> MinioClient:
@@ -279,3 +280,20 @@ def get_minio_client() -> MinioClient:
     )
     _instance.ensure_bucket()
     return _instance
+
+
+def get_config_minio_client() -> MinioClient:
+    """Create (or return the cached) MinioClient for config/static assets (cognitive-companion bucket)."""
+    global _config_instance
+    if _config_instance is not None:
+        return _config_instance
+
+    _config_instance = MinioClient(
+        endpoint=settings.as_str("minio.endpoint", allow_empty=False),
+        access_key=settings.as_str("minio.access_key", allow_empty=False),
+        secret_key=settings.as_str("minio.secret_key", allow_empty=False),
+        bucket=settings.as_str("minio.config_bucket", allow_empty=False),
+        secure=settings.as_bool("minio.secure"),
+    )
+    _config_instance.ensure_bucket()
+    return _config_instance

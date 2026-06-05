@@ -125,6 +125,7 @@ minio:
   access_key: "${MINIO_ACCESS_KEY}"
   secret_key: "${MINIO_SECRET_KEY}"
   bucket: "ai-media"
+  config_bucket: "cognitive-companion"
   secure: false
   presigned_expiry_hours: 24
 

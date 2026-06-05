@@ -20,7 +20,7 @@ from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.models.household_settings import HouseholdSettings
-from backend.routers.dependencies import get_minio_client
+from backend.routers.dependencies import get_config_minio_client
 
 router = APIRouter(prefix="/household", tags=["household"])
 logger = get_logger(__name__)
@@ -89,7 +89,7 @@ def _sniff_image(data: bytes) -> str | None:
 @router.get("/floor-plan", response_model=FloorPlanOut)
 async def get_floor_plan(
     db: Session = Depends(get_db),
-    minio: MinioClient = Depends(get_minio_client),
+    minio: MinioClient = Depends(get_config_minio_client),
     _auth: AuthContext = Depends(require_permission("household:read")),
 ) -> Any:
     row = _get_settings(db)
@@ -117,7 +117,7 @@ async def post_floor_plan(
     floor_plan_height: int | None = Form(None),
     floor_meters_per_pixel: float | None = Form(None),
     db: Session = Depends(get_db),
-    minio: MinioClient = Depends(get_minio_client),
+    minio: MinioClient = Depends(get_config_minio_client),
     _auth: AuthContext = Depends(require_permission("household:write")),
 ) -> Any:
     row = _get_or_create_settings(db)

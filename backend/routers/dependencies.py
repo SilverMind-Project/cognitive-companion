@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from backend.websocket.connection_manager import ConnectionManager
 
 __all__ = [
+    "get_config_minio_client",
     "get_conversation_manager",
     "get_cts_runtime",
     "get_event_aggregator",
@@ -127,6 +128,14 @@ def get_minio_client(request: Request) -> MinioClient:
     client: MinioClient | None = request.app.state.minio_client
     if client is None:
         raise _raise_503("minio_client", "MinIO client")
+    return client
+
+
+def get_config_minio_client(request: Request) -> MinioClient:
+    """Return the lifespan-managed config MinIO client for static assets (503 if unavailable)."""
+    client: MinioClient | None = request.app.state.config_minio_client
+    if client is None:
+        raise _raise_503("config_minio_client", "Config MinIO client")
     return client
 
 

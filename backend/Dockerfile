@@ -22,9 +22,9 @@ RUN cd backend && uv sync --frozen --no-dev --extra gemini --extra triton
 # Create data directory
 RUN mkdir -p data
 
-# Download embedding model tokenizer (needed by triton-shared TextEmbedder)
-RUN mkdir -p /opt/models/embeddinggemma && \
-    backend/.venv/bin/python -c "from urllib.request import urlretrieve; urlretrieve('https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX/resolve/main/tokenizer.json', '/opt/models/embeddinggemma/tokenizer.json')"
+# Copy embedding model tokenizer (place tokenizer.json in models/embeddinggemma/ before building)
+RUN mkdir -p /opt/models/embeddinggemma
+COPY models/embeddinggemma/tokenizer.json /opt/models/embeddinggemma/tokenizer.json
 
 EXPOSE 8000
 

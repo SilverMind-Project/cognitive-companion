@@ -1,15 +1,15 @@
 <template>
   <div>
     <!-- Header -->
-    <div class="d-flex align-center mb-6">
+    <div class="floor-plan-header d-flex align-start flex-wrap ga-3 mb-4">
       <div>
-        <h2 class="text-h4 font-weight-bold tracking-tight">Floor Plan</h2>
-        <div class="text-body-2 text-medium-emphasis mt-1">
+        <h2 class="floor-plan-page-title font-weight-bold tracking-tight">Floor Plan</h2>
+        <div class="floor-plan-page-subtitle text-medium-emphasis mt-1">
           Upload a floor plan image and draw room polygons. Active people appear as dots in real time.
         </div>
       </div>
       <v-spacer />
-      <div class="d-flex ga-2">
+      <div class="floor-plan-mode-nav d-flex flex-wrap justify-end ga-2">
         <v-btn
           size="small"
           :variant="mode === 'live' ? 'flat' : 'outlined'"
@@ -58,425 +58,500 @@
         >
           Door Zones
         </v-btn>
+        <MaraudersToggle />
       </div>
     </div>
 
     <!-- ── Upload panel ───────────────────────────────────────────────────── -->
     <template v-if="mode === 'upload'">
-      <v-card class="glass-card mb-4">
-        <v-card-title>Upload Floor Plan Image</v-card-title>
+      <v-card class="glass-card upload-floor-plan-card mb-4">
+        <v-card-title class="floor-plan-card-title d-flex align-center">
+          <v-icon start size="18" color="primary">mdi-floor-plan</v-icon>
+          Upload Floor Plan Image
+        </v-card-title>
         <v-divider />
-        <v-card-text>
-          <v-alert type="info" variant="tonal" density="compact" class="mb-4 text-body-2">
-            Upload a top-down floor plan of the home (JPEG or PNG, up to 10 MB).
-            Image dimensions are detected automatically. Setting the real-world scale lets
-            the system convert pixel positions to metres for person tracking and camera calibration.
-          </v-alert>
+        <v-card-text class="pa-4">
+          <div class="upload-intro d-flex align-start ga-3 mb-4">
+            <v-icon size="20" color="primary">mdi-information-outline</v-icon>
+            <div>
+              <div class="text-body-2 font-weight-medium">Prepare the map for tracking</div>
+              <div class="text-caption text-medium-emphasis mt-1">
+                Choose a top-down JPEG or PNG up to 10 MB, optionally trim its margins,
+                then set the real-world scale used by tracking and camera calibration.
+              </div>
+            </div>
+          </div>
 
-          <!-- File input -->
-          <v-row dense class="mb-2">
-            <v-col cols="12" md="8">
-              <v-file-input
-                v-model="uploadFile"
-                label="Floor plan image"
-                accept="image/jpeg,image/png"
-                variant="outlined"
-                prepend-icon="mdi-image-outline"
-                density="compact"
-                hide-details
-                @update:model-value="onFileSelected"
-              />
-            </v-col>
-            <v-col v-if="uploadWidth && uploadHeight" cols="12" md="4" class="d-flex align-center">
-              <v-chip size="small" variant="tonal" color="success" prepend-icon="mdi-check">
-                {{ uploadWidth }} × {{ uploadHeight }} px detected
-              </v-chip>
-            </v-col>
-          </v-row>
+          <!-- Step 1: image selection and optional crop -->
+          <section class="upload-step">
+            <div class="upload-step-header d-flex align-start ga-3">
+              <span class="upload-step-number">1</span>
+              <div class="flex-grow-1">
+                <div class="text-subtitle-2 font-weight-semibold">Choose the image</div>
+                <div class="text-caption text-medium-emphasis">
+                  Dimensions are detected automatically. Existing values remain editable below.
+                </div>
+              </div>
+            </div>
 
-          <!-- Crop section — visual draw-to-crop bounding box -->
-          <template v-if="uploadFile && uploadWidth && uploadHeight">
-            <v-divider class="my-4" />
-            <div class="d-flex align-center mb-2">
-              <div class="text-subtitle-2">Crop margins</div>
-              <v-spacer />
-              <v-btn
-                v-if="!cropActive"
-                variant="text"
-                size="small"
-                prepend-icon="mdi-crop"
-                @click="startCropMode"
+            <v-row dense class="upload-file-row mt-3">
+              <v-col cols="12" md="8">
+                <v-file-input
+                  v-model="uploadFile"
+                  label="Floor plan image"
+                  accept="image/jpeg,image/png"
+                  variant="outlined"
+                  prepend-icon="mdi-image-outline"
+                  density="compact"
+                  hide-details
+                  @update:model-value="onFileSelected"
+                />
+              </v-col>
+              <v-col
+                cols="12"
+                md="4"
+                class="upload-file-actions d-flex align-center justify-end flex-wrap ga-2"
               >
-                Trim margins
-              </v-btn>
-              <template v-else>
+                <v-chip
+                  v-if="uploadWidth && uploadHeight"
+                  size="small"
+                  variant="tonal"
+                  color="success"
+                  prepend-icon="mdi-check"
+                >
+                  {{ uploadWidth }} × {{ uploadHeight }} px
+                </v-chip>
+                <v-btn
+                  v-if="uploadFile && uploadWidth && uploadHeight && !cropActive"
+                  variant="tonal"
+                  size="small"
+                  prepend-icon="mdi-crop"
+                  @click="startCropMode"
+                >
+                  Trim margins
+                </v-btn>
+              </v-col>
+            </v-row>
+
+            <!-- Crop section: actions stay attached to the workspace. -->
+            <div v-if="cropActive && scalePickerImageUrl" class="upload-crop-workspace mt-3">
+              <div class="d-flex align-center flex-wrap ga-2 px-3 py-2">
+                <div>
+                  <div class="text-body-2 font-weight-medium">Trim image margins</div>
+                  <div class="text-caption text-medium-emphasis">
+                    Drag corners or draw a new crop area.
+                  </div>
+                </div>
+                <v-spacer />
                 <v-btn variant="text" size="small" @click="resetCrop">Reset</v-btn>
                 <v-btn
                   color="primary"
                   variant="tonal"
                   size="small"
-                  class="ml-2"
                   prepend-icon="mdi-check"
                   @click="applyCrop"
                 >
                   Apply crop
                 </v-btn>
-              </template>
-            </div>
-
-            <!-- Draw-to-crop overlay (SVG-based, follows scale picker pattern) -->
-            <div
-              v-if="cropActive && scalePickerImageUrl"
-              ref="cropOuterRef"
-              class="crop-outer"
-              @wheel.prevent="cropZoom.actions.onWheel"
-            >
-              <div class="crop-zoom-content" :style="cropZoom.state.transformStyle">
-                <div
-                  class="crop-container"
-                  @mousedown="onCropMouseDown"
-                >
-                  <img
-                    ref="cropImgRef"
-                    :src="scalePickerImageUrl"
-                    class="crop-img"
-                    draggable="false"
-                    alt="Crop preview"
-                    @load="onCropImgLoad"
-                  />
-                  <svg
-                    v-if="cropImgRect"
-                    class="crop-svg-overlay"
-                    :viewBox="`0 0 ${cropImgRect.width} ${cropImgRect.height}`"
-                    :style="`left:${cropImgRect.offsetX}px;top:${cropImgRect.offsetY}px;width:${cropImgRect.width}px;height:${cropImgRect.height}px`"
+              </div>
+              <v-divider />
+              <div
+                ref="cropOuterRef"
+                class="crop-outer"
+                @wheel.prevent="cropZoom.actions.onWheel"
+              >
+                <div class="crop-zoom-content" :style="cropZoom.state.transformStyle">
+                  <div
+                    class="crop-container"
+                    @mousedown="onCropMouseDown"
                   >
-                    <!-- Dimmed backdrop: full image minus crop area -->
-                    <defs>
-                      <mask id="crop-mask">
-                        <rect x="0" y="0" :width="cropImgRect.width" :height="cropImgRect.height" fill="white" />
-                        <rect
-                          :x="cropRect.x * cropImgRect.width"
-                          :y="cropRect.y * cropImgRect.height"
-                          :width="cropRect.w * cropImgRect.width"
-                          :height="cropRect.h * cropImgRect.height"
-                          fill="black"
-                        />
-                      </mask>
-                    </defs>
-                    <rect
-                      x="0" y="0"
-                      :width="cropImgRect.width" :height="cropImgRect.height"
-                      fill="rgba(0,0,0,0.4)"
-                      mask="url(#crop-mask)"
+                    <img
+                      ref="cropImgRef"
+                      :src="scalePickerImageUrl"
+                      class="crop-img marauders-no-paint"
+                      draggable="false"
+                      alt="Crop preview"
+                      @load="onCropImgLoad"
                     />
-                    <!-- Crop rectangle border -->
-                    <rect
-                      :x="cropRect.x * cropImgRect.width"
-                      :y="cropRect.y * cropImgRect.height"
-                      :width="cropRect.w * cropImgRect.width"
-                      :height="cropRect.h * cropImgRect.height"
-                      fill="none"
-                      :stroke="_tokWarning"
-                      stroke-width="2.5"
-                      stroke-dasharray="8 4"
-                    />
-                    <!-- Corner drag handles -->
-                    <rect
-                      v-for="handle in cropHandles"
-                      :key="handle.corner"
-                      class="crop-handle"
-                      :x="handle.x * cropImgRect.width - 5"
-                      :y="handle.y * cropImgRect.height - 5"
-                      width="10" height="10"
-                      fill="white"
-                      :stroke="_tokWarning"
-                      stroke-width="2"
-                      :style="{ cursor: handle.cursor }"
-                      @mousedown.stop="onCropHandleDown(handle.corner, $event)"
-                    />
-                  </svg>
-                  <div v-if="!cropImgRect" class="d-flex align-center justify-center pa-8">
-                    <span class="text-body-2 text-medium-emphasis">Loading image...</span>
+                    <svg
+                      v-if="cropImgRect"
+                      class="crop-svg-overlay"
+                      :viewBox="`0 0 ${cropImgRect.width} ${cropImgRect.height}`"
+                      :style="`left:${cropImgRect.offsetX}px;top:${cropImgRect.offsetY}px;width:${cropImgRect.width}px;height:${cropImgRect.height}px`"
+                    >
+                      <defs>
+                        <mask id="crop-mask">
+                          <rect x="0" y="0" :width="cropImgRect.width" :height="cropImgRect.height" fill="white" />
+                          <rect
+                            :x="cropRect.x * cropImgRect.width"
+                            :y="cropRect.y * cropImgRect.height"
+                            :width="cropRect.w * cropImgRect.width"
+                            :height="cropRect.h * cropImgRect.height"
+                            fill="black"
+                          />
+                        </mask>
+                      </defs>
+                      <rect
+                        x="0" y="0"
+                        :width="cropImgRect.width" :height="cropImgRect.height"
+                        fill="rgba(0,0,0,0.4)"
+                        mask="url(#crop-mask)"
+                      />
+                      <rect
+                        :x="cropRect.x * cropImgRect.width"
+                        :y="cropRect.y * cropImgRect.height"
+                        :width="cropRect.w * cropImgRect.width"
+                        :height="cropRect.h * cropImgRect.height"
+                        fill="none"
+                        :stroke="_tokWarning"
+                        stroke-width="2.5"
+                        stroke-dasharray="8 4"
+                      />
+                      <rect
+                        v-for="handle in cropHandles"
+                        :key="handle.corner"
+                        class="crop-handle"
+                        :x="handle.x * cropImgRect.width - 5"
+                        :y="handle.y * cropImgRect.height - 5"
+                        width="10" height="10"
+                        fill="white"
+                        :stroke="_tokWarning"
+                        stroke-width="2"
+                        :style="{ cursor: handle.cursor }"
+                        @mousedown.stop="onCropHandleDown(handle.corner, $event)"
+                      />
+                    </svg>
+                    <div v-if="!cropImgRect" class="d-flex align-center justify-center pa-8">
+                      <span class="text-body-2 text-medium-emphasis">Loading image...</span>
+                    </div>
                   </div>
                 </div>
+
+                <CcZoomControls
+                  :zoom="cropZoom.state.zoom"
+                  :pan-x="cropZoom.state.panX"
+                  :pan-y="cropZoom.state.panY"
+                  @zoom-in="cropZoom.actions.zoomIn(cropOuterRef)"
+                  @zoom-out="cropZoom.actions.zoomOut(cropOuterRef)"
+                  @reset="cropZoom.actions.reset()"
+                />
+              </div>
+              <div class="text-caption text-medium-emphasis px-3 py-2">
+                Selection: {{ Math.round(uploadWidth * cropRect.w) }} ×
+                {{ Math.round(uploadHeight * cropRect.h) }} px
+              </div>
+            </div>
+          </section>
+
+          <!-- Step 2: scale calibration -->
+          <section class="upload-step">
+            <div class="upload-step-header d-flex align-start flex-wrap ga-3">
+              <span class="upload-step-number">2</span>
+              <div class="flex-grow-1">
+                <div class="text-subtitle-2 font-weight-semibold">Set the real-world scale</div>
+                <div class="text-caption text-medium-emphasis">
+                  Measure two known points for best accuracy, or enter the map's total width.
+                </div>
+              </div>
+              <v-btn-toggle
+                v-model="scaleMethod"
+                mandatory
+                density="compact"
+                variant="outlined"
+                divided
+                class="upload-scale-method"
+              >
+                <v-btn value="pickpoints" size="small">
+                  <v-icon start size="15">mdi-cursor-pointer</v-icon>Two points
+                </v-btn>
+                <v-btn value="realwidth" size="small">
+                  <v-icon start size="15">mdi-ruler</v-icon>Total width
+                </v-btn>
+              </v-btn-toggle>
+            </div>
+
+            <!-- Method A: click two points -->
+            <template v-if="scaleMethod === 'pickpoints'">
+              <div class="text-caption text-medium-emphasis mt-3 mb-2">
+                Click two points whose real distance you can measure, such as opposite room
+                corners or the sides of a doorway.
               </div>
 
-              <CcZoomControls
-                :zoom="cropZoom.state.zoom"
-                :pan-x="cropZoom.state.panX"
-                :pan-y="cropZoom.state.panY"
-                @zoom-in="cropZoom.actions.zoomIn(cropOuterRef)"
-                @zoom-out="cropZoom.actions.zoomOut(cropOuterRef)"
-                @reset="cropZoom.actions.reset()"
-              />
-            </div>
-            <div v-if="cropActive" class="text-caption text-medium-emphasis mt-1">
-              Drag corners to adjust, or click &amp; drag on empty area to redraw.
-              Cropped: {{ Math.round(uploadWidth * cropRect.w) }} × {{ Math.round(uploadHeight * cropRect.h) }} px
-            </div>
-          </template>
-
-          <!-- Scale section -->
-          <div class="text-subtitle-2 mb-3 mt-4">Real-world scale</div>
-
-          <v-btn-toggle
-            v-model="scaleMethod"
-            mandatory
-            density="compact"
-            variant="outlined"
-            class="mb-4"
-          >
-            <v-btn value="pickpoints" size="small">
-              <v-icon start size="15">mdi-cursor-pointer</v-icon>Click on image
-            </v-btn>
-            <v-btn value="realwidth" size="small">
-              <v-icon start size="15">mdi-ruler</v-icon>Enter total width
-            </v-btn>
-          </v-btn-toggle>
-
-          <!-- Method A: click two points -->
-          <template v-if="scaleMethod === 'pickpoints'">
-            <div class="text-caption text-medium-emphasis mb-2">
-              Click any two points whose real-world distance you can measure with a tape
-              (e.g. opposite corners of a room, two sides of a doorway).
-            </div>
-
-            <!-- Image picker area with zoom -->
-            <div
-              ref="scaleOuterRef"
-              class="scale-picker-outer mb-2"
-              @wheel.prevent="scaleZoom.actions.onWheel"
-            >
-              <div class="scale-picker-zoom-content" :style="scaleZoom.state.transformStyle">
-                <div
-                  class="scale-picker-inner"
-                  :class="scalePoints.length < 2 ? 'cursor-crosshair' : ''"
-                  @click="onScaleImageClick"
-                  @mousedown="onScalePickerMouseDown"
-                >
-                  <img
-                    v-if="scalePickerImageUrl"
-                    ref="scaleImgEl"
-                    :src="scalePickerImageUrl"
-                    class="scale-picker-img"
-                    draggable="false"
-                    alt="Floor plan"
-                    @load="onScaleImageLoad"
-                  />
-                  <div v-else class="scale-picker-empty d-flex align-center justify-center">
-                    <v-icon size="32" color="medium-emphasis">mdi-image-outline</v-icon>
-                    <span class="text-body-2 text-medium-emphasis ml-2">
-                      Upload a floor plan image first
-                    </span>
-                  </div>
-
-                  <!-- SVG overlay -->
-                  <svg
-                    v-if="scalePickerImageUrl && scaleImgRect"
-                    class="scale-picker-overlay"
-                    :viewBox="`0 0 ${scaleImgRect.width} ${scaleImgRect.height}`"
-                    :style="`left:${scaleImgRect.offsetX}px;top:${scaleImgRect.offsetY}px;width:${scaleImgRect.width}px;height:${scaleImgRect.height}px`"
+              <div
+                ref="scaleOuterRef"
+                class="scale-picker-outer"
+                @wheel.prevent="scaleZoom.actions.onWheel"
+              >
+                <div class="scale-picker-zoom-content" :style="scaleZoom.state.transformStyle">
+                  <div
+                    class="scale-picker-inner"
+                    :class="scalePoints.length < 2 ? 'cursor-crosshair' : ''"
+                    @click="onScaleImageClick"
+                    @mousedown="onScalePickerMouseDown"
                   >
-                    <!-- Connecting line -->
-                    <line
-                      v-if="scalePoints.length === 2"
-                      :x1="scalePoints[0][0] * scaleImgRect.width"
-                      :y1="scalePoints[0][1] * scaleImgRect.height"
-                      :x2="scalePoints[1][0] * scaleImgRect.width"
-                      :y2="scalePoints[1][1] * scaleImgRect.height"
-                      stroke="var(--cc-brand)"
-                      stroke-width="2"
-                      stroke-dasharray="6 4"
+                    <img
+                      v-if="scalePickerImageUrl"
+                      ref="scaleImgEl"
+                      :src="scalePickerImageUrl"
+                      class="scale-picker-img marauders-no-paint"
+                      draggable="false"
+                      alt="Floor plan"
+                      @load="onScaleImageLoad"
                     />
-                    <!-- Midpoint label -->
-                    <text
-                      v-if="scalePoints.length === 2"
-                      :x="(scalePoints[0][0] + scalePoints[1][0]) / 2 * scaleImgRect.width"
-                      :y="(scalePoints[0][1] + scalePoints[1][1]) / 2 * scaleImgRect.height - 8"
-                      fill="var(--cc-brand)"
-                      font-size="11"
-                      font-weight="600"
-                      text-anchor="middle"
-                    >{{ scalePixelDistance.toFixed(0) }} px</text>
-                    <!-- Point dots -->
-                    <g v-for="(pt, i) in scalePoints" :key="i">
-                      <circle
-                        :cx="pt[0] * scaleImgRect.width"
-                        :cy="pt[1] * scaleImgRect.height"
-                        r="8"
-                        fill="none"
+                    <div v-else class="scale-picker-empty d-flex align-center justify-center">
+                      <v-icon size="32" color="medium-emphasis">mdi-image-outline</v-icon>
+                      <span class="text-body-2 text-medium-emphasis ml-2">
+                        Upload a floor plan image first
+                      </span>
+                    </div>
+
+                    <svg
+                      v-if="scalePickerImageUrl && scaleImgRect"
+                      class="scale-picker-overlay"
+                      :viewBox="`0 0 ${scaleImgRect.width} ${scaleImgRect.height}`"
+                      :style="`left:${scaleImgRect.offsetX}px;top:${scaleImgRect.offsetY}px;width:${scaleImgRect.width}px;height:${scaleImgRect.height}px`"
+                    >
+                      <line
+                        v-if="scalePoints.length === 2"
+                        :x1="scalePoints[0][0] * scaleImgRect.width"
+                        :y1="scalePoints[0][1] * scaleImgRect.height"
+                        :x2="scalePoints[1][0] * scaleImgRect.width"
+                        :y2="scalePoints[1][1] * scaleImgRect.height"
                         stroke="var(--cc-brand)"
-                        stroke-width="2.5"
-                      />
-                      <circle
-                        :cx="pt[0] * scaleImgRect.width"
-                        :cy="pt[1] * scaleImgRect.height"
-                        r="3"
-                        fill="var(--cc-brand)"
+                        stroke-width="2"
+                        stroke-dasharray="6 4"
                       />
                       <text
-                        :x="pt[0] * scaleImgRect.width + 12"
-                        :y="pt[1] * scaleImgRect.height - 6"
+                        v-if="scalePoints.length === 2"
+                        :x="(scalePoints[0][0] + scalePoints[1][0]) / 2 * scaleImgRect.width"
+                        :y="(scalePoints[0][1] + scalePoints[1][1]) / 2 * scaleImgRect.height - 8"
+                        fill="var(--cc-brand)"
+                        font-size="11"
+                        font-weight="600"
+                        text-anchor="middle"
+                      >{{ scalePixelDistance.toFixed(0) }} px</text>
+                      <g v-for="(pt, i) in scalePoints" :key="i">
+                        <circle
+                          :cx="pt[0] * scaleImgRect.width"
+                          :cy="pt[1] * scaleImgRect.height"
+                          r="8"
+                          fill="none"
+                          stroke="var(--cc-brand)"
+                          stroke-width="2.5"
+                        />
+                        <circle
+                          :cx="pt[0] * scaleImgRect.width"
+                          :cy="pt[1] * scaleImgRect.height"
+                          r="3"
+                          fill="var(--cc-brand)"
+                        />
+                        <text
+                          :x="pt[0] * scaleImgRect.width + 12"
+                          :y="pt[1] * scaleImgRect.height - 6"
+                          fill="var(--cc-brand)"
+                          font-size="12"
+                          font-weight="bold"
+                        >{{ ['A', 'B'][i] }}</text>
+                      </g>
+                      <text
+                        v-if="scalePoints.length === 0"
+                        x="50%"
+                        y="50%"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        fill="var(--cc-brand)"
+                        font-size="13"
+                        opacity="0.6"
+                      >Click to place point A</text>
+                      <text
+                        v-else-if="scalePoints.length === 1"
+                        :x="scalePoints[0][0] * scaleImgRect.width + 20"
+                        :y="scalePoints[0][1] * scaleImgRect.height + 16"
                         fill="var(--cc-brand)"
                         font-size="12"
-                        font-weight="bold"
-                      >{{ ['A', 'B'][i] }}</text>
-                    </g>
-                    <!-- Instruction when no points yet -->
-                    <text
-                      v-if="scalePoints.length === 0"
-                      x="50%"
-                      y="50%"
-                      text-anchor="middle"
-                      dominant-baseline="middle"
-                      fill="var(--cc-brand)"
-                      font-size="13"
-                      opacity="0.6"
-                    >Click to place point A</text>
-                    <text
-                      v-else-if="scalePoints.length === 1"
-                      :x="scalePoints[0][0] * scaleImgRect.width + 20"
-                      :y="scalePoints[0][1] * scaleImgRect.height + 16"
-                      fill="var(--cc-brand)"
-                      font-size="12"
-                      opacity="0.8"
-                    >Click to place point B</text>
-                  </svg>
+                        opacity="0.8"
+                      >Click to place point B</text>
+                    </svg>
+                  </div>
                 </div>
+
+                <CcZoomControls
+                  :zoom="scaleZoom.state.zoom"
+                  :pan-x="scaleZoom.state.panX"
+                  :pan-y="scaleZoom.state.panY"
+                  @zoom-in="scaleZoom.actions.zoomIn(scaleOuterRef)"
+                  @zoom-out="scaleZoom.actions.zoomOut(scaleOuterRef)"
+                  @reset="scaleZoom.actions.reset()"
+                />
               </div>
 
-              <CcZoomControls
-                :zoom="scaleZoom.state.zoom"
-                :pan-x="scaleZoom.state.panX"
-                :pan-y="scaleZoom.state.panY"
-                @zoom-in="scaleZoom.actions.zoomIn(scaleOuterRef)"
-                @zoom-out="scaleZoom.actions.zoomOut(scaleOuterRef)"
-                @reset="scaleZoom.actions.reset()"
-              />
+              <div class="upload-scale-controls d-flex align-center flex-wrap ga-2 mt-3">
+                <div class="text-caption text-medium-emphasis">
+                  <template v-if="scalePoints.length === 2">
+                    {{ scalePixelDistance.toFixed(0) }} pixels selected
+                  </template>
+                  <template v-else>
+                    {{ scalePoints.length }}/2 points placed
+                  </template>
+                </div>
+                <v-spacer />
+                <v-btn
+                  size="small"
+                  variant="text"
+                  :disabled="scalePoints.length === 0"
+                  prepend-icon="mdi-close"
+                  @click="scalePoints = []"
+                >
+                  Clear points
+                </v-btn>
+              </div>
+
+              <v-row dense class="mt-1">
+                <v-col cols="12" md="7">
+                  <v-text-field
+                    v-model.number="scaleMeasuredM"
+                    label="Measured distance between A and B (metres)"
+                    variant="outlined"
+                    density="compact"
+                    type="number"
+                    step="0.01"
+                    :disabled="scalePoints.length < 2"
+                    :hint="scaleComputedMpp ? `Calculated scale: ${scaleComputedMpp} m/px` : 'Place both points, then enter the measured distance'"
+                    persistent-hint
+                    @update:model-value="onScaleMeasuredChange"
+                  />
+                </v-col>
+                <v-col cols="12" md="5" class="d-flex align-start">
+                  <div class="upload-calculation-summary cc-inset-section px-3 py-2">
+                    <div class="text-caption text-medium-emphasis">Calculated scale</div>
+                    <div class="text-body-2 font-weight-medium mt-1">
+                      {{ scaleComputedMpp ? `${scaleComputedMpp} m/px` : 'Waiting for measurement' }}
+                    </div>
+                  </div>
+                </v-col>
+              </v-row>
+            </template>
+
+            <!-- Method B: enter total width -->
+            <template v-else>
+              <v-row dense class="mt-3">
+                <v-col cols="12" md="7">
+                  <v-text-field
+                    v-model.number="uploadRealWidth"
+                    label="Total real-world width (metres)"
+                    variant="outlined"
+                    density="compact"
+                    type="number"
+                    step="0.1"
+                    :hint="uploadRealWidth && uploadWidth
+                      ? `Calculated scale: ${(uploadRealWidth / uploadWidth).toFixed(5)} m/px`
+                      : 'For example, enter 12.5 for a 12.5 metre wide home'"
+                    persistent-hint
+                    @update:model-value="onRealWidthChange"
+                  />
+                </v-col>
+                <v-col cols="12" md="5">
+                  <div class="upload-calculation-summary cc-inset-section px-3 py-2">
+                    <div class="text-caption text-medium-emphasis">Image width</div>
+                    <div class="text-body-2 font-weight-medium mt-1">
+                      {{ uploadWidth ? `${uploadWidth} px` : 'Select an image first' }}
+                    </div>
+                  </div>
+                </v-col>
+              </v-row>
+            </template>
+          </section>
+
+          <!-- Step 3: review editable values -->
+          <section class="upload-step">
+            <div class="upload-step-header d-flex align-start ga-3">
+              <span class="upload-step-number">3</span>
+              <div>
+                <div class="text-subtitle-2 font-weight-semibold">Review map details</div>
+                <div class="text-caption text-medium-emphasis">
+                  Confirm the calculated scale and detected image dimensions before saving.
+                </div>
+              </div>
             </div>
 
-            <!-- Controls below image -->
-            <div class="d-flex align-center mb-3">
-              <v-btn
-                size="small"
-                variant="tonal"
-                :disabled="scalePoints.length === 0"
-                prepend-icon="mdi-close"
-                @click="scalePoints = []"
-              >
-                Clear points
-              </v-btn>
-              <v-spacer />
-              <span v-if="scalePoints.length === 2" class="text-caption text-medium-emphasis">
-                {{ scalePixelDistance.toFixed(0) }} image pixels between A and B
-              </span>
-            </div>
-
-            <v-row dense v-if="scalePoints.length === 2">
-              <v-col cols="12" md="5">
+            <v-row dense class="mt-3">
+              <v-col cols="12" md="4">
                 <v-text-field
-                  v-model.number="scaleMeasuredM"
-                  label="Real distance between A and B (metres)"
+                  v-model.number="uploadMpp"
+                  label="Scale (m/px)"
                   variant="outlined"
                   density="compact"
                   type="number"
-                  step="0.01"
-                  :hint="scaleComputedMpp ? `→ ${scaleComputedMpp} m/px` : 'Measure A→B with a tape measure on the actual floor'"
+                  step="0.00001"
+                  hint="Metres represented by one image pixel"
                   persistent-hint
-                  @update:model-value="onScaleMeasuredChange"
                 />
               </v-col>
-            </v-row>
-            <div v-else class="text-caption text-medium-emphasis mb-3">
-              Place both points first, then enter the measured distance.
-            </div>
-          </template>
-
-          <!-- Method B: enter total width -->
-          <template v-else>
-            <div class="text-caption text-medium-emphasis mb-2">
-              How wide is the area this floor plan represents in real life?
-            </div>
-            <v-row dense>
-              <v-col cols="12" md="5">
+              <v-col cols="12" md="4">
                 <v-text-field
-                  v-model.number="uploadRealWidth"
-                  label="Total real-world width (metres)"
+                  v-model.number="uploadWidth"
+                  label="Width (px)"
                   variant="outlined"
                   density="compact"
                   type="number"
-                  step="0.1"
-                  :hint="uploadRealWidth && uploadWidth
-                    ? `→ ${(uploadRealWidth / uploadWidth).toFixed(5)} m/px`
-                    : 'e.g. 12.5 for a 12.5 m wide house'"
-                  persistent-hint
-                  @update:model-value="onRealWidthChange"
+                  hide-details
+                />
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-text-field
+                  v-model.number="uploadHeight"
+                  label="Height (px)"
+                  variant="outlined"
+                  density="compact"
+                  type="number"
+                  hide-details
                 />
               </v-col>
             </v-row>
-          </template>
-
-          <!-- Result row: final mpp + dimensions -->
-          <v-divider class="my-4" />
-          <v-row dense>
-            <v-col cols="12" md="4">
-              <v-text-field
-                v-model.number="uploadMpp"
-                label="Scale (m/px)"
-                variant="outlined"
-                density="compact"
-                type="number"
-                step="0.00001"
-                hint="Metres per pixel — auto-filled above, or type directly"
-                persistent-hint
-              />
-            </v-col>
-            <v-col cols="12" md="4">
-              <v-text-field
-                v-model.number="uploadWidth"
-                label="Width (px)"
-                variant="outlined"
-                density="compact"
-                type="number"
-                hide-details
-              />
-            </v-col>
-            <v-col cols="12" md="4">
-              <v-text-field
-                v-model.number="uploadHeight"
-                label="Height (px)"
-                variant="outlined"
-                density="compact"
-                type="number"
-                hide-details
-              />
-            </v-col>
-          </v-row>
-          <div v-if="uploadMpp && uploadWidth && uploadHeight" class="text-caption text-medium-emphasis mt-1">
-            This floor plan covers {{ (uploadWidth * uploadMpp).toFixed(1) }} × {{ (uploadHeight * uploadMpp).toFixed(1) }} metres.
-          </div>
+          </section>
         </v-card-text>
-        <v-card-actions class="px-4 pb-4">
+        <v-divider />
+        <v-card-actions class="upload-save-actions px-4 py-3">
+          <div class="upload-save-summary">
+            <div class="text-body-2 font-weight-medium">
+              {{ uploadFile ? 'New image ready to save' : 'Update floor plan settings' }}
+            </div>
+            <div class="text-caption text-medium-emphasis">
+              <template v-if="uploadMpp && uploadWidth && uploadHeight">
+                {{ uploadWidth }} × {{ uploadHeight }} px ·
+                {{ (uploadWidth * uploadMpp).toFixed(1) }} ×
+                {{ (uploadHeight * uploadMpp).toFixed(1) }} metres
+              </template>
+              <template v-else>
+                Image dimensions and scale are required for accurate mapping.
+              </template>
+            </div>
+          </div>
           <v-spacer />
           <v-btn
             color="primary"
             variant="flat"
+            min-width="150"
             :loading="uploading"
             :disabled="!uploadFile && !uploadWidth && !uploadHeight && !uploadMpp"
-            prepend-icon="mdi-upload"
+            prepend-icon="mdi-content-save"
             @click="uploadFloorPlan"
           >
-            Save
+            Save floor plan
           </v-btn>
         </v-card-actions>
       </v-card>
 
       <!-- Current floor plan preview -->
-      <v-card v-if="floorPlanUrl" class="glass-card">
-        <v-card-title>Current Floor Plan</v-card-title>
+      <v-card v-if="floorPlanUrl" class="glass-card floor-plan-visual-card">
+        <v-card-title class="floor-plan-card-title">Current Floor Plan</v-card-title>
         <v-divider />
-        <v-card-text>
-          <img :src="floorPlanUrl" class="floor-plan-preview" alt="Floor plan" />
+        <v-card-text class="pa-3">
+          <img
+            :src="floorPlanUrl"
+            class="floor-plan-preview marauders-no-paint"
+            alt="Floor plan"
+          />
           <div class="text-caption text-medium-emphasis mt-2">
             <template v-if="fpWidth && fpHeight">{{ fpWidth }} × {{ fpHeight }} px</template>
             <template v-if="fpMpp">
@@ -495,35 +570,10 @@
         delete it. Drag vertices to adjust. Click "Save polygon" to persist.
       </v-alert>
 
-      <v-row>
-        <v-col cols="12" md="3">
-          <v-card class="glass-card">
-            <v-card-title class="text-subtitle-2">Rooms</v-card-title>
-            <v-divider />
-            <v-list density="compact" nav>
-              <v-list-item
-                v-for="room in rooms"
-                :key="room.id"
-                :title="room.name"
-                :subtitle="room.floor_polygon ? `${room.floor_polygon.length} pts` : 'No polygon'"
-                :active="editingRoom?.id === room.id"
-                rounded="lg"
-                @click="selectRoom(room)"
-              >
-                <template #append>
-                  <v-icon v-if="room.floor_polygon" color="success" size="small">mdi-check-circle</v-icon>
-                </template>
-              </v-list-item>
-              <v-list-item v-if="rooms.length === 0" class="text-medium-emphasis text-body-2">
-                No rooms configured. Add rooms in the Rooms view.
-              </v-list-item>
-            </v-list>
-          </v-card>
-        </v-col>
-
-        <v-col cols="12" md="9">
-          <v-card class="glass-card">
-            <v-card-title class="d-flex align-center">
+      <v-row class="floor-plan-layout">
+        <v-col cols="12" md="9" class="floor-plan-main">
+          <v-card class="glass-card floor-plan-visual-card floor-plan-editor-card">
+            <v-card-title class="floor-plan-card-title d-flex align-center">
               <span>{{ editingRoom ? editingRoom.name : 'Select a room' }}</span>
               <v-spacer />
               <v-btn
@@ -550,7 +600,9 @@
             </v-card-title>
             <v-card-text class="pa-0">
               <PolygonOnSnapshot
+                class="marauders-no-paint"
                 :image-url="floorPlanUrl"
+                image-class="cc-floor-plan-background-image marauders-no-paint"
                 :model-value="editPolygon"
                 :min-points="3"
                 :readonly="!editingRoom"
@@ -559,13 +611,38 @@
             </v-card-text>
           </v-card>
         </v-col>
+
+        <v-col cols="12" md="3" class="floor-plan-sidebar">
+          <v-card class="glass-card floor-plan-sidebar-card">
+            <v-card-title class="floor-plan-card-title">Rooms</v-card-title>
+            <v-divider />
+            <v-list density="compact" nav>
+              <v-list-item
+                v-for="room in rooms"
+                :key="room.id"
+                :title="room.name"
+                :subtitle="room.floor_polygon ? `${room.floor_polygon.length} pts` : 'No polygon'"
+                :active="editingRoom?.id === room.id"
+                rounded="lg"
+                @click="selectRoom(room)"
+              >
+                <template #append>
+                  <v-icon v-if="room.floor_polygon" color="success" size="small">mdi-check-circle</v-icon>
+                </template>
+              </v-list-item>
+              <v-list-item v-if="rooms.length === 0" class="text-medium-emphasis text-body-2">
+                No rooms configured. Add rooms in the Rooms view.
+              </v-list-item>
+            </v-list>
+          </v-card>
+        </v-col>
       </v-row>
     </template>
 
     <!-- ── Coverage panel ──────────────────────────────────────────────────── -->
     <template v-else-if="mode === 'coverage'">
-      <v-card class="glass-card">
-        <v-card-title class="d-flex align-center">
+      <v-card class="glass-card floor-plan-visual-card">
+        <v-card-title class="floor-plan-card-title d-flex align-center">
           Camera Coverage
           <v-spacer />
           <v-btn
@@ -598,7 +675,7 @@
             <img
               v-if="floorPlanUrl"
               :src="floorPlanUrl"
-              class="coverage-fp-img"
+              class="coverage-fp-img cc-floor-plan-background-image marauders-no-paint"
               ref="coverageImgRef"
               @load="onCoverageImgLoad"
               alt="Floor plan"
@@ -612,8 +689,15 @@
               xmlns="http://www.w3.org/2000/svg"
             >
               <g v-for="cam in coverageCameras" :key="cam.camera_id">
+                <MaraudersInkPolygon
+                  v-if="maraudersState.enabled && cam.visibility_polygon"
+                  :points="cam.visibility_polygon"
+                  :canvas-w="coverageImgW"
+                  :canvas-h="coverageImgH"
+                  :seed-key="`coverage-${cam.camera_id}`"
+                />
                 <polygon
-                  v-if="cam.visibility_polygon"
+                  v-else-if="cam.visibility_polygon"
                   :points="toCoverageSvgPoints(cam.visibility_polygon)"
                   :fill="_tokBrandSoft"
                   :stroke="_tokBrand"
@@ -676,132 +760,34 @@
     <!-- ── Door Zones panel ─────────────────────────────────────────────────── -->
     <template v-else-if="mode === 'doors'">
       <v-card class="glass-card">
-        <v-card-title class="d-flex align-center">
+        <v-card-title class="floor-plan-card-title d-flex align-center">
           Door Zones
-          <v-spacer />
-          <v-btn
-            variant="tonal"
-            size="small"
-            prepend-icon="mdi-plus"
-            :disabled="!rooms.length"
-            @click="showDoorZoneDialog = true"
-          >
-            Add Zone
-          </v-btn>
         </v-card-title>
         <v-divider />
         <v-card-text>
-          <p class="text-body-2 text-medium-emphasis mb-4">
-            Door zones track when a person enters or leaves a room with no camera.
-            If a room has no camera, use a door zone to detect entry and exit events.
-          </p>
-
-          <div v-if="doorZonesLoading" class="text-caption">Loading...</div>
-          <div v-else-if="!doorZones.length" class="text-body-2 text-medium-emphasis">
-            No door zones configured. Add one to track entry/exit for camera-blind rooms.
-          </div>
-          <div v-else class="d-flex flex-wrap ga-3">
-            <v-card
-              v-for="zone in doorZones"
-              :key="zone.id"
-              class="glass-card"
-              width="300"
-              :border="true"
-            >
-              <v-card-item>
-                <template #title>{{ zone.name }}</template>
-                <template #subtitle>
-                  {{ zone.kind === 'door' ? 'Door' : 'Threshold' }}
-                </template>
-              </v-card-item>
-              <v-card-text class="text-caption">
-                <div>Inside: room {{ zone.inside_room_id }}</div>
-                <div>Outside: room {{ zone.outside_room_id }}</div>
-                <div>{{ zone.polygon?.length || 0 }} polygon vertices</div>
-              </v-card-text>
-              <v-card-actions>
-                <v-spacer />
-                <v-btn
-                  icon="mdi-delete"
-                  variant="text"
-                  size="small"
-                  color="error"
-                  @click="deleteDoorZone(zone.id)"
-                />
-              </v-card-actions>
-            </v-card>
-          </div>
+          <DoorZoneEditor
+            :rooms="rooms"
+            :zones="doorZones"
+            :loading="doorZonesLoading"
+            :floor-plan-url="floorPlanUrl"
+            :canvas-w="canvasW"
+            :canvas-h="canvasH"
+            :fp-mpp="fpMpp"
+            @saved="loadDoorZones"
+            @deleted="loadDoorZones"
+            @set-scale="mode = 'upload'"
+          />
         </v-card-text>
       </v-card>
-
-      <!-- Add Door Zone Dialog -->
-      <v-dialog v-model="showDoorZoneDialog" max-width="500">
-        <v-card>
-          <v-card-title>Add Door Zone</v-card-title>
-          <v-card-text>
-            <v-text-field
-              v-model="newDoorZone.name"
-              label="Name"
-              variant="outlined"
-              density="compact"
-              class="mb-3"
-            />
-            <v-select
-              v-model="newDoorZone.kind"
-              :items="['door', 'threshold']"
-              label="Type"
-              variant="outlined"
-              density="compact"
-              class="mb-3"
-            />
-            <v-select
-              v-model="newDoorZone.inside_room_id"
-              :items="rooms"
-              item-title="name"
-              item-value="id"
-              label="Inside Room"
-              variant="outlined"
-              density="compact"
-              class="mb-3"
-            />
-            <v-select
-              v-model="newDoorZone.outside_room_id"
-              :items="rooms"
-              item-title="name"
-              item-value="id"
-              label="Outside Room"
-              variant="outlined"
-              density="compact"
-              class="mb-3"
-            />
-            <p class="text-caption text-medium-emphasis">
-              Direction vector: [{{ newDoorZone.direction_vec.join(', ') }}]
-            </p>
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn variant="text" @click="showDoorZoneDialog = false">Cancel</v-btn>
-            <v-btn
-              variant="tonal"
-              color="primary"
-              :disabled="!newDoorZone.name || !newDoorZone.inside_room_id || !newDoorZone.outside_room_id"
-              :loading="doorZoneCreating"
-              @click="createDoorZone"
-            >
-              Create
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
     </template>
 
     <!-- ── Heatmap view ──────────────────────────────────────────────────── -->
     <template v-else-if="mode === 'heatmap'">
-      <v-row>
+      <v-row class="floor-plan-layout">
         <!-- Floor plan canvas with heatmap overlay -->
-        <v-col cols="12" md="9">
-          <v-card class="glass-card">
-            <v-card-title class="text-subtitle-2 d-flex align-center">
+        <v-col cols="12" md="9" class="floor-plan-main">
+          <v-card class="glass-card floor-plan-visual-card">
+            <v-card-title class="floor-plan-card-title d-flex align-center">
               Presence Heatmap
               <v-spacer />
               <v-chip
@@ -815,11 +801,11 @@
               </v-chip>
             </v-card-title>
             <v-divider />
-            <v-card-text class="pa-2">
+            <v-card-text class="pa-0">
               <div
                 ref="heatmapCanvasRef"
                 class="floor-plan-canvas"
-                :style="{ aspectRatio: `${canvasW}/${canvasH}`, maxHeight: '65vh' }"
+                :style="{ aspectRatio: `${canvasW}/${canvasH}` }"
                 @wheel.prevent="heatmapZoom.actions.onWheel"
               >
                 <div
@@ -836,38 +822,36 @@
                       :href="floorPlanUrl"
                       :width="canvasW"
                       :height="canvasH"
-                      opacity="0.45"
+                      class="cc-floor-plan-background-image marauders-no-paint"
                     />
                     <g v-for="room in rooms" :key="room.id">
+                      <MaraudersInkPolygon
+                        v-if="maraudersState.enabled && room.floor_polygon && room.floor_polygon.length >= 3"
+                        :points="room.floor_polygon"
+                        :canvas-w="canvasW"
+                        :canvas-h="canvasH"
+                        :seed-key="`room-${room.id}`"
+                      />
                       <polygon
-                        v-if="room.floor_polygon && room.floor_polygon.length >= 3"
+                        v-else-if="room.floor_polygon && room.floor_polygon.length >= 3"
                         :points="room.floor_polygon.map(([x, y]) => `${x * canvasW},${y * canvasH}`).join(' ')"
                         class="room-poly"
                       />
                     </g>
-                    <!-- Heatmap bins -->
-                    <g>
-                      <rect
-                        v-for="bin in mappedHeatmapBins"
-                        :key="bin.key"
-                        :x="bin.canvasX"
-                        :y="bin.canvasY"
-                        :width="bin.canvasSize"
-                        :height="bin.canvasSize"
-                        :fill="_tokWarning"
-                        :opacity="bin.opacity"
-                      />
-                    </g>
-                    <text
-                      v-if="!heatmapState.loading && !mappedHeatmapBins.length"
-                      x="50%"
-                      y="50%"
-                      text-anchor="middle"
-                      fill="#888"
-                      :font-size="Math.round(canvasH * 0.025)"
-                    >
-                      {{ heatmapState.error ? heatmapState.error : 'Select a person and date range, then click Generate.' }}
-                    </text>
+                    <MaraudersHeatmapLayer
+                      v-if="maraudersState.enabled"
+                      :bins="mappedHeatmapBins"
+                      :loading="heatmapState.loading"
+                      :error="heatmapState.error"
+                      :canvas-h="canvasH"
+                    />
+                    <HeatmapBinLayer
+                      v-else
+                      :bins="mappedHeatmapBins"
+                      :loading="heatmapState.loading"
+                      :error="heatmapState.error"
+                      :canvas-h="canvasH"
+                    />
                   </svg>
                   <div
                     v-if="heatmapState.loading"
@@ -893,9 +877,9 @@
         </v-col>
 
         <!-- Heatmap controls -->
-        <v-col cols="12" md="3">
-          <v-card class="glass-card">
-            <v-card-title class="text-subtitle-2">Filters</v-card-title>
+        <v-col cols="12" md="3" class="floor-plan-sidebar">
+          <v-card class="glass-card floor-plan-sidebar-card">
+            <v-card-title class="floor-plan-card-title">Filters</v-card-title>
             <v-divider />
             <v-card-text>
               <v-select
@@ -1015,11 +999,11 @@
 
     <!-- ── Live view ─────────────────────────────────────────────────────── -->
     <template v-else>
-      <v-row>
+      <v-row class="floor-plan-layout">
         <!-- Floor plan SVG -->
-        <v-col cols="12" md="9">
-          <v-card class="glass-card">
-            <v-card-title class="d-flex align-center">
+        <v-col cols="12" md="9" class="floor-plan-main">
+          <v-card class="glass-card floor-plan-visual-card">
+            <v-card-title class="floor-plan-card-title d-flex align-center">
               <span>Live Floor Plan</span>
               <v-spacer />
               <v-chip
@@ -1053,13 +1037,13 @@
               </v-chip>
             </v-card-title>
             <v-divider />
-            <v-card-text class="pa-2">
+            <v-card-text class="pa-0">
               <!-- Floor plan canvas with pan/zoom. The outer div clips the zoomed
                    content; the inner zoom-content div receives the CSS transform. -->
               <div
                 ref="liveCanvasRef"
                 class="floor-plan-canvas"
-                :style="{ aspectRatio: `${canvasW}/${canvasH}`, maxHeight: '65vh' }"
+                :style="{ aspectRatio: `${canvasW}/${canvasH}` }"
                 @wheel.prevent="liveZoom.actions.onWheel"
               >
                 <div
@@ -1077,49 +1061,67 @@
                       :href="floorPlanUrl"
                       :width="canvasW"
                       :height="canvasH"
-                      opacity="0.45"
+                      class="cc-floor-plan-background-image marauders-no-paint"
                     />
 
                     <!-- Room polygons -->
                     <g v-for="room in rooms" :key="room.id">
-                      <polygon
-                        v-if="room.floor_polygon && room.floor_polygon.length >= 3"
-                        :points="room.floor_polygon.map(([x, y]) => `${x * canvasW},${y * canvasH}`).join(' ')"
-                        class="room-poly"
+                      <MaraudersInkPolygon
+                        v-if="maraudersState.enabled && room.floor_polygon && room.floor_polygon.length >= 3"
+                        :points="room.floor_polygon"
+                        :canvas-w="canvasW"
+                        :canvas-h="canvasH"
+                        :seed-key="`room-${room.id}`"
+                        :label="room.name"
                       />
-                      <text
-                        v-if="room.floor_polygon && room.floor_polygon.length >= 3"
-                        :x="centroidX(room.floor_polygon) * canvasW"
-                        :y="centroidY(room.floor_polygon) * canvasH"
-                        class="room-label"
-                      >
-                        {{ room.name }}
-                      </text>
+                      <template v-else-if="room.floor_polygon && room.floor_polygon.length >= 3">
+                        <polygon
+                          :points="room.floor_polygon.map(([x, y]) => `${x * canvasW},${y * canvasH}`).join(' ')"
+                          class="room-poly"
+                        />
+                        <text
+                          :x="centroidX(room.floor_polygon) * canvasW"
+                          :y="centroidY(room.floor_polygon) * canvasH"
+                          class="room-label"
+                        >
+                          {{ room.name }}
+                        </text>
+                      </template>
                     </g>
 
-                    <!-- N4: PH-driven markers — positions are interpolated by the
-                         smoothedMarkers watcher for jitter-free 5 Hz updates -->
-                    <PHMarker
-                      v-for="m in smoothedMarkers"
-                      :key="m.ph.ph_id || m.ph.identity_id"
-                      :ph="m.ph"
-                      :x="m.x"
-                      :y="m.y"
-                      :color="m.color"
-                      @click="onPhClick"
+                    <!-- PH-driven markers: smoothedMarkers are rAF-interpolated positions.
+                         phCount uses worldPhMarkers.length to avoid a flash where
+                         smoothedMarkers is briefly empty while the rAF tween starts.
+                         M4 seam: MaraudersFloorMarkers renders disappearing footprints
+                         when marauders mode is ON; FloorMarkerLayer otherwise. -->
+                    <MaraudersFloorMarkers
+                      v-if="maraudersState.enabled"
+                      :markers="smoothedMarkers"
+                      :ph-count="worldPhMarkers.length"
+                      :canvas-h="canvasH"
+                      :trails="trailBuffers"
+                      :now-ms="footprintNow"
+                      :fp-width="fpWidth"
+                      :fp-height="fpHeight"
+                      :fp-mpp="fpMpp"
+                      :canvas-w="canvasW"
+                      :reduced-motion="maraudersState.reducedMotion"
+                      @ph-click="onPhClick"
                     />
-
-                    <!-- Empty state -->
-                    <text
-                      v-if="worldPhMarkers.length === 0"
-                      x="50%"
-                      y="50%"
-                      text-anchor="middle"
-                      fill="#888"
-                      :font-size="Math.round(canvasH * 0.025)"
-                    >
-                      No active tracks. Waiting for live data…
-                    </text>
+                    <FloorMarkerLayer
+                      v-else
+                      :markers="smoothedMarkers"
+                      :ph-count="worldPhMarkers.length"
+                      :canvas-h="canvasH"
+                      @ph-click="onPhClick"
+                    />
+                    <MaraudersAmbientLayer
+                      v-if="maraudersState.enabled"
+                      :canvas-w="canvasW"
+                      :canvas-h="canvasH"
+                      :now-ms="footprintNow"
+                      :reduced-motion="maraudersState.reducedMotion"
+                    />
                   </svg>
                 </div>
 
@@ -1136,7 +1138,7 @@
               </div>
 
               <!-- Legend -->
-              <div class="d-flex align-center ga-4 px-2 pt-2">
+              <div class="floor-plan-legend d-flex align-center flex-wrap ga-4 px-3 py-2">
                 <div class="d-flex align-center ga-1 text-caption text-medium-emphasis">
                   <svg width="28" height="14">
                     <line x1="0" y1="7" x2="28" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -1157,9 +1159,9 @@
         </v-col>
 
         <!-- Active persons sidebar -->
-        <v-col cols="12" md="3">
-          <v-card class="glass-card">
-            <v-card-title class="text-subtitle-2 d-flex align-center">
+        <v-col cols="12" md="3" class="floor-plan-sidebar">
+          <v-card class="glass-card floor-plan-sidebar-card">
+            <v-card-title class="floor-plan-card-title d-flex align-center">
               <v-icon start size="16" color="success">mdi-account-multiple</v-icon>
               Active Persons
               <v-chip class="ml-2" size="x-small" color="primary">{{ activePersons.length }}</v-chip>
@@ -1213,8 +1215,8 @@
           </v-card>
 
           <!-- N4: Inferred presence badges -->
-          <v-card v-if="worldInferredRooms.length > 0" class="glass-card mt-3">
-            <v-card-title class="text-subtitle-2">Inferred Presence</v-card-title>
+          <v-card v-if="worldInferredRooms.length > 0" class="glass-card floor-plan-sidebar-card mt-3">
+            <v-card-title class="floor-plan-card-title">Inferred Presence</v-card-title>
             <v-divider />
             <v-card-text class="pa-2">
               <InferredPresenceBadge
@@ -1229,8 +1231,8 @@
           </v-card>
 
           <!-- Snapshot status -->
-          <v-card class="glass-card mt-3">
-            <v-card-title class="text-subtitle-2">Snapshot Status</v-card-title>
+          <v-card class="glass-card floor-plan-sidebar-card mt-3">
+            <v-card-title class="floor-plan-card-title">Snapshot Status</v-card-title>
             <v-divider />
             <v-list density="compact" class="pa-1">
               <v-list-item class="rounded-lg">
@@ -1271,7 +1273,7 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount, ref, shallowRef, computed, watch } from "vue";
+import { onMounted, onBeforeUnmount, ref, shallowRef, computed, watch, watchEffect } from "vue";
 import { useRouter } from "vue-router";
 import { identityColor } from "@/composables/useIdentityColor";
 import { roomForCanvasPoint } from "@/composables/useFloorPlanProjection";
@@ -1284,12 +1286,22 @@ import { getAppTimezone, localDateToUTCISO } from "@/services/timezone.js";
 import { household } from "@/services/household";
 import { cts } from "@/services/cts";
 import { useHeatmap } from "@/composables/useHeatmap.js";
+import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
 import CcZoomControls from "@/components/common/CcZoomControls.vue";
+import MaraudersToggle from "@/components/marauders/MaraudersToggle.vue";
+import MaraudersInkPolygon from "@/components/marauders/MaraudersInkPolygon.vue";
+import MaraudersFloorMarkers from "@/components/marauders/MaraudersFloorMarkers.vue";
+import MaraudersAmbientLayer from "@/components/marauders/MaraudersAmbientLayer.vue";
+import MaraudersHeatmapLayer from "@/components/marauders/MaraudersHeatmapLayer.vue";
+import DoorZoneEditor from "@/components/cts/DoorZoneEditor.vue";
 import PolygonOnSnapshot from "@/components/cts/PolygonOnSnapshot.vue";
 import PHMarker from "@/components/cts/floor/PHMarker.vue";
+import FloorMarkerLayer from "@/components/cts/floor/FloorMarkerLayer.vue";
+import HeatmapBinLayer from "@/components/cts/floor/HeatmapBinLayer.vue";
 import InferredPresenceBadge from "@/components/cts/floor/InferredPresenceBadge.vue";
 
 const { snack, snackText, snackColor, notify } = useNotify();
+const { state: maraudersState } = useMaraudersMode();
 const router = useRouter();
 
 // ── Design-token colors for bespoke spatial renderers (D3) ────────────────
@@ -1360,64 +1372,18 @@ const mode = ref("live");
 // ── Door Zones tab state ───────────────────────────────────────────────────
 const doorZones = ref([]);
 const doorZonesLoading = ref(false);
-const doorZoneCreating = ref(false);
-const showDoorZoneDialog = ref(false);
-const newDoorZone = ref({
-  name: "",
-  kind: "door",
-  inside_room_id: null,
-  outside_room_id: null,
-  direction_vec: [1.0, 0.0],
-  polygon: [[0.4, 0.45], [0.6, 0.45], [0.6, 0.55], [0.4, 0.55]],
-});
 
 async function loadDoorZones() {
   doorZonesLoading.value = true;
   try {
     doorZones.value = await cts.getTransitZones();
   } catch (e) {
-    // silently fail; user sees empty state
+    notify.error(e.message || "Failed to load door zones");
   } finally {
     doorZonesLoading.value = false;
   }
 }
 
-async function createDoorZone() {
-  doorZoneCreating.value = true;
-  try {
-    await cts.createTransitZone({
-      name: newDoorZone.value.name,
-      kind: newDoorZone.value.kind,
-      polygon: newDoorZone.value.polygon,
-      inside_room_id: newDoorZone.value.inside_room_id,
-      outside_room_id: newDoorZone.value.outside_room_id,
-      direction_vec: newDoorZone.value.direction_vec,
-    });
-    showDoorZoneDialog.value = false;
-    newDoorZone.value = {
-      name: "",
-      kind: "door",
-      inside_room_id: null,
-      outside_room_id: null,
-      direction_vec: [1.0, 0.0],
-      polygon: [[0.4, 0.45], [0.6, 0.45], [0.6, 0.55], [0.4, 0.55]],
-    };
-    await loadDoorZones();
-  } catch (e) {
-    // error shown by notify
-  } finally {
-    doorZoneCreating.value = false;
-  }
-}
-
-async function deleteDoorZone(id) {
-  try {
-    await cts.deleteTransitZone(id);
-    doorZones.value = doorZones.value.filter((z) => z.id !== id);
-  } catch (e) {
-    // silently fail
-  }
-}
 
 // Watch mode to lazy-load door zones (watch is imported at the top of <script setup>)
 watch(mode, (m) => {
@@ -1514,6 +1480,7 @@ const {
   lastUpdate: worldLastUpdate,
   isStale: worldIsStale,
   wsStatus: worldWsStatus,
+  trailBuffers,
 } = useWorldSnapshot();
 
 // Compute floor positions for world snapshot PHs
@@ -1582,6 +1549,15 @@ let _rafId = null;
 let _animStart = 0;
 let _animTargets = /** @type {typeof worldPhMarkers.value | null} */ (null);
 
+// ── MARAUDERS M4 (separable) ────────────────────────────────────────────
+// Footprint fade clock — updated each rAF frame so MaraudersFloorMarkers can
+// compute opacity without running its own animation loop. Uses the Date.now()
+// epoch to match the trail-buffer timestamps in useWorldSnapshot (rAF's `now`
+// is performance.now(), a different epoch — do not use it here). To remove
+// marauders mode, delete this ref, the `keepForFootprints` lines in _lerp, and
+// the maraudersState watch below; the base interpolation loop is untouched.
+const footprintNow = ref(Date.now());
+
 function _cubicEaseOut(t) { return 1 - (1 - t) ** 3; }
 
 function _lerp(now) {
@@ -1598,7 +1574,14 @@ function _lerp(now) {
     return { ...m, x, y };
   });
 
-  if (t < 1) {
+  // MARAUDERS M4 (separable): keep looping while footprints need continuous
+  // opacity fade, and advance the fade clock. Static reduced-motion mode does
+  // not need a 60fps loop. Without marauders, `keepForFootprints` is always
+  // false and the loop behaves exactly as the base interpolation tween.
+  const keepForFootprints = maraudersState.enabled && !maraudersState.reducedMotion;
+  if (keepForFootprints) footprintNow.value = Date.now();
+
+  if (t < 1 || keepForFootprints) {
     _rafId = requestAnimationFrame(_lerp);
   } else {
     _rafId = null;
@@ -1635,6 +1618,19 @@ watch(worldPhMarkers, (newMarkers) => {
   _animStart = performance.now();
   _rafId = requestAnimationFrame(_lerp);
 }, { immediate: true });
+
+// MARAUDERS M4 (separable): restart the rAF loop when marauders mode is toggled
+// ON while the tween is idle (no snapshot arrived recently), so footstep fade
+// starts immediately. Safe to delete with the rest of the marauders additions.
+watch(
+  () => maraudersState.enabled,
+  (on) => {
+    if (on && !maraudersState.reducedMotion && _rafId === null) {
+      _animStart = performance.now();
+      _rafId = requestAnimationFrame(_lerp);
+    }
+  }
+);
 
 // ── Computed ──────────────────────────────────────────────────────────────
 const worldMarkerByPhId = computed(() => {
@@ -2260,15 +2256,136 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.floor-plan-canvas {
-  position: relative;     /* anchor for CcZoomControls (absolute, bottom-right) */
-  overflow: hidden;       /* clip the zoomed/panned content */
+.floor-plan-header {
+  min-width: 0;
+}
+
+.floor-plan-page-title {
+  font-size: clamp(1.6rem, 2vw, 1.8rem);
+  line-height: 1.15;
+}
+
+.floor-plan-page-subtitle {
+  max-width: 680px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.floor-plan-mode-nav {
+  max-width: 100%;
+}
+
+.floor-plan-layout {
+  align-items: flex-start;
+}
+
+.floor-plan-main,
+.floor-plan-sidebar {
+  min-width: 0;
+}
+
+.floor-plan-visual-card {
+  overflow: hidden;
+}
+
+.floor-plan-card-title {
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.floor-plan-sidebar-card {
+  overflow: hidden;
+}
+
+.upload-floor-plan-card {
+  overflow: hidden;
+}
+
+.upload-intro {
+  padding: 12px 14px;
+  background: var(--cc-brand-softer);
+  border: 1px solid var(--cc-divider);
+  border-radius: var(--cc-radius-md);
+}
+
+.upload-step {
+  padding: 16px;
   background: var(--cc-surface-2);
+  border: 1px solid var(--cc-divider);
+  border-radius: var(--cc-radius-md);
+}
+
+.upload-step + .upload-step {
+  margin-top: 14px;
+}
+
+.upload-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  color: var(--cc-brand);
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--cc-brand-soft);
   border: 1px solid var(--cc-divider-strong);
-  border-radius: 8px;
-  /* aspect-ratio is set via :style from canvasW/canvasH; max-height keeps
-     very tall floor plans from pushing content off screen. */
-  min-height: 300px;
+  border-radius: var(--cc-radius-pill);
+}
+
+.upload-file-actions {
+  min-height: 40px;
+}
+
+.upload-crop-workspace {
+  overflow: hidden;
+  background: var(--cc-bg-elevated);
+  border: 1px solid var(--cc-divider-strong);
+  border-radius: var(--cc-radius-md);
+}
+
+.upload-crop-workspace .crop-outer {
+  border: 0;
+  border-radius: 0;
+}
+
+.upload-scale-method {
+  flex-shrink: 0;
+}
+
+.upload-scale-controls {
+  min-height: 32px;
+}
+
+.upload-calculation-summary {
+  width: 100%;
+  min-height: 64px;
+}
+
+.upload-save-actions {
+  min-height: 68px;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--cc-surface-2);
+}
+
+.upload-save-summary {
+  min-width: 220px;
+}
+
+.floor-plan-canvas {
+  position: relative;
+  width: 100%;
+  max-height: 58vh;
+  min-height: 260px;
+  overflow: hidden;
+  background: var(--cc-surface-2);
+  border: 0;
+  border-radius: 0;
 }
 
 /* Receives the useCanvasZoom CSS transform. fill parent fully so the
@@ -2288,14 +2405,22 @@ onBeforeUnmount(() => {
 
 .floor-plan-preview {
   display: block;
-  max-width: 100%;
-  max-height: 400px;
+  width: 100%;
+  max-height: 320px;
   border-radius: 4px;
   object-fit: contain;
+  object-position: center;
+  background: var(--cc-surface-2);
+}
+
+.floor-plan-legend {
+  min-height: 34px;
+  border-top: 1px solid var(--cc-divider);
+  background: var(--cc-surface-2);
 }
 
 .room-poly {
-  fill: rgba(99, 102, 241, 0.12);
+  fill: var(--cc-room-fill);
   stroke: var(--cc-brand);
   stroke-width: 1.5;
   stroke-dasharray: 6 4;
@@ -2416,13 +2541,17 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
   background: var(--cc-surface-2);
-  min-height: 300px;
+  min-height: 260px;
+  max-height: 58vh;
 }
 
 .coverage-fp-img {
   display: block;
   width: 100%;
+  max-height: 58vh;
   height: auto;
+  object-fit: contain;
+  object-position: center;
 }
 
 .coverage-svg-overlay {
@@ -2435,7 +2564,7 @@ onBeforeUnmount(() => {
 }
 
 .coverage-empty {
-  min-height: 300px;
+  min-height: 260px;
 }
 
 .coverage-legend-swatch {
@@ -2445,5 +2574,64 @@ onBeforeUnmount(() => {
   border: 2px solid;
   border-radius: 3px;
   vertical-align: middle;
+}
+
+.floor-plan-editor-card :deep(.cc-spatial-editor) {
+  min-height: 260px;
+  max-height: min(560px, 58vh);
+  border: 0;
+  border-radius: 0;
+}
+
+.floor-plan-editor-card :deep(.cc-spatial-editor__image) {
+  max-height: min(560px, 58vh);
+}
+
+@media (min-width: 960px) {
+  .floor-plan-sidebar {
+    position: sticky;
+    top: 12px;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 959px) {
+  .floor-plan-header .v-spacer {
+    display: none;
+  }
+
+  .floor-plan-mode-nav {
+    width: 100%;
+    justify-content: flex-start !important;
+  }
+
+  .upload-file-actions {
+    justify-content: flex-start !important;
+  }
+
+  .upload-scale-method {
+    width: 100%;
+  }
+
+  .upload-scale-method :deep(.v-btn) {
+    flex: 1 1 0;
+  }
+
+  .upload-save-actions .v-spacer {
+    display: none;
+  }
+
+  .upload-save-summary {
+    width: 100%;
+  }
+
+  .upload-save-actions :deep(.v-btn) {
+    width: 100%;
+  }
+
+  .floor-plan-canvas,
+  .coverage-canvas-wrap {
+    max-height: 62vh;
+  }
 }
 </style>

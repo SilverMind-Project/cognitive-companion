@@ -893,6 +893,26 @@ The color identity is carried by the dot — not the text. `MAP_LABEL.attrs()` a
 --cc-annotation-halo:     rgba(0, 0, 0, 0.55);
 ```
 
+### rough.js and procedural sketch generators
+
+When rough.js or another procedural sketch library is used in a spatial component, follow these rules to prevent visual shimmer and unnecessary recomputation:
+
+- **Seed every shape.** Pass a stable `seed` value keyed to the entity or geometry identifier (room name, bounding-box track ID, footprint index). rough.js reseeds its randomness on every call; a shape that re-renders per animation frame will shimmer visibly if the seed changes between frames. Use `useRoughSketch.js`'s `seedFrom(str)` helper to derive a numeric seed from a string identifier.
+- **Memoize generated paths.** Generated SVG paths must be keyed and cached so zoom and pan do not trigger a redraw. `useRoughSketch.js` maintains a bounded LRU memo keyed on `seed + serialized vertices`. Apply the CSS transform to the SVG container, not to individual paths.
+- **Use plain straight lines during interactive drag.** Sketch rendering is for committed display state. While a vertex or zone boundary is being dragged, render straight lines. Apply the sketchy style only when the geometry is committed (on `mouseup` or after the drag animation settles).
+
+```js
+import { useRoughSketch } from '@/composables/useRoughSketch.js';
+const { state: rough, actions: roughActions } = useRoughSketch();
+
+// Derive a stable numeric seed from a string identifier
+const seed = roughActions.seedFrom(roomName);
+// Returns a memoized SVG path string; safe to call in a computed property
+const pathData = roughActions.path(polygonPoints, { seed, roughness: 1.2 });
+```
+
+This rule applies to all components under `components/marauders/` and any future spatial component that uses procedural sketch rendering.
+
 ### Floor plan live view sizing
 
 The live canvas uses `aspect-ratio` CSS (not fixed `min-height`) so it correctly proportions to the floor plan image:
@@ -1000,6 +1020,89 @@ Connection-state rendering rules:
 
 `useLivePipeline` manages reconnection internally with 3-second exponential backoff. Do not implement reconnection in the view.
 
+---
+
+## Alternate themes and the Marauder's Map mode
+
+The app supports a third registered Vuetify theme, `ccMarauders`, that re-skins the entire admin UI to a parchment / hand-drawn Marauder's Map aesthetic. This section documents the patterns introduced by that feature so future theme work follows the same approach.
+
+### Theme-token discipline (the re-skinnability invariant)
+
+Every surface in the app reads `--cc-*` design tokens or Vuetify theme colors, never hardcoded hex or `rgba()` values. This discipline makes whole-app re-theming possible without per-component branching.
+
+Adding a new full-app theme requires two steps:
+
+1. Register a Vuetify theme in `main.js` with a `colors` object. This drives Vuetify's own `--v-theme-*` internals (buttons, switches, inputs, and chips read these, not `--cc-*`).
+2. Override `--cc-*` tokens in a dedicated `.v-theme--<name> {}` block in a new stylesheet. Import that stylesheet unconditionally in `main.js` alongside `theme.css`.
+
+Do not use a body-class alternative such as `body.marauders-mode`. A body class can only rewrite `--cc-*` tokens; Vuetify component internals read `--v-theme-*` variables, which a body class cannot set. A registered theme covers both layers.
+
+Reference implementation: `frontend/src/main.js` (the `ccMarauders` entry in `createVuetify`) and `frontend/src/styles/marauders.css` (the `.v-theme--ccMarauders {}` block).
+
+### The marauders isolation boundary
+
+All Marauder's-specific render code lives in dedicated files. The only edits to existing files were: theme registration in `main.js`, a few tokenization fixes in `theme.css`, mounting the toggle and global SVG defs in `AdminView.vue`, and one `v-if` per render seam in `CTSFloorPlanView.vue`. New theme work must follow the same pattern: one `v-if` per seam; if a seam needs more than one branch, extract the themed variant as a sibling component under `components/marauders/`.
+
+Shipped file inventory:
+
+| File | Purpose |
+|------|---------|
+| `composables/useMaraudersMode.js` | Single state owner: boolean flag, `localStorage` persistence, Vuetify theme capture and restore, `reducedMotion` exposure |
+| `composables/useRoughSketch.js` | rough.js path generation: seeded, memoized, with `seedFrom()` helper |
+| `composables/useFootprintTrail.js` | Footprint trail state: position buffer, decay timing, reduced-motion fallback |
+| `styles/marauders.css` | `.v-theme--ccMarauders {}` token block -- the sole location for parchment token overrides |
+| `components/marauders/MaraudersToggle.vue` | App-bar toggle control |
+| `components/marauders/MaraudersFloorMarkers.vue` | Footstep markers and trails coordinator |
+| `components/marauders/MaraudersFootprintGlyph.vue` | Single footstep glyph |
+| `components/marauders/MaraudersAmbientLayer.vue` | Decorative ambient-whimsy layer (clearly non-clinical) |
+| `components/marauders/MaraudersHeatmapLayer.vue` | Themed heatmap presence stain layer |
+| `components/marauders/MaraudersInkPolygon.vue` | Hand-drawn room polygon |
+| `components/marauders/MaraudersInkBox.vue` | Hand-drawn bounding box |
+| `components/marauders/MaraudersImageFilterDefs.vue` | Global SVG filter `<defs>` sprite for painterly images |
+| `components/marauders/MaraudersAdminBackground.vue` | Parchment background texture layer for the admin shell |
+| `assets/marauders/footstep.svg` | Footstep glyph sprite |
+
+### The single state owner
+
+`useMaraudersMode()` is the only owner of the mode flag and the Vuetify theme capture/restore logic. No component reads `localStorage` for the mode flag directly.
+
+| `localStorage` key | Value | Meaning |
+|--------------------|-------|---------|
+| `cc_marauders` | `"1"` | Marauder's mode is active |
+| `cc_marauders` | `"0"` | Marauder's mode is off |
+| `cc_theme` | `"ccDark"` or `"ccLight"` | User's preferred base theme (managed by the existing theme toggle, separate from `cc_marauders`) |
+
+On enable, the composable captures the current theme name as the restore target before switching to `ccMarauders`. On disable, it restores that captured value so toggling off always returns the user to their prior `ccDark` / `ccLight` preference.
+
+The composable returns the standard `{ state, actions }` shape:
+
+```js
+const { state, actions } = useMaraudersMode();
+// state.enabled       -- boolean; true when ccMarauders is active
+// state.reducedMotion -- reactive mirror of prefers-reduced-motion media query
+// actions.enable(), actions.disable(), actions.toggle()
+```
+
+`state.reducedMotion` updates reactively when the media query fires. Animated components (footprints, ink draw-on, gradient shimmer) consume this flag and render a static fallback when it is true.
+
+### Reduced-motion and accessibility for themes
+
+Every animation introduced by an alternate theme must have a static fallback when `state.reducedMotion` is true. Query the value from `useMaraudersMode()` in the component rather than duplicating the media-query listener.
+
+The parchment palette shipped in `marauders.css` was verified against WCAG AA at the following values:
+
+| Text token | Background | Ratio | Result |
+|-----------|-----------|-------|--------|
+| `--cc-text-1` (#3a2a16) | `--cc-bg` (#e9dcc0) | 9.5:1 | AA pass |
+| `--cc-text-1` (#3a2a16) | `--cc-surface` (#f0e6cf at 82%) | 9.1:1 | AA pass |
+| `--cc-text-2` (#5a4326) | `--cc-bg` (#e9dcc0) | 6.3:1 | AA pass |
+| `--cc-text-2` (#5a4326) | `--cc-surface` (#f0e6cf at 82%) | 6.0:1 | AA pass |
+| on-primary (#f0e6cf) | primary (#5b3a1a) | 6.8:1 | AA pass |
+
+If the palette is adjusted in future work, re-verify these ratios. WCAG AA is a floor, not a target; this is a care product.
+
+---
+
 ## File organization
 
 ```
@@ -1014,6 +1117,7 @@ frontend/
     components/common/        -- reusable shared components (LlmModelPicker, etc.)
     components/pipeline/      -- rule pipeline builder components
     components/companion/     -- senior-facing companion UI
+    components/marauders/     -- Marauder's Map themed render components (isolated; see alternate themes section)
     views/admin/              -- admin dashboard views (one per resource)
   tests/                      -- mirrors src/ structure
     composables/
@@ -1074,3 +1178,9 @@ Before marking frontend work complete:
 - Inspector drawers: `@click:row` wired on data tables (not only the Inspect button)
 - Composables return `{ state, actions }` shape (never flat named refs)
 - When tests are touched: affected specs and `npm run test -- --reporter=dot` pass with no Vue, Vue Router, unresolved component, missing injection, or console warnings
+- New full-app theme registered in `main.js` AND token block in a dedicated stylesheet; no body-class theming
+- Mode flag owned by one composable; no direct `localStorage` reads of `cc_marauders` elsewhere
+- rough.js and procedural sketches: seeded and memoized; no per-frame reseed
+- Theme animations have a static reduced-motion fallback driven by `state.reducedMotion` from `useMaraudersMode()`
+- Alternate theme passes WCAG AA text contrast; verify ink text on parchment background, not just visual appearance
+- Toggling a theme restores the user's prior light/dark theme

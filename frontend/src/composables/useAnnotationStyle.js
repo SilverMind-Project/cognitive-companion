@@ -37,8 +37,9 @@ import { ccToken } from "./useChartTheme.js";
 
 // Camera / video feed context: white text fill with dark halo.
 // For :style bindings (camelCase), access .color and .strokeLinejoin separately.
+// .color is a getter so it reads the CSS token at call time, enabling M2 parchment re-skin.
 export const HALO = Object.freeze({
-  color: "rgba(0,0,0,0.70)",
+  get color() { return ccToken("--cc-annotation-halo") || "rgba(0,0,0,0.70)"; },
   attrs(strokeWidth = 2) {
     return {
       "paint-order": "stroke",
@@ -52,9 +53,10 @@ export const HALO = Object.freeze({
 // Floor-plan map context: dark text with white halo.
 // The dot/marker already carries the identity color; the label just needs
 // to be readable on an architectural drawing background.
+// .fill and .haloColor are getters so they read CSS tokens at call time.
 export const MAP_LABEL = Object.freeze({
-  fill: "#1e293b",        // slate-900 — readable on white or light plans
-  haloColor: "rgba(255,255,255,0.92)",
+  get fill() { return ccToken("--cc-annotation-ink") || "#1e293b"; },
+  get haloColor() { return ccToken("--cc-annotation-halo-light") || "rgba(255,255,255,0.92)"; },
   attrs(strokeWidth = 2) {
     return {
       fill: this.fill,
@@ -94,14 +96,24 @@ export const MARKER = Object.freeze({
 
 // ---------------------------------------------------------------------------
 // Posture colors — semantic mapping used by live bbox overlay and PHMarker.
+// Reads CSS tokens at call time so M2 parchment re-skin can override them.
+// Fallbacks match the prior hardcoded values so default themes are unchanged.
 // ---------------------------------------------------------------------------
-const POSTURE_COLORS = {
+const POSTURE_TOKENS = {
+  standing: "--cc-posture-standing",
+  sitting:  "--cc-posture-sitting",
+  walking:  "--cc-posture-walking",
+  lying:    "--cc-posture-lying",
+};
+const POSTURE_FALLBACKS = {
   standing: "#4ade80",
-  sitting: "#fbbf24",
-  walking: "#60a5fa",
-  lying: "#c084fc",
+  sitting:  "#fbbf24",
+  walking:  "#60a5fa",
+  lying:    "#c084fc",
 };
 
 export function postureColor(posture) {
-  return POSTURE_COLORS[posture] ?? ccToken("--cc-text-2");
+  const tokenName = POSTURE_TOKENS[posture];
+  if (tokenName) return ccToken(tokenName) || POSTURE_FALLBACKS[posture];
+  return ccToken("--cc-text-2");
 }

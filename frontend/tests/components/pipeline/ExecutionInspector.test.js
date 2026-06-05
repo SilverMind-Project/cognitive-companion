@@ -43,8 +43,20 @@ const DETAIL = {
   rule_id: 7,
   rule_name: "Morning Check",
   status: "running",
+  started_at: "2026-05-29T10:00:00Z",
+  completed_at: null,
+  trigger_summary: "Manual trigger",
+  cooloff_triggered: false,
+  error: null,
   graph: { steps: [], edges: [] },
-  timeline: [{ step_id: 1, label: "Condition", step_type: "condition", status: "success" }],
+  timeline: [{
+    step_id: 1,
+    label: "Condition",
+    step_type: "condition",
+    status: "success",
+    resolved_config: { expression: "true" },
+    outputs: { matched: true },
+  }],
   can_cancel: true,
   can_rerun: false,
 };
@@ -58,10 +70,16 @@ const stubs = {
   "v-spacer": { template: '<span />' },
   "v-chip": { template: '<span><slot /></span>', props: ["color", "size", "variant"] },
   "v-alert": { template: '<div><slot /></div>', props: ["type", "density", "variant"] },
+  "v-list": { template: '<ul><slot /></ul>', props: ["density"] },
+  "v-list-item": { template: '<li><slot name="prepend" /><slot /><slot name="append" /></li>' },
+  "v-list-item-title": { template: '<span><slot /></span>' },
+  "v-list-item-subtitle": { template: '<span><slot /></span>' },
   "v-progress-circular": { template: '<div />' },
   "v-snackbar": { template: '<div><slot /></div>', props: ["modelValue", "color", "timeout"] },
   "v-dialog": { template: '<div v-if="modelValue"><slot /></div>', props: ["modelValue", "maxWidth", "persistent"] },
   "v-btn": {
+    inheritAttrs: false,
+    emits: ["click"],
     template: '<button :disabled="loading" @click="$emit(\'click\')"><slot />{{ icon || "" }}</button>',
     props: ["color", "variant", "size", "prependIcon", "icon", "loading"],
   },
@@ -105,7 +123,10 @@ describe("ExecutionInspector", () => {
     await flushPromises();
 
     expect(mocks.rerunWorkflow).toHaveBeenCalledWith(44);
-    expect(mocks.push).toHaveBeenCalledWith("/admin/executions?tab=live&execution=45");
+    expect(mocks.push).toHaveBeenCalledWith({
+      name: "admin-executions",
+      query: { tab: "live", execution: 45, rule_id: 7 },
+    });
   });
 
   it("selecting a node on the canvas drives the StepInspectorPanel", async () => {
@@ -115,5 +136,56 @@ describe("ExecutionInspector", () => {
     await wrapper.find('[data-testid="canvas-node"]').trigger("click");
 
     expect(wrapper.find('[data-testid="step-panel"]').text()).toContain("Notify");
+  });
+
+  it("shows execution metadata, errors, and cool-off state", async () => {
+    mocks.getWorkflowDetail.mockResolvedValue({
+      ...DETAIL,
+      status: "failed",
+      completed_at: "2026-05-29T10:01:05Z",
+      error: "Notification delivery failed",
+      cooloff_triggered: true,
+      can_cancel: false,
+      can_rerun: true,
+    });
+    const wrapper = mountInspector();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Manual trigger");
+    expect(wrapper.text()).toContain("Duration 1m 5s");
+    expect(wrapper.find('[data-testid="execution-error"]').text()).toContain("Notification delivery failed");
+    expect(wrapper.find('[data-testid="cooloff-alert"]').exists()).toBe(true);
+  });
+
+  it("copies resolved configs and outputs for all timeline steps", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const wrapper = mountInspector();
+    await flushPromises();
+
+    await wrapper.findAll("button").find((button) => button.text().includes("Copy data")).trigger("click");
+    await flushPromises();
+
+    expect(writeText).toHaveBeenCalledOnce();
+    const copied = JSON.parse(writeText.mock.calls[0][0]);
+    expect(copied["steps.Condition.resolved_config"]).toEqual({ expression: "true" });
+    expect(copied["steps.Condition.outputs"]).toEqual({ matched: true });
+  });
+
+  it("polls active live executions and allows polling to be paused", async () => {
+    vi.useFakeTimers();
+    const wrapper = mountInspector({ source: "live" });
+    await vi.runAllTicks();
+    await Promise.resolve();
+
+    expect(wrapper.vm.polling).toBe(true);
+    await wrapper.findAll("button").find((button) => button.text().includes("Pause")).trigger("click");
+    expect(wrapper.vm.polling).toBe(false);
+
+    wrapper.unmount();
+    vi.useRealTimers();
   });
 });

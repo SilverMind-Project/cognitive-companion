@@ -4,10 +4,37 @@
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Executions</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
-          Live pipeline runs, execution history, and ingest activity.
+          {{ pageDescription }}
         </div>
       </div>
       <v-spacer />
+      <v-chip
+        v-if="scopedRuleId"
+        size="small"
+        variant="tonal"
+        prepend-icon="mdi-filter-outline"
+        data-testid="rule-scope-chip"
+      >
+        {{ scopedRuleName || `Rule #${scopedRuleId}` }}
+      </v-chip>
+      <v-btn
+        v-if="scopedRuleId"
+        size="small"
+        variant="text"
+        prepend-icon="mdi-pencil-outline"
+        :to="{ name: 'admin-rule-detail', params: { id: scopedRuleId }, query: { tab: 'executions' } }"
+      >
+        Rule
+      </v-btn>
+      <v-btn
+        v-if="scopedRuleId"
+        size="small"
+        variant="text"
+        prepend-icon="mdi-filter-remove-outline"
+        @click="clearRuleScope"
+      >
+        All rules
+      </v-btn>
       <v-chip
         :color="wsColor"
         size="small"
@@ -59,7 +86,7 @@
                   :key="run.execution_id"
                   :active="selectedExecutionId === run.execution_id"
                   :title="run.rule_name"
-                  :subtitle="`#${run.execution_id} · ${run.status}`"
+                  :subtitle="runSubtitle(run)"
                   data-testid="run-item"
                   @click="selectRun(run, 'live')"
                 />
@@ -77,11 +104,17 @@
                   :key="run.execution_id"
                   :active="selectedExecutionId === run.execution_id"
                   :title="run.rule_name"
-                  :subtitle="`#${run.execution_id} · ${run.status}`"
+                  :subtitle="runSubtitle(run)"
                   data-testid="recent-run-item"
                   @click="selectRun(run, run.status === 'running' || run.status === 'waiting' ? 'live' : 'historic')"
                 />
               </v-list>
+              <v-card-text
+                v-if="!loadingRecent && !recentRuns.length"
+                class="text-medium-emphasis"
+              >
+                No recent executions.
+              </v-card-text>
             </v-card>
           </v-col>
 
@@ -131,6 +164,12 @@
             </template>
             <template #item.started_at="{ item }">
               {{ formatDateTime(item.started_at) }}
+            </template>
+            <template #item.completed_at="{ item }">
+              {{ item.completed_at ? formatDateTime(item.completed_at) : "-" }}
+            </template>
+            <template #item.duration="{ item }">
+              {{ formatDuration(item.started_at, item.completed_at) }}
             </template>
             <template #no-data>
               <div class="pa-6 text-center text-medium-emphasis">
@@ -207,7 +246,12 @@ import ExecutionInspector from "@/components/pipeline/ExecutionInspector.vue";
 const route = useRoute();
 const router = useRouter();
 const { notify } = useNotify();
-const { connectionState, activeRuns, ingestEvents, refresh: refreshSocket } = useLivePipeline();
+const {
+  connectionState,
+  activeRuns: allActiveRuns,
+  ingestEvents,
+  refresh: refreshSocket,
+} = useLivePipeline();
 
 const activeTab = ref(route.query.tab === "history" ? "history" : route.query.tab === "ingest" ? "ingest" : "live");
 const selectedExecutionId = ref(route.query.execution ? Number(route.query.execution) : null);
@@ -220,12 +264,32 @@ const loadingRecent = ref(false);
 const loadingHistory = ref(false);
 const loadingIngest = ref(false);
 const filter = ref({ status: "" });
+const scopedRuleId = computed(() => {
+  const value = Number(route.query.rule_id);
+  return Number.isInteger(value) && value > 0 ? value : null;
+});
+const activeRuns = computed(() => scopedRuleId.value
+  ? allActiveRuns.value.filter((run) => Number(run.rule_id) === scopedRuleId.value)
+  : allActiveRuns.value);
+const scopedRuleName = computed(() =>
+  selectedRun.value?.rule_name
+  || activeRuns.value[0]?.rule_name
+  || recentRuns.value[0]?.rule_name
+  || historyItems.value[0]?.rule_name
+  || null,
+);
+const pageDescription = computed(() => scopedRuleId.value
+  ? `Live runs and execution history for ${scopedRuleName.value || `rule #${scopedRuleId.value}`}.`
+  : "Live pipeline runs, execution history, and ingest activity.",
+);
 
 const historyHeaders = [
   { title: "ID", key: "id", width: 80 },
   { title: "Rule", key: "rule_name" },
   { title: "Status", key: "status" },
   { title: "Started", key: "started_at", width: DATETIME_COLUMN_WIDTH },
+  { title: "Completed", key: "completed_at", width: DATETIME_COLUMN_WIDTH },
+  { title: "Duration", key: "duration", sortable: false },
 ];
 
 const wsColor = computed(() => {
@@ -311,6 +375,11 @@ watch(activeTab, (tab) => {
   if (tab === "history") selectedSource.value = "historic";
 });
 
+watch(scopedRuleId, () => {
+  loadRecentRuns();
+  loadHistory();
+});
+
 function selectRun(run, source) {
   selectedRun.value = run;
   selectedExecutionId.value = run.execution_id;
@@ -328,6 +397,28 @@ function selectHistory(item) {
   selectedExecutionId.value = item.id;
   selectedSource.value = item.status === "running" || item.status === "waiting" ? "live" : "historic";
   router.replace({ query: { ...route.query, tab: "history", execution: item.id } });
+}
+
+function clearRuleScope() {
+  const query = { ...route.query };
+  delete query.rule_id;
+  router.replace({ query });
+}
+
+function runSubtitle(run) {
+  const started = run.started_at ? ` · ${formatDateTimeShort(run.started_at)}` : "";
+  return `#${run.execution_id} · ${run.status}${started}`;
+}
+
+function formatDuration(startIso, endIso) {
+  if (!startIso || !endIso) return "-";
+  const elapsedMs = new Date(endIso).getTime() - new Date(startIso).getTime();
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return "-";
+  const seconds = Math.floor(elapsedMs / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
 function handleRerun(result) {
@@ -357,7 +448,19 @@ function handleInspectorUpdated(detail) {
 async function loadRecentRuns() {
   loadingRecent.value = true;
   try {
-    recentRuns.value = await api.getPipelineRuns({ limit: 10 });
+    if (scopedRuleId.value) {
+      const executions = await api.getWorkflows({ rule_id: scopedRuleId.value, limit: 10 });
+      recentRuns.value = executions.map((execution) => ({
+        execution_id: execution.id,
+        rule_id: execution.rule_id,
+        rule_name: execution.rule_name,
+        status: execution.status,
+        started_at: execution.started_at,
+        completed_at: execution.completed_at,
+      }));
+    } else {
+      recentRuns.value = await api.getPipelineRuns({ limit: 10 });
+    }
   } catch (error) {
     notify.error("Failed to load recent runs: " + (error?.message || error));
   } finally {
@@ -369,6 +472,7 @@ async function loadHistory() {
   loadingHistory.value = true;
   try {
     const params = {};
+    if (scopedRuleId.value) params.rule_id = scopedRuleId.value;
     if (filter.value.status) params.status = filter.value.status;
     historyItems.value = await api.getWorkflows(params);
   } catch (error) {
@@ -418,6 +522,7 @@ defineExpose({
   selectedExecutionId,
   selectedSource,
   selectedRun,
+  scopedRuleId,
   ingestEvents,
   feedEvents,
   filter,

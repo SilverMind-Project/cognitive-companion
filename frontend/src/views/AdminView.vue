@@ -1,6 +1,8 @@
 <template>
   <v-app>
-    <AdminParticleBackground />
+    <MaraudersImageFilterDefs />
+    <MaraudersAdminBackground v-if="maraudersState.enabled" />
+    <AdminParticleBackground v-else />
     <v-navigation-drawer
       :rail="!pinned"
       permanent
@@ -92,6 +94,7 @@
       >
         {{ alertCount }} alert{{ alertCount !== 1 ? 's' : '' }}
       </v-btn>
+      <MaraudersToggle />
       <div class="theme-toggle" :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="toggleTheme">
         <div class="theme-toggle__track" :class="{ 'theme-toggle__track--dark': isDark }">
           <v-icon class="theme-toggle__icon theme-toggle__icon--sun" size="14">mdi-white-balance-sunny</v-icon>
@@ -149,9 +152,14 @@ import { ref, reactive, onMounted, onBeforeUnmount, computed, nextTick } from "v
 import { useTheme } from "vuetify";
 import { api } from "../services/api.js";
 import { cts } from "../services/cts.js";
+import { useMaraudersMode } from "../composables/useMaraudersMode.js";
 import AdminParticleBackground from "../components/common/AdminParticleBackground.vue";
+import MaraudersAdminBackground from "../components/marauders/MaraudersAdminBackground.vue";
+import MaraudersImageFilterDefs from "../components/marauders/MaraudersImageFilterDefs.vue";
+import MaraudersToggle from "../components/marauders/MaraudersToggle.vue";
 
 const theme = useTheme();
+const { state: maraudersState } = useMaraudersMode();
 const isDark = computed(() => theme.global.name.value === "ccDark");
 
 function toggleTheme() {

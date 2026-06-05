@@ -29,13 +29,13 @@
       :stroke-dasharray="ph.state === 'coasting' ? '6 4' : 'none'"
     />
 
-    <!-- Inner dot -->
+    <!-- Inner dot: ring stroke reads --cc-marker-ring token for parchment re-skin -->
     <circle
       :cx="x"
       :cy="y"
       :r="M.innerR"
       :fill="color"
-      stroke="#fff"
+      class="ph-marker-inner"
       stroke-width="2.5"
     />
 
@@ -84,4 +84,6 @@ export default {
 <style scoped>
 .ph-marker { cursor: pointer; }
 .ph-marker-label { pointer-events: none; }
+/* Inner dot ring reads the token so parchment mode can switch from white to ink. */
+.ph-marker-inner { stroke: var(--cc-marker-ring); }
 </style>

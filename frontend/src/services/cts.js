@@ -5,6 +5,8 @@
  * tracking microservices directly.
  */
 
+import { validateContract } from "./contracts.js";
+
 const BASE = "/api/v1/cts";
 
 function getApiKey() {
@@ -17,13 +19,14 @@ function authHeaders(extra = {}) {
 }
 
 async function req(path, options = {}) {
+  const { contract, ...fetchOptions } = options;
   const headers = authHeaders({
     "Content-Type": "application/json",
-    ...options.headers,
+    ...fetchOptions.headers,
   });
   let resp;
   try {
-    resp = await fetch(`${BASE}${path}`, { ...options, headers });
+    resp = await fetch(`${BASE}${path}`, { ...fetchOptions, headers });
   } catch (err) {
     throw new Error(`Network error: ${err.message || "Unable to reach server"}`);
   }
@@ -35,7 +38,9 @@ async function req(path, options = {}) {
     throw new Error(msg || `HTTP ${resp.status}`);
   }
   if (resp.status === 204) return null;
-  return resp.json();
+  const data = await resp.json();
+  if (contract) validateContract(contract, data);
+  return data;
 }
 
 export const cts = {
@@ -110,7 +115,7 @@ export const cts = {
 
   // ── Calibration diagnostics and transit zones ──────────────────────────────
   getCalibrationDiagnostics: () => req("/diagnostics/calibration"),
-  getTransitZones: () => req("/transit-zones"),
+  getTransitZones: () => req("/transit-zones", { contract: "cts.transitZones" }),
   createTransitZone: (body) =>
     req("/transit-zones", { method: "POST", body: JSON.stringify(body) }),
   updateTransitZone: (id, body) =>

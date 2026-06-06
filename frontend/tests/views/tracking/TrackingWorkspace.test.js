@@ -55,6 +55,13 @@ beforeEach(() => {
 });
 
 describe("TrackingWorkspace", () => {
+  it("renders one page-level heading and a labelled section navigation", () => {
+    const w = mountWorkspace();
+
+    expect(w.get("h1").text()).toBe("Tracking");
+    expect(w.get("nav").attributes("aria-label")).toBe("Tracking workspace sections");
+  });
+
   it("renders all 6 panel tabs for admin role", () => {
     const w = mountWorkspace();
     const ids = w.vm.visibleTabs.map((t) => t.id);

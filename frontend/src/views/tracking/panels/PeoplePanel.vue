@@ -1,6 +1,10 @@
 <template>
   <div>
-    <!-- Provenance strip: current room per person from usePersonPresence (D5) -->
+    <TrackingPanelHeader
+      title="People"
+      description="Review current household location and manage tracker identity hypotheses."
+    />
+
     <div v-if="locations.length" class="d-flex flex-wrap ga-2 mb-4">
       <v-chip
         v-for="loc in locations"
@@ -20,13 +24,14 @@
     </div>
 
     <!-- Full PH management panel re-homed here from CTSPersonHypothesesView -->
-    <CTSPersonHypothesesView />
+    <CTSPersonHypothesesView embedded />
   </div>
 </template>
 
 <script setup>
 import CcProvenanceBadge from "@/components/dashboard/CcProvenanceBadge.vue";
 import CTSPersonHypothesesView from "@/views/admin/CTSPersonHypothesesView.vue";
+import TrackingPanelHeader from "@/components/tracking/TrackingPanelHeader.vue";
 
 defineProps({
   locations: { type: Array, default: () => [] },

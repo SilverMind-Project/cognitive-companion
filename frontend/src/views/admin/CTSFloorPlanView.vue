@@ -3,7 +3,12 @@
     <!-- Header -->
     <div class="floor-plan-header d-flex align-start flex-wrap ga-3 mb-4">
       <div>
-        <h2 class="floor-plan-page-title font-weight-bold tracking-tight">Floor Plan</h2>
+        <h2
+          :class="embedded ? 'text-h6' : 'floor-plan-page-title'"
+          class="font-weight-bold tracking-tight"
+        >
+          Floor Plan
+        </h2>
         <div class="floor-plan-page-subtitle text-medium-emphasis mt-1">
           Upload a floor plan image and draw room polygons. Active people appear as dots in real time.
         </div>
@@ -1299,6 +1304,10 @@ import PHMarker from "@/components/cts/floor/PHMarker.vue";
 import FloorMarkerLayer from "@/components/cts/floor/FloorMarkerLayer.vue";
 import HeatmapBinLayer from "@/components/cts/floor/HeatmapBinLayer.vue";
 import InferredPresenceBadge from "@/components/cts/floor/InferredPresenceBadge.vue";
+
+defineProps({
+  embedded: { type: Boolean, default: false },
+});
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { state: maraudersState } = useMaraudersMode();

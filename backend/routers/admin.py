@@ -181,9 +181,18 @@ async def triton_health():
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(f"{http_url}/v2/health/ready")
             resp.raise_for_status()
-            return {"configured": True, "status": "ready"}
+        models: list[str] = []
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                mr = await client.post(f"{http_url}/v2/repository/index", json={})
+                if mr.is_success:
+                    models = [m.get("name", "") for m in mr.json() if m.get("name")]
+        except Exception:  # noqa: BLE001
+            logger.warning("triton_models_fetch_failed", url=http_url)
+        return {"configured": True, "status": "ready", "models": models}
     except Exception:  # noqa: BLE001
-        return {"configured": True, "status": "unreachable"}
+        logger.warning("triton_health_unreachable", url=http_url)
+        return {"configured": True, "status": "unreachable", "models": []}
 
 
 @router.get("/health/llm-models")

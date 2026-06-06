@@ -1,8 +1,10 @@
 <template>
   <div>
-    <div class="d-flex align-center mb-6 report-header">
+    <div class="d-flex align-center flex-wrap ga-3 report-header" :class="embedded ? 'mb-4' : 'mb-6'">
       <div>
-        <h2 class="text-h4 font-weight-bold">Weekly Report</h2>
+        <h2 :class="embedded ? 'text-h6' : 'text-h4'" class="font-weight-bold tracking-tight">
+          Weekly Report
+        </h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
           Trend report for clinical review. Print or save as PDF.
         </div>
@@ -120,6 +122,10 @@ const PALETTE = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD
 
 export default {
   name: "WeeklyReportView",
+
+  props: {
+    embedded: { type: Boolean, default: false },
+  },
 
   setup() {
     const personId = ref("");

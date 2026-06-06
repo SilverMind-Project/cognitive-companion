@@ -1,28 +1,34 @@
 <template>
-  <div>
-    <!-- Page header -->
-    <div class="d-flex align-center flex-wrap ga-3 mb-4">
-      <div>
-        <h2 class="text-h4 font-weight-bold tracking-tight">Tracking</h2>
+  <div class="tracking-workspace">
+    <div class="d-flex align-center flex-wrap ga-3 mb-5">
+      <div class="tracking-workspace__intro">
+        <h1 class="text-h4 font-weight-bold tracking-tight">Tracking</h1>
         <div class="text-body-2 text-medium-emphasis mt-1">
           Unified monitoring workspace: presence, signals, reports, and live views.
         </div>
       </div>
     </div>
 
-    <!-- Panel tabs -->
-    <v-tabs v-model="activePanel" color="primary" class="mb-4" density="compact">
-      <v-tab
-        v-for="tab in visibleTabs"
-        :key="tab.id"
-        :value="tab.id"
-        :prepend-icon="tab.icon"
+    <nav class="tracking-workspace__nav mb-5" aria-label="Tracking workspace sections">
+      <v-tabs
+        v-model="activePanel"
+        color="primary"
+        density="compact"
+        align-tabs="start"
+        show-arrows
       >
-        {{ tab.label }}
-      </v-tab>
-    </v-tabs>
+        <v-tab
+          v-for="tab in visibleTabs"
+          :key="tab.id"
+          :value="tab.id"
+          :prepend-icon="tab.icon"
+        >
+          {{ tab.label }}
+        </v-tab>
+      </v-tabs>
+    </nav>
 
-    <v-window v-model="activePanel">
+    <v-window v-model="activePanel" class="tracking-workspace__content">
       <v-window-item value="overview">
         <OverviewPanel :locations="presence.locations.value" :loading="presence.loading.value" />
       </v-window-item>
@@ -116,3 +122,36 @@ const presence = usePersonPresence();
 
 defineExpose({ activePanel, visibleTabs, roleConf });
 </script>
+
+<style scoped>
+.tracking-workspace,
+.tracking-workspace__intro,
+.tracking-workspace__content {
+  min-width: 0;
+}
+
+.tracking-workspace__intro {
+  max-width: 760px;
+}
+
+.tracking-workspace__nav {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--cc-surface-2);
+  border: 1px solid var(--cc-divider);
+  border-radius: var(--cc-radius-sm);
+}
+
+.tracking-workspace__nav :deep(.v-tab) {
+  min-width: max-content;
+}
+
+@media (max-width: 599px) {
+  .tracking-workspace__nav {
+    margin-inline: -8px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+}
+</style>

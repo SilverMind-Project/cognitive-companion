@@ -1,19 +1,21 @@
 <template>
   <div>
-    <!-- Header row -->
-    <div class="d-flex align-center flex-wrap ga-3 mb-4">
-      <div class="text-subtitle-1 font-weight-bold">Presence Timeline</div>
-      <v-spacer />
-      <v-btn
-        variant="tonal"
-        prepend-icon="mdi-refresh"
-        size="small"
-        :loading="loading"
-        @click="personId && fetchTimeline(personId)"
-      >
-        Refresh
-      </v-btn>
-    </div>
+    <TrackingPanelHeader
+      title="Presence Timeline"
+      description="Review room occupancy, dwell time, and transitions for one household member."
+    >
+      <template #actions>
+        <v-btn
+          variant="tonal"
+          prepend-icon="mdi-refresh"
+          size="small"
+          :loading="loading"
+          @click="personId && fetchTimeline(personId)"
+        >
+          Refresh
+        </v-btn>
+      </template>
+    </TrackingPanelHeader>
 
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4" closable @click:close="error = ''">
       {{ error }}
@@ -80,6 +82,7 @@ import CcStatusTimeline from "@/components/process/CcStatusTimeline.vue";
 import PresenceHudCard from "@/components/cts/presence/PresenceHudCard.vue";
 import RoomDwellTotalsCard from "@/components/cts/presence/RoomDwellTotalsCard.vue";
 import RecentTransitionsList from "@/components/cts/presence/RecentTransitionsList.vue";
+import TrackingPanelHeader from "@/components/tracking/TrackingPanelHeader.vue";
 
 const route = useRoute();
 const { notify } = useNotify();

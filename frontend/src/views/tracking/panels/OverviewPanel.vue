@@ -1,6 +1,10 @@
 <template>
   <div>
-    <!-- Current presence tiles (one per person, from usePersonPresence) -->
+    <TrackingPanelHeader
+      title="Overview"
+      description="Current household location and recent tracking signals at a glance."
+    />
+
     <div class="text-subtitle-2 font-weight-bold mb-3">Current Presence</div>
 
     <v-skeleton-loader v-if="loading" type="card" class="mb-4" />
@@ -65,6 +69,7 @@ import { cts } from "@/services/cts.js";
 import { severityColor } from "@/composables/useCtsSeverity.js";
 import CcMetricTile from "@/components/dashboard/CcMetricTile.vue";
 import CcProvenanceBadge from "@/components/dashboard/CcProvenanceBadge.vue";
+import TrackingPanelHeader from "@/components/tracking/TrackingPanelHeader.vue";
 
 const props = defineProps({
   locations: { type: Array, default: () => [] },

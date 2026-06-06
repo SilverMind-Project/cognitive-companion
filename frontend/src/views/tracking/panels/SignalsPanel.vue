@@ -1,13 +1,15 @@
 <template>
   <div>
-    <!-- Header row -->
-    <div class="d-flex align-center flex-wrap ga-3 mb-4">
-      <div class="text-subtitle-1 font-weight-bold">Signals</div>
-      <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" size="small" :loading="loading" @click="loadSignals">
-        Refresh
-      </v-btn>
-    </div>
+    <TrackingPanelHeader
+      title="Signals"
+      description="Explore generated tracking signals, severity, provenance, and supporting evidence."
+    >
+      <template #actions>
+        <v-btn variant="tonal" prepend-icon="mdi-refresh" size="small" :loading="loading" @click="loadSignals">
+          Refresh
+        </v-btn>
+      </template>
+    </TrackingPanelHeader>
 
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4" closable @click:close="error = ''">
       {{ error }}
@@ -168,6 +170,7 @@ import { formatDateTimeShort } from "@/services/timezone.js";
 import CcBarChart from "@/components/charts/CcBarChart.vue";
 import CcSectionCard from "@/components/dashboard/CcSectionCard.vue";
 import CcProvenanceBadge from "@/components/dashboard/CcProvenanceBadge.vue";
+import TrackingPanelHeader from "@/components/tracking/TrackingPanelHeader.vue";
 
 const { notify } = useNotify();
 
@@ -264,4 +267,3 @@ async function openEvidence(_row, col) {
 
 onMounted(loadSignals);
 </script>
-

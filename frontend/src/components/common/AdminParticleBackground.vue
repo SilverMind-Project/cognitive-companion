@@ -1,20 +1,11 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
-import { useTheme } from 'vuetify'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 const canvasRef = ref(null)
-const theme = useTheme()
-const isDark = computed(() => theme.global.name.value === 'ccDark')
 
-// Dark: #0a84ff (--cc-brand). Light: #5856d6 (--cc-indigo). Read once per theme change, not per frame.
-function getColor(dark) {
-  return dark
-    ? [10 / 255, 132 / 255, 255 / 255]
-    : [88 / 255, 86 / 255, 214 / 255]
-}
-
-let currentColor = getColor(isDark.value)
-watch(isDark, (dark) => { currentColor = getColor(dark) })
+// Sage-400 (#5A896E) — warm, calm, brand-consistent
+const PARTICLE_COLOR = [90 / 255, 137 / 255, 110 / 255]
+let currentColor = PARTICLE_COLOR
 
 const prefersReducedMotion =
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -71,8 +62,6 @@ function makeProgram(gl, vs, fs) {
 onMounted(() => {
   const canvas = canvasRef.value
   if (!canvas) return
-
-  currentColor = getColor(isDark.value)
 
   const gl = canvas.getContext('webgl', { premultipliedAlpha: false, alpha: true })
   if (!gl) return
@@ -145,7 +134,7 @@ onMounted(() => {
         p.y += dym * 0.003
       }
 
-      verts.push(p.x, p.y, isDark.value ? 1.0 : 0.85)
+      verts.push(p.x, p.y, 0.7)
     }
 
     for (let i = 0; i < NUM_PARTICLES; i++) {
@@ -156,7 +145,7 @@ onMounted(() => {
         const dy = p1.y - p2.y
         const d2 = dx * dx + dy * dy
         if (d2 < MAX_DIST * MAX_DIST) {
-          const a = (1 - Math.sqrt(d2) / MAX_DIST) * (isDark.value ? 0.85 : 0.6)
+          const a = (1 - Math.sqrt(d2) / MAX_DIST) * 0.45
           verts.push(p1.x, p1.y, a, p2.x, p2.y, a)
         }
       }

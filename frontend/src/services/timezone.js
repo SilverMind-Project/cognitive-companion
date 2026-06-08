@@ -36,7 +36,7 @@ const _STORAGE_KEY = "cc_timezone";
  * Wide enough to prevent line-wrapping for the full formatDateTime output
  * ("01/15/2025, 02:30:45 PM").
  */
-export const DATETIME_COLUMN_WIDTH = 185;
+export const DATETIME_COLUMN_WIDTH = 195;
 
 // ---------------------------------------------------------------------------
 // Init / accessor

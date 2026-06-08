@@ -1,168 +1,190 @@
 /*
- * Cognitive Companion app theme.
+ * Cognitive Companion — Design System v2 tokens
  *
- * Apple-inspired tokens shared with the docs site:
- * generous typography, a single accent colour, frosted-glass surfaces,
- * and rounded geometry. Token names mirror the values used in
- * docs/.vitepress/theme/custom.css so the marketing site and the
- * in-product UI feel like the same product.
+ * Warm editorial calm: cream paper, grounded sage green, terracotta accent,
+ * deep warm ink. Senior-legible type. Soft daylight shadows. Calm motion.
+ *
+ * Token layers:
+ *   :root            — brand primitives, invariant spatial/posture tokens, fonts, radii
+ *   .v-theme--ccWarm — surfaces, text, borders, shadows for the single warm theme
+ *   marauders.css    — parchment overrides for ccMarauders (untouched)
  */
 
+/* ── Primitive color scales ──────────────────────────────────────────────── */
+
 :root {
-  /* Brand */
-  --cc-brand: #0a84ff;
+  /* Stone: warm neutral scale */
+  --stone-50:  #FBF8F3;
+  --stone-100: #F4EDE2;
+  --stone-200: #E8DDCC;
+  --stone-300: #D6C7AF;
+  --stone-400: #B3A286;
+  --stone-500: #877960;
+  --stone-600: #5F5544;
+  --stone-700: #433C30;
+  --stone-800: #2C2820;
+  --stone-900: #1D1A14;
 
-  /* Canvas annotation tokens — used by spatial renderers (floor plan, calibration, polygon editor).
-     Theme-invariant: these colors must read against photographic/map backgrounds, not UI surfaces. */
-  --cc-annotation-unknown: #fb923c;   /* tracking entity with no assigned identity */
-  --cc-annotation-pending: #f59e0b;   /* point placed, awaiting second click to confirm */
-  --cc-annotation-halo: rgba(0, 0, 0, 0.70); /* dark halo behind camera-feed SVG text labels */
-  --cc-annotation-halo-light: rgba(255, 255, 255, 0.92); /* light halo behind floor-plan labels */
-  --cc-annotation-ink: #1e293b;       /* floor-plan label text fill (slate-900, readable on light plans) */
+  /* Sage: primary brand green */
+  --sage-50:  #EDF4EE;
+  --sage-100: #D7E7DB;
+  --sage-200: #B0CFB9;
+  --sage-300: #82B292;
+  --sage-400: #5A896E;
+  --sage-500: #3F6B52;
+  --sage-600: #305340;
+  --sage-700: #243F31;
+  --sage-800: #192C22;
 
-  /* Spatial render tokens — defaults match prior hardcoded values so ccDark/ccLight are unchanged.
-     M2 (ccMarauders) overrides these for the parchment re-skin. */
-  --cc-room-fill: rgba(99, 102, 241, 0.12); /* room polygon fill (indigo tint) */
-  --cc-marker-ring: #ffffff;           /* PHMarker inner dot ring stroke */
+  /* Terra: terracotta accent */
+  --terra-50:  #FBEDE5;
+  --terra-100: #F5D8C9;
+  --terra-200: #EBB59B;
+  --terra-300: #DC8D6B;
+  --terra-400: #C8704F;
+  --terra-500: #AC5A3C;
+  --terra-600: #884630;
+
+  /* Semantic hues (muted, calm) */
+  --green-care:  #2F8F5B;
+  --gold-notice: #C98A2E;
+  --brick-alert: #BC5740;
+  --blue-info:   #4E7A8C;
+
+  /* Semantic surface + text pairs */
+  --good-fg:   #1F6B41; --good-bg:   #E2F0E7; --good-line: #BFE0CC;
+  --notice-fg: #8A5C12; --notice-bg: #FBEFD7; --notice-line:#F0D9A8;
+  --alert-fg:  #8E3A28; --alert-bg:  #FAE1DA; --alert-line: #F0C2B5;
+  --info-fg:   #2F5663; --info-bg:   #E0EDF1; --info-line:  #BFD9E1;
+}
+
+/* ── Typography ──────────────────────────────────────────────────────────── */
+
+:root {
+  --cc-font:         "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cc-font-display: "Newsreader", Georgia, "Times New Roman", serif;
+  --cc-font-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* ── Radii ───────────────────────────────────────────────────────────────── */
+
+:root {
+  --cc-radius-xs:   6px;
+  --cc-radius-sm:   10px;
+  --cc-radius-md:   14px;
+  --cc-radius-lg:   20px;
+  --cc-radius-xl:   28px;
+  --cc-radius-pill: 999px;
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────── */
+
+:root {
+  --cc-dur-fast: 130ms;
+  --cc-dur-base: 220ms;
+  --cc-dur-slow: 420ms;
+  --cc-ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --cc-ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Focus + inset (DS: terracotta focus ring, soft inset for inputs) ─────── */
+
+:root {
+  --cc-focus-ring:   var(--terra-300);
+  --cc-shadow-focus: 0 0 0 3px var(--cc-focus-ring);
+  --cc-shadow-inset: inset 0 1px 2px rgba(45, 38, 26, 0.05);
+
+  /* Vertical band reserved above an outlined field for its static label.
+     The same value is mirrored below hide-details fields so the field box
+     stays vertically centered (keeps controls aligned in align-center rows). */
+  --cc-field-label-band: 24px;
+}
+
+/* ── Spatial / canvas invariants (read against photos, never UI surfaces) ── */
+
+:root {
+  --cc-annotation-unknown:    #fb923c;
+  --cc-annotation-pending:    #f59e0b;
+  --cc-annotation-halo:       rgba(0, 0, 0, 0.70);
+  --cc-annotation-halo-light: rgba(251, 248, 243, 0.92);
+  --cc-annotation-ink:        #1D1A14;
+  --cc-room-fill:             rgba(63, 107, 82, 0.10);
+  --cc-marker-ring:           #ffffff;
   --cc-floor-plan-background-opacity: 0.55;
 
-  /* Posture semantic colors — M2 overrides for parchment legibility */
+  /* Posture: must read against photographic backgrounds */
   --cc-posture-standing: #4ade80;
   --cc-posture-sitting:  #fbbf24;
   --cc-posture-walking:  #60a5fa;
   --cc-posture-lying:    #c084fc;
-  --cc-brand-strong: #0071e3;
-  --cc-brand-soft: rgba(10, 132, 255, 0.12);
-  --cc-brand-softer: rgba(10, 132, 255, 0.06);
-  --cc-indigo: #5e5ce6;
-  --cc-purple: #bf5af2;
-  --cc-brand-gradient: linear-gradient(120deg, #0a84ff 0%, #5e5ce6 60%, #bf5af2 100%);
-  --cc-brand-gradient-size: 180% 180%;
-  --cc-brand-gradient-duration: 18s;
-  --cc-teal: #64d2ff;
-  --cc-success: #30d158;
-  --cc-warning: #ff9f0a;
-  --cc-error: #ff453a;
-
-  /* Geometry */
-  --cc-radius-sm: 8px;
-  --cc-radius-md: 12px;
-  --cc-radius-lg: 18px;
-  --cc-radius-xl: 24px;
-  --cc-radius-pill: 980px;
-
-  /* Typography */
-  --cc-font:
-    "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --cc-font-mono:
-    ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
-.cc-floor-plan-background-image {
-  opacity: var(--cc-floor-plan-background-opacity);
-}
+/* ── Warm theme token block ──────────────────────────────────────────────── */
+/*    Applied via <v-app> when Vuetify theme is "ccWarm".                    */
+/*    marauders.css overrides a subset of these for .v-theme--ccMarauders.   */
 
-.v-theme--ccDark {
-  /* Surfaces (dark: primary mode) */
-  --cc-bg: #000000;
-  --cc-bg-elevated: #0b0b0f;
-  --cc-surface: rgba(28, 28, 30, 0.70);
-  --cc-surface-2: rgba(44, 44, 46, 0.70);
-  --cc-surface-3: rgba(58, 58, 60, 0.55);
-  --cc-app-bar-glass: rgba(11, 11, 15, 0.72);
-  --cc-drawer-glass: rgba(18, 18, 22, 0.96);
+.v-theme--ccWarm {
+  /* Surfaces */
+  --cc-bg:          #FBF8F3;
+  --cc-bg-elevated: #FFFDF9;
+  --cc-surface:     #FFFDF9;
+  --cc-surface-2:   #F4EDE2;
+  --cc-surface-3:   #F4EDE2;
+  --cc-app-bar-glass: #FFFDF9;
+  --cc-drawer-glass:  #FFFFFF;
 
   /* Text */
-  --cc-text-1: #ffffff;
-  --cc-text-2: #a1a1a6;
-  --cc-text-3: #6e6e73;
+  --cc-text-1: #1D1A14;
+  --cc-text-2: #5F5544;
+  --cc-text-3: #877960;
 
-  /* Borders & dividers */
-  --cc-divider: rgba(255, 255, 255, 0.08);
-  --cc-divider-strong: rgba(255, 255, 255, 0.14);
-  --cc-glass-border: rgba(255, 255, 255, 0.08);
-  --cc-glass-border-strong: rgba(255, 255, 255, 0.12);
-
-  /* Shadows */
-  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
-  --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.35);
-  --cc-shadow-glass: 0 2px 16px -4px rgba(0, 0, 0, 0.35);
-  --cc-shadow-glass-hover: 0 6px 28px -6px rgba(0, 0, 0, 0.50);
-  --cc-particle: #0a84ff;
-}
-
-.v-theme--ccLight {
   /* Brand */
-  --cc-brand: #007aff;
-  --cc-brand-strong: #0062cc;
-  --cc-brand-soft: rgba(0, 122, 255, 0.12);
-  --cc-brand-softer: rgba(0, 122, 255, 0.06);
-  --cc-indigo: #5856d6;
-  --cc-purple: #af52de;
-  --cc-teal: #5ac8fa;
-  --cc-success: #34c759;
-  --cc-warning: #ff9500;
-  --cc-error: #ff3b30;
-  --cc-brand-gradient: linear-gradient(120deg, #007aff 0%, #5856d6 60%, #af52de 100%);
+  --cc-brand:        #3F6B52;
+  --cc-brand-strong: #305340;
+  --cc-brand-soft:   rgba(63, 107, 82, 0.12);
+  --cc-brand-softer: rgba(63, 107, 82, 0.06);
 
-  /* Surfaces (light mode) */
-  --cc-bg: #f2f2f7;
-  --cc-bg-elevated: #ffffff;
-  --cc-surface: rgba(255, 255, 255, 0.68);
-  --cc-surface-2: rgba(242, 242, 247, 0.72);
-  --cc-surface-3: rgba(229, 229, 234, 0.65);
-  --cc-app-bar-glass: rgba(255, 255, 255, 0.68);
-  --cc-drawer-glass: rgba(248, 248, 252, 0.97);
+  /* Semantic */
+  --cc-success: #2F8F5B;
+  --cc-warning: #C98A2E;
+  --cc-error:   #BC5740;
+  --cc-info:    #4E7A8C;
 
-  /* Text */
-  --cc-text-1: #000000;
-  --cc-text-2: #3a3a3c;
-  --cc-text-3: #8e8e93;
+  /* Chart palette (diverse, warm) */
+  --cc-teal:   #DC8D6B;
+  --cc-indigo: #82B292;
+  --cc-purple: #C8704F;
 
-  /* Borders & dividers */
-  --cc-divider: rgba(0, 0, 0, 0.06);
-  --cc-divider-strong: rgba(0, 0, 0, 0.12);
-  /* Dark borders for light surfaces — white borders are invisible on white backgrounds */
-  --cc-glass-border: rgba(0, 0, 0, 0.08);
-  --cc-glass-border-strong: rgba(0, 0, 0, 0.14);
+  /* Borders */
+  --cc-divider:             #E8DDCC;
+  --cc-divider-strong:      #D6C7AF;
+  --cc-glass-border:        #E8DDCC;
+  --cc-glass-border-strong: #D6C7AF;
 
-  /* Shadows */
-  --cc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --cc-shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.08);
-  --cc-shadow-lg: 0 24px 48px -24px rgba(10, 132, 255, 0.20);
-  --cc-shadow-glass: 0 2px 12px -4px rgba(0, 0, 0, 0.08);
-  --cc-shadow-glass-hover: 0 6px 24px -6px rgba(0, 0, 0, 0.12);
-  --cc-particle: #5856d6;
+  /* Shadows — warm ink, soft daylight */
+  --cc-shadow-sm:         0 1px 2px rgba(45, 38, 26, 0.06), 0 2px 6px rgba(45, 38, 26, 0.05);
+  --cc-shadow-md:         0 2px 4px rgba(45, 38, 26, 0.05), 0 8px 20px rgba(45, 38, 26, 0.08);
+  --cc-shadow-lg:         0 4px 8px rgba(45, 38, 26, 0.06), 0 18px 40px rgba(45, 38, 26, 0.12);
+  --cc-shadow-glass:      0 1px 2px rgba(45, 38, 26, 0.06), 0 2px 6px rgba(45, 38, 26, 0.05);
+  --cc-shadow-glass-hover:0 2px 4px rgba(45, 38, 26, 0.05), 0 8px 20px rgba(45, 38, 26, 0.08);
+
+  /* Particle background: sage green */
+  --cc-particle: #5A896E;
 }
 
-/* ----- Global resets / typographic polish ----- */
+/* ── Global element resets ───────────────────────────────────────────────── */
 
 html,
 body {
   font-family: var(--cc-font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.011em;
+  letter-spacing: -0.005em;
 }
 
 body {
   background-color: var(--cc-bg);
   color: var(--cc-text-1);
-}
-
-/* Subtle noise texture for depth (dark mode only) */
-.v-theme--ccDark body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.018;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 256px 256px;
 }
 
 code,
@@ -171,48 +193,66 @@ kbd {
   font-family: var(--cc-font-mono);
 }
 
-/* ----- Vuetify component overrides ----- */
+/* Warm selection + keyboard focus for plain interactive elements */
+::selection {
+  background: var(--sage-100);
+  color: var(--stone-900);
+}
+
+:where(a, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--cc-shadow-focus);
+  border-radius: var(--cc-radius-xs);
+}
+
+/* ── Vuetify overrides ───────────────────────────────────────────────────── */
 
 .v-application {
   font-family: var(--cc-font) !important;
   background-color: var(--cc-bg) !important;
 }
 
-/* Unified frosted-glass: stronger blur, richer saturation */
-.v-app-bar.v-toolbar,
-.v-navigation-drawer,
-.v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal) {
-  backdrop-filter: saturate(200%) blur(20px);
-  -webkit-backdrop-filter: saturate(200%) blur(20px);
-}
-
+/* App bar: warm solid surface, warm border, no blur */
 .v-app-bar.v-toolbar {
   background-color: var(--cc-app-bar-glass) !important;
   color: var(--cc-text-1) !important;
-  border-bottom: 1px solid var(--cc-divider);
+  border-bottom: 1px solid var(--cc-divider) !important;
+  box-shadow: 0 1px 0 var(--cc-divider) !important;
 }
 
+/* Navigation drawer: warm solid surface, no blur */
 .v-navigation-drawer {
   background-color: var(--cc-drawer-glass) !important;
   color: var(--cc-text-1) !important;
   border-right: 1px solid var(--cc-divider) !important;
 }
 
-/* Right-side panel drawers: flip border to the leading edge, add depth shadow */
 .v-navigation-drawer.cc-drawer-right {
   border-right: none !important;
   border-left: 1px solid var(--cc-divider-strong) !important;
-  box-shadow: -4px 0 32px rgba(0, 0, 0, 0.10), -1px 0 0 rgba(0, 0, 0, 0.04) !important;
+  box-shadow: -4px 0 24px rgba(45, 38, 26, 0.08), -1px 0 0 rgba(45, 38, 26, 0.04) !important;
 }
 
-/* Elevated cards get glass surface + border. Flat/text/plain variants are excluded:
-   flat cards are used as borderless inner wrappers (e.g. drawer roots, form sections). */
+/*
+ * Cards: warm paper surface with hairline border and soft daylight shadow.
+ * Elevated, outlined, tonal, flat, text, plain variants each styled below.
+ */
 .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(.v-card--variant-text):not(.v-card--variant-plain) {
   background-color: var(--cc-surface) !important;
   background-image: none !important;
   border: 1px solid var(--cc-glass-border) !important;
+  border-radius: var(--cc-radius-lg);
   box-shadow: var(--cc-shadow-glass);
-  transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+  transition: box-shadow var(--cc-dur-base) var(--cc-ease-standard),
+              border-color var(--cc-dur-base) var(--cc-ease-standard),
+              transform var(--cc-dur-base) var(--cc-ease-standard);
+}
+
+/* Overlay surfaces (menus, select/autocomplete dropdowns) stay tight — a
+   20px radius on a dropdown reads wrong. Scope the soft radius to content cards. */
+.v-overlay__content > .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(.v-card--variant-text):not(.v-card--variant-plain),
+.v-menu > .v-overlay__content .v-card {
+  border-radius: var(--cc-radius-sm);
 }
 
 .v-card.v-card--variant-outlined {
@@ -226,20 +266,29 @@ kbd {
 }
 
 .v-card-title {
-  font-weight: 600;
-  letter-spacing: -0.014em;
+  font-family: var(--cc-font-display) !important;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
+/* Buttons: warm pill, sage primary, calm press */
 .v-btn {
   text-transform: none !important;
   letter-spacing: -0.005em;
-  font-weight: 500;
+  font-weight: 600;
   border-radius: var(--cc-radius-pill);
-  transition: all 0.2s ease;
+  transition: background var(--cc-dur-fast) var(--cc-ease-standard),
+              transform var(--cc-dur-fast) var(--cc-ease-standard),
+              box-shadow var(--cc-dur-fast) var(--cc-ease-standard);
 }
 
 .v-btn--icon {
   border-radius: 50%;
+}
+
+/* DS focus: warm terracotta ring, keyboard-visible */
+.v-btn:focus-visible {
+  box-shadow: var(--cc-shadow-focus);
 }
 
 .v-btn--variant-flat,
@@ -249,15 +298,14 @@ kbd {
 
 .v-btn--variant-flat:hover,
 .v-btn--variant-elevated:hover {
-  box-shadow: var(--cc-shadow-md);
+  box-shadow: var(--cc-shadow-sm);
 }
 
 .v-btn--variant-tonal {
-  backdrop-filter: saturate(160%) blur(8px);
-  -webkit-backdrop-filter: saturate(160%) blur(8px);
-  background-color: var(--cc-surface-3) !important;
+  background-color: var(--cc-surface-2) !important;
 }
 
+/* List active state: sage */
 .v-list-item--active .v-list-item-title {
   color: var(--cc-brand);
   font-weight: 600;
@@ -272,7 +320,7 @@ kbd {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--cc-text-3) !important;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .v-tab {
@@ -288,7 +336,7 @@ kbd {
 .v-data-table th {
   font-weight: 600 !important;
   letter-spacing: -0.005em;
-  background-color: var(--cc-bg-elevated) !important;
+  background-color: var(--cc-surface-2) !important;
 }
 
 .v-data-table tr:hover td {
@@ -306,11 +354,16 @@ kbd {
   font-family: var(--cc-font) !important;
 }
 
-/* Input fields: subtle glass background */
+/* Input fields: warm surface (DS surface-card), soft inset, radius-md, sage focus border */
 .v-field--variant-outlined {
-  background-color: var(--cc-surface-3) !important;
-  backdrop-filter: saturate(140%) blur(6px);
-  -webkit-backdrop-filter: saturate(140%) blur(6px);
+  background-color: var(--cc-surface) !important;
+  border-radius: var(--cc-radius-md);
+  box-shadow: var(--cc-shadow-inset);
+}
+
+/* Disabled fields use the sunk warm surface (DS surface-sunk). */
+.v-field--variant-outlined.v-field--disabled {
+  background-color: var(--cc-surface-2) !important;
 }
 
 .v-field--variant-outlined .v-field__outline__start,
@@ -327,25 +380,94 @@ kbd {
   border-color: var(--cc-brand) !important;
 }
 
-.v-snackbar__wrapper {
-  border-radius: var(--cc-radius-md) !important;
-  backdrop-filter: saturate(200%) blur(24px);
-  -webkit-backdrop-filter: saturate(200%) blur(24px);
-  background-color: var(--cc-surface) !important;
-  border: 1px solid var(--cc-glass-border) !important;
-  box-shadow: var(--cc-shadow-glass) !important;
+/* DS focus: sage border (above) plus a soft terracotta ring around the field */
+.v-field--focused.v-field--variant-outlined {
+  box-shadow: var(--cc-shadow-focus);
 }
 
 /*
- * Dialogs: solid elevated surface — always opaque, never translucent.
- *
- * The selector repeats the :not() chain from the global card rule so that
- * specificity is (0,8,0) vs the global rule's (0,6,0). Both rules use
- * !important; higher specificity wins among !important declarations.
- * Without this, --cc-surface (translucent) overrides --cc-bg-elevated (solid).
- *
- * backdrop-filter is intentionally omitted: with a solid background it has
- * no visible effect and wastes GPU resources.
+ * DS form fields: the label sits as static text ABOVE the field, the border
+ * stays solid (no notch cut), and the field box keeps a fixed height. This
+ * replaces Vuetify's floating-label-in-the-border behaviour, which collides
+ * with the solid sage/terracotta focus border above. Applies to every outlined
+ * field that carries a label, at any density. Label-less fields (icon-only
+ * filters, search boxes) are untouched, so inline toolbars keep their layout.
+ */
+/*
+ * Reserve the label's space as PADDING (not margin) on the input wrapper, so it
+ * adds real height that never collapses with the previous field's margin -- the
+ * label can't be clipped by the field on the line above. This makes labeled
+ * fields taller by the label band, which is intentional.
+ */
+.v-input.v-text-field:has(.v-field__field > .v-field-label),
+.v-input.v-textarea:has(.v-field__field > .v-field-label),
+.v-input.v-select:has(.v-field__field > .v-field-label),
+.v-input.v-autocomplete:has(.v-field__field > .v-field-label),
+.v-input.v-combobox:has(.v-field__field > .v-field-label) {
+  padding-top: var(--cc-field-label-band);
+}
+
+/*
+ * Keep the field BOX vertically centered in the input. A field that hides its
+ * details has no bottom slot to balance the top label band, so its box sits
+ * high; in an `align-items: center` row (the standard header/filter pattern)
+ * adjacent buttons/toggles/checkboxes would then align to the label, not the
+ * box. Mirroring the band below restores symmetry so controls line up with the
+ * field box automatically -- no per-row class needed. Fields that show details
+ * already have a ~equal bottom slot, so they are intentionally excluded.
+ */
+.v-input.v-text-field:has(.v-field__field > .v-field-label):not(:has(.v-input__details)),
+.v-input.v-textarea:has(.v-field__field > .v-field-label):not(:has(.v-input__details)),
+.v-input.v-select:has(.v-field__field > .v-field-label):not(:has(.v-input__details)),
+.v-input.v-autocomplete:has(.v-field__field > .v-field-label):not(:has(.v-input__details)),
+.v-input.v-combobox:has(.v-field__field > .v-field-label):not(:has(.v-input__details)) {
+  padding-bottom: var(--cc-field-label-band);
+}
+
+/* Let the label show above the field box rather than being clipped. */
+.v-field--variant-outlined,
+.v-field--variant-outlined .v-field__field {
+  overflow: visible;
+}
+
+/* Pin the main label as static text above the field. */
+.v-field--variant-outlined .v-field__field > .v-field-label {
+  position: absolute;
+  top: auto;
+  bottom: calc(100% + 4px);
+  left: 2px;
+  transform: none !important;
+  transition: color var(--cc-dur-fast) var(--cc-ease-standard);
+  font-size: 13px !important;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: var(--stone-800) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+/* Hide the notch's floating label copy; collapse the notch so the border is solid. */
+.v-field--variant-outlined .v-field__outline__notch .v-field-label {
+  display: none !important;
+}
+.v-field--variant-outlined .v-field__outline__notch {
+  max-width: 0 !important;
+}
+
+/* Snackbar: warm card surface */
+.v-snackbar__wrapper {
+  border-radius: var(--cc-radius-md) !important;
+  background-color: var(--cc-bg-elevated) !important;
+  border: 1px solid var(--cc-glass-border) !important;
+  box-shadow: var(--cc-shadow-lg) !important;
+}
+
+/*
+ * Dialogs: solid elevated surface, never translucent.
+ * Specificity (0,8,0) beats the global card rule at (0,6,0).
  */
 .v-dialog > .v-overlay__content > .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(.v-card--variant-text):not(.v-card--variant-plain) {
   border-radius: var(--cc-radius-xl) !important;
@@ -354,107 +476,148 @@ kbd {
   border: 1px solid var(--cc-glass-border-strong) !important;
 }
 
-/* Dialog overlay: subtle darkening */
+/* Dialog overlay: subtle warm scrim */
 .v-overlay__scrim {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
 
-/* Tabs: glass pill indicator */
+/* Tabs: sage active */
 .v-tabs .v-tab--selected {
   color: var(--cc-brand) !important;
 }
 
-/* ----- Animated gradient text ----- */
+/* ── Brand text ──────────────────────────────────────────────────────────── */
 
+/* Warm serif brand display. Newsreader regular, sage green. */
 .cc-gradient-text {
-  background: var(--cc-brand-gradient);
-  background-size: var(--cc-brand-gradient-size);
-  background-position: 0% 50%;
-  animation: cc-gradient-drift var(--cc-brand-gradient-duration) ease-in-out infinite;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  font-family: var(--cc-font-display);
+  font-weight: 500;
+  color: var(--cc-brand);
 }
 
-@keyframes cc-gradient-drift {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 45%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cc-gradient-text {
-    animation: none;
-    background-position: 50% 50%;
-  }
-}
-
-/* Inline code style used in templating hint chips. */
+/* Inline code chip */
 .cc-code {
   font-family: var(--cc-font-mono);
   font-size: 0.85em;
   background-color: var(--cc-brand-softer);
   color: var(--cc-brand);
   padding: 2px 6px;
-  border-radius: 6px;
+  border-radius: var(--cc-radius-xs);
   font-weight: 500;
 }
 
-/* ----- Admin UI utility classes ----- */
+/* ── Admin UI utility classes ────────────────────────────────────────────── */
 
-/* Glass card: explicit glass-surface panels for depth layering */
+/*
+ * Warm card: solid paper surface, hairline border, soft daylight shadow.
+ * Use on non-Vuetify wrappers and as a v-card class for explicit styling.
+ * Has hover lift — interactive by default.
+ */
 .glass-card {
   background-color: var(--cc-surface) !important;
-  backdrop-filter: saturate(200%) blur(20px);
-  -webkit-backdrop-filter: saturate(200%) blur(20px);
   border: 1px solid var(--cc-glass-border) !important;
   box-shadow: var(--cc-shadow-glass);
   border-radius: var(--cc-radius-lg);
+  transition: box-shadow var(--cc-dur-base) var(--cc-ease-standard),
+              transform var(--cc-dur-base) var(--cc-ease-standard),
+              border-color var(--cc-dur-base) var(--cc-ease-standard);
 }
 
-/* Hover animation for interactive cards (e.g. Dashboard stat cards, Step Palette cards) */
 .glass-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--cc-shadow-glass-hover);
-  border-color: var(--cc-brand-soft) !important;
+  border-color: var(--cc-divider-strong) !important;
 }
 
-/* Inset section: subtle card surface for grouping within dialogs or larger cards.
-   Use on v-card elements inside dialogs to visually separate child content
-   (e.g. question editor cards, generation settings panels). */
+/*
+ * DS Card tones (apply alongside a v-card / .glass-card to tint the surface):
+ *   .cc-card-soft   — sage-tinted panel for gentle emphasis ("This week")
+ *   .cc-card-accent — terracotta-tinted panel for warm, human moments
+ * Radius and shadow are inherited from the card; only surface + border change.
+ */
+.cc-card-soft {
+  background-color: var(--sage-50) !important;
+  border-color: var(--sage-200) !important;
+}
+
+.cc-card-accent {
+  background-color: var(--terra-50) !important;
+  border-color: var(--terra-100) !important;
+}
+
+/*
+ * DS Badge — a calm pill status label with hand-tuned tone pairs (softer and
+ * warmer than a default Vuetify tonal chip). Use for explicit DS status labels;
+ * existing semantic v-chips keep their statusColor() mapping.
+ *   <span class="cc-badge cc-badge--good"><span class="cc-badge__dot"></span>Steady</span>
+ */
+.cc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--cc-font);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 5px 11px;
+  border-radius: var(--cc-radius-pill);
+  background: var(--stone-100);
+  color: var(--text-muted, var(--cc-text-2));
+}
+
+.cc-badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--cc-radius-pill);
+  background: currentColor;
+  flex: none;
+}
+
+.cc-badge--brand  { background: var(--sage-50);   color: var(--sage-600); }
+.cc-badge--good   { background: var(--good-bg);   color: var(--good-fg); }
+.cc-badge--notice { background: var(--notice-bg); color: var(--notice-fg); }
+.cc-badge--alert  { background: var(--alert-bg);  color: var(--alert-fg); }
+.cc-badge--info   { background: var(--info-bg);   color: var(--info-fg); }
+
+/* Stat card: dashboard metric panel */
+.stat-card {
+  transition: transform var(--cc-dur-base) var(--cc-ease-standard),
+              border-color var(--cc-dur-base) var(--cc-ease-standard),
+              box-shadow var(--cc-dur-base) var(--cc-ease-standard);
+  cursor: pointer;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--cc-brand-soft) !important;
+  box-shadow: var(--cc-shadow-glass-hover);
+}
+
+/* Inset section: subtle grouped sub-section within dialogs */
 .cc-inset-section {
   background-color: var(--cc-surface-2) !important;
-  backdrop-filter: saturate(140%) blur(12px);
-  -webkit-backdrop-filter: saturate(140%) blur(12px);
   border: 1px solid var(--cc-divider) !important;
   border-radius: var(--cc-radius-md);
-  transition: border-color 0.2s ease;
+  transition: border-color var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 .cc-inset-section:hover {
   border-color: var(--cc-divider-strong);
 }
 
-/* Shared dialog header — avatar + two-line title + close button */
+/* Dialog header shared pattern */
 .dialog-header {
-  background: linear-gradient(135deg, rgba(var(--v-theme-primary), 0.08) 0%, rgba(var(--v-theme-primary), 0.03) 100%);
+  background: rgba(63, 107, 82, 0.06);
 }
 
 .dialog-header-icon {
-  background: linear-gradient(135deg, rgb(var(--v-theme-primary)) 0%, #5e5ce6 60%, #bf5af2 100%);
+  background: var(--cc-brand);
 }
 
-/* Page header pattern used across admin views */
+/* Page header pattern */
 .cc-page-header {
   display: flex;
   align-items: center;
@@ -462,23 +625,36 @@ kbd {
 }
 
 .cc-page-header h2 {
-  letter-spacing: -0.018em;
+  letter-spacing: -0.014em;
 }
 
-/* Global tracking-tight utility (replaces scoped rules in individual views). */
-.tracking-tight {
-  letter-spacing: -0.018em;
-}
-
-/* Page transitions and Container Constraints */
+/* Main container constraint */
 .cc-main-container {
   max-width: 1440px;
   margin: 0 auto;
 }
 
+/* Eyebrow / overline helper — terracotta accent, the warm spark (DS base.css) */
+.cc-eyebrow {
+  font-family: var(--cc-font);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--terra-500);
+}
+
+/* Tracking-tight utility */
+.tracking-tight {
+  letter-spacing: -0.014em;
+}
+
+/* ── Page transitions ────────────────────────────────────────────────────── */
+
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity var(--cc-dur-base) var(--cc-ease-standard),
+              transform var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 .fade-slide-enter-from {
@@ -491,21 +667,12 @@ kbd {
   transform: translateY(-8px);
 }
 
+/* ── Right-side panel drawer ─────────────────────────────────────────────── */
+
 /*
- * Right-side panel drawer — global utility class.
- *
  * Usage: <v-navigation-drawer location="right" temporary class="cc-drawer-right">
- *
- * Width standards (set via the `width` prop on v-navigation-drawer):
- *   Standard panel (inspector, evidence, detail): width="480"
- *   Wide panel (complex multi-section views):     width="640"
- *
- * z-index 2100: VNavigationDrawer temporary uses VOverlay (≈2000), which is
- * already above VAppBar (≈1004). The explicit 2100 makes intent clear and
- * avoids edge-case stacking when multiple overlays are open.
- *
- * padding-top 0: correct because the drawer overlays above the app bar
- * (z-index 2100 > app bar ≈1004). Content is not hidden behind the navbar.
+ * Width standards: 480 (standard panels), 640 (wide multi-section views).
+ * z-index 2100: above VAppBar (~1004) and VOverlay default (~2000).
  */
 .cc-drawer-right {
   position: fixed !important;
@@ -521,12 +688,8 @@ kbd {
   padding-top: 0;
 }
 
-/* ── Spatial canvas controls ─────────────────────────────────────────── */
+/* ── Spatial canvas controls ─────────────────────────────────────────────── */
 
-/* Zoom control pill: pinned to bottom-right of the nearest position:relative
-   ancestor. Used by CcZoomControls inside any zoomable canvas surface.
-   Never place this class on an element that is itself positioned relative —
-   it must sit as an absolute child inside the canvas outer container. */
 .cc-zoom-controls {
   position: absolute;
   bottom: 10px;
@@ -537,11 +700,9 @@ kbd {
   z-index: 10;
   background: var(--cc-surface);
   border: 1px solid var(--cc-glass-border);
-  border-radius: 8px;
+  border-radius: var(--cc-radius-sm);
   padding: 5px;
   box-shadow: var(--cc-shadow-glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   pointer-events: all;
 }
 
@@ -553,21 +714,15 @@ kbd {
   border-color: var(--cc-brand-soft);
 }
 
-/* Zoom percentage label inside CcZoomControls */
 .cc-zoom-pct {
   font-variant-numeric: tabular-nums;
+  font-family: var(--cc-font-mono);
   margin-left: 2px;
   min-width: 56px;
   justify-content: center;
 }
 
-/* Stat card: elevated dashboard metric panels */
-.stat-card {
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-  cursor: pointer;
-}
-.stat-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--cc-brand-soft);
-  box-shadow: var(--cc-shadow-glass-hover);
+/* Floor plan background helper */
+.cc-floor-plan-background-image {
+  opacity: var(--cc-floor-plan-background-opacity);
 }

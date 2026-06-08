@@ -95,13 +95,6 @@
         {{ alertCount }} alert{{ alertCount !== 1 ? 's' : '' }}
       </v-btn>
       <MaraudersToggle />
-      <div class="theme-toggle" :title="isDark ? 'Switch to light theme' : 'Switch to dark theme'" @click="toggleTheme">
-        <div class="theme-toggle__track" :class="{ 'theme-toggle__track--dark': isDark }">
-          <v-icon class="theme-toggle__icon theme-toggle__icon--sun" size="14">mdi-white-balance-sunny</v-icon>
-          <v-icon class="theme-toggle__icon theme-toggle__icon--moon" size="14">mdi-moon-waning-crescent</v-icon>
-          <div class="theme-toggle__thumb" :class="{ 'theme-toggle__thumb--dark': isDark }" />
-        </div>
-      </div>
       <v-btn icon="mdi-refresh" variant="text" title="Reload config" @click="reloadConfig" />
       <v-btn size="small" variant="tonal" class="mx-2" @click="showKeyDialog = true">
         <v-icon start>mdi-key-variant</v-icon>
@@ -148,8 +141,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, computed, nextTick } from "vue";
-import { useTheme } from "vuetify";
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { api } from "../services/api.js";
 import { cts } from "../services/cts.js";
 import { useMaraudersMode } from "../composables/useMaraudersMode.js";
@@ -158,15 +150,7 @@ import MaraudersAdminBackground from "../components/marauders/MaraudersAdminBack
 import MaraudersImageFilterDefs from "../components/marauders/MaraudersImageFilterDefs.vue";
 import MaraudersToggle from "../components/marauders/MaraudersToggle.vue";
 
-const theme = useTheme();
 const { state: maraudersState } = useMaraudersMode();
-const isDark = computed(() => theme.global.name.value === "ccDark");
-
-function toggleTheme() {
-  const newTheme = isDark.value ? "ccLight" : "ccDark";
-  theme.global.name.value = newTheme;
-  localStorage.setItem("cc_theme", newTheme);
-}
 
 const showKeyDialog = ref(false);
 const showKey = ref(false);
@@ -468,64 +452,5 @@ onMounted(() => {
   padding-bottom: 4px;
 }
 
-/* ── Theme toggle ── */
 
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 6px;
-  border-radius: var(--cc-radius-pill);
-  transition: background-color 0.2s ease;
-}
-.theme-toggle:hover {
-  background-color: var(--cc-surface-2);
-}
-
-.theme-toggle__track {
-  position: relative;
-  width: 48px;
-  height: 26px;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #5e5ce6 0%, #0a84ff 100%);
-  transition: background 0.35s ease;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 5px;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
-}
-.theme-toggle__track--dark {
-  background: linear-gradient(135deg, #1c1c2e 0%, #2c2c3e 100%);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
-}
-
-.theme-toggle__thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
-  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1);
-}
-.theme-toggle__thumb--dark {
-  transform: translateX(22px);
-  background: #ffd60a;
-  box-shadow: 0 1px 6px rgba(255, 214, 10, 0.4), 0 0 0 0.5px rgba(0, 0, 0, 0.12);
-}
-
-.theme-toggle__icon {
-  position: relative;
-  z-index: 1;
-  pointer-events: none;
-}
-.theme-toggle__icon--sun {
-  color: #ffd60a;
-}
-.theme-toggle__icon--moon {
-  color: #a1a1a6;
-}
 </style>

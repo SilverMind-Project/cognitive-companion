@@ -26,7 +26,7 @@ function _initOnce() {
     // to the cc_theme key so toggle-off still restores the correct theme.
     _priorTheme = _theme.global.name.value;
     if (_priorTheme === "ccMarauders") {
-      _priorTheme = localStorage.getItem("cc_theme") || "ccDark";
+      _priorTheme = localStorage.getItem("cc_theme") || "ccWarm";
     }
     state.enabled = true;
     _theme.global.name.value = "ccMarauders";
@@ -48,7 +48,7 @@ export function useMaraudersMode() {
       if (state.enabled) return;
       _priorTheme = _theme.global.name.value;
       if (_priorTheme === "ccMarauders") {
-        _priorTheme = localStorage.getItem("cc_theme") || "ccDark";
+        _priorTheme = localStorage.getItem("cc_theme") || "ccWarm";
       }
       state.enabled = true;
       _theme.global.name.value = "ccMarauders";
@@ -59,7 +59,7 @@ export function useMaraudersMode() {
       if (!state.enabled) return;
       state.enabled = false;
       _theme.global.name.value =
-        _priorTheme || localStorage.getItem("cc_theme") || "ccDark";
+        _priorTheme || localStorage.getItem("cc_theme") || "ccWarm";
       localStorage.setItem("cc_marauders", "0");
     },
 

@@ -1,6 +1,6 @@
 @use "vuetify/settings" with (
   $body-font-family: var(--cc-font),
-  $heading-font-family: var(--cc-font),
+  $heading-font-family: var(--cc-font-display),
 );
 
 @use "vuetify/styles";

@@ -19,7 +19,7 @@
     "@codemirror/lint": "^6.9.6",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.0",
-    "@dagrejs/dagre": "1.1.4",
+    "@dagrejs/dagre": "3.0.0",
     "@fontsource/hanken-grotesk": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/kalam": "^5.2.8",

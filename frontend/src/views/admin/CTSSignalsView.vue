@@ -159,6 +159,7 @@ const signalTypes = [
   "nighttime_movement",
   "stillness_anomaly",
   "absence",
+  "fall_suspected",
 ];
 
 const signalIcons = {
@@ -169,6 +170,7 @@ const signalIcons = {
   nighttime_movement: "🌙",
   stillness_anomaly: "😴",
   absence: "❓",
+  fall_suspected: "⚠️",
 };
 
 const persons = computed(() => {

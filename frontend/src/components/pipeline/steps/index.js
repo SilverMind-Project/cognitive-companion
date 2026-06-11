@@ -91,6 +91,7 @@ export const knownSignalKinds = [
   "stillness_anomaly",
   "absence",
   "sundowning_index",
+  "fall_suspected",
 ];
 
 export const severityItems = [

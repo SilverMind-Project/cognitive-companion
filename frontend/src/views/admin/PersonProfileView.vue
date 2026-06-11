@@ -489,7 +489,7 @@ let signalsLoaded = false;
 
 const signalTypeItems = [
   "pacing", "room_revisit_rate", "bathroom_dwell_anomaly",
-  "sundowning_index", "nighttime_movement", "stillness_anomaly", "absence",
+  "sundowning_index", "nighttime_movement", "stillness_anomaly", "absence", "fall_suspected",
 ];
 
 const signalHeaders = [

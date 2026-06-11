@@ -102,6 +102,17 @@ class TestDecode:
         message = _proto_signal(identity_id="")
         assert subscriber.decode(b"msg-1", _proto_fields(message)) is None
 
+    def test_fall_suspected_kind_decodes(self, subscriber: DementiaSignalSubscriber):
+        # Proto enum value 7 = DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED (M2 task 2.2).
+        message = _proto_signal(
+            kind=7,
+            severity=signals_pb2.DEMENTIA_SIGNAL_SEVERITY_WARNING,
+        )
+        result = subscriber.decode(b"msg-fall-1", _proto_fields(message))
+        assert result is not None
+        assert result["signal_type"] == "fall_suspected"
+        assert result["severity"] == "warning"
+
 
 # ---------------------------------------------------------------------------
 # handle
@@ -149,6 +160,23 @@ class TestHandle:
         assert decoded is not None
         ok = await subscriber.handle(decoded)
         assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_handle_persists_fall_suspected_signal(
+        self, subscriber: DementiaSignalSubscriber, store: SignalStore
+    ):
+        message = _proto_signal(
+            kind=7,
+            severity=signals_pb2.DEMENTIA_SIGNAL_SEVERITY_WARNING,
+            identity_id="grandma",
+        )
+        decoded = subscriber.decode(b"msg-fall-1", _proto_fields(message))
+        assert decoded is not None
+        ok = await subscriber.handle(decoded)
+        assert ok is True
+
+        results, _ = await store.list_recent()
+        assert any(r["signal_type"] == "fall_suspected" for r in results)
 
     @pytest.mark.asyncio
     async def test_pipeline_error_does_not_fail_handle(self, store: SignalStore):

@@ -57,6 +57,7 @@ class DementiaSignalFilter(ContextFilter):
                             "nighttime_movement",
                             "stillness_anomaly",
                             "absence",
+                            "fall_suspected",
                         ],
                         "description": "Signal types to match (empty = any).",
                     },
@@ -185,7 +186,7 @@ class DementiaSignalFilter(ContextFilter):
             else:
                 # Crosses midnight.
                 return event_time >= start or event_time <= end
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             return False
 
     @staticmethod

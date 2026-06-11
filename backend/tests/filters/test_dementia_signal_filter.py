@@ -91,6 +91,50 @@ class TestKindsFilter:
     def test_multiple_kinds_matches_one(self, filt: DementiaSignalFilter):
         assert filt.evaluate({"kinds": ["sundowning", "pacing"]}, _SIGNAL_EVENT, _NOW) is True
 
+    def test_fall_suspected_kind_matches(self, filt: DementiaSignalFilter):
+        event = {
+            "kind": "dementia_signal",
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "signal_kind": "fall_suspected",
+                "severity": "warning",
+            },
+        }
+        assert filt.evaluate({"kinds": ["fall_suspected"]}, event, _NOW) is True
+
+    def test_fall_suspected_does_not_match_other_kinds(self, filt: DementiaSignalFilter):
+        event = {
+            "kind": "dementia_signal",
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "signal_kind": "fall_suspected",
+                "severity": "warning",
+            },
+        }
+        assert filt.evaluate({"kinds": ["pacing", "stillness_anomaly"]}, event, _NOW) is False
+
+    def test_fall_suspected_matches_min_severity_warning(self, filt: DementiaSignalFilter):
+        event = {
+            "kind": "dementia_signal",
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "signal_kind": "fall_suspected",
+                "severity": "warning",
+            },
+        }
+        assert filt.evaluate({"kinds": ["fall_suspected"], "min_severity": 0.66}, event, _NOW) is True
+
+    def test_fall_suspected_fails_min_severity_emergency(self, filt: DementiaSignalFilter):
+        event = {
+            "kind": "dementia_signal",
+            "payload": {
+                **_SIGNAL_EVENT["payload"],
+                "signal_kind": "fall_suspected",
+                "severity": "warning",
+            },
+        }
+        assert filt.evaluate({"kinds": ["fall_suspected"], "min_severity": 1.0}, event, _NOW) is False
+
 
 # ---------------------------------------------------------------------------
 # person_ids filter

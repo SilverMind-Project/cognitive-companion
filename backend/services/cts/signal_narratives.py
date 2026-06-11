@@ -87,6 +87,15 @@ def narrative_for(
             f"This exceeds the configured absence threshold."
         )
 
+    if kind == "fall_suspected":
+        return (
+            f"Possible fall detected in {room_name or 'an unknown room'} "
+            f"at {entered_at or window_start or 'unknown time'}. "
+            f"Sudden vertical collapse and post-event stillness were detected by the fall fast path. "
+            f"A visual confirmation step will follow. "
+            f"Fall detection is supportive and not a substitute for a medical alert system."
+        )
+
     return (
         f"Signal of type '{kind}' fired during the window "
         f"{window_start or 'unknown start'} to {window_end or 'unknown end'}. "

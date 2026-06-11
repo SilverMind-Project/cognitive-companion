@@ -802,6 +802,7 @@ const dementiaSignalKinds = [
   "nighttime_movement",
   "stillness_anomaly",
   "absence",
+  "fall_suspected",
 ];
 
 const contextTypeItems = [

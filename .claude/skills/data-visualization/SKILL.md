@@ -1,6 +1,6 @@
 ---
 name: data-visualization
-description: How to present a new data shape in the Cognitive Companion Vue UI: pick the right shared component, theme via useChartTheme, render empty/loading/error states, and never hand-roll a chart.
+description: "Use when presenting charts, mobility trends, dashboards, execution graphs, spatial overlays, provenance, or other data-heavy Cognitive Companion UI."
 ---
 
 # Data Visualisation
@@ -25,6 +25,7 @@ Choose the component that matches your data shape. Never roll an equivalent inli
 | Component | Prop contract | Use when |
 |-----------|---------------|----------|
 | `CcTimeSeriesChart.vue` | `:series` (array of `{name, data: [{timestamp, value}]}`), `:unit` | Presence trends, motion energy over time, signal history |
+| `CcGaitTrendChart.vue` | `:points` (`{date, value, sufficient}[]`), `:baseline-value`, `:signal-dates` | Daily gait speed with insufficient-day gaps, baseline reference, and gait-slowing markers |
 | `CcBarChart.vue` | `:categories` (string[]), `:series` (array of `{name, data: number[]}`) | Room dwell totals per day, signal counts by kind |
 | `CcDistributionChart.vue` | `:data` (`{label, count}[]`) | Quality score distribution, dwell-duration histogram |
 | `CcGaugeChart.vue` | `:value` (0-100), `:label` | Mean quality gauge, confidence indicator |
@@ -37,7 +38,13 @@ Choose the component that matches your data shape. Never roll an equivalent inli
 |-----------|-------|----------|
 | `CcMetricTile.vue` | `:label`, `:value`, `:trend` (`up`/`down`/`flat`) | KPI tiles in a dashboard summary row |
 | `CcProvenanceBadge.vue` | `:source`, `:quality`, `:staleness-seconds` | Displaying data quality next to a location or signal value |
-| `CcSectionCard.vue` | `#header` slot (optional), `#default` slot | Frosted-glass section wrapper |
+| `CcSectionCard.vue` | `#header` slot (optional), `#default` slot | Warm-paper section wrapper |
+
+### Tracking (`components/tracking/`)
+
+| Component | Props | Use when |
+|-----------|-------|----------|
+| `TrackingPanelHeader.vue` | `:title`, `:description`, `#actions` | Every panel under `views/tracking/panels/` |
 
 ### Process (`components/process/`)
 

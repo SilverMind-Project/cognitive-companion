@@ -1,6 +1,6 @@
 ---
 name: bff-api-design
-description: How to add a BFF endpoint that is MCP-parity-safe by construction: define the envelope, write the service function once, expose it through both a router and an MCP adapter, add the parity test, the auth.yaml permission, and the import-linter contract.
+description: "Use when adding or changing a browser-visible BFF envelope, endpoint, MCP adapter, authorization mapping, or router/MCP parity test."
 ---
 
 # BFF API Design
@@ -92,15 +92,19 @@ async def get_my_resource(
 
 ### 5. Add the auth.yaml permission entry
 
-Every new endpoint needs a permission entry in `config/auth.yaml`. No endpoint is discoverable without it.
+Every new endpoint needs coverage in `config/auth.yaml`. The file has two layers:
 
 ```yaml
 # config/auth.yaml
-caregiver:
-  - "GET /api/v1/my-resource/*"
+permission_map:
+  "my_resource.read":
+    - "GET /api/v1/my-resource/*"
+
+  caregiver:
+    - "my_resource.read"
 ```
 
-Verify: `grep "my_resource" config/auth.yaml` must return a match before marking done.
+Use the permission token in `require_permission("my_resource.read")`. If the route uses a concrete `"METHOD /path"` token instead, add that exact pattern to the intended role. Verify both the token definition and role assignment. Add a focused router test that expects `403` without the permission and success with it. `backend/tests/core/test_auth.py` tests permission expansion mechanics, but there is currently no global test that proves every router token appears in `auth.yaml`.
 
 ### 6. Add the MCP tool
 
@@ -117,11 +121,11 @@ async def get_my_resource(resource_id: str) -> dict:
     return env.model_dump(mode="json")
 ```
 
-Add the tool name to `config/settings.yaml` under `mcp.tools`.
+Add the tool name to `config/settings.yaml` under the `mcp.tools` list.
 
 ### 7. Add to the import-linter contract
 
-`backend/pyproject.toml` contains `[tool.importlinter]` contract definitions. Ensure `backend.mcp` is not permitted to import from `backend.models` or `backend.services.*.repo`:
+`backend/pyproject.toml` contains `[[tool.importlinter.contracts]]` definitions. The current MCP contract forbids direct repository imports from `backend.mcp`. Extend its `forbidden_modules` only when a new repository package would otherwise be reachable:
 
 ```toml
 # pyproject.toml (add or verify)
@@ -129,21 +133,41 @@ Add the tool name to `config/settings.yaml` under `mcp.tools`.
 name = "mcp-no-direct-db"
 type = "forbidden"
 source_modules = ["backend.mcp"]
-forbidden_modules = ["backend.models", "backend.services.my_service._repo"]
+forbidden_modules = [
+    "backend.services.person_location.repositories",
+    "backend.services.my_resource.repositories",
+]
 ```
 
 Run `make import-lint` to verify.
 
 ### 8. Add the parity test
 
-Add a test in `backend/tests/mcp/test_parity.py` (or the nearest equivalent) that asserts the MCP tool and the router return the same shape for the same input:
+There is no single `backend/tests/mcp/test_parity.py`. Put the test beside the closest existing pattern:
+
+- `backend/tests/integrations/test_mcp_bff_parity.py` for shared read envelopes.
+- `backend/tests/integrations/test_gait_mcp_bff_parity.py` for a domain-specific endpoint.
+- `backend/tests/routers/test_signals_feed.py` for direct service/router/tool parity.
+- `backend/tests/mcp/test_signal_ack_parity.py` for mutations.
+
+The test must assert that both adapters call the same service method and return the same meaningful envelope fields:
 
 ```python
-async def test_my_resource_parity(db_session, app_state):
+async def test_my_resource_parity():
     resource_id = "test-123"
+    service = AsyncMock()
+    service.get_my_resource.return_value = MyResourceEnvelope(
+        resource_id=resource_id,
+        value="example",
+        confidence=1.0,
+        quality=1.0,
+        staleness_seconds=0,
+        source="test",
+    )
     # Router path
-    router_result = await get_my_resource_endpoint(resource_id, svc=app_state.my_service)
+    router_result = await get_my_resource_endpoint(resource_id, svc=service)
     # MCP path
+    _svc.my_service = service
     mcp_result = await mcp_get_my_resource(resource_id)
     assert router_result.resource_id == mcp_result["resource_id"]
     assert router_result.confidence == mcp_result["confidence"]
@@ -163,7 +187,7 @@ make import-lint
 backend/.venv/bin/pytest backend/tests/mcp/ -v
 
 # Auth coverage: no endpoint without a permission
-grep "my_resource" config/auth.yaml
+grep -n "my_resource.read\\|GET /api/v1/my-resource" config/auth.yaml
 grep "my_resource" backend/routers/my_resource.py
 ```
 

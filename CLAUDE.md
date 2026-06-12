@@ -13,10 +13,10 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 
 | Skill | Use when |
 | --- | --- |
-| `.claude/skills/engineering-standards/SKILL.md` | Backend, full-stack, database, testing, logging, naming, and architecture work |
-| `.claude/skills/front-end/SKILL.md` | Vue, Vuetify, router, layout, drawer, dialog, and CSS work |
-| `.claude/skills/data-visualization/SKILL.md` | Charts, monitoring, execution graphs, spatial overlays, and data-heavy UI |
-| `.claude/skills/bff-api-design/SKILL.md` | Browser-visible API envelopes, BFF endpoints, MCP parity, and auth coverage |
+| `.claude/skills/engineering-standards/SKILL.md` | Backend/full-stack architecture, database code, tests, CTS signal consumers, logging, naming, and shared contracts |
+| `.claude/skills/front-end/SKILL.md` | Vue, Vuetify, router, Tracking panels, composables, layout, drawers, dialogs, CSS, and frontend tests |
+| `.claude/skills/data-visualization/SKILL.md` | Shared charts, mobility trends, monitoring, execution graphs, spatial overlays, provenance, and data-heavy UI |
+| `.claude/skills/bff-api-design/SKILL.md` | Browser-visible envelopes/endpoints, MCP adapters, parity tests, authorization mappings, and import boundaries |
 
 ## Current stack
 

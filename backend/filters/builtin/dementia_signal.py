@@ -58,6 +58,7 @@ class DementiaSignalFilter(ContextFilter):
                             "stillness_anomaly",
                             "absence",
                             "fall_suspected",
+                            "gait_slowing",
                         ],
                         "description": "Signal types to match (empty = any).",
                     },

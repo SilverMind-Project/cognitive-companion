@@ -195,7 +195,7 @@ const headers = [
 
 const kindOptions = [
   "pacing", "bathroom_dwell_anomaly", "sundowning_index", "nighttime_movement",
-  "stillness_anomaly", "absence", "fall_suspected",
+  "stillness_anomaly", "absence", "fall_suspected", "gait_slowing",
   "inferred_dwell_exceeded", "presumed_location_unknown", "identity_disagreement",
 ].map((k) => ({ title: k.replace(/_/g, " "), value: k }));
 

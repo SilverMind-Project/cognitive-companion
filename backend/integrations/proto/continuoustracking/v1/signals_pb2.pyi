@@ -14,6 +14,8 @@ class DementiaSignalKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     DEMENTIA_SIGNAL_KIND_NIGHTTIME_MOVEMENT: _ClassVar[DementiaSignalKind]
     DEMENTIA_SIGNAL_KIND_STILLNESS_ANOMALY: _ClassVar[DementiaSignalKind]
     DEMENTIA_SIGNAL_KIND_ABSENCE: _ClassVar[DementiaSignalKind]
+    DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED: _ClassVar[DementiaSignalKind]
+    DEMENTIA_SIGNAL_KIND_GAIT_SLOWING: _ClassVar[DementiaSignalKind]
 
 class DementiaSignalSeverity(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -28,6 +30,8 @@ DEMENTIA_SIGNAL_KIND_BATHROOM_DWELL_ANOMALY: DementiaSignalKind
 DEMENTIA_SIGNAL_KIND_NIGHTTIME_MOVEMENT: DementiaSignalKind
 DEMENTIA_SIGNAL_KIND_STILLNESS_ANOMALY: DementiaSignalKind
 DEMENTIA_SIGNAL_KIND_ABSENCE: DementiaSignalKind
+DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED: DementiaSignalKind
+DEMENTIA_SIGNAL_KIND_GAIT_SLOWING: DementiaSignalKind
 DEMENTIA_SIGNAL_SEVERITY_UNSPECIFIED: DementiaSignalSeverity
 DEMENTIA_SIGNAL_SEVERITY_INFO: DementiaSignalSeverity
 DEMENTIA_SIGNAL_SEVERITY_WARNING: DementiaSignalSeverity

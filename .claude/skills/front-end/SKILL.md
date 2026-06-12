@@ -1,3 +1,8 @@
+---
+name: front-end
+description: "Use when changing Cognitive Companion Vue, Vuetify, routing, Tracking workspace panels, composables, layouts, drawers, dialogs, styling, or frontend tests."
+---
+
 # Frontend Engineering Skill
 
 Guidelines for building and modifying the Cognitive Companion Vue 3 + Vuetify frontend. Every agent working on this codebase must follow these patterns.
@@ -242,7 +247,7 @@ This gets `--cc-surface-2` background from the global tonal card rule. No custom
 
 ### Right-side drawer pattern
 
-Right-side drawers overlay the main content as full-viewport panels. The `.cc-drawer-right` class is a **global utility in `theme.css`** — do not add scoped CSS for it in individual views.
+Right-side drawers overlay the main content as full-viewport panels. The `.cc-drawer-right` class is a **global utility in `theme.css`**; do not add scoped CSS for it in individual views.
 
 #### Width standards
 
@@ -260,7 +265,7 @@ Never use ad-hoc widths like 500 or 440. Pick the closest standard.
 ```html
 <v-navigation-drawer v-model="open" location="right" temporary width="480" class="cc-drawer-right">
   <!-- Plain div root: v-navigation-drawer provides the glass surface.
-       Never use v-card flat — it inherits the global glass-border rule. -->
+       Never use v-card flat; it inherits the global glass-border rule. -->
   <div class="h-100 d-flex flex-column">
 
     <!-- Fixed header: always rendered, contains title + close button -->
@@ -291,7 +296,7 @@ Never use ad-hoc widths like 500 or 440. Pick the closest standard.
   </div>
 
   <!-- Confirmation dialogs: outside the inner div, inside the drawer.
-       Always persistent — backdrop close leaves useConfirm's Promise hanging. -->
+       Always persistent; backdrop close leaves useConfirm's Promise hanging. -->
   <v-dialog v-model="confirmDialog" max-width="400" persistent>
     <v-card rounded="xl">
       <v-card-title>{{ confirmTitle }}</v-card-title>
@@ -309,24 +314,24 @@ Never use ad-hoc widths like 500 or 440. Pick the closest standard.
 #### No scoped CSS required
 
 `.cc-drawer-right` is a global utility in `theme.css`. It sets:
-- `position: fixed; top: 0; bottom: 0; height: auto` — full-viewport pinning
-- `z-index: 2100` — above `v-app-bar` (≈1004) and VOverlay default (≈2000)
-- `padding-top: 0` — correct; the drawer overlays the navbar (not behind it)
-- `border-left` and a left-side shadow — creates visual separation from page content
+- `position: fixed; top: 0; bottom: 0; height: auto`: full-viewport pinning
+- `z-index: 2100`: above `v-app-bar` (approximately 1004) and VOverlay default (approximately 2000)
+- `padding-top: 0`: correct; the drawer overlays the navbar (not behind it)
+- `border-left` and a left-side shadow: creates visual separation from page content
 
 Do not copy-paste these rules into a scoped `<style>` block. If a one-off override is needed, add a modifier class.
 
 #### Transparency and surface
 
 Drawers use `--cc-drawer-glass` which is near-opaque by design:
-- **Dark mode**: `rgba(18, 18, 22, 0.96)` — deep, essentially solid
-- **Light mode**: `rgba(248, 248, 252, 0.97)` — near-white, page content does not bleed through
+- **Dark mode**: `rgba(18, 18, 22, 0.96)`, deep and essentially solid
+- **Light mode**: `rgba(248, 248, 252, 0.97)`, near-white so page content does not bleed through
 
-The backdrop-filter blur is kept for subtle depth even at high opacity. Never increase transparency — a translucent drawer is distracting, especially in light mode where the page background shows through.
+The backdrop-filter blur is kept for subtle depth even at high opacity. Never increase transparency; a translucent drawer is distracting, especially in light mode where the page background shows through.
 
 #### Rules
 
-- **Width**: `480` (standard) or `640` (wide) only — no ad-hoc values
+- **Width**: `480` (standard) or `640` (wide) only; no ad-hoc values
 - **Root element**: plain `<div>`, never `v-card flat` (inherits unwanted glass border)
 - **Header**: plain `<div class="d-flex align-center px-4 py-3">`, not `v-card-title`
 - **Scrollable body**: `flex-grow-1 overflow-y-auto` with `style="min-height: 0"`
@@ -760,8 +765,8 @@ This pattern applies to any drawer that shows detail for a selected list row and
 ### Template skeleton
 
 ```html
-<v-navigation-drawer v-model="open" location="right" temporary width="500" class="cc-drawer-right">
-  <!-- Plain div root — do NOT use v-card flat (gets unwanted glass border from theme.css) -->
+<v-navigation-drawer v-model="open" location="right" temporary width="480" class="cc-drawer-right">
+  <!-- Plain div root; do NOT use v-card flat (gets unwanted glass border from theme.css) -->
   <div class="h-100 d-flex flex-column">
     <!-- Fixed header -->
     <div class="d-flex align-center px-4 py-3">
@@ -822,25 +827,25 @@ This pattern applies to any drawer that shows detail for a selected list row and
 </v-navigation-drawer>
 ```
 
-No scoped CSS needed — `.cc-drawer-right` is a global utility in `theme.css`.
+No scoped CSS needed; `.cc-drawer-right` is a global utility in `theme.css`.
 
 ---
 
 ## Spatial canvas: pan/zoom and annotation standards
 
-### `useCanvasZoom` — the one zoom composable
+### `useCanvasZoom`: the one zoom composable
 
 All zoomable canvases in the app use `useCanvasZoom` from `composables/useCanvasZoom.js`. Do not implement custom zoom logic. The composable provides:
 
 ```js
 const { state, containerToLocal, actions } = useCanvasZoom({
   minZoom: 0.2,  // default
-  maxZoom: 6,    // default — use 5 for floor-plan live view
+  maxZoom: 6,    // default; use 5 for floor-plan live view
   wheelStep: 0.08,
   panThreshold: 3,
 });
 // state.zoom, state.panX, state.panY, state.transformStyle (CSS string)
-// state.didPan — true after a drag exceeds panThreshold; cleared by startPan()
+// state.didPan: true after a drag exceeds panThreshold; cleared by startPan()
 // actions.onWheel(e), startPan(e), zoomIn(containerRef), zoomOut(containerRef), reset()
 ```
 
@@ -892,9 +897,9 @@ function onSvgClick(e) {
 }
 ```
 
-Never skip calling `startPan` for a mousedown in order to "avoid pan on this element" — that leaves `didPan` stale from a prior drag and swallows the next real click. Use `.stop` on child elements instead.
+Never skip calling `startPan` for a mousedown in order to "avoid pan on this element"; that leaves `didPan` stale from a prior drag and swallows the next real click. Use `.stop` on child elements instead.
 
-### `CcZoomControls` — the one zoom control UI
+### `CcZoomControls`: the one zoom control UI
 
 ```html
 <CcZoomControls
@@ -909,11 +914,11 @@ Never skip calling `startPan` for a mousedown in order to "avoid pan on this ele
 />
 ```
 
-The component uses global CSS classes `.cc-zoom-controls` and `.cc-zoom-pct` defined in `theme.css`. Do not add scoped CSS for these classes — they are global utilities.
+The component uses global CSS classes `.cc-zoom-controls` and `.cc-zoom-pct` defined in `theme.css`. Do not add scoped CSS for these classes; they are global utilities.
 
 Never render the four buttons (plus, minus, reset, pct chip) inline in a view or component; always use `CcZoomControls`.
 
-### Canvas annotation style — `useAnnotationStyle.js`
+### Canvas annotation style: `useAnnotationStyle.js`
 
 All spatial renderers (floor plan, calibration view, live bbox overlay) share a single annotation style composable at `composables/useAnnotationStyle.js`. Import from here; never hardcode annotation colors or duplicate the halo pattern.
 
@@ -970,7 +975,7 @@ For :style bindings (Vue camelCase), use `HALO.color` directly:
 >{{ label }}</text>
 ```
 
-The color identity is carried by the dot — not the text. `MAP_LABEL.attrs()` already includes `fill: "#1e293b"`.
+The color identity is carried by the dot, not the text. `MAP_LABEL.attrs()` already includes `fill: "#1e293b"`.
 
 #### Other exports
 
@@ -983,7 +988,7 @@ The color identity is carried by the dot — not the text. `MAP_LABEL.attrs()` a
 #### Canvas annotation tokens (`theme.css`)
 
 ```css
-/* In :root — theme-invariant, designed for image/map backgrounds */
+/* In :root; theme-invariant, designed for image/map backgrounds */
 --cc-annotation-unknown:  #fb923c;   /* tracking entity with no identity */
 --cc-annotation-pending:  #f59e0b;   /* point placed, awaiting second click */
 --cc-annotation-halo:     rgba(0, 0, 0, 0.55);
@@ -1094,8 +1099,18 @@ Always use `CcProvenanceBadge` to display source information. Pass the `source` 
 The `TrackingWorkspace.vue` view is the single role-aware tracking dashboard. It uses `usePersonPresence` as the one composable for all person-location data (design rule D1). Rules:
 
 - Do not create a second composable that fetches person location data.
-- Panel visibility is controlled by permissions; do not duplicate panels into separate views for different roles.
+- Panel visibility is currently controlled by the `role` prop and `ROLE_CONFIG` in `frontend/src/views/tracking/TrackingWorkspace.vue`. Treat this as the permission boundary until a shared authorization store replaces it; do not hardcode role checks inside individual panels.
 - Add new panels as children of `TrackingWorkspace`, not as new top-level views.
+
+### Tracking panel-addition checklist
+
+1. Create the panel under `frontend/src/views/tracking/panels/` and use `TrackingPanelHeader` for its title, description, and actions.
+2. Add one entry to `ALL_TABS`, one `v-window-item`, and the intended role visibility in `ROLE_CONFIG`.
+3. Keep route query behavior working: an unauthorized or unknown `?panel=` value must resolve to that role's default panel.
+4. Reuse the owning composable for existing data. Person-location panels consume the single `usePersonPresence` instance created by `TrackingWorkspace`; a new data domain gets one `{ state, actions }` composable such as `useGaitTrend`.
+5. Pass shared workspace data to presentational panels through props. Do not add a fallback API call inside a panel.
+6. Reuse shared chart and dashboard components from the data-visualization skill and render loading, error, and empty states.
+7. Extend `frontend/tests/views/tracking/TrackingWorkspace.test.js` for tab visibility/default routing and add a panel test that proves rendering plus data ownership.
 
 ### Live process pattern
 

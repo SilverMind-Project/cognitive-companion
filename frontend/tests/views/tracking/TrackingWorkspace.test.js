@@ -30,6 +30,7 @@ vi.mock("@/composables/usePersonPresence.js", () => ({
 
 vi.mock("@/views/tracking/panels/OverviewPanel.vue",          () => ({ default: { template: '<div data-testid="panel-overview" />' } }));
 vi.mock("@/views/tracking/panels/LiveFloorPanel.vue",         () => ({ default: { template: '<div data-testid="panel-live-floor" />' } }));
+vi.mock("@/views/tracking/panels/MobilityPanel.vue",          () => ({ default: { template: '<div data-testid="panel-mobility" />' } }));
 vi.mock("@/views/tracking/panels/PeoplePanel.vue",            () => ({ default: { template: '<div data-testid="panel-people" />' } }));
 vi.mock("@/views/tracking/panels/PresenceTimelinePanel.vue",  () => ({ default: { template: '<div data-testid="panel-presence-timeline" />' } }));
 vi.mock("@/views/tracking/panels/SignalsPanel.vue",           () => ({ default: { template: '<div data-testid="panel-signals" />' } }));

@@ -179,6 +179,7 @@ mcp:
     - "get_current_quiz_question"
     - "complete_quiz_session"
     - "get_heatmap"
+    - "get_gait_trend"
   gemini_tools:
     - "get_rooms"
     - "get_room_occupancy"

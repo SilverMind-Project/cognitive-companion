@@ -45,6 +45,10 @@
         <PresenceTimelinePanel />
       </v-window-item>
 
+      <v-window-item value="mobility">
+        <MobilityPanel />
+      </v-window-item>
+
       <v-window-item value="signals">
         <SignalsPanel />
       </v-window-item>
@@ -62,6 +66,7 @@ import { useRoute, useRouter } from "vue-router";
 import { usePersonPresence } from "@/composables/usePersonPresence.js";
 import OverviewPanel from "./panels/OverviewPanel.vue";
 import LiveFloorPanel from "./panels/LiveFloorPanel.vue";
+import MobilityPanel from "./panels/MobilityPanel.vue";
 import PeoplePanel from "./panels/PeoplePanel.vue";
 import PresenceTimelinePanel from "./panels/PresenceTimelinePanel.vue";
 import SignalsPanel from "./panels/SignalsPanel.vue";
@@ -77,14 +82,15 @@ const ALL_TABS = [
   { id: "live-floor",         label: "Live & Floor",      icon: "mdi-video-outline"          },
   { id: "people",             label: "People",            icon: "mdi-account-group-outline"  },
   { id: "presence-timeline",  label: "Presence Timeline", icon: "mdi-timeline-clock"         },
+  { id: "mobility",           label: "Mobility",          icon: "mdi-walk"                   },
   { id: "signals",            label: "Signals",           icon: "mdi-chart-bar"              },
   { id: "reports",            label: "Reports",           icon: "mdi-chart-box"              },
 ];
 
 const ROLE_CONFIG = {
   admin:    { panels: ALL_TABS.map((t) => t.id), default: "overview" },
-  caregiver: { panels: ["presence-timeline", "people", "reports", "live-floor"], default: "presence-timeline" },
-  medical:  { panels: ["signals", "reports", "presence-timeline"], default: "signals" },
+  caregiver: { panels: ["presence-timeline", "people", "mobility", "reports", "live-floor"], default: "presence-timeline" },
+  medical:  { panels: ["signals", "reports", "presence-timeline", "mobility"], default: "signals" },
 };
 
 const route = useRoute();

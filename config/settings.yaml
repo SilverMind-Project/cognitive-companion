@@ -180,6 +180,7 @@ mcp:
     - "complete_quiz_session"
     - "get_heatmap"
     - "get_gait_trend"
+    - "acknowledge_dementia_signal"
   gemini_tools:
     - "get_rooms"
     - "get_room_occupancy"

@@ -105,7 +105,39 @@
           <span class="text-caption">{{ formatTime(item.fired_at) }}</span>
         </template>
         <template #item.actions="{ item }">
-          <v-btn size="x-small" variant="text" @click.stop="openEvidence(null, { item })">Evidence</v-btn>
+          <div class="d-flex align-center flex-wrap ga-1">
+            <template v-if="item.evidence_grade === 'experimental'">
+              <template v-if="item.feedback">
+                <v-chip size="x-small" variant="tonal" color="secondary" class="text-capitalize">
+                  {{ item.feedback }}
+                </v-chip>
+              </template>
+              <template v-else>
+                <v-btn
+                  size="x-small"
+                  variant="tonal"
+                  color="success"
+                  :loading="feedbackPending[item.id] === 'accurate'"
+                  @click.stop="submitFeedback(item, 'accurate')"
+                >Accurate</v-btn>
+                <v-btn
+                  size="x-small"
+                  variant="tonal"
+                  color="error"
+                  :loading="feedbackPending[item.id] === 'inaccurate'"
+                  @click.stop="submitFeedback(item, 'inaccurate')"
+                >Not agitation</v-btn>
+                <v-btn
+                  size="x-small"
+                  variant="tonal"
+                  color="warning"
+                  :loading="feedbackPending[item.id] === 'unsure'"
+                  @click.stop="submitFeedback(item, 'unsure')"
+                >Unsure</v-btn>
+              </template>
+            </template>
+            <v-btn size="x-small" variant="text" @click.stop="openEvidence(null, { item })">Evidence</v-btn>
+          </div>
         </template>
         <template #no-data>
           <div class="pa-4 text-center text-medium-emphasis">No signals match the current filters.</div>
@@ -182,6 +214,7 @@ const drawerOpen = ref(false);
 const evidence = ref(null);
 const evidenceLoading = ref(false);
 const aggregates = ref({ by_kind: {}, by_room: {} });
+const feedbackPending = ref({});
 
 const headers = [
   { title: "Kind",      key: "signal_type", width: 160 },
@@ -190,7 +223,7 @@ const headers = [
   { title: "Room",      key: "room_name",   width: 120 },
   { title: "Source",    key: "source",      width: 140 },
   { title: "Fired at",  key: "fired_at",    width: 140 },
-  { title: "",          key: "actions",     width: 80  },
+  { title: "",          key: "actions",     width: 260 },
 ];
 
 const kindOptions = [
@@ -248,6 +281,23 @@ function onKindSelect(category) {
   if (!filters.value.kind.includes(normalized)) {
     filters.value.kind = [...filters.value.kind, normalized];
     loadSignals();
+  }
+}
+
+async function submitFeedback(item, verdict) {
+  feedbackPending.value = { ...feedbackPending.value, [item.id]: verdict };
+  try {
+    await cts.acknowledgeSignal(item.id, verdict);
+    signals.value = signals.value.map((s) =>
+      s.id === item.id ? { ...s, feedback: verdict, acknowledged_at: new Date().toISOString() } : s
+    );
+    notify("Feedback recorded", "success");
+  } catch (e) {
+    notify(e.message || "Failed to record feedback", "error");
+  } finally {
+    const pending = { ...feedbackPending.value };
+    delete pending[item.id];
+    feedbackPending.value = pending;
   }
 }
 

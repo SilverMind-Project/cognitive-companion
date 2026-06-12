@@ -125,6 +125,13 @@ class TestListRecent:
 # ---------------------------------------------------------------------------
 
 
+_EXPERIMENTAL_SIGNAL: dict = {
+    **_BASE_SIGNAL,
+    "signal_type": "agitation_index",
+    "evidence_grade": "experimental",
+}
+
+
 class TestAcknowledge:
     @pytest.mark.asyncio
     async def test_acknowledge_existing_signal(self, store: SignalStore):
@@ -143,6 +150,28 @@ class TestAcknowledge:
         await store.acknowledge(sid)
         results, _ = await store.list_recent()
         assert results[0]["acknowledged_at"] is not None
+
+    @pytest.mark.asyncio
+    async def test_feedback_stored_for_experimental_signal(self, store: SignalStore):
+        sid = await store.insert(_EXPERIMENTAL_SIGNAL)
+        ok = await store.acknowledge(sid, feedback="accurate")
+        assert ok is True
+        results, _ = await store.list_recent()
+        assert results[0]["feedback"] == "accurate"
+
+    @pytest.mark.asyncio
+    async def test_feedback_ignored_for_non_experimental_signal(self, store: SignalStore):
+        sid = await store.insert(_BASE_SIGNAL)
+        ok = await store.acknowledge(sid, feedback="accurate")
+        assert ok is True
+        results, _ = await store.list_recent()
+        assert results[0]["feedback"] is None
+
+    @pytest.mark.asyncio
+    async def test_evidence_grade_round_trips(self, store: SignalStore):
+        await store.insert(_EXPERIMENTAL_SIGNAL)
+        results, _ = await store.list_recent()
+        assert results[0]["evidence_grade"] == "experimental"
 
 
 # ---------------------------------------------------------------------------

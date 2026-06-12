@@ -159,6 +159,8 @@ class DementiaSignalEnvelope(BaseModel):
     context_json: dict[str, Any] | None = None
     algorithm_version: int | None = None
     acknowledged_at: str | None = None
+    feedback: str | None = None
+    evidence_grade: str | None = None
     received_at: str | None = None
 
     # --- Data-quality fields ---
@@ -192,6 +194,8 @@ class DementiaSignalEnvelope(BaseModel):
             context_json=d.get("context_json"),
             algorithm_version=d.get("algorithm_version"),
             acknowledged_at=d.get("acknowledged_at"),
+            feedback=d.get("feedback"),
+            evidence_grade=d.get("evidence_grade"),
             received_at=d.get("received_at"),
             confidence=1.0,
             evidence_ref=None,

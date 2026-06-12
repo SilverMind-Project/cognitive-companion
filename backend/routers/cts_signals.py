@@ -19,6 +19,7 @@ When ``cts.enabled=false`` every handler returns 404 with code
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
@@ -97,15 +98,33 @@ async def list_signals(
 # ---------------------------------------------------------------------------
 
 
+class AckRequest(BaseModel):
+    feedback: str | None = None
+
+
 @router.post("/{signal_id}/ack")
 async def acknowledge_signal(
     signal_id: int,
+    body: AckRequest = Body(default_factory=AckRequest),
     _auth: AuthContext = Depends(require_permission("cts.signals.view")),
     store: SignalStore = Depends(_get_signal_store),
 ) -> dict:
-    """Mark a dementia signal as acknowledged by a caregiver."""
+    """Mark a dementia signal as acknowledged by a caregiver.
+
+    An optional ``feedback`` field ("accurate", "inaccurate", "unsure") is
+    persisted only for signals with ``evidence_grade="experimental"``; it is
+    silently ignored for all other grades.
+    """
     cts_enabled()
-    ok = await store.acknowledge(signal_id)
+    if body.feedback is not None and body.feedback not in ("accurate", "inaccurate", "unsure"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "signal.invalid_feedback",
+                "message": "feedback must be 'accurate', 'inaccurate', or 'unsure'.",
+            },
+        )
+    ok = await store.acknowledge(signal_id, feedback=body.feedback)
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

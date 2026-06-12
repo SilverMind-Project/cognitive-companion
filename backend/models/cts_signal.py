@@ -59,5 +59,11 @@ class DementiaSignal(Base):
     # Timestamp when a caregiver acknowledged this signal (NULL = unacknowledged).
     acknowledged_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
+    # Caregiver feedback verdict on the signal quality (experimental signals only).
+    feedback: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    # Evidence grade from the originating AlgorithmSpec (e.g. "experimental").
+    evidence_grade: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     # When the signal was received by Cognitive Companion.
     received_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())

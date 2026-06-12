@@ -130,6 +130,7 @@ class DementiaSignalSubscriber(StreamConsumer[dict[str, Any]]):
             "window_end": ns_to_iso(message.window_end_unix_ns),
             "context_json": context,
             "algorithm_version": message.algorithm_version if message.algorithm_version else None,
+            "evidence_grade": message.evidence_grade if message.evidence_grade else None,
         }
 
     async def handle(self, signal: dict[str, Any]) -> bool:

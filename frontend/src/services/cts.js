@@ -135,8 +135,11 @@ export const cts = {
     const q = qs.toString();
     return q ? req(`/signals?${q}`) : req("/signals");
   },
-  acknowledgeSignal: (signalId) =>
-    req(`/signals/${signalId}/ack`, { method: "POST" }),
+  acknowledgeSignal: (signalId, feedback = null) =>
+    req(`/signals/${signalId}/ack`, {
+      method: "POST",
+      body: feedback !== null ? JSON.stringify({ feedback }) : JSON.stringify({}),
+    }),
   deleteSignal: (signalId) =>
     req(`/signals/${signalId}`, { method: "DELETE" }),
   batchDeleteSignals: (signalIds) =>

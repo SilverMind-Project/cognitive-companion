@@ -42,6 +42,7 @@ _PROTO_KIND_TO_STR: dict[int, str] = {
     signals_pb2.DEMENTIA_SIGNAL_KIND_ABSENCE: "absence",
     signals_pb2.DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED: "fall_suspected",
     signals_pb2.DEMENTIA_SIGNAL_KIND_GAIT_SLOWING: "gait_slowing",
+    signals_pb2.DEMENTIA_SIGNAL_KIND_AGITATION_INDEX: "agitation_index",
 }
 
 _PROTO_SEVERITY_TO_STR: dict[int, str] = {

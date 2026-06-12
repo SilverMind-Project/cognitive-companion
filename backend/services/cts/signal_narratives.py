@@ -96,6 +96,15 @@ def narrative_for(
             f"This is a trend signal, not an acute alert."
         )
 
+    if kind == "agitation_index":
+        return (
+            f"Restlessness elevated: the agitation motor index ({actual_min:.2f}) "
+            f"is meaningfully above this person's personal baseline. "
+            f"The index combines in-place body motion, aimless direction changes, "
+            f"and short repetitive sub-room excursions over the last 30 minutes. "
+            f"This is an experimental signal; validate with caregiver observation before acting."
+        )
+
     if kind == "fall_suspected":
         return (
             f"Possible fall detected in {room_name or 'an unknown room'} "

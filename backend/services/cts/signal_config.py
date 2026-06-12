@@ -19,6 +19,7 @@ ALL_SIGNAL_KINDS: tuple[str, ...] = (
     "absence",
     "fall_suspected",
     "gait_slowing",
+    "agitation_index",
     # Signal kinds including those from the unified location service
     "inferred_dwell_exceeded",
     "presumed_location_unknown",

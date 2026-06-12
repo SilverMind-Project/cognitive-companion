@@ -161,6 +161,7 @@ const signalTypes = [
   "absence",
   "fall_suspected",
   "gait_slowing",
+  "agitation_index",
 ];
 
 const signalIcons = {
@@ -173,6 +174,7 @@ const signalIcons = {
   absence: "❓",
   fall_suspected: "⚠️",
   gait_slowing: "🦯",
+  agitation_index: "😤",
 };
 
 const persons = computed(() => {

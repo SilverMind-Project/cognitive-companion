@@ -87,6 +87,15 @@ def narrative_for(
             f"This exceeds the configured absence threshold."
         )
 
+    if kind == "gait_slowing":
+        return (
+            f"Gait slowing detected: walking speed over the last 28 days "
+            f"({actual_min:.2f} m/s) is meaningfully lower than the prior 28-day baseline "
+            f"({threshold_min / 100:.2f} m/s). "
+            f"Sustained gait speed decline is a validated early indicator of cognitive decline. "
+            f"This is a trend signal, not an acute alert."
+        )
+
     if kind == "fall_suspected":
         return (
             f"Possible fall detected in {room_name or 'an unknown room'} "

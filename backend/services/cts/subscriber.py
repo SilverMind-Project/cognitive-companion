@@ -40,9 +40,8 @@ _PROTO_KIND_TO_STR: dict[int, str] = {
     signals_pb2.DEMENTIA_SIGNAL_KIND_NIGHTTIME_MOVEMENT: "nighttime_movement",
     signals_pb2.DEMENTIA_SIGNAL_KIND_STILLNESS_ANOMALY: "stillness_anomaly",
     signals_pb2.DEMENTIA_SIGNAL_KIND_ABSENCE: "absence",
-    # CTS proto enum value 7 = DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED (added in M2 task 2.2).
-    # Use the raw integer until signals_pb2 is regenerated from the updated .proto.
-    7: "fall_suspected",
+    signals_pb2.DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED: "fall_suspected",
+    signals_pb2.DEMENTIA_SIGNAL_KIND_GAIT_SLOWING: "gait_slowing",
 }
 
 _PROTO_SEVERITY_TO_STR: dict[int, str] = {

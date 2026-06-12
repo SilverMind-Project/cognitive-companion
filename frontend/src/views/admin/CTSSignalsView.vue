@@ -160,6 +160,7 @@ const signalTypes = [
   "stillness_anomaly",
   "absence",
   "fall_suspected",
+  "gait_slowing",
 ];
 
 const signalIcons = {
@@ -171,6 +172,7 @@ const signalIcons = {
   stillness_anomaly: "😴",
   absence: "❓",
   fall_suspected: "⚠️",
+  gait_slowing: "🦯",
 };
 
 const persons = computed(() => {

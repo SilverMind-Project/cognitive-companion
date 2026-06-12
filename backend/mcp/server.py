@@ -1150,6 +1150,30 @@ async def get_recent_dementia_signals(
 
 
 @_register
+async def acknowledge_dementia_signal(
+    signal_id: int,
+    feedback: str | None = None,
+) -> dict:
+    """Acknowledge a dementia signal and optionally record caregiver feedback.
+
+    ``feedback`` accepts "accurate", "inaccurate", or "unsure". It is stored
+    only for signals with evidence_grade="experimental"; it is silently ignored
+    for all other grades.
+
+    Returns {acknowledged, signal_id} or {error} if the signal is not found.
+    """
+    from backend.services.cts.signal_store import SignalStore
+
+    if feedback is not None and feedback not in ("accurate", "inaccurate", "unsure"):
+        return {"error": "feedback must be 'accurate', 'inaccurate', or 'unsure'"}
+    store = SignalStore(db_factory=_svc.db_factory)
+    ok = await store.acknowledge(signal_id, feedback=feedback)
+    if not ok:
+        return {"error": f"Signal {signal_id} not found"}
+    return {"acknowledged": True, "signal_id": signal_id}
+
+
+@_register
 async def query_knowledge_base(query: str) -> dict:
     """Answer factual questions about the senior's life, family, biography,
     medications, preferences, routines, and other STABLE facts that the

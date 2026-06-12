@@ -90,6 +90,7 @@ class SignalStore:
                     else None,
                     context_json=signal_data.get("context_json"),
                     algorithm_version=signal_data.get("algorithm_version"),
+                    evidence_grade=signal_data.get("evidence_grade"),
                 )
                 db.add(row)
                 db.commit()
@@ -108,6 +109,7 @@ class SignalStore:
             )
             existing.context_json = signal_data.get("context_json")
             existing.algorithm_version = signal_data.get("algorithm_version")
+            existing.evidence_grade = signal_data.get("evidence_grade")
             existing.window_end = parse_ts(signal_data["window_end"])
             db.commit()
             db.refresh(existing)
@@ -153,8 +155,16 @@ class SignalStore:
         finally:
             db.close()
 
-    async def acknowledge(self, signal_id: int) -> bool:
+    async def acknowledge(
+        self,
+        signal_id: int,
+        *,
+        feedback: str | None = None,
+    ) -> bool:
         """Mark a signal as acknowledged by a caregiver.
+
+        ``feedback`` is stored only when the signal has evidence_grade
+        ``"experimental"``; for all other grades it is silently ignored.
 
         Returns ``True`` if a row was updated, ``False`` if not found.
         """
@@ -164,6 +174,8 @@ class SignalStore:
             if row is None:
                 return False
             row.acknowledged_at = datetime.now(UTC)
+            if feedback is not None and row.evidence_grade == "experimental":
+                row.feedback = feedback
             db.commit()
             return True
         finally:
@@ -419,5 +431,7 @@ class SignalStore:
             "context_json": row.context_json,
             "algorithm_version": row.algorithm_version,
             "acknowledged_at": row.acknowledged_at.isoformat() if row.acknowledged_at else None,
+            "feedback": row.feedback,
+            "evidence_grade": row.evidence_grade,
             "received_at": row.received_at.isoformat() if row.received_at else None,
         }

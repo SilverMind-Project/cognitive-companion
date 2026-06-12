@@ -137,6 +137,13 @@ class TestListSignals:
 # ---------------------------------------------------------------------------
 
 
+_EXPERIMENTAL_SIGNAL = {
+    **_BASE_SIGNAL,
+    "signal_type": "agitation_index",
+    "evidence_grade": "experimental",
+}
+
+
 class TestAcknowledgeSignal:
     def test_ack_existing_signal(self, client_and_store):
         client, store = client_and_store
@@ -151,6 +158,36 @@ class TestAcknowledgeSignal:
         r = client.post("/api/v1/cts/signals/99999/ack")
         assert r.status_code == 404
         assert r.json()["detail"]["code"] == "signal.not_found"
+
+    def test_ack_with_feedback_round_trip(self, client_and_store):
+        client, store = client_and_store
+        sid = asyncio.run(store.insert(_EXPERIMENTAL_SIGNAL))
+        r = client.post(f"/api/v1/cts/signals/{sid}/ack", json={"feedback": "accurate"})
+        assert r.status_code == 200
+        assert r.json()["acknowledged"] is True
+        rows, _ = asyncio.run(store.list_recent())
+        assert rows[0]["feedback"] == "accurate"
+
+    def test_feedback_ignored_for_non_experimental(self, client_and_store):
+        client, store = client_and_store
+        sid = asyncio.run(store.insert(_BASE_SIGNAL))
+        r = client.post(f"/api/v1/cts/signals/{sid}/ack", json={"feedback": "accurate"})
+        assert r.status_code == 200
+        rows, _ = asyncio.run(store.list_recent())
+        assert rows[0]["feedback"] is None
+
+    def test_invalid_feedback_rejected(self, client_and_store):
+        client, store = client_and_store
+        sid = asyncio.run(store.insert(_EXPERIMENTAL_SIGNAL))
+        r = client.post(f"/api/v1/cts/signals/{sid}/ack", json={"feedback": "yes_please"})
+        assert r.status_code == 422
+        assert r.json()["detail"]["code"] == "signal.invalid_feedback"
+
+    def test_ack_without_feedback_body_still_works(self, client_and_store):
+        client, store = client_and_store
+        sid = asyncio.run(store.insert(_BASE_SIGNAL))
+        r = client.post(f"/api/v1/cts/signals/{sid}/ack", json={})
+        assert r.status_code == 200
 
 
 # ---------------------------------------------------------------------------

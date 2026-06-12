@@ -123,6 +123,7 @@ def("interactive.responses.list", "array");
 // ---------------------------------------------------------------------------
 def("cts.heatmap", { person_id: "string", bins: "array" });
 def("cts.transitZones", "array");
+def("cts.gait.trend", { person_id: "string", days: "array", trend: "string" });
 
 // ---------------------------------------------------------------------------
 // Pipeline runs

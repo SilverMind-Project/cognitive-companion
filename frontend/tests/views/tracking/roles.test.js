@@ -2,7 +2,7 @@
  * U4-T6: Role-aware workspace (D4)
  *
  * Verifies:
- * - Admin default panel: overview; all 6 panels visible
+ * - Admin default panel: overview; all 7 panels visible
  * - Caregiver default panel: presence-timeline; overview/signals not visible
  * - Medical default panel: signals; overview not visible
  * - Non-permitted panels absent from visibleTabs
@@ -22,6 +22,7 @@ vi.mock("vue-router", () => ({
 
 vi.mock("@/views/tracking/panels/OverviewPanel.vue",          () => ({ default: { template: '<div />' } }));
 vi.mock("@/views/tracking/panels/LiveFloorPanel.vue",         () => ({ default: { template: '<div />' } }));
+vi.mock("@/views/tracking/panels/MobilityPanel.vue",          () => ({ default: { template: '<div />' } }));
 vi.mock("@/views/tracking/panels/PeoplePanel.vue",            () => ({ default: { template: '<div />' } }));
 vi.mock("@/views/tracking/panels/PresenceTimelinePanel.vue",  () => ({ default: { template: '<div />' } }));
 vi.mock("@/views/tracking/panels/SignalsPanel.vue",           () => ({ default: { template: '<div />' } }));
@@ -45,8 +46,8 @@ describe("TrackingWorkspace role-aware (D4)", () => {
     it("default panel is overview", () => {
       expect(mountRole("admin").vm.activePanel).toBe("overview");
     });
-    it("all 6 panels are visible", () => {
-      expect(mountRole("admin").vm.visibleTabs).toHaveLength(6);
+    it("all 7 panels are visible", () => {
+      expect(mountRole("admin").vm.visibleTabs).toHaveLength(7);
     });
   });
 
@@ -80,8 +81,8 @@ describe("TrackingWorkspace role-aware (D4)", () => {
     });
   });
 
-  it("unknown role falls back to admin config (shows all 6 panels)", () => {
-    expect(mountRole("unknown_role").vm.visibleTabs).toHaveLength(6);
+  it("unknown role falls back to admin config (shows all 7 panels)", () => {
+    expect(mountRole("unknown_role").vm.visibleTabs).toHaveLength(7);
     expect(mountRole("unknown_role").vm.activePanel).toBe("overview");
   });
 });

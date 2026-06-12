@@ -64,6 +64,7 @@ class MCPServices:
     ws_manager: Any = None
     knowledge_query: Any = None
     knowledge_delivery: Any = None
+    gait_trend_service: Any = None
 
 
 _svc = MCPServices()
@@ -87,6 +88,7 @@ def init_services(
     ws_manager=None,
     knowledge_query=None,
     knowledge_delivery=None,
+    gait_trend_service=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -106,6 +108,7 @@ def init_services(
     _svc.ws_manager = ws_manager
     _svc.knowledge_query = knowledge_query
     _svc.knowledge_delivery = knowledge_delivery
+    _svc.gait_trend_service = gait_trend_service
 
 
 # ---------------------------------------------------------------------------
@@ -1422,3 +1425,28 @@ async def import_rule_bundle(
         return {"status": "error", "errors": [str(e)]}
     finally:
         db.close()
+
+
+@_register
+async def get_gait_trend(
+    person_id: str,
+    days: int = 56,
+) -> dict:
+    """Get gait speed trend envelope for a resident.
+
+    Args:
+        person_id: Resident person identifier.
+        days: Window length in days (14-365; default 56).
+
+    Returns:
+        GaitTrendEnvelope with per-day speeds, baseline median, and trend classification.
+    """
+    svc = _svc.gait_trend_service
+    if svc is None:
+        return {"error": "gait_trend_service unavailable"}
+    try:
+        envelope = await svc.get_gait_trend(person_id=person_id, days=days)
+        return envelope.model_dump(mode="json")
+    except Exception as exc:
+        logger.error("mcp_get_gait_trend_error", person_id=person_id, error=str(exc))
+        return {"error": str(exc)}

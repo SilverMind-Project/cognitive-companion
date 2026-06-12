@@ -369,4 +369,10 @@ export const cts = {
   getCurrentlyIn() {
     return req("/presence/currently_in");
   },
+
+  // ── Gait mobility trend ─────────────────────────────────────────────────────
+  getGaitTrend(personId, days = 56) {
+    const qs = new URLSearchParams({ person_id: personId, days: String(days) });
+    return req(`/gait/trend?${qs}`, { contract: "cts.gait.trend" });
+  },
 };

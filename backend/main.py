@@ -597,6 +597,11 @@ async def lifespan(app: FastAPI):
         app.state.orchestrator_client = OrchestratorClient()
         app.state.ph_enrichment_service = PHEnrichmentService(app.state.orchestrator_client)
 
+        from backend.services.gait_trend_service import GaitTrendService
+
+        gait_trend_service = GaitTrendService(app.state.orchestrator_client)
+        app.state.gait_trend_service = gait_trend_service
+
         redis_url = settings.as_str("redis.url", allow_empty=False)
         consumer_id = settings.as_str("cts.consumer_id", allow_empty=False)
 
@@ -683,6 +688,7 @@ async def lifespan(app: FastAPI):
 
         _mcp_svc.cts_runtime = cts_runtime
         _mcp_svc.person_location_service = person_location_service
+        _mcp_svc.gait_trend_service = gait_trend_service
         logger.info("cts_runtime_started")
     else:
         app.state.ingress_admin_client = None
@@ -693,6 +699,7 @@ async def lifespan(app: FastAPI):
         app.state.tracking_event_subscriber = None
         app.state.identity_revision_subscriber = None
         app.state.person_location_service = None
+        app.state.gait_trend_service = None
 
     # Start MCP session manager for streamable HTTP transport
     from backend.mcp.server import mcp_server
@@ -755,6 +762,7 @@ def create_app() -> FastAPI:
         cts_cameras,
         cts_dashboard,
         cts_diagnostics,
+        cts_gait,
         cts_keyframes,
         cts_live,
         cts_overlap_groups,
@@ -836,6 +844,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_trajectory.router, prefix=api)
     app.include_router(cts_keyframes.router, prefix=api)
     app.include_router(cts_dashboard.router, prefix=api)
+    app.include_router(cts_gait.router, prefix=api)
     app.include_router(cts_ph.router, prefix=api)
     app.include_router(cts_bboxes.router, prefix=api)
     app.include_router(cts_overlap_groups.router, prefix=api)

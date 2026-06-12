@@ -54,9 +54,11 @@ EXPECTED_TOOLS = {
     "list_plugin_metadata",
     "get_rule_bundle",
     "import_rule_bundle",
+    "get_heatmap",
+    "get_gait_trend",
 }
 
-EXPECTED_COUNT = 39
+EXPECTED_COUNT = 41
 
 
 # ---------------------------------------------------------------------------

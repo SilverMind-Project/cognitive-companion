@@ -105,6 +105,9 @@ permission_map:
     # M2: heatmap analytics
     - "cts.analytics.heatmap.view"
     - "GET /api/v1/cts/analytics/heatmap"
+    # M3: gait mobility trend
+    - "cts.gait.trend.view"
+    - "GET /api/v1/cts/gait/trend"
     # Knowledge repository endpoints
     - "GET /api/v1/knowledge/documents*"
     - "POST /api/v1/knowledge/documents*"
@@ -170,6 +173,9 @@ permission_map:
     # M2: heatmap analytics
     - "cts.analytics.heatmap.view"
     - "GET /api/v1/cts/analytics/heatmap"
+    # M3: gait mobility trend
+    - "cts.gait.trend.view"
+    - "GET /api/v1/cts/gait/trend"
 
   operator:
     - "*"

@@ -153,6 +153,22 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("GET", "/internal/trajectory/recent", params=params)
         return r.json()
 
+    async def list_gait_daily(
+        self,
+        identity_id: str,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> list[dict]:
+        """Return gait daily aggregate rows for one resident."""
+        params: dict[str, str] = {"identity_id": identity_id}
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        r = await self._request("GET", "/internal/gait/daily", params=params)
+        return r.json()
+
     async def calibration_status(self) -> dict:
         r = await self._request("GET", "/internal/calibration/status")
         return r.json()

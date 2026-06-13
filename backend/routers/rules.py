@@ -290,16 +290,25 @@ def replace_rule_edges(
     if not rule:
         raise NotFoundError("Rule", rule_id)
 
-    new_edges = [
-        PipelineEdge(
-            rule_id=rule_id,
-            source_step_id=edge.source_step_id,
-            source_port=edge.source_port,
-            target_step_id=edge.target_step_id,
-            target_port=edge.target_port,
+    # Collapse exact-duplicate edges (same source port to the same target).
+    # Fan-out (one source port to several distinct targets) is allowed; an
+    # identical edge is redundant and would create a duplicate row.
+    seen_edges: set[tuple[int, str, int, str]] = set()
+    new_edges: list[PipelineEdge] = []
+    for edge in payload.edges:
+        key = (edge.source_step_id, edge.source_port, edge.target_step_id, edge.target_port)
+        if key in seen_edges:
+            continue
+        seen_edges.add(key)
+        new_edges.append(
+            PipelineEdge(
+                rule_id=rule_id,
+                source_step_id=edge.source_step_id,
+                source_port=edge.source_port,
+                target_step_id=edge.target_step_id,
+                target_port=edge.target_port,
+            )
         )
-        for edge in payload.edges
-    ]
 
     _validate_rule_graph_or_raise(list(rule.steps), new_edges)
 

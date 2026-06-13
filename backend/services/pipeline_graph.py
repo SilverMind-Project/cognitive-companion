@@ -7,11 +7,18 @@ from collections import defaultdict, deque
 from backend.models.pipeline import PipelineEdge
 
 
-def build_adjacency(edges: list[PipelineEdge]) -> dict[int, dict[str, int]]:
-    """Return {source_step_id: {source_port: target_step_id}} adjacency map."""
-    adj: dict[int, dict[str, int]] = {}
+def build_adjacency(edges: list[PipelineEdge]) -> dict[int, dict[str, list[int]]]:
+    """Return ``{source_step_id: {source_port: [target_step_id, ...]}}``.
+
+    A single output port may fan out to multiple targets, so each port maps to
+    a list of targets. Targets preserve edge insertion order for deterministic
+    traversal.
+    """
+    adj: dict[int, dict[str, list[int]]] = {}
     for edge in edges:
-        adj.setdefault(edge.source_step_id, {})[edge.source_port] = edge.target_step_id
+        adj.setdefault(edge.source_step_id, {}).setdefault(edge.source_port, []).append(
+            edge.target_step_id
+        )
     return adj
 
 
@@ -61,10 +68,11 @@ def find_descendants(
 
     while queue:
         current = queue.popleft()
-        for target_id in adj.get(current, {}).values():
-            if target_id not in visited and target_id in step_ids:
-                visited.add(target_id)
-                queue.append(target_id)
+        for targets in adj.get(current, {}).values():
+            for target_id in targets:
+                if target_id not in visited and target_id in step_ids:
+                    visited.add(target_id)
+                    queue.append(target_id)
 
     return visited
 
@@ -95,16 +103,6 @@ def validate_graph(
     unknown = referenced_step_ids - step_ids
     if unknown:
         errors.append(f"Edges reference unknown step IDs: {sorted(unknown)}")
-
-    duplicate_keys: set[tuple[int, str]] = set()
-    seen_keys: set[tuple[int, str]] = set()
-    for edge in edges:
-        key = (edge.source_step_id, edge.source_port)
-        if key in seen_keys:
-            duplicate_keys.add(key)
-        seen_keys.add(key)
-    if duplicate_keys:
-        errors.append(f"Duplicate outgoing edges for source ports: {sorted(duplicate_keys)}")
 
     if check_entry:
         entries = find_entry_step_ids(step_ids, edges)

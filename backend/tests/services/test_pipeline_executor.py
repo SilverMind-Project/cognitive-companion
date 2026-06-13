@@ -189,7 +189,7 @@ class TestPipelineExecutorBranching:
         executor = _make_executor(db_factory)
         trigger = _make_trigger()
 
-        adjacency = {step.id: {"main": 99999}}
+        adjacency = {step.id: {"main": [99999]}}
         entry_ids = [step.id]
 
         async def mock_execute(step, execution, pipeline_data, trigger):
@@ -313,6 +313,62 @@ class TestPipelineExecutorBranching:
         assert executed.count("merge") == 1
         assert executed == ["condition", "branch_a", "branch_b", "merge"]
 
+    async def test_fan_out_single_port_runs_all_targets(self, db_session, db_factory):
+        """One output port fanning out to multiple targets runs every target."""
+        rule = _make_rule(db_session)
+        root = _make_step(db_session, rule, order=1, step_type="root")
+        leaf_a = _make_step(db_session, rule, order=2, step_type="leaf_a")
+        leaf_b = _make_step(db_session, rule, order=3, step_type="leaf_b")
+        _connect(db_session, rule, root, leaf_a)
+        _connect(db_session, rule, root, leaf_b)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        executed = []
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            executed.append(step.step_type)
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            await executor.execute(rule, _make_trigger(), db_session)
+
+        assert executed[0] == "root"
+        assert set(executed) == {"root", "leaf_a", "leaf_b"}
+        assert executed.count("leaf_a") == 1
+        assert executed.count("leaf_b") == 1
+
+    async def test_asymmetric_diamond_join_waits_for_all_parents(self, db_session, db_factory):
+        """A join runs once, only after every branch completes, including the
+        deeper one. The previous breadth-first walk ran the join as soon as the
+        shorter branch reached it (before the deeper branch finished)."""
+        rule = _make_rule(db_session)
+        root = _make_step(db_session, rule, order=1, step_type="root")
+        short = _make_step(db_session, rule, order=2, step_type="short")
+        deep1 = _make_step(db_session, rule, order=3, step_type="deep1")
+        deep2 = _make_step(db_session, rule, order=4, step_type="deep2")
+        merge = _make_step(db_session, rule, order=5, step_type="merge")
+        _connect(db_session, rule, root, short)
+        _connect(db_session, rule, root, deep1)
+        _connect(db_session, rule, short, merge)
+        _connect(db_session, rule, deep1, deep2)
+        _connect(db_session, rule, deep2, merge)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        executed = []
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            executed.append(step.step_type)
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            await executor.execute(rule, _make_trigger(), db_session)
+
+        assert executed.count("merge") == 1
+        assert executed.index("merge") > executed.index("short")
+        assert executed.index("merge") > executed.index("deep2")
+
     async def test_wait_step_pauses_execution_before_following_edge(self, db_session, db_factory):
         rule = _make_rule(db_session)
         wait_step = _make_step(db_session, rule, order=1, step_type="wait")
@@ -335,6 +391,33 @@ class TestPipelineExecutorBranching:
 
         assert result.status == "waiting"
         assert executed == ["wait"]
+
+    async def test_wait_in_parallel_branch_fails_loudly(self, db_session, db_factory):
+        """A wait in one fan-out branch must not silently drop the sibling
+        branch; until resume-all-branches is supported it fails loudly."""
+        rule = _make_rule(db_session)
+        root = _make_step(db_session, rule, order=1, step_type="root")
+        # waiter is connected first so it is processed before the sibling and
+        # the sibling is still pending when the wait pauses the run.
+        waiter = _make_step(db_session, rule, order=2, step_type="wait")
+        sibling = _make_step(db_session, rule, order=3, step_type="sibling")
+        _connect(db_session, rule, root, waiter)
+        _connect(db_session, rule, root, sibling)
+        db_session.commit()
+
+        executor = _make_executor(db_factory)
+        resume_at = datetime.now(UTC) + timedelta(minutes=5)
+
+        async def mock_execute(step, execution, pipeline_data, trigger):
+            if step.step_type == "wait":
+                return StepResult(success=True, wait_until=resume_at)
+            return StepResult(success=True)
+
+        with patch.object(executor, "_execute_step", side_effect=mock_execute):
+            result = await executor.execute(rule, _make_trigger(), db_session)
+
+        assert result.status == "failed"
+        assert "parallel branch" in (result.error or "")
 
     async def test_step_completed_event_includes_output_port(self, db_session, db_factory):
         rule = _make_rule(db_session)

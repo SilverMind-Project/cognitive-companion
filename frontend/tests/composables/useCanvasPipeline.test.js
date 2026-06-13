@@ -206,10 +206,12 @@ describe("useCanvasPipeline", () => {
     expect(mocks.notify.error).toHaveBeenCalledWith("Cannot connect a step to itself.");
   });
 
-  it("addEdge rejects duplicate source handles without API call", async () => {
+  it("addEdge allows fan-out: one source port to multiple targets", async () => {
     const { result } = mountComposable();
     await settleInitialLoad();
 
+    // An edge 10:true -> 11 already exists in the fixture. Connecting the same
+    // port to a different target (12) is a valid fan-out and must persist.
     await result.actions.addEdge({
       source: "10",
       sourceHandle: "true",
@@ -217,8 +219,26 @@ describe("useCanvasPipeline", () => {
       targetHandle: "main",
     });
 
+    expect(mocks.api.replaceRuleEdges).toHaveBeenCalledTimes(1);
+    expect(mocks.notify.error).not.toHaveBeenCalled();
+  });
+
+  it("addEdge rejects an exact duplicate edge without API call", async () => {
+    const { result } = mountComposable();
+    await settleInitialLoad();
+
+    // Same source port AND same target as the existing fixture edge.
+    await result.actions.addEdge({
+      source: "10",
+      sourceHandle: "true",
+      target: "11",
+      targetHandle: "main",
+    });
+
     expect(mocks.api.replaceRuleEdges).not.toHaveBeenCalled();
-    expect(mocks.notify.error).toHaveBeenCalledWith("This output port is already connected.");
+    expect(mocks.notify.error).toHaveBeenCalledWith(
+      "These steps are already connected on this port.",
+    );
   });
 
   it("addEdge rejects invalid source handles without API call", async () => {

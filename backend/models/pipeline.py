@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -84,9 +84,9 @@ class PipelineEdge(Base):
     )
     target_port: Mapped[str] = mapped_column(String(64), server_default="main")
 
-    __table_args__ = (
-        UniqueConstraint("source_step_id", "source_port", name="uq_edge_source_port"),
-    )
+    # No unique constraint on (source_step_id, source_port): a single output
+    # port may fan out to multiple target steps (see PipelineExecutor's
+    # in-degree-gated DAG traversal).
 
     rule: Mapped[Rule] = relationship(back_populates="edges")
     source_step: Mapped[PipelineStep] = relationship(foreign_keys=[source_step_id])

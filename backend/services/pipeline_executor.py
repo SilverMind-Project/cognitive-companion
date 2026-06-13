@@ -58,6 +58,7 @@ For nested updates like `pipeline_data["_pipeline"]["completed_at"]`, use
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -439,10 +440,13 @@ class PipelineExecutor:
             descendant_ids = find_descendants(current_step.id, all_step_ids, edges)
             steps = [s for s in steps if s.id in descendant_ids]
             remaining_step_ids = {s.id for s in steps}
+            # Resume from every step immediately downstream of the resumed step,
+            # across all of its output ports (a port may now fan out to several).
             entry_ids_for_resume = [
-                next_id
-                for port in ("main",)
-                if (next_id := adjacency.get(current_step.id, {}).get(port)) in remaining_step_ids
+                target_id
+                for targets in adjacency.get(current_step.id, {}).values()
+                for target_id in targets
+                if target_id in remaining_step_ids
             ]
         else:
             entry_ids_for_resume = find_entry_step_ids({s.id for s in steps}, edges)
@@ -543,10 +547,20 @@ class PipelineExecutor:
         steps: list[PipelineStep],
         trigger: TriggerContext,
         db: Session,
-        adjacency: dict[int, dict[str, int]],
+        adjacency: dict[int, dict[str, list[int]]],
         entry_step_ids: list[int],
     ) -> WorkflowExecution:
         """Traverse the pipeline DAG, handling timing, waits, and early exit.
+
+        Traversal is **in-degree gated**: a step runs only once every incoming
+        edge has been resolved by its source completing. Each outgoing edge is
+        either *live* (its source activated that port) or *dead* (the source took
+        another branch, e.g. a ``condition`` emitting only ``true``). A node with
+        at least one live incoming edge executes; a node whose incoming edges are
+        all dead is skipped, and that skip propagates to its descendants. This
+        makes fan-out (one port to many targets) and fan-in/joins (a node waits
+        for all parents, then runs once) correct for arbitrary DAGs, not just the
+        linear/symmetric cases the previous breadth-first walk happened to handle.
 
         ``execution.pipeline_data_json`` is wrapped by
         :class:`sqlalchemy.ext.mutable.MutableDict` (see the column definition
@@ -570,8 +584,68 @@ class PipelineExecutor:
         step_timings: list = list(pipeline_data.get("_step_timings", []))
 
         step_by_id = {s.id: s for s in steps}
-        visited: set[int] = set()
-        queue: list[int] = list(entry_step_ids)
+        step_ids_set = set(step_by_id)
+
+        # In-degree counts only edges whose source is in the run set. On resume
+        # the run set is the descendant subset, so edges from already-executed
+        # ancestors are treated as pre-resolved (not counted here).
+        pending: dict[int, int] = defaultdict(int)
+        for source_id, ports in adjacency.items():
+            if source_id not in step_ids_set:
+                continue
+            for targets in ports.values():
+                for target_id in targets:
+                    if target_id in step_ids_set:
+                        pending[target_id] += 1
+
+        # A node is "live" once a taken edge reaches it. Explicit entry steps are
+        # live, and any run-set node fed by an out-of-set (ancestor) edge is live
+        # because that ancestor already ran on the path that reached here.
+        live: set[int] = set(entry_step_ids)
+        for source_id, ports in adjacency.items():
+            if source_id in step_ids_set:
+                continue
+            for targets in ports.values():
+                for target_id in targets:
+                    if target_id in step_ids_set:
+                        live.add(target_id)
+
+        resolved: set[int] = set()  # executed or skipped
+        enqueued: set[int] = set()  # pushed to the ready queue exactly once
+        queue: deque[int] = deque()
+
+        def _enqueue_ready(node_id: int) -> None:
+            if node_id in enqueued or node_id in resolved:
+                return
+            enqueued.add(node_id)
+            queue.append(node_id)
+
+        def _resolve_out_edges(node_id: int, active_ports: set[str]) -> None:
+            """Resolve every outgoing edge of *node_id* as live or dead.
+
+            Decrements each in-set target's pending count, marks live targets,
+            and enqueues a target once all its incoming edges are resolved. A
+            live edge to a target outside the run set is enqueued so the
+            ``dag_step_not_found`` warning still fires for dangling edges.
+            """
+            for port, targets in adjacency.get(node_id, {}).items():
+                is_live = port in active_ports
+                for target_id in targets:
+                    if is_live:
+                        live.add(target_id)
+                    if target_id in step_ids_set:
+                        pending[target_id] -= 1
+                        if pending[target_id] <= 0:
+                            _enqueue_ready(target_id)
+                    elif is_live:
+                        _enqueue_ready(target_id)
+
+        # Seed the frontier: every run-set node with no unresolved in-set
+        # incoming edge. On a fresh execute this is the single entry node; on
+        # resume it is the set of steps immediately after the resumed step.
+        for node_id in step_ids_set:
+            if pending[node_id] == 0:
+                _enqueue_ready(node_id)
 
         # Tracked so the except-block can record a timing entry for a failed step
         _active_step: PipelineStep | None = None
@@ -579,9 +653,10 @@ class PipelineExecutor:
 
         try:
             while queue:
-                step_id = queue.pop(0)
-                if step_id in visited:
+                step_id = queue.popleft()
+                if step_id in resolved:
                     continue
+                resolved.add(step_id)
 
                 step = step_by_id.get(step_id)
                 if step is None:
@@ -592,7 +667,17 @@ class PipelineExecutor:
                     )
                     continue
 
-                visited.add(step_id)
+                # Dead branch: no live edge reached this node, so skip it and
+                # propagate the skip (its outgoing edges resolve as dead too).
+                if step_id not in live:
+                    logger.info(
+                        "step_skipped_dead_branch",
+                        rule=execution.rule.name,
+                        step_type=step.step_type,
+                        step_label=step.label,
+                    )
+                    _resolve_out_edges(step_id, active_ports=set())
+                    continue
 
                 execution.current_step_id = step.id
                 db.commit()
@@ -723,6 +808,31 @@ class PipelineExecutor:
 
                 # Handle wait
                 if result.wait_until:
+                    # Pausing serializes the whole execution, and resume() only
+                    # rebuilds work downstream of the waiting step. If any step
+                    # in a parallel branch (neither already processed nor
+                    # reachable from here) is still pending, resuming would
+                    # silently drop it. Fail loudly instead of losing a branch.
+                    # Resuming all branches across a wait is a future enhancement.
+                    abandoned = (
+                        step_ids_set
+                        - resolved
+                        - _descendants_via_adjacency(step.id, adjacency, step_ids_set)
+                    )
+                    if abandoned:
+                        logger.error(
+                            "pipeline_wait_parallel_branch_unsupported",
+                            execution_id=execution.id,
+                            step_label=step.label or step.step_type,
+                            abandoned_step_ids=sorted(abandoned),
+                        )
+                        raise ValidationError(
+                            f"Step '{step.label or step.step_type}' pauses (wait) while "
+                            f"{len(abandoned)} step(s) remain in a parallel branch. "
+                            "wait/interactive_prompt steps are not yet supported alongside "
+                            "fan-out branches; restructure the pipeline so the wait is not "
+                            "parallel to other steps."
+                        )
                     execution.status = "waiting"
                     execution.resume_at = result.wait_until
                     # Record which step we are waiting on so resume() can
@@ -779,10 +889,7 @@ class PipelineExecutor:
                     )
                     return execution
 
-                for port in result.output_ports:
-                    next_id = adjacency.get(step.id, {}).get(port)
-                    if next_id is not None and next_id not in visited:
-                        queue.append(next_id)
+                _resolve_out_edges(step.id, set(result.output_ports))
 
             # All steps completed
             completed_at = datetime.now(UTC)
@@ -977,7 +1084,7 @@ def _make_step_timing(
 def _prepare_execution_graph(
     steps: list[PipelineStep],
     edges: list[PipelineEdge],
-) -> tuple[dict[int, dict[str, int]], list[int]]:
+) -> tuple[dict[int, dict[str, list[int]]], list[int]]:
     """Validate enabled-step topology and return routing maps for execution."""
     if not steps:
         return {}, []
@@ -1005,6 +1112,24 @@ def _output_ports_for_step_type(step_type: str) -> tuple[str, ...]:
     StepRegistry.discover()
     handler = StepRegistry.get(step_type)
     return handler.metadata().output_ports if handler else ("main",)
+
+
+def _descendants_via_adjacency(
+    start_step_id: int,
+    adjacency: dict[int, dict[str, list[int]]],
+    allowed: set[int],
+) -> set[int]:
+    """Return steps in *allowed* reachable from *start_step_id* (excluding it)."""
+    seen: set[int] = set()
+    dq: deque[int] = deque([start_step_id])
+    while dq:
+        cur = dq.popleft()
+        for targets in adjacency.get(cur, {}).values():
+            for target_id in targets:
+                if target_id in allowed and target_id not in seen:
+                    seen.add(target_id)
+                    dq.append(target_id)
+    return seen
 
 
 _PER_STEP_TIMEOUT = 60.0  # seconds; coarse safety net for stuck LLM calls

@@ -28,8 +28,16 @@ def test_build_adjacency_maps_ports():
 
     adj = build_adjacency(edges)
 
-    assert adj[1]["true"] == 2
-    assert adj[1]["false"] == 3
+    assert adj[1]["true"] == [2]
+    assert adj[1]["false"] == [3]
+
+
+def test_build_adjacency_fans_out_one_port_to_many_targets():
+    edges = [_FakeEdge(1, "main", 2), _FakeEdge(1, "main", 3)]
+
+    adj = build_adjacency(edges)
+
+    assert adj[1]["main"] == [2, 3]
 
 
 def test_find_entry_steps_returns_step_with_no_incoming():

@@ -160,6 +160,47 @@ def test_replace_edges_allows_removing_last_edge(client, db_session):
     assert remaining == []
 
 
+def test_replace_edges_allows_fan_out(client, db_session):
+    # One source port may fan out to multiple distinct targets.
+    rule = _create_rule(db_session)
+    first = _add_step(db_session, rule.id, 0, "first")
+    second = _add_step(db_session, rule.id, 1, "second")
+    third = _add_step(db_session, rule.id, 2, "third")
+
+    response = client.put(
+        f"/api/v1/rules/{rule.id}/edges",
+        json={
+            "edges": [
+                {"source_step_id": first.id, "source_port": "main", "target_step_id": second.id},
+                {"source_step_id": first.id, "source_port": "main", "target_step_id": third.id},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+
+
+def test_replace_edges_dedupes_exact_duplicate(client, db_session):
+    # An identical edge (same source port to the same target) is collapsed.
+    rule = _create_rule(db_session)
+    first = _add_step(db_session, rule.id, 0, "first")
+    second = _add_step(db_session, rule.id, 1, "second")
+
+    response = client.put(
+        f"/api/v1/rules/{rule.id}/edges",
+        json={
+            "edges": [
+                {"source_step_id": first.id, "source_port": "main", "target_step_id": second.id},
+                {"source_step_id": first.id, "source_port": "main", "target_step_id": second.id},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
 def test_replace_edges_validates_no_cycles(client, db_session):
     rule = _create_rule(db_session)
     first = _add_step(db_session, rule.id, 0, "first")

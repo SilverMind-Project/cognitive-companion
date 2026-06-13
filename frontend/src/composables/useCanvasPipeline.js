@@ -97,12 +97,19 @@ export function useCanvasPipeline(ruleId) {
     if (source && source === target) {
       return "Cannot connect a step to itself.";
     }
+    // A single output port may fan out to multiple steps, so duplicate
+    // (source, port) connections are allowed. We only reject an exact duplicate
+    // edge (same source port to the same target) to avoid redundant rows.
     if (
       state.edges.some(
-        (edge) => edge.source === source && (edge.sourceHandle || "main") === sourcePort,
+        (edge) =>
+          edge.source === source &&
+          (edge.sourceHandle || "main") === sourcePort &&
+          edge.target === target &&
+          (edge.targetHandle || "main") === targetPort,
       )
     ) {
-      return "This output port is already connected.";
+      return "These steps are already connected on this port.";
     }
     if (!outputPortsForNode(sourceNode).includes(sourcePort)) {
       return `Output port "${sourcePort}" is not valid for this step.`;

@@ -73,8 +73,20 @@ def validate_graph(
     step_ids: set[int],
     edges: list[PipelineEdge],
     step_output_ports: dict[int, tuple[str, ...]],
+    *,
+    check_entry: bool = True,
 ) -> list[str]:
-    """Validate graph topology and return human-readable errors."""
+    """Validate graph topology and return human-readable errors.
+
+    The entry-node count (exactly one starting step) is an *execution*
+    invariant, not an *authoring* one: while a pipeline is being built, steps
+    are routinely added before they are wired, which legitimately produces
+    multiple entry nodes. Authoring-time callers (the edge-save endpoint) pass
+    ``check_entry=False`` so incremental edits are not rejected; execution,
+    import, and the non-blocking validate endpoint keep the full check.
+    Structural checks (unknown steps, duplicate source ports, invalid ports,
+    cycles) always run.
+    """
     errors: list[str] = []
 
     referenced_step_ids = {edge.source_step_id for edge in edges} | {
@@ -94,13 +106,14 @@ def validate_graph(
     if duplicate_keys:
         errors.append(f"Duplicate outgoing edges for source ports: {sorted(duplicate_keys)}")
 
-    entries = find_entry_step_ids(step_ids, edges)
-    if len(entries) == 0:
-        errors.append("Pipeline has no entry node (all steps have incoming edges, cycle?).")
-    elif len(entries) > 1:
-        errors.append(
-            f"Pipeline must have exactly one entry node; found {len(entries)}: {entries}."
-        )
+    if check_entry:
+        entries = find_entry_step_ids(step_ids, edges)
+        if len(entries) == 0:
+            errors.append("Pipeline has no entry node (all steps have incoming edges, cycle?).")
+        elif len(entries) > 1:
+            errors.append(
+                f"Pipeline must have exactly one entry node; found {len(entries)}: {entries}."
+            )
 
     for edge in edges:
         declared = step_output_ports.get(edge.source_step_id, ("main",))

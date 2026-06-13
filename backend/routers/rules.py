@@ -377,10 +377,16 @@ def _collect_step_output_ports(steps: list[PipelineStep]) -> dict[int, tuple[str
 
 
 def _validate_rule_graph_or_raise(steps: list[PipelineStep], edges: list[PipelineEdge]) -> None:
+    # Authoring-time validation: enforce structural integrity (unknown steps,
+    # duplicate source ports, invalid ports, cycles) but NOT the single-entry
+    # rule. A pipeline under construction routinely has unwired steps (multiple
+    # entry nodes); that is reported as a non-blocking warning by the validate
+    # endpoint and enforced at execution time, not on every edge save.
     errors = validate_graph(
         {step.id for step in steps},
         edges,
         _collect_step_output_ports(steps),
+        check_entry=False,
     )
     if errors:
         raise ValidationError("; ".join(errors))

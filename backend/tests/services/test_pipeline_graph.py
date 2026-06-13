@@ -124,3 +124,49 @@ def test_validate_graph_invalid_port_fails():
     errors = validate_graph({1, 2}, edges, {1: ("true", "false"), 2: ("main",)})
 
     assert any("not in declared output_ports" in error for error in errors)
+
+
+def test_validate_graph_check_entry_false_allows_multiple_entries():
+    # Authoring-time: a pipeline with an unwired step (two entry nodes) is a
+    # valid intermediate edit state and must not be rejected.
+    edges = [_FakeEdge(1, "main", 2)]
+
+    errors = validate_graph(
+        {1, 2, 3},
+        edges,
+        {1: ("main",), 2: ("main",), 3: ("main",)},
+        check_entry=False,
+    )
+
+    assert errors == []
+
+
+def test_validate_graph_check_entry_false_allows_empty_edge_set():
+    # Removing the last edge (empty set) must be accepted while authoring;
+    # this is the remove-then-readd 422 regression.
+    errors = validate_graph(
+        {1, 2, 3},
+        [],
+        {1: ("main",), 2: ("main",), 3: ("main",)},
+        check_entry=False,
+    )
+
+    assert errors == []
+
+
+def test_validate_graph_check_entry_false_still_catches_cycles():
+    edges = [_FakeEdge(1, "main", 2), _FakeEdge(2, "main", 1)]
+
+    errors = validate_graph({1, 2}, edges, {1: ("main",), 2: ("main",)}, check_entry=False)
+
+    assert any("cycle" in error for error in errors)
+
+
+def test_validate_graph_check_entry_false_still_catches_invalid_ports():
+    edges = [_FakeEdge(1, "maybe", 2)]
+
+    errors = validate_graph(
+        {1, 2}, edges, {1: ("true", "false"), 2: ("main",)}, check_entry=False
+    )
+
+    assert any("not in declared output_ports" in error for error in errors)

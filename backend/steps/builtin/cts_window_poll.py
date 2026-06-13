@@ -161,31 +161,27 @@ class CtsWindowPollHandler(StepHandler):
         window_start = now.timestamp() - lookback_s
 
         # Step 1: Pull historical frames from the in-memory bucketizer buffer
-        # (which is the canonical recent-frame store shared with the live view).
-        #
-        # The bucketizer is wired in Phase 3 (CtsEventBucketizer). Until then
-        # ServiceContainer has no `bucketizer` attribute, so we log a warning
-        # and return an empty window with `partial=True` so downstream steps
-        # can branch on it rather than silently receiving stale data.
+        # (the canonical recent-frame store shared with the live view). The
+        # bucketizer is injected from CTSRuntime; when CTS is disabled it is
+        # None and we return an empty window with `partial=True` so downstream
+        # steps can branch on it rather than silently receiving stale data.
         frames: list[dict[str, Any]] = []
 
-        # Collect from the bucketizer's per-camera buffers.
-        bucketizer = _get_bucketizer(services)
+        bucketizer = services.bucketizer
         if bucketizer is None:
             logger.warning(
                 "cts_window_poll_no_bucketizer",
                 execution_id=str(execution.id),
                 msg=(
-                    "CtsEventBucketizer is not wired into ServiceContainer. "
-                    "Phase 3 must be completed before cts_window_poll can return "
-                    "live CTS frames. Returning empty window with partial=True."
+                    "CTS bucketizer unavailable (CTS disabled or not started). "
+                    "Returning empty window with partial=True."
                 ),
             )
         if bucketizer is not None:
             target_cameras = cameras or list(bucketizer.buffer_stats().keys())
             for cam_id in target_cameras:
                 cam_frames = bucketizer.forward_buffer(
-                    window_id=execution.id,
+                    window_id=str(execution.id),
                     camera_id=cam_id,
                     lookahead_s=lookback_s + lookahead_s,
                 )
@@ -263,16 +259,3 @@ class CtsWindowPollHandler(StepHandler):
         )
 
 
-def _get_bucketizer(services: ServiceContainer) -> Any:
-    """Resolve the CtsEventBucketizer from the service container or app state.
-
-    The bucketizer is attached to ``app.state.cts_runtime.bucketizer``
-    during CTS startup.  When the step runs inside a pipeline execution
-    there is no direct reference to the FastAPI app, so we reach through
-    the ``services`` container (which is populated from the lifespan).
-    """
-    # The ServiceContainer currently has no bucketizer slot, but the
-    # CTS runtime is accessible via app.state. In a full implementation,
-    # add a ``bucketizer`` attribute to ServiceContainer and populate
-    # it in the lifespan.
-    return getattr(services, "bucketizer", None)

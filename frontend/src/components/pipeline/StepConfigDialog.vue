@@ -71,6 +71,7 @@
                     :available-rooms="availableRooms"
                     :available-channels="availableChannels"
                     :camera-sensor-items="cameraSensorItems"
+                    :cts-camera-items="ctsCameraItems"
                     :ha-entity-items="haEntityItems"
                     :ha-media-player-items="haMediaPlayerItems"
                     :eink-sensor-items="einkSensorItems"
@@ -150,6 +151,7 @@
 <script setup>
 import { ref, watch, reactive, computed, onMounted, provide } from "vue";
 import { api } from "../../services/api.js";
+import { cts } from "../../services/cts.js";
 import { isoToLocalHHMM, localHHMMToUTCISO } from "../../services/timezone.js";
 import DialogHeader from "../common/DialogHeader.vue";
 import DialogFooter from "../common/DialogFooter.vue";
@@ -197,6 +199,7 @@ const availableChannels = ref([
 const availablePersons = ref([]);
 const availableRooms = ref([]);
 const cameraSensorItems = ref([]);
+const ctsCameraItems = ref([]);
 const einkSensorItems = ref([]);
 const haMediaPlayerItems = ref([]);
 const haEntityItems = ref([]);
@@ -409,6 +412,12 @@ onMounted(async () => {
     einkSensorItems.value = sensors.filter((s) => s.sensor_type === "eink").map((s) => s.id);
     cameraSensorItems.value = sensors.filter((s) => s.sensor_type === "camera").map((s) => s.id);
   } catch { /* unavailable */ }
+  try {
+    // CTS camera roster (distinct from reCamera sensors). Empty when CTS is
+    // disabled; the dropdowns degrade to free text entry.
+    const ctsCameras = await cts.getCameras();
+    ctsCameraItems.value = (ctsCameras || []).map((c) => c.id);
+  } catch { /* CTS disabled or unavailable */ }
   try {
     haMediaPlayerItems.value = await api.getHAMediaPlayers();
   } catch { /* unavailable */ }

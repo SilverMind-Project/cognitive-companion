@@ -1,11 +1,7 @@
 <template>
-  <div class="cc-pipeline-canvas">
-    <div v-if="state.loading" class="cc-pipeline-canvas__state">
-      <v-progress-circular indeterminate color="primary" />
-    </div>
-
+  <div ref="canvasRef" class="cc-pipeline-canvas">
     <v-alert
-      v-else-if="state.error"
+      v-if="state.error && !state.ready"
       type="error"
       density="compact"
       variant="tonal"
@@ -16,6 +12,14 @@
 
     <template v-else>
       <div class="cc-pipeline-canvas__toolbar">
+        <v-btn
+          size="small"
+          variant="text"
+          prepend-icon="mdi-fit-to-page-outline"
+          @click="fitToView"
+        >
+          Fit
+        </v-btn>
         <v-btn
           size="small"
           variant="outlined"
@@ -35,14 +39,36 @@
         </v-btn>
       </div>
 
+      <v-progress-linear
+        v-if="state.loading && state.ready"
+        indeterminate
+        color="primary"
+        height="2"
+        class="cc-pipeline-canvas__refresh"
+      />
+
+      <v-alert
+        v-if="state.error && state.ready"
+        type="warning"
+        density="compact"
+        variant="tonal"
+        closable
+        class="cc-pipeline-canvas__error-banner"
+        @click:close="state.error = null"
+      >
+        {{ state.error }}
+      </v-alert>
+
       <VueFlow
         ref="flowElement"
         :nodes="state.nodes"
         :edges="state.edges"
         :node-types="nodeTypes"
         :default-edge-options="defaultEdgeOptions"
-        :fit-view-on-init="true"
+        :fit-view-on-init="false"
         :zoom-on-double-click="false"
+        :min-zoom="0.2"
+        :max-zoom="2"
         class="cc-pipeline-canvas__flow"
         @connect="actions.addEdge"
         @edges-change="onEdgesChange"
@@ -67,6 +93,32 @@
           :offset-scale="0"
         />
       </VueFlow>
+
+      <div v-if="showEmptyState" class="cc-pipeline-canvas__empty">
+        <v-icon size="40" color="var(--cc-text-3)">mdi-sitemap-outline</v-icon>
+        <div class="cc-pipeline-canvas__empty-title">Build your pipeline</div>
+        <div class="cc-pipeline-canvas__empty-sub">
+          Add a step to define what happens when this rule fires, then drag
+          between steps to connect them into a flow.
+        </div>
+        <div class="cc-pipeline-canvas__empty-action">
+          <v-btn
+            color="primary"
+            variant="flat"
+            prepend-icon="mdi-plus"
+            @click="paletteOpen = true"
+          >
+            Add your first step
+          </v-btn>
+        </div>
+      </div>
+
+      <div
+        v-if="state.loading && !state.ready"
+        class="cc-pipeline-canvas__state"
+      >
+        <v-progress-circular indeterminate color="primary" />
+      </div>
     </template>
 
     <CanvasContextMenu
@@ -131,7 +183,22 @@ const props = defineProps({
 const emit = defineEmits(["updated"]);
 const { notify } = useNotify();
 const { state, actions } = useCanvasPipeline(props.ruleId);
-const { fitView } = useVueFlow();
+const { fitView, screenToFlowCoordinate, onNodesInitialized } = useVueFlow();
+
+// Node geometry (matches StepNode width and approximate height) used to centre
+// a freshly added step under the current viewport.
+const NODE_WIDTH = 280;
+const NODE_HEIGHT = 100;
+
+// Fit the view to content exactly once, the first time real nodes are measured.
+// VueFlow preserves the viewport across subsequent node/edge replacements as
+// long as it stays mounted, so we must not refit on every reload.
+const hasFitInitial = ref(false);
+onNodesInitialized?.(() => {
+  if (hasFitInitial.value || !state.nodes.length) return;
+  hasFitInitial.value = true;
+  fitView({ padding: 0.2 });
+});
 const {
   confirmDialog,
   confirmTitle,
@@ -147,7 +214,12 @@ const {
 const nodeTypes = { step: markRaw(StepNode) };
 const defaultEdgeOptions = { type: "smoothstep", animated: false };
 const flowElement = ref(null);
+const canvasRef = ref(null);
 const minimapSize = useCanvasMiniMapSize(flowElement);
+
+const showEmptyState = computed(
+  () => state.ready && !state.loading && !state.error && !state.nodes.length,
+);
 const paletteOpen = ref(false);
 const configOpen = ref(false);
 const editingStep = ref(null);
@@ -252,6 +324,29 @@ async function toggleStepEnabled(stepId) {
   }
 }
 
+function fitToView() {
+  fitView({ padding: 0.2 });
+}
+
+// Place a new step at the centre of the current viewport so it lands where the
+// user is looking, with a small cascade so repeated adds don't stack exactly.
+function nextStepPosition() {
+  const cascade = (state.nodes.length % 6) * 28;
+  const rect = canvasRef.value?.getBoundingClientRect?.();
+  if (rect?.width > 0 && rect?.height > 0 && screenToFlowCoordinate) {
+    const center = screenToFlowCoordinate({
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    });
+    return {
+      x: Math.round(center.x - NODE_WIDTH / 2 + cascade),
+      y: Math.round(center.y - NODE_HEIGHT / 2 + cascade),
+    };
+  }
+  // Fallback when the canvas has not been measured yet (e.g. headless tests).
+  return { x: 120 + state.nodes.length * 80, y: 200 + cascade };
+}
+
 async function autoArrange() {
   const arranged = applyDagreLayout(state.nodes, state.edges);
   state.nodes = arranged;
@@ -263,12 +358,13 @@ async function autoArrange() {
 
 async function onStepSelected(stepType) {
   try {
+    const { x, y } = nextStepPosition();
     await api.addRuleStep(props.ruleId, {
       step_type: stepType,
       enabled: true,
       config_json: {},
-      position_x: 100 + state.nodes.length * 320,
-      position_y: 200,
+      position_x: x,
+      position_y: y,
     });
     await actions.load();
     emit("updated");
@@ -311,10 +407,62 @@ async function onStepSaved(data) {
 }
 
 .cc-pipeline-canvas__state {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  background: color-mix(in srgb, var(--cc-bg) 70%, transparent);
+}
+
+.cc-pipeline-canvas__refresh {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 11;
+}
+
+.cc-pipeline-canvas__error-banner {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 11;
+  max-width: 420px;
+}
+
+.cc-pipeline-canvas__empty {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.cc-pipeline-canvas__empty-title {
+  margin-top: 12px;
+  color: var(--cc-text-1);
+  font-family: var(--cc-font-display);
+  font-size: 1.25rem;
+}
+
+.cc-pipeline-canvas__empty-sub {
+  max-width: 360px;
+  margin-top: 6px;
+  color: var(--cc-text-2);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.cc-pipeline-canvas__empty-action {
+  margin-top: 18px;
+  pointer-events: auto;
 }
 
 .cc-pipeline-canvas__flow {

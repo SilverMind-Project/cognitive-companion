@@ -20,7 +20,6 @@ router = APIRouter(prefix="/cts/gait", tags=["cts-gait"])
 
 
 def _get_service(request=None) -> GaitTrendService:
-    from fastapi import Request
 
     from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 

@@ -33,7 +33,7 @@ def _weighted_median(values: list[float], weights: list[float]) -> float:
     """Duration-weighted median: sort by value, accumulate weight until midpoint."""
     if not values:
         raise ValueError("empty values")
-    pairs = sorted(zip(values, weights), key=lambda p: p[0])
+    pairs = sorted(zip(values, weights, strict=True), key=lambda p: p[0])
     total = sum(weights)
     half = total / 2.0
     cumulative = 0.0
@@ -133,8 +133,8 @@ class GaitTrendService:
                 trend="insufficient",
             )
 
-        b_speeds, b_weights = zip(*baseline_sufficient)
-        r_speeds, r_weights = zip(*recent_sufficient)
+        b_speeds, b_weights = zip(*baseline_sufficient, strict=True)
+        r_speeds, r_weights = zip(*recent_sufficient, strict=True)
         baseline_median = _weighted_median(list(b_speeds), list(b_weights))
         recent_median = _weighted_median(list(r_speeds), list(r_weights))
 

@@ -267,7 +267,7 @@ const formatTime = formatTimeOnly;
 .bubble--ai {
   background: var(--cc-surface);
   border: 1px solid var(--cc-divider);
-  box-shadow: var(--cc-shadow-xs, 0 1px 2px rgba(45, 38, 26, 0.06));
+  box-shadow: var(--cc-shadow-xs);
   border-bottom-left-radius: var(--cc-radius-xs);
 }
 

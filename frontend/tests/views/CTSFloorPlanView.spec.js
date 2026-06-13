@@ -105,7 +105,7 @@ const stubComponents = {
   "v-tab": { template: "<div><slot /></div>" },
   "v-window": { template: "<div><slot /></div>" },
   "v-window-item": { template: "<div><slot /></div>" },
-  "v-btn-toggle": { template: "<div><slot /></div>" },
+  "CcSegmentedToggle": { template: "<div />", props: ["modelValue", "options", "size"] },
   "v-file-input": { template: "<input type='file' />" },
   "v-text-field": { template: "<input />" },
   "v-select": { template: "<select><slot /></select>" },

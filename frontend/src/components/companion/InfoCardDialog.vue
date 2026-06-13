@@ -11,13 +11,15 @@
         <template #prepend>
           <v-icon color="primary" size="28">mdi-card-text-outline</v-icon>
         </template>
-        <v-card-title class="text-h6 font-weight-bold text-wrap" style="line-height: 1.3">
+        <v-card-title class="text-h5 font-weight-bold text-wrap" style="line-height: 1.3">
           {{ title }}
         </v-card-title>
         <template #append>
           <div class="ml-1">
+            <!-- Calm countdown: neutral most of the way, gentle gold near the
+                 end (DS: awareness, not alarm — no red). -->
             <v-chip
-              :color="countdown <= 5 ? 'error' : 'grey'"
+              :color="countdown <= 5 ? 'warning' : undefined"
               size="small"
               variant="tonal"
             >
@@ -226,8 +228,10 @@ defineExpose({ show: handleInfoCard });
 }
 .side-text {
   flex: 1;
-  line-height: 1.7;
+  font-size: 1.25rem;
+  line-height: 1.6;
   white-space: pre-wrap;
+  color: var(--cc-text-1);
 }
 
 /* gallery_grid_2x2 layout */
@@ -250,12 +254,14 @@ defineExpose({ show: handleInfoCard });
 }
 
 .body-text {
-  line-height: 1.7;
+  font-size: 1.25rem;
+  line-height: 1.6;
   white-space: pre-wrap;
   color: var(--cc-text-1);
 }
 
 .dismiss-btn {
+  min-height: 56px;
   letter-spacing: 0.02em;
   font-weight: 600;
   border-radius: var(--cc-radius-md);

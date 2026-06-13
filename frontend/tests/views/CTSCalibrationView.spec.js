@@ -71,7 +71,7 @@ const stubComponents = {
   "v-icon": { template: "<span><slot /></span>" },
   "v-spacer": { template: "<span />" },
   "v-select": { template: "<select><slot /></select>" },
-  "v-btn-toggle": { template: "<div><slot /></div>", props: ["modelValue"] },
+  "CcSegmentedToggle": { template: "<div />", props: ["modelValue", "options", "size"] },
   "v-chip": { template: "<span><slot /></span>" },
   "v-alert": { template: "<div><slot /></div>" },
   "v-table": { template: "<table><slot /></table>" },

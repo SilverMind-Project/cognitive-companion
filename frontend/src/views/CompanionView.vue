@@ -94,6 +94,9 @@ const knowledgeAnswerData = ref({
   queryText: "",
   answerText: "",
   sourceDocumentIds: [],
+  // Per-answer marker so the widget reopens even when the same question is
+  // asked again (identical queryText would otherwise not retrigger its watch).
+  serverTimestamp: "",
 });
 
 let playbackContext = null;
@@ -146,6 +149,7 @@ function getWidgetProps(widgetId) {
         queryText: knowledgeAnswerData.value.queryText,
         answerText: knowledgeAnswerData.value.answerText,
         sourceDocumentIds: knowledgeAnswerData.value.sourceDocumentIds,
+        serverTimestamp: knowledgeAnswerData.value.serverTimestamp,
       };
     default:
       return {};
@@ -395,6 +399,7 @@ onMounted(() => {
       queryText: data.query_text || "",
       answerText: data.answer_text || "",
       sourceDocumentIds: data.source_document_ids || [],
+      serverTimestamp: data.server_timestamp || new Date().toISOString(),
     };
   });
 });

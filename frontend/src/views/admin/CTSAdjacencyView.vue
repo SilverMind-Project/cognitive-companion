@@ -60,8 +60,9 @@
                     <polygon
                       v-if="cam.visibility_polygon"
                       :points="toSvgPoints(cam.visibility_polygon)"
-                      fill="rgba(33,150,243,0.12)"
-                      stroke="#2196f3"
+                      fill="var(--cc-info)"
+                      fill-opacity="0.12"
+                      stroke="var(--cc-info)"
                       stroke-width="1.5"
                     />
                   </template>
@@ -73,7 +74,7 @@
                     :y1="centroidOf(edge.from)[1]"
                     :x2="centroidOf(edge.to)[0]"
                     :y2="centroidOf(edge.to)[1]"
-                    :stroke="edge.overlap ? '#4caf50' : '#9c27b0'"
+                    :stroke="edge.overlap ? 'var(--cc-success)' : 'var(--cc-chart-2)'"
                     stroke-width="2"
                     :stroke-dasharray="edge._staged ? '6,3' : 'none'"
                     opacity="0.8"
@@ -110,15 +111,15 @@
             </div>
             <div class="d-flex align-center flex-wrap ga-3 px-4 py-2 text-caption">
               <span class="d-flex align-center ga-1">
-                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="#4caf50" stroke-width="2"/></svg>
+                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="var(--cc-success)" stroke-width="2"/></svg>
                 Overlap
               </span>
               <span class="d-flex align-center ga-1">
-                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="#9c27b0" stroke-width="2"/></svg>
+                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="var(--cc-chart-2)" stroke-width="2"/></svg>
                 Adjacent
               </span>
               <span class="d-flex align-center ga-1">
-                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="#888" stroke-width="2" stroke-dasharray="4,2"/></svg>
+                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="var(--cc-text-3)" stroke-width="2" stroke-dasharray="4,2"/></svg>
                 Staged (unsaved)
               </span>
             </div>

@@ -30,7 +30,7 @@
         <v-chip-group v-model="sourceFilter" mandatory @update:model-value="onSourceChange">
           <v-chip value="all" filter variant="tonal">All</v-chip>
           <v-chip value="rule" filter variant="tonal" color="primary">Rules</v-chip>
-          <v-chip value="cts" filter variant="tonal" color="deep-purple">CTS signals</v-chip>
+          <v-chip value="cts" filter variant="tonal" color="info">CTS signals</v-chip>
         </v-chip-group>
 
         <v-select

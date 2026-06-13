@@ -8,7 +8,7 @@
     <div class="interactive-prompt-card">
       <!-- Icon -->
       <div class="prompt-icon-wrap">
-        <v-icon :size="96" color="#93c5fd">{{ icon }}</v-icon>
+        <v-icon :size="52" color="var(--info-fg)">{{ icon }}</v-icon>
       </div>
 
       <!-- Title -->
@@ -19,8 +19,8 @@
 
       <!-- Countdown Timer -->
       <div class="countdown-display">
-        <v-icon size="28" class="mr-1">mdi-timer-outline</v-icon>
-        <span>{{ countdownText }}</span>
+        <v-icon size="22" class="mr-1">mdi-timer-outline</v-icon>
+        <span>Closes on its own in {{ countdownText }}</span>
       </div>
 
       <!-- Actions -->
@@ -149,51 +149,51 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ── Card ───────────────────────────────────────────────────────────────── */
+/* ── Card — warm paper, info-pair hairline (DS CompanionPrompt, question) ── */
 .interactive-prompt-card {
-  border-radius: 32px;
-  padding: 60px 48px 48px;
+  border-radius: var(--cc-radius-xl);
+  padding: 48px 44px 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 24px;
-  background: rgba(10, 25, 50, 0.96);
-  border: 2px solid rgba(99, 102, 241, 0.45);
-  box-shadow: 0 0 60px rgba(99, 102, 241, 0.18);
-  backdrop-filter: blur(24px);
+  gap: 20px;
+  background: var(--cc-bg-elevated);
+  border: 1.5px solid var(--info-line);
+  box-shadow: var(--cc-shadow-lg);
   min-height: 50vh;
   justify-content: center;
 }
 
 /* ── Icon ───────────────────────────────────────────────────────────────── */
 .prompt-icon-wrap {
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
+  width: 104px;
+  height: 104px;
+  border-radius: var(--cc-radius-pill);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
-  background: rgba(99, 102, 241, 0.15);
+  background: var(--info-bg);
 }
 
 /* ── Title ──────────────────────────────────────────────────────────────── */
 .prompt-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  line-height: 1.2;
+  font-family: var(--cc-font-display);
+  font-weight: 500;
+  font-size: 40px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
   margin: 0;
-  color: #93c5fd;
+  color: var(--cc-text-1);
 }
 
 /* ── Message ────────────────────────────────────────────────────────────── */
 .prompt-message {
-  font-size: 1.5rem;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.88);
+  font-size: 24px;
+  line-height: 1.5;
+  color: var(--cc-text-2);
   margin: 0;
-  max-width: 90%;
+  max-width: 52ch;
 }
 
 /* ── Countdown ──────────────────────────────────────────────────────────── */
@@ -201,35 +201,32 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 24px;
-  border-radius: 16px;
-  background: rgba(99, 102, 241, 0.12);
-  color: #93c5fd;
-  font-size: 1.3rem;
-  font-weight: 600;
-  margin-top: 8px;
+  font-family: var(--cc-font-mono);
+  color: var(--cc-text-3);
+  font-size: 15px;
+  font-weight: 500;
 }
 
 /* ── Actions ────────────────────────────────────────────────────────────── */
 .prompt-actions {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   width: 100%;
-  max-width: 600px;
-  margin-top: 16px;
+  max-width: 520px;
+  margin-top: 8px;
   justify-content: space-between;
 }
 
 .action-btn {
   flex: 1;
-  height: 70px;
-  border: none;
-  border-radius: 18px;
-  font-size: 1.3rem;
+  min-height: 72px;
+  border-radius: var(--cc-radius-md);
+  font-family: var(--cc-font);
+  font-size: 22px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s, transform 0.15s;
-  letter-spacing: 0.01em;
+  transition: background var(--cc-dur-fast) var(--cc-ease-standard),
+              transform var(--cc-dur-fast) var(--cc-ease-standard);
 }
 
 .action-btn:disabled {
@@ -238,26 +235,31 @@ onUnmounted(() => {
 }
 
 .action-btn:not(:disabled):active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .action-btn--dismiss {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.90);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--cc-surface);
+  color: var(--text-brand);
+  border: 1.5px solid var(--line-soft);
 }
 
 .action-btn--dismiss:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--cc-surface-2);
 }
 
 .action-btn--escalate {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: #fff;
-  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.45);
+  background: var(--terra-400);
+  color: #FFF8F3;
+  border: 1.5px solid transparent;
+  box-shadow: var(--cc-shadow-sm);
 }
 
 .action-btn--escalate:not(:disabled):hover {
-  opacity: 0.9;
+  background: var(--terra-500);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-btn { transition: none; }
 }
 </style>

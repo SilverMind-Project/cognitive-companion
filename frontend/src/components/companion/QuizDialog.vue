@@ -454,6 +454,10 @@ defineExpose({ show: handleQuizStart });
   50%      { box-shadow: 0 0 0 12px rgba(var(--v-theme-primary), 0); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .mic-icon-wrap { animation: none; }
+}
+
 /* ── Feedback bar ──────────────────────────────────────────────────────── */
 .feedback-bar {
   display: flex;

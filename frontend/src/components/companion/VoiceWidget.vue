@@ -24,7 +24,7 @@
         :aria-label="recording ? 'Stop listening' : 'Start talking'"
         @click="$emit('toggle-recording')"
       >
-        <v-icon size="32" color="white">
+        <v-icon size="40" color="#FBF8F3">
           {{ recording ? 'mdi-stop' : 'mdi-microphone' }}
         </v-icon>
       </button>
@@ -55,70 +55,67 @@ const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
 </script>
 
 <style scoped>
-/* ── Card shell ─────────────────────────────────────────────────────────── */
+/* ── Card shell — warm DS paper ─────────────────────────────────────────── */
 .voice-card {
-  background: rgba(22, 20, 38, 0.72);
-  backdrop-filter: blur(24px);
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--cc-surface);
+  border: 1px solid var(--cc-divider);
+  border-radius: var(--cc-radius-xl);
+  box-shadow: var(--cc-shadow-sm);
   padding: 24px 20px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+  transition: border-color var(--cc-dur-base) var(--cc-ease-standard),
+              box-shadow var(--cc-dur-base) var(--cc-ease-standard);
   width: 100%;
   box-sizing: border-box;
 }
 
-.voice-card--listening {
-  border-color: rgba(99, 102, 241, 0.30);
-  box-shadow: 0 0 48px rgba(99, 102, 241, 0.12);
-}
+.voice-card--listening      { border-color: var(--good-line); }
+.voice-card--speaking       { border-color: var(--notice-line); }
+.voice-card--system_speaking{ border-color: var(--line-brand); }
 
-.voice-card--speaking {
-  border-color: rgba(245, 158, 11, 0.30);
-  box-shadow: 0 0 48px rgba(245, 158, 11, 0.12);
-}
-
-.voice-card--system_speaking {
-  border-color: rgba(139, 92, 246, 0.35);
-  box-shadow: 0 0 56px rgba(139, 92, 246, 0.16);
-}
-
-/* ── Status pill ────────────────────────────────────────────────────────── */
+/* ── Status pill — DS semantic pairs ────────────────────────────────────── */
 .status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   align-self: flex-start;
-  padding: 5px 14px 5px 10px;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: rgba(255, 255, 255, 0.65);
-  transition: all 0.3s ease;
+  padding: 7px 16px 7px 12px;
+  border-radius: var(--cc-radius-pill);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  background: var(--cc-surface-2);
+  border: 1px solid var(--cc-divider);
+  color: var(--cc-text-2);
+  transition: background var(--cc-dur-base) var(--cc-ease-standard),
+              border-color var(--cc-dur-base) var(--cc-ease-standard),
+              color var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 .pill-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.7;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--cc-radius-pill);
+  background: var(--stone-400);
+  flex: none;
+  box-shadow: 0 0 0 4px var(--cc-surface-2);
 }
 
-.pill--idle            { color: rgba(255,255,255,0.45); }
-.pill--listening       { color: #818cf8; border-color: rgba(99,102,241,0.30); background: rgba(99,102,241,0.10); }
-.pill--speaking        { color: #fbbf24; border-color: rgba(245,158,11,0.30); background: rgba(245,158,11,0.10); }
-.pill--system_speaking { color: #c084fc; border-color: rgba(139,92,246,0.30); background: rgba(139,92,246,0.10); }
+/* idle → quiet pair (default above); active states map to DS pairs */
+.pill--listening       { background: var(--good-bg);   border-color: var(--good-line);   color: var(--good-fg); }
+.pill--speaking        { background: var(--notice-bg); border-color: var(--notice-line); color: var(--notice-fg); }
+.pill--system_speaking { background: var(--sage-50);   border-color: var(--sage-200);    color: var(--sage-600); }
+
+.pill--listening .pill-dot       { background: var(--green-care);  box-shadow: 0 0 0 4px var(--good-bg); }
+.pill--speaking .pill-dot        { background: var(--gold-notice); box-shadow: 0 0 0 4px var(--notice-bg); }
+.pill--system_speaking .pill-dot { background: var(--sage-500);    box-shadow: 0 0 0 4px var(--sage-50); }
 
 .pill--listening .pill-dot,
 .pill--speaking .pill-dot,
 .pill--system_speaking .pill-dot {
-  animation: blink 1.4s ease-in-out infinite;
+  animation: cc-pill-blink 1.6s var(--cc-ease-standard) infinite;
 }
 
 /* ── Waveform ───────────────────────────────────────────────────────────── */
@@ -126,61 +123,68 @@ const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
   width: 100%;
 }
 
-/* ── Mic button ─────────────────────────────────────────────────────────── */
+/* ── Mic button — sage idle, brick recording, calm breathing ring ───────── */
 .mic-region {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding-top: 4px;
 }
 
 .mic-btn {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
+  width: 96px;
+  height: 96px;
+  border-radius: var(--cc-radius-pill);
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  transition: background var(--cc-dur-base) var(--cc-ease-standard),
+              transform var(--cc-dur-base) var(--cc-ease-standard),
+              box-shadow var(--cc-dur-base) var(--cc-ease-standard);
   outline: none;
   position: relative;
 }
 
 .mic-btn--idle {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.40);
+  background: var(--cc-brand);
+  box-shadow: var(--cc-shadow-md);
 }
 
 .mic-btn--idle:hover {
-  transform: scale(1.06);
-  box-shadow: 0 6px 28px rgba(99, 102, 241, 0.55);
+  transform: scale(1.04);
+  box-shadow: var(--cc-shadow-lg);
 }
 
 .mic-btn--active {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.45);
-  animation: pulse-ring 1.5s ease-in-out infinite;
+  background: var(--cc-error);
+  box-shadow: 0 0 0 8px var(--alert-bg), var(--cc-shadow-md);
+  animation: cc-mic-breathe 2.4s var(--cc-ease-standard) infinite;
 }
 
 .mic-hint {
-  font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--cc-text-2);
   margin: 0;
-  letter-spacing: 0.03em;
 }
 
 /* ── Keyframes ──────────────────────────────────────────────────────────── */
-@keyframes blink {
-  0%, 100% { opacity: 0.7; }
-  50%       { opacity: 1; }
+@keyframes cc-pill-blink {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
 }
 
-@keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0   rgba(239, 68, 68, 0.50); }
-  70%  { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);   }
-  100% { box-shadow: 0 0 0 0   rgba(239, 68, 68, 0);    }
+/* Calm breathing ring, 8 → 14px. No fast flashing. */
+@keyframes cc-mic-breathe {
+  0%, 100% { box-shadow: 0 0 0 8px var(--alert-bg), var(--cc-shadow-md); }
+  50%      { box-shadow: 0 0 0 14px var(--alert-bg), var(--cc-shadow-md); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mic-btn--active { animation: none; }
+  .pill-dot { animation: none !important; }
 }
 </style>

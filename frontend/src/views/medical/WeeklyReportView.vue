@@ -73,8 +73,8 @@
               rx="3"
               :fill="bar.color"
             />
-            <text :x="i * rbarWidth + rbarWidth / 2" :y="140 - bar.height - 24" text-anchor="middle" font-size="9" fill="#888">{{ bar.count }}</text>
-            <text :x="i * rbarWidth + (rbarWidth > 60 ? rbarWidth / 2 : rbarWidth)" :y="135" text-anchor="middle" font-size="8" fill="#888" :transform="rbarWidth < 50 ? `rotate(-45 ${i * rbarWidth + 20} 130)` : ''">{{ bar.kind.replace(/_/g, ' ') }}</text>
+            <text :x="i * rbarWidth + rbarWidth / 2" :y="140 - bar.height - 24" text-anchor="middle" font-size="9" fill="var(--cc-chart-axis-label)">{{ bar.count }}</text>
+            <text :x="i * rbarWidth + (rbarWidth > 60 ? rbarWidth / 2 : rbarWidth)" :y="135" text-anchor="middle" font-size="8" fill="var(--cc-chart-axis-label)" :transform="rbarWidth < 50 ? `rotate(-45 ${i * rbarWidth + 20} 130)` : ''">{{ bar.kind.replace(/_/g, ' ') }}</text>
           </g>
         </svg>
 
@@ -103,7 +103,7 @@
 
         <div class="text-caption text-medium-emphasis mt-6 pt-4 report-footer">
           Generated {{ new Date().toISOString().slice(0, 10) }} &middot;
-          Nanai Cognitive Companion &middot; For clinical review only &middot; Not a diagnosis
+          Cognitive Companion &middot; For clinical review only &middot; Not a diagnosis
         </div>
       </div>
     </v-card>
@@ -118,7 +118,9 @@
 import { ref, computed } from "vue";
 import { cts } from "@/services/cts.js";
 
-const PALETTE = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#F7DC6F", "#BB8FCE", "#85C1E9"];
+// DS data-viz palette in salience order (mirrors --cc-chart-1..6). Hardcoded so
+// the print sheet renders the brand colours even without computed-style access.
+const PALETTE = ["#3F6B52", "#C8704F", "#4E7A8C", "#C98A2E", "#82B292", "#B3A286"];
 
 export default {
   name: "WeeklyReportView",
@@ -181,5 +183,5 @@ export default {
   body { font-size: 11pt; }
   .report-header { margin-top: 0 !important; }
 }
-.report-footer { border-top: 1px solid rgba(0,0,0,0.1); }
+.report-footer { border-top: 1px solid var(--cc-divider); }
 </style>

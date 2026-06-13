@@ -2,7 +2,7 @@
   <div class="transcript-card" :class="expanded ? 'transcript-card--open' : 'transcript-card--closed'">
     <!-- Header (always visible) -->
     <div class="transcript-header" @click="expanded = !expanded" role="button" :aria-expanded="expanded">
-      <v-icon size="18" color="rgba(255,255,255,0.5)" class="mr-2">mdi-message-text</v-icon>
+      <v-icon size="18" color="var(--cc-text-3)" class="mr-2">mdi-message-text</v-icon>
       <span class="header-title">Conversation</span>
       <span v-if="transcript.length && !expanded" class="message-count">{{ transcript.length }}</span>
       <v-spacer />
@@ -23,9 +23,9 @@
     <div v-if="expanded" class="messages-scroll" ref="scrollRef">
       <!-- Empty state -->
       <div v-if="transcript.length === 0" class="empty-state">
-        <v-icon size="52" color="rgba(255,255,255,0.12)" class="mb-4">mdi-chat-sleep-outline</v-icon>
+        <v-icon size="52" color="var(--cc-divider-strong)" class="mb-4">mdi-chat-sleep-outline</v-icon>
         <p class="empty-title">No conversation yet</p>
-        <p class="empty-hint">Tap the microphone to start talking with system</p>
+        <p class="empty-hint">Tap the microphone to start talking with your companion</p>
       </div>
 
       <!-- Messages -->
@@ -38,7 +38,7 @@
         >
           <!-- Avatar -->
           <div v-if="msg.source !== 'user'" class="avatar avatar--ai">
-            <v-icon size="16" color="rgba(196,181,253,0.9)">mdi-robot-happy-outline</v-icon>
+            <v-icon size="16" color="var(--cc-brand)">mdi-robot-happy-outline</v-icon>
           </div>
 
           <!-- Bubble -->
@@ -51,7 +51,7 @@
           </div>
 
           <div v-if="msg.source === 'user'" class="avatar avatar--user">
-            <v-icon size="16" color="rgba(167,139,250,0.9)">mdi-account</v-icon>
+            <v-icon size="16" color="var(--sage-600)">mdi-account</v-icon>
           </div>
         </div>
       </template>
@@ -91,16 +91,16 @@ const formatTime = formatTimeOnly;
 </script>
 
 <style scoped>
-/* ── Card ───────────────────────────────────────────────────────────────── */
+/* ── Card — warm DS paper ───────────────────────────────────────────────── */
 .transcript-card {
-  background: rgba(22, 20, 38, 0.72);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 24px;
+  background: var(--cc-surface);
+  border: 1px solid var(--cc-divider);
+  border-radius: var(--cc-radius-xl);
+  box-shadow: var(--cc-shadow-sm);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: border-color 0.3s ease;
+  transition: border-color var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 .transcript-card--open {
@@ -125,27 +125,27 @@ const formatTime = formatTimeOnly;
 }
 
 .transcript-card--open .transcript-header {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
+  border-bottom-color: var(--cc-divider);
 }
 
 .transcript-header:hover .header-title {
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--cc-text-1);
 }
 
 .message-count {
   font-size: 0.72rem;
-  font-weight: 600;
-  background: rgba(99, 102, 241, 0.25);
-  border: 1px solid rgba(99, 102, 241, 0.30);
-  color: #a5b4fc;
-  border-radius: 999px;
+  font-weight: 700;
+  background: var(--sage-50);
+  border: 1px solid var(--sage-200);
+  color: var(--sage-600);
+  border-radius: var(--cc-radius-pill);
   padding: 1px 8px;
   margin-left: 8px;
 }
 
 .toggle-chevron {
-  color: rgba(255, 255, 255, 0.30);
-  transition: transform 0.25s ease;
+  color: var(--cc-text-3);
+  transition: transform var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 .chevron--up {
@@ -153,26 +153,27 @@ const formatTime = formatTimeOnly;
 }
 
 .header-title {
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.75);
-  letter-spacing: 0.02em;
+  font-family: var(--cc-font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--cc-text-1);
+  letter-spacing: -0.01em;
 }
 
 .clear-btn {
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.30);
+  color: var(--cc-text-3);
   padding: 4px;
-  border-radius: 6px;
+  border-radius: var(--cc-radius-xs);
   display: flex;
   align-items: center;
-  transition: color 0.2s;
+  transition: color var(--cc-dur-fast) var(--cc-ease-standard);
 }
 
 .clear-btn:hover {
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--cc-text-1);
 }
 
 /* ── Scroll area ────────────────────────────────────────────────────────── */
@@ -192,7 +193,7 @@ const formatTime = formatTimeOnly;
 }
 
 .messages-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--cc-divider-strong);
   border-radius: 4px;
 }
 
@@ -209,16 +210,16 @@ const formatTime = formatTimeOnly;
 }
 
 .empty-title {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.35);
+  font-size: 1.25rem;
+  color: var(--cc-text-2);
   margin: 0 0 6px;
 }
 
 .empty-hint {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.22);
+  font-size: 1rem;
+  color: var(--cc-text-3);
   margin: 0;
-  max-width: 240px;
+  max-width: 260px;
 }
 
 /* ── Message row ────────────────────────────────────────────────────────── */
@@ -245,38 +246,51 @@ const formatTime = formatTimeOnly;
   margin-bottom: 2px;
 }
 
-.avatar--ai   { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.25); }
-.avatar--user { background: rgba(99,  102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.25); }
+.avatar--ai   { background: var(--sage-50);  border: 1px solid var(--sage-200); }
+.avatar--user { background: var(--sage-50);  border: 1px solid var(--line-brand); }
 
-/* ── Bubbles ────────────────────────────────────────────────────────────── */
+/* ── Bubbles (DS TranscriptBubble) ──────────────────────────────────────── */
 .bubble {
-  max-width: 76%;
-  padding: 10px 14px 8px;
-  border-radius: 16px;
+  max-width: 85%;
+  padding: 14px 20px;
+  border-radius: var(--cc-radius-lg);
 }
 
+/* Senior's own words: large serif italic on a soft sage card */
 .bubble--user {
-  background: rgba(99, 102, 241, 0.22);
-  border: 1px solid rgba(99, 102, 241, 0.28);
-  border-bottom-right-radius: 4px;
+  background: var(--sage-50);
+  border: 1px solid var(--line-brand);
+  border-bottom-right-radius: var(--cc-radius-xs);
 }
 
+/* Companion answer: warm paper card */
 .bubble--ai {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-bottom-left-radius: 4px;
+  background: var(--cc-surface);
+  border: 1px solid var(--cc-divider);
+  box-shadow: var(--cc-shadow-xs, 0 1px 2px rgba(45, 38, 26, 0.06));
+  border-bottom-left-radius: var(--cc-radius-xs);
 }
 
 .bubble-text {
-  font-size: 0.92rem;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.88);
+  font-size: 20px;
+  line-height: 1.55;
+  color: var(--cc-text-1);
   margin: 0 0 4px;
   word-break: break-word;
 }
 
+.bubble--user .bubble-text {
+  font-family: var(--cc-font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.4;
+  color: var(--sage-700);
+}
+
 .bubble-time {
-  font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.35);
+  font-family: var(--cc-font-mono);
+  font-size: 0.78rem;
+  color: var(--cc-text-3);
 }
 </style>

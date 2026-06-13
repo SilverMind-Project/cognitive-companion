@@ -26,13 +26,16 @@ import { useChartTheme, ccToken } from "../../src/composables/useChartTheme.js";
 
 function setDarkTokens() {
   const r = document.documentElement;
+  r.style.setProperty("--cc-chart-1", "#SENTINEL-CHART1-DARK");
+  r.style.setProperty("--cc-chart-2", "#SENTINEL-CHART2-DARK");
+  r.style.setProperty("--cc-chart-3", "#SENTINEL-CHART3-DARK");
+  r.style.setProperty("--cc-chart-4", "#SENTINEL-CHART4-DARK");
+  r.style.setProperty("--cc-chart-5", "#SENTINEL-CHART5-DARK");
+  r.style.setProperty("--cc-chart-6", "#SENTINEL-CHART6-DARK");
   r.style.setProperty("--cc-brand", "#SENTINEL-BRAND-DARK");
-  r.style.setProperty("--cc-teal", "#SENTINEL-TEAL-DARK");
   r.style.setProperty("--cc-success", "#SENTINEL-SUCCESS-DARK");
   r.style.setProperty("--cc-warning", "#SENTINEL-WARNING-DARK");
   r.style.setProperty("--cc-error", "#SENTINEL-ERROR-DARK");
-  r.style.setProperty("--cc-indigo", "#SENTINEL-INDIGO-DARK");
-  r.style.setProperty("--cc-purple", "#SENTINEL-PURPLE-DARK");
   r.style.setProperty("--cc-text-1", "#SENTINEL-TEXT1-DARK");
   r.style.setProperty("--cc-text-2", "#SENTINEL-TEXT2-DARK");
   r.style.setProperty("--cc-text-3", "#SENTINEL-TEXT3-DARK");
@@ -43,13 +46,16 @@ function setDarkTokens() {
 
 function setLightTokens() {
   const r = document.documentElement;
+  r.style.setProperty("--cc-chart-1", "#SENTINEL-CHART1-LIGHT");
+  r.style.setProperty("--cc-chart-2", "#SENTINEL-CHART2-LIGHT");
+  r.style.setProperty("--cc-chart-3", "#SENTINEL-CHART3-LIGHT");
+  r.style.setProperty("--cc-chart-4", "#SENTINEL-CHART4-LIGHT");
+  r.style.setProperty("--cc-chart-5", "#SENTINEL-CHART5-LIGHT");
+  r.style.setProperty("--cc-chart-6", "#SENTINEL-CHART6-LIGHT");
   r.style.setProperty("--cc-brand", "#SENTINEL-BRAND-LIGHT");
-  r.style.setProperty("--cc-teal", "#SENTINEL-TEAL-LIGHT");
   r.style.setProperty("--cc-success", "#SENTINEL-SUCCESS-LIGHT");
   r.style.setProperty("--cc-warning", "#SENTINEL-WARNING-LIGHT");
   r.style.setProperty("--cc-error", "#SENTINEL-ERROR-LIGHT");
-  r.style.setProperty("--cc-indigo", "#SENTINEL-INDIGO-LIGHT");
-  r.style.setProperty("--cc-purple", "#SENTINEL-PURPLE-LIGHT");
   r.style.setProperty("--cc-text-1", "#SENTINEL-TEXT1-LIGHT");
   r.style.setProperty("--cc-text-2", "#SENTINEL-TEXT2-LIGHT");
   r.style.setProperty("--cc-text-3", "#SENTINEL-TEXT3-LIGHT");
@@ -60,8 +66,10 @@ function setLightTokens() {
 
 function clearTokens() {
   [
-    "--cc-brand", "--cc-teal", "--cc-success", "--cc-warning", "--cc-error",
-    "--cc-indigo", "--cc-purple", "--cc-text-1", "--cc-text-2", "--cc-text-3",
+    "--cc-chart-1", "--cc-chart-2", "--cc-chart-3", "--cc-chart-4",
+    "--cc-chart-5", "--cc-chart-6",
+    "--cc-brand", "--cc-success", "--cc-warning", "--cc-error",
+    "--cc-text-1", "--cc-text-2", "--cc-text-3",
     "--cc-divider", "--cc-bg-elevated", "--cc-glass-border",
   ].forEach((t) => document.documentElement.style.removeProperty(t));
 }
@@ -83,16 +91,15 @@ describe("useChartTheme", () => {
     expect(typeof chartTheme.value).toBe("object");
   });
 
-  it("color palette is sourced from --cc-* tokens, not hardcoded hex", () => {
+  it("color palette is sourced from --cc-chart-* tokens, not hardcoded hex", () => {
     const { chartTheme } = useChartTheme();
     const palette = chartTheme.value.color;
     expect(Array.isArray(palette)).toBe(true);
     expect(palette.length).toBeGreaterThan(0);
-    // Every color in the palette must match one of the sentinel values we set
+    // Every color in the palette must match one of the DS chart sentinel values
     const sentinels = new Set([
-      "#SENTINEL-BRAND-DARK", "#SENTINEL-TEAL-DARK", "#SENTINEL-SUCCESS-DARK",
-      "#SENTINEL-WARNING-DARK", "#SENTINEL-ERROR-DARK", "#SENTINEL-INDIGO-DARK",
-      "#SENTINEL-PURPLE-DARK",
+      "#SENTINEL-CHART1-DARK", "#SENTINEL-CHART2-DARK", "#SENTINEL-CHART3-DARK",
+      "#SENTINEL-CHART4-DARK", "#SENTINEL-CHART5-DARK", "#SENTINEL-CHART6-DARK",
     ]);
     for (const c of palette) {
       expect(sentinels.has(c), `Expected "${c}" to be a sentinel token value`).toBe(true);
@@ -121,17 +128,17 @@ describe("useChartTheme", () => {
 
   it("returns distinct palettes when token values differ between themes", () => {
     const { chartTheme } = useChartTheme();
-    const darkBrand = chartTheme.value.color[0];
-    expect(darkBrand).toBe("#SENTINEL-BRAND-DARK");
+    const darkFirst = chartTheme.value.color[0];
+    expect(darkFirst).toBe("#SENTINEL-CHART1-DARK");
 
     // Simulate theme switch: change token values AND the theme name reactive ref.
     setLightTokens();
     _themeName.value = "ccLight";
     _isDark.value = false;
 
-    const lightBrand = chartTheme.value.color[0];
-    expect(lightBrand).toBe("#SENTINEL-BRAND-LIGHT");
-    expect(lightBrand).not.toBe(darkBrand);
+    const lightFirst = chartTheme.value.color[0];
+    expect(lightFirst).toBe("#SENTINEL-CHART1-LIGHT");
+    expect(lightFirst).not.toBe(darkFirst);
   });
 
   it("_severity tokens come from CSS vars", () => {

@@ -7,12 +7,12 @@
   >
     <div class="alert-card" :class="`alert-card--${alertType}`">
       <!-- Icon -->
-      <div class="alert-icon-wrap" :class="`icon-wrap--${alertType}`">
-        <v-icon :size="96" :color="iconColor">{{ alertIcon }}</v-icon>
+      <div class="alert-icon-wrap">
+        <v-icon :size="52" :color="iconColor">{{ alertIcon }}</v-icon>
       </div>
 
       <!-- Title -->
-      <h2 class="alert-title" :class="`title--${alertType}`">{{ alertTitle }}</h2>
+      <h2 class="alert-title">{{ alertTitle }}</h2>
 
       <!-- Message -->
       <p class="alert-message">{{ message }}</p>
@@ -20,14 +20,14 @@
       <!-- Actions -->
       <div class="alert-actions" :class="alertType === 'emergency' ? 'alert-actions--two' : 'alert-actions--one'">
         <button class="action-btn action-btn--dismiss" @click="$emit('dismiss')">
-          OK, Got it
+          OK, got it
         </button>
         <button
           v-if="alertType === 'emergency'"
           class="action-btn action-btn--assist"
           @click="$emit('request-assistance')"
         >
-          I Need Help
+          I need help
         </button>
       </div>
     </div>
@@ -45,11 +45,14 @@ const props = defineProps({
 
 defineEmits(["dismiss", "request-assistance"]);
 
+// DS CompanionPrompt mapping: emergency -> alert pair, warning -> notice pair,
+// info -> info pair, reminder -> brand/sage. Icon colours read the semantic
+// foreground tokens so the icon matches its tinted circle.
 const ALERT_CONFIG = {
-  emergency: { title: "Emergency Alert",      icon: "mdi-alert-circle",       iconColor: "#fca5a5" },
-  warning:   { title: "Important Notice",     icon: "mdi-alert",              iconColor: "#fcd34d" },
-  reminder:  { title: "Reminder",             icon: "mdi-bell-ring",          iconColor: "#c084fc" },
-  info:      { title: "Message for You",      icon: "mdi-information-outline", iconColor: "#93c5fd" },
+  emergency: { title: "Emergency alert",  icon: "mdi-heart-pulse",         iconColor: "var(--alert-fg)" },
+  warning:   { title: "Important notice", icon: "mdi-information-outline",  iconColor: "var(--notice-fg)" },
+  reminder:  { title: "Reminder",         icon: "mdi-bell-ring-outline",   iconColor: "var(--sage-600)" },
+  info:      { title: "Message for you",  icon: "mdi-message-text-outline", iconColor: "var(--info-fg)" },
 };
 
 const config    = computed(() => ALERT_CONFIG[props.alertType] ?? ALERT_CONFIG.info);
@@ -59,89 +62,68 @@ const iconColor   = computed(() => config.value.iconColor);
 </script>
 
 <style scoped>
-/* ── Card ───────────────────────────────────────────────────────────────── */
+/* ── Card — warm paper, semantic hairline border (DS CompanionPrompt) ────── */
 .alert-card {
-  border-radius: 32px;
-  padding: 60px 48px 48px;
+  /* per-type tint + line set by the modifier classes below */
+  --tint: var(--sage-50);
+  --line: var(--line-brand);
+  background: var(--cc-bg-elevated);
+  border: 1.5px solid var(--line);
+  border-radius: var(--cc-radius-xl);
+  box-shadow: var(--cc-shadow-lg);
+  padding: 48px 44px 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 24px;
-  backdrop-filter: blur(24px);
+  gap: 20px;
   min-height: 50vh;
   justify-content: center;
 }
 
-.alert-card--emergency {
-  background: rgba(60, 10, 10, 0.96);
-  border: 2px solid rgba(239, 68, 68, 0.60);
-  box-shadow: 0 0 80px rgba(239, 68, 68, 0.30);
-}
-
-.alert-card--warning {
-  background: rgba(40, 30, 8, 0.96);
-  border: 2px solid rgba(245, 158, 11, 0.50);
-  box-shadow: 0 0 60px rgba(245, 158, 11, 0.20);
-}
-
-.alert-card--reminder {
-  background: rgba(30, 15, 45, 0.96);
-  border: 2px solid rgba(168, 85, 247, 0.45);
-  box-shadow: 0 0 60px rgba(168, 85, 247, 0.18);
-}
-
-.alert-card--info {
-  background: rgba(10, 25, 50, 0.96);
-  border: 2px solid rgba(99, 102, 241, 0.45);
-  box-shadow: 0 0 60px rgba(99, 102, 241, 0.18);
-}
+.alert-card--emergency { --tint: var(--alert-bg);  --line: var(--alert-line); }
+.alert-card--warning   { --tint: var(--notice-bg); --line: var(--notice-line); }
+.alert-card--reminder  { --tint: var(--sage-50);   --line: var(--line-brand); }
+.alert-card--info      { --tint: var(--info-bg);   --line: var(--info-line); }
 
 /* ── Icon ───────────────────────────────────────────────────────────────── */
 .alert-icon-wrap {
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
+  width: 104px;
+  height: 104px;
+  border-radius: var(--cc-radius-pill);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
+  background: var(--tint);
 }
-
-.icon-wrap--emergency { background: rgba(239, 68,  68,  0.15); }
-.icon-wrap--warning   { background: rgba(245, 158, 11,  0.15); }
-.icon-wrap--reminder  { background: rgba(168, 85,  247, 0.15); }
-.icon-wrap--info      { background: rgba(99,  102, 241, 0.15); }
 
 /* ── Title ──────────────────────────────────────────────────────────────── */
 .alert-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  line-height: 1.2;
+  font-family: var(--cc-font-display);
+  font-weight: 500;
+  font-size: 40px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--cc-text-1);
   margin: 0;
 }
 
-.title--emergency { color: #fca5a5; }
-.title--warning   { color: #fcd34d; }
-.title--reminder  { color: #c084fc; }
-.title--info      { color: #93c5fd; }
-
 /* ── Message ────────────────────────────────────────────────────────────── */
 .alert-message {
-  font-size: 1.5rem;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.88);
+  font-size: 24px;
+  line-height: 1.5;
+  color: var(--cc-text-2);
   margin: 0;
-  max-width: 90%;
+  max-width: 52ch;
 }
 
 /* ── Actions ────────────────────────────────────────────────────────────── */
 .alert-actions {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   width: 100%;
-  max-width: 600px;
-  margin-top: 16px;
+  max-width: 520px;
+  margin-top: 8px;
 }
 
 .alert-actions--one  { justify-content: center; }
@@ -149,38 +131,43 @@ const iconColor   = computed(() => config.value.iconColor);
 
 .action-btn {
   flex: 1;
-  height: 70px;
-  border: none;
-  border-radius: 18px;
-  font-size: 1.3rem;
+  min-height: 72px;
+  border-radius: var(--cc-radius-md);
+  font-family: var(--cc-font);
+  font-size: 22px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.2s, transform 0.15s;
-  letter-spacing: 0.01em;
+  transition: background var(--cc-dur-fast) var(--cc-ease-standard),
+              transform var(--cc-dur-fast) var(--cc-ease-standard);
 }
 
 .action-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.98);
 }
 
 .action-btn--dismiss {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.90);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--cc-surface);
+  color: var(--text-brand);
+  border: 1.5px solid var(--line-soft);
   max-width: 320px;
 }
 
 .action-btn--dismiss:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--cc-surface-2);
 }
 
 .action-btn--assist {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: #fff;
-  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.45);
+  background: var(--terra-400);
+  color: #FFF8F3;
+  border: 1.5px solid transparent;
+  box-shadow: var(--cc-shadow-sm);
 }
 
 .action-btn--assist:hover {
-  opacity: 0.9;
+  background: var(--terra-500);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action-btn { transition: none; }
 }
 </style>

@@ -410,6 +410,18 @@ class YourStepHandler(StepHandler):
 - Return `StepResult(success=False, data={"error": "..."})` on expected failure.
 - Let unexpected exceptions bubble; `PipelineExecutor` handles them.
 
+### Pipeline DAG execution contract
+
+Pipelines are directed graphs, not ordered lists. A single output port may
+**fan out** to multiple target steps, and a step may **fan in** (join) from
+multiple parents. There is no unique constraint on `(source_step_id, source_port)`.
+
+- `build_adjacency(edges)` returns `{source_step_id: {source_port: [target_step_id, ...]}}` (targets are a list, in edge-insertion order). Anything consuming adjacency must iterate the list, never index a single target.
+- The executor (`_run_steps`) is **in-degree gated**, not a plain BFS. Each outgoing edge resolves as *live* (the source activated that port) or *dead* (the source took another branch). A node runs once all incoming edges are resolved and at least one is live; a node whose incoming edges are all dead is **skipped**, and the skip propagates to its descendants. A join therefore runs exactly once, after every parent. The only step that produces dead edges today is `condition` (it emits `true` xor `false`); every other step emits `main`.
+- `wait` / `interactive_prompt` inside a **parallel branch** is not supported: pausing serializes the run and resume only rebuilds work downstream of the paused step, so a sibling branch would be silently dropped. The executor detects this (`abandoned = run_set - resolved - descendants(waiting_step)`) and **fails loudly** with a `ValidationError` rather than losing a branch. Keep waits on a linear segment. (Resuming all branches across a wait is a future enhancement; persist the traversal frontier if you implement it.)
+
+**Authoring-time vs execution-time graph validation.** `validate_graph(..., check_entry=...)` separates the two. The "exactly one entry node" rule is an *execution* invariant, enforced by the executor, rule import, and the read-only `GET /rules/{id}/validate` endpoint (which surfaces it as a non-blocking `graph_errors` warning). The edge-save endpoint (`PUT /rules/{id}/edges`) passes `check_entry=False`, because a pipeline under construction routinely has unwired steps (multiple entry nodes) and must remain editable. Structural checks (unknown step refs, invalid ports, cycles) always run. Never re-add the entry-count check to the edge-save path; it makes incremental editing and edge deletion 422.
+
 ---
 
 ## 10. API design
@@ -767,6 +779,7 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - `_upstream_base` is imported only by CTS integration clients (`ingress_admin_client`, `tracking_orchestrator_client`).
 - Redis Stream subscriptions (`tracking.events`, `tracking.revisions`, `tracking.signals`, `scene.samples`) are created only inside `CTSRuntime`.
 - All browser and MCP traffic to `rtsp-ingress` or `tracking-orchestrator` goes through CC routers. No direct access.
+- The `CtsEventBucketizer` (in-memory per-camera recent-frame buffer) is built by `CTSRuntime` and fed by `TrackingEventSubscriber.ingest` from the `tracking.events` stream (no new stream, no DB read, so it respects the isolation boundary). It reaches the `cts_window_poll` step via `ServiceContainer.bucketizer`, injected **after** CTS bootstrap through the `PipelineExecutor.bucketizer` property (the executor is constructed before `CTSRuntime`; `main.py` sets `pipeline_executor.bucketizer = cts_runtime.bucketizer`). This is the same post-construction injection pattern as `_scheduler`. Steps read it via typed direct access (`services.bucketizer`), never `getattr`.
 
 ### 16.5 WebSocket security
 

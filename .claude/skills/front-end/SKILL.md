@@ -722,6 +722,7 @@ The final output should contain only test results, not Vue, Vue Router, unresolv
 8. **`alert()` / `confirm()` in Vue**: use `useNotify()` / `useConfirm()`.
 9. **Extra fields in PATCH requests**: PATCH schemas have `extra="forbid"`. Only send fields defined in the Update schema.
 10. **Incomplete test harnesses**: unresolved Vuetify components, missing router injections, and Vue Router config warnings are defects. Mount with the right plugin or explicit stubs; never suppress the warning.
+10a. **Data consts in a plain `<script>` block referenced from the template**: in an SFC that has *both* `<script>` and `<script setup>` (e.g. the pipeline step configs, which export `stepDefaults`/`stepTabs` from `<script>`), the template can resolve **component imports** from the plain `<script>` (shared module scope) but **not** plain data consts -- those resolve only from `<script setup>` bindings. A `const FOO = [...]` in `<script>` is `undefined` in the template (silent: it falls back to a prop default, no build error). Declare template-referenced data in `<script setup>` (it may still read an import from the plain `<script>`, since they share module scope). The build won't catch this; a mounted runtime check will.
 11. **Margin classes on Vuetify wrapper components inside slot templates**: `v-chip`, `v-btn`, and `v-avatar` render internal DOM wrappers that can absorb `mr-2`/`ml-2` classes, making the margin invisible. Always wrap these components in a `<div>` with the margin class when they appear in `#prepend` or `#append` slots:
 
     ```html
@@ -1053,6 +1054,15 @@ This prevents the "tightly compacted" issue where a tall or wide floor plan was 
 - **`echarts` (v6) + `vue-echarts` (v8)**: the only permitted charting library. Use explicit module imports only; never import the full ECharts bundle.
 - **`@vue-flow/core` (v1.x)**: the interactive workflow editor library. Used exclusively in the pipeline builder canvas (`PipelineCanvas.vue`) and its editor sub-components. Not permitted in monitoring views or dashboards. ECharts (`CcDagChart.vue`) remains the standard for read-only DAG monitoring.
 - No second charting library. No hand-rolled SVG charts for data shapes covered by the shared components.
+
+### Pipeline builder canvas (editor)
+
+The editor canvas (`PipelineCanvas.vue`) uses VueFlow; the read-only monitor canvas (`PipelineMonitorCanvas.vue`) shares `edgesToVueFlow` from `useCanvasPipeline.js`.
+
+- **Editing is controlled.** `state.edges` (in `useCanvasPipeline`) is the source of truth and is reloaded from the backend after every mutation. Do not mutate VueFlow's internal store. Connecting fires `@connect` -> `actions.addEdge`; deleting fires `@edges-change` (type `remove`) -> `actions.removeEdge`. Both persist via `api.replaceRuleEdges`, which sends the full edge set.
+- **Edge deletion** uses `edges/DeletableEdge.vue` (a custom edge: `BaseEdge` + `EdgeLabelRenderer`), wired only on the editor via `:edge-types` + an `editorEdges` computed that overrides the type to `deletable` (the shared `edgesToVueFlow` stays type-neutral so the monitor keeps plain `smoothstep`). The delete button calls `useVueFlow().removeEdges([id])` -> the same `@edges-change` path. Note: `EdgeLabelRenderer` **teleports** the button out of the edge's SVG group, so a `:deep(.vue-flow__edge:hover) ...` descendant selector cannot reveal it; keep the affordance visible (or drive it from the `selected` prop), don't rely on edge-hover.
+- **Fan-out is allowed.** One source handle can have many edges. `validateConnection` rejects only: self-loops, a target port other than `main`, an undeclared source port, and an *exact-duplicate* edge (same source+port+target). Never reject "this output port is already connected", and use length checks (not `?? []`) when reading a node's `outputPorts` so an empty array doesn't silently reject every connection.
+- **Image-source step configs** use the shared `components/pipeline/steps/_shared/ImageSourceSelector.vue` (the source `<v-select>` plus per-source sub-config: trigger count, reCamera `CameraSelector`, time filter, pipeline path, cts_window path; step-specific extras go through its default slot). It is adopted by `image_crop`, `llm_call`, `scene_analysis`, and `person_identification`; do not re-paste the source select per config. `StepConfigDialog` fetches the CTS roster via `cts.getCameras()` and threads `ctsCameraItems` (CTS) alongside `cameraSensorItems` (reCamera) to the configs.
 
 ### Shared component catalogue
 

@@ -82,8 +82,8 @@
           </v-chip>
         </template>
         <template v-slot:item.acknowledged_at="{ value }">
-          <v-icon v-if="value" color="green" size="small">mdi-check-circle</v-icon>
-          <v-icon v-else color="orange" size="small">mdi-alert-circle</v-icon>
+          <v-icon v-if="value" color="success" size="small">mdi-check-circle</v-icon>
+          <v-icon v-else color="warning" size="small">mdi-alert-circle</v-icon>
         </template>
         <template v-slot:item.actions="{ item }">
           <v-btn

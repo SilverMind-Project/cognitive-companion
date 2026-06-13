@@ -65,16 +65,12 @@
     <template v-if="selectedCameraId">
       <!-- Mode toggle when floor plan is available -->
       <div class="d-flex align-center mb-4 ga-3 flex-wrap">
-        <v-btn-toggle
+        <CcSegmentedToggle
           v-if="floorPlanReady && scaleReady"
           v-model="inputMode"
-          mandatory
-          density="compact"
-          variant="outlined"
-        >
-          <v-btn value="pick" prepend-icon="mdi-cursor-pointer">Click-to-Pick</v-btn>
-          <v-btn value="manual" prepend-icon="mdi-pencil">Manual Entry</v-btn>
-        </v-btn-toggle>
+          :options="INPUT_MODE_OPTIONS"
+          size="default"
+        />
 
         <v-spacer />
 
@@ -449,7 +445,7 @@
                   <!-- Origin -->
                   <circle cx="20" cy="34" r="5" fill="var(--cc-brand)" />
                   <text x="26" y="32" fill="var(--cc-brand)" font-size="10" font-weight="700">Origin (0, 0)</text>
-                  <text x="26" y="44" fill="var(--cc-text-secondary, #888)" font-size="9">
+                  <text x="26" y="44" fill="var(--cc-text-3)" font-size="9">
                     top-left corner
                   </text>
 
@@ -769,6 +765,7 @@ import { useCtsWebSocket } from "../../composables/useCtsWebSocket.js";
 import { HALO, qualityColor } from "../../composables/useAnnotationStyle.js";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
 import CalibrationHealthPanel from "../../components/cts/CalibrationHealthPanel.vue";
+import CcSegmentedToggle from "../../components/common/CcSegmentedToggle.vue";
 
 // haloLg: camera natural-resolution SVG (viewBox ~1920×1080, font-size 48)
 //   stroke-width 8 ≈ 17% of 48 — thin enough to not distort letterforms
@@ -829,6 +826,10 @@ const autoSuggestedPoints = ref([]);
 // pendingPixel: camera click waiting for a matching floor plan click
 const pendingPixel = ref(null);
 const inputMode = ref("pick");
+const INPUT_MODE_OPTIONS = [
+  { value: "pick", label: "Click-to-Pick", icon: "mdi-cursor-pointer" },
+  { value: "manual", label: "Manual Entry", icon: "mdi-pencil" },
+];
 
 // ── Computed ──────────────────────────────────────────────────────────────
 const floorPlanReady = computed(() => !!(floorPlanUrl.value));
@@ -1329,18 +1330,18 @@ onBeforeUnmount(() => {
 }
 
 .prereq-ok {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
+  background: var(--good-bg);
+  color: var(--good-fg);
 }
 
 .prereq-warn {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
+  background: var(--notice-bg);
+  color: var(--notice-fg);
 }
 
 .prereq-none {
-  background: var(--cc-surface-2, rgba(0,0,0,0.04));
-  color: var(--cc-text-secondary, #888);
+  background: var(--cc-surface-2);
+  color: var(--cc-text-3);
 }
 
 .coord-diagram {

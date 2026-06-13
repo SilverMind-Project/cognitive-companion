@@ -60,7 +60,7 @@
               </v-chip>
             </div>
           </template>
-          <v-card-title class="text-h6 font-weight-bold question-title text-wrap" style="line-height: 1.3">
+          <v-card-title class="text-h5 font-weight-bold question-title text-wrap" style="line-height: 1.3">
             {{ questionText }}
           </v-card-title>
         </v-card-item>
@@ -102,7 +102,7 @@
             <div class="mic-icon-wrap">
               <v-icon size="48" color="primary">mdi-microphone</v-icon>
             </div>
-            <p class="text-center text-body-2 text-medium-emphasis mt-3">
+            <p class="text-center text-body-1 text-medium-emphasis mt-3">
               Speak your answer aloud
             </p>
           </div>
@@ -161,6 +161,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { wsClient } from "../../services/WebSocketClient.js";
+
+// How long correct/incorrect feedback dwells before advancing to the next
+// question or the score screen, so the senior can read the result.
+const FEEDBACK_DWELL_MS = 1500;
 
 // ---------------------------------------------------------------------------
 // Screen: 'hidden' | 'intro' | 'question' | 'complete'
@@ -230,7 +234,7 @@ function handleQuizAnswerRecorded(data) {
     advanceTimer = setTimeout(() => {
       advanceTimer = null;
       loadNextQuestion();
-    }, 1500);
+    }, FEEDBACK_DWELL_MS);
   }
 }
 
@@ -241,7 +245,20 @@ function handleQuizComplete(data) {
   // Use server-authoritative tallies
   numCorrect.value = data.num_correct;
   numAnswered.value = data.num_answered;
-  screen.value = "complete";
+
+  // The backend broadcasts quiz_complete immediately after the final
+  // quiz_answer_recorded, so without a delay the two reactive updates flush
+  // together and the senior never sees whether their last answer was right.
+  // When we just recorded an answer, hold the feedback for the same beat the
+  // advance path uses before switching to the score screen.
+  if (answerRecorded.value) {
+    advanceTimer = setTimeout(() => {
+      advanceTimer = null;
+      screen.value = "complete";
+    }, FEEDBACK_DWELL_MS);
+  } else {
+    screen.value = "complete";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -379,22 +396,24 @@ defineExpose({ show: handleQuizStart });
 </script>
 
 <style scoped>
-.quiz-card {
-  border-radius: 16px;
-}
+/* The global dialog rule (theme.css) already gives this v-card warm paper +
+   --cc-radius-xl; v-card-title is serif display globally. Senior-surface work
+   here is legibility: >=20px body, >=72px targets, DS inner radii. */
 
 /* ── Intro ─────────────────────────────────────────────────────────────── */
 .intro-text {
-  line-height: 1.7;
+  font-size: 1.25rem;
+  line-height: 1.6;
   white-space: pre-wrap;
   color: var(--cc-text-1);
 }
 
 .start-btn,
 .done-btn {
+  min-height: 56px;
   letter-spacing: 0.02em;
   font-weight: 600;
-  border-radius: 12px;
+  border-radius: var(--cc-radius-md);
 }
 
 /* ── Question ──────────────────────────────────────────────────────────── */
@@ -412,12 +431,21 @@ defineExpose({ show: handleQuizStart });
 }
 
 .choice-btn {
-  height: 56px !important;
-  border-radius: 12px !important;
+  min-height: 72px !important;
+  height: auto !important;
+  border-radius: var(--cc-radius-md) !important;
+  font-size: 1.125rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   text-transform: none;
+  white-space: normal;
   transition: transform 0.12s ease, box-shadow 0.2s ease;
+}
+
+/* Long choices wrap to multiple lines rather than truncating. */
+.choice-btn :deep(.v-btn__content) {
+  white-space: normal;
+  line-height: 1.3;
 }
 
 .choice-btn:not(:disabled):hover {
@@ -462,9 +490,9 @@ defineExpose({ show: handleQuizStart });
 .feedback-bar {
   display: flex;
   align-items: center;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 0.875rem;
+  padding: 12px 16px;
+  border-radius: var(--cc-radius-md);
+  font-size: 1.0625rem;
   font-weight: 600;
 }
 

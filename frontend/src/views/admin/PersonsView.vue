@@ -44,7 +44,7 @@
               >
                 {{ enrollmentMap[item.id].embedding_count }} photos
               </v-chip>
-              <v-chip v-else size="small" variant="tonal" color="grey">
+              <v-chip v-else size="small" variant="tonal">
                 Not enrolled
               </v-chip>
             </template>
@@ -139,19 +139,12 @@
             Controls which behavioural signals from the tracking system trigger alerts for this person.
           </div>
 
-          <v-btn-toggle
+          <CcSegmentedToggle
             v-model="alertProfile"
-            mandatory
-            density="compact"
-            color="primary"
+            :options="ALERT_PROFILE_OPTIONS"
             class="mb-3"
             @update:model-value="onProfileChange"
-          >
-            <v-btn value="senior" size="small">Senior</v-btn>
-            <v-btn value="adult" size="small">Adult</v-btn>
-            <v-btn value="guest" size="small">Presence only</v-btn>
-            <v-btn value="custom" size="small">Custom</v-btn>
-          </v-btn-toggle>
+          />
 
           <div class="text-body-2 text-medium-emphasis mb-3">
             <span v-if="alertProfile === 'senior'">All 7 signal types enabled (dementia monitoring).</span>
@@ -421,6 +414,14 @@ import { useConfirm } from "../../composables/useConfirm.js";
 import { formatDateOnly, formatDateTimeShort, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
+import CcSegmentedToggle from "../../components/common/CcSegmentedToggle.vue";
+
+const ALERT_PROFILE_OPTIONS = [
+  { value: "senior", label: "Senior" },
+  { value: "adult", label: "Adult" },
+  { value: "guest", label: "Presence only" },
+  { value: "custom", label: "Custom" },
+];
 
 const { snack, snackText, snackColor, notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();

@@ -34,21 +34,24 @@ describe("Marauders typography theme", () => {
   });
 
   it("leaves the normal app font unchanged outside Marauders mode", () => {
-    expect(themeCss).toMatch(/:root\s*\{[\s\S]*?--cc-font:\s*[\s\S]*?"Inter"/);
+    // DS v2 body face is Hanken Grotesk (the pre-v2 face was Inter).
+    expect(themeCss).toMatch(/:root\s*\{[\s\S]*?--cc-font:\s*[\s\S]*?"Hanken Grotesk"/);
     expect(maraudersCss).not.toMatch(/\.v-theme--ccDark[\s\S]*?--cc-font/);
   });
 
-  it("compiles Vuetify body and heading utilities against the shared font token", () => {
+  it("compiles Vuetify body utilities to --cc-font and heading utilities to --cc-font-display", () => {
+    // DS v2 splits the families: body = Hanken Grotesk (--cc-font),
+    // headings = Newsreader (--cc-font-display).
     expect(vuetifyScss).toMatch(/\$body-font-family:\s*var\(--cc-font\)/);
-    expect(vuetifyScss).toMatch(/\$heading-font-family:\s*var\(--cc-font\)/);
+    expect(vuetifyScss).toMatch(/\$heading-font-family:\s*var\(--cc-font-display\)/);
     expect(compiledVuetifyCss).toMatch(
-      /\.text-h4\{[^}]*font-family:var\(--cc-font\)/,
+      /\.text-h4\{[^}]*font-family:var\(--cc-font-display\)/,
     );
     expect(compiledVuetifyCss).toMatch(
       /\.text-body-2\{[^}]*font-family:var\(--cc-font\)/,
     );
     expect(compiledVuetifyCss).toMatch(
-      /\.text-md-h4\{[^}]*font-family:var\(--cc-font\)/,
+      /\.text-md-h4\{[^}]*font-family:var\(--cc-font-display\)/,
     );
     expect(compiledVuetifyCss).not.toMatch(
       /\.text-(?:h4|body-2)\{[^}]*font-family:"Roboto"/,

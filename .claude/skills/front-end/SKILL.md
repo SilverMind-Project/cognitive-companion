@@ -70,7 +70,7 @@ Marauders parchment tokens live in `marauders.css` only (overrides a subset of `
 --cc-glass-border-strong /* #D6C7AF dialog border */
 
 /* Shadows -- warm ink, soft daylight */
---cc-shadow-sm / --cc-shadow-md / --cc-shadow-lg
+--cc-shadow-xs / --cc-shadow-sm / --cc-shadow-md / --cc-shadow-lg
 --cc-shadow-glass     /* same as --cc-shadow-sm */
 --cc-shadow-glass-hover /* same as --cc-shadow-md */
 --cc-shadow-inset     /* inset 0 1px 2px -- soft depth for input fields */
@@ -460,25 +460,16 @@ When a PH keyframe thumbnail is clicked, pass the real `keyframe_id` and unmodif
 
 ### Compact option selectors in page headers and table toolbars
 
-**Do not use `v-btn-toggle`** for period/mode pickers in headers and toolbars. Vuetify's `v-btn-group` collapses the border between adjacent buttons (`border-inline-end: none`), making them visually merge into a single block. Spacing utility classes (`px-4`, `ga-*`) cannot fix this because they operate on padding/gap, not on the shared-border collapse.
+**Do not use `v-btn-toggle`** for period/mode/source pickers in headers and toolbars. Vuetify's `v-btn-group` collapses the border between adjacent buttons (`border-inline-end: none`), making them visually merge into a single block. Spacing utility classes (`px-4`, `ga-*`) cannot fix this because they operate on padding/gap, not on the shared-border collapse.
 
-Instead, render individual `v-btn` elements inside a `d-flex ga-2` container and manage active state manually:
+**Use `CcSegmentedToggle`** (`components/common/CcSegmentedToggle.vue`). It encapsulates the DS segmented-picker pattern (individual `v-btn` in a `d-flex ga-2` row, active = `flat` + color, inactive = `outlined`), so you never re-implement it inline:
 
 ```html
-<div class="d-flex ga-2">
-  <v-btn
-    v-for="opt in options"
-    :key="opt.value"
-    size="small"
-    :variant="selected === opt.value ? 'flat' : 'outlined'"
-    :color="selected === opt.value ? 'primary' : undefined"
-    @click="selected = opt.value"
-  >{{ opt.label }}</v-btn>
-</div>
+<CcSegmentedToggle v-model="period" :options="PERIOD_OPTIONS" />
 ```
 
 ```js
-const options = [
+const PERIOD_OPTIONS = [
   { value: "last_15m", label: "15m" },
   { value: "last_1h",  label: "1h"  },
   { value: "last_24h", label: "24h" },
@@ -486,7 +477,9 @@ const options = [
 ];
 ```
 
-This gives full gap control, keeps Vuetify's pressed/hover states, and avoids the collapsed-border problem entirely.
+- Options are `{ value, label, icon? }`. Props: `v-model`, `:options` (required), `size` (default `small`; use `default` to match comfortable-density rows), `color` (default `primary`).
+- It is mandatory by nature (clicking selects; no toggle-off) and emits `update:modelValue`, so `v-model` plus a side-effecting `@update:model-value` handler both work.
+- **Exception — a full-width, icon-only segmented control where merged segments are the intended affordance** (e.g. a text-alignment left/center/right control, like a word processor) may keep `v-btn-toggle variant="outlined"`. That is a different widget from a mode/period picker; `CcSegmentedToggle` is for the gapped-pill picker case. Reference: `components/eink/RegionEditor.vue`.
 
 ### Empty-state (`#no-data`) template
 
@@ -553,7 +546,15 @@ For views with multiple tabs, follow this pattern (see `PersonsView.vue`):
 
 ## DS signature components (`components/common/`)
 
-Two reusable components implement the design system's people-and-wellbeing primitives. Prefer them over hand-rolled markup.
+These reusable components implement design-system primitives. Prefer them over hand-rolled markup.
+
+### `CcSegmentedToggle` -- segmented single-select picker
+
+The DS replacement for `v-btn-toggle` in period/mode/source pickers. See "Compact option selectors" above for usage and the one icon-only full-width exception.
+
+```html
+<CcSegmentedToggle v-model="viewMode" :options="VIEW_MODE_OPTIONS" />
+```
 
 ### `CcStatusPill` -- the wellbeing indicator
 
@@ -710,6 +711,8 @@ The final output should contain only test results, not Vue, Vue Router, unresolv
 
 1. **Hardcoded hex colors or `rgba()` values in scoped styles**: always use `--cc-*` tokens. Hardcoded colors ignore the ccMarauders theme override and will look wrong in Marauders mode.
 2. **Blue/purple colors that aren't in the DS**: no `#007aff`, no `#5e5ce6`, no purple. If you need a status color, use the DS semantic tokens (`--cc-success`, `--cc-warning`, `--cc-error`, `--cc-info`).
+2a. **Vuetify material color names on `color=`**: never `color="green|orange|purple|deep-purple|blue|red"` on `v-icon`/`v-chip`/`v-btn` -- those are Vuetify's material palette, not the DS. Map to DS semantic theme colors: `green`->`success`, `orange`/`amber`->`warning`, `red`->`error`, `blue`/`deep-purple`->`info` (or `secondary` for a warm accent like a capability badge). For a neutral/muted chip, **remove** the `color` attr so `variant="tonal"` falls back to the warm `--cc-surface-2`; do not invent a `--cc-grey` token. For a muted icon use `color="var(--cc-text-3)"`.
+2b. **Undefined `--cc-*` token names** silently fall back (to the fallback arg, or to an invalid value -> default). The real tokens: brand is `--cc-brand` (not `--cc-primary`); secondary/tertiary text is `--cc-text-2` / `--cc-text-3` (not `--cc-text-secondary`/`--cc-text-primary`). When in doubt, grep the name against `theme.css`. A quick audit: collect `var(--cc-*)` names used vs. the names defined in `theme.css`/`marauders.css` and diff -- any "used but not defined" is a bug (component-local CSS vars defined in the same scoped block are the only legitimate exception).
 3. **Scoped `<style>` blocks with surface/text colors**: use global utility classes and Vuetify variants instead.
 3. **Static `:items-per-page`** on data tables: use server-side pagination with `:items-length`.
 4. **Not resetting `page = 1` on filter changes**: causes empty pages when filters narrow results.
@@ -917,6 +920,20 @@ Never skip calling `startPan` for a mousedown in order to "avoid pan on this ele
 The component uses global CSS classes `.cc-zoom-controls` and `.cc-zoom-pct` defined in `theme.css`. Do not add scoped CSS for these classes; they are global utilities.
 
 Never render the four buttons (plus, minus, reset, pct chip) inline in a view or component; always use `CcZoomControls`.
+
+### Tokens in SVG: `var(--cc-x)` resolves in presentation attributes
+
+`var()` resolves in SVG **presentation attributes**, not only in the `style` attribute, in the browsers this app targets (verified). Both forms are valid and render identically:
+
+```html
+<text fill="var(--cc-chart-axis-label)">…</text>          <!-- presentation attribute: OK -->
+<rect style="fill: var(--cc-brand-soft); stroke: var(--cc-brand)" />  <!-- style attribute: also OK -->
+<line :stroke="cond ? 'var(--cc-success)' : 'var(--cc-chart-2)'" />   <!-- bound attribute: a string is a string, OK -->
+```
+
+Do **not** "fix" the `fill="var(--cc-x)"` attribute form into the `style=` form -- it is not a bug. Use whichever reads cleaner; for per-element dynamic colors, bind the attribute (`:stroke`/`:fill`) to a token string. For colors computed in JS (canvas/`ctx`), read the token value with `ccToken('--cc-x')` from `useChartTheme.js` instead.
+
+For SVG over a photo/map background, prefer the DS chart/semantic tokens and keep distinct line/region types on distinct hues (e.g. success / chart-2 / info / text-3); the white-text + dark-halo label convention is owned by `useAnnotationStyle.js` (below).
 
 ### Canvas annotation style: `useAnnotationStyle.js`
 
@@ -1282,6 +1299,8 @@ Before marking frontend work complete:
 - Form resets in close dialogs
 - `tracking-tight` on page titles
 - Status chips use `statusColor()` helper
+- No `v-btn-toggle` for mode/period/source pickers (use `CcSegmentedToggle`); no Vuetify material color names (`color="green|orange|purple|grey"`) -- use DS semantic colors or remove for the warm tonal default
+- No undefined `--cc-*` token names (e.g. `--cc-primary`, `--cc-text-secondary`); they fall back silently
 - Filter changes reset page to 1
 - No `getHours()`, `getMinutes()`, `getSeconds()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()` anywhere; use `services/timezone.js`
 - Inspector drawers: `useNotify()` imported and used (zero `console.log` / `console.error` stubs)

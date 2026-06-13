@@ -40,7 +40,7 @@
       >{{ cap }}</v-chip>
       <v-chip size="small" variant="outlined">{{ selectedModel.api_type }}</v-chip>
       <v-chip v-if="selectedModel.guided_decoding" size="small" color="success" variant="tonal">guided decoding</v-chip>
-      <v-chip v-if="selectedModel.supports_thinking" size="small" color="purple" variant="tonal">thinking</v-chip>
+      <v-chip v-if="selectedModel.supports_thinking" size="small" color="secondary" variant="tonal">thinking</v-chip>
     </div>
 
     <TemplateInput

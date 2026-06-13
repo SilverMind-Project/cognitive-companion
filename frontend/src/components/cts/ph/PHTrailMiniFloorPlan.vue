@@ -43,7 +43,7 @@ export default {
     error: { type: String, default: "" },
   },
   setup(props) {
-    const strokeColor = "var(--cc-primary)";
+    const strokeColor = "var(--cc-brand)";
 
     const polylinePoints = computed(() => {
       if (props.trail.length < 2) return "";

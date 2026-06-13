@@ -258,21 +258,11 @@
                   Measure two known points for best accuracy, or enter the map's total width.
                 </div>
               </div>
-              <v-btn-toggle
+              <CcSegmentedToggle
                 v-model="scaleMethod"
-                mandatory
-                density="compact"
-                variant="outlined"
-                divided
+                :options="SCALE_METHOD_OPTIONS"
                 class="upload-scale-method"
-              >
-                <v-btn value="pickpoints" size="small">
-                  <v-icon start size="15">mdi-cursor-pointer</v-icon>Two points
-                </v-btn>
-                <v-btn value="realwidth" size="small">
-                  <v-icon start size="15">mdi-ruler</v-icon>Total width
-                </v-btn>
-              </v-btn-toggle>
+              />
             </div>
 
             <!-- Method A: click two points -->
@@ -1293,6 +1283,7 @@ import { cts } from "@/services/cts";
 import { useHeatmap } from "@/composables/useHeatmap.js";
 import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
 import CcZoomControls from "@/components/common/CcZoomControls.vue";
+import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
 import MaraudersToggle from "@/components/marauders/MaraudersToggle.vue";
 import MaraudersInkPolygon from "@/components/marauders/MaraudersInkPolygon.vue";
 import MaraudersFloorMarkers from "@/components/marauders/MaraudersFloorMarkers.vue";
@@ -1336,6 +1327,10 @@ const uploadHeight = ref(null);
 const uploadMpp = ref(null);
 // Scale method state
 const scaleMethod = ref("pickpoints");
+const SCALE_METHOD_OPTIONS = [
+  { value: "pickpoints", label: "Two points", icon: "mdi-cursor-pointer" },
+  { value: "realwidth", label: "Total width", icon: "mdi-ruler" },
+];
 const uploadRealWidth = ref(null);
 // Method C: click-on-image scale picker
 const scalePoints = ref([]);      // up to 2 normalized [x, y] points

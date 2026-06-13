@@ -11,28 +11,18 @@
       <v-spacer />
 
       <!-- View mode toggle -->
-      <v-btn-toggle v-model="viewMode" density="compact" variant="tonal" divided mandatory>
-        <v-btn value="table" size="small" prepend-icon="mdi-table">Table</v-btn>
-        <v-btn value="timeline" size="small" prepend-icon="mdi-timeline-text-outline">Timeline</v-btn>
-      </v-btn-toggle>
+      <CcSegmentedToggle v-model="viewMode" :options="VIEW_MODE_OPTIONS" />
     </div>
 
     <!-- Filter bar -->
     <v-card variant="tonal" class="mb-4 pa-3">
       <div class="d-flex flex-wrap align-center ga-3">
         <!-- Source toggle (table mode only) -->
-        <v-btn-toggle
+        <CcSegmentedToggle
           v-if="viewMode === 'table'"
           v-model="filter.source"
-          density="compact"
-          variant="outlined"
-          divided
-          mandatory
-        >
-          <v-btn value="all" size="small">All</v-btn>
-          <v-btn value="pipeline" size="small" prepend-icon="mdi-robot">Pipeline</v-btn>
-          <v-btn value="cts" size="small" prepend-icon="mdi-cctv">CTS</v-btn>
-        </v-btn-toggle>
+          :options="SOURCE_OPTIONS"
+        />
 
         <!-- Person selector -->
         <v-select
@@ -176,8 +166,20 @@ import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 import PersonTimeline from "../../components/person/PersonTimeline.vue";
+import CcSegmentedToggle from "../../components/common/CcSegmentedToggle.vue";
 
 const route = useRoute();
+
+// DS segmented pickers (replace v-btn-toggle).
+const VIEW_MODE_OPTIONS = [
+  { value: "table", label: "Table", icon: "mdi-table" },
+  { value: "timeline", label: "Timeline", icon: "mdi-timeline-text-outline" },
+];
+const SOURCE_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "pipeline", label: "Pipeline", icon: "mdi-robot" },
+  { value: "cts", label: "CTS", icon: "mdi-cctv" },
+];
 
 const loading    = ref(false);
 const viewMode   = ref("table");

@@ -269,7 +269,7 @@
                   height="60"
                   class="rounded-lg bg-surface-variant d-flex align-center justify-center"
                 >
-                  <v-icon size="24" color="grey">mdi-image-outline</v-icon>
+                  <v-icon size="24" color="var(--cc-text-3)">mdi-image-outline</v-icon>
                 </v-sheet>
 
                 <v-btn

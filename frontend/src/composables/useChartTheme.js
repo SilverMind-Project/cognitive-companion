@@ -37,14 +37,14 @@ export function useChartTheme() {
     // eslint-disable-next-line no-unused-expressions
     vuetifyTheme.name.value;
 
+    // DS data-viz palette, in salience order. See --cc-chart-* in theme.css.
     const palette = [
-      token("--cc-brand"),
-      token("--cc-teal"),
-      token("--cc-success"),
-      token("--cc-warning"),
-      token("--cc-indigo"),
-      token("--cc-purple"),
-      token("--cc-error"),
+      token("--cc-chart-1"),
+      token("--cc-chart-2"),
+      token("--cc-chart-3"),
+      token("--cc-chart-4"),
+      token("--cc-chart-5"),
+      token("--cc-chart-6"),
     ];
 
     const textPrimary = token("--cc-text-1");

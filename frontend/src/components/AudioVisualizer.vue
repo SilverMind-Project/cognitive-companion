@@ -79,11 +79,13 @@ function resizeCanvas() {
 
 // ─── Animation ──────────────────────────────────────────────────────────────
 
+// Warm DS waveform palette (stone idle, sage listening, gold speaking, sage
+// system). Tints match the status-pill pairs in VoiceWidget.
 const COLOR_SETS = {
-  idle:           ["rgba(255,255,255,0.10)", "rgba(255,255,255,0.06)", "rgba(255,255,255,0.03)"],
-  listening:      ["rgba(99,102,241,0.80)",  "rgba(139,92,246,0.55)", "rgba(167,139,250,0.30)"],
-  speaking:       ["rgba(245,158,11,0.80)",  "rgba(251,191,36,0.55)", "rgba(253,230,138,0.30)"],
-  system_speaking:["rgba(139,92,246,0.80)",  "rgba(167,139,250,0.58)","rgba(196,181,253,0.35)"],
+  idle:           ["rgba(135,121,96,0.18)", "rgba(135,121,96,0.10)", "rgba(135,121,96,0.05)"],
+  listening:      ["rgba(63,107,82,0.85)",  "rgba(90,137,110,0.55)", "rgba(130,178,146,0.30)"],
+  speaking:       ["rgba(201,138,46,0.85)", "rgba(220,141,107,0.55)","rgba(240,217,168,0.35)"],
+  system_speaking:["rgba(48,83,64,0.85)",   "rgba(63,107,82,0.55)",  "rgba(130,178,146,0.32)"],
 };
 
 function draw() {
@@ -252,21 +254,25 @@ onUnmounted(() => {
 <style scoped>
 .visualizer-wrap {
   width: 100%;
-  border-radius: 12px;
+  border-radius: var(--cc-radius-md);
   overflow: hidden;
-  transition: filter 0.4s ease;
+  transition: filter var(--cc-dur-slow) var(--cc-ease-standard);
 }
 
 .state-listening {
-  filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.35));
+  filter: drop-shadow(0 0 12px rgba(63, 107, 82, 0.30));
 }
 
 .state-speaking {
-  filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.35));
+  filter: drop-shadow(0 0 12px rgba(201, 138, 46, 0.30));
 }
 
 .state-system_speaking {
-  filter: drop-shadow(0 0 14px rgba(139, 92, 246, 0.40));
+  filter: drop-shadow(0 0 14px rgba(63, 107, 82, 0.32));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visualizer-wrap { transition: none; }
 }
 
 .visualizer-canvas {

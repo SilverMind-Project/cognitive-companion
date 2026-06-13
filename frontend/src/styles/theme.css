@@ -56,6 +56,30 @@
   --notice-fg: #8A5C12; --notice-bg: #FBEFD7; --notice-line:#F0D9A8;
   --alert-fg:  #8E3A28; --alert-bg:  #FAE1DA; --alert-line: #F0C2B5;
   --info-fg:   #2F5663; --info-bg:   #E0EDF1; --info-line:  #BFD9E1;
+
+  /*
+   * Chart palette — DS data-viz tokens in salience order. ECharts series and
+   * bespoke SVG charts consume --cc-chart-1..6. Grid + axis-label are the warm
+   * neutrals for chart chrome. Defined globally (fixed hexes, theme-independent)
+   * so charts resolve under any active Vuetify theme, ccWarm or ccMarauders.
+   */
+  --cc-chart-1: #3F6B52; /* sage   — primary series */
+  --cc-chart-2: #C8704F; /* terra  — accent series */
+  --cc-chart-3: #4E7A8C; /* blue   — info series */
+  --cc-chart-4: #C98A2E; /* gold   — notice series */
+  --cc-chart-5: #82B292; /* sage-300 */
+  --cc-chart-6: #B3A286; /* stone-400 */
+  --cc-chart-grid:       #E8DDCC; /* stone-200 */
+  --cc-chart-axis-label: #877960; /* stone-500 */
+
+  /*
+   * Deprecated chart aliases — the names lie about their values (a "teal" that
+   * is terracotta, etc.) and nothing reads them any more. Kept as a harmless
+   * shim pointing at the DS chart tokens; remove once confirmed unused.
+   */
+  --cc-teal:   var(--cc-chart-2);
+  --cc-indigo: var(--cc-chart-5);
+  --cc-purple: var(--cc-chart-2);
 }
 
 /* ── Typography ──────────────────────────────────────────────────────────── */
@@ -149,11 +173,6 @@
   --cc-warning: #C98A2E;
   --cc-error:   #BC5740;
   --cc-info:    #4E7A8C;
-
-  /* Chart palette (diverse, warm) */
-  --cc-teal:   #DC8D6B;
-  --cc-indigo: #82B292;
-  --cc-purple: #C8704F;
 
   /* Borders */
   --cc-divider:             #E8DDCC;

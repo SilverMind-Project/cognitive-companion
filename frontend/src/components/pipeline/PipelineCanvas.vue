@@ -62,8 +62,9 @@
       <VueFlow
         ref="flowElement"
         :nodes="state.nodes"
-        :edges="state.edges"
+        :edges="editorEdges"
         :node-types="nodeTypes"
+        :edge-types="edgeTypes"
         :default-edge-options="defaultEdgeOptions"
         :fit-view-on-init="false"
         :zoom-on-double-click="false"
@@ -171,6 +172,7 @@ import StepConfigDialog from "./StepConfigDialog.vue";
 import StepPalette from "./StepPalette.vue";
 import { applyDagreLayout } from "./canvasLayout.js";
 import StepNode from "./nodes/StepNode.vue";
+import DeletableEdge from "./edges/DeletableEdge.vue";
 import { useCanvasMiniMapSize } from "./useCanvasMiniMapSize.js";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/controls/dist/style.css";
@@ -212,7 +214,15 @@ const {
 } = useConfirm();
 
 const nodeTypes = { step: markRaw(StepNode) };
-const defaultEdgeOptions = { type: "smoothstep", animated: false };
+const edgeTypes = { deletable: markRaw(DeletableEdge) };
+const defaultEdgeOptions = { type: "deletable", animated: false };
+
+// Render editor edges with the deletable edge type (inline x affordance). The
+// shared edgesToVueFlow helper emits `smoothstep` so the read-only monitor
+// canvas keeps plain edges; here we override just the type for editing.
+const editorEdges = computed(() =>
+  state.edges.map((edge) => ({ ...edge, type: "deletable" })),
+);
 const flowElement = ref(null);
 const canvasRef = ref(null);
 const minimapSize = useCanvasMiniMapSize(flowElement);

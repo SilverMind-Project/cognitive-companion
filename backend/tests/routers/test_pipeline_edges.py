@@ -108,7 +108,11 @@ def test_replace_edges_creates_edge_rows(client, db_session):
     assert body[0]["target_step_id"] == second.id
 
 
-def test_replace_edges_validates_single_entry_node(client, db_session):
+def test_replace_edges_allows_unwired_step_during_authoring(client, db_session):
+    # An unwired third step produces two entry nodes. This is a valid
+    # intermediate edit state and must be accepted (the single-entry rule is an
+    # execution invariant, surfaced as a non-blocking validate-endpoint warning,
+    # not an edge-save error).
     rule = _create_rule(db_session)
     first = _add_step(db_session, rule.id, 0, "first")
     second = _add_step(db_session, rule.id, 1, "second")
@@ -127,8 +131,33 @@ def test_replace_edges_validates_single_entry_node(client, db_session):
         },
     )
 
-    assert response.status_code == 422
-    assert "exactly one entry node" in response.json()["error"]
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_replace_edges_allows_removing_last_edge(client, db_session):
+    # Regression: deleting the only edge sends an empty edge set, which leaves
+    # every step as an entry node. This previously 422'd with
+    # "exactly one entry node; found N", breaking edge deletion / remove-readd.
+    rule = _create_rule(db_session)
+    first = _add_step(db_session, rule.id, 0, "first")
+    second = _add_step(db_session, rule.id, 1, "second")
+    db_session.add(
+        PipelineEdge(
+            rule_id=rule.id,
+            source_step_id=first.id,
+            source_port="main",
+            target_step_id=second.id,
+        )
+    )
+    db_session.commit()
+
+    response = client.put(f"/api/v1/rules/{rule.id}/edges", json={"edges": []})
+
+    assert response.status_code == 200
+    assert response.json() == []
+    remaining = db_session.query(PipelineEdge).filter(PipelineEdge.rule_id == rule.id).all()
+    assert remaining == []
 
 
 def test_replace_edges_validates_no_cycles(client, db_session):
@@ -195,15 +224,14 @@ def test_replace_edges_is_atomic_on_validation_failure(client, db_session):
     )
     db_session.commit()
 
+    # A cycle is rejected at authoring time; validation runs before the
+    # delete/insert, so the existing two edges must survive unchanged.
     response = client.put(
         f"/api/v1/rules/{rule.id}/edges",
         json={
             "edges": [
-                {
-                    "source_step_id": first.id,
-                    "source_port": "main",
-                    "target_step_id": second.id,
-                }
+                {"source_step_id": first.id, "source_port": "main", "target_step_id": second.id},
+                {"source_step_id": second.id, "source_port": "main", "target_step_id": first.id},
             ]
         },
     )

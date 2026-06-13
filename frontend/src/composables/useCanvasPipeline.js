@@ -77,11 +77,14 @@ export function useCanvasPipeline(ruleId) {
 
   function outputPortsForNode(node) {
     if (!node) return ["main"];
-    return (
-      node.data?.outputPorts
-      ?? state.stepMeta[node.data?.step?.step_type]?.output_ports
-      ?? ["main"]
-    );
+    // Use length checks rather than `??`: an empty array is a valid object but
+    // signals "no declared ports", so we must fall through to the next source
+    // instead of returning `[]` (which would reject every connection).
+    const fromNode = node.data?.outputPorts;
+    if (fromNode?.length) return fromNode;
+    const fromMeta = state.stepMeta[node.data?.step?.step_type]?.output_ports;
+    if (fromMeta?.length) return fromMeta;
+    return ["main"];
   }
 
   function validateConnection(connection) {

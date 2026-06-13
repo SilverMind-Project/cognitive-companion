@@ -11,6 +11,11 @@ export function useCanvasPipeline(ruleId) {
     nodes: [],
     edges: [],
     loading: false,
+    // `ready` flips true after the first successful load and never resets.
+    // The canvas uses it to distinguish the initial fetch (full-screen spinner)
+    // from background refreshes (subtle top progress bar) so VueFlow stays
+    // mounted and the viewport is preserved across mutations.
+    ready: false,
     error: null,
     stepMeta: {},
   });
@@ -36,6 +41,7 @@ export function useCanvasPipeline(ruleId) {
       ]);
       state.nodes = stepsToNodes(steps, state.stepMeta);
       state.edges = edgesToVueFlow(edges);
+      state.ready = true;
     } catch (error) {
       state.error = error.message || "Failed to load pipeline";
     } finally {

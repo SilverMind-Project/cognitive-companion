@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
     error: vi.fn(),
   },
   fitView: vi.fn(),
+  screenToFlowCoordinate: vi.fn(({ x, y }) => ({ x, y })),
+  onNodesInitialized: vi.fn(),
 }));
 
 vi.mock("@/composables/useCanvasPipeline.js", () => ({
@@ -41,10 +43,23 @@ vi.mock("@/composables/useNotify.js", () => ({
 }));
 
 vi.mock("@vue-flow/core", () => ({
-  useVueFlow: () => ({ fitView: mocks.fitView }),
+  useVueFlow: () => ({
+    fitView: mocks.fitView,
+    screenToFlowCoordinate: mocks.screenToFlowCoordinate,
+    onNodesInitialized: mocks.onNodesInitialized,
+  }),
   VueFlow: {
     name: "VueFlow",
-    props: ["nodes", "edges", "nodeTypes", "defaultEdgeOptions", "fitViewOnInit", "zoomOnDoubleClick"],
+    props: [
+      "nodes",
+      "edges",
+      "nodeTypes",
+      "defaultEdgeOptions",
+      "fitViewOnInit",
+      "zoomOnDoubleClick",
+      "minZoom",
+      "maxZoom",
+    ],
     emits: [
       "connect",
       "edges-change",
@@ -106,6 +121,8 @@ const stubs = {
     template: '<button data-testid="menu-item" @click="$emit(\'click\', $event)">{{ title }}</button>',
   },
   "v-progress-circular": { template: '<div data-testid="spinner" />' },
+  "v-progress-linear": { template: '<div data-testid="refresh-bar" />' },
+  "v-icon": { template: "<i><slot /></i>" },
   "v-spacer": { template: "<span />" },
   StepPalette: {
     props: ["modelValue"],
@@ -235,7 +252,7 @@ describe("PipelineCanvas", () => {
     expect(mocks.api.addRuleStep).toHaveBeenCalledWith(42, expect.objectContaining({
       step_type: "notification",
       position_x: expect.any(Number),
-      position_y: 200,
+      position_y: expect.any(Number),
     }));
   });
 

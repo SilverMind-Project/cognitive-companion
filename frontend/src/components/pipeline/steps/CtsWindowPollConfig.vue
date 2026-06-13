@@ -2,18 +2,6 @@
 <template>
   <!-- General tab: timing and sampling -->
   <div v-if="tab === 'general'">
-    <v-alert
-      v-if="modelValue.partial === true"
-      type="warning"
-      variant="tonal"
-      density="compact"
-      class="mb-4"
-    >
-      The CTS event bucketizer is not yet wired (Phase 3). This step will
-      return an empty window with <code>partial=true</code> until that phase is
-      complete.
-    </v-alert>
-
     <div class="text-overline text-medium-emphasis mb-2">Timing</div>
 
     <v-row dense class="mb-1">
@@ -133,8 +121,9 @@
 
     <v-combobox
       :model-value="modelValue.cameras"
+      :items="ctsCameraItems"
       label="CTS Camera IDs (optional)"
-      hint="Restrict to these CTS camera IDs. Leave empty to include all cameras."
+      hint="Pick from the configured CTS cameras, or type an ID. Leave empty to include all cameras."
       persistent-hint
       multiple
       chips
@@ -194,6 +183,7 @@ defineProps({
   modelValue: { type: Object, required: true },
   tab: { type: String, default: "general" },
   availableRooms: { type: Array, default: () => [] },
+  ctsCameraItems: { type: Array, default: () => [] },
 });
 const emit = defineEmits(["update:modelValue"]);
 </script>

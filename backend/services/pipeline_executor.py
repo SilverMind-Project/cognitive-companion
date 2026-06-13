@@ -181,6 +181,16 @@ class PipelineExecutor:
     def _scheduler(self, value):
         self._services.scheduler = value
 
+    # Expose the CTS bucketizer for injection after CTS bootstrap (it is built
+    # by CTSRuntime, which is constructed after this executor).
+    @property
+    def bucketizer(self):
+        return self._services.bucketizer
+
+    @bucketizer.setter
+    def bucketizer(self, value):
+        self._services.bucketizer = value
+
     @property
     def event_aggregator(self):
         """Public accessor for the event aggregator (used by Scheduler for media fetch)."""

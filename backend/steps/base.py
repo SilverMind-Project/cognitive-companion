@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from backend.integrations.scene_analysis_client import SceneAnalysisClient
     from backend.integrations.semantic_memory_client import SemanticMemoryClient
     from backend.services.activity.service import ActivityService
+    from backend.services.cts.event_bucketizer import CtsEventBucketizer
     from backend.services.daily_report import DailyReportService
     from backend.services.event_aggregator import EventAggregator
     from backend.services.interactive_response import InteractiveResponseService
@@ -117,6 +118,9 @@ class ServiceContainer:
     signals: SignalsService | None = None
     knowledge_delivery: KnowledgeDeliveryService | None = None
     minio_client: MinioClient | None = None
+    # CTS sliding-window frame buffer, injected after CTS bootstrap. Read by the
+    # cts_window_poll step to return recent CTS frames per camera.
+    bucketizer: CtsEventBucketizer | None = None
 
 
 # ---------------------------------------------------------------------------

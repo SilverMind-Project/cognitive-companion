@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from tenacity import before_sleep_log, retry, stop_after_attempt, wait_fixed
@@ -28,7 +28,11 @@ from backend.services.cts._types import (
     SceneAnalysisClient,
     SemanticMemoryClient,
 )
-from backend.services.cts.event_bucketizer import CtsEventBucketizer, CtsWindowTrigger
+from backend.services.cts.event_bucketizer import (
+    BucketizerRateConfig,
+    CtsEventBucketizer,
+    CtsWindowTrigger,
+)
 from backend.services.cts.identity_revision_subscriber import IdentityRevisionSubscriber
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.location_repository import SqlAlchemyLocationRepository
@@ -59,6 +63,7 @@ class CTSRuntimeConfig:
     redis_url: str
     consumer_id: str
     cts_lock_s: float = 60.0
+    bucketizer_rate: BucketizerRateConfig = field(default_factory=BucketizerRateConfig)
 
 
 @dataclass
@@ -137,6 +142,7 @@ class CTSRuntime:
         self.bucketizer = CtsEventBucketizer(
             pipeline=pipeline,
             get_triggers=_load_triggers,
+            rate_config=config.bucketizer_rate,
         )
 
         self.snapshot_publisher = WorldSnapshotPublisher(

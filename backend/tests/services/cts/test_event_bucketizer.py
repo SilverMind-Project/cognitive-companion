@@ -6,7 +6,23 @@ import asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
-from backend.services.cts.event_bucketizer import CtsEventBucketizer, CtsWindowTrigger
+import pytest
+from pydantic import ValidationError
+
+from backend.observability.aggregation_metrics import aggregator_images_dropped
+from backend.services.cts.event_bucketizer import (
+    BucketizerRateConfig,
+    CtsEventBucketizer,
+    CtsWindowTrigger,
+)
+
+
+class _Clock:
+    def __init__(self, now: float = 0.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
 
 
 def _event(
@@ -159,3 +175,153 @@ def test_buffer_state_reports_depth_capacity_and_origin_cts() -> None:
     assert states[0].buffer_depth == 1
     assert states[0].buffer_capacity == 512
     assert states[0].last_event_at == event["event_time"]
+
+
+def test_ingest_marks_first_frame_image_eligible() -> None:
+    clock = _Clock()
+    bucketizer = CtsEventBucketizer(
+        rate_config={"image_rate_per_second": 0.5, "image_rate_burst": 1.0},
+        time_fn=clock,
+    )
+    event = _event()
+
+    bucketizer.ingest(event)
+
+    assert event["image_eligible"] is True
+
+
+def test_ingest_marks_excess_frames_not_eligible() -> None:
+    clock = _Clock()
+    bucketizer = CtsEventBucketizer(
+        rate_config={"image_rate_per_second": 0.5, "image_rate_burst": 1.0},
+        time_fn=clock,
+    )
+    first = _event()
+    second = _event()
+
+    bucketizer.ingest(first)
+    bucketizer.ingest(second)
+
+    assert first["image_eligible"] is True
+    assert second["image_eligible"] is False
+
+
+def test_eligible_resets_after_refill_window() -> None:
+    clock = _Clock()
+    bucketizer = CtsEventBucketizer(
+        rate_config={"image_rate_per_second": 0.5, "image_rate_burst": 1.0},
+        time_fn=clock,
+    )
+    bucketizer.ingest(_event())
+    throttled = _event()
+    bucketizer.ingest(throttled)
+
+    clock.now = 2.0
+    refilled = _event()
+    bucketizer.ingest(refilled)
+
+    assert throttled["image_eligible"] is False
+    assert refilled["image_eligible"] is True
+
+
+async def test_rate_limit_does_not_affect_trigger_firing() -> None:
+    clock = _Clock()
+    pipeline = AsyncMock()
+    trigger = _trigger(min_detections=5)
+    bucketizer = CtsEventBucketizer(
+        pipeline=pipeline,
+        get_triggers=lambda: [trigger],
+        rate_config={"image_rate_per_second": 0.5, "image_rate_burst": 1.0},
+        time_fn=clock,
+    )
+
+    for _ in range(10):
+        bucketizer.ingest(_event())
+    await _drain_fire_task()
+
+    assert pipeline.fire_event.await_count > 0
+    assert len(bucketizer.forward_buffer("window-1", "cam-1", 0.0)) == 10
+    assert len(bucketizer.forward_buffer("window-1", "cam-1", 0.0, eligible_only=True)) == 1
+
+
+def test_forward_buffer_eligible_only_filters() -> None:
+    bucketizer = CtsEventBucketizer(
+        rate_config={"image_rate_per_second": 0.5, "image_rate_burst": 1.0}
+    )
+    first = _event()
+    second = _event()
+
+    bucketizer.ingest(first)
+    bucketizer.ingest(second)
+
+    assert bucketizer.forward_buffer("window-1", "cam-1", 0.0) == [first, second]
+    assert bucketizer.forward_buffer("window-1", "cam-1", 0.0, eligible_only=True) == [first]
+
+
+def test_dropped_counter_increments_on_throttle() -> None:
+    labels = aggregator_images_dropped.labels(camera_id="counter-cam", origin="cts")
+    before = labels._value.get()
+    bucketizer = CtsEventBucketizer(
+        rate_config={"image_rate_per_second": 0.5, "image_rate_burst": 1.0}
+    )
+
+    bucketizer.ingest(_event(camera_id="counter-cam"))
+    bucketizer.ingest(_event(camera_id="counter-cam"))
+
+    assert labels._value.get() == before + 1
+
+
+def test_buffer_state_reports_eligible_and_dropped_counts() -> None:
+    bucketizer = CtsEventBucketizer(
+        rate_config={"image_rate_per_second": 0.5, "image_rate_burst": 1.0}
+    )
+
+    bucketizer.ingest(_event())
+    bucketizer.ingest(_event())
+
+    state = bucketizer.buffer_state()[0]
+    assert state.images_eligible_total == 1
+    assert state.images_dropped_total == 1
+
+
+def test_per_camera_override_applies() -> None:
+    clock = _Clock()
+    bucketizer = CtsEventBucketizer(
+        rate_config={
+            "image_rate_per_second": 0.5,
+            "image_rate_burst": 1.0,
+            "image_rate_overrides": {"fast-cam": 1.0},
+        },
+        time_fn=clock,
+    )
+    bucketizer.ingest(_event(camera_id="fast-cam"))
+    bucketizer.ingest(_event(camera_id="default-cam"))
+
+    clock.now = 1.0
+    fast_event = _event(camera_id="fast-cam")
+    default_event = _event(camera_id="default-cam")
+    bucketizer.ingest(fast_event)
+    bucketizer.ingest(default_event)
+
+    assert fast_event["image_eligible"] is True
+    assert default_event["image_eligible"] is False
+
+
+def test_event_without_minio_key_is_not_eligible_and_not_dropped() -> None:
+    bucketizer = CtsEventBucketizer(
+        rate_config={"image_rate_per_second": 0.5, "image_rate_burst": 1.0}
+    )
+    event = _event()
+    event["minio_key"] = ""
+
+    bucketizer.ingest(event)
+
+    state = bucketizer.buffer_state()[0]
+    assert event["image_eligible"] is False
+    assert state.images_eligible_total == 0
+    assert state.images_dropped_total == 0
+
+
+def test_bucketizer_rate_config_rejects_unknown_key() -> None:
+    with pytest.raises(ValidationError):
+        BucketizerRateConfig.model_validate({"unexpected": 1})

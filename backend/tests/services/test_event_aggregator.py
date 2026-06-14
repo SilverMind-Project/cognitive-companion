@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from backend.services.event_aggregator import EventAggregator
+from backend.services.event_aggregator import EventAggregator, EventAggregatorConfig
 
 
-def _make_aggregator(db_factory, callback=None, **config_overrides):
+def _make_aggregator(db_factory, callback=None, time_fn=None, **config_overrides):
     """Build an EventAggregator with a mock MinIO client."""
     minio = MagicMock()
     minio.extract_object_name.side_effect = lambda p: p.split("/")[-1]
@@ -27,16 +27,65 @@ def _make_aggregator(db_factory, callback=None, **config_overrides):
     if callback is None:
         callback = AsyncMock()
 
+    kwargs = {}
+    if time_fn is not None:
+        kwargs["time_fn"] = time_fn
     agg = EventAggregator(
         config=config,
         db_session_factory=db_factory,
         minio_client=minio,
         process_callback=callback,
+        **kwargs,
     )
     return agg, minio, callback
 
 
 class TestEventAggregatorBuffering:
+    async def test_add_event_disabled_rate_allows_all(self, db_factory):
+        agg, _, _ = _make_aggregator(db_factory)
+
+        await agg.add_event("cam1", "minio://bucket/img1.jpg")
+        await agg.add_event("cam1", "minio://bucket/img2.jpg")
+
+        assert agg.buffers["cam1"] == [
+            "minio://bucket/img1.jpg",
+            "minio://bucket/img2.jpg",
+        ]
+        assert agg.buffer_state()[0].images_eligible_total == 2
+        agg.timers["cam1"].cancel()
+
+    async def test_add_event_with_ceiling_drops_excess(self, db_factory):
+        now = [0.0]
+        agg, _, _ = _make_aggregator(
+            db_factory,
+            time_fn=lambda: now[0],
+            image_rate_per_second=0.5,
+            image_rate_burst=1.0,
+        )
+
+        await agg.add_event("cam1", "minio://bucket/img1.jpg")
+        await agg.add_event("cam1", "minio://bucket/img2.jpg")
+
+        assert agg.buffers["cam1"] == ["minio://bucket/img1.jpg"]
+        state = agg.buffer_state()[0]
+        assert state.images_eligible_total == 1
+        assert state.images_dropped_total == 1
+        agg.timers["cam1"].cancel()
+
+    async def test_dropped_event_does_not_start_window_timer(self, db_factory):
+        agg, _, _ = _make_aggregator(
+            db_factory,
+            image_rate_per_second=0.5,
+            image_rate_burst=1.0,
+        )
+        assert agg._rate_limiter.allow("cam1") is True
+
+        await agg.add_event("cam1", "minio://bucket/img1.jpg")
+
+        assert "cam1" not in agg.buffers
+        assert "cam1" not in agg.timers
+        assert agg._dropped_counts["cam1"] == 1
+
     async def test_events_accumulate_in_buffer(self, db_factory):
         agg, _, _ = _make_aggregator(db_factory)
         await agg.add_event("cam1", "minio://bucket/img1.jpg")
@@ -211,3 +260,19 @@ class TestEventAggregatorWindowTimer:
         assert executed == ["cam1"], (
             "callback was silently cancelled; timer task cancelled itself via _cancel_timer"
         )
+
+
+def test_event_aggregator_config_accepts_image_rate_fields() -> None:
+    config = EventAggregatorConfig.model_validate(
+        {
+            "batch_size": 5,
+            "window_seconds": 30,
+            "cooldown_seconds": 60,
+            "media_retention_minutes": 30,
+            "image_rate_per_second": 0.5,
+            "image_rate_burst": 2.0,
+        }
+    )
+
+    assert config.image_rate_per_second == 0.5
+    assert config.image_rate_burst == 2.0

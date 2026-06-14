@@ -8,11 +8,12 @@ from __future__ import annotations
 import asyncio
 import re
 import time
+from collections import defaultdict
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,7 @@ from backend.integrations.minio_client import MinioClient
 from backend.models.media_cache import MediaCache
 from backend.models.room import Room
 from backend.models.sensor import Sensor
+from backend.observability.aggregation_metrics import aggregator_images_dropped
 from backend.services.aggregation import (
     CameraBufferState,
     CooldownTracker,
@@ -42,6 +44,8 @@ class EventAggregatorConfig(BaseModel):
     window_seconds: float
     cooldown_seconds: float
     media_retention_minutes: int
+    image_rate_per_second: float = Field(default=0.0, ge=0.0)
+    image_rate_burst: float = Field(default=0.0, ge=0.0)
 
 
 class EventAggregator:
@@ -65,6 +69,8 @@ class EventAggregator:
         self.window_seconds = resolved_config.window_seconds
         self.cooldown_seconds = resolved_config.cooldown_seconds
         self.media_retention_minutes = resolved_config.media_retention_minutes
+        self.image_rate_per_second = resolved_config.image_rate_per_second
+        self.image_rate_burst = resolved_config.image_rate_burst
 
         self._db_session_factory = db_session_factory
         self._minio = minio_client
@@ -75,9 +81,12 @@ class EventAggregator:
         self.timers: dict[str, asyncio.Task[None]] = {}
         self._cooldowns = CooldownTracker(time_fn=time_fn)
         self._rate_limiter = PerCameraRateLimiter(
-            default_rate_per_second=0.0,
+            default_rate_per_second=self.image_rate_per_second,
+            default_burst=self.image_rate_burst or None,
             time_fn=time_fn,
         )
+        self._eligible_counts: dict[str, int] = defaultdict(int)
+        self._dropped_counts: dict[str, int] = defaultdict(int)
 
         logger.info(
             "event_aggregator_initialized",
@@ -85,6 +94,8 @@ class EventAggregator:
             window_seconds=self.window_seconds,
             cooldown_seconds=self.cooldown_seconds,
             media_retention_minutes=self.media_retention_minutes,
+            image_rate_per_second=self.image_rate_per_second,
+            image_rate_burst=self.image_rate_burst,
         )
 
     # -- public API -----------------------------------------------------------
@@ -108,6 +119,17 @@ class EventAggregator:
                 remaining_seconds=self._cooldowns.remaining(sensor_id),
             )
             return
+
+        if not self._rate_limiter.allow(sensor_id):
+            self._dropped_counts[sensor_id] += 1
+            aggregator_images_dropped.labels(camera_id=sensor_id, origin="recamera").inc()
+            logger.debug(
+                "recamera_image_rate_limited",
+                sensor_id=sensor_id,
+                rate_per_second=self._rate_limiter.rate_for(sensor_id),
+            )
+            return
+        self._eligible_counts[sensor_id] += 1
 
         buf = self.buffers.setdefault(sensor_id, [])
         buf.append(media_path)
@@ -196,6 +218,8 @@ class EventAggregator:
                 cooldown_remaining_seconds=self._cooldowns.remaining(sensor_id),
                 rate_per_second=self._rate_limiter.rate_for(sensor_id),
                 tokens_available=self._rate_limiter.tokens_available(sensor_id),
+                images_eligible_total=self._eligible_counts[sensor_id],
+                images_dropped_total=self._dropped_counts[sensor_id],
             )
             for sensor_id, buffer in self.buffers.items()
         ]
@@ -239,7 +263,8 @@ class EventAggregator:
 
     async def cleanup_expired_media(self) -> None:
         """Delete expired objects from MinIO and mark them as deleted in the
-        MediaCache table.
+        MediaCache table. MediaCache contains only CC-owned reCamera objects;
+        CTS-owned keyframes are never persisted or deleted here.
         """
         now_utc = datetime.now(UTC)
 

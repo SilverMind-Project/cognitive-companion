@@ -19,7 +19,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from backend.core.logging import get_logger
+from backend.observability.aggregation_metrics import aggregator_images_dropped
 from backend.services.aggregation import (
     CameraBufferState,
     CooldownTracker,
@@ -55,6 +58,23 @@ class BucketizerConfig:
     max_buffer_per_camera: int = 512
 
 
+class BucketizerRateConfig(BaseModel):
+    """Validated per-camera image ceiling for the CTS bucketizer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    image_rate_per_second: float = Field(default=0.5, ge=0.0)
+    image_rate_burst: float = Field(default=2.0, ge=0.0)
+    image_rate_overrides: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("image_rate_overrides")
+    @classmethod
+    def validate_overrides(cls, overrides: dict[str, float]) -> dict[str, float]:
+        if any(rate < 0.0 for rate in overrides.values()):
+            raise ValueError("image rate overrides must be non-negative")
+        return overrides
+
+
 class CtsEventBucketizer:
     """Sliding-window bucketizer that fires ``cts_window`` pipeline events.
 
@@ -74,20 +94,31 @@ class CtsEventBucketizer:
         pipeline: Any = None,
         get_triggers: Any = None,
         config: BucketizerConfig | None = None,
+        rate_config: BucketizerRateConfig | dict[str, Any] | None = None,
         time_fn: Callable[[], float] = time.monotonic,
     ) -> None:
         self._pipeline = pipeline
         self._get_triggers = get_triggers
         self._cfg = config or BucketizerConfig()
+        self._rate_cfg = (
+            rate_config
+            if isinstance(rate_config, BucketizerRateConfig)
+            else BucketizerRateConfig.model_validate(rate_config or {})
+        )
         # camera_id -> deque of (event_time_iso, event_dict)
         self._buffers: dict[str, deque[tuple[str, dict[str, Any]]]] = defaultdict(
             lambda: deque(maxlen=self._cfg.max_buffer_per_camera)
         )
         self._cooldowns = CooldownTracker(time_fn=time_fn)
         self._rate_limiter = PerCameraRateLimiter(
-            default_rate_per_second=0.0,
+            default_rate_per_second=self._rate_cfg.image_rate_per_second,
+            default_burst=self._rate_cfg.image_rate_burst or None,
             time_fn=time_fn,
         )
+        for camera_id, rate in self._rate_cfg.image_rate_overrides.items():
+            self._rate_limiter.set_camera_rate(camera_id, rate)
+        self._eligible_counts: dict[str, int] = defaultdict(int)
+        self._dropped_counts: dict[str, int] = defaultdict(int)
 
     def ingest(self, event: dict[str, Any]) -> None:
         """Feed one tracking event into the bucketizer.
@@ -99,6 +130,22 @@ class CtsEventBucketizer:
 
         self._buffers[camera_id].append((event_time, event))
 
+        if event.get("minio_key"):
+            if self._rate_limiter.allow(camera_id):
+                event["image_eligible"] = True
+                self._eligible_counts[camera_id] += 1
+            else:
+                event["image_eligible"] = False
+                self._dropped_counts[camera_id] += 1
+                aggregator_images_dropped.labels(camera_id=camera_id, origin="cts").inc()
+                logger.debug(
+                    "cts_image_rate_limited",
+                    camera_id=camera_id,
+                    rate_per_second=self._rate_limiter.rate_for(camera_id),
+                )
+        else:
+            event["image_eligible"] = False
+
         triggers = self._get_triggers() if self._get_triggers else []
         self._evaluate_triggers(triggers, camera_id)
 
@@ -107,13 +154,17 @@ class CtsEventBucketizer:
         window_id: str,
         camera_id: str,
         lookahead_s: float,
+        eligible_only: bool = False,
     ) -> list[dict[str, Any]]:
         """Return a snapshot of recent events for *camera_id* for use by
         the ``cts_window_poll`` step's lookahead path."""
         # Return all buffered events for this camera.
         # A production version would filter by timestamp / lookahead_s.
         _ = lookahead_s  # reserved for future timestamp filtering
-        return [evt for _ts, evt in self._buffers[camera_id]]
+        events = [evt for _ts, evt in self._buffers[camera_id]]
+        if eligible_only:
+            return [event for event in events if event.get("image_eligible")]
+        return events
 
     # ------------------------------------------------------------------
     # Internals
@@ -264,6 +315,8 @@ class CtsEventBucketizer:
                 buffer_capacity=self._cfg.max_buffer_per_camera,
                 rate_per_second=self._rate_limiter.rate_for(camera_id),
                 tokens_available=self._rate_limiter.tokens_available(camera_id),
+                images_eligible_total=self._eligible_counts[camera_id],
+                images_dropped_total=self._dropped_counts[camera_id],
                 last_event_at=buffer[-1][0] if buffer else None,
             )
             for camera_id, buffer in self._buffers.items()

@@ -161,9 +161,7 @@ async def lifespan(app: FastAPI):
     # -- E-Ink renderer (internal integration) --------------------------------
     from backend.integrations.eink_renderer import EInkRenderer
 
-    eink_renderer = EInkRenderer(
-        db_session_factory=get_session, minio_client=config_minio_client
-    )
+    eink_renderer = EInkRenderer(db_session_factory=get_session, minio_client=config_minio_client)
     eink_renderer.seed_templates()
     app.state.eink_renderer = eink_renderer
 
@@ -585,6 +583,7 @@ async def lifespan(app: FastAPI):
     if settings.as_bool("cts.enabled"):
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
+        from backend.services.cts.event_bucketizer import BucketizerRateConfig
         from backend.services.cts.ph_enrichment import PHEnrichmentService
         from backend.services.cts.runtime import CTSRuntime, CTSRuntimeConfig
         from backend.services.person_location.repositories import (
@@ -621,11 +620,19 @@ async def lifespan(app: FastAPI):
         # M4 subscribers (world-observation, room-transition, ph-continuation)
         # are constructed and owned by CTSRuntime, which wires the camera→room
         # id map and occupancy read-model the world tracker needs.
+        cts_settings = settings.as_dict("cts")
         cts_runtime = CTSRuntime(
             config=CTSRuntimeConfig(
                 redis_url=redis_url,
                 consumer_id=consumer_id,
                 cts_lock_s=settings.as_float("cts.lock_seconds"),
+                bucketizer_rate=BucketizerRateConfig.model_validate(
+                    {
+                        "image_rate_per_second": cts_settings.get("image_rate_per_second", 0.5),
+                        "image_rate_burst": cts_settings.get("image_rate_burst", 2.0),
+                        "image_rate_overrides": cts_settings.get("image_rate_overrides", {}),
+                    }
+                ),
             ),
             db_factory=get_session,
             ws_manager=ws_manager,

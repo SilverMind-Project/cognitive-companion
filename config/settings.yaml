@@ -135,6 +135,9 @@ event_aggregator:
   window_seconds: 30
   cooldown_seconds: 60
   media_retention_minutes: 30
+  # Per-camera image ceiling for reCamera. Zero disables the safety net.
+  image_rate_per_second: 0.0
+  image_rate_burst: 0.0
 
 # Conversation history
 conversation:
@@ -312,6 +315,10 @@ redis:
 # Continuous Tracking System (CTS) — gated by feature flag
 cts:
   enabled: true
+  # Per-camera image ceiling for CTS VLM candidates. Metadata is never dropped.
+  image_rate_per_second: 0.5
+  image_rate_burst: 2.0
+  image_rate_overrides: {}
 
   # Redis Streams config (M8/M9 subscribers).
   consumer_id: "${HOSTNAME}"

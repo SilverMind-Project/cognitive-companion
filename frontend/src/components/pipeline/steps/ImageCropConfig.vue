@@ -61,6 +61,10 @@
       @select-region="selectedRegionIndex = $event"
     />
 
+    <div class="text-caption text-medium-emphasis mt-2">
+      Drag on the image to draw a region. Drag a region to move it, or drag a corner handle to resize.
+    </div>
+
     <div class="d-flex align-center mt-4 mb-2">
       <div class="text-subtitle-2">Regions</div>
       <v-spacer />
@@ -118,56 +122,10 @@
         </v-col>
       </v-row>
 
-      <v-row dense class="mt-1">
-        <v-col cols="3">
-          <v-text-field
-            :model-value="toPercent(region.x)"
-            label="X %"
-            type="number"
-            :min="0"
-            :max="100"
-            density="compact"
-            hide-details
-            @update:model-value="updateRegionField(i, 'x', toRatio($event))"
-          />
-        </v-col>
-        <v-col cols="3">
-          <v-text-field
-            :model-value="toPercent(region.y)"
-            label="Y %"
-            type="number"
-            :min="0"
-            :max="100"
-            density="compact"
-            hide-details
-            @update:model-value="updateRegionField(i, 'y', toRatio($event))"
-          />
-        </v-col>
-        <v-col cols="3">
-          <v-text-field
-            :model-value="toPercent(region.width)"
-            label="Width %"
-            type="number"
-            :min="0"
-            :max="100"
-            density="compact"
-            hide-details
-            @update:model-value="updateRegionField(i, 'width', toRatio($event))"
-          />
-        </v-col>
-        <v-col cols="3">
-          <v-text-field
-            :model-value="toPercent(region.height)"
-            label="Height %"
-            type="number"
-            :min="0"
-            :max="100"
-            density="compact"
-            hide-details
-            @update:model-value="updateRegionField(i, 'height', toRatio($event))"
-          />
-        </v-col>
-      </v-row>
+      <div class="d-flex align-center mt-2 text-caption text-medium-emphasis">
+        <v-icon size="14" class="mr-1">mdi-crop</v-icon>
+        <span class="cc-region-dims">{{ regionSummary(region) }}</span>
+      </div>
     </v-card>
 
     <div
@@ -318,10 +276,11 @@ function toPercent(ratio) {
   return Math.round(ratio * 100);
 }
 
-function toRatio(percent) {
-  const n = Number(percent);
-  if (isNaN(n)) return 0;
-  return Math.max(0, Math.min(1, n / 100));
+// Human-readable, read-only summary of a region's geometry. Direct editing
+// happens on the canvas (drag/resize); the raw percentage fields were removed
+// because they were hard to relate to the image.
+function regionSummary(r) {
+  return `${toPercent(r.width)}% wide x ${toPercent(r.height)}% tall, at (${toPercent(r.x)}%, ${toPercent(r.y)}%)`;
 }
 
 function updateRegionField(index, field, value) {

@@ -48,6 +48,10 @@
 import { ref, reactive, watch } from "vue";
 import BboxTagPopover from "./BboxTagPopover.vue";
 import MaraudersInkBox from "@/components/marauders/MaraudersInkBox.vue";
+import { hitTestRect } from "@/composables/bboxGeometry.js";
+
+// Map shared compass corner names to this canvas's resize-handle names.
+const CORNER_TO_BBOX = { nw: "tl", ne: "tr", sw: "bl", se: "br" };
 
 const props = defineProps({
   imageUrl: { type: String, required: true },
@@ -227,36 +231,27 @@ function getCanvasPos(event) {
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
 
-function findBoxAt(cx, cy) {
-  // Search in reverse so topmost (last-drawn) box is picked first
-  for (let i = boxes.value.length - 1; i >= 0; i--) {
-    const box = boxes.value[i];
-    const { x: bx1, y: by1 } = toCanvas(box.x1, box.y1);
-    const { x: bx2, y: by2 } = toCanvas(box.x2, box.y2);
-    if (cx >= bx1 && cx <= bx2 && cy >= by1 && cy <= by2) {
-      return box;
-    }
-  }
-  return null;
+function boxRectCanvas(box) {
+  const { x: x1, y: y1 } = toCanvas(box.x1, box.y1);
+  const { x: x2, y: y2 } = toCanvas(box.x2, box.y2);
+  return { x1, y1, x2, y2 };
 }
 
-function findHandleAt(cx, cy) {
-  if (!selectedBox.value) return null;
-  const box = selectedBox.value;
-  const { x: bx1, y: by1 } = toCanvas(box.x1, box.y1);
-  const { x: bx2, y: by2 } = toCanvas(box.x2, box.y2);
-
-  const handles = {
-    tl: { x: bx1, y: by1 },
-    tr: { x: bx2 - HANDLE_SIZE, y: by1 },
-    bl: { x: bx1, y: by2 - HANDLE_SIZE },
-    br: { x: bx2 - HANDLE_SIZE, y: by2 - HANDLE_SIZE },
-  };
-
-  for (const [corner, pos] of Object.entries(handles)) {
-    if (cx >= pos.x && cx <= pos.x + HANDLE_SIZE
-      && cy >= pos.y && cy <= pos.y + HANDLE_SIZE) {
-      return corner;
+/**
+ * Resolve a canvas-space click. Returns `{ box, corner }` where `corner` is a
+ * resize-handle name (tl/tr/bl/br) when a handle of the *selected* box is hit,
+ * or null for an interior hit; returns null on empty space. Shares the corner
+ * vs interior geometry with the crop canvas via `hitTestRect`.
+ */
+function hitBox(cx, cy) {
+  if (selectedBox.value) {
+    const part = hitTestRect(cx, cy, boxRectCanvas(selectedBox.value), HANDLE_SIZE);
+    if (part && part !== "move") return { box: selectedBox.value, corner: CORNER_TO_BBOX[part] };
+  }
+  // Search in reverse so the topmost (last-drawn) box is picked first.
+  for (let i = boxes.value.length - 1; i >= 0; i--) {
+    if (hitTestRect(cx, cy, boxRectCanvas(boxes.value[i]), HANDLE_SIZE) === "move") {
+      return { box: boxes.value[i], corner: null };
     }
   }
   return null;
@@ -291,23 +286,23 @@ function onMouseDown(event) {
   canvasRect.value = canvasRef.value.getBoundingClientRect();
   const pos = getCanvasPos(event);
 
-  // Check corner handles of selected box first
-  const handle = findHandleAt(pos.x, pos.y);
-  if (handle && selectedBox.value) {
+  const hit = hitBox(pos.x, pos.y);
+
+  // Corner handle of the selected box -> start a resize.
+  if (hit && hit.corner) {
     resizeState.value = {
-      box: selectedBox.value,
-      corner: handle,
+      box: hit.box,
+      corner: hit.corner,
       startX: pos.x,
       startY: pos.y,
     };
     return;
   }
 
-  // Check if clicking inside an existing box
-  const box = findBoxAt(pos.x, pos.y);
-  if (box) {
-    selectedBox.value = box;
-    updatePopoverPosition(box);
+  // Interior of an existing box -> select it.
+  if (hit) {
+    selectedBox.value = hit.box;
+    updatePopoverPosition(hit.box);
     render();
     return;
   }

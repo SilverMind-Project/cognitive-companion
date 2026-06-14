@@ -50,8 +50,8 @@ async def resolve_image_sources(
     * ``<prefix>images_per_sensor`` -- per-sensor cap
     * ``<prefix>sensor_frame_limits`` -- per-sensor overrides
 
-    New in pipeline-image-crop: also accepts *pipeline_data* and
-    *minio_client* so that ``image_source="pipeline"`` and
+    Also accepts *pipeline_data* and *minio_client* so that
+    ``image_source="pipeline"``, ``image_source="media_window"``, and
     ``image_source="cts_window"`` sources work.
     """
     # Build a prefixed config view for the shared resolver.

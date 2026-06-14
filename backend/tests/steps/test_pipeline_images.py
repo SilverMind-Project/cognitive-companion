@@ -318,6 +318,66 @@ class TestResolvePipelineSource:
         assert refs == []
 
 
+class TestResolveMediaWindowSource:
+    @pytest.mark.asyncio
+    async def test_reads_images_before_frames(self):
+        trigger = _make_trigger()
+        services = _make_services()
+        pipeline_data = {
+            "steps": {
+                "media_window_poll_1": {
+                    "outputs": {
+                        "images": ["http://minio/window.jpg"],
+                        "frames": [{"minio_key": "cts/ignored.jpg"}],
+                    }
+                }
+            }
+        }
+
+        refs = await resolve_pipeline_image_refs(
+            config={
+                "image_source": "media_window",
+                "pipeline_image_path": "steps.media_window_poll_1.outputs",
+            },
+            pipeline_data=pipeline_data,
+            trigger=trigger,
+            services=services,
+        )
+
+        assert len(refs) == 1
+        assert refs[0].url == "http://minio/window.jpg"
+        assert refs[0].source_type == "media_window"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_frames_when_images_empty(self):
+        trigger = _make_trigger()
+        services = _make_services()
+        pipeline_data = {
+            "steps": {
+                "media_window_poll_1": {
+                    "outputs": {
+                        "images": [],
+                        "frames": [{"minio_key": "cts/window.jpg"}],
+                    }
+                }
+            }
+        }
+
+        refs = await resolve_pipeline_image_refs(
+            config={
+                "image_source": "media_window",
+                "pipeline_image_path": "steps.media_window_poll_1.outputs",
+            },
+            pipeline_data=pipeline_data,
+            trigger=trigger,
+            services=services,
+        )
+
+        assert len(refs) == 1
+        assert refs[0].object_name == "cts/window.jpg"
+        assert refs[0].source_type == "media_window"
+
+
 class TestResolveCtsWindowSource:
     @pytest.mark.asyncio
     async def test_reads_frames_path_from_pipeline_data(self):

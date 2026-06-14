@@ -75,13 +75,22 @@ class LLMCallHandler(StepHandler):
                     },
                     "image_source": {
                         "type": "string",
-                        "enum": ["none", "trigger", "additional", "both", "pipeline", "cts_window"],
+                        "enum": [
+                            "none",
+                            "trigger",
+                            "additional",
+                            "both",
+                            "pipeline",
+                            "media_window",
+                            "cts_window",
+                        ],
                         "default": "none",
                         "description": (
                             "'trigger' = frames that triggered this pipeline, "
                             "'additional' = extra cameras only, "
                             "'both' = trigger frames + additional cameras, "
                             "'pipeline' = prior step output, "
+                            "'media_window' = unified media window output, "
                             "'cts_window' = CTS window poll frames."
                         ),
                     },

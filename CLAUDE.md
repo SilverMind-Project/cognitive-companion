@@ -53,7 +53,7 @@ Pipelines are directed graphs. Do not treat them as ordered step lists.
 - The single-entry-node rule is execution-time only. Edge-save (`PUT /rules/{id}/edges`) uses `validate_graph(check_entry=False)` so in-progress pipelines with unwired steps stay editable; structural checks (cycles, ports, unknown steps) always run.
 - `wait`/`interactive_prompt` must be on a linear segment; in a parallel branch the executor fails loud (resume cannot rebuild sibling branches).
 
-Current built-in step types: `activity_detection`, `activity_session_start`, `activity_session_end`, `condition`, `cts_window_poll`, `daily_report`, `ha_action`, `home_state`, `image_crop`, `info_card`, `interactive_prompt`, `llm_call`, `notification`, `object_trend_analysis`, `person_identification`, `presence_query`, `quiz_start`, `recamera_media_poll`, `scene_analysis`, `semantic_memory_query`, `semantic_memory_write`, `verification`, `wait`.
+Current built-in step types: `activity_detection`, `activity_session_start`, `activity_session_end`, `condition`, `cts_window_poll`, `daily_report`, `ha_action`, `home_state`, `image_crop`, `info_card`, `interactive_prompt`, `llm_call`, `media_window_poll`, `notification`, `object_trend_analysis`, `person_identification`, `presence_query`, `quiz_start`, `recamera_media_poll`, `scene_analysis`, `semantic_memory_query`, `semantic_memory_write`, `verification`, `wait`. `cts_window_poll` and `recamera_media_poll` are backward-compatible aliases of `media_window_poll`.
 
 Channels: `pwa_popup_text`, `pwa_realtime_ai`, `pwa_tts_announcement`, `telegram`, `eink`, `ha_speaker_tts`, `webhook`.
 

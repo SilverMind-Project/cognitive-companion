@@ -377,6 +377,12 @@ Three rules apply to all plugin types:
 2. **Metadata is mandatory.** `StepMetadata`, `ChannelMetadata`, or `FilterMetadata` must be complete: display name, description, icon (for steps), config schema, default config.
 3. **Zero-config by default.** `default_config` must produce a working handler without any user overrides.
 
+When consolidating handlers whose `step_type` values are already stored, keep
+one canonical handler and register thin alias subclasses for the legacy names.
+Alias subclasses override only `metadata()` and inherit `execute()`. The
+`media_window_poll` handler and its `cts_window_poll` and
+`recamera_media_poll` aliases are the canonical example.
+
 ### Step handler contract
 
 ```python

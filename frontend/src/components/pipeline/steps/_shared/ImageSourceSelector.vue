@@ -4,9 +4,10 @@
 
   Encapsulates the "Image Source" select and its per-source sub-config:
   trigger frame count, reCamera selector (CameraSelector), time filter, a
-  pipeline-output path, and a CTS-window frames path. Steps toggle the optional
-  blocks via props and add step-specific controls through the default slot, so
-  the shared vocabulary lives in one place instead of being copy-pasted.
+  pipeline-output path, a unified media-window output path, and a CTS-window
+  frames path. Steps toggle the optional blocks via props and add step-specific
+  controls through the default slot, so the shared vocabulary lives in one
+  place instead of being copy-pasted.
 
   All edits are emitted as a patched copy of the whole config object via
   update:modelValue, matching the existing per-step config convention.
@@ -79,6 +80,16 @@
     />
 
     <v-text-field
+      v-if="modelValue.image_source === 'media_window'"
+      :model-value="modelValue.pipeline_image_path"
+      label="Media Window Output Path"
+      hint="Dotted path to the unified output object, e.g. steps.media_window_poll_1.outputs"
+      persistent-hint
+      class="mb-4"
+      @update:model-value="patch({ pipeline_image_path: $event })"
+    />
+
+    <v-text-field
       v-if="modelValue.image_source === 'cts_window'"
       :model-value="modelValue.cts_frames_path"
       label="CTS Frames Path"
@@ -103,6 +114,7 @@ export const DEFAULT_IMAGE_SOURCES = [
   { title: "Selected reCameras", value: "additional" },
   { title: "Trigger plus selected reCameras", value: "both" },
   { title: "Pipeline step output", value: "pipeline" },
+  { title: "Media window output", value: "media_window" },
   { title: "CTS window frames", value: "cts_window" },
 ];
 </script>

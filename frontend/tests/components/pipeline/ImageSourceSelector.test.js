@@ -32,11 +32,12 @@ function mountSelector(props = {}) {
 }
 
 describe("ImageSourceSelector", () => {
-  it("defaults to the five standard sources", () => {
+  it("includes the unified media-window source", () => {
     const wrapper = mountSelector();
     expect(wrapper.find(".v-select").attributes("data-count")).toBe(
       String(DEFAULT_IMAGE_SOURCES.length),
     );
+    expect(DEFAULT_IMAGE_SOURCES.some((source) => source.value === "media_window")).toBe(true);
   });
 
   it("honours a custom sources list (e.g. llm_call's None option)", () => {
@@ -78,6 +79,21 @@ describe("ImageSourceSelector", () => {
     expect(withMax.findAll(".v-text-field").some((f) => f.attributes("data-label") === "Max Images (total)")).toBe(true);
     const none = mountSelector({ modelValue: { image_source: "none" }, showMaxImages: true });
     expect(none.findAll(".v-text-field").some((f) => f.attributes("data-label") === "Max Images (total)")).toBe(false);
+  });
+
+  it("shows the media-window output path field", () => {
+    const wrapper = mountSelector({
+      modelValue: {
+        image_source: "media_window",
+        pipeline_image_path: "steps.media.outputs",
+      },
+    });
+
+    expect(
+      wrapper
+        .findAll(".v-text-field")
+        .some((field) => field.attributes("data-label") === "Media Window Output Path"),
+    ).toBe(true);
   });
 
   it("exposes isAdditional to the default slot", () => {

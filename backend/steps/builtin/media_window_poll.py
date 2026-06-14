@@ -1,0 +1,390 @@
+"""Unified on-demand media window step for CTS and reCamera sources."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
+
+from backend.core.logging import get_logger
+from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.steps import StepRegistry
+from backend.steps.base import (
+    ServiceContainer,
+    StepHandler,
+    StepMetadata,
+    StepResult,
+    TriggerContext,
+)
+from backend.steps.media_window_contract import (
+    MediaSource,
+    build_media_window_metadata,
+)
+
+logger = get_logger(__name__)
+
+
+@StepRegistry.register
+class MediaWindowPollHandler(StepHandler):
+    """Poll recent images from CTS or reCamera aggregation.
+
+    ``source="auto"`` prefers CTS whenever a bucketizer is available and
+    otherwise uses reCamera.
+
+    Full metadata buffer feeds trigger evaluation and the detection/identity
+    summary. ``image_eligible`` (aggregator ceiling) filters the image candidate
+    set. ``sample_period_s`` further downsamples that subset per rule.
+    Effective image rate = min(aggregator ceiling, per-rule step intent).
+    """
+
+    DEFAULT_SOURCE: MediaSource = "auto"
+
+    @classmethod
+    def metadata(cls) -> StepMetadata:
+        return build_media_window_metadata(cls.DEFAULT_SOURCE)
+
+    async def execute(
+        self,
+        step: PipelineStep,
+        execution: WorkflowExecution,
+        pipeline_data: dict,
+        trigger: TriggerContext,
+        services: ServiceContainer,
+    ) -> StepResult:
+        config: dict[str, Any] = step.config_json or {}
+        source = self._resolve_source(config, services)
+        if source == "cts":
+            return await self._execute_cts(config, execution, services)
+        return await self._execute_recamera(config, execution, services)
+
+    def _resolve_source(
+        self,
+        config: dict[str, Any],
+        services: ServiceContainer,
+    ) -> Literal["cts", "recamera"]:
+        configured = str(config.get("source", self.DEFAULT_SOURCE))
+        if configured == "auto":
+            return "cts" if services.bucketizer is not None else "recamera"
+        if configured == "cts":
+            return "cts"
+        if configured == "recamera":
+            return "recamera"
+        logger.warning("media_window_poll_invalid_source", source=configured)
+        return "cts" if services.bucketizer is not None else "recamera"
+
+    async def _execute_cts(
+        self,
+        config: dict[str, Any],
+        execution: WorkflowExecution,
+        services: ServiceContainer,
+    ) -> StepResult:
+        now = datetime.now(UTC)
+        lookback_s = float(config.get("lookback_s", 5))
+        lookahead_s = float(config.get("lookahead_s", 5))
+        window_start = now - timedelta(seconds=lookback_s)
+        cameras: list[str] = list(config.get("cameras") or [])
+        rooms: list[str] = list(config.get("rooms") or [])
+
+        bucketizer = services.bucketizer
+        if bucketizer is None:
+            logger.warning(
+                "media_window_poll_no_bucketizer",
+                execution_id=str(execution.id),
+            )
+            return StepResult(
+                data=self._empty_window(
+                    execution=execution,
+                    source="cts",
+                    now=now,
+                    window_start=window_start,
+                    cameras=cameras,
+                    rooms=rooms,
+                )
+            )
+
+        target_cameras = cameras or sorted(bucketizer.buffer_stats())
+        frames: list[dict[str, Any]] = []
+        for camera_id in target_cameras:
+            buffered = bucketizer.forward_buffer(
+                window_id=str(execution.id),
+                camera_id=camera_id,
+                lookahead_s=lookback_s + lookahead_s,
+                eligible_only=True,
+            )
+            for frame in buffered:
+                event_time = _parse_event_time(frame)
+                if event_time is None or event_time < window_start:
+                    continue
+                if rooms and frame.get("room_name") not in rooms:
+                    continue
+                frames.append(dict(frame))
+
+        frames.sort(key=lambda frame: frame.get("event_time", ""))
+        downsampled = _downsample_frames(
+            frames,
+            sample_period_s=float(config.get("sample_period_s", 1.0)),
+            max_frames=int(config.get("max_frames", 30)),
+        )
+
+        partial = False
+        images: list[str] = []
+        if services.minio_client is None and downsampled:
+            partial = True
+            logger.warning(
+                "media_window_poll_no_minio_client",
+                execution_id=str(execution.id),
+                source="cts",
+            )
+        elif services.minio_client is not None:
+            for frame in downsampled:
+                minio_key = frame.get("minio_key")
+                if not minio_key:
+                    continue
+                try:
+                    images.append(
+                        services.minio_client.generate_presigned_url(
+                            str(minio_key),
+                            expiration=3600,
+                        )
+                    )
+                except Exception:  # noqa: BLE001
+                    partial = True
+                    logger.warning(
+                        "media_window_poll_presign_failed",
+                        execution_id=str(execution.id),
+                        camera_id=frame.get("camera_id"),
+                        minio_key=minio_key,
+                        exc_info=True,
+                    )
+
+        if bool(config.get("include_scene", False)):
+            await _add_scene_captions(downsampled, execution, services)
+
+        summary = _summarize_frames(downsampled)
+        return StepResult(
+            data={
+                "trigger_id": execution.id,
+                "window_start": window_start.isoformat(),
+                "window_end": now.isoformat(),
+                "cameras": sorted(target_cameras),
+                "rooms": summary["rooms"],
+                "frames": downsampled,
+                "images": images,
+                "count": len(images),
+                "summary": summary,
+                "source": "cts",
+                "partial": partial,
+                "sensor_ids": [],
+                "room_names": rooms,
+                "since_minutes": 0,
+                "polled_at": now.isoformat(),
+            }
+        )
+
+    async def _execute_recamera(
+        self,
+        config: dict[str, Any],
+        execution: WorkflowExecution,
+        services: ServiceContainer,
+    ) -> StepResult:
+        now = datetime.now(UTC)
+        since_minutes = float(config.get("since_minutes", 5))
+        window_start = now - timedelta(minutes=since_minutes)
+        sensor_ids: list[str] = list(config.get("sensor_ids") or config.get("cameras") or [])
+        room_names: list[str] = list(config.get("room_names") or config.get("rooms") or [])
+
+        aggregator = services.event_aggregator
+        if aggregator is None:
+            logger.warning(
+                "media_window_poll_no_event_aggregator",
+                execution_id=str(execution.id),
+            )
+            return StepResult(
+                data=self._empty_window(
+                    execution=execution,
+                    source="recamera",
+                    now=now,
+                    window_start=window_start,
+                    cameras=sensor_ids,
+                    rooms=room_names,
+                    since_minutes=since_minutes,
+                )
+            )
+
+        max_images = int(config.get("max_images", 10))
+        if sensor_ids:
+            images = await aggregator.query_media_by_sensor(
+                sensor_ids_ordered=sensor_ids,
+                images_per_sensor=int(config.get("images_per_sensor", 3)),
+                sensor_frame_limits=config.get("sensor_frame_limits") or None,
+                max_images=max_images,
+                since_minutes=since_minutes,
+                chronological=bool(config.get("chronological", True)),
+            )
+        else:
+            images = await aggregator.query_recent_media(
+                sensor_ids=None,
+                room_names=room_names or None,
+                limit=max_images,
+                since_minutes=since_minutes,
+            )
+
+        logger.info(
+            "media_window_poll_complete",
+            execution_id=str(execution.id),
+            source="recamera",
+            count=len(images),
+            sensor_ids=sensor_ids,
+            room_names=room_names,
+        )
+        return StepResult(
+            data={
+                "trigger_id": execution.id,
+                "window_start": window_start.isoformat(),
+                "window_end": now.isoformat(),
+                "cameras": sensor_ids,
+                "rooms": room_names,
+                "frames": [],
+                "images": images,
+                "count": len(images),
+                "summary": {
+                    "distinct_identities": [],
+                    "detection_count": 0,
+                    "rooms": room_names,
+                },
+                "source": "recamera",
+                "partial": False,
+                "sensor_ids": sensor_ids,
+                "room_names": room_names,
+                "since_minutes": since_minutes,
+                "polled_at": now.isoformat(),
+            }
+        )
+
+    @staticmethod
+    def _empty_window(
+        *,
+        execution: WorkflowExecution,
+        source: Literal["cts", "recamera"],
+        now: datetime,
+        window_start: datetime,
+        cameras: list[str],
+        rooms: list[str],
+        since_minutes: float = 0,
+    ) -> dict[str, Any]:
+        return {
+            "trigger_id": execution.id,
+            "window_start": window_start.isoformat(),
+            "window_end": now.isoformat(),
+            "cameras": sorted(cameras),
+            "rooms": sorted(rooms),
+            "frames": [],
+            "images": [],
+            "count": 0,
+            "summary": {
+                "distinct_identities": [],
+                "detection_count": 0,
+                "rooms": sorted(rooms),
+            },
+            "source": source,
+            "partial": True,
+            "sensor_ids": cameras if source == "recamera" else [],
+            "room_names": rooms,
+            "since_minutes": since_minutes,
+            "polled_at": now.isoformat(),
+        }
+
+
+def _parse_event_time(frame: dict[str, Any]) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(frame["event_time"]))
+    except ValueError, KeyError, TypeError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _downsample_frames(
+    frames: list[dict[str, Any]],
+    *,
+    sample_period_s: float,
+    max_frames: int,
+) -> list[dict[str, Any]]:
+    downsampled: list[dict[str, Any]] = []
+    last_kept: float | None = None
+    for frame in frames:
+        event_time = _parse_event_time(frame)
+        if event_time is None:
+            continue
+        timestamp = event_time.timestamp()
+        if last_kept is None or timestamp - last_kept >= sample_period_s:
+            downsampled.append(frame)
+            last_kept = timestamp
+            if len(downsampled) >= max_frames:
+                break
+    return downsampled
+
+
+def _summarize_frames(frames: list[dict[str, Any]]) -> dict[str, Any]:
+    distinct_ids: set[str] = set()
+    rooms_seen: set[str] = set()
+    detection_count = 0
+    for frame in frames:
+        detections = frame.get("detections", [])
+        detection_count += int(frame.get("detection_count", len(detections)))
+        for detection in detections:
+            identity_id = detection.get("identity_id", "")
+            if identity_id:
+                distinct_ids.add(identity_id)
+        room = frame.get("room_name", "")
+        if room:
+            rooms_seen.add(room)
+    return {
+        "distinct_identities": sorted(distinct_ids),
+        "detection_count": detection_count,
+        "rooms": sorted(rooms_seen),
+    }
+
+
+async def _add_scene_captions(
+    frames: list[dict[str, Any]],
+    execution: WorkflowExecution,
+    services: ServiceContainer,
+) -> None:
+    if services.scene_analysis_client is None or services.minio_client is None:
+        logger.warning(
+            "media_window_poll_scene_unavailable",
+            execution_id=str(execution.id),
+        )
+        return
+    for frame in frames:
+        minio_key = frame.get("minio_key")
+        if not minio_key:
+            continue
+        try:
+            image_bytes = await services.minio_client.async_get_object(str(minio_key))
+            if image_bytes is None:
+                logger.warning(
+                    "media_window_poll_scene_image_missing",
+                    execution_id=str(execution.id),
+                    minio_key=minio_key,
+                )
+                continue
+            result = await services.scene_analysis_client.analyze(
+                image_bytes,
+                run_detect=False,
+                run_describe=True,
+                run_embed=False,
+                run_hazards=False,
+                sensor_id=str(frame.get("camera_id", "")),
+            )
+            description = getattr(result, "description", "")
+            if description:
+                frame["scene_caption"] = description
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "media_window_poll_scene_failed",
+                execution_id=str(execution.id),
+                minio_key=minio_key,
+                exc_info=True,
+            )

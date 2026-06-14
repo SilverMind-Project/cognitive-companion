@@ -185,6 +185,7 @@ async def resolve_pipeline_image_refs(
     * ``additional`` -- reCamera images from :class:`EventAggregator`
     * ``both`` -- trigger + additional
     * ``pipeline`` -- a prior step output path (read via *pipeline_image_path*)
+    * ``media_window`` -- unified media-window output, preferring ``images`` then ``frames``
     * ``cts_window`` -- CTS frame dicts from a *cts_frames_path* path
     * ``none`` -- return empty list (for text-only LLM calls)
 
@@ -258,6 +259,25 @@ async def resolve_pipeline_image_refs(
             raw = resolve_pipeline_value(pipeline_data, path)
             if raw is not None:
                 refs.extend(normalize_image_value(raw, default_source_type="pipeline"))
+
+    # -- media_window (unified poll-step output) ----------------------------
+    if image_source == "media_window":
+        path = str(config.get("pipeline_image_path", ""))
+        if path:
+            raw = resolve_pipeline_value(pipeline_data, path)
+            if isinstance(raw, Mapping):
+                images = raw.get("images")
+                frames = raw.get("frames")
+                selected = images if images else frames
+                if selected is not None:
+                    refs.extend(
+                        normalize_image_value(
+                            selected,
+                            default_source_type="media_window",
+                        )
+                    )
+            elif raw is not None:
+                refs.extend(normalize_image_value(raw, default_source_type="media_window"))
 
     # -- cts_window (CTS frame dicts) ---------------------------------------
     if image_source == "cts_window":

@@ -35,8 +35,22 @@ class _FakeBucketizer:
     def buffer_stats(self) -> dict[str, int]:
         return {cam: len(frames) for cam, frames in self._buffers.items()}
 
-    def forward_buffer(self, window_id, camera_id, lookahead_s) -> list[dict]:
-        return list(self._buffers.get(camera_id, []))
+    def forward_buffer(
+        self,
+        window_id,
+        camera_id,
+        lookahead_s,
+        eligible_only=False,
+    ) -> list[dict]:
+        frames = list(self._buffers.get(camera_id, []))
+        if eligible_only:
+            return [frame for frame in frames if frame.get("image_eligible")]
+        return frames
+
+
+class _FakeMinio:
+    def generate_presigned_url(self, object_name, expiration=3600):
+        return f"https://minio/{object_name}"
 
 
 def _frame(camera_id: str, identity_id: str) -> dict:
@@ -47,6 +61,7 @@ def _frame(camera_id: str, identity_id: str) -> dict:
         "detections": [{"identity_id": identity_id}],
         "detection_count": 1,
         "minio_key": f"frames/{camera_id}/sample.jpg",
+        "image_eligible": True,
     }
 
 
@@ -58,7 +73,11 @@ def _config(**overrides) -> dict:
 
 async def _run(config: dict, bucketizer) -> dict:
     handler = CtsWindowPollHandler()
-    services = ServiceContainer(db_factory=lambda: None, bucketizer=bucketizer)
+    services = ServiceContainer(
+        db_factory=lambda: None,
+        bucketizer=bucketizer,
+        minio_client=_FakeMinio(),
+    )
     result = await handler.execute(
         step=_FakeStep(config_json=config),
         execution=_FakeExecution(),
@@ -101,3 +120,15 @@ async def test_missing_bucketizer_returns_partial_empty_window():
 
     assert data["frames"] == []
     assert data["partial"] is True
+
+
+@pytest.mark.asyncio
+async def test_ineligible_frame_is_excluded():
+    eligible = _frame("cam01", "mom")
+    ineligible = _frame("cam01", "dad")
+    ineligible["image_eligible"] = False
+    bucketizer = _FakeBucketizer({"cam01": [eligible, ineligible]})
+
+    data = await _run(_config(cameras=["cam01"]), bucketizer)
+
+    assert data["frames"] == [eligible]

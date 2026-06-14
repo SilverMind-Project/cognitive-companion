@@ -51,7 +51,14 @@ class ImageCropHandler(StepHandler):
                 "properties": {
                     "image_source": {
                         "type": "string",
-                        "enum": ["trigger", "additional", "both", "pipeline", "cts_window"],
+                        "enum": [
+                            "trigger",
+                            "additional",
+                            "both",
+                            "pipeline",
+                            "media_window",
+                            "cts_window",
+                        ],
                         "default": "trigger",
                     },
                     "pipeline_image_path": {"type": "string", "default": ""},

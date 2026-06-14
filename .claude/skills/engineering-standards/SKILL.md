@@ -744,8 +744,12 @@ Three files are the single authoritative source for previously-duplicated functi
 | `parse_ts()` | `backend.services.cts._time` | 3 divergent copies across service files |
 | `ensure_aware()` | `backend.services.cts._time` | 1 copy in source_authority |
 | `cts_enabled()` | `backend.routers.cts_deps` | 8 identical copies across router files |
+| Aggregation primitives | `backend.services.aggregation` | Per-camera token buckets, cooldown math, and uniform buffer-state snapshots |
 
 If you need one of these, import it. Never redefine it.
+Import `PerCameraRateLimiter`, `CooldownTracker`, and `CameraBufferState` from
+`backend.services.aggregation`; do not reimplement per-camera token buckets or
+cooldown deadline math.
 
 ### 16.2 Protocol-based dependency injection
 

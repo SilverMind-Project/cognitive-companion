@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -21,6 +21,11 @@ from backend.integrations.minio_client import MinioClient
 from backend.models.media_cache import MediaCache
 from backend.models.room import Room
 from backend.models.sensor import Sensor
+from backend.services.aggregation import (
+    CameraBufferState,
+    CooldownTracker,
+    PerCameraRateLimiter,
+)
 
 logger = get_logger(__name__)
 
@@ -48,6 +53,7 @@ class EventAggregator:
         db_session_factory: Callable[[], Session],
         minio_client: MinioClient,
         process_callback: ProcessCallback,
+        time_fn: Callable[[], float] = time.monotonic,
     ) -> None:
         resolved_config = (
             config
@@ -67,7 +73,11 @@ class EventAggregator:
         # Per-sensor state
         self.buffers: dict[str, list[str]] = {}
         self.timers: dict[str, asyncio.Task[None]] = {}
-        self.cooldowns: dict[str, float] = {}
+        self._cooldowns = CooldownTracker(time_fn=time_fn)
+        self._rate_limiter = PerCameraRateLimiter(
+            default_rate_per_second=0.0,
+            time_fn=time_fn,
+        )
 
         logger.info(
             "event_aggregator_initialized",
@@ -79,22 +89,23 @@ class EventAggregator:
 
     # -- public API -----------------------------------------------------------
 
+    @property
+    def cooldowns(self) -> Mapping[str, float]:
+        """Read-only cooldown deadlines retained for media-router compatibility."""
+        return self._cooldowns.deadlines
+
     async def add_event(self, sensor_id: str, media_path: str) -> None:
         """Add a media event for *sensor_id*.
 
         Respects cooldown, starts a window timer on the first event of a batch,
         and auto-flushes when the batch reaches ``batch_size``.
         """
-        now = time.monotonic()
-
         # Respect cooldown
-        cooldown_until = self.cooldowns.get(sensor_id, 0.0)
-        if now < cooldown_until:
-            remaining = cooldown_until - now
+        if self._cooldowns.active(sensor_id):
             logger.debug(
                 "event_skipped_cooldown",
                 sensor_id=sensor_id,
-                remaining_seconds=round(remaining, 1),
+                remaining_seconds=self._cooldowns.remaining(sensor_id),
             )
             return
 
@@ -167,12 +178,27 @@ class EventAggregator:
             logger.exception("process_callback_error", sensor_id=sensor_id)
 
         # Set cooldown
-        self.cooldowns[sensor_id] = time.monotonic() + self.cooldown_seconds
+        self._cooldowns.arm(sensor_id, self.cooldown_seconds)
         logger.debug(
             "cooldown_set",
             sensor_id=sensor_id,
             cooldown_seconds=self.cooldown_seconds,
         )
+
+    def buffer_state(self) -> list[CameraBufferState]:
+        """Return a uniform snapshot of active reCamera buffers."""
+        return [
+            CameraBufferState(
+                camera_id=sensor_id,
+                origin="recamera",
+                buffer_depth=len(buffer),
+                pending_flush=len(buffer),
+                cooldown_remaining_seconds=self._cooldowns.remaining(sensor_id),
+                rate_per_second=self._rate_limiter.rate_for(sensor_id),
+                tokens_available=self._rate_limiter.tokens_available(sensor_id),
+            )
+            for sensor_id, buffer in self.buffers.items()
+        ]
 
     async def get_recent_images(self, sensor_id: str, limit: int = 10) -> list[str]:
         """Return presigned URLs for the most recent non-deleted, non-expired

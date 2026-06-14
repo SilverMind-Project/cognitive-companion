@@ -14,11 +14,17 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
+from backend.services.aggregation import (
+    CameraBufferState,
+    CooldownTracker,
+    PerCameraRateLimiter,
+)
 
 logger = get_logger(__name__)
 
@@ -68,6 +74,7 @@ class CtsEventBucketizer:
         pipeline: Any = None,
         get_triggers: Any = None,
         config: BucketizerConfig | None = None,
+        time_fn: Callable[[], float] = time.monotonic,
     ) -> None:
         self._pipeline = pipeline
         self._get_triggers = get_triggers
@@ -76,8 +83,11 @@ class CtsEventBucketizer:
         self._buffers: dict[str, deque[tuple[str, dict[str, Any]]]] = defaultdict(
             lambda: deque(maxlen=self._cfg.max_buffer_per_camera)
         )
-        # trigger_id -> float (last fire monotonic seconds)
-        self._last_fire: dict[str, float] = {}
+        self._cooldowns = CooldownTracker(time_fn=time_fn)
+        self._rate_limiter = PerCameraRateLimiter(
+            default_rate_per_second=0.0,
+            time_fn=time_fn,
+        )
 
     def ingest(self, event: dict[str, Any]) -> None:
         """Feed one tracking event into the bucketizer.
@@ -115,18 +125,16 @@ class CtsEventBucketizer:
         camera_id: str,
     ) -> None:
         """Check every enabled trigger whose camera/room filter matches."""
-        now = time.monotonic()
         for trigger in triggers:
             if not trigger.enabled:
                 continue
             if trigger.cameras and camera_id not in trigger.cameras:
                 continue
             # Check cooldown.
-            last = self._last_fire.get(trigger.id)
-            if last is not None and (now - last) < trigger.cooldown_seconds:
+            if self._cooldowns.active(trigger.id):
                 continue
             if self._trigger_should_fire(trigger):
-                self._last_fire[trigger.id] = now
+                self._cooldowns.arm(trigger.id, trigger.cooldown_seconds)
                 self._fire(trigger)
 
     def _trigger_should_fire(self, trigger: CtsWindowTrigger) -> bool:
@@ -244,4 +252,19 @@ class CtsEventBucketizer:
 
     def buffer_stats(self) -> dict[str, int]:
         """Return per-camera buffer sizes for diagnostics."""
-        return {cam: len(buf) for cam, buf in self._buffers.items()}
+        return {state.camera_id: state.buffer_depth for state in self.buffer_state()}
+
+    def buffer_state(self) -> list[CameraBufferState]:
+        """Return a uniform snapshot of active CTS camera buffers."""
+        return [
+            CameraBufferState(
+                camera_id=camera_id,
+                origin="cts",
+                buffer_depth=len(buffer),
+                buffer_capacity=self._cfg.max_buffer_per_camera,
+                rate_per_second=self._rate_limiter.rate_for(camera_id),
+                tokens_available=self._rate_limiter.tokens_available(camera_id),
+                last_event_at=buffer[-1][0] if buffer else None,
+            )
+            for camera_id, buffer in self._buffers.items()
+        ]

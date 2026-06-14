@@ -98,6 +98,21 @@ class TestEventAggregatorBuffering:
         # Timer should be gone after flush
         assert agg.timers.get("cam1") is None
 
+    def test_buffer_state_reports_pending_and_origin_recamera(self, db_factory):
+        agg, _, _ = _make_aggregator(db_factory)
+        agg.buffers["cam1"] = [
+            "minio://bucket/img1.jpg",
+            "minio://bucket/img2.jpg",
+        ]
+
+        states = agg.buffer_state()
+
+        assert len(states) == 1
+        assert states[0].camera_id == "cam1"
+        assert states[0].origin == "recamera"
+        assert states[0].buffer_depth == 2
+        assert states[0].pending_flush == 2
+
 
 class TestEventAggregatorDataIntegrity:
     async def test_buffer_restored_on_db_failure(self, db_factory):

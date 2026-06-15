@@ -657,8 +657,8 @@ async def lifespan(app: FastAPI):
         )
         app.state.cts_runtime = cts_runtime
         # Give the pipeline executor access to the CTS frame buffer so the
-        # cts_window_poll step can return recent CTS frames. The bucketizer is
-        # built by CTSRuntime (after the executor), so inject it here.
+        # canonical media poll step and its CTS alias can return recent frames.
+        # The bucketizer is built after the executor, so inject it here.
         pipeline_executor.bucketizer = cts_runtime.bucketizer
         # Expose individual subscribers for tests / diagnostics.
         app.state.dementia_signal_subscriber = cts_runtime.dementia_signal_subscriber

@@ -156,8 +156,7 @@ class CtsEventBucketizer:
         lookahead_s: float,
         eligible_only: bool = False,
     ) -> list[dict[str, Any]]:
-        """Return a snapshot of recent events for *camera_id* for use by
-        the ``cts_window_poll`` step's lookahead path."""
+        """Return recent events for the canonical media poll step and CTS alias."""
         # Return all buffered events for this camera.
         # A production version would filter by timestamp / lookahead_s.
         _ = lookahead_s  # reserved for future timestamp filtering

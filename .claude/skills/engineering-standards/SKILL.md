@@ -270,6 +270,17 @@ Follow the complete recipe in `/home/sriram/code/nanai/cognitive-companion/.clau
 - A test with more mocks than lines of arrange code is testing implementation, not behavior.
 - A test that depends on execution order is fragile. Every test sets up its own state.
 
+### Injectable clocks for time-based logic
+
+Any component that computes monotonic deadlines, token refills, cooldowns, or
+time windows must accept a `time_fn` dependency. Default it to
+`time.monotonic`, `datetime.now`, or another production clock appropriate to the
+domain. Tests advance a fake clock and must not sleep to exercise time-based
+behavior.
+
+`PerCameraRateLimiter` and `CooldownTracker` in
+`backend.services.aggregation` are the reference implementations.
+
 ---
 
 ## 7. Database patterns
@@ -820,9 +831,18 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - `_upstream_base` is imported only by CTS integration clients (`ingress_admin_client`, `tracking_orchestrator_client`).
 - Redis Stream subscriptions (`tracking.events`, `tracking.revisions`, `tracking.signals`, `scene.samples`) are created only inside `CTSRuntime`.
 - All browser and MCP traffic to `rtsp-ingress` or `tracking-orchestrator` goes through CC routers. No direct access.
-- The `CtsEventBucketizer` (in-memory per-camera recent-frame buffer) is built by `CTSRuntime` and fed by `TrackingEventSubscriber.ingest` from the `tracking.events` stream (no new stream, no DB read, so it respects the isolation boundary). It reaches the `cts_window_poll` step via `ServiceContainer.bucketizer`, injected **after** CTS bootstrap through the `PipelineExecutor.bucketizer` property (the executor is constructed before `CTSRuntime`; `main.py` sets `pipeline_executor.bucketizer = cts_runtime.bucketizer`). This is the same post-construction injection pattern as `_scheduler`. Steps read it via typed direct access (`services.bucketizer`), never `getattr`.
+- The `CtsEventBucketizer` (in-memory per-camera recent-frame buffer) is built by `CTSRuntime` and fed by `TrackingEventSubscriber.ingest` from the `tracking.events` stream (no new stream, no DB read, so it respects the isolation boundary). It reaches the canonical `media_window_poll` step and its `cts_window_poll` alias via `ServiceContainer.bucketizer`, injected **after** CTS bootstrap through the `PipelineExecutor.bucketizer` property (the executor is constructed before `CTSRuntime`; `main.py` sets `pipeline_executor.bucketizer = cts_runtime.bucketizer`). This is the same post-construction injection pattern as `_scheduler`. Steps read it via typed direct access (`services.bucketizer`), never `getattr`.
 
-### 16.5 WebSocket security
+### 16.5 Per-camera image rate limiting
+
+- Rate limiting gates images only. CTS metadata remains full fidelity for trigger evaluation, location state, live views, and summaries.
+- Mark CTS frames with `image_eligible`; image consumers filter to eligible frames before per-rule downsampling.
+- Count every rate-limit rejection in `cc_aggregator_images_dropped_total`. Drops must never be silent.
+- Apply `sample_period_s` after the aggregator ceiling. Effective image rate is the minimum of the system ceiling and rule intent.
+- Keep CTS frame references in memory. Never persist CTS-owned frame references to `MediaCache`.
+- Cognitive Companion deletes only its own reCamera objects. It never deletes CTS-owned MinIO objects.
+
+### 16.6 WebSocket security
 
 - The `/ws/cts` WebSocket reads the API key from `sec-websocket-protocol` header, not from a query parameter.
 - Frame image URLs (`GET /api/v1/cts/frames/{key}`) use query-param auth as a known limitation (browser `<img>` tags cannot set headers).

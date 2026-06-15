@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.7.24"
+version = "0.7.25"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"

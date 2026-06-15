@@ -603,6 +603,16 @@ def("resource.action", { key: "type", ... });
 
 Supported types: `"array"`, `"object"`, `"number"`, `"string"`, `"boolean"`, `"?"` (optional key).
 
+### One endpoint owns each fact; no cross-contract fallbacks
+
+Do not wrap a fetch in a `try/catch` whose fallback recovers the **same** fact from a **different** endpoint's envelope -- e.g. "if `getSampleImage()` fails, dig the URL out of `getMediaBuffer().items[0].images[0].url`". This couples the component to a contract shape it does not own. When the `media.buffer` envelope migrated from a raw array to `{items, total}`, this fallback in `ImageCropConfig` had to be hand-patched even though nothing about crop sampling changed -- a component dragged into every unrelated contract migration. The fallback's `catch {}` also swallows the real error. This is the consumer-side twin of the data-ownership rule below (single fetch owner): one source of truth per fact, on the producer side *and* the consumer side.
+
+Fix order when you reach for such a fallback:
+1. A dedicated endpoint usually already covers the case (here `/pipeline/image-sources/sample` already resolved both reCamera and CTS). Call it alone, `notify.error(...)` on failure, and delete the fallback.
+2. Only if no endpoint covers the case, add coverage server-side. Never client-composite one fact out of an envelope that exists to serve a different fact.
+
+Legitimate composition -- a view fetching two *distinct* facts from two endpoints -- is unaffected. The rule targets re-deriving one fact from a contract you do not own.
+
 ---
 
 ## Composables
@@ -744,6 +754,7 @@ The final output should contain only test results, not Vue, Vue Router, unresolv
     ```
 
     Simple elements (`v-icon`, `<span>`) do not have this issue and can take margin classes directly. In `#prepend` slots, use `mr-2` (push content right); in `#append` slots, use `ml-2` (push content left).
+12. **Cross-contract fallback fetch**: a `catch` that recovers the same value from a *different* endpoint's envelope (e.g. falling back to `getMediaBuffer()` when `getSampleImage()` fails). Couples you to a contract you don't own and swallows the error; call the dedicated endpoint alone and `notify.error` on failure. See "One endpoint owns each fact; no cross-contract fallbacks".
 
 ---
 

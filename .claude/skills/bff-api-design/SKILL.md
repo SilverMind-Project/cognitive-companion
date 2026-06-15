@@ -12,6 +12,7 @@ This skill covers how to add a new endpoint to the Cognitive Companion BFF in a 
 > Any data exposed to the Vue UI through a router must be exposed to MCP tools by reading the **same** service function.
 
 MCP tools may not contain query logic, repository imports, or database access. They call service methods.
+Operational telemetry endpoints still use one service function but are exempt from MCP parity when they are not caregiver-facing domain data, for example `/media/aggregators`.
 
 ## Step-by-step checklist
 

@@ -111,7 +111,8 @@ def("image.states", "array");
 // ---------------------------------------------------------------------------
 // Media
 // ---------------------------------------------------------------------------
-def("media.buffer", "array");
+def("media.buffer", { items: "array", total: "number" });
+def("media.aggregators", { items: "array", total: "number" });
 
 // ---------------------------------------------------------------------------
 // Interactive responses

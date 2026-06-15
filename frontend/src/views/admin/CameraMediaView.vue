@@ -311,7 +311,8 @@ async function loadData() {
   const params = { limit: limitPerSensor.value };
   if (filterSensorId.value) params.sensor_id = filterSensorId.value;
   try {
-    cameras.value = await api.getMediaBuffer(params);
+    const response = await api.getMediaBuffer(params);
+    cameras.value = response.items;
   } catch (e) {
     snackText.value = e.message || "Failed to load camera media";
     snack.value = true;

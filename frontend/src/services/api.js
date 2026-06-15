@@ -399,6 +399,12 @@ export const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/media/buffer${qs ? "?" + qs : ""}`, { contract: "media.buffer" });
   },
+  getAggregatorState: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/media/aggregators${qs ? "?" + qs : ""}`, {
+      contract: "media.aggregators",
+    });
+  },
 
   // Pipeline image sources
   getSampleImage: (params = {}) => {

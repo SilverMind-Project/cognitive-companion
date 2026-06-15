@@ -198,6 +198,25 @@ The graph validator rejects unknown step IDs, unknown source ports, cycles that 
 | Home Assistant sync | `POST /ha/sync/rooms`, `POST /ha/sync/sensors`, `GET /ha/entities`, `GET /ha/media-players` |
 | Webhooks | `POST /webhooks/{rule_id}`, `POST /webhooks/{rule_id}/generate-secret` |
 
+## Media observability
+
+Both endpoints require the admin permission.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/media/buffer` | Paginated reCamera media buffers. Query: `sensor_id`, `limit`, `offset` |
+| `GET` | `/media/aggregators` | Live state for reCamera and CTS aggregators. Query: `origin`, `camera_id`, `room_name`, `q`, `limit`, `offset` |
+
+`GET /media/buffer` returns `{items, total}`. Each camera item includes
+`sensor_id`, `sensor_name`, `room_name`, `buffer_pending`,
+`cooldown_remaining_seconds`, and retained `images` with refreshed presigned
+URLs.
+
+`GET /media/aggregators` returns `{items, total}` after filtering and stable
+pagination. Each item includes the camera origin and identity, buffer depth and
+capacity, pending flush and cooldown state, rate ceiling and available tokens,
+eligible and dropped image counters, and the latest event timestamp.
+
 ## People, presence, and CTS
 
 | Method | Path | Description |

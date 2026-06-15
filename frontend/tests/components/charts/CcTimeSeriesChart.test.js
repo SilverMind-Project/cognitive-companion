@@ -12,7 +12,7 @@ import { mount } from "@vue/test-utils";
 vi.mock("vue-echarts", () => ({
   default: {
     name: "VChart",
-    props: ["option", "loading", "autoresize"],
+    props: ["option", "theme", "loading", "autoresize"],
     template: '<div data-testid="v-chart" />',
   },
 }));
@@ -35,20 +35,23 @@ vi.mock("@/services/timezone.js", () => ({
   formatDateTimeShort: (iso) => fmtSpy(iso),
 }));
 
+const THEME_MOCK = {
+  color: ["#0a84ff"],
+  backgroundColor: "transparent",
+  textStyle: { color: "#fff" },
+  xAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
+  yAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
+  tooltip: { backgroundColor: "#111", borderColor: "#333", textStyle: { color: "#fff" } },
+  legend: { textStyle: { color: "#ccc" } },
+  grid: { borderColor: "#333" },
+  _severity: { warning: "#ff9500", succeeded: "#30d158", failed: "#ff453a" },
+};
+
 vi.mock("@/composables/useChartTheme.js", () => ({
   useChartTheme: () => ({
     chartTheme: {
-      value: {
-        color: ["#0a84ff"],
-        backgroundColor: "transparent",
-        textStyle: { color: "#fff" },
-        xAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
-        yAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
-        tooltip: { backgroundColor: "#111", borderColor: "#333", textStyle: { color: "#fff" } },
-        legend: { textStyle: { color: "#ccc" } },
-        grid: { borderColor: "#333" },
-        _severity: { warning: "#ff9500", succeeded: "#30d158", failed: "#ff453a" },
-      },
+      __v_isRef: true,
+      value: THEME_MOCK,
     },
   }),
 }));
@@ -79,6 +82,15 @@ describe("CcTimeSeriesChart", () => {
       global: { stubs: stubComponents },
     });
     expect(w.find('[data-testid="v-chart"]').exists()).toBe(true);
+  });
+
+  it("passes the active token theme to v-chart", () => {
+    const w = mount(CcTimeSeriesChart, {
+      props: { series: SERIES },
+      global: { stubs: stubComponents },
+    });
+
+    expect(w.findComponent({ name: "VChart" }).props("theme")).toStrictEqual(THEME_MOCK);
   });
 
   it("shows empty state when series is empty", () => {

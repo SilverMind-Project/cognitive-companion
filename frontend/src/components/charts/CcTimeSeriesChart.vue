@@ -15,6 +15,7 @@
     </div>
     <v-chart
       v-else
+      :theme="chartTheme"
       :option="chartOption"
       autoresize
       style="width: 100%; height: 100%; min-height: 200px"

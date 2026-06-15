@@ -39,8 +39,7 @@ const THEME_MOCK = {
 
 vi.mock("@/composables/useChartTheme.js", () => ({
   useChartTheme: () => ({
-    theme: "ccWarm",
-    chartTheme: { value: THEME_MOCK },
+    chartTheme: { __v_isRef: true, value: THEME_MOCK },
   }),
 }));
 
@@ -126,7 +125,7 @@ describe("CcGaitTrendChart", () => {
       global: { stubs },
     });
     const chart = wrapper.findComponent({ name: "VChart" });
-    expect(chart.props("theme")).toBe("ccWarm");
+    expect(chart.props("theme")).toStrictEqual(THEME_MOCK);
   });
 
   it("connectNulls is false on the series (gaps, not bridging)", () => {

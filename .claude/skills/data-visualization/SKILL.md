@@ -14,7 +14,9 @@ This skill covers how to add charts and data displays to the Cognitive Companion
 - **`@vue-flow/core`**: permitted only for the interactive pipeline editor canvas. Not a charting
   library; serves workflow authoring. ECharts (`CcDagChart`) handles all read-only monitoring.
 - **No second charting library.** No `chart.js`, `d3`, `recharts`, or similar.
-- **`useChartTheme`**: the theme composable. Pass its `theme` to every `v-chart` instance.
+- **`useChartTheme`**: the theme composable. Pass its `chartTheme` to every `v-chart` instance.
+- `theme` is the `vue-echarts` prop name; it is not a second
+  `useChartTheme()` return key. Bind it as `:theme="chartTheme"`.
 
 ## Shared component catalogue
 
@@ -31,6 +33,7 @@ Choose the component that matches your data shape. Never roll an equivalent inli
 | `CcGaugeChart.vue` | `:value` (0-100), `:label` | Mean quality gauge, confidence indicator |
 | `CcHeatmapCalendar.vue` | `:data` (`{date, value}[]`), `:year` | Activity calendars, weekly pacing heat maps |
 | `CcScatterFloorCloud.vue` | `:points` (`{x, y, label}[]`) | Trajectory scatter on floor plan (non-interactive overlay) |
+| `CcQueueDepthChart.vue` | `:cameras` (camera buffer/rate rows), required `:theme` | Per-camera buffer or queue depth and rate-limit pressure across many cameras |
 
 ### Dashboard (`components/dashboard/`)
 
@@ -68,14 +71,15 @@ Find the component from the table above whose data shape matches yours. If no ex
 ```js
 // In your view or component
 import { useChartTheme } from '@/composables/useChartTheme.js'
-const { theme } = useChartTheme()
+const { chartTheme } = useChartTheme()
 ```
 
 ```html
-<!-- In template -->
-<CcTimeSeriesChart :theme="theme" :series="series" unit="minutes" />
-<!-- Or if using v-chart directly in a new component -->
-<v-chart :theme="theme" :option="option" autoresize />
+<!-- Shared chart components own their internal theme unless their documented
+     prop contract explicitly requires one. -->
+<CcTimeSeriesChart :series="series" unit="minutes" />
+<!-- When using v-chart directly inside a shared chart component: -->
+<v-chart :theme="chartTheme" :option="option" autoresize />
 ```
 
 Never hardcode `theme="dark"` or `theme="light"` or omit the theme prop.
@@ -105,7 +109,7 @@ Every data-driven chart must handle three states:
     </div>
 
     <!-- Chart -->
-    <CcTimeSeriesChart v-else :theme="theme" :series="state.series" unit="min" />
+    <CcTimeSeriesChart v-else :series="state.series" unit="min" />
   </CcSectionCard>
 </template>
 ```
@@ -208,6 +212,8 @@ For `PersonLocationEnvelope` data, `TrackingWorkspace` and `usePersonPresence` o
 ### ECharts and canvas test boundaries
 
 - Shared chart component tests can stub `vue-echarts`/`v-chart` to inspect the computed option object, but must still assert `theme` is passed from `useChartTheme`.
+- Mocks of `useChartTheme()` must return its real contract,
+  `{ chartTheme }`. Never invent a `theme` alias in the mock.
 - View tests should stub shared chart components instead of reaching into ECharts internals.
 - Canvas/SVG spatial tests should verify mount, coordinate projection, empty state, and representative rendered markers; they should not depend on pixel-perfect snapshots unless the rendering contract requires it.
 
@@ -218,7 +224,8 @@ Before marking frontend visualisation work complete:
 - `cd frontend && npm run build` passes with no type errors.
 - No inline ECharts `option` objects in view files.
 - No second charting library imported anywhere (`grep -r "chart.js\|recharts\|d3" frontend/src/`).
-- `useChartTheme` is called and its `theme` is passed to every `v-chart` or chart component.
+- `useChartTheme` is called and its `chartTheme` is passed to every `v-chart`
+  or explicit chart-component theme prop.
 - Loading, error, and empty states are rendered explicitly.
 - `CcProvenanceBadge` is used wherever a `PersonLocationEnvelope` quality field is shown.
 - Spatial canvas components are in `components/`, not inlined in views.

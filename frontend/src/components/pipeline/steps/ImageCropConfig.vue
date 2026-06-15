@@ -174,6 +174,8 @@
       @update:model-value="emit('update:modelValue', { ...modelValue, output_format: $event })"
     />
   </div>
+
+  <v-snackbar v-model="snack" :color="snackColor" timeout="4000">{{ snackText }}</v-snackbar>
 </template>
 
 <script>
@@ -207,7 +209,9 @@ export const stepTabs = [
 <script setup>
 import { ref, computed } from "vue";
 import { api } from "../../../services/api.js";
-import { cts } from "../../../services/cts.js";
+import { useNotify } from "../../../composables/useNotify.js";
+
+const { snack, snackText, snackColor, notify } = useNotify();
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -243,28 +247,22 @@ async function loadSample() {
   if (!sampleCameraId.value) return;
   sampleLoading.value = true;
   try {
-    const sourceType = sampleSource.value;
-    const params = { source_type: sourceType };
-    if (sourceType === "recamera") {
+    // The /pipeline/image-sources/sample endpoint resolves both source types
+    // (recamera -> latest MediaCache row, cts -> live snapshot), so this is the
+    // single source of truth. Do not reintroduce a client-side fallback that
+    // re-derives the image from the media-buffer envelope; that coupled this
+    // component to the buffer contract shape.
+    const params = { source_type: sampleSource.value };
+    if (sampleSource.value === "recamera") {
       params.sensor_id = sampleCameraId.value;
     } else {
       params.camera_id = sampleCameraId.value;
     }
 
-    try {
-      const data = await api.getSampleImage(params);
-      sampleImageUrl.value = data.image_url;
-    } catch {
-      // Fallback: use existing APIs.
-      if (sourceType === "recamera") {
-        const buf = await api.getMediaBuffer({ sensor_id: sampleCameraId.value, limit: 1 });
-        if (buf?.images?.length) {
-          sampleImageUrl.value = buf.images[0].url;
-        }
-      } else {
-        sampleImageUrl.value = await cts.getSnapshot(sampleCameraId.value);
-      }
-    }
+    const data = await api.getSampleImage(params);
+    sampleImageUrl.value = data.image_url;
+  } catch (e) {
+    notify.error(`Could not load sample image: ${e.message || e}`);
   } finally {
     sampleLoading.value = false;
   }

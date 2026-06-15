@@ -424,6 +424,17 @@ async def lifespan(app: FastAPI):
     )
     app.state.pipeline_executor = pipeline_executor
 
+    # -- Media and aggregator observability --------------------------------
+    from backend.services.media_observability import MediaObservabilityService
+
+    media_observability = MediaObservabilityService(
+        db_factory=get_session,
+        event_aggregator=event_aggregator,
+        get_bucketizer=lambda: pipeline_executor.bucketizer,
+        minio_client=minio_client,
+    )
+    app.state.media_observability = media_observability
+
     # Wire pipeline executor into knowledge delivery for quiz completion resume
     knowledge_delivery._pipeline_executor = pipeline_executor
 

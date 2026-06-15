@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from backend.services.cts.runtime import CTSRuntime
     from backend.services.event_aggregator import EventAggregator
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
+    from backend.services.media_observability import MediaObservabilityService
     from backend.services.occupancy import OccupancyReadModel
     from backend.services.person_location.service import PersonLocationService
     from backend.services.scheduler import SchedulerBridge
@@ -62,6 +63,7 @@ __all__ = [
     "get_ingress_admin_client",
     "get_knowledge_delivery",
     "get_llm_model_registry",
+    "get_media_observability",
     "get_minio_client",
     "get_occupancy_read_model",
     "get_orchestrator_client",
@@ -163,6 +165,14 @@ def get_event_aggregator(request: Request) -> EventAggregator:
     svc: EventAggregator | None = request.app.state.event_aggregator
     if svc is None:
         raise _raise_503("event_aggregator", "Event aggregator")
+    return svc
+
+
+def get_media_observability(request: Request) -> MediaObservabilityService:
+    """Return the lifespan-managed media observability service (503 if unavailable)."""
+    svc: MediaObservabilityService | None = request.app.state.media_observability
+    if svc is None:
+        raise _raise_503("media_observability", "Media observability service")
     return svc
 
 

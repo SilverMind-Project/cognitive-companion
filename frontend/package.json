@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.7",
-    "@vitest/ui": "^4.1.8",
+    "@vitest/ui": "^4.1.9",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^20.9.0",
     "jsdom": "^29.0.2",

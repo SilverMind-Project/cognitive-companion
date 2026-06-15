@@ -1,419 +1,340 @@
 <template>
   <div>
-    <!-- Header -->
-    <div class="d-flex align-center flex-wrap ga-3 mb-6">
-      <div>
-        <h2 class="text-h4 font-weight-bold tracking-tight">Camera Media</h2>
-        <div class="text-body-2 text-medium-emphasis mt-1">
-          Recently aggregated images per camera. Shows flushed images still within
-          their retention window and the count of images pending flush.
+    <div class="mb-6">
+      <div class="d-flex align-center flex-wrap ga-3">
+        <div>
+          <h2 class="text-h4 font-weight-bold tracking-tight">Camera Media</h2>
+          <div class="text-body-2 text-medium-emphasis mt-1">
+            Live buffer depth, image eligibility, and retained media across both camera pathways.
+          </div>
         </div>
+        <v-spacer />
+        <v-switch
+          v-model="aggregators.state.autoRefresh"
+          label="Auto-refresh"
+          density="compact"
+          hide-details
+        />
+        <v-chip
+          v-if="aggregators.state.autoRefresh"
+          size="small"
+          color="primary"
+          variant="tonal"
+          prepend-icon="mdi-timer-outline"
+        >
+          {{ AGGREGATOR_REFRESH_SECONDS }}s
+        </v-chip>
+        <v-btn
+          variant="tonal"
+          prepend-icon="mdi-refresh"
+          :loading="aggregators.state.loading"
+          @click="aggregators.actions.fetch"
+        >
+          Refresh
+        </v-btn>
       </div>
-      <v-spacer />
-      <v-select
-        v-model="filterSensorId"
-        :items="sensorOptions"
-        item-title="label"
-        item-value="value"
-        label="Camera"
-        variant="outlined"
-        density="compact"
-        clearable
-        hide-details
-        style="max-width: 260px"
-        @update:model-value="loadData"
-      />
-      <v-select
-        v-model="sortOrder"
-        :items="sortOptions"
-        label="Sort images by"
-        variant="outlined"
-        density="compact"
-        hide-details
-        style="max-width: 200px"
-      />
-      <v-select
-        v-model="limitPerSensor"
-        :items="[5, 10, 20, 50]"
-        label="Images per camera"
-        variant="outlined"
-        density="compact"
-        hide-details
-        style="max-width: 180px"
-        @update:model-value="loadData"
-      />
-      <v-switch
-        v-model="autoRefresh"
-        label="Auto-refresh"
-        color="primary"
-        density="compact"
-        hide-details
-      />
-      <v-chip
-        v-if="autoRefresh"
-        size="small"
-        color="primary"
-        variant="tonal"
-        prepend-icon="mdi-timer-outline"
-      >
-        {{ AUTO_REFRESH_SECONDS }}s
-      </v-chip>
-      <v-btn
-        variant="tonal"
-        prepend-icon="mdi-refresh"
-        :loading="loading"
-        @click="loadData"
-      >
-        Refresh
-      </v-btn>
+
+      <div class="d-flex align-center flex-wrap ga-3 mt-4">
+        <CcSegmentedToggle
+          :model-value="aggregators.state.filters.origin"
+          :options="originOptions"
+          @update:model-value="setOrigin"
+        />
+        <v-text-field
+          :model-value="aggregators.state.filters.query"
+          placeholder="Search cameras"
+          aria-label="Search cameras"
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          clearable
+          hide-details
+          class="filter-control"
+          @update:model-value="setQuery"
+        />
+        <v-select
+          :model-value="aggregators.state.filters.roomName"
+          :items="aggregators.state.roomNames"
+          placeholder="All rooms"
+          aria-label="Filter by room"
+          prepend-inner-icon="mdi-floor-plan"
+          variant="outlined"
+          density="compact"
+          clearable
+          hide-details
+          class="filter-control"
+          @update:model-value="setRoom"
+        />
+      </div>
     </div>
 
-    <!-- No cameras -->
-    <v-alert v-if="!loading && cameras.length === 0" type="info" variant="tonal">
-      No enabled camera sensors found.
+    <v-alert
+      v-if="aggregators.state.error"
+      type="error"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+    >
+      {{ aggregators.state.error }}
     </v-alert>
 
-    <!-- Per-camera panels -->
-    <div v-for="cam in cameras" :key="cam.sensor_id" class="mb-6">
-      <div class="d-flex align-center mb-3">
-        <v-icon size="20" class="mr-2 text-medium-emphasis">mdi-camera</v-icon>
-        <span class="text-subtitle-1 font-weight-bold">{{ cam.sensor_name }}</span>
-        <v-chip
-          v-if="cam.room_name"
-          size="x-small"
-          variant="tonal"
-          color="secondary"
-          class="ml-2"
-        >
-          {{ cam.room_name }}
-        </v-chip>
-        <v-chip
-          v-if="cam.buffer_pending > 0"
-          size="x-small"
-          color="warning"
-          variant="tonal"
-          prepend-icon="mdi-clock-outline"
-          class="ml-2"
-        >
-          {{ cam.buffer_pending }} pending flush
-        </v-chip>
-        <v-chip
-          v-if="cam.cooldown_remaining_seconds !== null"
-          size="x-small"
-          color="info"
-          variant="tonal"
-          prepend-icon="mdi-timer-sand"
-          class="ml-2"
-        >
-          cooldown {{ cam.cooldown_remaining_seconds }}s
-        </v-chip>
-        <v-spacer />
-        <span class="text-caption text-medium-emphasis">
-          {{ cam.images.length }} image{{ cam.images.length !== 1 ? 's' : '' }}
-        </span>
-      </div>
+    <v-row class="mb-4">
+      <v-col cols="12" sm="6" lg="3">
+        <CcMetricTile label="Cameras" :value="aggregators.state.total" />
+      </v-col>
+      <v-col cols="12" sm="6" lg="3">
+        <CcMetricTile label="Buffered frames" :value="kpis.buffered" />
+      </v-col>
+      <v-col cols="12" sm="6" lg="3">
+        <CcMetricTile label="Image-eligible" :value="kpis.eligible" />
+      </v-col>
+      <v-col cols="12" sm="6" lg="3">
+        <CcMetricTile label="Dropped" :value="kpis.dropped" />
+      </v-col>
+    </v-row>
 
-      <!-- Image grid -->
-      <div v-if="cam.images.length > 0" class="image-grid">
-        <v-card
-          v-for="img in sortedImages(cam.images)"
-          :key="img.id"
-          class="image-card"
-          variant="outlined"
-          @click="openLightbox(img, cam)"
-        >
-          <v-img
-            :src="img.url"
-            aspect-ratio="16/9"
-            cover
-            class="image-thumb"
-          >
-            <template #placeholder>
-              <div class="d-flex align-center justify-center fill-height">
-                <v-progress-circular indeterminate color="primary" size="24" />
-              </div>
-            </template>
-            <template #error>
-              <div class="d-flex flex-column align-center justify-center fill-height broken-placeholder">
-                <v-icon size="32" color="grey-lighten-1">mdi-image-broken-variant</v-icon>
-                <span class="text-caption text-disabled mt-1">Expired</span>
-              </div>
-            </template>
-          </v-img>
-          <v-card-text class="pa-2">
-            <div class="text-caption font-weight-medium">{{ formatTimestamp(img.captured_at) }}</div>
-            <div class="text-caption text-medium-emphasis">
-              expires {{ formatRelative(img.expires_at) }}
-            </div>
-          </v-card-text>
-        </v-card>
-      </div>
+    <v-card class="glass-card mb-6">
+      <v-card-title class="d-flex align-center">
+        <div>
+          <div class="text-subtitle-1 font-weight-bold">Buffer pressure</div>
+          <div class="text-caption text-medium-emphasis">
+            Bar color moves from healthy to constrained as the image drop ratio rises.
+          </div>
+        </div>
+      </v-card-title>
+      <v-card-text>
+        <CcQueueDepthChart
+          :cameras="chartCameras"
+          :theme="chartTheme"
+          :loading="aggregators.state.loading"
+          @select="openCameraById"
+        />
+      </v-card-text>
+    </v-card>
 
-      <v-alert
-        v-else
-        type="info"
-        variant="tonal"
-        density="compact"
-        class="mt-1"
+    <v-card class="glass-card">
+      <v-data-table-server
+        :headers="headers"
+        :items="aggregators.state.items"
+        :items-length="aggregators.state.total"
+        :items-per-page="aggregators.state.itemsPerPage"
+        :page="aggregators.state.page"
+        :loading="aggregators.state.loading"
+        item-value="camera_id"
+        hover
+        @click:row="openCameraFromRow"
+        @update:options="aggregators.actions.onPageOptions"
       >
-        No flushed images in retention window
-        <span v-if="cam.buffer_pending > 0">
-          &mdash; {{ cam.buffer_pending }} image{{ cam.buffer_pending !== 1 ? 's' : '' }} pending flush.
-        </span>
-      </v-alert>
-    </div>
-
-    <!-- Lightbox dialog -->
-    <v-dialog v-model="lightbox.open" max-width="900" scrollable>
-      <v-card v-if="lightbox.image">
-        <v-card-title class="d-flex align-center pa-4 pb-2">
-          <v-icon size="18" class="mr-2">mdi-camera</v-icon>
-          {{ lightbox.sensorName }}
-          <v-chip v-if="lightbox.roomName" size="x-small" variant="tonal" class="ml-2">
-            {{ lightbox.roomName }}
-          </v-chip>
-          <v-spacer />
-          <v-btn icon="mdi-close" size="small" variant="text" @click="lightbox.open = false" />
-        </v-card-title>
-
-        <v-img
-          :src="lightbox.image.url"
-          max-height="600"
-          contain
-          class="mx-4"
-        >
-          <template #placeholder>
-            <div class="d-flex align-center justify-center" style="height: 400px">
-              <v-progress-circular indeterminate color="primary" />
+        <template #item.camera="{ item }">
+          <div class="py-2">
+            <div class="d-flex align-center ga-2">
+              <span class="font-weight-medium">{{ cameraName(item) }}</span>
+              <v-chip size="x-small" variant="tonal" :color="originColor(item.origin)">
+                {{ originLabel(item.origin) }}
+              </v-chip>
             </div>
-          </template>
-        </v-img>
-
-        <v-card-text class="pt-3">
-          <v-row dense>
-            <v-col cols="6">
-              <div class="text-caption text-medium-emphasis">Captured</div>
-              <div class="text-body-2">{{ formatTimestampFull(lightbox.image.captured_at) }}</div>
-            </v-col>
-            <v-col cols="6">
-              <div class="text-caption text-medium-emphasis">Expires</div>
-              <div class="text-body-2">{{ formatTimestampFull(lightbox.image.expires_at) }}</div>
-            </v-col>
-            <v-col cols="12" class="mt-1">
-              <div class="text-caption text-medium-emphasis">Object</div>
-              <div class="text-caption font-weight-medium" style="word-break: break-all">
-                {{ lightbox.image.object_name }}
-              </div>
-            </v-col>
-          </v-row>
-        </v-card-text>
-
-        <v-card-actions class="px-4 pb-4">
-          <v-btn
-            variant="tonal"
-            prepend-icon="mdi-chevron-left"
-            :disabled="lightbox.index <= 0"
-            @click="moveLightbox(-1)"
-          >
-            Prev
-          </v-btn>
-          <v-spacer />
-          <span class="text-caption text-medium-emphasis">
-            {{ lightbox.index + 1 }} / {{ lightbox.images.length }}
+            <div class="text-caption text-medium-emphasis cc-code mt-1">
+              {{ shortCameraId(item.camera_id) }}
+            </div>
+          </div>
+        </template>
+        <template #item.room_name="{ item }">
+          {{ item.room_name || "Unassigned" }}
+        </template>
+        <template #item.buffer_depth="{ item }">
+          <span class="font-weight-medium">{{ item.buffer_depth }}</span>
+          <span class="text-medium-emphasis">
+            / {{ item.buffer_capacity == null ? "unbounded" : item.buffer_capacity }}
           </span>
-          <v-spacer />
-          <v-btn
-            variant="tonal"
-            append-icon="mdi-chevron-right"
-            :disabled="lightbox.index >= lightbox.images.length - 1"
-            @click="moveLightbox(1)"
-          >
-            Next
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+        </template>
+        <template #item.pending_flush="{ item }">
+          {{ item.pending_flush == null ? "n/a" : item.pending_flush }}
+        </template>
+        <template #item.cooldown_remaining_seconds="{ item }">
+          {{ formatSeconds(item.cooldown_remaining_seconds) }}
+        </template>
+        <template #item.rate_per_second="{ item }">
+          {{ formatRate(item.rate_per_second) }}
+        </template>
+        <template #item.last_event_at="{ item }">
+          {{ item.last_event_at ? formatDateTimeShort(item.last_event_at) : "No events" }}
+        </template>
+        <template #no-data>
+          <div class="pa-8 text-center">
+            <v-icon size="40" color="medium-emphasis" class="mb-2">
+              mdi-camera-off-outline
+            </v-icon>
+            <div class="text-body-1 text-medium-emphasis">
+              No cameras match these filters.
+            </div>
+          </div>
+        </template>
+      </v-data-table-server>
+    </v-card>
 
-    <v-snackbar v-model="snack" color="error" timeout="4000">{{ snackText }}</v-snackbar>
+    <v-navigation-drawer
+      v-model="drawerOpen"
+      location="right"
+      width="640"
+      temporary
+      class="cc-drawer-right"
+    >
+      <CameraMediaDrawer
+        v-if="selectedCamera"
+        :camera="selectedCamera"
+        :history="selectedCameraHistory"
+        @close="drawerOpen = false"
+      />
+    </v-navigation-drawer>
+
+    <v-snackbar v-model="snack" :color="snackColor" timeout="4000">
+      {{ snackText }}
+    </v-snackbar>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import { api } from "../../services/api.js";
-import { formatDateTimeShort, formatDateTimeFull } from "../../services/timezone.js";
+import { computed, onMounted, ref, watch } from "vue";
+import CcQueueDepthChart from "@/components/charts/CcQueueDepthChart.vue";
+import CcSegmentedToggle from "@/components/common/CcSegmentedToggle.vue";
+import CcMetricTile from "@/components/dashboard/CcMetricTile.vue";
+import CameraMediaDrawer from "@/components/media/CameraMediaDrawer.vue";
+import {
+  AGGREGATOR_REFRESH_SECONDS,
+  useAggregatorState,
+} from "@/composables/useAggregatorState.js";
+import { useChartTheme } from "@/composables/useChartTheme.js";
+import { useNotify } from "@/composables/useNotify.js";
+import { formatDateTimeShort } from "@/services/timezone.js";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-const AUTO_REFRESH_SECONDS = 15;
+const aggregators = useAggregatorState();
+const { chartTheme } = useChartTheme();
+const { snack, snackText, snackColor, notify } = useNotify();
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-const cameras = ref([]);
-const loading = ref(false);
-const snack = ref(false);
-const snackText = ref("");
+const drawerOpen = ref(false);
+const selectedCameraId = ref(null);
 
-const filterSensorId = ref(null);
-const sortOrder = ref("desc");
-const limitPerSensor = ref(20);
-const autoRefresh = ref(false);
-
-let autoRefreshTimer = null;
-
-// Lightbox
-const lightbox = ref({
-  open: false,
-  image: null,
-  sensorName: "",
-  roomName: null,
-  images: [],
-  index: 0,
-});
-
-// ---------------------------------------------------------------------------
-// Derived
-// ---------------------------------------------------------------------------
-const sortOptions = [
-  { title: "Newest first", value: "desc" },
-  { title: "Oldest first", value: "asc" },
+const originOptions = [
+  { value: null, label: "All" },
+  { value: "recamera", label: "reCamera" },
+  { value: "cts", label: "CTS" },
 ];
 
-const sensorOptions = computed(() => {
-  // Populated from the last successful load; we collect all sensors regardless
-  // of the current filter so the dropdown always shows all cameras.
-  return [
-    { label: "All cameras", value: null },
-    ...cameras.value.map((c) => ({
-      label: c.room_name ? `${c.sensor_name} (${c.room_name})` : c.sensor_name,
-      value: c.sensor_id,
-    })),
-  ];
-});
+const headers = [
+  { title: "Camera", key: "camera", sortable: false },
+  { title: "Room", key: "room_name", sortable: false },
+  { title: "Buffer depth", key: "buffer_depth", sortable: false },
+  { title: "Pending flush", key: "pending_flush", sortable: false },
+  { title: "Cooldown", key: "cooldown_remaining_seconds", sortable: false },
+  { title: "Rate/sec", key: "rate_per_second", sortable: false },
+  { title: "Eligible", key: "images_eligible_total", sortable: false },
+  { title: "Dropped", key: "images_dropped_total", sortable: false },
+  { title: "Last event", key: "last_event_at", sortable: false },
+];
 
-function sortedImages(images) {
-  const copy = [...images];
-  copy.sort((a, b) => {
-    const ta = new Date(a.captured_at).getTime();
-    const tb = new Date(b.captured_at).getTime();
-    return sortOrder.value === "asc" ? ta - tb : tb - ta;
-  });
-  return copy;
+const kpis = computed(() => aggregators.state.items.reduce(
+  (totals, item) => ({
+    buffered: totals.buffered + item.buffer_depth,
+    eligible: totals.eligible + item.images_eligible_total,
+    dropped: totals.dropped + item.images_dropped_total,
+  }),
+  { buffered: 0, eligible: 0, dropped: 0 }
+));
+
+const chartCameras = computed(() => aggregators.state.items.map((item) => ({
+  ...item,
+  label: `${originLabel(item.origin)} - ${cameraName(item)}`,
+})));
+
+const selectedCamera = computed(() =>
+  aggregators.state.items.find((item) => item.camera_id === selectedCameraId.value) ?? null
+);
+
+const selectedCameraHistory = computed(
+  () => aggregators.state.history.get(selectedCameraId.value) ?? []
+);
+
+function setOrigin(value) {
+  return aggregators.actions.setFilter("origin", value);
 }
 
-// ---------------------------------------------------------------------------
-// Data loading
-// ---------------------------------------------------------------------------
-async function loadData() {
-  loading.value = true;
-  const params = { limit: limitPerSensor.value };
-  if (filterSensorId.value) params.sensor_id = filterSensorId.value;
-  try {
-    const response = await api.getMediaBuffer(params);
-    cameras.value = response.items;
-  } catch (e) {
-    snackText.value = e.message || "Failed to load camera media";
-    snack.value = true;
-    cameras.value = [];
-  } finally {
-    loading.value = false;
+function setQuery(value) {
+  return aggregators.actions.setFilter("query", value || "");
+}
+
+function setRoom(value) {
+  return aggregators.actions.setFilter("roomName", value);
+}
+
+function cameraName(camera) {
+  return camera.display_name || camera.camera_id;
+}
+
+function shortCameraId(cameraId) {
+  return cameraId.length > 18 ? `${cameraId.slice(0, 15)}...` : cameraId;
+}
+
+function originLabel(origin) {
+  return origin === "recamera" ? "reCamera" : "CTS";
+}
+
+function originColor(origin) {
+  return origin === "recamera" ? "primary" : "info";
+}
+
+function formatSeconds(value) {
+  return value == null ? "n/a" : `${Number(value).toFixed(1)}s`;
+}
+
+function formatRate(value) {
+  return value == null ? "n/a" : `${Number(value).toFixed(2)}/s`;
+}
+
+function openCameraFromRow(_event, { item }) {
+  openCamera(item);
+}
+
+function openCameraById(cameraId) {
+  const camera = aggregators.state.items.find((item) => item.camera_id === cameraId);
+  if (camera) openCamera(camera);
+}
+
+function openCamera(camera) {
+  selectedCameraId.value = camera.camera_id;
+  drawerOpen.value = true;
+}
+
+watch(
+  () => aggregators.state.error,
+  (error) => {
+    if (error) notify.error(error);
   }
-}
+);
 
-// ---------------------------------------------------------------------------
-// Auto-refresh
-// ---------------------------------------------------------------------------
-function startAutoRefresh() {
-  stopAutoRefresh();
-  autoRefreshTimer = setInterval(loadData, AUTO_REFRESH_SECONDS * 1000);
-}
-
-function stopAutoRefresh() {
-  if (autoRefreshTimer !== null) {
-    clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
+watch(
+  () => aggregators.state.items,
+  (items) => {
+    if (selectedCameraId.value && !items.some((item) => item.camera_id === selectedCameraId.value)) {
+      drawerOpen.value = false;
+      selectedCameraId.value = null;
+    }
   }
-}
+);
 
-watch(autoRefresh, (enabled) => {
-  if (enabled) startAutoRefresh();
-  else stopAutoRefresh();
+onMounted(aggregators.actions.fetch);
+
+defineExpose({
+  aggregators,
+  drawerOpen,
+  selectedCamera,
+  openCamera,
+  setOrigin,
 });
-
-// ---------------------------------------------------------------------------
-// Lightbox
-// ---------------------------------------------------------------------------
-function openLightbox(img, cam) {
-  const sorted = sortedImages(cam.images);
-  lightbox.value = {
-    open: true,
-    image: img,
-    sensorName: cam.sensor_name,
-    roomName: cam.room_name,
-    images: sorted,
-    index: sorted.findIndex((i) => i.id === img.id),
-  };
-}
-
-function moveLightbox(delta) {
-  const next = lightbox.value.index + delta;
-  if (next < 0 || next >= lightbox.value.images.length) return;
-  lightbox.value.index = next;
-  lightbox.value.image = lightbox.value.images[next];
-}
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-const formatTimestamp = formatDateTimeShort;
-const formatTimestampFull = formatDateTimeFull;
-
-function formatRelative(iso) {
-  if (!iso) return "";
-  const diff = new Date(iso).getTime() - Date.now();
-  if (diff <= 0) return "now";
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "< 1 min";
-  if (mins < 60) return `${mins} min`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
-}
-
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
-onMounted(loadData);
-onUnmounted(stopAutoRefresh);
 </script>
 
 <style scoped>
-.tracking-tight {
-  letter-spacing: -0.018em;
+.filter-control {
+  max-width: 240px;
 }
 
-.image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-}
-
-.image-card {
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.image-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--cc-shadow-md);
-}
-
-.image-thumb {
-  border-radius: 4px 4px 0 0;
-}
-
-.broken-placeholder {
-  background: var(--cc-surface-3);
-  height: 100%;
-}
 </style>

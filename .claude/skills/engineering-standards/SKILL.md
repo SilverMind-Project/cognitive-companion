@@ -668,6 +668,37 @@ def _get_client(request: Request) -> Any:
 - Extract a base class when 3+ handlers share the same lifecycle steps.
 - Don't abstract for "future use." The codebase already has a plugin system for that.
 
+### Public contract minimality
+
+A shared function, composable, service, or component exposes one canonical name
+per value. Do not widen a provider API with same-value aliases to satisfy a
+consumer's local naming preference.
+
+```js
+// WRONG: two public names for one value
+return { theme: chartTheme, chartTheme }
+
+// RIGHT: one canonical provider name
+return { chartTheme }
+
+// Adapt at the consumer boundary when a local rename is genuinely useful
+const { chartTheme: theme } = useChartTheme()
+```
+
+Before changing a shared return shape:
+
+1. Read the provider implementation and its contract test.
+2. Inventory production consumers, tests, and skill examples with `rg`.
+3. Distinguish provider field names from downstream prop or wire names. A
+   `theme` prop does not require the provider to expose a field named `theme`.
+4. Fix a drifting consumer or mock before expanding the provider contract.
+
+Aliases are allowed only for an external or persisted compatibility contract,
+such as stored step type names or public API fields. Document the compatibility
+reason, keep one canonical implementation, add a deprecation/removal plan when
+possible, and test both names. Convenience aliases without compatibility
+evidence are prohibited.
+
 ### Theme-isolation boundary (sanctioned pattern)
 
 When a feature requires an alternate rendering of an existing component (not just a style change, but a different component tree), extract the themed variant into a dedicated folder and swap it at the render seam with a single `v-if`. The primary component stays unchanged.
@@ -848,6 +879,8 @@ export function useMyResource() {
 **Rules:**
 - All reactive data (refs, reactive objects) lives under `state`
 - All functions (fetch, setFilter, onPageOptions, handlers) live under `actions`
+- Each returned value has one canonical key. Do not return the same ref,
+  computed, object, or function under multiple names.
 - WS subscriptions are wired inside the composable body (not in the view)
 - Cleanup (timers, WS unsubscribe) uses `onUnmounted()` inside the composable
 - Composables never call `useNotify()` internally; they accept a `notify` callback if feedback is needed, or they export an `error` state field and let the view decide how to show it. Exception: `usePHCorrection.js` injects `useNotify()` directly since correction feedback is always immediate.

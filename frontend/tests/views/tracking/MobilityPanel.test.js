@@ -29,8 +29,17 @@ vi.mock("echarts/components", () => ({
 
 vi.mock("@/composables/useChartTheme.js", () => ({
   useChartTheme: () => ({
-    theme: "ccWarm",
-    chartTheme: { value: { color: [], textStyle: {}, xAxis: { axisLabel: {} }, yAxis: {}, tooltip: {}, _severity: {} } },
+    chartTheme: {
+      __v_isRef: true,
+      value: {
+        color: [],
+        textStyle: {},
+        xAxis: { axisLabel: {} },
+        yAxis: {},
+        tooltip: {},
+        _severity: {},
+      },
+    },
   }),
 }));
 

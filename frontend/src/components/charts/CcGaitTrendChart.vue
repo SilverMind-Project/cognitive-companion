@@ -15,7 +15,7 @@
     </div>
     <v-chart
       v-else
-      :theme="theme"
+      :theme="chartTheme"
       :option="chartOption"
       autoresize
       style="width: 100%; height: 260px"
@@ -52,7 +52,7 @@ const props = defineProps({
   error: { type: String, default: null },
 });
 
-const { theme, chartTheme } = useChartTheme();
+const { chartTheme } = useChartTheme();
 
 const isEmpty = computed(() => !props.points || props.points.length === 0);
 

@@ -640,6 +640,27 @@ if (!ok) return;
 // </v-dialog>
 ```
 
+### Shared composables
+
+| Composable | Use when |
+|---|---|
+| `useAggregatorState.js` | Polling and server-pagination state for unified reCamera/CTS buffer telemetry, including capped per-camera depth history |
+
+### Shared composable contract discipline
+
+- Treat a composable's returned keys as a public API. Return one canonical key
+  per value; never expose the same ref, computed, object, or function under two
+  names.
+- A child component prop name does not dictate the composable key name. Bind the
+  canonical value directly, for example
+  `<v-chart :theme="chartTheme" />`.
+- Before adding or renaming a composable return key, inspect the implementation,
+  all production consumers, tests, and skill examples with `rg`.
+- Test mocks must reproduce the real return contract exactly. Do not add a
+  convenient field to a mock that the production composable does not return.
+- For small stable composables, add a contract assertion for the returned key
+  set. This catches accidental aliases and undocumented API growth.
+
 ---
 
 ## Testing and warning hygiene
@@ -1114,13 +1135,13 @@ All chart and dashboard components live in `frontend/src/components/`. Use them;
 
 1. **One shared component per data shape.** If a view needs a time series chart, use `CcTimeSeriesChart`. Do not write an inline ECharts option object in a view component.
 2. **Bespoke canvas only for spatial domains.** Floor plan overlays and bounding-box-on-keyframe rendering are the only permitted SVG/Canvas surfaces. They must use `useChartTheme` and `--cc-` tokens.
-3. **Always use `useChartTheme`.** The composable at `composables/useChartTheme.js` injects the ECharts theme derived from Vuetify's current theme. Pass its `theme` return value to every `v-chart` instance.
+3. **Always use `useChartTheme`.** The composable at `composables/useChartTheme.js` injects the ECharts theme derived from Vuetify's current theme. Pass its `chartTheme` return value to every `v-chart` instance.
 
 ```js
 // CORRECT
 import { useChartTheme } from '@/composables/useChartTheme.js'
-const { theme } = useChartTheme()
-// <v-chart :theme="theme" :option="option" />
+const { chartTheme } = useChartTheme()
+// <v-chart :theme="chartTheme" :option="option" />
 
 // WRONG: hardcoded theme name or no theme
 // <v-chart option={option} />
@@ -1332,6 +1353,8 @@ Before marking frontend work complete:
 - Inspector drawers: `useConfirm()` called before every destructive action
 - Inspector drawers: `@click:row` wired on data tables (not only the Inspect button)
 - Composables return `{ state, actions }` shape (never flat named refs)
+- Shared composables expose one canonical key per value; mocks do not invent
+  aliases absent from production
 - When tests are touched: affected specs and `npm run test -- --reporter=dot` pass with no Vue, Vue Router, unresolved component, missing injection, or console warnings
 - New full-app theme registered in `main.js` AND token block in a dedicated stylesheet; no body-class theming
 - Mode flag owned by one composable; no direct `localStorage` reads of `cc_marauders` elsewhere

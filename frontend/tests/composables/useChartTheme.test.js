@@ -86,7 +86,10 @@ describe("useChartTheme", () => {
   afterEach(clearTokens);
 
   it("returns a chartTheme computed ref", () => {
-    const { chartTheme } = useChartTheme();
+    const result = useChartTheme();
+    const { chartTheme } = result;
+
+    expect(Object.keys(result)).toEqual(["chartTheme"]);
     expect(chartTheme).toBeDefined();
     expect(typeof chartTheme.value).toBe("object");
   });

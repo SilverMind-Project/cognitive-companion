@@ -119,7 +119,7 @@ class ServiceContainer:
     knowledge_delivery: KnowledgeDeliveryService | None = None
     minio_client: MinioClient | None = None
     # CTS sliding-window frame buffer, injected after CTS bootstrap. Read by the
-    # cts_window_poll step to return recent CTS frames per camera.
+    # canonical media poll step and its CTS alias.
     bucketizer: CtsEventBucketizer | None = None
 
 

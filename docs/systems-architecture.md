@@ -23,7 +23,18 @@ flowchart TB
   end
 
   subgraph CC["Cognitive Companion FastAPI"]
-    Aggregator["EventAggregator"]
+    Device["Device ingest"]
+    Subscriber["TrackingEventSubscriber"]
+    Core["aggregation core: token bucket, cooldown, state contract"]
+    ReLimiter["reCamera image ceiling"]
+    Aggregator["EventAggregator buffer"]
+    MediaCache["MediaCache: CC-owned reCamera objects"]
+    CtsBuffer["CtsEventBucketizer metadata buffer"]
+    CtsLimiter["CTS image eligibility ceiling"]
+    TriggerEval["CTS trigger evaluation and summaries"]
+    ImageSet["VLM-facing image candidate set"]
+    MediaPoll["media_window_poll"]
+    MediaAPI["GET /media/aggregators and /media/buffer"]
     Rules["RulesEngine"]
     Executor["PipelineExecutor"]
     Runs["PipelineRunService"]
@@ -31,11 +42,26 @@ flowchart TB
     Dispatcher["NotificationDispatcher"]
     MCP["MCP server"]
     API["BFF routers"]
-    Aggregator --> Rules --> Executor --> Dispatcher
+    Device --> ReLimiter --> Aggregator
+    Aggregator --> MediaCache
+    Aggregator --> Rules
+    Subscriber --> CtsBuffer
+    CtsBuffer --> TriggerEval
+    CtsBuffer --> CtsLimiter --> ImageSet
+    Aggregator --> ImageSet
+    ImageSet --> MediaPoll --> Executor
+    Core -. shared primitives .-> ReLimiter
+    Core -. shared primitives .-> CtsLimiter
+    Core -. snapshots .-> MediaAPI
+    Aggregator --> MediaAPI
+    CtsBuffer --> MediaAPI
+    Rules --> Executor --> Dispatcher
     Executor --> Runs
+    Streams --> Subscriber
     Streams --> Presence
     API --> Rules
     API --> Runs
+    API --> MediaAPI
     MCP --> Rules
   end
 
@@ -53,11 +79,14 @@ flowchart TB
     LLM["vLLM, llama.cpp, Gemini Live"]
   end
 
-  Edge --> Aggregator
+  reCamera --> Device
+  HA --> Rules
+  Webhook --> Rules
   RTSP --> CTS
   Executor --> Services
   Dispatcher --> PWA
   API --> UI
+  MediaAPI --> Admin
   Executor --> Canvas
 ```
 
@@ -91,6 +120,85 @@ main.py                  Lifespan wiring and service construction
 
 Services are created once in `backend/main.py` during FastAPI lifespan and placed on `app.state`. Routers validate input, require permissions, call services, and return Pydantic schemas. New browser-visible BFF data should also be available through MCP by calling the same service function.
 
+## Unified camera aggregation
+
+The camera paths share primitives from `backend/services/aggregation/` without
+merging their different storage and trigger responsibilities:
+
+| Shared artifact | Responsibility |
+| --- | --- |
+| `PerCameraRateLimiter` | Per-camera token bucket that controls image eligibility |
+| `CooldownTracker` | Monotonic cooldown deadlines for sensor or trigger keys |
+| `CameraBufferState` | Uniform per-camera runtime snapshot for buffer depth, rate state, and counters |
+| `AggregatorStatsProvider` | Protocol implemented by both aggregators through `buffer_state()` |
+
+`EventAggregator` remains the persistence-backed reCamera adapter. It buffers
+accepted media paths, flushes them to `MediaCache`, invokes the workflow
+callback, and applies a per-sensor cooldown. reCamera objects in `MediaCache`
+are owned and cleaned up by Cognitive Companion.
+
+`CtsEventBucketizer` remains the in-memory CTS adapter. Every
+`tracking.events` message stays in its per-camera metadata deque so trigger
+evaluation keeps full detection and identity fidelity. CTS frame references are
+never written to `MediaCache`, and Cognitive Companion never deletes
+CTS-owned MinIO objects.
+
+### Two-tier image rate limiting
+
+The CTS image path applies two controls in order:
+
+1. The full metadata buffer feeds trigger evaluation and detection or identity summaries.
+2. The aggregator ceiling marks frames as `image_eligible` and filters the image candidate set.
+3. The rule's `media_window_poll.sample_period_s` further downsamples eligible frames.
+
+Effective image rate = min(aggregator ceiling, per-rule step intent).
+
+This ceiling reduces MinIO presigning and VLM calls. It does not reduce Redis
+ingest volume because `TrackingEventSubscriber` still consumes every tracking
+event for location state, live views, world snapshots, and trigger evaluation.
+Reducing the CTS publish rate itself is an upstream `rtsp-ingress` or
+tracking-orchestrator concern.
+
+reCamera devices already self-limit to roughly 0.5 frames per second, so their
+ceiling is an optional safety net. CTS cameras commonly produce 5 to 10 frames
+per second, so the CTS ceiling is the active control.
+
+### Configuration
+
+Camera image ceilings are configured in `config/settings.yaml`:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `event_aggregator.image_rate_per_second` | `0.0` | reCamera per-camera safety ceiling. Zero disables it |
+| `event_aggregator.image_rate_burst` | `0.0` | reCamera token burst. Zero uses automatic capacity with a minimum of one token |
+| `cts.image_rate_per_second` | `0.5` | Default CTS image-eligible rate per camera |
+| `cts.image_rate_burst` | `2.0` | CTS token capacity for short bursts |
+| `cts.image_rate_overrides` | `{}` | Optional per-camera rates keyed by CTS `camera_id`; overrides inherit the default burst |
+
+At the default CTS rate of 0.5 images per second, six cameras produce a
+VLM-facing candidate set capped near 3 images per second in steady state,
+instead of the 30 to 60 images per second produced by six cameras at 5 to 10
+frames per second.
+
+### Media polling and observability
+
+`media_window_poll` is the canonical pipeline step for both camera sources.
+`cts_window_poll` and `recamera_media_poll` remain registered aliases so stored
+rules keep their original `step_type` values while sharing one execution
+implementation.
+
+The admin telemetry surfaces are:
+
+| Surface | Purpose |
+| --- | --- |
+| `GET /api/v1/media/aggregators` | Paginated, filterable live `CameraBufferState` data for reCamera and CTS |
+| `GET /api/v1/media/buffer` | Paginated retained and pending reCamera media |
+| `/admin/camera-media` | Filter-first `CameraMediaView` with KPI tiles, `CcQueueDepthChart`, per-camera state, and drill-in |
+
+The telemetry router and UI share `MediaObservabilityService`. These endpoints
+are operational admin data, not caregiver-facing domain data, so they do not
+have MCP mirrors.
+
 ## Rules and graph pipelines
 
 Rules are stored in `rules`. A rule has `trigger_types: list[str]`, optional cron trigger links, context filters, rule dependencies, rate limits, and a graph of pipeline steps.
@@ -119,7 +227,9 @@ The current pipeline model is a directed graph:
 | `StepMetadata.output_ports` | Ports a step can emit. Most steps emit `main`; `condition` emits `true` and `false` |
 | `StepResult.output_ports` | Runtime ports activated by a step execution |
 
-`PipelineEdge` enforces one outgoing edge per `(source_step_id, source_port)`. This makes branch behavior explicit and keeps the canvas and executor aligned.
+One output port may connect to multiple target steps, and a step may join
+multiple parents. The executor resolves every incoming edge before running a
+join.
 
 ### Execution model
 
@@ -208,6 +318,7 @@ The primary CTS data paths are:
 | --- | --- |
 | `/admin/rules/{id}` | Rule settings, context filters, dependencies, graph canvas, step config |
 | `/admin/executions` | Unified live and history execution observability |
+| `/admin/camera-media` | Unified reCamera and CTS buffer and rate-limit observability |
 | `/companion` | Resident-facing PWA widgets, voice, popups, TTS announcements |
 | CTS admin views | Camera calibration, identity review, live tracking, signals, presence |
 | Knowledge views | Documents, generated images, info cards, quizzes, delivery history |
@@ -228,6 +339,26 @@ Key properties:
 When the mode is off, the app is byte-for-byte the standard `ccDark` / `ccLight` experience. See the front-end skill's "Alternate themes and the Marauder's Map mode" section for implementation patterns and rules.
 
 ## Operational notes
+
+### Aggregator rollout
+
+Deploy the aggregator work in milestone order. M1 is a behavior-preserving
+shared-core refactor. M2 is the first production behavior change because it
+enables CTS image throttling. M3 generalizes media polling, M4 changes the BFF
+contracts, M5 updates the console, and M6 consolidates documentation and
+operating guidance.
+
+Start CTS at the default `cts.image_rate_per_second: 0.5`. Watch
+`cc_aggregator_images_dropped_total` by camera and origin together with the VLM
+call rate. Raise a camera's entry in `cts.image_rate_overrides` only when a busy
+room needs more image coverage.
+
+M4 changes `GET /api/v1/media/buffer` from a raw array to `{items, total}`.
+Deploy M4 and M5 in the same release train. Do not put the M4 backend in front
+of an older frontend that still expects an array.
+
+No database migration or protobuf regeneration is required for any aggregator
+unification milestone.
 
 - `config/settings.yaml` is the single source for application behavior and timezone.
 - `config/auth.yaml` controls API keys, device keys, and permission patterns.

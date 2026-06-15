@@ -41,6 +41,8 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 ## Pipeline contract
 
 Pipelines are directed graphs. Do not treat them as ordered step lists.
+Shared camera aggregation primitives live in `backend/services/aggregation/`;
+`media_window_poll` is the canonical reCamera and CTS polling step.
 
 - `PipelineStep` stores step type, label, config, enabled flag, order tiebreaker, and canvas position.
 - `PipelineEdge` connects `source_step_id/source_port` to `target_step_id/target_port`.
@@ -66,6 +68,9 @@ Use `GET /api/v1/workflows/{execution_id}/detail` for inspector data. It include
 Use `GET /api/v1/pipeline/runs` only for lightweight live or recent run lists. It is not the detail contract.
 
 The admin UI surface is `/admin/executions`. `/admin/workflows` and `/admin/activity` are redirects.
+
+Use `GET /api/v1/media/aggregators` and `/admin/camera-media` for live camera
+buffer and rate-limit telemetry across both aggregation paths.
 
 ## Commands
 

@@ -483,7 +483,7 @@ const PERIOD_OPTIONS = [
 
 - Options are `{ value, label, icon? }`. Props: `v-model`, `:options` (required), `size` (default `small`; use `default` to match comfortable-density rows), `color` (default `primary`).
 - It is mandatory by nature (clicking selects; no toggle-off) and emits `update:modelValue`, so `v-model` plus a side-effecting `@update:model-value` handler both work.
-- **Exception — a full-width, icon-only segmented control where merged segments are the intended affordance** (e.g. a text-alignment left/center/right control, like a word processor) may keep `v-btn-toggle variant="outlined"`. That is a different widget from a mode/period picker; `CcSegmentedToggle` is for the gapped-pill picker case. Reference: `components/eink/RegionEditor.vue`.
+- **Exception: a full-width, icon-only segmented control where merged segments are the intended affordance** (e.g. a text-alignment left/center/right control, like a word processor) may keep `v-btn-toggle variant="outlined"`. That is a different widget from a mode/period picker; `CcSegmentedToggle` is for the gapped-pill picker case. Reference: `components/eink/RegionEditor.vue`.
 
 ### Empty-state (`#no-data`) template
 

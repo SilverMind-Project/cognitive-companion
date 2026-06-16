@@ -388,11 +388,11 @@ Three rules apply to all plugin types:
 2. **Metadata is mandatory.** `StepMetadata`, `ChannelMetadata`, or `FilterMetadata` must be complete: display name, description, icon (for steps), config schema, default config.
 3. **Zero-config by default.** `default_config` must produce a working handler without any user overrides.
 
-When consolidating handlers whose `step_type` values are already stored, keep
-one canonical handler and register thin alias subclasses for the legacy names.
-Alias subclasses override only `metadata()` and inherit `execute()`. The
-`media_window_poll` handler and its `cts_window_poll` and
-`recamera_media_poll` aliases are the canonical example.
+When consolidating duplicate handlers into one, prefer a single canonical step
+type. `media_window_poll` is the canonical example: it serves both the CTS and
+reCamera sources through one handler, selected by its `source` config (`auto`,
+`cts`, `recamera`). The former `cts_window_poll` and `recamera_media_poll` step
+types were removed once no stored rules referenced them.
 
 ### Step handler contract
 
@@ -831,7 +831,7 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - `_upstream_base` is imported only by CTS integration clients (`ingress_admin_client`, `tracking_orchestrator_client`).
 - Redis Stream subscriptions (`tracking.events`, `tracking.revisions`, `tracking.signals`, `scene.samples`) are created only inside `CTSRuntime`.
 - All browser and MCP traffic to `rtsp-ingress` or `tracking-orchestrator` goes through CC routers. No direct access.
-- The `CtsEventBucketizer` (in-memory per-camera recent-frame buffer) is built by `CTSRuntime` and fed by `TrackingEventSubscriber.ingest` from the `tracking.events` stream (no new stream, no DB read, so it respects the isolation boundary). It reaches the canonical `media_window_poll` step and its `cts_window_poll` alias via `ServiceContainer.bucketizer`, injected **after** CTS bootstrap through the `PipelineExecutor.bucketizer` property (the executor is constructed before `CTSRuntime`; `main.py` sets `pipeline_executor.bucketizer = cts_runtime.bucketizer`). This is the same post-construction injection pattern as `_scheduler`. Steps read it via typed direct access (`services.bucketizer`), never `getattr`.
+- The `CtsEventBucketizer` (in-memory per-camera recent-frame buffer) is built by `CTSRuntime` and fed by `TrackingEventSubscriber.ingest` from the `tracking.events` stream (no new stream, no DB read, so it respects the isolation boundary). It reaches the `media_window_poll` step (CTS source) via `ServiceContainer.bucketizer`, injected **after** CTS bootstrap through the `PipelineExecutor.bucketizer` property (the executor is constructed before `CTSRuntime`; `main.py` sets `pipeline_executor.bucketizer = cts_runtime.bucketizer`). This is the same post-construction injection pattern as `_scheduler`. Steps read it via typed direct access (`services.bucketizer`), never `getattr`.
 
 ### 16.5 Per-camera image rate limiting
 

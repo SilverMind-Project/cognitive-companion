@@ -93,7 +93,7 @@
       v-if="modelValue.image_source === 'cts_window'"
       :model-value="modelValue.cts_frames_path"
       label="CTS Frames Path"
-      hint="Dotted path to CTS window frames, e.g. steps.cts_window_poll_1.outputs.frames"
+      hint="Dotted path to CTS window frames, e.g. steps.media_window_poll_1.outputs.frames"
       persistent-hint
       class="mb-4"
       @update:model-value="patch({ cts_frames_path: $event })"

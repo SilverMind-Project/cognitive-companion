@@ -8,9 +8,7 @@ from unittest.mock import AsyncMock
 
 from backend.steps import StepRegistry
 from backend.steps.base import ServiceContainer, TriggerContext
-from backend.steps.builtin.cts_window_poll import CtsWindowPollHandler
 from backend.steps.builtin.media_window_poll import MediaWindowPollHandler
-from backend.steps.builtin.recamera_media_poll import RecameraMediaPollHandler
 
 
 @dataclass
@@ -103,20 +101,10 @@ def test_registry_resolves_media_window_poll() -> None:
     assert isinstance(StepRegistry.get("media_window_poll"), MediaWindowPollHandler)
 
 
-def test_registry_resolves_cts_window_poll_alias() -> None:
-    assert isinstance(StepRegistry.get("cts_window_poll"), CtsWindowPollHandler)
-
-
-def test_registry_resolves_recamera_media_poll_alias() -> None:
-    assert isinstance(StepRegistry.get("recamera_media_poll"), RecameraMediaPollHandler)
-
-
-def test_cts_alias_default_source_is_cts() -> None:
-    assert CtsWindowPollHandler.metadata().default_config["source"] == "cts"
-
-
-def test_recamera_alias_default_source_is_recamera() -> None:
-    assert RecameraMediaPollHandler.metadata().default_config["source"] == "recamera"
+def test_legacy_alias_step_types_are_unregistered() -> None:
+    names = StepRegistry.type_names()
+    assert "cts_window_poll" not in names
+    assert "recamera_media_poll" not in names
 
 
 async def test_auto_source_prefers_cts_when_bucketizer_present() -> None:
@@ -243,20 +231,6 @@ async def test_recamera_returns_images_from_aggregator() -> None:
     assert data["images"] == ["https://minio/one.jpg"]
     assert data["count"] == 1
     assert data["frames"] == []
-
-
-async def test_recamera_alias_executes_legacy_config_without_source() -> None:
-    aggregator = AsyncMock()
-    aggregator.query_recent_media.return_value = ["https://minio/legacy.jpg"]
-
-    data = await _execute(
-        {"room_names": ["kitchen"], "max_images": 3},
-        handler=RecameraMediaPollHandler(),
-        event_aggregator=aggregator,
-    )
-
-    assert data["source"] == "recamera"
-    assert data["images"] == ["https://minio/legacy.jpg"]
 
 
 async def test_recamera_missing_aggregator_returns_empty_partial() -> None:

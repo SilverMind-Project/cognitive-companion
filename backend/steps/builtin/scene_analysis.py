@@ -126,7 +126,7 @@ class SceneAnalysisHandler(StepHandler):
                     },
                     "cts_frames_path": {
                         "type": "string",
-                        "default": "steps.cts_window_poll_1.outputs.frames",
+                        "default": "steps.media_window_poll_1.outputs.frames",
                     },
                     "max_images": {
                         "type": "integer",
@@ -192,7 +192,7 @@ class SceneAnalysisHandler(StepHandler):
                 "pipeline_image_path": "",
                 "pipeline_image_url_field": "url",
                 "pipeline_image_object_name_field": "object_name",
-                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
             },
             output_schema={
                 "type": "object",

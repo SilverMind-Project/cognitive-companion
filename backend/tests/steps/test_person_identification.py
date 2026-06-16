@@ -460,7 +460,7 @@ class TestDownstreamImageSources:
 
         pipeline_data = {
             "steps": {
-                "cts_window_poll_1": {
+                "media_window_poll_1": {
                     "outputs": {
                         "frames": [
                             {
@@ -475,7 +475,7 @@ class TestDownstreamImageSources:
         }
         config = {
             "image_source": "cts_window",
-            "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
             "presence_room_source": "source_image",
         }
         result = await _HANDLER.execute(
@@ -594,7 +594,7 @@ class TestPresenceRecording:
 
         pipeline_data = {
             "steps": {
-                "cts_window_poll_1": {
+                "media_window_poll_1": {
                     "outputs": {
                         "frames": [
                             {
@@ -609,7 +609,7 @@ class TestPresenceRecording:
         }
         config = {
             "image_source": "cts_window",
-            "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
             "presence_room_source": "source_image",
         }
         trigger = _make_trigger(room_name="Kitchen")

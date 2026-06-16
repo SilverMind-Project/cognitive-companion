@@ -385,7 +385,7 @@ class TestResolveCtsWindowSource:
         services = _make_services()
         pipeline_data = {
             "steps": {
-                "cts_window_poll_1": {
+                "media_window_poll_1": {
                     "outputs": {
                         "frames": [
                             {
@@ -404,7 +404,7 @@ class TestResolveCtsWindowSource:
         refs = await resolve_pipeline_image_refs(
             config={
                 "image_source": "cts_window",
-                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
             },
             pipeline_data=pipeline_data,
             trigger=trigger,
@@ -459,7 +459,7 @@ class TestResolveMinioPresignedUrl:
         services = _make_services(minio_client=_mock_minio())
         pipeline_data = {
             "steps": {
-                "cts_window_poll_1": {
+                "media_window_poll_1": {
                     "outputs": {
                         "frames": [
                             {
@@ -476,7 +476,7 @@ class TestResolveMinioPresignedUrl:
         refs = await resolve_pipeline_image_refs(
             config={
                 "image_source": "cts_window",
-                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
             },
             pipeline_data=pipeline_data,
             trigger=trigger,

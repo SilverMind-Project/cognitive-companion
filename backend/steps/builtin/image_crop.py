@@ -64,7 +64,7 @@ class ImageCropHandler(StepHandler):
                     "pipeline_image_path": {"type": "string", "default": ""},
                     "cts_frames_path": {
                         "type": "string",
-                        "default": "steps.cts_window_poll_1.outputs.frames",
+                        "default": "steps.media_window_poll_1.outputs.frames",
                     },
                     "max_images": {"type": "integer", "minimum": 1, "default": 1},
                     "trigger_images_count": {"type": "integer", "minimum": 0, "default": 0},
@@ -118,7 +118,7 @@ class ImageCropHandler(StepHandler):
             default_config={
                 "image_source": "trigger",
                 "pipeline_image_path": "",
-                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
                 "max_images": 1,
                 "trigger_images_count": 0,
                 "additional_sensor_ids": [],

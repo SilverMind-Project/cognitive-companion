@@ -697,7 +697,7 @@ class TestDownstreamImageSource:
 
         pipeline_data = {
             "steps": {
-                "cts_window_poll_1": {
+                "media_window_poll_1": {
                     "outputs": {
                         "frames": [
                             {
@@ -712,7 +712,7 @@ class TestDownstreamImageSource:
         }
         config = {
             "image_source": "cts_window",
-            "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
         }
         with _patch_http():
             result = await _HANDLER.execute(

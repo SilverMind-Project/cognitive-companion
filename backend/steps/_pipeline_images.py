@@ -116,7 +116,7 @@ def _normalize_dict(
         ref_kwargs["metadata"] = existing_meta
 
     # Fallback: if the dict has no recognizable image field but has an
-    # ``image`` key (from recamera_media_poll outputs), use that.
+    # ``image`` key (from media_window_poll outputs), use that.
     if "url" not in ref_kwargs and "object_name" not in ref_kwargs:
         maybe_image = value.get("image")
         if isinstance(maybe_image, str):

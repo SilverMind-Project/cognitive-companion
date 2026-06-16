@@ -216,7 +216,7 @@ class TestTriggerImageCrop:
 
         pipeline_data = {
             "steps": {
-                "cts_window_poll_1": {
+                "media_window_poll_1": {
                     "outputs": {
                         "frames": [
                             {
@@ -235,7 +235,7 @@ class TestTriggerImageCrop:
         step = _FakeStep(
             config_json={
                 "image_source": "cts_window",
-                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
                 "regions": _STANDARD_REGIONS,
             }
         )

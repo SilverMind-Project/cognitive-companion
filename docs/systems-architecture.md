@@ -182,10 +182,10 @@ frames per second.
 
 ### Media polling and observability
 
-`media_window_poll` is the canonical pipeline step for both camera sources.
-`cts_window_poll` and `recamera_media_poll` remain registered aliases so stored
-rules keep their original `step_type` values while sharing one execution
-implementation.
+`media_window_poll` is the single pipeline step for both camera sources. Its
+`source` config (`auto`, `cts`, `recamera`) selects the path; `auto` prefers CTS
+when a live bucketizer is available and otherwise uses reCamera. The former
+`cts_window_poll` and `recamera_media_poll` step types have been removed.
 
 The admin telemetry surfaces are:
 
@@ -269,7 +269,7 @@ There are 24 registered built-in step types:
 
 | Category | Step types |
 | --- | --- |
-| Perception and media | `person_identification`, `scene_analysis`, `media_window_poll`, `recamera_media_poll`, `cts_window_poll`, `image_crop`, `object_trend_analysis` |
+| Perception and media | `person_identification`, `scene_analysis`, `media_window_poll`, `image_crop`, `object_trend_analysis` |
 | Presence and state | `presence_query`, `home_state`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report` |
 | Knowledge | `semantic_memory_query`, `semantic_memory_write`, `info_card`, `quiz_start` |
 | Reasoning and flow | `llm_call`, `condition`, `verification`, `wait`, `interactive_prompt` |
@@ -277,8 +277,9 @@ There are 24 registered built-in step types:
 
 Every data-emitting step declares `StepMetadata.output_schema`. The step metadata endpoint exposes `config_schema`, `ui_hints`, `output_schema`, tags, and `output_ports` to the frontend.
 
-`cts_window_poll` and `recamera_media_poll` are backward-compatible aliases of
-the canonical `media_window_poll` handler.
+`media_window_poll` serves both CTS and reCamera sources via its `source`
+config. The former `cts_window_poll` and `recamera_media_poll` step types have
+been removed.
 
 ### Channels
 

@@ -164,7 +164,7 @@ class TestPipelineImageSource:
 
         pipeline_data = {
             "steps": {
-                "cts_window_poll_1": {
+                "media_window_poll_1": {
                     "outputs": {
                         "frames": [
                             {
@@ -180,7 +180,7 @@ class TestPipelineImageSource:
         config = {
             "model_id": "test-vision",
             "image_source": "cts_window",
-            "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
             "prompt": "Describe the scene.",
         }
         await _HANDLER.execute(

@@ -20,8 +20,7 @@ import ConditionConfig, { stepDefaults as condDefaults, stepTabs as condTabs } f
 import VerificationConfig, { stepDefaults as verDefaults, stepTabs as verTabs, beforeSave as verBeforeSave, onStepLoaded as verOnStepLoaded } from "./VerificationConfig.vue";
 import InteractivePromptConfig, { stepDefaults as ipDefaults, stepTabs as ipTabs } from "./InteractivePromptConfig.vue";
 import GenericPluginConfig, { stepDefaults as genericDefaults, stepTabs as genericTabs } from "./GenericPluginConfig.vue";
-import CtsWindowPollConfig, { stepDefaults as ctsWpDefaults, stepTabs as ctsWpTabs } from "./CtsWindowPollConfig.vue";
-import RecameraMediaPollConfig, { stepDefaults as rcmpDefaults, stepTabs as rcmpTabs } from "./RecameraMediaPollConfig.vue";
+import MediaWindowPollConfig, { stepDefaults as mwpDefaults, stepTabs as mwpTabs } from "./MediaWindowPollConfig.vue";
 import InfoCardConfig, { stepDefaults as infoCardDefaults, stepTabs as infoCardTabs } from "./InfoCardConfig.vue";
 import ImageCropConfig, { stepDefaults as imageCropDefaults, stepTabs as imageCropTabs } from "./ImageCropConfig.vue";
 
@@ -44,8 +43,7 @@ export const stepConfigMap = {
   condition:           { component: ConditionConfig,           defaults: condDefaults,    tabs: condTabs },
   verification:        { component: VerificationConfig,        defaults: verDefaults,     tabs: verTabs,    beforeSave: verBeforeSave,    onStepLoaded: verOnStepLoaded },
   interactive_prompt:  { component: InteractivePromptConfig,   defaults: ipDefaults,      tabs: ipTabs },
-  cts_window_poll:     { component: CtsWindowPollConfig,       defaults: ctsWpDefaults,   tabs: ctsWpTabs },
-  recamera_media_poll: { component: RecameraMediaPollConfig,   defaults: rcmpDefaults,    tabs: rcmpTabs },
+  media_window_poll:   { component: MediaWindowPollConfig,     defaults: mwpDefaults,     tabs: mwpTabs },
   info_card:           { component: InfoCardConfig,            defaults: infoCardDefaults, tabs: infoCardTabs },
   image_crop:          { component: ImageCropConfig,           defaults: imageCropDefaults, tabs: imageCropTabs },
 };

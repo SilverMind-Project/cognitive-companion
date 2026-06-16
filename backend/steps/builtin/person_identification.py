@@ -76,7 +76,7 @@ class PersonIdentificationHandler(StepHandler):
                     },
                     "cts_frames_path": {
                         "type": "string",
-                        "default": "steps.cts_window_poll_1.outputs.frames",
+                        "default": "steps.media_window_poll_1.outputs.frames",
                     },
                     "record_presence": {
                         "type": "boolean",
@@ -108,7 +108,7 @@ class PersonIdentificationHandler(StepHandler):
                 "write_movements_to_memory": False,
                 "image_source": "trigger",
                 "pipeline_image_path": "",
-                "cts_frames_path": "steps.cts_window_poll_1.outputs.frames",
+                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
                 "record_presence": True,
                 "record_sightings": True,
                 "presence_room_source": "trigger",

@@ -44,6 +44,12 @@ async def websocket_audio(websocket: WebSocket):
     accepted = await manager.connect(websocket)
     if not accepted:
         return
+    guided_task_service = getattr(app.state, "guided_task_service", None)
+    if guided_task_service is not None:
+        try:
+            await guided_task_service.on_session_opened()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("guided_session_open_hook_failed", error=str(exc))
 
     try:
         handler = AudioSessionHandler(

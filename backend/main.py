@@ -378,6 +378,15 @@ async def lifespan(app: FastAPI):
     signals_service = SignalsService(db_factory=get_session)
     app.state.signals = signals_service
 
+    # -- Companion surface registry ----------------------------------------
+    from backend.services.companion_surface import CompanionSurfaceService
+
+    companion_surface_service = CompanionSurfaceService(
+        db_factory=get_session,
+        person_location_service=None,
+    )
+    app.state.companion_surface_service = companion_surface_service
+
     # -- Unified signals feed (cross-source caregiver alerts) -------------
     from backend.services.signals.feed import SignalsFeedService
 
@@ -527,6 +536,9 @@ async def lifespan(app: FastAPI):
         db_factory=get_session,
         scheduler=scheduler_bridge,
         pipeline_executor=pipeline_executor,
+        companion_surface_service=companion_surface_service,
+        ws_manager=ws_manager,
+        notification_dispatcher=notifier,
     )
     app.state.guided_task_service = guided_task_service
     pipeline_executor._services.guided_task = guided_task_service
@@ -638,6 +650,8 @@ async def lifespan(app: FastAPI):
 
         person_location_service = _make_pls()
         app.state.person_location_service = person_location_service
+        companion_surface_service.set_person_location_service(person_location_service)
+        guided_task_service.set_person_location_service(person_location_service)
 
         # M4 subscribers (world-observation, room-transition, ph-continuation)
         # are constructed and owned by CTSRuntime, which wires the camera→room
@@ -786,6 +800,7 @@ def create_app() -> FastAPI:
         activities,
         admin,
         admin_metrics,
+        companion_surfaces,
         conversations,
         cts,
         cts_analytics,
@@ -849,6 +864,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix=api)
     app.include_router(occupancy.router, prefix=api)
     app.include_router(conversations.router, prefix=api)
+    app.include_router(companion_surfaces.router, prefix=api)
     app.include_router(ha_sync.router, prefix=api)
     app.include_router(persons.router, prefix=api)
     app.include_router(workflows.router, prefix=api)

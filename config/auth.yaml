@@ -123,6 +123,8 @@ permission_map:
     - "PATCH /api/v1/quizzes*"
     - "DELETE /api/v1/quizzes*"
     - "GET /api/v1/knowledge-interactions*"
+    - "POST /api/v1/companion-surfaces"
+    - "PATCH /api/v1/companion-surfaces/*"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -176,6 +178,8 @@ permission_map:
     # M3: gait mobility trend
     - "cts.gait.trend.view"
     - "GET /api/v1/cts/gait/trend"
+    - "POST /api/v1/companion-surfaces"
+    - "PATCH /api/v1/companion-surfaces/*"
 
   operator:
     - "*"
@@ -221,6 +225,17 @@ permission_map:
 
   "device:reterminal":
     - "POST /api/v1/device/reterminal"
+    - "POST /api/v1/companion-surfaces/*/heartbeat"
 
   "image:read":
     - "GET /api/v1/image/*"
+
+  "companion_surfaces:read":
+    - "GET /api/v1/companion-surfaces*"
+
+  "companion_surfaces:write":
+    - "POST /api/v1/companion-surfaces"
+    - "PATCH /api/v1/companion-surfaces/*"
+
+  "companion_surfaces:heartbeat":
+    - "POST /api/v1/companion-surfaces/*/heartbeat"

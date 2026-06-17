@@ -23,6 +23,10 @@ from backend.models.knowledge import (
     QuizResponse,
     QuizSession,
 )
+from backend.services.interactive_session import (
+    inject_session_prompt,
+    resume_owning_pipeline,
+)
 from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 from backend.websocket.connection_manager import ConnectionManager
 
@@ -289,13 +293,14 @@ class KnowledgeDeliveryService:
                     f"{intro}\n\nThere are {total} questions. "
                     f"Here is the first question.\n\n{q.question_text}"
                 )
-                await self._ws_manager.send_backend_task(
+                await inject_session_prompt(
+                    self._ws_manager,
                     prompt=voice_prompt,
+                    delivery_type="quiz_start",
+                    session_id=session_id,
+                    execution_id=execution_id,
                     voice_instruction=voice_inst or None,
-                    metadata={
-                        "delivery_type": "quiz_start",
-                        "session_id": session_id,
-                        "execution_id": execution_id,
+                    extra_metadata={
                         "quiz_id": quiz.id,
                     },
                 )
@@ -541,17 +546,7 @@ class KnowledgeDeliveryService:
             )
 
             # Resume the owning pipeline execution so it doesn't wait for timeout
-            if execution_id and self._pipeline_executor:
-                try:
-                    db2: Session = self._db_factory()
-                    try:
-                        self._pipeline_executor.resume(execution_id, db2)
-                    finally:
-                        db2.close()
-                except Exception:
-                    logger.exception(
-                        "quiz_complete_pipeline_resume_failed", execution_id=execution_id
-                    )
+            resume_owning_pipeline(self._pipeline_executor, self._db_factory, execution_id)
 
             logger.info(
                 "quiz_session_completed",

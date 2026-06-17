@@ -33,6 +33,7 @@ from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
 from backend.schemas.interactive_response import InteractiveResponseMessage
 from backend.services.conversation_manager import ConversationManager
 from backend.services.interactive_response import InteractiveResponseService
+from backend.services.interactive_session.tagging import prefix_for_delivery
 from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
 from backend.websocket.connection_manager import ConnectionManager
 
@@ -230,13 +231,9 @@ class AudioSessionHandler:
                                     logger.debug("ws_backend_prompt_expired")
                                     continue
 
-                                # Carry quiz session_id into the prompt so Gemini can use
-                                # get_current_quiz_question / submit_quiz_answer.
-                                if metadata:
-                                    delivery_type = metadata.get("delivery_type", "")
-                                    if delivery_type == "quiz_start" and metadata.get("session_id"):
-                                        sid = metadata["session_id"]
-                                        text = f"[quiz session {sid}] {text}"
+                                prefix = prefix_for_delivery(metadata)
+                                if prefix:
+                                    text = f"{prefix} {text}"
 
                                 # Detect voice_instruction change: reconnect inline
                                 if (

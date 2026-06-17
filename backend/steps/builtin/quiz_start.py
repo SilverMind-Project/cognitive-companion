@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend.core.logging import get_logger
 from backend.models.knowledge import Quiz, QuizSession
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.services.interactive_session import schedule_session_timeout
 from backend.steps import StepRegistry
 from backend.steps.base import (
     ServiceContainer,
@@ -141,19 +142,13 @@ class QuizStartStep(StepHandler):
 
         # Schedule timeout
         timeout_at = datetime.now(UTC) + timedelta(minutes=timeout_minutes)
-        if services.scheduler:
-            try:
-                job_id = f"quiz_timeout_{result.session_id}"
-                services.scheduler.apscheduler.add_job(
-                    self._handle_timeout,
-                    "date",
-                    run_date=timeout_at,
-                    id=job_id,
-                    args=[result.session_id, delivery_svc],
-                    replace_existing=True,
-                )
-            except Exception:
-                logger.exception("quiz_timeout_schedule_failed", session_id=result.session_id)
+        schedule_session_timeout(
+            services.scheduler,
+            job_id=f"quiz_timeout_{result.session_id}",
+            run_at=timeout_at,
+            finalize=self._handle_timeout,
+            args=[result.session_id, delivery_svc],
+        )
 
         logger.info(
             "quiz_start_step_executed",

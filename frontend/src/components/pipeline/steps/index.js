@@ -43,6 +43,7 @@ export const stepConfigMap = {
   condition:           { component: ConditionConfig,           defaults: condDefaults,    tabs: condTabs },
   verification:        { component: VerificationConfig,        defaults: verDefaults,     tabs: verTabs,    beforeSave: verBeforeSave,    onStepLoaded: verOnStepLoaded },
   interactive_prompt:  { component: InteractivePromptConfig,   defaults: ipDefaults,      tabs: ipTabs },
+  guided_task_start:   { component: GenericPluginConfig,        defaults: { require_presence: true, dedupe_hours: 0 }, tabs: genericTabs },
   media_window_poll:   { component: MediaWindowPollConfig,     defaults: mwpDefaults,     tabs: mwpTabs },
   info_card:           { component: InfoCardConfig,            defaults: infoCardDefaults, tabs: infoCardTabs },
   image_crop:          { component: ImageCropConfig,           defaults: imageCropDefaults, tabs: imageCropTabs },

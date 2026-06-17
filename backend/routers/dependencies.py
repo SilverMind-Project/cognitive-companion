@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from backend.integrations.minio_client import MinioClient
     from backend.integrations.tracking_orchestrator_client import OrchestratorClient
     from backend.mcp.gemini_adapter import GeminiToolAdapter
+    from backend.services.companion_surface import CompanionSurfaceService
     from backend.services.conversation_manager import ConversationManager
     from backend.services.cts.ph_enrichment import PHEnrichmentService
     from backend.services.cts.runtime import CTSRuntime
@@ -55,6 +56,7 @@ if TYPE_CHECKING:
     from backend.websocket.connection_manager import ConnectionManager
 
 __all__ = [
+    "get_companion_surface_service",
     "get_config_minio_client",
     "get_conversation_manager",
     "get_cts_runtime",
@@ -159,6 +161,14 @@ def get_conversation_manager(request: Request) -> ConversationManager:
     svc: ConversationManager | None = request.app.state.conversation_manager
     if svc is None:
         raise _raise_503("conversation_manager", "Conversation manager")
+    return svc
+
+
+def get_companion_surface_service(request: Request) -> CompanionSurfaceService:
+    """Return the lifespan-managed companion surface service (503 if unavailable)."""
+    svc: CompanionSurfaceService | None = request.app.state.companion_surface_service
+    if svc is None:
+        raise _raise_503("companion_surface_service", "Companion surface service")
     return svc
 
 

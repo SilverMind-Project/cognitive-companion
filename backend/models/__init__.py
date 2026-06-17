@@ -1,5 +1,6 @@
 """Re-export all ORM models so that `import backend.models` registers them with Base."""
 
+from backend.models.companion_surface import CompanionSurface
 from backend.models.conversation import ConversationSession, ConversationTurn
 from backend.models.cron_trigger import CronTrigger, RuleCronTrigger
 from backend.models.cts_camera import CtsCamera
@@ -50,6 +51,7 @@ __all__ = [
     "ActiveImageState",
     "ActivitySession",
     "ActivityTypeEnum",
+    "CompanionSurface",
     "ConversationSession",
     "ConversationTurn",
     "CronTrigger",

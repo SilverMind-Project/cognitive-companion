@@ -98,6 +98,14 @@ class GuidedTaskStore:
         finally:
             db.close()
 
+    def list_summoning_sessions(self) -> list[GuidedSession]:
+        db = self._db_factory()
+        try:
+            stmt = select(GuidedSession).where(GuidedSession.status == "summoning")
+            return list(db.execute(stmt).scalars().all())
+        finally:
+            db.close()
+
     def update_session(self, session_id: int, **values: Any) -> GuidedSession | None:
         db = self._db_factory()
         try:
@@ -139,19 +147,40 @@ class GuidedTaskStore:
         finally:
             db.close()
 
-    def latest_event_at(self, *, session_id: int, kind: str, step_ord: int) -> datetime | None:
+    def latest_event_at(
+        self, *, session_id: int, kind: str, step_ord: int | None
+    ) -> datetime | None:
         db = self._db_factory()
         try:
+            step_filter = (
+                GuidedSessionEvent.step_ord.is_(None)
+                if step_ord is None
+                else GuidedSessionEvent.step_ord == step_ord
+            )
             stmt = (
                 select(GuidedSessionEvent.at)
                 .where(
                     GuidedSessionEvent.session_id == session_id,
                     GuidedSessionEvent.kind == kind,
-                    GuidedSessionEvent.step_ord == step_ord,
+                    step_filter,
                 )
                 .order_by(GuidedSessionEvent.at.desc())
             )
             return db.execute(stmt).scalars().first()
+        finally:
+            db.close()
+
+    def count_events(self, *, session_id: int, kind: str) -> int:
+        db = self._db_factory()
+        try:
+            return int(
+                db.query(GuidedSessionEvent)
+                .filter(
+                    GuidedSessionEvent.session_id == session_id,
+                    GuidedSessionEvent.kind == kind,
+                )
+                .count()
+            )
         finally:
             db.close()
 

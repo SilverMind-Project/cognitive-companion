@@ -45,6 +45,10 @@ class GuidedTaskService:
         db_factory: Callable[[], Session],
         scheduler: Any = None,
         pipeline_executor: Any = None,
+        person_location_service: Any = None,
+        companion_surface_service: Any = None,
+        ws_manager: Any = None,
+        notification_dispatcher: Any = None,
         voice: SessionVoice | None = None,
         safety_watch: SafetyWatch | None = None,
         escalator: Escalator | None = None,
@@ -54,12 +58,19 @@ class GuidedTaskService:
         self._db_factory = db_factory
         self._scheduler = scheduler
         self._pipeline_executor = pipeline_executor
+        self._person_location_service = person_location_service
+        self._companion_surface_service = companion_surface_service
+        self._ws_manager = ws_manager
+        self._notification_dispatcher = notification_dispatcher
         self._voice = voice or NoopSessionVoice()
         self._safety_watch = safety_watch or NoopSafetyWatch()
         self._escalator = escalator or NoopEscalator()
         self._settings = settings or default_settings
         self._time_fn = time_fn or (lambda: datetime.now(UTC))
         self._store = GuidedTaskStore(db_factory)
+
+    def set_person_location_service(self, person_location_service: Any) -> None:
+        self._person_location_service = person_location_service
 
     async def start(
         self,
@@ -68,6 +79,24 @@ class GuidedTaskService:
         *,
         execution_id: int | None = None,
         surface_id: str | None = None,
+    ) -> GuidedSession:
+        return await self.request_start(
+            routine_id,
+            person_id,
+            execution_id=execution_id,
+            surface_id=surface_id,
+            require_presence=False,
+        )
+
+    async def request_start(
+        self,
+        routine_id: int,
+        person_id: str,
+        *,
+        execution_id: int | None = None,
+        surface_id: str | None = None,
+        require_presence: bool = True,
+        summon_timeout_s: int = 300,
     ) -> GuidedSession:
         now = self._now()
         routine, steps = self._load_routine_and_steps(routine_id)
@@ -84,25 +113,152 @@ class GuidedTaskService:
             logger.warning("guided_live_session_exists", person_id=person_id, session_id=live.id)
             raise ConflictError(f"Live guided session already exists for person '{person_id}'")
 
+        if not require_presence:
+            session = self._store.create_session(
+                routine_id=routine_id,
+                person_id=person_id,
+                status="active",
+                execution_id=execution_id,
+                surface_id=surface_id,
+                now=now,
+            )
+            return await self._begin_session(session.id, routine=routine, steps=steps, now=now)
+
+        location = await self._current_location(person_id)
+        selected_surface_id = surface_id
+        if selected_surface_id is None and location is not None and location.room_id is not None:
+            surfaces = self._surfaces_in_room(location.room_id)
+            if surfaces:
+                selected_surface_id = surfaces[0].id
+
+        if selected_surface_id is not None and self._has_live_realtime_session():
+            session = self._store.create_session(
+                routine_id=routine_id,
+                person_id=person_id,
+                status="active",
+                execution_id=execution_id,
+                surface_id=selected_surface_id,
+                now=now,
+            )
+            return await self._begin_session(session.id, routine=routine, steps=steps, now=now)
+
         session = self._store.create_session(
             routine_id=routine_id,
             person_id=person_id,
-            status="active",
+            status="summoning",
             execution_id=execution_id,
-            surface_id=surface_id,
+            surface_id=selected_surface_id,
             now=now,
         )
-        step = steps[0]
         self._store.add_event(
             session_id=session.id,
             at=now,
+            kind="summon_started",
+            step_ord=None,
+            actor="system",
+            detail={"summon_timeout_s": summon_timeout_s},
+        )
+        await self._announce_summon(
+            session=session,
+            routine=routine,
+            room_name=self._location_room_name(location),
+            broad=selected_surface_id is None,
+        )
+        self._schedule_summon_recheck(session.id, summon_timeout_s, now)
+        if selected_surface_id is not None:
+            await self._cross_check_surface(selected_surface_id, person_id)
+        return session
+
+    async def on_session_opened(self) -> None:
+        """Best-effort hook called when a realtime companion session opens."""
+        for session in self._store.list_summoning_sessions():
+            await self._summon_recheck(session.id, self._settings.as_int("guided_task.step_timeout_s"))
+
+    async def _begin_session(
+        self,
+        session_id: int,
+        *,
+        routine: Routine | None = None,
+        steps: list[RoutineStep] | None = None,
+        now: datetime | None = None,
+    ) -> GuidedSession:
+        begin_at = now or self._now()
+        session = self._store.get_session(session_id)
+        if session is None:
+            raise NotFoundError("Guided session", session_id)
+        if routine is None or steps is None:
+            routine, steps = self._load_routine_and_steps(session.routine_id)
+        updated = self._store.update_session(
+            session_id,
+            status="active",
+            current_step_ord=0,
+            attempts=0,
+            last_activity_at=begin_at,
+        )
+        if updated is None:
+            raise NotFoundError("Guided session", session_id)
+        step = steps[0]
+        self._store.add_event(
+            session_id=session_id,
+            at=begin_at,
             kind="step_entered",
             step_ord=step.ord,
             actor="system",
         )
-        await self._speak(session, step, is_retry=False)
-        self._schedule_timeout(session, routine, step, now)
-        return session
+        await self._speak(updated, step, is_retry=False)
+        self._schedule_timeout(updated, routine, step, begin_at)
+        return updated
+
+    async def _summon_recheck(self, session_id: int, summon_timeout_s: int) -> None:
+        now = self._now()
+        session = self._store.get_session(session_id)
+        if session is None or session.status != "summoning":
+            return
+        routine, steps = self._load_routine_and_steps(session.routine_id)
+        if (now - session.started_at).total_seconds() > summon_timeout_s:
+            updated = self._store.update_session(
+                session.id,
+                status="abandoned",
+                completed_at=now,
+                outcome="summon_timeout",
+                last_activity_at=now,
+            )
+            self._store.add_event(
+                session_id=session.id,
+                at=now,
+                kind="session_abandoned",
+                step_ord=None,
+                actor="system",
+                detail={"outcome": "summon_timeout"},
+            )
+            logger.info("guided_summon_timeout", session_id=session.id, person_id=session.person_id)
+            resume_owning_pipeline(
+                self._pipeline_executor,
+                self._db_factory,
+                updated.execution_id if updated is not None else session.execution_id,
+            )
+            return
+
+        location = await self._current_location(session.person_id)
+        surface_id = session.surface_id
+        if surface_id is None and location is not None and location.room_id is not None:
+            surfaces = self._surfaces_in_room(location.room_id)
+            if surfaces:
+                surface_id = surfaces[0].id
+                self._store.update_session(session.id, surface_id=surface_id, last_activity_at=now)
+
+        if surface_id is not None and self._has_live_realtime_session():
+            await self._begin_session(session.id, routine=routine, steps=steps, now=now)
+            return
+
+        if self._store.count_events(session_id=session.id, kind="summon_announced") <= 1:
+            await self._announce_summon(
+                session=session,
+                routine=routine,
+                room_name=self._location_room_name(location),
+                broad=surface_id is None,
+            )
+        self._schedule_summon_recheck(session.id, summon_timeout_s, now)
 
     async def handle_completion(self, session_id: int, evidence: dict) -> Decision:
         now = self._now()
@@ -484,6 +640,106 @@ class GuidedTaskService:
             step=step,
             rendered_prompt=rendered,
             is_retry=is_retry,
+        )
+
+    async def _current_location(self, person_id: str) -> Any | None:
+        person_location = self._person_location_service
+        if person_location is None:
+            return None
+        return await person_location.where_is(person_id)
+
+    def _surfaces_in_room(self, room_id: int) -> list[Any]:
+        companion_surfaces = self._companion_surface_service
+        if companion_surfaces is None:
+            return []
+        return companion_surfaces.surfaces_in_room(room_id)
+
+    def _has_live_realtime_session(self) -> bool:
+        ws_manager = self._ws_manager
+        if ws_manager is None:
+            return False
+        # TODO(multi-surface): route websocket presence by companion surface id.
+        has_connections = ws_manager.has_connections
+        if callable(has_connections):
+            return bool(has_connections())
+        return bool(has_connections)
+
+    def _location_room_name(self, location: Any | None) -> str:
+        if location is None:
+            return "home"
+        room_name = getattr(location, "room_name", None)
+        if room_name:
+            return str(room_name)
+        room_id = getattr(location, "room_id", None)
+        return f"room {room_id}" if room_id is not None else "home"
+
+    async def _announce_summon(
+        self,
+        *,
+        session: GuidedSession,
+        routine: Routine,
+        room_name: str,
+        broad: bool,
+    ) -> None:
+        channels = routine.summon_channels_override or self._settings.as_list(
+            "guided_task.summon_channels"
+        )
+        message = "Please come to the companion screen when you are ready for your routine."
+        dispatcher = self._notification_dispatcher
+        if dispatcher is None:
+            logger.warning(
+                "guided_summon_announce_skipped",
+                session_id=session.id,
+                reason="notification_dispatcher_unavailable",
+            )
+        else:
+            try:
+                await dispatcher.dispatch(
+                    alert_level="reminder",
+                    message=message,
+                    room_name=room_name,
+                    rule_config={"channels": channels},
+                )
+            except Exception:
+                logger.exception("guided_summon_announce_failed", session_id=session.id)
+        self._store.add_event(
+            session_id=session.id,
+            at=self._now(),
+            kind="summon_announced",
+            step_ord=None,
+            actor="system",
+            detail={"channels": channels, "room_name": room_name, "broad": broad},
+        )
+        logger.info(
+            "guided_summon_announced",
+            session_id=session.id,
+            room_name=room_name,
+            channels=channels,
+            broad=broad,
+        )
+
+    async def _cross_check_surface(self, surface_id: str, person_id: str) -> None:
+        companion_surfaces = self._companion_surface_service
+        if companion_surfaces is None:
+            return
+        await companion_surfaces.cross_check_room(surface_id, person_id)
+
+    def _schedule_summon_recheck(
+        self,
+        session_id: int,
+        summon_timeout_s: int,
+        now: datetime,
+    ) -> None:
+        interval_s = max(1, min(30, summon_timeout_s // 4))
+        scheduler = self._scheduler
+        if scheduler is not None and not hasattr(scheduler, "apscheduler"):
+            scheduler = SimpleNamespace(apscheduler=scheduler)
+        schedule_session_timeout(
+            scheduler,
+            job_id=f"guided_summon_recheck_{session_id}",
+            run_at=now + timedelta(seconds=interval_s),
+            finalize=self._summon_recheck,
+            args=[session_id, summon_timeout_s],
         )
 
     def _schedule_timeout(

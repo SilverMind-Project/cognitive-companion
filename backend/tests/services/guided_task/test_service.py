@@ -157,15 +157,18 @@ async def test_handle_completion_advances_to_next_step(db_session, db_factory):
     service = _service(db_factory, clock, voice=voice)
     session = await service.start(routine_id, "resident-1")
 
-    decision = await service.handle_completion(
+    result = await service.handle_completion(
         session.id, {"confirmed": True, "step_ord": 0}
     )
 
-    assert decision.kind == "advance"
+    assert result["advanced"] is True
+    assert result["done"] is False
+    assert result["next_step"]["step_ord"] == 1
+    assert result["next_step"]["prompt_text"] == "Step 1 for resident-1"
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)
     assert stored.current_step_ord == 1
-    assert voice.calls[-1] == (1, "Step 1 for resident-1", False)
+    assert voice.calls == [(0, "Step 0 for resident-1", False)]
 
 
 @pytest.mark.asyncio
@@ -178,11 +181,13 @@ async def test_handle_completion_on_last_step_completes_and_resumes_pipeline(
     service = _service(db_factory, clock, pipeline_executor=executor)
     session = await service.start(routine_id, "resident-1", execution_id=42)
 
-    decision = await service.handle_completion(
+    result = await service.handle_completion(
         session.id, {"confirmed": True, "step_ord": 0}
     )
 
-    assert decision.kind == "complete"
+    assert result["advanced"] is True
+    assert result["done"] is True
+    assert result["next_step"] is None
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)
     assert stored.status == "completed"
@@ -197,11 +202,12 @@ async def test_duplicate_completion_is_idempotent(db_session, db_factory):
     session = await service.start(routine_id, "resident-1")
     await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
 
-    decision = await service.handle_completion(
+    result = await service.handle_completion(
         session.id, {"confirmed": True, "step_ord": 0}
     )
 
-    assert decision.kind == "noop"
+    assert result["advanced"] is False
+    assert result["reason"] == "stale_step_completion"
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)
     assert stored.current_step_ord == 1

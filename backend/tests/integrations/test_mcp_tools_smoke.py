@@ -50,15 +50,21 @@ EXPECTED_TOOLS = {
     "get_current_quiz_question",
     "submit_quiz_answer",
     "complete_quiz_session",
+    "get_active_guided_step",
+    "mark_guided_step_complete",
+    "repeat_guided_step",
+    "report_step_blocked",
+    "request_caregiver_help",
     "list_rules",
     "list_plugin_metadata",
     "get_rule_bundle",
     "import_rule_bundle",
     "get_heatmap",
     "get_gait_trend",
+    "acknowledge_dementia_signal",
 }
 
-EXPECTED_COUNT = 41
+EXPECTED_COUNT = 47
 
 
 # ---------------------------------------------------------------------------

@@ -212,6 +212,11 @@ mcp:
     - "submit_quiz_answer"
     - "get_current_quiz_question"
     - "complete_quiz_session"
+    - "get_active_guided_step"
+    - "mark_guided_step_complete"
+    - "repeat_guided_step"
+    - "report_step_blocked"
+    - "request_caregiver_help"
 
 # Person Identification Service
 person_id:

@@ -23,6 +23,7 @@ class VoiceInstructionConfig:
     interactive_prompt_default: str = ""
     info_card_default: str = ""
     quiz_default: str = ""
+    guided_task_default: str = ""
 
     @classmethod
     def load(cls, path: str | Path) -> VoiceInstructionConfig:
@@ -41,6 +42,7 @@ class VoiceInstructionConfig:
             interactive_prompt_default=raw.get("interactive_prompt_default", "").strip(),
             info_card_default=raw.get("info_card_default", "").strip(),
             quiz_default=raw.get("quiz_default", "").strip(),
+            guided_task_default=raw.get("guided_task_default", "").strip(),
         )
         logger.info("voice_instructions_loaded", path=str(path))
         return config

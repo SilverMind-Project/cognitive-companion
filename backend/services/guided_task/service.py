@@ -15,6 +15,7 @@ from backend.core.exceptions import ConflictError, NotFoundError, ValidationErro
 from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.guided_task import GuidedSession, Routine, RoutineStep
+from backend.models.person import HouseholdMember
 from backend.services.guided_task.completion.response import build_evaluators
 from backend.services.guided_task.domain import Decision, SessionView, StepView
 from backend.services.guided_task.policy import resolve_policy
@@ -49,6 +50,7 @@ class GuidedTaskService:
         companion_surface_service: Any = None,
         ws_manager: Any = None,
         notification_dispatcher: Any = None,
+        memory_query: Any = None,
         voice: SessionVoice | None = None,
         safety_watch: SafetyWatch | None = None,
         escalator: Escalator | None = None,
@@ -62,6 +64,7 @@ class GuidedTaskService:
         self._companion_surface_service = companion_surface_service
         self._ws_manager = ws_manager
         self._notification_dispatcher = notification_dispatcher
+        self._memory_query = memory_query
         self._voice = voice or NoopSessionVoice()
         self._safety_watch = safety_watch or NoopSafetyWatch()
         self._escalator = escalator or NoopEscalator()
@@ -260,29 +263,43 @@ class GuidedTaskService:
             )
         self._schedule_summon_recheck(session.id, summon_timeout_s, now)
 
-    async def handle_completion(self, session_id: int, evidence: dict) -> Decision:
+    async def get_active_step(self, session_id: int) -> dict:
+        session = self._store.get_session(session_id)
+        if session is None:
+            raise NotFoundError("Guided session", session_id)
+        if session.status == "completed":
+            return {"done": True}
+        routine, steps = self._load_routine_steps(session.routine_id)
+        if not steps:
+            raise ValidationError("Routine has no steps")
+        step = self._step_by_ord(steps, session.current_step_ord)
+        return await self._step_descriptor(session, routine, steps, step)
+
+    async def handle_completion(self, session_id: int, evidence: dict) -> dict:
         now = self._now()
         session, routine, steps, step = self._load_runtime(session_id)
         expected_step_ord = evidence.get("step_ord")
         if expected_step_ord is not None and expected_step_ord != session.current_step_ord:
-            return Decision(
+            decision = Decision(
                 kind="noop",
                 next_status=session.status,
                 next_step_ord=session.current_step_ord,
                 attempts=session.attempts,
                 reason="stale_step_completion",
             )
+            return self._decision_descriptor(decision)
 
         evaluator = build_evaluators(step.completion_gate)[0]
         result = await evaluator.is_complete(session=session, step=step, evidence=evidence)
         if not result.complete:
-            return Decision(
+            decision = Decision(
                 kind="wait",
                 next_status=session.status,
                 next_step_ord=session.current_step_ord,
                 attempts=session.attempts,
                 reason=result.reason,
             )
+            return self._decision_descriptor(decision)
 
         decision = GuidedTaskStateMachine.decide(
             self._session_view(session, steps),
@@ -301,8 +318,65 @@ class GuidedTaskService:
             event_kind="step_completed",
             actor="resident",
             detail={"completion_reason": result.reason},
+            speak_on_advance=False,
         )
-        return decision
+        return await self._advance_descriptor(session.id, routine, steps, decision)
+
+    async def repeat_step(self, session_id: int) -> dict:
+        session, routine, steps, step = self._load_runtime(session_id)
+        self._store.add_event(
+            session_id=session.id,
+            at=self._now(),
+            kind="step_repeated",
+            step_ord=step.ord,
+            actor="resident",
+            detail={"source": "agent"},
+        )
+        descriptor = await self._step_descriptor(session, routine, steps, step)
+        return {
+            "step_ord": descriptor["step_ord"],
+            "prompt_text": descriptor["prompt_text"],
+        }
+
+    async def report_blocked(self, session_id: int, reason: str) -> dict:
+        session, _routine, _steps, step = self._load_runtime(session_id)
+        self._store.add_event(
+            session_id=session.id,
+            at=self._now(),
+            kind="step_blocked",
+            step_ord=step.ord,
+            actor="resident",
+            detail={"reason": reason, "source": "agent"},
+        )
+        logger.info("guided_step_blocked", session_id=session.id, step_ord=step.ord)
+        return {"acknowledged": True}
+
+    async def request_help(self, session_id: int, reason: str | None = None) -> dict:
+        session, _routine, _steps, step = self._load_runtime(session_id)
+        help_reason = reason or "resident_requested"
+        self._store.update_session(
+            session.id,
+            status="escalated",
+            last_activity_at=self._now(),
+        )
+        self._store.add_event(
+            session_id=session.id,
+            at=self._now(),
+            kind="help_requested",
+            step_ord=step.ord,
+            actor="resident",
+            detail={"reason": help_reason, "source": "agent"},
+        )
+        updated = self._store.get_session(session.id)
+        if updated is None:
+            raise NotFoundError("Guided session", session.id)
+        await self._escalator.escalate(
+            session=updated,
+            reason=help_reason,
+            emergency=False,
+        )
+        logger.info("guided_help_requested", session_id=session.id, step_ord=step.ord)
+        return {"acknowledged": True}
 
     async def on_step_timeout(self, session_id: int) -> Decision:
         now = self._now()
@@ -492,6 +566,7 @@ class GuidedTaskService:
         event_kind: str,
         actor: str,
         detail: dict | None,
+        speak_on_advance: bool = True,
     ) -> None:
         if decision.kind == "noop":
             return
@@ -544,7 +619,8 @@ class GuidedTaskService:
                 step_ord=next_step.ord,
                 actor="system",
             )
-            await self._speak(updated, next_step, is_retry=False)
+            if speak_on_advance:
+                await self._speak(updated, next_step, is_retry=False)
             self._schedule_timeout(updated, routine, next_step, now)
             return
 
@@ -579,14 +655,6 @@ class GuidedTaskService:
             )
             if updated is None:
                 raise NotFoundError("Guided session", session.id)
-            self._store.add_event(
-                session_id=session.id,
-                at=now,
-                kind="escalation",
-                step_ord=current_step.ord,
-                actor="system",
-                detail={"reason": decision.reason, "emergency": decision.emergency},
-            )
             await self._escalator.escalate(
                 session=updated,
                 reason=decision.reason,
@@ -624,7 +692,89 @@ class GuidedTaskService:
             await self.complete(session.id, "completed")
 
     async def _speak(self, session: GuidedSession, step: RoutineStep, *, is_retry: bool) -> None:
-        rendered = render_template(
+        routine = self._store.get_routine(session.routine_id)
+        if routine is None:
+            raise NotFoundError("Routine", session.routine_id)
+        rendered = await self._render_step_prompt(session, routine, step)
+        voice_session = SimpleNamespace(
+            id=session.id,
+            routine_id=session.routine_id,
+            person_id=session.person_id,
+            execution_id=session.execution_id,
+            surface_id=session.surface_id,
+            status=session.status,
+            current_step_ord=session.current_step_ord,
+            attempts=session.attempts,
+            routine_system_instruction_override=routine.system_instruction_override,
+            resident_name=self._resident_name(session.person_id),
+        )
+        await self._voice.speak_step(
+            session=voice_session,
+            step=step,
+            rendered_prompt=rendered,
+            is_retry=is_retry,
+        )
+
+    async def _step_descriptor(
+        self,
+        session: GuidedSession,
+        routine: Routine,
+        steps: list[RoutineStep],
+        step: RoutineStep,
+    ) -> dict:
+        return {
+            "step_ord": step.ord,
+            "total": len(steps),
+            "prompt_text": await self._render_step_prompt(session, routine, step),
+            "is_retry": session.attempts > 0,
+        }
+
+    async def _advance_descriptor(
+        self,
+        session_id: int,
+        routine: Routine,
+        steps: list[RoutineStep],
+        decision: Decision,
+    ) -> dict:
+        base = self._decision_descriptor(decision)
+        if decision.kind == "complete":
+            base.update({"advanced": True, "done": True, "next_step": None})
+            return base
+        if decision.kind not in {"advance", "skip"}:
+            return base
+        updated = self._store.get_session(session_id)
+        if updated is None:
+            raise NotFoundError("Guided session", session_id)
+        next_step = self._step_by_ord(steps, decision.next_step_ord)
+        base.update(
+            {
+                "advanced": True,
+                "done": False,
+                "next_step": await self._step_descriptor(updated, routine, steps, next_step),
+            }
+        )
+        return base
+
+    def _decision_descriptor(self, decision: Decision) -> dict:
+        if decision.kind == "wait":
+            return {"advanced": False, "reason": decision.reason}
+        if decision.kind == "noop":
+            return {"advanced": False, "reason": decision.reason}
+        return {
+            "advanced": decision.kind in {"advance", "skip", "complete"},
+            "done": decision.kind == "complete",
+            "reason": decision.reason,
+            "next_step": None,
+        }
+
+    async def _render_step_prompt(
+        self,
+        session: GuidedSession,
+        routine: Routine,
+        step: RoutineStep,
+    ) -> str:
+        memory_context = await self._memory_context(session, routine)
+        return render_template(
             step.prompt_template,
             {
                 "session": {
@@ -632,15 +782,41 @@ class GuidedTaskService:
                     "person_id": session.person_id,
                     "current_step_ord": session.current_step_ord,
                 },
+                "routine": {"id": routine.id, "name": routine.name},
                 "step": {"ord": step.ord},
+                "memory_context": memory_context,
             },
         )
-        await self._voice.speak_step(
-            session=session,
-            step=step,
-            rendered_prompt=rendered,
-            is_retry=is_retry,
-        )
+
+    async def _memory_context(self, session: GuidedSession, routine: Routine) -> str:
+        memory_query = self._memory_query
+        if memory_query is None:
+            return ""
+        try:
+            hits = await memory_query.search_observations(routine.name, limit=3)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "guided_memory_context_unavailable",
+                session_id=session.id,
+                error=str(exc),
+            )
+            return ""
+        summaries: list[str] = []
+        for hit in hits:
+            description = getattr(hit, "description", "")
+            if description:
+                summaries.append(str(description))
+        return " ".join(summaries[:3])
+
+    def _resident_name(self, person_id: str) -> str:
+        db = self._db_factory()
+        try:
+            member = db.get(HouseholdMember, person_id)
+            if member is not None and member.name:
+                return member.name
+            return person_id
+        finally:
+            db.close()
 
     async def _current_location(self, person_id: str) -> Any | None:
         person_location = self._person_location_service

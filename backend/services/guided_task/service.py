@@ -173,9 +173,19 @@ class GuidedTaskService:
         return session
 
     async def on_session_opened(self) -> None:
-        """Best-effort hook called when a realtime companion session opens."""
+        """Best-effort hook called when a realtime companion session opens.
+
+        Invoked fire-and-forget from the websocket connect path, so it must never
+        raise into the audio loop: a failure to re-check one summoning session is
+        logged and the rest are still attempted.
+        """
         for session in self._store.list_summoning_sessions():
-            await self._summon_recheck(session.id, self._settings.as_int("guided_task.step_timeout_s"))
+            try:
+                await self._summon_recheck(
+                    session.id, self._settings.as_int("guided_task.step_timeout_s")
+                )
+            except Exception:
+                logger.exception("guided_on_session_opened_recheck_failed", session_id=session.id)
 
     async def _begin_session(
         self,

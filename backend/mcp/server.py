@@ -1298,11 +1298,19 @@ async def get_active_guided_step(session_id: int) -> dict:
 
 
 @_register
-async def mark_guided_step_complete(session_id: int, note: str | None = None) -> dict:
-    """Agent-facing: propose that the resident completed the current guided step."""
+async def mark_guided_step_complete(
+    session_id: int, step_ord: int, note: str | None = None
+) -> dict:
+    """Agent-facing: propose that the resident completed the current guided step.
+
+    Pass ``step_ord`` as the step number you are confirming (the ``step_ord`` you
+    received from ``get_active_guided_step`` or the previous advance). It is required
+    so a repeated call for a step that already advanced is ignored instead of
+    skipping the next step. Always call this only after the resident confirms.
+    """
     if _svc.guided_task_service is None:
         return {"error": "Guided task service not available"}
-    evidence = {"confirmed": True, "source": "agent"}
+    evidence: dict = {"confirmed": True, "source": "agent", "step_ord": step_ord}
     if note:
         evidence["note"] = note
     return await _svc.guided_task_service.handle_completion(session_id, evidence=evidence)

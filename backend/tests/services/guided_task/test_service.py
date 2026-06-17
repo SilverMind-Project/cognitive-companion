@@ -284,3 +284,29 @@ async def test_events_written_with_correct_actor(db_session, db_factory):
     actors_by_kind = [(row.kind, row.actor) for row in rows]
     assert ("step_entered", "system") in actors_by_kind
     assert ("step_completed", "resident") in actors_by_kind
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_path_duplicate_completion_is_noop(db_session, db_factory):
+    """The real MCP tool forwards step_ord, so a repeated agent call for the same
+    step is ignored instead of skipping the next step (F2 regression guard)."""
+    from backend.mcp.server import _svc, mark_guided_step_complete
+
+    routine_id = _seed_routine(db_session, steps=3)
+    service = _service(db_factory, _Clock())
+    session = await service.start(routine_id, "resident-1")
+
+    original = _svc.guided_task_service
+    _svc.guided_task_service = service
+    try:
+        first = await mark_guided_step_complete(session.id, 0)
+        second = await mark_guided_step_complete(session.id, 0)
+    finally:
+        _svc.guided_task_service = original
+
+    assert first["advanced"] is True
+    assert second["advanced"] is False
+    assert second["reason"] == "stale_step_completion"
+    db_session.expire_all()
+    stored = db_session.get(GuidedSession, session.id)
+    assert stored.current_step_ord == 1

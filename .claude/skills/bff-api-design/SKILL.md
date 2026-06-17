@@ -178,6 +178,18 @@ async def test_my_resource_parity():
 
 Add the endpoint to `docs/api/reference.md`. If the surface area is significant, add a feature page.
 
+## Guided-task MCP tools
+
+Guided-task agent tools are `get_active_guided_step`,
+`mark_guided_step_complete`, `repeat_guided_step`, `report_step_blocked`, and
+`request_caregiver_help`. They follow the same single-service-layer rule as every
+other MCP tool: call `GuidedTaskService`, with no query logic, repository import,
+or store access in the tool function.
+
+Add each tool to the `mcp.gemini_tools` allowlist in `config/settings.yaml`. Add
+registry smoke coverage plus router/MCP parity or direct service/tool coverage for
+any browser-visible guided-task data or mutation.
+
 ## Verification commands
 
 ```bash

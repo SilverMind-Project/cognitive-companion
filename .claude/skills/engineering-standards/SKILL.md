@@ -1031,3 +1031,31 @@ All CTS routers follow the same pattern:
 ### Third-party git sources
 
 The `triton-shared` package is sourced directly from a GitHub repo via `[tool.uv.sources]`. This bypasses PyPI release signing. Before updating the pinned commit, verify the commit is on the expected branch and review the diff.
+
+---
+
+## 24. Guided task and interactive sessions
+
+Guided tasks are long-lived, stateful coaching sessions. A deterministic state
+machine owns advancement, retry, skip, escalation, abandonment, and timeouts; the
+live agent owns only the per-turn conversation. Load the full guided-companion
+skill before changing this area:
+`/home/sriram/code/nanai/cognitive-companion/.claude/skills/guided-companion/SKILL.md`.
+
+Configuration precedence for every `guided_task.*` policy value resolves from the
+global default, then the routine override, then the step override, with the most
+specific non-null value winning. Use `resolve_policy(...)`; never read a global
+default directly when a routine or step override may exist.
+
+The guided-task state machine must be pure and clock-injectable. Pass the current
+time into decisions, and use fake clocks in tests instead of sleeping. Use
+`PerCameraRateLimiter` and `CooldownTracker` in `backend.services.aggregation` as
+references for injectable time patterns.
+
+Do not duplicate the quiz session mechanics. Shared prompt injection, durable
+session tagging, timeouts, and pipeline park/resume belong in
+`backend/services/interactive_session/`, and guided-task code should call those
+primitives after M2 creates them.
+
+Full patterns:
+`/home/sriram/code/nanai/cognitive-companion/.claude/skills/guided-companion/SKILL.md`.

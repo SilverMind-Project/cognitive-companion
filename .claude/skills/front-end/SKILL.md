@@ -1315,6 +1315,19 @@ frontend/
 
 ---
 
+## Routine Builder
+
+The guided-task Routine Builder in M9 is a linear step-list editor, not a Vue Flow
+graph canvas. Reuse the existing SchemaForm and step-config components where they
+fit, and expose per-routine policy overrides, per-step policy overrides,
+completion-gate settings, and zone/camera pickers without introducing a parallel
+pipeline-authoring model.
+
+Use the guided-companion skill for the routine/session data model and domain rules:
+`/home/sriram/code/nanai/cognitive-companion/.claude/skills/guided-companion/SKILL.md`.
+
+---
+
 ## Toolchain
 
 | Tool | Version | Notes |

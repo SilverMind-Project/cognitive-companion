@@ -65,6 +65,7 @@ class MCPServices:
     knowledge_query: Any = None
     knowledge_delivery: Any = None
     gait_trend_service: Any = None
+    guided_task_service: Any = None
 
 
 _svc = MCPServices()
@@ -89,6 +90,7 @@ def init_services(
     knowledge_query=None,
     knowledge_delivery=None,
     gait_trend_service=None,
+    guided_task_service=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -109,6 +111,12 @@ def init_services(
     _svc.knowledge_query = knowledge_query
     _svc.knowledge_delivery = knowledge_delivery
     _svc.gait_trend_service = gait_trend_service
+    _svc.guided_task_service = guided_task_service
+
+
+def set_guided_task_service(guided_task_service: Any) -> None:
+    """Attach GuidedTaskService after lifespan constructs it."""
+    _svc.guided_task_service = guided_task_service
 
 
 # ---------------------------------------------------------------------------
@@ -1279,6 +1287,49 @@ async def complete_quiz_session(session_id: int) -> dict:
 
     result = await _svc.knowledge_delivery.complete_quiz_session(session_id)
     return result
+
+
+@_register
+async def get_active_guided_step(session_id: int) -> dict:
+    """Agent-facing: return the current guided-task step descriptor."""
+    if _svc.guided_task_service is None:
+        return {"error": "Guided task service not available"}
+    return await _svc.guided_task_service.get_active_step(session_id)
+
+
+@_register
+async def mark_guided_step_complete(session_id: int, note: str | None = None) -> dict:
+    """Agent-facing: propose that the resident completed the current guided step."""
+    if _svc.guided_task_service is None:
+        return {"error": "Guided task service not available"}
+    evidence = {"confirmed": True, "source": "agent"}
+    if note:
+        evidence["note"] = note
+    return await _svc.guided_task_service.handle_completion(session_id, evidence=evidence)
+
+
+@_register
+async def repeat_guided_step(session_id: int) -> dict:
+    """Agent-facing: ask for the current guided-task step text again."""
+    if _svc.guided_task_service is None:
+        return {"error": "Guided task service not available"}
+    return await _svc.guided_task_service.repeat_step(session_id)
+
+
+@_register
+async def report_step_blocked(session_id: int, reason: str) -> dict:
+    """Agent-facing: record that the resident appears blocked on a guided step."""
+    if _svc.guided_task_service is None:
+        return {"error": "Guided task service not available"}
+    return await _svc.guided_task_service.report_blocked(session_id, reason)
+
+
+@_register
+async def request_caregiver_help(session_id: int, reason: str | None = None) -> dict:
+    """Agent-facing: request caregiver help for the current guided-task session."""
+    if _svc.guided_task_service is None:
+        return {"error": "Guided task service not available"}
+    return await _svc.guided_task_service.request_help(session_id, reason)
 
 
 # ---------------------------------------------------------------------------

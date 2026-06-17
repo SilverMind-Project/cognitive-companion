@@ -530,7 +530,12 @@ async def lifespan(app: FastAPI):
     interactive_response_service.scheduler = scheduler_bridge
 
     # -- Guided task service (headless M3 runtime) -------------------------
-    from backend.services.guided_task import GuidedTaskService
+    from backend.mcp.server import set_guided_task_service
+    from backend.services.guided_task import (
+        AgentSessionVoice,
+        GuidedTaskService,
+        NotifyOnlyEscalator,
+    )
 
     guided_task_service = GuidedTaskService(
         db_factory=get_session,
@@ -539,8 +544,22 @@ async def lifespan(app: FastAPI):
         companion_surface_service=companion_surface_service,
         ws_manager=ws_manager,
         notification_dispatcher=notifier,
+        memory_query=memory_query_service,
+        voice=AgentSessionVoice(
+            ws_manager=ws_manager,
+            voice_instructions=voice_instructions,
+            memory_query=memory_query_service,
+        ),
+        escalator=NotifyOnlyEscalator(
+            notifier,
+            db_factory=get_session,
+            settings=settings,
+            conversation_manager=conversation_manager,
+        ),
+        settings=settings,
     )
     app.state.guided_task_service = guided_task_service
+    set_guided_task_service(guided_task_service)
     pipeline_executor._services.guided_task = guided_task_service
 
     # Add HA sensor polling job

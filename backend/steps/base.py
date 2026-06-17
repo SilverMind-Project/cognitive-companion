@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from backend.services.cts.event_bucketizer import CtsEventBucketizer
     from backend.services.daily_report import DailyReportService
     from backend.services.event_aggregator import EventAggregator
+    from backend.services.guided_task.service import GuidedTaskService
     from backend.services.interactive_response import InteractiveResponseService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
     from backend.services.memory_query.service import MemoryQueryService
@@ -118,6 +119,7 @@ class ServiceContainer:
     signals: SignalsService | None = None
     knowledge_delivery: KnowledgeDeliveryService | None = None
     minio_client: MinioClient | None = None
+    guided_task: GuidedTaskService | None = None
     # CTS sliding-window frame buffer, injected after CTS bootstrap. Read by the
     # canonical media poll step and its CTS alias.
     bucketizer: CtsEventBucketizer | None = None

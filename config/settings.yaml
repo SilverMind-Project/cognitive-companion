@@ -145,6 +145,16 @@ conversation:
   history_ttl_minutes: 120
   max_turns: 50
 
+# Guided task companion
+guided_task:
+  max_step_attempts: 3
+  step_timeout_s: 300
+  resume_grace_s: 600
+  transcript_retention_days: 30
+  escalation_channels: ["telegram", "pwa_popup_text"]
+  summon_channels: ["ha_speaker_tts", "pwa_popup_text"]
+  rephrase_via: "agent"
+
 # WebSocket
 websocket:
   max_connections: 10

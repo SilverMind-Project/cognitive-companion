@@ -520,6 +520,17 @@ async def lifespan(app: FastAPI):
     # Inject scheduler bridge into interactive response service
     interactive_response_service.scheduler = scheduler_bridge
 
+    # -- Guided task service (headless M3 runtime) -------------------------
+    from backend.services.guided_task import GuidedTaskService
+
+    guided_task_service = GuidedTaskService(
+        db_factory=get_session,
+        scheduler=scheduler_bridge,
+        pipeline_executor=pipeline_executor,
+    )
+    app.state.guided_task_service = guided_task_service
+    pipeline_executor._services.guided_task = guided_task_service
+
     # Add HA sensor polling job
     from apscheduler.triggers.interval import IntervalTrigger
 

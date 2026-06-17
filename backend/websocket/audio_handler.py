@@ -103,6 +103,18 @@ class AudioSessionHandler:
         if self.conv_manager:
             self._session_id = self.conv_manager.create_session()
 
+        # Best-effort: a freshly opened realtime session may satisfy a guided-task
+        # session that is summoning the resident to a companion surface. Re-check
+        # immediately so "she walks up and it starts" feels instant; the scheduled
+        # recheck remains the robust fallback. Fire-and-forget so it never blocks the
+        # audio loop.
+        guided_task_service = getattr(self.ws.app.state, "guided_task_service", None)
+        if guided_task_service is not None:
+            asyncio.create_task(  # noqa: RUF006
+                guided_task_service.on_session_opened(),
+                name="guided-on-session-opened",
+            )
+
         client_task = asyncio.create_task(self._receive_from_client(), name="ws-client-reader")
 
         if self.provider and getattr(self.provider, "configured", True):

@@ -51,12 +51,12 @@ async def test_mark_complete_calls_handle_completion_with_confirmed_evidence(
 
     guided_service.handle_completion.return_value = {"advanced": True}
 
-    result = await mark_guided_step_complete(7, note="done")
+    result = await mark_guided_step_complete(7, 2, note="done")
 
     assert result == {"advanced": True}
     guided_service.handle_completion.assert_awaited_once_with(
         7,
-        evidence={"confirmed": True, "source": "agent", "note": "done"},
+        evidence={"confirmed": True, "source": "agent", "step_ord": 2, "note": "done"},
     )
 
 

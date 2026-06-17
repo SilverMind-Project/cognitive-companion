@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import logging
+
+import pytest
+
+from backend.services.guided_task.completion.response import ResponseEvaluator, build_evaluators
+
+
+@pytest.mark.asyncio
+async def test_confirmed_evidence_completes():
+    result = await ResponseEvaluator().is_complete(session=None, step=None, evidence={"confirmed": True})
+
+    assert result.complete is True
+    assert result.confidence == 1.0
+
+
+@pytest.mark.asyncio
+async def test_unconfirmed_evidence_not_complete():
+    result = await ResponseEvaluator().is_complete(
+        session=None, step=None, evidence={"confirmed": False}
+    )
+
+    assert result.complete is False
+    assert result.reason == "not_confirmed"
+
+
+def test_build_evaluators_returns_response_for_any_config_in_m3(caplog):
+    caplog.set_level(logging.WARNING)
+
+    evaluators = build_evaluators({"kinds": ["vision_confirm"]})
+
+    assert [e.kind for e in evaluators] == ["response"]
+    assert "guided_completion_unsupported_kinds" in caplog.text

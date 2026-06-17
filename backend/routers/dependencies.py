@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from backend.services.cts.ph_enrichment import PHEnrichmentService
     from backend.services.cts.runtime import CTSRuntime
     from backend.services.event_aggregator import EventAggregator
+    from backend.services.guided_task.service import GuidedTaskService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
     from backend.services.media_observability import MediaObservabilityService
     from backend.services.occupancy import OccupancyReadModel
@@ -59,6 +60,7 @@ __all__ = [
     "get_cts_runtime",
     "get_event_aggregator",
     "get_gemini_adapter",
+    "get_guided_task_service",
     "get_ha_client",
     "get_ingress_admin_client",
     "get_knowledge_delivery",
@@ -234,6 +236,14 @@ def get_knowledge_delivery(request: Request) -> KnowledgeDeliveryService:
     svc: KnowledgeDeliveryService | None = request.app.state.knowledge_delivery
     if svc is None:
         raise _raise_503("knowledge_delivery", "Knowledge delivery service")
+    return svc
+
+
+def get_guided_task_service(request: Request) -> GuidedTaskService:
+    """Return the lifespan-managed guided-task service (503 if unavailable)."""
+    svc: GuidedTaskService | None = request.app.state.guided_task_service
+    if svc is None:
+        raise _raise_503("guided_task_service", "Guided task service")
     return svc
 
 

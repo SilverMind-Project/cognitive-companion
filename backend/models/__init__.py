@@ -8,6 +8,7 @@ from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 from backend.models.cts_signal import DementiaSignal
 from backend.models.cts_window_trigger import CtsWindowTrigger, RuleCtsWindowTrigger
 from backend.models.event import EventLog
+from backend.models.guided_task import GuidedSession, GuidedSessionEvent, Routine, RoutineStep
 from backend.models.household_settings import HouseholdSettings
 from backend.models.image_state import ActiveImageState
 from backend.models.image_template import ImageTemplate
@@ -60,6 +61,8 @@ __all__ = [
     "DailyReport",
     "DementiaSignal",
     "EventLog",
+    "GuidedSession",
+    "GuidedSessionEvent",
     "HouseholdMember",
     "HouseholdSettings",
     "ImageTemplate",
@@ -85,6 +88,8 @@ __all__ = [
     "QuizSession",
     "Room",
     "RoomOccupancyState",
+    "Routine",
+    "RoutineStep",
     "Rule",
     "RuleContext",
     "RuleCronTrigger",

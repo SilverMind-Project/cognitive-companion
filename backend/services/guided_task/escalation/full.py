@@ -27,12 +27,14 @@ class FullEscalator:
         *,
         db_factory: Callable[[], Session],
         ws_manager: Any = None,
+        admin_ws_broadcaster: Any = None,
         conversation_manager: Any = None,
         settings: Settings | None = None,
     ) -> None:
         self._dispatcher = notification_dispatcher
         self._store = GuidedTaskStore(db_factory)
         self._ws_manager = ws_manager
+        self._admin_ws_broadcaster = admin_ws_broadcaster
         self._conversation_manager = conversation_manager
         self._settings = settings or default_settings
 
@@ -143,9 +145,6 @@ class FullEscalator:
         emergency: bool,
         detail: dict[str, Any],
     ) -> None:
-        ws_manager = self._ws_manager
-        if ws_manager is None:
-            return
         event = GuidedEscalationEvent(
             session_id=session.id,
             routine_id=session.routine_id,
@@ -159,7 +158,11 @@ class FullEscalator:
             detail=detail,
             at=session.last_activity_at,
         )
-        await ws_manager.broadcast(event.model_dump(mode="json"))
+        payload = event.model_dump(mode="json")
+        if self._ws_manager is not None:
+            await self._ws_manager.broadcast(payload)
+        if self._admin_ws_broadcaster is not None:
+            await self._admin_ws_broadcaster(payload)
 
     def _takeover_url(self, session_id: int) -> str:
         return f"/admin/guided-sessions/{session_id}"

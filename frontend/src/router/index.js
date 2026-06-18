@@ -127,6 +127,30 @@ const routes = [
         component: () => import("../views/admin/CameraMediaView.vue"),
       },
 
+      // ── Guided Companion (M9) ────────────────────────────────────────────────
+      {
+        path: "routines",
+        name: "admin-routines",
+        component: () => import("../views/admin/RoutineListView.vue"),
+      },
+      {
+        path: "routines/:id",
+        name: "admin-routine-builder",
+        component: () => import("../views/admin/RoutineBuilderView.vue"),
+        props: true,
+      },
+      {
+        path: "guided-sessions",
+        name: "admin-guided-sessions",
+        component: () => import("../views/admin/GuidedSessionListView.vue"),
+      },
+      {
+        path: "guided-sessions/:id",
+        name: "admin-guided-session-console",
+        component: () => import("../views/admin/GuidedSessionConsoleView.vue"),
+        props: true,
+      },
+
       // ── Tracking workspace (U4) ──────────────────────────────────────────────
       {
         path: "tracking",

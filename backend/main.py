@@ -572,6 +572,7 @@ async def lifespan(app: FastAPI):
         scene_analysis_client=scene_analysis_client,
         companion_surface_service=companion_surface_service,
         ws_manager=ws_manager,
+        admin_ws_broadcaster=pipeline_ws_manager.broadcast,
         notification_dispatcher=notifier,
         conversation_manager=conversation_manager,
         memory_query=memory_query_service,
@@ -584,6 +585,7 @@ async def lifespan(app: FastAPI):
             notifier,
             db_factory=get_session,
             ws_manager=ws_manager,
+            admin_ws_broadcaster=pipeline_ws_manager.broadcast,
             conversation_manager=conversation_manager,
             settings=settings,
         ),
@@ -918,6 +920,7 @@ def create_app() -> FastAPI:
         quizzes,
         room_zones,
         rooms,
+        routines,
         rules,
         sensors,
         signals_feed,
@@ -943,6 +946,7 @@ def create_app() -> FastAPI:
     app.include_router(conversations.router, prefix=api)
     app.include_router(companion_surfaces.router, prefix=api)
     app.include_router(guided_sessions.router, prefix=api)
+    app.include_router(routines.router, prefix=api)
     app.include_router(room_zones.router, prefix=api)
     app.include_router(ha_sync.router, prefix=api)
     app.include_router(persons.router, prefix=api)

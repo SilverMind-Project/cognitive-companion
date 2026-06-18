@@ -85,7 +85,8 @@ class CtsCamera(Base):
     privacy_zones: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     # Floor-region polygon in normalised [0,1] image space: [[x_norm, y_norm], ...].
-    # Same coordinate space as visibility_polygon (NOT floor-plan metres).
+    # Not the same coordinate space as visibility_polygon, which is normalised
+    # floor-plan space.
     # Populated by depth-based auto-calibration (source="depth_auto") or hand-drawn
     # by the operator (source="manual"). None = fall back to image-border visibility.
     floor_region_polygon: Mapped[list | None] = mapped_column(JSONB, nullable=True)

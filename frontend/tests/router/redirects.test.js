@@ -14,6 +14,19 @@ function makeRouter() {
 }
 
 describe("Router redirects (U4)", () => {
+  it("/ redirects to /companion", async () => {
+    const router = makeRouter();
+    await router.push("/");
+    expect(router.currentRoute.value.fullPath).toBe("/companion");
+  });
+
+  it("/ preserves kiosk query when redirecting to /companion", async () => {
+    const router = makeRouter();
+    await router.push("/?kiosk=1");
+    expect(router.currentRoute.value.fullPath).toBe("/companion?kiosk=1");
+  });
+
+
   it("/admin/activity redirects to executions live tab", async () => {
     const router = makeRouter();
     await router.push("/admin/activity");

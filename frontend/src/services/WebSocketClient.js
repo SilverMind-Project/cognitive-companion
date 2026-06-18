@@ -43,14 +43,16 @@ export class WebSocketClient {
     };
   }
 
-  connect() {
+  connect({ resetAttempts = true } = {}) {
     if (this.socket?.readyState === WebSocket.OPEN) return;
 
     // Reset reconnect budget so that an explicit connect() call (e.g. on
     // page load or after a deliberate disconnect) always re-enables the
     // automatic reconnection logic.
-    this.maxReconnectAttempts = 10;
-    this.attempts = 0;
+    if (resetAttempts) {
+      this.maxReconnectAttempts = 10;
+      this.attempts = 0;
+    }
 
     this.socket = new WebSocket(this.url);
     this.socket.binaryType = "arraybuffer";
@@ -156,6 +158,11 @@ export class WebSocketClient {
     }
   }
 
+  off(event, callback) {
+    if (!this.callbacks[event]) return;
+    this.callbacks[event] = this.callbacks[event].filter((cb) => cb !== callback);
+  }
+
   _sendJson(data) {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(data));
@@ -175,7 +182,8 @@ export class WebSocketClient {
   _reconnect() {
     if (this.attempts >= this.maxReconnectAttempts) return;
     this.attempts++;
-    setTimeout(() => this.connect(), this.reconnectInterval * this.attempts);
+    const delay = Math.min(this.reconnectInterval * 2 ** (this.attempts - 1), 30000);
+    setTimeout(() => this.connect({ resetAttempts: false }), delay);
   }
 }
 

@@ -100,6 +100,7 @@ def("workflows.detail", {
 // ---------------------------------------------------------------------------
 def("rooms.list", "array");
 def("rooms.single", "object");
+def("companion_surfaces.heartbeat", { status: "string" });
 
 def("sensors.list", "array");
 def("sensors.single", "object");

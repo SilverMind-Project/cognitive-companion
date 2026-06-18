@@ -110,6 +110,14 @@ export const api = {
   deleteRoom: (id) => request(`/rooms/${id}`, { method: "DELETE" }),
   listRoomZones: (roomId) => request(`/rooms/${roomId}/zones`, { contract: "room_zones.list" }),
 
+  // Companion surfaces
+  recordCompanionSurfaceHeartbeat: (surfaceId, data = {}) =>
+    request(`/companion-surfaces/${encodeURIComponent(surfaceId)}/heartbeat`, {
+      method: "POST",
+      body: JSON.stringify(data),
+      contract: "companion_surfaces.heartbeat",
+    }),
+
   // Sensors
   getSensors: (params = {}) => {
     const qs = new URLSearchParams(params).toString();

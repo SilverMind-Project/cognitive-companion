@@ -7,7 +7,7 @@
       </v-app-bar-title>
       <v-spacer />
       <v-chip
-        :color="connected ? 'success' : 'grey'"
+        :color="connected ? 'success' : undefined"
         size="small"
         variant="tonal"
         class="mr-2"
@@ -55,13 +55,23 @@
       v-on="getWidgetEvents(w.id)"
     />
 
+    <KioskGate
+      :state="kiosk.state"
+      @begin="beginKioskSession"
+      @unlock-settings="kiosk.actions.unlockSettings"
+      @save-settings="kiosk.actions.saveSettings"
+      @load-rooms="kiosk.actions.loadRooms"
+    />
   </v-app>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useRoute } from "vue-router";
 import { wsClient } from "../services/WebSocketClient.js";
 import { getWidgets } from "../components/companion/WidgetRegistry.js";
+import KioskGate from "../components/companion/KioskGate.vue";
+import { useKioskMode } from "../composables/useKioskMode.js";
 
 // Register built-in widgets
 import "../components/companion/index.js";
@@ -74,6 +84,8 @@ const alertDialog = ref(false);
 const alertMessage = ref("");
 const alertType = ref("info");
 const connected = ref(false);
+const route = useRoute();
+const kiosk = useKioskMode({ route });
 
 // Interactive prompt state
 const interactivePromptVisible = ref(false);
@@ -184,15 +196,30 @@ function getWidgetEvents(widgetId) {
   }
 }
 
-function toggleRecording() {
-  recording.value = !recording.value;
-  if (recording.value) {
-    // Initialize AudioContext during the user gesture so it starts in running
-    // state. Creating it lazily inside a WebSocket callback would leave it
-    // suspended and audio would never play.
-    getPlaybackContext();
-    wsClient.connect();
+async function startRecordingFromGesture() {
+  // Initialize AudioContext during the user gesture so it starts in running
+  // state. Creating it lazily inside a WebSocket callback would leave it
+  // suspended and audio would never play.
+  const ctx = getPlaybackContext();
+  if (ctx.state === "suspended") {
+    await ctx.resume();
   }
+  wsClient.connect();
+  recording.value = true;
+  audioState.value = "listening";
+}
+
+function toggleRecording() {
+  if (recording.value) {
+    recording.value = false;
+    audioState.value = "idle";
+    return;
+  }
+  void startRecordingFromGesture();
+}
+
+function beginKioskSession() {
+  void kiosk.actions.begin(startRecordingFromGesture);
 }
 
 function onAudioData(buffer) {
@@ -361,8 +388,14 @@ onMounted(() => {
     }
   });
 
-  wsClient.on("onConnect", () => { connected.value = true; });
-  wsClient.on("onDisconnect", () => { connected.value = false; });
+  wsClient.on("onConnect", () => {
+    connected.value = true;
+    kiosk.actions.onSocketConnect();
+  });
+  wsClient.on("onDisconnect", () => {
+    connected.value = false;
+    kiosk.actions.onSocketDisconnect();
+  });
 
   wsClient.on("onInteractivePrompt", (data) => {
     interactivePromptData.value = {
@@ -383,7 +416,7 @@ onMounted(() => {
     // Auto-enable mic so the user can respond to a voice prompt from
     // Gemini Live without manually tapping the microphone button.
     if (!recording.value) {
-      toggleRecording();
+      void kiosk.actions.handleEnableMicrophone(startRecordingFromGesture);
     }
   });
 

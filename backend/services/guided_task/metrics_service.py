@@ -369,20 +369,28 @@ class GuidedMetricsService:
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> GuidedMetricsDashboardEnvelope:
-        kwargs = {
-            "person_id": person_id,
-            "routine_id": routine_id,
-            "since": since,
-            "until": until,
-        }
         return GuidedMetricsDashboardEnvelope(
-            completion=self.completion_summary(**kwargs),
-            attempts_per_step=self.attempts_per_step(**kwargs),
-            time_to_complete=self.time_to_complete(**kwargs),
-            abandonment=self.abandonment(**kwargs),
-            escalation_breakdown=self.escalation_breakdown(**kwargs),
-            vision_agreement=self.vision_agreement(**kwargs),
-            time_of_day=self.time_of_day(**kwargs),
+            completion=self.completion_summary(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
+            attempts_per_step=self.attempts_per_step(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
+            time_to_complete=self.time_to_complete(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
+            abandonment=self.abandonment(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
+            escalation_breakdown=self.escalation_breakdown(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
+            vision_agreement=self.vision_agreement(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
+            time_of_day=self.time_of_day(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
         )
 
     def _window(

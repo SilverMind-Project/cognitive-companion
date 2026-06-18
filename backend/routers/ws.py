@@ -23,7 +23,7 @@ async def websocket_audio(websocket: WebSocket):
     Accepts audio bytes and text commands from the client, forwards them
     to the configured realtime backend, and relays responses back.
     """
-    from backend.integrations.llm.gemini_live import GeminiLiveProvider
+    from backend.integrations.llm.base import RealtimeLLMProvider
     from backend.mcp.gemini_adapter import GeminiToolAdapter
     from backend.services.conversation_manager import ConversationManager
     from backend.websocket.audio_handler import AudioSessionHandler
@@ -32,7 +32,7 @@ async def websocket_audio(websocket: WebSocket):
     # Pull shared objects from app.state
     app = websocket.app
     manager: ConnectionManager | None = app.state.ws_manager
-    realtime_provider: GeminiLiveProvider | None = app.state.realtime_provider
+    realtime_provider: RealtimeLLMProvider | None = app.state.realtime_provider
     conversation_manager: ConversationManager | None = app.state.conversation_manager
     rag_lookup = getattr(app.state, "rag_lookup", None)  # Not yet wired in lifespan
     gemini_adapter: GeminiToolAdapter | None = app.state.gemini_adapter

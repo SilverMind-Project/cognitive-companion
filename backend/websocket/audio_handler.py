@@ -210,13 +210,13 @@ class AudioSessionHandler:
                     return
 
                 try:
-                    gemini_tools = None
+                    tool_declarations = None
                     if self.tool_adapter:
-                        gemini_tools = self.tool_adapter.get_declarations()
+                        tool_declarations = self.tool_adapter.get_declarations()
                     config = self.provider.build_config(
                         system_instruction=self._current_voice_instruction or "",
                         conversation_history=self._get_history_text(),
-                        tools=gemini_tools,
+                        tools=tool_declarations,
                     )
                     session = await self.provider.connect(config)
                     self._current_session = session
@@ -257,13 +257,15 @@ class AudioSessionHandler:
                                     if self.provider is not None:
                                         with contextlib.suppress(Exception):
                                             await self.provider.disconnect(session)
-                                        gemini_tools = None
+                                        tool_declarations = None
                                         if self.tool_adapter:
-                                            gemini_tools = self.tool_adapter.get_declarations()
+                                            tool_declarations = (
+                                                self.tool_adapter.get_declarations()
+                                            )
                                         config = self.provider.build_config(
                                             system_instruction=voice_instruction,
                                             conversation_history=self._get_history_text(),
-                                            tools=gemini_tools,
+                                            tools=tool_declarations,
                                         )
                                         session = await self.provider.connect(config)
                                         self._current_session = session
@@ -433,30 +435,27 @@ class AudioSessionHandler:
     # ------------------------------------------------------------------
 
     async def _handle_tool_calls(self, function_calls) -> None:
-        """Execute tool calls from Gemini and send responses back.
+        """Execute provider tool calls and send responses back.
 
-        The gemini-3.1-flash-live-preview model uses synchronous function
-        calling: audio generation pauses until all FunctionResponse objects
-        are sent back. Tool results flow through Gemini's spoken audio
-        response, never raw to the client.
+        Realtime providers may use synchronous function calling: audio generation
+        pauses until tool responses are sent back. Tool results flow through
+        spoken audio, never raw to the client.
         """
-        from google.genai import types  # Lazy import: google-genai is optional
-
         responses = []
         tool_names = []
         for fc in function_calls:
             logger.info(
-                "gemini_tool_call_executing",
+                "realtime_tool_call_executing",
                 tool=fc.name,
                 call_id=fc.id,
             )
             result = await self.tool_adapter.execute_tool(fc.name, fc.args or {})
             responses.append(
-                types.FunctionResponse(
-                    name=fc.name,
-                    response=result,
-                    id=fc.id,
-                )
+                {
+                    "name": fc.name,
+                    "response": result,
+                    "id": fc.id,
+                }
             )
             tool_names.append(fc.name)
 
@@ -473,7 +472,7 @@ class AudioSessionHandler:
                     },
                 )
 
-        # Send all responses back to Gemini
+        # Send all responses back to the realtime provider.
         if responses and self.provider and self._current_session:
             await self.provider.send_tool_response(self._current_session, responses)
 

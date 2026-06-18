@@ -90,6 +90,9 @@ def _make_client(
     ingress = MagicMock()
     ingress.snapshot = AsyncMock(return_value=b"\xff\xd8\xff\xe0fake-jpeg")
 
+    minio = MagicMock()
+    minio.async_upload_bytes = AsyncMock(return_value=None)
+
     app = FastAPI()
     register_exception_handlers(app)
     app.include_router(router, prefix="/api/v1")
@@ -99,6 +102,7 @@ def _make_client(
     )
     app.state.orchestrator_client = orchestrator
     app.state.ingress_admin_client = ingress
+    app.state.minio_client = minio
 
     patcher = patch("backend.routers.cts_deps.settings", cfg)
     patcher.start()

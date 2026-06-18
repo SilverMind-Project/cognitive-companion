@@ -32,11 +32,12 @@ from backend.core.exceptions import NotFoundError
 from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
 from backend.integrations.ingress_admin_client import IngressAdminClient
+from backend.integrations.minio_client import MinioClient
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.cts_camera import CtsCamera
 from backend.models.household_settings import HouseholdSettings
 from backend.routers.cts_deps import cts_enabled
-from backend.routers.dependencies import get_ingress_admin_client, get_orchestrator_client
+from backend.routers.dependencies import get_ingress_admin_client, get_minio_client, get_orchestrator_client
 from backend.schemas.cts_camera import (
     AdjacencyRequest,
     CameraVisibilityPolygon,
@@ -66,6 +67,60 @@ def _has_committed_homography(cam: CtsCamera) -> bool:
         return False
     method = cam.homography.get("method") if isinstance(cam.homography, dict) else None
     return method not in {"depth_auto", "depth_auto_draft"}
+
+
+async def _capture_reference_frame(
+    camera_id: str,
+    calibrated_at: datetime,
+    ingress: IngressAdminClient,
+    minio: MinioClient,
+    db: Session,
+) -> None:
+    """Fetch a live snapshot and store it as the drift-detection reference frame.
+
+    Key convention: ``calibration-refs/{camera_id}/{calibrated_at_iso}.jpg``
+    The key is anchored to CC's durable ``homography_set_at`` timestamp, not to
+    the orchestrator's transient in-memory calibrated_at.
+
+    Failures are logged at warning level and do not propagate — the calibration
+    commit has already succeeded and must not be rolled back.
+    """
+    from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
+
+    try:
+        jpeg_bytes = await ingress.snapshot(camera_id=camera_id)
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable, Exception) as exc:
+        logger.warning(
+            "calibration_ref_frame_snapshot_failed",
+            camera_id=camera_id,
+            error=str(exc),
+        )
+        return
+
+    ts = calibrated_at.strftime("%Y%m%dT%H%M%SZ")
+    ref_key = f"calibration-refs/{camera_id}/{ts}.jpg"
+
+    try:
+        await minio.async_upload_bytes(jpeg_bytes, ref_key, "image/jpeg")
+    except Exception as exc:
+        logger.warning(
+            "calibration_ref_frame_upload_failed",
+            camera_id=camera_id,
+            ref_key=ref_key,
+            error=str(exc),
+        )
+        return
+
+    cam = db.get(CtsCamera, camera_id)
+    if cam is not None:
+        cam.calibration_ref_key = ref_key
+        db.commit()
+
+    logger.info(
+        "calibration_ref_frame_stored",
+        camera_id=camera_id,
+        ref_key=ref_key,
+    )
 
 
 def _shared_floor_plan_id(settings: HouseholdSettings | None) -> str:
@@ -217,6 +272,8 @@ async def post_homography(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("cts.calibrate")),
     orchestrator: OrchestratorClient = Depends(get_orchestrator_client),
+    ingress: IngressAdminClient = Depends(get_ingress_admin_client),
+    minio: MinioClient = Depends(get_minio_client),
 ) -> HomographyResult:
     """Fit a homography from calibration points and persist it.
 
@@ -275,13 +332,27 @@ async def post_homography(
     cam.homography_matrix = matrix
     cam.homography_residual_m = max_residual
     cam.homography_method = "manual"
-    cam.homography_set_at = datetime.now(UTC)
+    homography_set_at = datetime.now(UTC)
+    cam.homography_set_at = homography_set_at
     cam.frame_natural_width = body.image_width
     cam.frame_natural_height = body.image_height
+    # Clear any prior drift flag — a new calibration supersedes the old reference.
+    cam.needs_recalibration = False
+    cam.drift_reason = None
     poly_status = _refresh_visibility_polygon(cam, db)
     settings = db.get(HouseholdSettings, 1)
     floor_plan_id = _shared_floor_plan_id(settings)
     db.commit()
+
+    # Capture reference frame for future drift checks.
+    # Fire-and-forget: a failure here must not block the calibration response.
+    await _capture_reference_frame(
+        camera_id=body.camera_id,
+        calibrated_at=homography_set_at,
+        ingress=ingress,
+        minio=minio,
+        db=db,
+    )
 
     mean_residual = sum(residuals) / len(residuals) if residuals else 0.0
     try:

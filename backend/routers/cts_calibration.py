@@ -545,7 +545,7 @@ class FloorRegionRequest(BaseModel):
         min_length=3,
         description=(
             "Floor-region polygon in normalised [0,1] image space: [[x_norm, y_norm], ...]. "
-            "NOT floor-plan metres. Same coordinate space as visibility_polygon."
+            "NOT floor-plan metres and not the same coordinate space as visibility_polygon."
         ),
     )
     source: str = Field(

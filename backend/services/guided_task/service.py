@@ -9,13 +9,22 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from backend.core.config import Settings
+from backend.core.config import SettingNotFoundError, Settings
 from backend.core.config import settings as default_settings
 from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.guided_task import GuidedSession, Routine, RoutineStep
 from backend.models.person import HouseholdMember
+from backend.schemas.guided_task import (
+    GuidedSessionDetailOut,
+    GuidedSessionEventOut,
+    GuidedSessionOut,
+    GuidedSessionStepOut,
+    GuidedSessionTurnOut,
+)
+from backend.schemas.guided_task_ws import GuidedSessionUpdateEvent
+from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
 from backend.services.guided_task.completion.response import build_evaluators, evaluate_completion
 from backend.services.guided_task.domain import Decision, SessionView, StepView
 from backend.services.guided_task.policy import resolve_policy
@@ -33,6 +42,7 @@ from backend.services.interactive_session.pipeline_link import (
     resume_owning_pipeline,
     schedule_session_timeout,
 )
+from backend.services.interactive_session.prompt_injection import inject_session_prompt
 
 logger = get_logger(__name__)
 
@@ -58,6 +68,7 @@ class GuidedTaskService:
         companion_surface_service: Any = None,
         ws_manager: Any = None,
         notification_dispatcher: Any = None,
+        conversation_manager: Any = None,
         memory_query: Any = None,
         voice: SessionVoice | None = None,
         safety_watch: SafetyWatch | None = None,
@@ -80,6 +91,7 @@ class GuidedTaskService:
         self._companion_surface_service = companion_surface_service
         self._ws_manager = ws_manager
         self._notification_dispatcher = notification_dispatcher
+        self._conversation_manager = conversation_manager
         self._memory_query = memory_query
         self._voice = voice or NoopSessionVoice()
         self._safety_watch = safety_watch or NoopSafetyWatch()
@@ -433,9 +445,213 @@ class GuidedTaskService:
         logger.info("guided_help_requested", session_id=session.id, step_ord=step.ord)
         return {"acknowledged": True}
 
+    async def begin_takeover(self, session_id: int) -> GuidedSessionOut:
+        now = self._now()
+        session, routine, steps, step = self._load_runtime(session_id)
+        if session.status not in {"active", "waiting", "escalated"}:
+            raise ValidationError("Guided session cannot enter caregiver takeover")
+        decision = GuidedTaskStateMachine.decide(
+            self._session_view(session, steps),
+            self._step_view(step),
+            "caregiver_takeover",
+            resolve_policy(routine, step, self._settings),
+            now,
+        )
+        await self._apply_decision(
+            session=session,
+            routine=routine,
+            steps=steps,
+            decision=decision,
+            now=now,
+            event_kind="caregiver_takeover",
+            actor="caregiver",
+            detail={"reason": decision.reason},
+        )
+        updated = self._require_session(session.id)
+        await self._broadcast_session_update(
+            updated,
+            event_kind="takeover_started",
+            actor="caregiver",
+            detail={"reason": decision.reason},
+            at=now,
+        )
+        logger.info("guided_takeover_started", session_id=session.id, step_ord=step.ord)
+        return self._session_out(updated)
+
+    async def caregiver_say(self, session_id: int, text: str) -> GuidedSessionOut:
+        now = self._now()
+        session, routine, _steps, step = self._load_runtime(session_id)
+        if session.status not in {"escalated", "caregiver_takeover"}:
+            raise ValidationError("Caregiver messages require escalation or takeover")
+        clean_text = text.strip()
+        if not clean_text:
+            raise ValidationError("Caregiver message cannot be empty")
+
+        conversation_manager = self._conversation_manager
+        if conversation_manager is not None:
+            conversation_manager.ensure_session(session.id)
+            conversation_manager.add_turn(
+                session.id,
+                "caregiver",
+                clean_text,
+                metadata={"guided_session_id": session.id, "routine_id": session.routine_id},
+            )
+
+        self._store.add_event(
+            session_id=session.id,
+            at=now,
+            kind="caregiver_message",
+            step_ord=step.ord,
+            actor="caregiver",
+            detail={"text": clean_text},
+        )
+        updated = self._store.update_session(session.id, last_activity_at=now)
+        if updated is None:
+            raise NotFoundError("Guided session", session.id)
+
+        await self._inject_caregiver_message(updated, routine, clean_text)
+        await self._broadcast_session_update(
+            updated,
+            event_kind="caregiver_message",
+            actor="caregiver",
+            detail={"step_ord": step.ord},
+            at=now,
+        )
+        logger.info("guided_caregiver_say", session_id=session.id, step_ord=step.ord)
+        return self._session_out(updated)
+
+    async def caregiver_advance(self, session_id: int) -> dict:
+        now = self._now()
+        session, routine, steps, step = self._load_runtime(session_id)
+        if session.status not in {"escalated", "caregiver_takeover"}:
+            raise ValidationError("Caregiver advance requires escalation or takeover")
+        decision = GuidedTaskStateMachine.decide(
+            self._session_view(session, steps),
+            self._step_view(step),
+            "step_completed",
+            resolve_policy(routine, step, self._settings),
+            now,
+            evidence={"confirmed": True, "source": "caregiver"},
+        )
+        self._store.add_event(
+            session_id=session.id,
+            at=now,
+            kind="step_completed",
+            step_ord=step.ord,
+            actor="caregiver",
+            detail={"confirmed": True, "source": "caregiver"},
+        )
+        if decision.kind == "complete":
+            await self.complete(session.id, "escalated_resolved", actor="caregiver")
+        elif decision.kind in {"advance", "skip"}:
+            updated_step = self._step_by_ord(steps, decision.next_step_ord)
+            self._store.update_session(
+                session.id,
+                status="caregiver_takeover",
+                current_step_ord=decision.next_step_ord,
+                attempts=decision.attempts,
+                last_activity_at=now,
+            )
+            self._store.add_event(
+                session_id=session.id,
+                at=now,
+                kind="step_entered",
+                step_ord=updated_step.ord,
+                actor="caregiver",
+                detail={"source": "caregiver"},
+            )
+        elif decision.kind == "wait":
+            return self._decision_descriptor(decision)
+        updated = self._require_session(session.id)
+        await self._broadcast_session_update(
+            updated,
+            event_kind="step_completed",
+            actor="caregiver",
+            detail={"source": "caregiver"},
+            at=now,
+        )
+        return await self._advance_descriptor(session.id, routine, steps, decision)
+
+    async def caregiver_complete(self, session_id: int) -> GuidedSessionOut:
+        updated = await self.complete(session_id, "escalated_resolved", actor="caregiver")
+        await self._broadcast_session_update(
+            updated,
+            event_kind="session_completed",
+            actor="caregiver",
+            detail={"outcome": "escalated_resolved"},
+            at=updated.last_activity_at,
+        )
+        return self._session_out(updated)
+
+    async def release_takeover(self, session_id: int) -> GuidedSessionOut:
+        now = self._now()
+        session, routine, _steps, step = self._load_runtime(session_id)
+        if session.status != "caregiver_takeover":
+            raise ValidationError("Guided session is not in caregiver takeover")
+        updated = self._store.update_session(session.id, status="active", last_activity_at=now)
+        if updated is None:
+            raise NotFoundError("Guided session", session.id)
+        self._store.add_event(
+            session_id=session.id,
+            at=now,
+            kind="takeover_ended",
+            step_ord=step.ord,
+            actor="caregiver",
+            detail={"status": "active"},
+        )
+        self._schedule_timeout(updated, routine, step, now)
+        await self._broadcast_session_update(
+            updated,
+            event_kind="takeover_ended",
+            actor="caregiver",
+            detail={"status": "active"},
+            at=now,
+        )
+        return self._session_out(updated)
+
+    async def get_detail(self, session_id: int) -> GuidedSessionDetailOut:
+        session = self._store.get_session(session_id)
+        if session is None:
+            raise NotFoundError("Guided session", session_id)
+        routine, steps = self._load_routine_steps(session.routine_id)
+        current_step: GuidedSessionStepOut | None = None
+        if steps:
+            step = self._step_by_ord(steps, session.current_step_ord)
+            current_step = GuidedSessionStepOut(
+                ord=step.ord,
+                prompt_text=await self._render_step_prompt(session, routine, step),
+                completion_gate=step.completion_gate,
+                is_safety_critical=step.is_safety_critical,
+            )
+        events = [
+            GuidedSessionEventOut.model_validate(event, from_attributes=True)
+            for event in self._store.list_events(session_id=session.id, limit=20)
+        ]
+        recent_transcript: list[GuidedSessionTurnOut] = []
+        conversation_manager = self._conversation_manager
+        if conversation_manager is not None:
+            recent_transcript = [
+                GuidedSessionTurnOut(**turn)
+                for turn in conversation_manager.get_recent_turns(session.id, limit=10)
+            ]
+        return GuidedSessionDetailOut(
+            session=self._session_out(session),
+            current_step=current_step,
+            recent_events=events,
+            recent_transcript=recent_transcript,
+        )
+
     async def on_step_timeout(self, session_id: int) -> Decision:
         now = self._now()
         session, routine, steps, step = self._load_runtime(session_id)
+        if session.status == "caregiver_takeover":
+            return Decision(
+                kind="noop",
+                next_status=session.status,
+                next_step_ord=session.current_step_ord,
+                attempts=session.attempts,
+                reason="caregiver_takeover_paused",
+            )
         decision = GuidedTaskStateMachine.decide(
             self._session_view(session, steps),
             self._step_view(step),
@@ -482,6 +698,12 @@ class GuidedTaskService:
         for session in self._store.list_live_sessions():
             routine, steps = self._load_routine_steps(session.routine_id)
             step = self._step_by_ord(steps, session.current_step_ord)
+            if session.status == "caregiver_takeover":
+                continue
+            if session.status == "escalated":
+                if (tick_at - session.last_activity_at).total_seconds() > self._escalation_grace_s():
+                    await self._abandon_escalated_unanswered(session, tick_at)
+                continue
             policy = resolve_policy(routine, step, self._settings)
             if (tick_at - session.last_activity_at).total_seconds() > policy.resume_grace_s:
                 decision = GuidedTaskStateMachine.decide(
@@ -523,7 +745,13 @@ class GuidedTaskService:
                     detail=safety_event,
                 )
 
-    async def complete(self, session_id: int, outcome: str) -> GuidedSession:
+    async def complete(
+        self,
+        session_id: int,
+        outcome: str,
+        *,
+        actor: str = "system",
+    ) -> GuidedSession:
         now = self._now()
         session = self._store.get_session(session_id)
         if session is None:
@@ -542,11 +770,111 @@ class GuidedTaskService:
             at=now,
             kind="session_completed",
             step_ord=session.current_step_ord,
-            actor="system",
+            actor=actor,
             detail={"outcome": outcome},
         )
         resume_owning_pipeline(self._pipeline_executor, self._db_factory, updated.execution_id)
         return updated
+
+    async def _inject_caregiver_message(
+        self,
+        session: GuidedSession,
+        routine: Routine,
+        text: str,
+    ) -> None:
+        ws_manager = self._ws_manager
+        if ws_manager is None:
+            logger.warning(
+                "guided_caregiver_say_skipped",
+                session_id=session.id,
+                reason="ws_manager_unavailable",
+            )
+            return
+        resident_name = self._resident_name(session.person_id)
+        prompt = (
+            f"Tell {resident_name} the following, in her language and in your own warm voice, "
+            f"as if it is your idea: {text}"
+        )
+        await inject_session_prompt(
+            ws_manager,
+            prompt=prompt,
+            delivery_type=GUIDED_TASK_DELIVERY_TYPE,
+            session_id=session.id,
+            execution_id=session.execution_id,
+            voice_instruction=routine.system_instruction_override or None,
+            extra_metadata={"actor": "caregiver", "caregiver_text_hidden": True},
+        )
+
+    async def _broadcast_session_update(
+        self,
+        session: GuidedSession,
+        *,
+        event_kind: str,
+        actor: str | None,
+        detail: dict | None,
+        at: datetime,
+    ) -> None:
+        ws_manager = self._ws_manager
+        if ws_manager is None:
+            return
+        event = GuidedSessionUpdateEvent(
+            session_id=session.id,
+            routine_id=session.routine_id,
+            person_id=session.person_id,
+            status=session.status,
+            current_step_ord=session.current_step_ord,
+            event_kind=event_kind,
+            actor=actor,
+            detail=detail,
+            at=at,
+        )
+        await ws_manager.broadcast(event.model_dump(mode="json"))
+
+    async def _abandon_escalated_unanswered(
+        self,
+        session: GuidedSession,
+        at: datetime,
+    ) -> None:
+        updated = self._store.update_session(
+            session.id,
+            status="abandoned",
+            completed_at=at,
+            outcome="escalated_unanswered",
+            last_activity_at=at,
+        )
+        if updated is None:
+            raise NotFoundError("Guided session", session.id)
+        self._store.add_event(
+            session_id=session.id,
+            at=at,
+            kind="session_abandoned",
+            step_ord=session.current_step_ord,
+            actor="system",
+            detail={"outcome": "escalated_unanswered"},
+        )
+        await self._broadcast_session_update(
+            updated,
+            event_kind="session_abandoned",
+            actor="system",
+            detail={"outcome": "escalated_unanswered"},
+            at=at,
+        )
+        resume_owning_pipeline(self._pipeline_executor, self._db_factory, updated.execution_id)
+
+    def _escalation_grace_s(self) -> int:
+        try:
+            return self._settings.as_int("guided_task.escalation_grace_s")
+        except SettingNotFoundError:
+            return 1800
+
+    def _require_session(self, session_id: int) -> GuidedSession:
+        session = self._store.get_session(session_id)
+        if session is None:
+            raise NotFoundError("Guided session", session_id)
+        return session
+
+    def _session_out(self, session: GuidedSession) -> GuidedSessionOut:
+        return GuidedSessionOut.model_validate(session, from_attributes=True)
 
     def _now(self) -> datetime:
         now = self._time_fn()
@@ -638,6 +966,22 @@ class GuidedTaskService:
             )
             return
 
+        if decision.kind == "takeover":
+            self._store.update_session(
+                session.id,
+                status=decision.next_status,
+                last_activity_at=now,
+            )
+            self._store.add_event(
+                session_id=session.id,
+                at=now,
+                kind="takeover_started",
+                step_ord=current_step.ord,
+                actor="caregiver",
+                detail={"reason": decision.reason},
+            )
+            return
+
         self._store.add_event(
             session_id=session.id,
             at=now,
@@ -714,22 +1058,6 @@ class GuidedTaskService:
                 session=updated,
                 reason=decision.reason,
                 emergency=decision.emergency,
-            )
-            return
-
-        if decision.kind == "takeover":
-            self._store.update_session(
-                session.id,
-                status=decision.next_status,
-                last_activity_at=now,
-            )
-            self._store.add_event(
-                session_id=session.id,
-                at=now,
-                kind="takeover_started",
-                step_ord=current_step.ord,
-                actor="caregiver",
-                detail={"reason": decision.reason},
             )
             return
 

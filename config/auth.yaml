@@ -127,6 +127,8 @@ permission_map:
     - "PATCH /api/v1/companion-surfaces/*"
     - "room_zones:read"
     - "room_zones:write"
+    - "guided_sessions:read"
+    - "guided_sessions:takeover"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -184,6 +186,8 @@ permission_map:
     - "PATCH /api/v1/companion-surfaces/*"
     - "room_zones:read"
     - "room_zones:write"
+    - "guided_sessions:read"
+    - "guided_sessions:takeover"
 
   operator:
     - "*"
@@ -252,3 +256,13 @@ permission_map:
     - "POST /api/v1/rooms/*/zones"
     - "PATCH /api/v1/zones/*"
     - "DELETE /api/v1/zones/*"
+
+  "guided_sessions:read":
+    - "GET /api/v1/guided-sessions/*/detail"
+
+  "guided_sessions:takeover":
+    - "POST /api/v1/guided-sessions/*/takeover"
+    - "POST /api/v1/guided-sessions/*/say"
+    - "POST /api/v1/guided-sessions/*/advance"
+    - "POST /api/v1/guided-sessions/*/complete"
+    - "POST /api/v1/guided-sessions/*/release"

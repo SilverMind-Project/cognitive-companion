@@ -97,14 +97,15 @@ class GuidedTaskStateMachine:
             )
 
         if event == "safety_event":
-            severity = (evidence or {}).get("severity")
+            event_evidence = evidence or {}
+            severity = event_evidence.get("severity")
             emergency = severity == "emergency" or (step.is_safety_critical and severity == "high")
             return Decision(
                 kind="escalate",
                 next_status="escalated",
                 next_step_ord=session.current_step_ord,
                 attempts=session.attempts,
-                reason="safety_event",
+                reason=str(event_evidence.get("condition") or "safety_event"),
                 emergency=emergency,
             )
 

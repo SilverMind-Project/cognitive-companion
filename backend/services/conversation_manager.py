@@ -13,6 +13,10 @@ from backend.models.conversation import ConversationSession, ConversationTurn
 
 logger = get_logger(__name__)
 
+ALLOWED_ACTORS = frozenset(
+    {"user", "assistant", "orchestrator", "rules_engine", "system", "caregiver"}
+)
+
 
 class ConversationManager:
     """Persists and retrieves conversation turns with configurable TTL."""
@@ -36,6 +40,14 @@ class ConversationManager:
             session = db.get(ConversationSession, session_id)
             if session:
                 session.ended_at = datetime.now(UTC)
+
+    def ensure_session(self, session_id: int) -> int:
+        """Ensure a conversation session row exists for an externally-owned id."""
+        with transaction(self.db_session_factory) as db:
+            session = db.get(ConversationSession, session_id)
+            if session is None:
+                db.add(ConversationSession(id=session_id))
+            return session_id
 
     def add_turn(
         self,
@@ -124,7 +136,9 @@ def _actor_label(actor: str) -> str:
     labels = {
         "user": "User",
         "assistant": "Assistant",
+        "orchestrator": "Orchestrator",
         "rules_engine": "Rules Engine",
         "system": "System",
+        "caregiver": "Caregiver",
     }
     return labels.get(actor, actor.title())

@@ -18,6 +18,12 @@ class LocationMetrics:
     subscriber_lag_s: Histogram
     cts_orchestrator_unavailable_total: Counter  # U2: orchestrator unreachable counter
     mcp_tool_dependency_unavailable_total: Counter  # U2: MCP tool dependency unavailable
+    guided_sessions_total: Counter
+    guided_steps_total: Counter
+    guided_escalations_total: Counter
+    guided_vision_calls_total: Counter
+    guided_vision_uncertain_total: Counter
+    guided_takeovers_total: Counter
 
 
 def build_location_metrics(registry: CollectorRegistry = REGISTRY) -> LocationMetrics:
@@ -76,6 +82,33 @@ def build_location_metrics(registry: CollectorRegistry = REGISTRY) -> LocationMe
             "cc_mcp_tool_dependency_unavailable_total",
             "Times an MCP tool found its upstream dependency unavailable",
             ["tool"],
+        ),
+        guided_sessions_total=_counter(
+            "cc_guided_sessions_total",
+            "Guided sessions finalized by outcome",
+            ["outcome"],
+        ),
+        guided_steps_total=_counter(
+            "cc_guided_steps_total",
+            "Guided task steps by result",
+            ["result"],
+        ),
+        guided_escalations_total=_counter(
+            "cc_guided_escalations_total",
+            "Guided task escalations by kind",
+            ["kind"],
+        ),
+        guided_vision_calls_total=_counter(
+            "cc_guided_vision_calls_total",
+            "Guided task vision confirmation calls",
+        ),
+        guided_vision_uncertain_total=_counter(
+            "cc_guided_vision_uncertain_total",
+            "Guided task vision confirmation calls with uncertain result",
+        ),
+        guided_takeovers_total=_counter(
+            "cc_guided_takeovers_total",
+            "Guided task caregiver takeovers",
         ),
     )
 

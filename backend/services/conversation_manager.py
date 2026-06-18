@@ -131,6 +131,22 @@ class ConversationManager:
             logger.info("conversation_pruned", deleted=count)
             return count
 
+    def prune_sessions(self, session_ids: list[int]) -> int:
+        """Delete externally-owned conversation sessions by ID."""
+        if not session_ids:
+            return 0
+        with transaction(self.db_session_factory) as db:
+            db.query(ConversationTurn).filter(ConversationTurn.session_id.in_(session_ids)).delete(
+                synchronize_session=False
+            )
+            count = (
+                db.query(ConversationSession)
+                .filter(ConversationSession.id.in_(session_ids))
+                .delete(synchronize_session=False)
+            )
+            logger.info("conversation_sessions_pruned", deleted=count)
+            return count
+
 
 def _actor_label(actor: str) -> str:
     labels = {

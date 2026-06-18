@@ -540,6 +540,7 @@ async def lifespan(app: FastAPI):
     from backend.services.guided_task import (
         AgentSessionVoice,
         FullEscalator,
+        GuidedMetricsService,
         GuidedTaskSafetyWatch,
         GuidedTaskService,
         SensorRoomCameraTopology,
@@ -575,6 +576,7 @@ async def lifespan(app: FastAPI):
         admin_ws_broadcaster=pipeline_ws_manager.broadcast,
         notification_dispatcher=notifier,
         conversation_manager=conversation_manager,
+        semantic_memory_client=semantic_memory_client,
         memory_query=memory_query_service,
         voice=AgentSessionVoice(
             ws_manager=ws_manager,
@@ -595,6 +597,11 @@ async def lifespan(app: FastAPI):
     app.state.guided_task_service = guided_task_service
     set_guided_task_service(guided_task_service)
     pipeline_executor._services.guided_task = guided_task_service
+    guided_metrics_service = GuidedMetricsService(db_factory=get_session, settings=settings)
+    app.state.guided_metrics_service = guided_metrics_service
+    from backend.mcp.server import set_guided_metrics_service
+
+    set_guided_metrics_service(guided_metrics_service)
 
     # Add HA sensor polling job
     from apscheduler.triggers.interval import IntervalTrigger
@@ -604,6 +611,17 @@ async def lifespan(app: FastAPI):
         trigger=IntervalTrigger(seconds=settings.as_int("guided_task.safety_tick_s")),
         id="guided_task_safety_tick",
         name="Guided task safety watch tick",
+        replace_existing=True,
+    )
+
+    from apscheduler.triggers.cron import CronTrigger
+    from zoneinfo import ZoneInfo
+
+    scheduler.add_job(
+        guided_task_service.prune_retained_data,
+        trigger=CronTrigger(hour=3, minute=20, timezone=ZoneInfo(settings.as_str("app.timezone"))),
+        id="guided_task_retention_prune",
+        name="Prune guided task retained transcripts and events",
         replace_existing=True,
     )
 
@@ -901,6 +919,7 @@ def create_app() -> FastAPI:
         cts_window_triggers,
         device,
         events,
+        guided_metrics,
         guided_sessions,
         ha_sync,
         household,
@@ -945,6 +964,7 @@ def create_app() -> FastAPI:
     app.include_router(occupancy.router, prefix=api)
     app.include_router(conversations.router, prefix=api)
     app.include_router(companion_surfaces.router, prefix=api)
+    app.include_router(guided_metrics.router, prefix=api)
     app.include_router(guided_sessions.router, prefix=api)
     app.include_router(routines.router, prefix=api)
     app.include_router(room_zones.router, prefix=api)

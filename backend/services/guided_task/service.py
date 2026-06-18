@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -14,8 +15,10 @@ from backend.core.config import settings as default_settings
 from backend.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.core.logging import get_logger
 from backend.core.template import render_template
+from backend.integrations.semantic_memory_client import ObservationCreate
 from backend.models.guided_task import GuidedSession, Routine, RoutineStep
 from backend.models.person import HouseholdMember
+from backend.observability.metrics import location_metrics as guided_metrics
 from backend.schemas.guided_task import (
     GuidedSessionDetailOut,
     GuidedSessionEventOut,
@@ -77,6 +80,7 @@ class GuidedTaskService:
         admin_ws_broadcaster: Any = None,
         notification_dispatcher: Any = None,
         conversation_manager: Any = None,
+        semantic_memory_client: Any = None,
         memory_query: Any = None,
         voice: SessionVoice | None = None,
         safety_watch: SafetyWatch | None = None,
@@ -101,6 +105,7 @@ class GuidedTaskService:
         self._admin_ws_broadcaster = admin_ws_broadcaster
         self._notification_dispatcher = notification_dispatcher
         self._conversation_manager = conversation_manager
+        self._semantic_memory_client = semantic_memory_client
         self._memory_query = memory_query
         self._voice = voice or NoopSessionVoice()
         self._safety_watch = safety_watch or NoopSafetyWatch()
@@ -290,6 +295,7 @@ class GuidedTaskService:
                 actor="system",
                 detail={"outcome": "summon_timeout"},
             )
+            guided_metrics.guided_sessions_total.labels(outcome="summon_timeout").inc()
             logger.info("guided_summon_timeout", session_id=session.id, person_id=session.person_id)
             resume_owning_pipeline(
                 self._pipeline_executor,
@@ -876,6 +882,8 @@ class GuidedTaskService:
             actor=actor,
             detail={"outcome": outcome},
         )
+        guided_metrics.guided_sessions_total.labels(outcome=outcome).inc()
+        await self._write_session_observation(updated)
         resume_owning_pipeline(self._pipeline_executor, self._db_factory, updated.execution_id)
         return updated
 
@@ -956,6 +964,7 @@ class GuidedTaskService:
             actor="system",
             detail={"outcome": "escalated_unanswered"},
         )
+        guided_metrics.guided_sessions_total.labels(outcome="escalated_unanswered").inc()
         await self._broadcast_session_update(
             updated,
             event_kind="session_abandoned",
@@ -1071,6 +1080,7 @@ class GuidedTaskService:
             return
 
         if decision.kind == "takeover":
+            guided_metrics.guided_takeovers_total.inc()
             self._store.update_session(
                 session.id,
                 status=decision.next_status,
@@ -1096,6 +1106,8 @@ class GuidedTaskService:
         )
 
         if decision.kind in {"advance", "skip"}:
+            step_result = "skipped" if decision.kind == "skip" else "completed"
+            guided_metrics.guided_steps_total.labels(result=step_result).inc()
             if decision.kind == "skip":
                 self._store.add_event(
                     session_id=session.id,
@@ -1128,6 +1140,7 @@ class GuidedTaskService:
             return
 
         if decision.kind == "retry":
+            guided_metrics.guided_steps_total.labels(result="retried").inc()
             updated = self._store.update_session(
                 session.id,
                 status=decision.next_status,
@@ -1150,6 +1163,9 @@ class GuidedTaskService:
             return
 
         if decision.kind == "escalate":
+            guided_metrics.guided_escalations_total.labels(
+                kind="emergency" if decision.emergency else "high"
+            ).inc()
             updated = self._store.update_session(
                 session.id,
                 status=decision.next_status,
@@ -1173,9 +1189,11 @@ class GuidedTaskService:
                 outcome="abandoned",
                 last_activity_at=now,
             )
+            guided_metrics.guided_sessions_total.labels(outcome="abandoned").inc()
             return
 
         if decision.kind == "complete":
+            guided_metrics.guided_steps_total.labels(result="completed").inc()
             await self.complete(session.id, "completed")
 
     async def _speak(self, session: GuidedSession, step: RoutineStep, *, is_retry: bool) -> None:
@@ -1331,6 +1349,87 @@ class GuidedTaskService:
             actor="system",
             detail=detail,
         )
+        guided_metrics.guided_vision_calls_total.inc()
+        if bool(detail.get("uncertain")):
+            guided_metrics.guided_vision_uncertain_total.inc()
+
+    async def prune_retained_data(self) -> dict[str, int]:
+        days = self._settings.as_int("guided_task.transcript_retention_days")
+        cutoff = self._now() - timedelta(days=days)
+        session_ids = self._store.list_completed_session_ids_before(cutoff)
+        transcript_sessions = 0
+        conversation_manager = self._conversation_manager
+        if conversation_manager is not None:
+            transcript_sessions = conversation_manager.prune_sessions(session_ids)
+        events = self._store.prune_events_before(cutoff)
+        sessions = self._store.prune_sessions_before(cutoff)
+        logger.info(
+            "guided_retention_pruned",
+            events=events,
+            sessions=sessions,
+            transcript_sessions=transcript_sessions,
+            retention_days=days,
+        )
+        return {
+            "events": events,
+            "sessions": sessions,
+            "transcript_sessions": transcript_sessions,
+        }
+
+    async def _write_session_observation(self, session: GuidedSession) -> None:
+        memory = self._semantic_memory_client
+        if memory is None:
+            logger.info(
+                "guided_memory_write_skipped",
+                session_id=session.id,
+                reason="semantic_memory_unavailable",
+            )
+            return
+        routine = self._store.get_routine(session.routine_id)
+        routine_name = routine.name if routine is not None else f"routine {session.routine_id}"
+        events = self._store.list_events(session_id=session.id, limit=200)
+        completed_steps = sorted(
+            {event.step_ord for event in events if event.kind == "step_completed" and event.step_ord is not None}
+        )
+        skipped_steps = sorted(
+            {event.step_ord for event in events if event.kind == "step_skipped" and event.step_ord is not None}
+        )
+        stalled_steps = sorted(
+            {
+                event.step_ord
+                for event in events
+                if event.kind in {"retry", "step_blocked"} and event.step_ord is not None
+            }
+        )
+        duration_s = 0
+        if session.completed_at is not None:
+            duration_s = max(0, int((session.completed_at - session.started_at).total_seconds()))
+        local_hour = session.started_at.astimezone(
+            ZoneInfo(self._settings.as_str("app.timezone"))
+        ).strftime("%H:%M")
+        description = (
+            f"Guided routine '{routine_name}' ended with outcome '{session.outcome}'. "
+            f"Duration {duration_s} seconds. Started near local time {local_hour}. "
+            f"Completed steps: {completed_steps or 'none'}. "
+            f"Skipped steps: {skipped_steps or 'none'}. "
+            f"Stalled steps: {stalled_steps or 'none'}."
+        )
+        try:
+            await memory.create_observation(
+                ObservationCreate(
+                    room_id="guided_task",
+                    description=description,
+                    object_list=[routine_name],
+                    hazard_flags=[],
+                    source="guided_task",
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "guided_memory_write_failed",
+                session_id=session.id,
+                error=str(exc),
+            )
 
     def _surfaces_in_room(self, room_id: int) -> list[Any]:
         companion_surfaces = self._companion_surface_service

@@ -10,6 +10,7 @@ from backend.core.config import Settings
 from backend.core.exceptions import ConflictError
 from backend.models.guided_task import GuidedSession, GuidedSessionEvent, Routine, RoutineStep
 from backend.models.person import HouseholdMember
+from backend.observability.metrics import location_metrics as guided_metrics
 from backend.services.guided_task.service import GuidedTaskService
 
 
@@ -80,13 +81,24 @@ class _FakePipelineExecutor:
         self.resumed.append(execution_id)
 
 
+@dataclass
+class _MemoryClient:
+    observations: list = field(default_factory=list)
+
+    async def create_observation(self, observation):
+        self.observations.append(observation)
+        return None
+
+
 def _settings(max_step_attempts: int = 3, resume_grace_s: int = 600) -> Settings:
     return Settings.from_dict(
         {
+            "app": {"timezone": "America/New_York"},
             "guided_task": {
                 "step_timeout_s": 300,
                 "max_step_attempts": max_step_attempts,
                 "resume_grace_s": resume_grace_s,
+                "transcript_retention_days": 30,
             }
         }
     )
@@ -121,6 +133,7 @@ def _service(
     escalator: _RecordingEscalator | None = None,
     safety_watch: _SafetyWatch | None = None,
     pipeline_executor=None,
+    semantic_memory_client=None,
     settings: Settings | None = None,
 ) -> GuidedTaskService:
     return GuidedTaskService(
@@ -130,6 +143,7 @@ def _service(
         voice=voice,
         escalator=escalator,
         safety_watch=safety_watch,
+        semantic_memory_client=semantic_memory_client,
         settings=settings or _settings(),
         time_fn=clock,
     )
@@ -274,6 +288,130 @@ async def test_missing_scheduler_is_graceful(db_session, db_factory):
     session = await service.start(routine_id, "resident-1")
 
     assert session.status == "active"
+
+
+@pytest.mark.asyncio
+async def test_complete_writes_observation_without_transcript(db_session, db_factory):
+    routine_id = _seed_routine(db_session, steps=1)
+    clock = _Clock()
+    memory = _MemoryClient()
+    service = _service(db_factory, clock, semantic_memory_client=memory)
+    session = await service.start(routine_id, "resident-1")
+
+    await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
+
+    assert len(memory.observations) == 1
+    observation = memory.observations[0]
+    assert observation.source == "guided_task"
+    assert "Make tea" in observation.description
+    assert "transcript" not in observation.description.lower()
+
+
+@pytest.mark.asyncio
+async def test_guided_metrics_counters_increment_on_finalize(db_session, db_factory):
+    routine_id = _seed_routine(db_session, steps=1)
+    service = _service(db_factory, _Clock())
+    session = await service.start(routine_id, "resident-1")
+    before_sessions = guided_metrics.guided_sessions_total.labels(outcome="completed")._value.get()
+    before_steps = guided_metrics.guided_steps_total.labels(result="completed")._value.get()
+
+    await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
+
+    assert guided_metrics.guided_sessions_total.labels(outcome="completed")._value.get() == (
+        before_sessions + 1
+    )
+    assert guided_metrics.guided_steps_total.labels(result="completed")._value.get() == (
+        before_steps + 1
+    )
+
+
+@pytest.mark.asyncio
+async def test_missing_memory_service_graceful(db_session, db_factory):
+    routine_id = _seed_routine(db_session, steps=1)
+    service = _service(db_factory, _Clock(), semantic_memory_client=None)
+    session = await service.start(routine_id, "resident-1")
+
+    result = await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
+
+    assert result["done"] is True
+
+
+@pytest.mark.asyncio
+async def test_retention_prune_uses_configured_window(db_session, db_factory):
+    routine_id = _seed_routine(db_session, steps=1)
+    old_started = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    recent_started = datetime(2026, 6, 17, 12, 0, tzinfo=UTC)
+    old = GuidedSession(
+        routine_id=routine_id,
+        person_id="resident-1",
+        status="completed",
+        current_step_ord=0,
+        attempts=0,
+        started_at=old_started,
+        last_activity_at=old_started,
+        completed_at=old_started + timedelta(minutes=5),
+        outcome="completed",
+    )
+    recent = GuidedSession(
+        routine_id=routine_id,
+        person_id="resident-1",
+        status="completed",
+        current_step_ord=0,
+        attempts=0,
+        started_at=recent_started,
+        last_activity_at=recent_started,
+        completed_at=recent_started + timedelta(minutes=5),
+        outcome="completed",
+    )
+    db_session.add_all([old, recent])
+    db_session.flush()
+    old_id = old.id
+    recent_id = recent.id
+    db_session.add(
+        GuidedSessionEvent(
+            session_id=old.id,
+            at=old_started,
+            kind="session_completed",
+            step_ord=0,
+            actor="system",
+        )
+    )
+    db_session.commit()
+    service = _service(db_factory, _Clock())
+
+    result = await service.prune_retained_data()
+
+    assert result["sessions"] == 1
+    db_session.expire_all()
+    assert db_session.get(GuidedSession, old_id) is None
+    assert db_session.get(GuidedSession, recent_id) is not None
+
+
+@pytest.mark.asyncio
+async def test_retention_prune_is_idempotent(db_session, db_factory):
+    routine_id = _seed_routine(db_session, steps=1)
+    old_started = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    db_session.add(
+        GuidedSession(
+            routine_id=routine_id,
+            person_id="resident-1",
+            status="completed",
+            current_step_ord=0,
+            attempts=0,
+            started_at=old_started,
+            last_activity_at=old_started,
+            completed_at=old_started + timedelta(minutes=5),
+            outcome="completed",
+        )
+    )
+    db_session.commit()
+    service = _service(db_factory, _Clock())
+
+    first = await service.prune_retained_data()
+    second = await service.prune_retained_data()
+
+    assert first["sessions"] == 1
+    assert second["sessions"] == 0
 
 
 @pytest.mark.asyncio

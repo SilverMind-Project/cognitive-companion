@@ -615,6 +615,12 @@ export const api = {
     request(`/guided-sessions/${id}/complete`, { method: "POST", contract: "guided_sessions.single" }),
   releaseGuidedSession: (id) =>
     request(`/guided-sessions/${id}/release`, { method: "POST", contract: "guided_sessions.single" }),
+  getGuidedMetricsDashboard: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/guided-metrics/dashboard${qs ? "?" + qs : ""}`, {
+      contract: "guided_metrics.dashboard",
+    });
+  },
 };
 
 /**

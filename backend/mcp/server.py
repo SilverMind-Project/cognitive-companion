@@ -66,6 +66,7 @@ class MCPServices:
     knowledge_delivery: Any = None
     gait_trend_service: Any = None
     guided_task_service: Any = None
+    guided_metrics_service: Any = None
 
 
 _svc = MCPServices()
@@ -91,6 +92,7 @@ def init_services(
     knowledge_delivery=None,
     gait_trend_service=None,
     guided_task_service=None,
+    guided_metrics_service=None,
 ) -> None:
     """Populate the module-level service container. Called once from lifespan."""
     _svc.db_factory = db_session_factory
@@ -112,11 +114,17 @@ def init_services(
     _svc.knowledge_delivery = knowledge_delivery
     _svc.gait_trend_service = gait_trend_service
     _svc.guided_task_service = guided_task_service
+    _svc.guided_metrics_service = guided_metrics_service
 
 
 def set_guided_task_service(guided_task_service: Any) -> None:
     """Attach GuidedTaskService after lifespan constructs it."""
     _svc.guided_task_service = guided_task_service
+
+
+def set_guided_metrics_service(guided_metrics_service: Any) -> None:
+    """Attach GuidedMetricsService after lifespan constructs it."""
+    _svc.guided_metrics_service = guided_metrics_service
 
 
 # ---------------------------------------------------------------------------
@@ -1338,6 +1346,148 @@ async def request_caregiver_help(session_id: int, reason: str | None = None) -> 
     if _svc.guided_task_service is None:
         return {"error": "Guided task service not available"}
     return await _svc.guided_task_service.request_help(session_id, reason)
+
+
+@_register
+async def get_guided_completion_summary(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: summarize guided-task completion outcomes."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.completion_summary(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
+@_register
+async def get_guided_attempts_per_step(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: show retry pressure by guided routine step."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.attempts_per_step(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
+@_register
+async def get_guided_time_to_complete(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: summarize guided routine completion durations."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.time_to_complete(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
+@_register
+async def get_guided_abandonment(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: summarize guided-task abandonment rate and reasons."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.abandonment(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
+@_register
+async def get_guided_escalation_breakdown(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: summarize guided-task escalation reasons."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.escalation_breakdown(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
+@_register
+async def get_guided_vision_agreement(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: summarize guided-task vision agreement quality."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.vision_agreement(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
+@_register
+async def get_guided_time_of_day(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: bucket guided outcomes by local hour."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.time_of_day(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
+def _parse_optional_datetime(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 # ---------------------------------------------------------------------------

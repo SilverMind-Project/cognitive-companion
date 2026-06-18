@@ -29,6 +29,14 @@
         {{ state.routine.is_enabled ? "Enabled" : "Disabled" }}
       </v-chip>
       <v-btn
+        variant="tonal"
+        color="primary"
+        prepend-icon="mdi-chart-bar"
+        :to="{ name: 'admin-routine-metrics', params: { id } }"
+      >
+        Metrics
+      </v-btn>
+      <v-btn
         variant="flat"
         color="secondary"
         prepend-icon="mdi-play-outline"

@@ -40,6 +40,16 @@ class _RecordingEscalator:
         self.calls.append((session.id, reason, emergency))
 
 
+@dataclass
+class _SafetyWatch:
+    events: list[dict]
+    calls: int = 0
+
+    async def evaluate(self, *, session) -> list[dict]:
+        self.calls += 1
+        return self.events
+
+
 class _FakeSchedulerBackend:
     def __init__(self) -> None:
         self.jobs: list[dict] = []
@@ -109,6 +119,7 @@ def _service(
     scheduler=None,
     voice: _RecordingVoice | None = None,
     escalator: _RecordingEscalator | None = None,
+    safety_watch: _SafetyWatch | None = None,
     pipeline_executor=None,
     settings: Settings | None = None,
 ) -> GuidedTaskService:
@@ -118,6 +129,7 @@ def _service(
         pipeline_executor=pipeline_executor,
         voice=voice,
         escalator=escalator,
+        safety_watch=safety_watch,
         settings=settings or _settings(),
         time_fn=clock,
     )
@@ -310,3 +322,28 @@ async def test_mcp_tool_path_duplicate_completion_is_noop(db_session, db_factory
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)
     assert stored.current_step_ord == 1
+
+
+@pytest.mark.asyncio
+async def test_tick_evaluates_all_active_sessions_and_escalates(db_session, db_factory):
+    routine_id = _seed_routine(db_session)
+    clock = _Clock()
+    escalator = _RecordingEscalator()
+    safety_watch = _SafetyWatch(
+        events=[{"condition": "no_motion", "severity": "emergency", "detail": {}}]
+    )
+    service = _service(
+        db_factory,
+        clock,
+        escalator=escalator,
+        safety_watch=safety_watch,
+    )
+    session = await service.start(routine_id, "resident-1")
+
+    await service.tick(clock.now)
+
+    assert safety_watch.calls == 1
+    assert escalator.calls == [(session.id, "safety_event", True)]
+    db_session.expire_all()
+    stored = db_session.get(GuidedSession, session.id)
+    assert stored.status == "escalated"

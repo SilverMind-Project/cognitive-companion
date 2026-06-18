@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 import pytest
 
 from backend.services.guided_task.completion.response import ResponseEvaluator, build_evaluators
@@ -25,10 +23,7 @@ async def test_unconfirmed_evidence_not_complete():
     assert result.reason == "not_confirmed"
 
 
-def test_build_evaluators_returns_response_for_any_config_in_m3(caplog):
-    caplog.set_level(logging.WARNING)
-
+def test_build_evaluators_includes_response_and_configured_assists():
     evaluators = build_evaluators({"kinds": ["vision_confirm"]})
 
-    assert [e.kind for e in evaluators] == ["response"]
-    assert "guided_completion_unsupported_kinds" in caplog.text
+    assert [e.kind for e in evaluators] == ["response", "vision_confirm"]

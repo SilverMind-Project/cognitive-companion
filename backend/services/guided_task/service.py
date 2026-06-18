@@ -16,7 +16,7 @@ from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.guided_task import GuidedSession, Routine, RoutineStep
 from backend.models.person import HouseholdMember
-from backend.services.guided_task.completion.response import build_evaluators
+from backend.services.guided_task.completion.response import build_evaluators, evaluate_completion
 from backend.services.guided_task.domain import Decision, SessionView, StepView
 from backend.services.guided_task.policy import resolve_policy
 from backend.services.guided_task.ports import (
@@ -47,6 +47,14 @@ class GuidedTaskService:
         scheduler: Any = None,
         pipeline_executor: Any = None,
         person_location_service: Any = None,
+        zone_service: Any = None,
+        bucketizer: Any = None,
+        camera_topology: Any = None,
+        llm_model_registry: Any = None,
+        minio_client: Any = None,
+        activity_service: Any = None,
+        signals_service: Any = None,
+        scene_analysis_client: Any = None,
         companion_surface_service: Any = None,
         ws_manager: Any = None,
         notification_dispatcher: Any = None,
@@ -61,6 +69,14 @@ class GuidedTaskService:
         self._scheduler = scheduler
         self._pipeline_executor = pipeline_executor
         self._person_location_service = person_location_service
+        self._zone_service = zone_service
+        self._bucketizer = bucketizer
+        self._camera_topology = camera_topology
+        self._llm_model_registry = llm_model_registry
+        self._minio_client = minio_client
+        self._activity_service = activity_service
+        self._signals_service = signals_service
+        self._scene_analysis_client = scene_analysis_client
         self._companion_surface_service = companion_surface_service
         self._ws_manager = ws_manager
         self._notification_dispatcher = notification_dispatcher
@@ -74,6 +90,15 @@ class GuidedTaskService:
 
     def set_person_location_service(self, person_location_service: Any) -> None:
         self._person_location_service = person_location_service
+
+    def set_zone_service(self, zone_service: Any) -> None:
+        self._zone_service = zone_service
+
+    def set_bucketizer(self, bucketizer: Any) -> None:
+        self._bucketizer = bucketizer
+
+    def set_safety_watch(self, safety_watch: SafetyWatch | None) -> None:
+        self._safety_watch = safety_watch or NoopSafetyWatch()
 
     async def start(
         self,
@@ -299,8 +324,28 @@ class GuidedTaskService:
             )
             return self._decision_descriptor(decision)
 
-        evaluator = build_evaluators(step.completion_gate)[0]
-        result = await evaluator.is_complete(session=session, step=step, evidence=evidence)
+        evidence_with_now = {**evidence, "now": now}
+        evaluators = build_evaluators(
+            step.completion_gate,
+            activity_service=self._activity_service,
+            zone_service=self._zone_service,
+            person_location=self._person_location_service,
+            bucketizer=self._bucketizer,
+            camera_topology=self._camera_topology,
+            identity_resolver=self._identity_ids_for_person,
+            llm_model_registry=self._llm_model_registry,
+            minio_client=self._minio_client,
+            event_recorder=self._record_vision_confirm_event,
+        )
+        mode = str((step.completion_gate or {}).get("mode", "any"))
+        evaluation = await evaluate_completion(
+            evaluators=evaluators,
+            mode=mode,
+            session=session,
+            step=step,
+            evidence=evidence_with_now,
+        )
+        result = evaluation.result
         if not result.complete:
             decision = Decision(
                 kind="wait",
@@ -327,7 +372,7 @@ class GuidedTaskService:
             now=now,
             event_kind="step_completed",
             actor="resident",
-            detail={"completion_reason": result.reason},
+            detail={"completion_reason": result.reason, "gates": evaluation.details},
             speak_on_advance=False,
         )
         return await self._advance_descriptor(session.id, routine, steps, decision)
@@ -833,6 +878,27 @@ class GuidedTaskService:
         if person_location is None:
             return None
         return await person_location.where_is(person_id)
+
+    def _identity_ids_for_person(self, person_id: str) -> set[str]:
+        # CTS uses committed identity_id values as HouseholdMember.id values.
+        # If a future deployment adds aliases, this resolver is the seam to
+        # return all aliases without changing the camera cascade.
+        return {person_id}
+
+    def _record_vision_confirm_event(
+        self,
+        session_id: int,
+        step_ord: int | None,
+        detail: dict[str, Any],
+    ) -> None:
+        self._store.add_event(
+            session_id=session_id,
+            at=self._now(),
+            kind="vision_confirm",
+            step_ord=step_ord,
+            actor="system",
+            detail=detail,
+        )
 
     def _surfaces_in_room(self, room_id: int) -> list[Any]:
         companion_surfaces = self._companion_surface_service

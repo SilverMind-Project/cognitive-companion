@@ -7,6 +7,11 @@ from typing import Any, Literal
 
 from backend.core.logging import get_logger
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.services.media_window_frames import (
+    CtsFrameWindowConfig,
+    collect_recent_cts_frames,
+    parse_event_time,
+)
 from backend.steps import StepRegistry
 from backend.steps.base import (
     ServiceContainer,
@@ -101,78 +106,38 @@ class MediaWindowPollHandler(StepHandler):
                 )
             )
 
-        target_cameras = cameras or sorted(bucketizer.buffer_stats())
-        frames: list[dict[str, Any]] = []
-        for camera_id in target_cameras:
-            buffered = bucketizer.forward_buffer(
+        collected = await collect_recent_cts_frames(
+            bucketizer=bucketizer,
+            minio_client=services.minio_client,
+            config=CtsFrameWindowConfig(
                 window_id=str(execution.id),
-                camera_id=camera_id,
-                lookahead_s=lookback_s + lookahead_s,
-                eligible_only=True,
-            )
-            for frame in buffered:
-                event_time = _parse_event_time(frame)
-                if event_time is None or event_time < window_start:
-                    continue
-                if rooms and frame.get("room_name") not in rooms:
-                    continue
-                frames.append(dict(frame))
-
-        frames.sort(key=lambda frame: frame.get("event_time", ""))
-        downsampled = _downsample_frames(
-            frames,
-            sample_period_s=float(config.get("sample_period_s", 1.0)),
-            max_frames=int(config.get("max_frames", 30)),
+                cameras=cameras,
+                rooms=rooms,
+                lookback_s=lookback_s,
+                lookahead_s=lookahead_s,
+                sample_period_s=float(config.get("sample_period_s", 1.0)),
+                max_frames=int(config.get("max_frames", 30)),
+                now=now,
+            ),
         )
 
-        partial = False
-        images: list[str] = []
-        if services.minio_client is None and downsampled:
-            partial = True
-            logger.warning(
-                "media_window_poll_no_minio_client",
-                execution_id=str(execution.id),
-                source="cts",
-            )
-        elif services.minio_client is not None:
-            for frame in downsampled:
-                minio_key = frame.get("minio_key")
-                if not minio_key:
-                    continue
-                try:
-                    images.append(
-                        services.minio_client.generate_presigned_url(
-                            str(minio_key),
-                            expiration=3600,
-                        )
-                    )
-                except Exception:  # noqa: BLE001
-                    partial = True
-                    logger.warning(
-                        "media_window_poll_presign_failed",
-                        execution_id=str(execution.id),
-                        camera_id=frame.get("camera_id"),
-                        minio_key=minio_key,
-                        exc_info=True,
-                    )
-
         if bool(config.get("include_scene", False)):
-            await _add_scene_captions(downsampled, execution, services)
+            await _add_scene_captions(collected.frames, execution, services)
 
-        summary = _summarize_frames(downsampled)
+        summary = _summarize_frames(collected.frames)
         return StepResult(
             data={
                 "trigger_id": execution.id,
                 "window_start": window_start.isoformat(),
                 "window_end": now.isoformat(),
-                "cameras": sorted(target_cameras),
+                "cameras": collected.target_cameras,
                 "rooms": summary["rooms"],
-                "frames": downsampled,
-                "images": images,
-                "count": len(images),
+                "frames": collected.frames,
+                "images": collected.images,
+                "count": len(collected.images),
                 "summary": summary,
                 "source": "cts",
-                "partial": partial,
+                "partial": collected.partial,
                 "sensor_ids": [],
                 "room_names": rooms,
                 "since_minutes": 0,
@@ -295,13 +260,7 @@ class MediaWindowPollHandler(StepHandler):
 
 
 def _parse_event_time(frame: dict[str, Any]) -> datetime | None:
-    try:
-        parsed = datetime.fromisoformat(str(frame["event_time"]))
-    except ValueError, KeyError, TypeError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
+    return parse_event_time(frame)
 
 
 def _downsample_frames(

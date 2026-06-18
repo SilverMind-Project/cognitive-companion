@@ -84,6 +84,15 @@ class CtsCamera(Base):
     # List of privacy-zone dicts [{zone_id, name, polygon, policy, enabled}].
     privacy_zones: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
+    # Floor-region polygon in normalised [0,1] image space: [[x_norm, y_norm], ...].
+    # Same coordinate space as visibility_polygon (NOT floor-plan metres).
+    # Populated by depth-based auto-calibration (source="depth_auto") or hand-drawn
+    # by the operator (source="manual"). None = fall back to image-border visibility.
+    floor_region_polygon: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # Origin of the floor region: "depth_auto" or "manual".
+    floor_region_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    floor_region_set_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
     # Latest health snapshot from rtsp-ingress (filled by camera-health poll).
     health_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 

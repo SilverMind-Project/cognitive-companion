@@ -262,6 +262,28 @@
                       opacity="0.85"
                     />
                   </g>
+                  <!-- Floor-region polygon overlay (draggable vertices) -->
+                  <g v-if="floorRegionDraft && floorRegionSvgPoints">
+                    <polygon
+                      :points="floorRegionSvgPoints"
+                      fill="rgba(16,185,129,0.12)"
+                      stroke="#10b981"
+                      stroke-width="3"
+                      stroke-dasharray="10 5"
+                    />
+                    <g
+                      v-for="(pt, vi) in floorRegionDraft"
+                      :key="`fr-${vi}`"
+                      :transform="`translate(${frPtToSvg(pt)?.[0] ?? 0},${frPtToSvg(pt)?.[1] ?? 0})`"
+                      style="cursor:grab"
+                      @mousedown.stop="startFloorRegionDrag(vi, $event)"
+                      @click.stop
+                    >
+                      <circle r="32" fill="transparent" />
+                      <circle r="14" fill="#10b981" opacity="0.85" />
+                      <circle r="14" fill="none" stroke="white" stroke-width="2" />
+                    </g>
+                  </g>
                   <!-- Pending camera point -->
                   <g v-if="pendingPixel">
                     <circle
@@ -647,6 +669,42 @@
             </v-card-text>
           </v-card>
 
+          <!-- Floor-region polygon card (shown after auto-calibrate or when loaded) -->
+          <v-card v-if="floorRegionDraft" class="mt-3">
+            <v-card-title class="d-flex align-center">
+              <v-icon start size="18" color="success">mdi-floor-plan</v-icon>
+              <span>Floor Region</span>
+              <v-spacer />
+              <v-chip size="small" color="success" variant="tonal">
+                {{ floorRegionDraft.length }} vertices
+              </v-chip>
+            </v-card-title>
+            <v-card-text class="pb-1">
+              <div class="text-body-2 mb-2">
+                The green polygon on the camera image shows the detected floor area.
+                Drag vertices to adjust, then save.
+              </div>
+              <div class="text-caption text-medium-emphasis">
+                Coordinate space: normalised image [0,1] — same as the visibility polygon,
+                NOT floor-plan metres.
+              </div>
+            </v-card-text>
+            <v-card-actions class="px-4 pb-4 pt-0">
+              <v-btn variant="text" size="small" @click="discardFloorRegion">Discard</v-btn>
+              <v-spacer />
+              <v-btn
+                color="success"
+                variant="flat"
+                size="small"
+                prepend-icon="mdi-content-save"
+                :loading="floorRegionSaving"
+                @click="saveFloorRegion('manual')"
+              >
+                Save Region
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+
           <!-- Auto-calibrate result card -->
           <v-card v-if="autoResult" class="mt-3">
             <v-card-title class="d-flex align-center">
@@ -821,6 +879,14 @@ const latestMinioKey = ref(null);
 const autoCalibrating = ref(false);
 const autoResult = ref(null);
 const autoSuggestedPoints = ref([]);
+
+// ── Floor-region state ────────────────────────────────────────────────────
+// floorRegionDraft: the polygon being reviewed/edited in normalised [0,1] image coords.
+// Each element is [x_norm, y_norm]. Null when no polygon is loaded.
+const floorRegionDraft = ref(null);
+// Whether the operator is actively dragging a floor-region vertex.
+const floorRegionDragIdx = ref(null);
+const floorRegionSaving = ref(false);
 
 // ── Click-to-pick state ───────────────────────────────────────────────────
 // pendingPixel: camera click waiting for a matching floor plan click
@@ -1027,6 +1093,7 @@ async function onCameraChange() {
   imgContentRect.value = null;
   existingCalibration.value = false;
   latestMinioKey.value = null;
+  floorRegionDraft.value = null;
   await Promise.all([loadSnapshot(), loadExistingCalibration()]);
 }
 
@@ -1233,6 +1300,9 @@ async function runAutoCalibrate() {
     const res = await cts.autoCalibrate(selectedCameraId.value, body);
     autoResult.value = res;
     autoSuggestedPoints.value = [];
+    if (res.floor_region_polygon) {
+      floorRegionDraft.value = res.floor_region_polygon;
+    }
     notify("Auto-calibration draft ready — review the suggested camera points below.", "success");
   } catch (e) {
     const msg = e?.response?.data?.detail?.message || e.message || "Auto-calibration failed.";
@@ -1254,6 +1324,79 @@ function populateFromAutoResult() {
 function dismissAutoResult() {
   autoResult.value = null;
   autoSuggestedPoints.value = [];
+}
+
+// ── Floor-region overlay ───────────────────────────────────────────────────
+
+// Convert normalised [x_norm, y_norm] to SVG coords in the camera natural-resolution viewBox.
+function frPtToSvg(pt) {
+  if (!imgContentRect.value) return null;
+  const { naturalWidth: nw, naturalHeight: nh } = imgContentRect.value;
+  return [pt[0] * nw, pt[1] * nh];
+}
+
+// SVG polygon points string from the draft polygon.
+const floorRegionSvgPoints = computed(() => {
+  if (!floorRegionDraft.value || !imgContentRect.value) return null;
+  return floorRegionDraft.value
+    .map((pt) => {
+      const sv = frPtToSvg(pt);
+      return sv ? `${sv[0].toFixed(1)},${sv[1].toFixed(1)}` : null;
+    })
+    .filter(Boolean)
+    .join(" ");
+});
+
+function startFloorRegionDrag(idx, e) {
+  if (!floorRegionDraft.value) return;
+  e.preventDefault();
+  e.stopPropagation();
+  floorRegionDragIdx.value = idx;
+  window.addEventListener("mousemove", onFloorRegionDragMove);
+  window.addEventListener("mouseup", stopFloorRegionDrag);
+}
+
+function onFloorRegionDragMove(e) {
+  if (floorRegionDragIdx.value === null || !imgEl.value || !imgContentRect.value) return;
+  const r = imgEl.value.getBoundingClientRect();
+  const { offsetX, offsetY, width: cw, height: ch } = imgContentRect.value;
+  const relX = Math.max(0, Math.min(cw, e.clientX - r.left - offsetX));
+  const relY = Math.max(0, Math.min(ch, e.clientY - r.top - offsetY));
+  const xn = parseFloat((relX / cw).toFixed(4));
+  const yn = parseFloat((relY / ch).toFixed(4));
+  const updated = floorRegionDraft.value.map((pt, i) =>
+    i === floorRegionDragIdx.value ? [xn, yn] : pt
+  );
+  floorRegionDraft.value = updated;
+}
+
+function stopFloorRegionDrag() {
+  floorRegionDragIdx.value = null;
+  window.removeEventListener("mousemove", onFloorRegionDragMove);
+  window.removeEventListener("mouseup", stopFloorRegionDrag);
+}
+
+async function saveFloorRegion(source) {
+  if (!floorRegionDraft.value || !selectedCameraId.value) return;
+  floorRegionSaving.value = true;
+  try {
+    await cts.postFloorRegion(selectedCameraId.value, floorRegionDraft.value, source);
+    notify(
+      source === "manual"
+        ? "Floor region saved (manual)."
+        : "Floor region accepted from auto-calibration.",
+      "success"
+    );
+  } catch (e) {
+    notify(`Floor region save failed: ${e.message}`, "error");
+  } finally {
+    floorRegionSaving.value = false;
+  }
+}
+
+function discardFloorRegion() {
+  floorRegionDraft.value = null;
+  floorRegionDragIdx.value = null;
 }
 
 // ── WebSocket: track latest MinIO key per camera for auto-calibrate ───────
@@ -1281,6 +1424,7 @@ onBeforeUnmount(() => {
   if (snapshotUrl.value) URL.revokeObjectURL(snapshotUrl.value);
   stopCameraDrag();
   stopFloorDrag();
+  stopFloorRegionDrag();
   clearTimeout(_previewDebounceTimer);
 });
 </script>

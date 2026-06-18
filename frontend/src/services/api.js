@@ -108,6 +108,7 @@ export const api = {
   createRoom: (data) => request("/rooms", { method: "POST", body: JSON.stringify(data) }),
   updateRoom: (id, data) => request(`/rooms/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteRoom: (id) => request(`/rooms/${id}`, { method: "DELETE" }),
+  listRoomZones: (roomId) => request(`/rooms/${roomId}/zones`, { contract: "room_zones.list" }),
 
   // Sensors
   getSensors: (params = {}) => {
@@ -568,6 +569,52 @@ export const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/knowledge-interactions/info-card-deliveries${qs ? "?" + qs : ""}`, { contract: "knowledge.interactions.deliveries" });
   },
+
+  // Routines (Guided Companion M9)
+  listRoutines: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/routines${qs ? "?" + qs : ""}`, { contract: "routines.list" });
+  },
+  getRoutine: (id) => request(`/routines/${id}`, { contract: "routines.detail" }),
+  createRoutine: (data) =>
+    request("/routines", { method: "POST", body: JSON.stringify(data), contract: "routines.single" }),
+  updateRoutine: (id, data) =>
+    request(`/routines/${id}`, { method: "PATCH", body: JSON.stringify(data), contract: "routines.single" }),
+  deleteRoutine: (id) => request(`/routines/${id}`, { method: "DELETE" }),
+  replaceRoutineSteps: (id, steps) =>
+    request(`/routines/${id}/steps`, {
+      method: "PUT",
+      body: JSON.stringify({ steps }),
+      contract: "routines.detail",
+    }),
+  testRunRoutine: (id, data = {}) =>
+    request(`/routines/${id}/test-run`, {
+      method: "POST",
+      body: JSON.stringify(data),
+      contract: "guided_sessions.single",
+    }),
+
+  // Guided sessions (Guided Companion M9)
+  listGuidedSessions: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/guided-sessions${qs ? "?" + qs : ""}`, { contract: "guided_sessions.list" });
+  },
+  getGuidedSessionDetail: (id) =>
+    request(`/guided-sessions/${id}/detail`, { contract: "guided_sessions.detail" }),
+  beginGuidedSessionTakeover: (id) =>
+    request(`/guided-sessions/${id}/takeover`, { method: "POST", contract: "guided_sessions.single" }),
+  sayGuidedSession: (id, text) =>
+    request(`/guided-sessions/${id}/say`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+      contract: "guided_sessions.single",
+    }),
+  advanceGuidedSession: (id) =>
+    request(`/guided-sessions/${id}/advance`, { method: "POST" }),
+  completeGuidedSession: (id) =>
+    request(`/guided-sessions/${id}/complete`, { method: "POST", contract: "guided_sessions.single" }),
+  releaseGuidedSession: (id) =>
+    request(`/guided-sessions/${id}/release`, { method: "POST", contract: "guided_sessions.single" }),
 };
 
 /**

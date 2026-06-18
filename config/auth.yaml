@@ -127,6 +127,8 @@ permission_map:
     - "PATCH /api/v1/companion-surfaces/*"
     - "room_zones:read"
     - "room_zones:write"
+    - "routines:read"
+    - "routines:write"
     - "guided_sessions:read"
     - "guided_sessions:takeover"
 
@@ -186,6 +188,8 @@ permission_map:
     - "PATCH /api/v1/companion-surfaces/*"
     - "room_zones:read"
     - "room_zones:write"
+    - "routines:read"
+    - "routines:write"
     - "guided_sessions:read"
     - "guided_sessions:takeover"
 
@@ -257,7 +261,19 @@ permission_map:
     - "PATCH /api/v1/zones/*"
     - "DELETE /api/v1/zones/*"
 
+  "routines:read":
+    - "GET /api/v1/routines"
+    - "GET /api/v1/routines/*"
+
+  "routines:write":
+    - "POST /api/v1/routines"
+    - "PATCH /api/v1/routines/*"
+    - "DELETE /api/v1/routines/*"
+    - "PUT /api/v1/routines/*/steps"
+    - "POST /api/v1/routines/*/test-run"
+
   "guided_sessions:read":
+    - "GET /api/v1/guided-sessions"
     - "GET /api/v1/guided-sessions/*/detail"
 
   "guided_sessions:takeover":

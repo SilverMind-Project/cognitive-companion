@@ -46,6 +46,21 @@ def("knowledge.interactions.session", "object");
 def("knowledge.interactions.deliveries", "array");
 
 // ---------------------------------------------------------------------------
+// Room zones (M6 endpoint, used by M9 ZonePicker)
+// ---------------------------------------------------------------------------
+def("room_zones.list", { items: "array", total: "number" });
+
+// ---------------------------------------------------------------------------
+// Guided Companion: Routines + Sessions (M9)
+// ---------------------------------------------------------------------------
+def("routines.list", { items: "array", total: "number" });
+def("routines.single", { id: "number", name: "string", person_id: "string", is_enabled: "boolean" });
+def("routines.detail", { routine: "object", steps: "array" });
+def("guided_sessions.list", { items: "array", total: "number" });
+def("guided_sessions.single", { id: "number", routine_id: "number", person_id: "string", status: "string" });
+def("guided_sessions.detail", { session: "object", recent_events: "array", recent_transcript: "array" });
+
+// ---------------------------------------------------------------------------
 // Rules
 // ---------------------------------------------------------------------------
 def("rules.list", "array");

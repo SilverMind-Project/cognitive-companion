@@ -2,19 +2,32 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from backend.core.auth import AuthContext, require_permission
 from backend.routers.dependencies import get_guided_task_service
 from backend.schemas.guided_task import (
     GuidedSessionAdvanceOut,
     GuidedSessionDetailOut,
+    GuidedSessionListOut,
     GuidedSessionOut,
     GuidedSessionSayIn,
 )
 from backend.services.guided_task.service import GuidedTaskService
 
 router = APIRouter(prefix="/guided-sessions", tags=["guided-sessions"])
+
+
+@router.get("", response_model=GuidedSessionListOut)
+def list_guided_sessions(
+    person_id: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    svc: GuidedTaskService = Depends(get_guided_task_service),
+    _auth: AuthContext = Depends(require_permission("guided_sessions:read")),
+) -> GuidedSessionListOut:
+    return svc.list_sessions(person_id=person_id, status=status, limit=limit, offset=offset)
 
 
 @router.get("/{session_id}/detail", response_model=GuidedSessionDetailOut)

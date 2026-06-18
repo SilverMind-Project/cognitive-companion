@@ -284,6 +284,14 @@ const navSections = [
       { to: "/admin/alerts", icon: "mdi-alert-circle-outline", title: "Alerts" },
     ],
   },
+  {
+    key: "guided-companion",
+    title: "Guided Companion",
+    items: [
+      { to: "/admin/routines", icon: "mdi-clipboard-list-outline", title: "Routines" },
+      { to: "/admin/guided-sessions", icon: "mdi-monitor-eye", title: "Sessions" },
+    ],
+  },
 ];
 
 // Scroll fade detection

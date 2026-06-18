@@ -19,9 +19,16 @@ from backend.models.person import HouseholdMember
 from backend.schemas.guided_task import (
     GuidedSessionDetailOut,
     GuidedSessionEventOut,
+    GuidedSessionListOut,
     GuidedSessionOut,
     GuidedSessionStepOut,
     GuidedSessionTurnOut,
+    RoutineCreate,
+    RoutineDetailOut,
+    RoutineListOut,
+    RoutineOut,
+    RoutineStepOut,
+    RoutineUpdate,
 )
 from backend.schemas.guided_task_ws import GuidedSessionUpdateEvent
 from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
@@ -67,6 +74,7 @@ class GuidedTaskService:
         scene_analysis_client: Any = None,
         companion_surface_service: Any = None,
         ws_manager: Any = None,
+        admin_ws_broadcaster: Any = None,
         notification_dispatcher: Any = None,
         conversation_manager: Any = None,
         memory_query: Any = None,
@@ -90,6 +98,7 @@ class GuidedTaskService:
         self._scene_analysis_client = scene_analysis_client
         self._companion_surface_service = companion_surface_service
         self._ws_manager = ws_manager
+        self._admin_ws_broadcaster = admin_ws_broadcaster
         self._notification_dispatcher = notification_dispatcher
         self._conversation_manager = conversation_manager
         self._memory_query = memory_query
@@ -641,6 +650,100 @@ class GuidedTaskService:
             recent_transcript=recent_transcript,
         )
 
+    # ------------------------------------------------------------------
+    # Routine CRUD (Part A)
+    # ------------------------------------------------------------------
+
+    def list_routines(
+        self, *, person_id: str | None = None, limit: int = 20, offset: int = 0
+    ) -> RoutineListOut:
+        rows, total = self._store.list_routines(
+            person_id=person_id, limit=limit, offset=offset
+        )
+        items = []
+        for r in rows:
+            step_count = self._store.count_steps(r.id)
+            out = RoutineOut.model_validate(r, from_attributes=True)
+            out = out.model_copy(update={"step_count": step_count})
+            items.append(out)
+        return RoutineListOut(items=items, total=total)
+
+    def get_routine_detail(self, routine_id: int) -> RoutineDetailOut:
+        routine = self._store.get_routine(routine_id)
+        if routine is None:
+            raise NotFoundError("Routine", routine_id)
+        steps = self._store.list_steps(routine_id)
+        step_count = len(steps)
+        routine_out = RoutineOut.model_validate(routine, from_attributes=True)
+        routine_out = routine_out.model_copy(update={"step_count": step_count})
+        steps_out = [RoutineStepOut.model_validate(s, from_attributes=True) for s in steps]
+        return RoutineDetailOut(routine=routine_out, steps=steps_out)
+
+    def create_routine(self, payload: RoutineCreate) -> RoutineOut:
+        routine = self._store.create_routine(**payload.model_dump())
+        return RoutineOut.model_validate(routine, from_attributes=True)
+
+    def update_routine(self, routine_id: int, payload: RoutineUpdate) -> RoutineOut:
+        data = payload.model_dump(exclude_unset=True)
+        updated = self._store.update_routine(routine_id, **data)
+        if updated is None:
+            raise NotFoundError("Routine", routine_id)
+        step_count = self._store.count_steps(routine_id)
+        out = RoutineOut.model_validate(updated, from_attributes=True)
+        return out.model_copy(update={"step_count": step_count})
+
+    def delete_routine(self, routine_id: int) -> None:
+        ok = self._store.delete_routine(routine_id)
+        if not ok:
+            raise NotFoundError("Routine", routine_id)
+
+    def replace_steps(self, routine_id: int, steps_in: list[dict]) -> RoutineDetailOut:
+        routine = self._store.get_routine(routine_id)
+        if routine is None:
+            raise NotFoundError("Routine", routine_id)
+        ords = [s["ord"] for s in steps_in]
+        expected = list(range(len(ords)))
+        if sorted(ords) != expected:
+            raise ValidationError(
+                f"Step ord values must be contiguous from 0; got {sorted(ords)}"
+            )
+        new_steps = self._store.replace_steps(routine_id, steps_in)
+        routine_out = RoutineOut.model_validate(routine, from_attributes=True)
+        routine_out = routine_out.model_copy(update={"step_count": len(new_steps)})
+        steps_out = [RoutineStepOut.model_validate(s, from_attributes=True) for s in new_steps]
+        return RoutineDetailOut(routine=routine_out, steps=steps_out)
+
+    async def test_run(
+        self, routine_id: int, *, surface_id: str | None = None
+    ) -> GuidedSessionOut:
+        routine = self._store.get_routine(routine_id)
+        if routine is None:
+            raise NotFoundError("Routine", routine_id)
+        session = await self.request_start(
+            routine_id,
+            routine.person_id,
+            execution_id=None,
+            surface_id=surface_id,
+            require_presence=False,
+        )
+        return self._session_out(session)
+
+    def list_sessions(
+        self,
+        *,
+        person_id: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> GuidedSessionListOut:
+        rows, total = self._store.list_sessions(
+            person_id=person_id, status=status, limit=limit, offset=offset
+        )
+        return GuidedSessionListOut(
+            items=[self._session_out(s) for s in rows],
+            total=total,
+        )
+
     async def on_step_timeout(self, session_id: int) -> Decision:
         now = self._now()
         session, routine, steps, step = self._load_runtime(session_id)
@@ -814,9 +917,6 @@ class GuidedTaskService:
         detail: dict | None,
         at: datetime,
     ) -> None:
-        ws_manager = self._ws_manager
-        if ws_manager is None:
-            return
         event = GuidedSessionUpdateEvent(
             session_id=session.id,
             routine_id=session.routine_id,
@@ -828,7 +928,11 @@ class GuidedTaskService:
             detail=detail,
             at=at,
         )
-        await ws_manager.broadcast(event.model_dump(mode="json"))
+        payload = event.model_dump(mode="json")
+        if self._ws_manager is not None:
+            await self._ws_manager.broadcast(payload)
+        if self._admin_ws_broadcaster is not None:
+            await self._admin_ws_broadcaster(payload)
 
     async def _abandon_escalated_unanswered(
         self,

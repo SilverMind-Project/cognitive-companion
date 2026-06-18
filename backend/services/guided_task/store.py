@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.models.guided_task import GuidedSession, GuidedSessionEvent, Routine, RoutineStep
@@ -23,6 +23,106 @@ class GuidedTaskStore:
         db = self._db_factory()
         try:
             return db.get(Routine, routine_id)
+        finally:
+            db.close()
+
+    def list_routines(
+        self, *, person_id: str | None = None, limit: int = 20, offset: int = 0
+    ) -> tuple[list[Routine], int]:
+        db = self._db_factory()
+        try:
+            stmt = select(Routine).order_by(Routine.id.desc())
+            if person_id is not None:
+                stmt = stmt.where(Routine.person_id == person_id)
+            total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+            rows = list(db.execute(stmt.limit(limit).offset(offset)).scalars().all())
+            return rows, total
+        finally:
+            db.close()
+
+    def create_routine(self, **values: Any) -> Routine:
+        db = self._db_factory()
+        try:
+            routine = Routine(**values)
+            db.add(routine)
+            db.commit()
+            db.refresh(routine)
+            return routine
+        finally:
+            db.close()
+
+    def update_routine(self, routine_id: int, **values: Any) -> Routine | None:
+        db = self._db_factory()
+        try:
+            routine = db.get(Routine, routine_id)
+            if routine is None:
+                return None
+            for key, value in values.items():
+                setattr(routine, key, value)
+            db.commit()
+            db.refresh(routine)
+            return routine
+        finally:
+            db.close()
+
+    def delete_routine(self, routine_id: int) -> bool:
+        db = self._db_factory()
+        try:
+            routine = db.get(Routine, routine_id)
+            if routine is None:
+                return False
+            db.delete(routine)
+            db.commit()
+            return True
+        finally:
+            db.close()
+
+    def replace_steps(
+        self, routine_id: int, steps_data: list[dict[str, Any]]
+    ) -> list[RoutineStep]:
+        db = self._db_factory()
+        try:
+            db.query(RoutineStep).filter(RoutineStep.routine_id == routine_id).delete(
+                synchronize_session=False
+            )
+            new_steps = [RoutineStep(routine_id=routine_id, **s) for s in steps_data]
+            db.add_all(new_steps)
+            db.commit()
+            for step in new_steps:
+                db.refresh(step)
+            return new_steps
+        finally:
+            db.close()
+
+    def count_steps(self, routine_id: int) -> int:
+        db = self._db_factory()
+        try:
+            return int(
+                db.execute(
+                    select(func.count()).where(RoutineStep.routine_id == routine_id)
+                ).scalar_one()
+            )
+        finally:
+            db.close()
+
+    def list_sessions(
+        self,
+        *,
+        person_id: str | None = None,
+        status: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[GuidedSession], int]:
+        db = self._db_factory()
+        try:
+            stmt = select(GuidedSession).order_by(GuidedSession.started_at.desc())
+            if person_id is not None:
+                stmt = stmt.where(GuidedSession.person_id == person_id)
+            if status is not None:
+                stmt = stmt.where(GuidedSession.status == status)
+            total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+            rows = list(db.execute(stmt.limit(limit).offset(offset)).scalars().all())
+            return rows, total
         finally:
             db.close()
 

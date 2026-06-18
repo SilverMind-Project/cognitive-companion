@@ -13,6 +13,7 @@ import pytest
 
 from backend.models.conversation import ConversationTurn
 from backend.services.conversation_manager import (
+    ALLOWED_ACTORS,
     ConversationManager,
     _actor_label,
 )
@@ -27,8 +28,10 @@ from backend.services.conversation_manager import (
     [
         ("user", "User"),
         ("assistant", "Assistant"),
+        ("orchestrator", "Orchestrator"),
         ("rules_engine", "Rules Engine"),
         ("system", "System"),
+        ("caregiver", "Caregiver"),
         ("custom_agent", "Custom_Agent"),
     ],
 )
@@ -62,6 +65,21 @@ def test_create_and_end_session(db_factory) -> None:
 def test_end_missing_session_is_noop(db_factory) -> None:
     manager = ConversationManager(db_factory)
     manager.end_session(99999)  # must not raise
+
+
+def test_ensure_session_creates_external_session(db_factory) -> None:
+    manager = ConversationManager(db_factory)
+
+    session_id = manager.ensure_session(42)
+    manager.add_turn(session_id, "caregiver", "please try again")
+
+    db = db_factory()
+    try:
+        turn = db.query(ConversationTurn).one()
+        assert turn.session_id == 42
+        assert turn.actor == "caregiver"
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +135,27 @@ def test_add_turn_stores_metadata(db_factory) -> None:
         assert turn.metadata_json == {"model": "gemini"}
     finally:
         db.close()
+
+
+def test_caregiver_role_accepted(db_factory) -> None:
+    manager = ConversationManager(db_factory)
+    session_id = manager.create_session()
+
+    manager.add_turn(session_id, "caregiver", "try the next step")
+
+    db = db_factory()
+    try:
+        turn = db.query(ConversationTurn).one()
+        assert turn.actor == "caregiver"
+    finally:
+        db.close()
+
+
+def test_existing_roles_unchanged() -> None:
+    assert {"user", "assistant", "orchestrator", "rules_engine", "system"}.issubset(
+        ALLOWED_ACTORS
+    )
+    assert "caregiver" in ALLOWED_ACTORS
 
 
 # ---------------------------------------------------------------------------

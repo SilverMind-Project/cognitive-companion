@@ -539,9 +539,9 @@ async def lifespan(app: FastAPI):
     from backend.mcp.server import set_guided_task_service
     from backend.services.guided_task import (
         AgentSessionVoice,
+        FullEscalator,
         GuidedTaskSafetyWatch,
         GuidedTaskService,
-        NotifyOnlyEscalator,
         SensorRoomCameraTopology,
     )
 
@@ -573,17 +573,19 @@ async def lifespan(app: FastAPI):
         companion_surface_service=companion_surface_service,
         ws_manager=ws_manager,
         notification_dispatcher=notifier,
+        conversation_manager=conversation_manager,
         memory_query=memory_query_service,
         voice=AgentSessionVoice(
             ws_manager=ws_manager,
             voice_instructions=voice_instructions,
             memory_query=memory_query_service,
         ),
-        escalator=NotifyOnlyEscalator(
+        escalator=FullEscalator(
             notifier,
             db_factory=get_session,
-            settings=settings,
+            ws_manager=ws_manager,
             conversation_manager=conversation_manager,
+            settings=settings,
         ),
         safety_watch=guided_safety_watch,
         settings=settings,
@@ -897,6 +899,7 @@ def create_app() -> FastAPI:
         cts_window_triggers,
         device,
         events,
+        guided_sessions,
         ha_sync,
         household,
         image,
@@ -939,6 +942,7 @@ def create_app() -> FastAPI:
     app.include_router(occupancy.router, prefix=api)
     app.include_router(conversations.router, prefix=api)
     app.include_router(companion_surfaces.router, prefix=api)
+    app.include_router(guided_sessions.router, prefix=api)
     app.include_router(room_zones.router, prefix=api)
     app.include_router(ha_sync.router, prefix=api)
     app.include_router(persons.router, prefix=api)

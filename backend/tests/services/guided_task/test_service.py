@@ -343,7 +343,7 @@ async def test_tick_evaluates_all_active_sessions_and_escalates(db_session, db_f
     await service.tick(clock.now)
 
     assert safety_watch.calls == 1
-    assert escalator.calls == [(session.id, "safety_event", True)]
+    assert escalator.calls == [(session.id, "no_motion", True)]
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)
     assert stored.status == "escalated"

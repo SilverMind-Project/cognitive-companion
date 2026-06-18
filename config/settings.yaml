@@ -151,6 +151,7 @@ guided_task:
   step_timeout_s: 300
   resume_grace_s: 600
   safety_tick_s: 20
+  escalation_grace_s: 1800
   transcript_retention_days: 30
   escalation_channels: ["telegram", "pwa_popup_text"]
   summon_channels: ["ha_speaker_tts", "pwa_popup_text"]

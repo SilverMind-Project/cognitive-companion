@@ -184,6 +184,21 @@ class GuidedTaskStore:
         finally:
             db.close()
 
+    def list_events(self, *, session_id: int, limit: int = 20) -> list[GuidedSessionEvent]:
+        db = self._db_factory()
+        try:
+            stmt = (
+                select(GuidedSessionEvent)
+                .where(GuidedSessionEvent.session_id == session_id)
+                .order_by(GuidedSessionEvent.at.desc(), GuidedSessionEvent.id.desc())
+                .limit(limit)
+            )
+            events = list(db.execute(stmt).scalars().all())
+            events.reverse()
+            return events
+        finally:
+            db.close()
+
     def prune_events_before(self, cutoff: datetime) -> int:
         db = self._db_factory()
         try:

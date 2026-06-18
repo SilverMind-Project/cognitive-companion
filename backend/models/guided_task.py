@@ -76,7 +76,7 @@ class RoutineStep(Base):
     camera_ids: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     # M6 adds the foreign key to room_zones. M3 keeps this as a nullable integer
     # to avoid a forward migration dependency.
-    zone_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    zone_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("room_zones.id"), nullable=True)
     min_duration_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
     step_timeout_s_override: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_step_attempts_override: Mapped[int | None] = mapped_column(Integer, nullable=True)

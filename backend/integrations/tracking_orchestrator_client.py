@@ -169,6 +169,24 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("GET", "/internal/gait/daily", params=params)
         return r.json()
 
+    async def check_drift(
+        self,
+        camera_id: str,
+        reference_key: str,
+        current_key: str,
+    ) -> dict:
+        """Run the drift score for a camera against its stored reference frame.
+
+        Returns a dict with keys ``camera_id``, ``inlier_ratio``, ``ssim``,
+        ``drifted``, and ``reason``.
+        """
+        r = await self._request(
+            "POST",
+            f"/internal/calibration/drift/{camera_id}",
+            json={"reference_key": reference_key, "current_key": current_key},
+        )
+        return r.json()
+
     async def calibration_status(self) -> dict:
         r = await self._request("GET", "/internal/calibration/status")
         return r.json()

@@ -830,6 +830,26 @@ async def lifespan(app: FastAPI):
         _mcp_svc.person_location_service = person_location_service
         _mcp_svc.gait_trend_service = gait_trend_service
         logger.info("cts_runtime_started")
+
+        # -- Drift detection poll (M11) -------------------------------------
+        from functools import partial
+
+        from backend.services.cts.drift_poll import poll_camera_drift
+
+        drift_poll_interval_s = int(settings.get("cts.drift_poll_interval_s") or 3600)
+        _orchestrator_client = app.state.orchestrator_client
+        scheduler.add_job(
+            partial(
+                poll_camera_drift,
+                db_factory=get_session,
+                orchestrator=_orchestrator_client,
+            ),
+            trigger=IntervalTrigger(seconds=drift_poll_interval_s),
+            id="cts_drift_poll",
+            name="CTS camera drift detection poll",
+            replace_existing=True,
+        )
+        logger.info("cts_drift_poll_scheduled", interval_s=drift_poll_interval_s)
     else:
         app.state.ingress_admin_client = None
         app.state.orchestrator_client = None

@@ -134,6 +134,9 @@ def _to_out(cam: CtsCamera, db: Session | None = None) -> CtsCameraOut:
         snapshot_width=cam.snapshot_width,
         snapshot_height=cam.snapshot_height,
         visibility_polygon=cam.visibility_polygon,
+        needs_recalibration=cam.needs_recalibration,
+        drift_checked_at=cam.drift_checked_at,
+        drift_reason=cam.drift_reason,
         created_at=cam.created_at,
         updated_at=cam.updated_at,
     )

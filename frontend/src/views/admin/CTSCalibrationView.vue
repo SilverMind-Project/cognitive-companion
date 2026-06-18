@@ -61,6 +61,36 @@
       Select a camera from the dropdown to begin calibration.
     </v-alert>
 
+    <!-- Drift detected banner -->
+    <v-alert
+      v-if="selectedCamera && selectedCamera.needs_recalibration"
+      type="warning"
+      variant="tonal"
+      class="mb-4"
+      icon="mdi-camera-off"
+    >
+      <div class="d-flex align-center justify-space-between flex-wrap ga-2">
+        <div>
+          <strong>Camera drift detected.</strong>
+          This camera has likely been moved or bumped since its last calibration.
+          <span v-if="selectedCamera.drift_reason" class="text-caption ml-1 text-medium-emphasis">
+            ({{ selectedCamera.drift_reason }})
+          </span>
+          Localization for this camera is unreliable until it is recalibrated.
+        </div>
+        <v-btn
+          color="warning"
+          variant="tonal"
+          prepend-icon="mdi-auto-fix"
+          size="small"
+          :loading="autoCalibrating"
+          @click="runAutoCalibrate"
+        >
+          Re-run Auto-Calibration
+        </v-btn>
+      </div>
+    </v-alert>
+
     <!-- Main calibration area -->
     <template v-if="selectedCameraId">
       <!-- Mode toggle when floor plan is available -->
@@ -839,6 +869,7 @@ const { displaySrc } = useDisplaySrc(blurMode);
 // ── Camera state ──────────────────────────────────────────────────────────
 const cameras = ref([]);
 const selectedCameraId = ref(null);
+const selectedCamera = computed(() => cameras.value.find((c) => c.id === selectedCameraId.value) ?? null);
 const snapshotUrl = ref(null);
 const snapshotLoading = ref(false);
 const imgEl = ref(null);

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Float, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Boolean, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -92,6 +92,17 @@ class CtsCamera(Base):
     # Origin of the floor region: "depth_auto" or "manual".
     floor_region_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     floor_region_set_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
+    # Drift detection columns (M11).
+    # needs_recalibration is set True when the drift scorer detects that the
+    # camera has been moved since its last committed calibration.  Cleared when
+    # the operator runs a new calibration.  Never set automatically.
+    needs_recalibration: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    drift_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    drift_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # MinIO key of the scene snapshot captured at calibration-commit time.
+    # Used as the reference frame for subsequent drift checks.
+    calibration_ref_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # Latest health snapshot from rtsp-ingress (filled by camera-health poll).
     health_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)

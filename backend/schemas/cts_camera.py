@@ -104,6 +104,10 @@ class CtsCameraOut(CtsCameraFields, OutSchema):
     snapshot_width: int | None = None
     snapshot_height: int | None = None
     visibility_polygon: list[list[float]] | None = None
+    # Drift detection (M11)
+    needs_recalibration: bool = False
+    drift_checked_at: UTCDatetime | None = None
+    drift_reason: str | None = None
     created_at: UTCDatetime
     updated_at: UTCDatetime
 

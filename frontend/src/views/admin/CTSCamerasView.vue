@@ -24,11 +24,23 @@
           </v-chip>
         </template>
         <template #item.has_homography="{ item }">
-          <v-icon
-            :color="item.has_homography ? 'success' : 'warning'"
-            :icon="item.has_homography ? 'mdi-check-circle' : 'mdi-alert-circle-outline'"
-            size="small"
-          />
+          <div class="d-flex align-center ga-1">
+            <v-icon
+              :color="item.has_homography ? 'success' : 'warning'"
+              :icon="item.has_homography ? 'mdi-check-circle' : 'mdi-alert-circle-outline'"
+              size="small"
+            />
+            <v-chip
+              v-if="item.needs_recalibration"
+              color="warning"
+              size="x-small"
+              variant="tonal"
+              prepend-icon="mdi-camera-off"
+              :title="item.drift_reason ? `Drift: ${item.drift_reason}` : 'Camera drift detected — recalibration needed'"
+            >
+              Drift
+            </v-chip>
+          </div>
         </template>
         <template #item.privacy_zone_count="{ item }">
           <v-chip v-if="item.privacy_zone_count > 0" size="small" color="primary" variant="tonal">

@@ -28,7 +28,7 @@
         <div class="nav-fade nav-fade--top" :class="{ 'is-visible': showTopFade }" aria-hidden="true"></div>
 
         <v-list density="comfortable" nav>
-          <v-list-item rounded="lg" prepend-icon="mdi-home-variant-outline" title="Companion" to="/" />
+          <v-list-item rounded="lg" prepend-icon="mdi-home-variant-outline" title="Companion" to="/companion" />
           <v-divider class="my-2 mx-3" />
           <v-list-item rounded="lg" prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/dashboard" />
 

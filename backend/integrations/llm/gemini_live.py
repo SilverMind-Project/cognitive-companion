@@ -11,7 +11,7 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-from backend.core.config import settings
+from backend.core.config import Settings, settings
 from backend.core.logging import get_logger
 from backend.integrations.llm.base import RealtimeLLMProvider, RealtimeSession
 
@@ -21,10 +21,11 @@ logger = get_logger(__name__)
 class GeminiLiveProvider(RealtimeLLMProvider):
     """Manages a Gemini Live session for real-time audio interaction."""
 
-    def __init__(self) -> None:
-        self.api_key: str = settings.as_str("llm.realtime.api_key", allow_empty=False)
-        self.model: str = settings.as_str("llm.realtime.model", allow_empty=False)
-        self.keepalive_interval: int = settings.as_int("llm.realtime.keepalive_interval")
+    def __init__(self, settings: Settings = settings) -> None:
+        self._settings = settings
+        self.api_key: str = self._settings.as_str("llm.realtime.api_key", allow_empty=False)
+        self.model: str = self._settings.as_str("llm.realtime.model", allow_empty=False)
+        self.keepalive_interval: int = self._settings.as_int("llm.realtime.keepalive_interval")
         self._client: Any = None
 
     @property
@@ -80,11 +81,25 @@ class GeminiLiveProvider(RealtimeLLMProvider):
             async for response in session.session_object.receive():
                 yield response
 
-    async def send_tool_response(self, session: RealtimeSession, function_responses: list) -> None:
+    async def send_tool_response(
+        self, session: RealtimeSession, function_responses: list[Any]
+    ) -> None:
         """Send function call results back to the Gemini session."""
+        from google.genai import types  # Lazy import: google-genai is an optional dependency
+
+        gemini_responses = [
+            response
+            if isinstance(response, types.FunctionResponse)
+            else types.FunctionResponse(
+                name=response["name"],
+                response=response["response"],
+                id=response.get("id"),
+            )
+            for response in function_responses
+        ]
         logger.info("gemini_send_tool_response", count=len(function_responses))
         await session.session_object.send_tool_response(
-            function_responses=function_responses,
+            function_responses=gemini_responses,
         )
 
     async def disconnect(self, session: RealtimeSession) -> None:
@@ -110,7 +125,9 @@ class GeminiLiveProvider(RealtimeLLMProvider):
         If ``conversation_history`` is provided, it's appended to the system
         instruction so context survives reconnects.
         """
-        base_instruction = system_instruction or settings.as_str("llm.realtime.system_instruction")
+        base_instruction = system_instruction or self._settings.as_str(
+            "llm.realtime.system_instruction"
+        )
 
         if conversation_history:
             base_instruction += (

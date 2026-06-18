@@ -132,12 +132,9 @@ async def lifespan(app: FastAPI):
     app.state.pipeline_ws_manager = pipeline_ws_manager
 
     # -- Realtime LLM provider (lazy - only connects when needed) ----------
-    realtime_provider = None
-    realtime_api_key = settings.as_str("llm.realtime.api_key")
-    if realtime_api_key:
-        from backend.integrations.llm.gemini_live import GeminiLiveProvider
+    from backend.integrations.llm.realtime import create_realtime_provider
 
-        realtime_provider = GeminiLiveProvider()
+    realtime_provider = create_realtime_provider(settings)
     app.state.realtime_provider = realtime_provider
 
     # -- LLM providers for the pipeline ------------------------------------
@@ -614,8 +611,9 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
 
-    from apscheduler.triggers.cron import CronTrigger
     from zoneinfo import ZoneInfo
+
+    from apscheduler.triggers.cron import CronTrigger
 
     scheduler.add_job(
         guided_task_service.prune_retained_data,

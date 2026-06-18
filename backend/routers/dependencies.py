@@ -35,8 +35,7 @@ from backend.core.database import get_session
 if TYPE_CHECKING:
     from backend.integrations.homeassistant import HomeAssistantClient
     from backend.integrations.ingress_admin_client import IngressAdminClient
-    from backend.integrations.llm import LLMModelRegistry
-    from backend.integrations.llm.gemini_live import GeminiLiveProvider
+    from backend.integrations.llm import LLMModelRegistry, RealtimeLLMProvider
     from backend.integrations.minio_client import MinioClient
     from backend.integrations.tracking_orchestrator_client import OrchestratorClient
     from backend.mcp.gemini_adapter import GeminiToolAdapter
@@ -232,7 +231,7 @@ def get_ws_manager(request: Request) -> ConnectionManager:
     return svc
 
 
-def get_realtime_provider(request: Request) -> GeminiLiveProvider | None:
+def get_realtime_provider(request: Request) -> RealtimeLLMProvider | None:
     """Return the lifespan-managed realtime LLM provider, or None if not configured."""
     return request.app.state.realtime_provider  # type: ignore[no-any-return]
 

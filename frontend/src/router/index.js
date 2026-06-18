@@ -3,6 +3,10 @@ import { createRouter, createWebHistory } from "vue-router";
 const routes = [
   {
     path: "/",
+    redirect: (to) => ({ path: "/companion", query: to.query }),
+  },
+  {
+    path: "/companion",
     name: "companion",
     component: () => import("../views/CompanionView.vue"),
   },

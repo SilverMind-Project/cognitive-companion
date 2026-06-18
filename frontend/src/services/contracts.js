@@ -59,6 +59,15 @@ def("routines.detail", { routine: "object", steps: "array" });
 def("guided_sessions.list", { items: "array", total: "number" });
 def("guided_sessions.single", { id: "number", routine_id: "number", person_id: "string", status: "string" });
 def("guided_sessions.detail", { session: "object", recent_events: "array", recent_transcript: "array" });
+def("guided_metrics.dashboard", {
+  completion: "object",
+  attempts_per_step: "object",
+  time_to_complete: "object",
+  abandonment: "object",
+  escalation_breakdown: "object",
+  vision_agreement: "object",
+  time_of_day: "object",
+});
 
 // ---------------------------------------------------------------------------
 // Rules

@@ -131,6 +131,7 @@ permission_map:
     - "routines:write"
     - "guided_sessions:read"
     - "guided_sessions:takeover"
+    - "guided_metrics:read"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -192,6 +193,7 @@ permission_map:
     - "routines:write"
     - "guided_sessions:read"
     - "guided_sessions:takeover"
+    - "guided_metrics:read"
 
   operator:
     - "*"
@@ -282,3 +284,6 @@ permission_map:
     - "POST /api/v1/guided-sessions/*/advance"
     - "POST /api/v1/guided-sessions/*/complete"
     - "POST /api/v1/guided-sessions/*/release"
+
+  "guided_metrics:read":
+    - "GET /api/v1/guided-metrics/*"

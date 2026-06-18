@@ -140,6 +140,12 @@ const routes = [
         props: true,
       },
       {
+        path: "routines/:id/metrics",
+        name: "admin-routine-metrics",
+        component: () => import("../views/admin/RoutineMetricsView.vue"),
+        props: true,
+      },
+      {
         path: "guided-sessions",
         name: "admin-guided-sessions",
         component: () => import("../views/admin/GuidedSessionListView.vue"),

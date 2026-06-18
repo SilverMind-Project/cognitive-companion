@@ -312,6 +312,17 @@ class GuidedTaskStore:
         finally:
             db.close()
 
+    def list_completed_session_ids_before(self, cutoff: datetime) -> list[int]:
+        db = self._db_factory()
+        try:
+            stmt = select(GuidedSession.id).where(
+                GuidedSession.completed_at.isnot(None),
+                GuidedSession.completed_at < cutoff,
+            )
+            return [int(row) for row in db.execute(stmt).scalars().all()]
+        finally:
+            db.close()
+
     def prune_sessions_before(self, cutoff: datetime) -> int:
         db = self._db_factory()
         try:

@@ -55,6 +55,13 @@ EXPECTED_TOOLS = {
     "repeat_guided_step",
     "report_step_blocked",
     "request_caregiver_help",
+    "get_guided_completion_summary",
+    "get_guided_attempts_per_step",
+    "get_guided_time_to_complete",
+    "get_guided_abandonment",
+    "get_guided_escalation_breakdown",
+    "get_guided_vision_agreement",
+    "get_guided_time_of_day",
     "list_rules",
     "list_plugin_metadata",
     "get_rule_bundle",
@@ -64,7 +71,7 @@ EXPECTED_TOOLS = {
     "acknowledge_dementia_signal",
 }
 
-EXPECTED_COUNT = 47
+EXPECTED_COUNT = 54
 
 
 # ---------------------------------------------------------------------------

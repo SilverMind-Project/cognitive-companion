@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from backend.services.scheduler import SchedulerBridge
     from backend.services.sensor_polling import SensorPollingService
     from backend.services.signals.feed import SignalsFeedService
+    from backend.services.zones import ZoneService
     from backend.websocket.connection_manager import ConnectionManager
 
 __all__ = [
@@ -78,6 +79,7 @@ __all__ = [
     "get_sensor_polling",
     "get_signals_feed",
     "get_ws_manager",
+    "get_zone_service",
 ]
 
 
@@ -254,6 +256,14 @@ def get_guided_task_service(request: Request) -> GuidedTaskService:
     svc: GuidedTaskService | None = request.app.state.guided_task_service
     if svc is None:
         raise _raise_503("guided_task_service", "Guided task service")
+    return svc
+
+
+def get_zone_service(request: Request) -> ZoneService:
+    """Return the lifespan-managed room-zone service (503 if unavailable)."""
+    svc: ZoneService | None = request.app.state.zone_service
+    if svc is None:
+        raise _raise_503("zone_service", "Room zone service")
     return svc
 
 

@@ -43,6 +43,7 @@ from backend.models.person import (
 from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.models.presence_segment import PresenceSegment
 from backend.models.room import Room
+from backend.models.room_zone import RoomZone
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.models.sensor import Sensor
 from backend.models.transit_zone import TransitZone
@@ -90,6 +91,7 @@ __all__ = [
     "QuizSession",
     "Room",
     "RoomOccupancyState",
+    "RoomZone",
     "Routine",
     "RoutineStep",
     "Rule",

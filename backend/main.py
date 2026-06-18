@@ -380,12 +380,18 @@ async def lifespan(app: FastAPI):
 
     # -- Companion surface registry ----------------------------------------
     from backend.services.companion_surface import CompanionSurfaceService
+    from backend.services.zones import ZoneService
 
     companion_surface_service = CompanionSurfaceService(
         db_factory=get_session,
         person_location_service=None,
     )
     app.state.companion_surface_service = companion_surface_service
+    zone_service = ZoneService(
+        db_factory=get_session,
+        person_location_service=None,
+    )
+    app.state.zone_service = zone_service
 
     # -- Unified signals feed (cross-source caregiver alerts) -------------
     from backend.services.signals.feed import SignalsFeedService
@@ -670,6 +676,7 @@ async def lifespan(app: FastAPI):
         person_location_service = _make_pls()
         app.state.person_location_service = person_location_service
         companion_surface_service.set_person_location_service(person_location_service)
+        zone_service.set_person_location_service(person_location_service)
         guided_task_service.set_person_location_service(person_location_service)
 
         # M4 subscribers (world-observation, room-transition, ph-continuation)
@@ -859,6 +866,7 @@ def create_app() -> FastAPI:
         pipeline_images,
         pipeline_runs,
         quizzes,
+        room_zones,
         rooms,
         rules,
         sensors,
@@ -884,6 +892,7 @@ def create_app() -> FastAPI:
     app.include_router(occupancy.router, prefix=api)
     app.include_router(conversations.router, prefix=api)
     app.include_router(companion_surfaces.router, prefix=api)
+    app.include_router(room_zones.router, prefix=api)
     app.include_router(ha_sync.router, prefix=api)
     app.include_router(persons.router, prefix=api)
     app.include_router(workflows.router, prefix=api)

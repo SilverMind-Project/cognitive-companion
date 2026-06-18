@@ -43,6 +43,9 @@ def minute_of_day_in_window(
 
 class ObservationRepository(Protocol):
     async def insert(self, obs: LocationObservation) -> None: ...
+    async def latest_floor_point(
+        self, person_id: str, since: datetime
+    ) -> LocationObservation | None: ...
     async def list_for_person(
         self, person_id: str, since: datetime, until: datetime, limit: int = 500
     ) -> list[LocationObservation]: ...
@@ -96,6 +99,17 @@ class InMemoryObservationRepository:
     async def insert(self, obs: LocationObservation) -> None:
         self._rows[obs.id] = obs
 
+    async def latest_floor_point(
+        self, person_id: str, since: datetime
+    ) -> LocationObservation | None:
+        matching = [
+            o
+            for o in self._rows.values()
+            if o.person_id == person_id and o.observed_at >= since and o.floor_point is not None
+        ]
+        matching.sort(key=lambda o: o.observed_at, reverse=True)
+        return matching[0] if matching else None
+
     async def list_for_person(
         self, person_id: str, since: datetime, until: datetime, limit: int = 500
     ) -> list[LocationObservation]:
@@ -137,9 +151,7 @@ class InMemoryObservationRepository:
             if o.person_id == person_id
             and since <= o.observed_at < until
             and o.floor_point is not None
-            and minute_of_day_in_window(
-                _local_minute(o), filter_start_minute, filter_end_minute
-            )
+            and minute_of_day_in_window(_local_minute(o), filter_start_minute, filter_end_minute)
         ]
         bins: dict[tuple[float, float], int] = {}
         for o in relevant:
@@ -270,6 +282,27 @@ class SqlAlchemyObservationRepository:
             db.add(row)
             db.flush()
 
+    async def latest_floor_point(
+        self, person_id: str, since: datetime
+    ) -> LocationObservation | None:
+        with transaction(self._db_factory) as db:
+            row = (
+                db.execute(
+                    select(LOObs)
+                    .where(
+                        LOObs.person_id == person_id,
+                        LOObs.observed_at >= since,
+                        LOObs.floor_x_m.is_not(None),
+                        LOObs.floor_y_m.is_not(None),
+                    )
+                    .order_by(LOObs.observed_at.desc())
+                    .limit(1)
+                )
+                .scalars()
+                .first()
+            )
+        return _obs_to_domain(row) if row else None
+
     async def list_for_person(
         self, person_id: str, since: datetime, until: datetime, limit: int = 500
     ) -> list[LocationObservation]:
@@ -350,7 +383,10 @@ class SqlAlchemyObservationRepository:
         """)
         with transaction(self._db_factory) as db:
             rows = db.execute(_SQL, params).all()
-        return [HeatmapBin(x_bin=float(r.x_bin), y_bin=float(r.y_bin), weight=int(r.weight)) for r in rows]
+        return [
+            HeatmapBin(x_bin=float(r.x_bin), y_bin=float(r.y_bin), weight=int(r.weight))
+            for r in rows
+        ]
 
 
 class SqlAlchemySegmentRepository:

@@ -7,7 +7,7 @@ location_observations or presence_segments directly.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -269,6 +269,16 @@ class PersonLocationService:
             quality=seg.quality,
             last_observed_at=seg.last_observed_at,
         )
+
+    async def latest_floor_point(self, person_id: str, *, max_age_s: int = 30) -> FloorPoint | None:
+        """Most recent observed floor point for a person, or None if stale/absent.
+
+        Reads the newest ``location_observation`` with a floor point within
+        ``max_age_s``. Room-level ``where_is`` behavior is unchanged.
+        """
+        cutoff = datetime.now(UTC) - timedelta(seconds=max_age_s)
+        obs = await self._obs.latest_floor_point(person_id, since=cutoff)
+        return obs.floor_point if obs is not None else None
 
     async def presence_history(
         self, person_id: str, since: datetime, until: datetime

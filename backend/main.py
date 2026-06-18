@@ -539,14 +539,37 @@ async def lifespan(app: FastAPI):
     from backend.mcp.server import set_guided_task_service
     from backend.services.guided_task import (
         AgentSessionVoice,
+        GuidedTaskSafetyWatch,
         GuidedTaskService,
         NotifyOnlyEscalator,
+        SensorRoomCameraTopology,
     )
 
+    guided_camera_topology = SensorRoomCameraTopology(get_session)
+    guided_safety_watch = GuidedTaskSafetyWatch(
+        db_factory=get_session,
+        person_location_service=None,
+        zone_service=zone_service,
+        bucketizer=None,
+        camera_topology=guided_camera_topology,
+        identity_resolver=lambda person_id: {person_id},
+        scene_analysis_client=scene_analysis_client,
+        signals_service=signals_service,
+        minio_client=minio_client,
+        settings=settings,
+    )
     guided_task_service = GuidedTaskService(
         db_factory=get_session,
         scheduler=scheduler_bridge,
         pipeline_executor=pipeline_executor,
+        zone_service=zone_service,
+        bucketizer=None,
+        camera_topology=guided_camera_topology,
+        llm_model_registry=llm_model_registry,
+        minio_client=minio_client,
+        activity_service=activity_service,
+        signals_service=signals_service,
+        scene_analysis_client=scene_analysis_client,
         companion_surface_service=companion_surface_service,
         ws_manager=ws_manager,
         notification_dispatcher=notifier,
@@ -562,6 +585,7 @@ async def lifespan(app: FastAPI):
             settings=settings,
             conversation_manager=conversation_manager,
         ),
+        safety_watch=guided_safety_watch,
         settings=settings,
     )
     app.state.guided_task_service = guided_task_service
@@ -570,6 +594,14 @@ async def lifespan(app: FastAPI):
 
     # Add HA sensor polling job
     from apscheduler.triggers.interval import IntervalTrigger
+
+    scheduler.add_job(
+        guided_task_service.tick,
+        trigger=IntervalTrigger(seconds=settings.as_int("guided_task.safety_tick_s")),
+        id="guided_task_safety_tick",
+        name="Guided task safety watch tick",
+        replace_existing=True,
+    )
 
     poll_interval = settings.as_int("homeassistant.poll_interval_seconds")
     scheduler.add_job(
@@ -711,6 +743,21 @@ async def lifespan(app: FastAPI):
         # canonical media poll step and its CTS alias can return recent frames.
         # The bucketizer is built after the executor, so inject it here.
         pipeline_executor.bucketizer = cts_runtime.bucketizer
+        guided_task_service.set_bucketizer(cts_runtime.bucketizer)
+        guided_task_service.set_safety_watch(
+            GuidedTaskSafetyWatch(
+                db_factory=get_session,
+                person_location_service=person_location_service,
+                zone_service=zone_service,
+                bucketizer=cts_runtime.bucketizer,
+                camera_topology=guided_camera_topology,
+                identity_resolver=lambda person_id: {person_id},
+                scene_analysis_client=scene_analysis_client,
+                signals_service=signals_service,
+                minio_client=minio_client,
+                settings=settings,
+            )
+        )
         # Expose individual subscribers for tests / diagnostics.
         app.state.dementia_signal_subscriber = cts_runtime.dementia_signal_subscriber
         app.state.tracking_event_subscriber = cts_runtime.tracking_event_subscriber

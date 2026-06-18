@@ -78,6 +78,7 @@ def _make_client(
             "image_height": 480,
             "method": "depth_auto_draft",
             "warning": None,
+            "floor_region_polygon": [[0.2, 0.4], [0.8, 0.4], [0.8, 0.9], [0.2, 0.9]],
         }
     )
     orchestrator.post_homography = AsyncMock(return_value=None)
@@ -413,3 +414,137 @@ class TestAdjacencyEndpoint:
         r = client.get("/api/v1/cts/calibration/adjacency")
         assert r.status_code == 200
         assert "edge_count" in r.json()
+
+
+# ---------------------------------------------------------------------------
+# Floor-region polygon endpoints
+# ---------------------------------------------------------------------------
+
+_FLOOR_REGION = [[0.2, 0.4], [0.8, 0.4], [0.8, 0.9], [0.2, 0.9]]
+
+
+class TestFloorRegionEndpoint:
+    def test_auto_calibrate_stores_floor_region_polygon(
+        self, client: TestClient, camera_id: str, db_session: Session
+    ):
+        """auto-calibrate response that includes floor_region_polygon persists it to the DB."""
+        from backend.models.cts_camera import CtsCamera
+
+        r = client.post(
+            f"/api/v1/cts/calibration/auto/{camera_id}",
+            json={"minio_key": "frames/cam1/0001.jpg"},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["floor_region_polygon"] == _FLOOR_REGION
+
+        db_session.expire_all()
+        cam = db_session.get(CtsCamera, camera_id)
+        assert cam is not None
+        assert cam.floor_region_polygon == _FLOOR_REGION
+        assert cam.floor_region_source == "depth_auto"
+        assert cam.floor_region_set_at is not None
+
+    def test_floor_region_endpoint_saves_manual(
+        self, client: TestClient, camera_id: str, db_session: Session
+    ):
+        """POST /floor_region persists the polygon with source='manual'."""
+        from backend.models.cts_camera import CtsCamera
+
+        r = client.post(
+            f"/api/v1/cts/calibration/floor_region/{camera_id}",
+            json={"polygon": _FLOOR_REGION, "source": "manual"},
+        )
+        assert r.status_code == 204
+
+        db_session.expire_all()
+        cam = db_session.get(CtsCamera, camera_id)
+        assert cam is not None
+        assert cam.floor_region_polygon == _FLOOR_REGION
+        assert cam.floor_region_source == "manual"
+        assert cam.floor_region_set_at is not None
+
+    def test_floor_region_endpoint_missing_camera_returns_404(self, client: TestClient):
+        r = client.post(
+            "/api/v1/cts/calibration/floor_region/ghost-cam",
+            json={"polygon": _FLOOR_REGION},
+        )
+        assert r.status_code == 404
+
+    def test_floor_region_endpoint_rejects_out_of_range_coords(
+        self, client: TestClient, camera_id: str
+    ):
+        """Coordinates outside [0,1] are invalid (NOT floor-plan metres)."""
+        r = client.post(
+            f"/api/v1/cts/calibration/floor_region/{camera_id}",
+            json={"polygon": [[0.2, 0.4], [1.8, 0.4], [0.8, 0.9]]},
+        )
+        assert r.status_code == 422
+
+    def test_floor_region_endpoint_rejects_fewer_than_3_points(
+        self, client: TestClient, camera_id: str
+    ):
+        r = client.post(
+            f"/api/v1/cts/calibration/floor_region/{camera_id}",
+            json={"polygon": [[0.2, 0.4], [0.8, 0.4]]},
+        )
+        assert r.status_code == 422
+
+    def test_floor_region_triggers_visibility_refresh_when_committed_homography_present(
+        self, client: TestClient, db_session: Session, db_engine: Engine
+    ):
+        """POST /floor_region recomputes visibility_polygon immediately when homography exists.
+
+        Seeds a camera with a committed homography (scaling matrix: 640x480 px → 10x8 m)
+        and floor plan settings, then saves a floor-region polygon via the endpoint.
+        The endpoint calls _refresh_visibility_polygon with cam.floor_region_polygon, so
+        visibility_polygon must be populated after the save.
+        """
+        from sqlalchemy.orm import sessionmaker
+
+        from backend.models.cts_camera import CtsCamera
+        from backend.models.household_settings import HouseholdSettings
+
+        # Scaling homography: pixel (x_px, y_px) → floor metres (x_px * 10/640, y_px * 8/480).
+        # Interior floor-region points all normalise to [0, 1] — within visibility bounds.
+        scaling = [[10 / 640, 0.0, 0.0], [0.0, 8 / 480, 0.0], [0.0, 0.0, 1.0]]
+
+        Sess = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+        with Sess() as setup_db:
+            # Committed homography via homography_matrix column.
+            setup_db.add(
+                CtsCamera(
+                    id="floor-cam",
+                    name="FloorCam",
+                    rtsp_url="rtsp://x",
+                    homography_matrix=scaling,
+                    snapshot_width=640,
+                    snapshot_height=480,
+                    frame_natural_width=640,
+                    frame_natural_height=480,
+                )
+            )
+            setup_db.add(
+                HouseholdSettings(
+                    id=1,
+                    floor_plan_key="floor-plans/main.png",
+                    floor_plan_width=1000,
+                    floor_plan_height=800,
+                    floor_meters_per_pixel=0.01,  # 10 m x 8 m
+                )
+            )
+            setup_db.commit()
+
+        r = client.post(
+            "/api/v1/cts/calibration/floor_region/floor-cam",
+            json={"polygon": _FLOOR_REGION, "source": "manual"},
+        )
+        assert r.status_code == 204
+
+        db_session.expire_all()
+        cam = db_session.get(CtsCamera, "floor-cam")
+        assert cam is not None
+        assert cam.floor_region_polygon == _FLOOR_REGION
+        assert cam.visibility_polygon is not None, (
+            "Visibility polygon should be recomputed using floor_region_polygon"
+        )

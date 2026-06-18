@@ -158,3 +158,114 @@ def test_boundary_order_top_right_bottom_left():
 
     for x, _ in left_edge:
         assert x < 0.01, f"Left edge point has x={x}"
+
+
+# -- Floor-region polygon path -----------------------------------------------
+
+
+def _interior_floor_region() -> list[list[float]]:
+    """A rectangular floor region well inside the image (20%-80% in both axes)."""
+    return [[0.2, 0.4], [0.8, 0.4], [0.8, 0.9], [0.2, 0.9]]
+
+
+def test_floor_region_excludes_walls():
+    """Floor-region polygon projects to a smaller polygon than the image border.
+
+    The image border includes wall pixels that project to extreme / spurious
+    floor coordinates.  An interior floor region should yield a tighter polygon.
+    """
+    H = _identity_h()
+    W, H_px = 1000, 800
+
+    poly_border = compute_visibility_from_homography(
+        matrix=H,
+        image_width=W,
+        image_height=H_px,
+        floor_plan_width_m=float(W),
+        floor_plan_height_m=float(H_px),
+    )
+    poly_floor = compute_visibility_from_homography(
+        matrix=H,
+        image_width=W,
+        image_height=H_px,
+        floor_plan_width_m=float(W),
+        floor_plan_height_m=float(H_px),
+        floor_region_polygon=_interior_floor_region(),
+    )
+    assert poly_border is not None
+    assert poly_floor is not None
+
+    def _bbox(pts: list[list[float]]) -> tuple[float, float, float, float]:
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    bx0, by0, bx1, by1 = _bbox(poly_border)
+    fx0, fy0, fx1, fy1 = _bbox(poly_floor)
+
+    # Floor polygon is strictly within the border polygon bounds.
+    assert fx0 > bx0, "floor region should not extend to left wall"
+    assert fy0 > by0, "floor region should not extend to top wall"
+    assert fx1 < bx1, "floor region should not extend to right wall"
+    assert fy1 < by1, "floor region should not extend to bottom wall"
+
+
+def test_no_floor_region_falls_back_to_image_border():
+    """Backward-compat: without floor_region_polygon the output matches prior behavior."""
+    H = _identity_h()
+    poly_no_region = compute_visibility_from_homography(
+        matrix=H,
+        image_width=100,
+        image_height=100,
+        floor_plan_width_m=100.0,
+        floor_plan_height_m=100.0,
+    )
+    poly_explicit_none = compute_visibility_from_homography(
+        matrix=H,
+        image_width=100,
+        image_height=100,
+        floor_plan_width_m=100.0,
+        floor_plan_height_m=100.0,
+        floor_region_polygon=None,
+    )
+    assert poly_no_region is not None
+    assert poly_explicit_none is not None
+    assert poly_no_region == poly_explicit_none
+    assert len(poly_no_region) == 4 * _POINTS_PER_EDGE
+
+
+def test_floor_region_densifies_edges():
+    """Edges of the floor-region polygon must be densified to capture lens distortion."""
+    H = _identity_h()
+    # Long edge from (0,0) to (1,0): 1000 px wide, step=10 px -> ~100 points just on that edge.
+    floor_region = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+    poly = compute_visibility_from_homography(
+        matrix=H,
+        image_width=1000,
+        image_height=1000,
+        floor_plan_width_m=1000.0,
+        floor_plan_height_m=1000.0,
+        floor_region_polygon=floor_region,
+    )
+    assert poly is not None
+    # Four edges of 1000 px each, step=10 -> ~100 samples per edge -> ~400 total.
+    assert len(poly) > 4 * _POINTS_PER_EDGE, (
+        f"densified floor region should produce more points than image-border fallback "
+        f"({4 * _POINTS_PER_EDGE}), got {len(poly)}"
+    )
+
+
+def test_degenerate_floor_region_falls_back_or_returns_none():
+    """A degenerate (empty) floor_region_polygon is handled gracefully."""
+    H = _identity_h()
+    # An empty list should produce an empty boundary and return None.
+    result = compute_visibility_from_homography(
+        matrix=H,
+        image_width=100,
+        image_height=100,
+        floor_plan_width_m=100.0,
+        floor_plan_height_m=100.0,
+        floor_region_polygon=[],
+    )
+    # Empty polygon -> empty boundary -> no points to project -> None.
+    assert result is None

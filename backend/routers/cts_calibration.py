@@ -9,6 +9,7 @@ Routes:
     POST /api/v1/cts/calibration/homography
     GET  /api/v1/cts/calibration/homography/{camera_id}
     POST /api/v1/cts/calibration/auto/{camera_id}
+    POST /api/v1/cts/calibration/floor_region/{camera_id}
     POST /api/v1/cts/calibration/privacy_zones
     GET  /api/v1/cts/calibration/privacy_zones/{camera_id}
     POST /api/v1/cts/calibration/adjacency
@@ -22,7 +23,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from backend.core.auth import AuthContext, require_permission
@@ -122,6 +123,7 @@ def _refresh_visibility_polygon(
         image_height=cam.snapshot_height,
         floor_plan_width_m=fp_width_m,
         floor_plan_height_m=fp_height_m,
+        floor_region_polygon=cam.floor_region_polygon,
     )
 
     if polygon is not None:
@@ -364,6 +366,7 @@ class AutoCalibrateResult(BaseModel):
     image_height: int
     method: str
     warning: str | None = None
+    floor_region_polygon: list[list[float]] | None = None
 
 
 @router.post("/auto/{camera_id}", response_model=AutoCalibrateResult)
@@ -420,6 +423,15 @@ async def post_auto_calibrate(
     if result.get("image_height"):
         cam.snapshot_height = int(result["image_height"])
         cam.frame_natural_height = int(result["image_height"])
+
+    # Store the floor-region polygon from depth auto-calibration so the
+    # visibility polygon can use it when a committed homography is saved.
+    floor_region = result.get("floor_region_polygon")
+    if floor_region is not None:
+        cam.floor_region_polygon = floor_region
+        cam.floor_region_source = "depth_auto"
+        cam.floor_region_set_at = datetime.now(UTC)
+
     db.commit()
 
     logger.info(
@@ -450,6 +462,76 @@ async def post_auto_calibrate(
         image_height=int(result.get("image_height") or cam.snapshot_height or 0),
         method=result.get("method", "depth_auto_draft"),
         warning=result.get("warning"),
+        floor_region_polygon=result.get("floor_region_polygon"),
+    )
+
+
+class FloorRegionRequest(BaseModel):
+    """Request body for saving a floor-region polygon."""
+
+    polygon: list[list[float]] = Field(
+        ...,
+        min_length=3,
+        description=(
+            "Floor-region polygon in normalised [0,1] image space: [[x_norm, y_norm], ...]. "
+            "NOT floor-plan metres. Same coordinate space as visibility_polygon."
+        ),
+    )
+    source: str = Field(
+        default="manual",
+        pattern=r"^(depth_auto|manual)$",
+    )
+
+    @field_validator("polygon")
+    @classmethod
+    def _validate_polygon(cls, pts: list[list[float]]) -> list[list[float]]:
+        for pt in pts:
+            if len(pt) != 2:
+                raise ValueError("each polygon point must be [x, y]")
+            if not all(0.0 <= v <= 1.0 for v in pt):
+                raise ValueError("polygon coordinates must be normalised to [0, 1]")
+        return pts
+
+
+@router.post(
+    "/floor_region/{camera_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Save floor-region polygon (manual or depth-auto) for a camera",
+)
+def post_floor_region(
+    camera_id: str,
+    body: FloorRegionRequest,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+) -> None:
+    """Persist the floor-region polygon for a camera and recompute its visibility polygon.
+
+    The polygon must be in normalised [0,1] image space (same space as
+    visibility_polygon, NOT floor-plan metres). ``source`` is ``"manual"``
+    when the operator hand-drew the polygon, or ``"depth_auto"`` when accepted
+    from the auto-calibration result.
+
+    If the camera already has a committed homography the visibility polygon is
+    recomputed immediately using the new floor region.
+    """
+    cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+
+    cam.floor_region_polygon = body.polygon
+    cam.floor_region_source = body.source
+    cam.floor_region_set_at = datetime.now(UTC)
+
+    if _has_committed_homography(cam):
+        _refresh_visibility_polygon(cam, db)
+
+    db.commit()
+    logger.info(
+        "cts_floor_region_saved",
+        camera_id=camera_id,
+        source=body.source,
+        vertex_count=len(body.polygon),
     )
 
 

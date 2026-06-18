@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { ref } from "vue";
 
-const { mockNotify, mockAutoCalibrate, mockPostHomography } = vi.hoisted(() => ({
+const { mockNotify, mockAutoCalibrate, mockPostHomography, mockPostFloorRegion } = vi.hoisted(() => ({
   mockNotify: vi.fn(),
   mockAutoCalibrate: vi.fn(),
   mockPostHomography: vi.fn(),
+  mockPostFloorRegion: vi.fn(),
 }));
 
 vi.mock("@/services/cts.js", () => ({
@@ -20,6 +21,7 @@ vi.mock("@/services/cts.js", () => ({
     }),
     autoCalibrate: mockAutoCalibrate,
     postHomography: mockPostHomography,
+    postFloorRegion: mockPostFloorRegion,
   },
 }));
 
@@ -166,5 +168,76 @@ describe("CTSCalibrationView auto-calibration draft", () => {
     await state.runCalibration();
 
     expect(mockPostHomography).toHaveBeenCalledWith("cam-1", state.points, 640, 480);
+  });
+});
+
+describe("CTSCalibrationView floor-region overlay", () => {
+  const FLOOR_REGION = [[0.2, 0.4], [0.8, 0.4], [0.8, 0.9], [0.2, 0.9]];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAutoCalibrate.mockResolvedValue({
+      camera_id: "cam-1",
+      draft_matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      suggested_points: [],
+      confidence: 0.8,
+      inlier_count: 100,
+      sample_count: 200,
+      fov_deg: 70,
+      image_width: 640,
+      image_height: 480,
+      method: "depth_auto_draft",
+      floor_region_polygon: FLOOR_REGION,
+    });
+    mockPostFloorRegion.mockResolvedValue(undefined);
+  });
+
+  it("runAutoCalibrate populates floorRegionDraft when floor_region_polygon is returned", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+
+    state.selectedCameraId = "cam-1";
+    await state.runAutoCalibrate();
+    await flushPromises();
+
+    // setupState auto-unwraps refs: state.floorRegionDraft is the unwrapped value.
+    expect(state.floorRegionDraft).toEqual(FLOOR_REGION);
+  });
+
+  it("saveFloorRegion calls cts.postFloorRegion with the current draft", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+
+    state.selectedCameraId = "cam-1";
+    state.floorRegionDraft = FLOOR_REGION;
+
+    await state.saveFloorRegion("manual");
+    await flushPromises();
+
+    expect(mockPostFloorRegion).toHaveBeenCalledWith("cam-1", FLOOR_REGION, "manual");
+    expect(mockNotify).toHaveBeenCalledWith(expect.stringContaining("manual"), "success");
+  });
+
+  it("discardFloorRegion clears floorRegionDraft", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+
+    state.floorRegionDraft = FLOOR_REGION;
+    state.discardFloorRegion();
+
+    expect(state.floorRegionDraft).toBeNull();
+  });
+
+  it("onCameraChange clears floorRegionDraft", async () => {
+    const wrapper = await mountView();
+    const state = wrapper.vm.$.setupState;
+
+    state.floorRegionDraft = FLOOR_REGION;
+    state.selectedCameraId = "cam-1";
+    // Simulate camera change (calls onCameraChange internally).
+    await state.onCameraChange();
+    await flushPromises();
+
+    expect(state.floorRegionDraft).toBeNull();
   });
 });

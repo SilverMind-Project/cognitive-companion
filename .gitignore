@@ -20,5 +20,6 @@ kubernetes/local/
 .vscode/
 .claude/settings.json
 .claude/settings.local.json
+.claude/projects/
 .qwen/
 .kiro/

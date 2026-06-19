@@ -1,0 +1,86 @@
+name: CI
+
+# Runs the project gates (the `make check-all` equivalent) on every PR and on
+# pushes to main. Split into a backend job (lint, import-lint, mypy core +
+# strict-typing ratchet, backend tests) and a frontend job (build, test, audit)
+# so they run in parallel. The strict-typing ratchet (`typecheck-ratchet`) is the
+# enforcement point that keeps the cleaned packages from regressing; see
+# backend/pyproject.toml and the Makefile.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python and locked dependencies
+        run: |
+          uv python install 3.14
+          uv sync --frozen --extra dev --project backend
+
+      - name: Lint (ruff)
+        run: make lint
+
+      - name: Import-linter (layer boundaries)
+        run: make import-lint
+
+      - name: Type-check core (strict)
+        run: make typecheck-core
+
+      - name: Type-check ratchet (strict allowlist)
+        run: make typecheck-ratchet
+
+      # Backend tests use testcontainers (TimescaleDB pg18); Docker is available
+      # on the GitHub-hosted ubuntu runner.
+      - name: Backend tests (core + services)
+        run: |
+          make test-core
+          make test-services
+
+  frontend:
+    name: Frontend gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies (locked)
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm run test --silent
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high

@@ -265,6 +265,37 @@ class TestResultData:
 
         assert result.data["room_transitions"] == []
 
+    async def test_write_movements_maps_transition_fields(self):
+        """Regression: the write-movements branch reads the camera_topology
+        RoomTransition's ``.semantic`` (not the nonexistent ``.direction_semantic``)
+        and coerces int room ids to str. Before the fix this branch raised
+        AttributeError at runtime (it was reachable but untested)."""
+        transition = _make_transition(semantic="entering")
+        person_tracking = _make_person_tracking(
+            detections=[_make_detection()],
+            transitions=[transition],
+        )
+        record = MagicMock(id=42)
+        semantic_memory = MagicMock()
+        semantic_memory.create_movement = AsyncMock(return_value=record)
+        services = _make_services(person_tracking=person_tracking)
+        services.semantic_memory_client = semantic_memory
+
+        result = await _HANDLER.execute(
+            _make_step({"write_movements_to_memory": True}),
+            _FakeExecution(),
+            {},
+            _make_trigger(),
+            services,
+        )
+
+        assert result.data["semantic_memory_movement_ids"] == [42]
+        semantic_memory.create_movement.assert_awaited_once()
+        movement = semantic_memory.create_movement.await_args.args[0]
+        assert movement.direction_semantic == "entering"
+        assert movement.from_room_id == "2"
+        assert movement.to_room_id == "1"
+
     async def test_source_media_path_annotated_on_detections(self):
         det = _make_detection(frame_index=0)
         person_tracking = _make_person_tracking(detections=[det])

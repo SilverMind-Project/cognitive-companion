@@ -93,6 +93,16 @@ typecheck:
 typecheck-core:
 	$(MYPY) -p backend.core
 
+# Strict-typing ratchet: packages driven to zero mypy errors under the strict
+# ``disallow_untyped_defs`` override (see backend/pyproject.toml). Gated in
+# ``check`` / ``check-all`` so these modules cannot regress. Grow RATCHET_PKGS as
+# more of the tree is cleaned; the long-term goal is the full ``typecheck`` target.
+RATCHET_PKGS := backend.services.guided_task backend.steps
+
+.PHONY: typecheck-ratchet
+typecheck-ratchet:
+	$(MYPY) $(foreach pkg,$(RATCHET_PKGS),-p $(pkg))
+
 .PHONY: frontend-build
 frontend-build:
 	$(call RUN_FRONTEND,npm ci --no-audit --no-fund && npm run build)
@@ -114,10 +124,10 @@ test-integration:
 	$(PYTEST) -m integration backend/tests/integration -v $(_DESELECT_PREEXISTING)
 
 .PHONY: check
-check: lint typecheck-core test-core
+check: lint typecheck-core typecheck-ratchet test-core
 
 .PHONY: check-all
-check-all: lint import-lint typecheck-core test-core test-services frontend-test
+check-all: lint import-lint typecheck-core typecheck-ratchet test-core test-services frontend-test
 
 .PHONY: migrate
 migrate:

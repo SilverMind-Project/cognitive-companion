@@ -13,9 +13,9 @@ one-verdict-sink + join pattern (VG08, D26).
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
 
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,30 @@ _VISION_RESPONSE_SCHEMA = {
 }
 
 
+class _VlmCallConfig(TypedDict, total=False):
+    """Bounded config for an ``llm_call`` vision node in a gate graph."""
+
+    prompt: str
+    image_source: str
+    pipeline_image_path: str
+    response_format: str
+    response_json_schema: str
+    output_key: str
+    temperature: float
+    use_profile_model: bool
+    model_id: str
+    heavy: bool
+
+
+class _VerdictConfig(TypedDict, total=False):
+    """Bounded config for the ``gate_verdict`` sink node."""
+
+    complete_if: str
+    confidence_path: str
+    reason_path: str
+    min_confidence: float
+
+
 def _vlm_call_config(
     *,
     poll_label: str,
@@ -50,7 +74,7 @@ def _vlm_call_config(
     output_key: str = "vision_response",
     model_id: str | None = None,
     heavy: bool = False,
-) -> dict[str, Any]:
+) -> _VlmCallConfig:
     """Build the ``llm_call`` config that reads poll frames and answers the
     strict vision JSON contract. ``heavy=True`` tags the node so the Watch
     profile can prune it (D24)."""
@@ -60,7 +84,7 @@ def _vlm_call_config(
         f"The step is complete if: {done_description}. "
         'Respond with strict JSON: {"complete": bool, "confidence": 0..1, "reason": "..."}'
     )
-    config: dict[str, Any] = {
+    config: _VlmCallConfig = {
         "prompt": prompt,
         "image_source": "pipeline",
         "pipeline_image_path": f"steps.{poll_label}.outputs.images",
@@ -83,8 +107,8 @@ def _verdict_config(
     confidence_path: str = "",
     reason_path: str = "",
     min_confidence: float | None = None,
-) -> dict[str, Any]:
-    config: dict[str, Any] = {
+) -> _VerdictConfig:
+    config: _VerdictConfig = {
         "complete_if": complete_if,
         "confidence_path": confidence_path,
         "reason_path": reason_path,
@@ -101,16 +125,18 @@ def _add_step(
     order: int,
     step_type: str,
     label: str,
-    config: dict[str, Any],
+    config: Mapping[str, Any],
     position_x: float = 0.0,
     position_y: float = 0.0,
 ) -> PipelineStep:
+    # Accept any Mapping (incl. the typed _VlmCallConfig/_VerdictConfig builders)
+    # and materialize a plain dict for the JSON column.
     step = PipelineStep(
         rule_id=rule.id,
         order=order,
         step_type=step_type,
         label=label,
-        config_json=config,
+        config_json=dict(config),
         enabled=True,
         position_x=position_x,
         position_y=position_y,

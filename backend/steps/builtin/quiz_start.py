@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,6 +20,9 @@ from backend.steps.base import (
     StepResult,
     TriggerContext,
 )
+
+if TYPE_CHECKING:
+    from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
 
 logger = get_logger(__name__)
 
@@ -165,7 +169,7 @@ class QuizStartStep(StepHandler):
         )
 
     @staticmethod
-    async def _handle_timeout(session_id: int, delivery_svc) -> None:
+    async def _handle_timeout(session_id: int, delivery_svc: KnowledgeDeliveryService) -> None:
         """Handle quiz session timeout."""
         delivery_svc._update_session_status(session_id, "timed_out")
         logger.info("quiz_session_timed_out", session_id=session_id)

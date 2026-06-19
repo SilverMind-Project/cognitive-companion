@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypedDict, cast
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -31,7 +31,7 @@ from backend.services.pipeline_graph import (
 )
 from backend.services.pipeline_graph_traversal import NodeOutcome, traverse_dag
 from backend.steps import StepRegistry
-from backend.steps.base import ServiceContainer, TriggerContext
+from backend.steps.base import ServiceContainer, StepMetadata, TriggerContext
 
 logger = get_logger(__name__)
 
@@ -108,14 +108,65 @@ def build_default_profile(settings_obj: Any, name: str) -> GateProfile:
     )
 
 
+class GateCost(TypedDict):
+    """Compute cost of one gate run (round-trips into the audit-event JSON)."""
+
+    model_calls: int
+    frames: int
+    latency_ms: int
+
+
+class NodeResult(TypedDict, total=False):
+    """Per-node execution summary recorded for audit/metrics.
+
+    ``total=False``: ``type``/``label``/``ports`` are always set; the remaining
+    keys are status/cost-hint annotations attached only when relevant.
+    """
+
+    type: str
+    label: str
+    ports: list[str]
+    pruned: bool
+    skipped: bool
+    error: str
+    model_id: str
+    image_count: int
+
+
 @dataclass(frozen=True)
 class GateVerdict:
     complete: bool
     confidence: float
     reason: str
-    node_results: dict[str, Any]
-    cost: dict[str, Any]
+    node_results: dict[str, NodeResult]
+    cost: GateCost
     profile: str
+
+
+def _elapsed_ms(start_time: float) -> int:
+    return int((time.perf_counter() - start_time) * 1000)
+
+
+def _fail_verdict(
+    *,
+    reason: str,
+    profile: GateProfile,
+    start_time: float,
+    node_results: dict[str, NodeResult] | None = None,
+) -> GateVerdict:
+    """Build a fail-closed (``complete=False``) verdict with zero cost.
+
+    Single constructor for every refusal/error early-return in the runner, so the
+    fail-closed shape lives in one place instead of being copied per branch.
+    """
+    return GateVerdict(
+        complete=False,
+        confidence=0.0,
+        reason=reason,
+        node_results=node_results or {},
+        cost=GateCost(model_calls=0, frames=0, latency_ms=_elapsed_ms(start_time)),
+        profile=profile.name,
+    )
 
 
 @dataclass
@@ -180,8 +231,8 @@ def _synthetic_trigger(*, room_name: str | None, sensor_id: str | None) -> Trigg
 
 def _extract_cost_hint(
     step: PipelineStep, pipeline_data: dict, profile_model_id: str | None
-) -> dict[str, Any]:
-    hint: dict[str, Any] = {}
+) -> NodeResult:
+    hint: NodeResult = {}
     config = step.config_json or {}
 
     if step.step_type == "llm_call":
@@ -252,30 +303,12 @@ class GateGraphRunner:
         with self._db_factory() as db:
             rule = db.query(Rule).filter(Rule.id == gate_rule_id).first()
             if not rule:
-                return GateVerdict(
-                    complete=False,
-                    confidence=0.0,
-                    reason="rule_not_found",
-                    node_results={},
-                    cost={
-                        "model_calls": 0,
-                        "frames": 0,
-                        "latency_ms": int((time.perf_counter() - start_time) * 1000),
-                    },
-                    profile=profile.name,
+                return _fail_verdict(
+                    reason="rule_not_found", profile=profile, start_time=start_time
                 )
             if not rule.enabled:
-                return GateVerdict(
-                    complete=False,
-                    confidence=0.0,
-                    reason="rule_disabled",
-                    node_results={},
-                    cost={
-                        "model_calls": 0,
-                        "frames": 0,
-                        "latency_ms": int((time.perf_counter() - start_time) * 1000),
-                    },
-                    profile=profile.name,
+                return _fail_verdict(
+                    reason="rule_disabled", profile=profile, start_time=start_time
                 )
 
             steps = (
@@ -304,21 +337,12 @@ class GateGraphRunner:
                 reason="non_gate_safe_step",
                 unsafe_step_types=[s.step_type for s in unsafe_steps],
             )
-            return GateVerdict(
-                complete=False,
-                confidence=0.0,
-                reason="non_gate_safe_step",
-                node_results={},
-                cost={
-                    "model_calls": 0,
-                    "frames": 0,
-                    "latency_ms": int((time.perf_counter() - start_time) * 1000),
-                },
-                profile=profile.name,
+            return _fail_verdict(
+                reason="non_gate_safe_step", profile=profile, start_time=start_time
             )
 
         # Validate graph topology using validate_gate_graph
-        def get_meta(step_type: str):
+        def get_meta(step_type: str) -> StepMetadata | None:
             StepRegistry.discover()
             handler = StepRegistry.get(step_type)
             return handler.metadata() if handler else None
@@ -331,17 +355,8 @@ class GateGraphRunner:
                 reason="invalid_graph",
                 errors=errors,
             )
-            return GateVerdict(
-                complete=False,
-                confidence=0.0,
-                reason="invalid_graph",
-                node_results={},
-                cost={
-                    "model_calls": 0,
-                    "frames": 0,
-                    "latency_ms": int((time.perf_counter() - start_time) * 1000),
-                },
-                profile=profile.name,
+            return _fail_verdict(
+                reason="invalid_graph", profile=profile, start_time=start_time
             )
 
         # 3. Seed pipeline_data
@@ -377,12 +392,8 @@ class GateGraphRunner:
         node_ids = {s.id for s in steps}
         step_by_id = {s.id: s for s in steps}
 
-        node_results: dict[str, Any] = {}
-        cost = {
-            "model_calls": 0,
-            "frames": 0,
-            "latency_ms": 0,
-        }
+        node_results: dict[str, NodeResult] = {}
+        cost: GateCost = {"model_calls": 0, "frames": 0, "latency_ms": 0}
 
         async def execute_node(node_id: int) -> NodeOutcome:
             step = step_by_id[node_id]
@@ -473,13 +484,15 @@ class GateGraphRunner:
                     cost["model_calls"] += 1
 
                 # 4.e. Record node result summary
-                cost_hint = _extract_cost_hint(step_to_execute, pipeline_data, profile.model_id)
-                node_results[label] = {
+                node_result: NodeResult = {
                     "type": step.step_type,
                     "label": label,
                     "ports": list(result.output_ports),
-                    **cost_hint,
                 }
+                node_result.update(
+                    _extract_cost_hint(step_to_execute, pipeline_data, profile.model_id)
+                )
+                node_results[label] = node_result
 
                 return NodeOutcome(
                     active_ports=frozenset(result.output_ports),

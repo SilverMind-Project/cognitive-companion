@@ -260,9 +260,9 @@ class PersonIdentificationHandler(StepHandler):
             for t in camera_result.room_transitions:
                 movement = MovementCreate(
                     person_id=t.person_id or "unknown",
-                    from_room_id=t.from_room_id or "unknown",
-                    to_room_id=t.to_room_id or "unknown",
-                    direction_semantic=t.direction_semantic or "any",
+                    from_room_id=str(t.from_room_id) if t.from_room_id else "unknown",
+                    to_room_id=str(t.to_room_id) if t.to_room_id else "unknown",
+                    direction_semantic=t.semantic or "any",
                     confidence=t.confidence or 0.8,
                 )
                 record = await services.semantic_memory_client.create_movement(movement)

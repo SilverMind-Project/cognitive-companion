@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.7.54"
+version = "0.7.55"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -148,6 +148,19 @@ disable_error_code = ["var-annotated"]
 # on gradual-adoption settings above.
 [[tool.mypy.overrides]]
 module = ["backend.core.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+# Strict-typing ratchet (see Makefile ``typecheck-ratchet`` + ``make check-all``).
+# These packages have been driven to zero mypy errors AND hold the strict
+# ``disallow_untyped_defs`` bar; the gate prevents regression. Add a package here
+# only after it is green under these settings. The long-term goal is the whole
+# tree; grow this list as modules are cleaned.
+[[tool.mypy.overrides]]
+module = [
+    "backend.services.guided_task.*",
+    "backend.steps.*",
+]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 

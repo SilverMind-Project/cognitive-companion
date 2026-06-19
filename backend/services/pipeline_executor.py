@@ -58,7 +58,7 @@ For nested updates like `pipeline_data["_pipeline"]["completed_at"]`, use
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict, deque
+from collections import deque
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -97,6 +97,7 @@ from backend.services.pipeline_graph import (
     find_entry_step_ids,
     validate_graph,
 )
+from backend.services.pipeline_graph_traversal import NodeOutcome, traverse_dag
 from backend.steps import StepRegistry
 from backend.steps.base import ServiceContainer, StepResult, TriggerContext
 
@@ -599,307 +600,261 @@ class PipelineExecutor:
         # In-degree counts only edges whose source is in the run set. On resume
         # the run set is the descendant subset, so edges from already-executed
         # ancestors are treated as pre-resolved (not counted here).
-        pending: dict[int, int] = defaultdict(int)
-        for source_id, ports in adjacency.items():
-            if source_id not in step_ids_set:
-                continue
-            for targets in ports.values():
-                for target_id in targets:
-                    if target_id in step_ids_set:
-                        pending[target_id] += 1
-
-        # A node is "live" once a taken edge reaches it. Explicit entry steps are
-        # live, and any run-set node fed by an out-of-set (ancestor) edge is live
-        # because that ancestor already ran on the path that reached here.
-        live: set[int] = set(entry_step_ids)
-        for source_id, ports in adjacency.items():
-            if source_id in step_ids_set:
-                continue
-            for targets in ports.values():
-                for target_id in targets:
-                    if target_id in step_ids_set:
-                        live.add(target_id)
-
-        resolved: set[int] = set()  # executed or skipped
-        enqueued: set[int] = set()  # pushed to the ready queue exactly once
-        queue: deque[int] = deque()
-
-        def _enqueue_ready(node_id: int) -> None:
-            if node_id in enqueued or node_id in resolved:
-                return
-            enqueued.add(node_id)
-            queue.append(node_id)
-
-        def _resolve_out_edges(node_id: int, active_ports: set[str]) -> None:
-            """Resolve every outgoing edge of *node_id* as live or dead.
-
-            Decrements each in-set target's pending count, marks live targets,
-            and enqueues a target once all its incoming edges are resolved. A
-            live edge to a target outside the run set is enqueued so the
-            ``dag_step_not_found`` warning still fires for dangling edges.
-            """
-            for port, targets in adjacency.get(node_id, {}).items():
-                is_live = port in active_ports
-                for target_id in targets:
-                    if is_live:
-                        live.add(target_id)
-                    if target_id in step_ids_set:
-                        pending[target_id] -= 1
-                        if pending[target_id] <= 0:
-                            _enqueue_ready(target_id)
-                    elif is_live:
-                        _enqueue_ready(target_id)
-
-        # Seed the frontier: every run-set node with no unresolved in-set
-        # incoming edge. On a fresh execute this is the single entry node; on
-        # resume it is the set of steps immediately after the resumed step.
-        for node_id in step_ids_set:
-            if pending[node_id] == 0:
-                _enqueue_ready(node_id)
-
-        # Tracked so the except-block can record a timing entry for a failed step
         _active_step: PipelineStep | None = None
         _active_step_started_at: datetime | None = None
+        should_stop_traversal = False
+        resolved_nodes: set[int] = set()
 
-        try:
-            while queue:
-                step_id = queue.popleft()
-                if step_id in resolved:
-                    continue
-                resolved.add(step_id)
+        async def execute_node(node_id: int) -> NodeOutcome:
+            nonlocal _active_step, _active_step_started_at, should_stop_traversal, pipeline_data
+            resolved_nodes.add(node_id)
 
-                step = step_by_id.get(step_id)
-                if step is None:
-                    logger.warning(
-                        "dag_step_not_found",
-                        rule=execution.rule.name,
-                        step_id=step_id,
-                    )
-                    continue
-
-                # Dead branch: no live edge reached this node, so skip it and
-                # propagate the skip (its outgoing edges resolve as dead too).
-                if step_id not in live:
-                    logger.info(
-                        "step_skipped_dead_branch",
-                        rule=execution.rule.name,
-                        step_type=step.step_type,
-                        step_label=step.label,
-                    )
-                    _resolve_out_edges(step_id, active_ports=set())
-                    continue
-
-                execution.current_step_id = step.id
-                db.commit()
-
-                # Cooperative cancellation: check if execution was cancelled
-                db.refresh(execution)
-                pipeline_data = execution.pipeline_data_json  # re-bind after refresh
-                if pipeline_data is None:
-                    execution.pipeline_data_json = {}
-                    pipeline_data = execution.pipeline_data_json
-                if execution.status == "cancelled":
-                    step_timings.append(
-                        _make_step_timing(
-                            step,
-                            datetime.now(UTC),
-                            datetime.now(UTC),
-                            success=False,
-                            error="Execution cancelled",
-                            cancellation_observed=True,
-                        )
-                    )
-                    pipeline_data["_step_timings"] = step_timings
-                    db.commit()
-                    logger.info(
-                        "step_cancelled",
-                        rule=execution.rule.name,
-                        step_label=step.label,
-                    )
-                    await self._emit(
-                        PipelineCancelledEvent(
-                            execution_id=execution.id,
-                            rule_id=execution.rule_id,
-                            rule_name=execution.rule.name,
-                            status="cancelled",
-                            finished_at=datetime.now(UTC),
-                            sequence=self._next_seq(),
-                        ).model_dump(mode="json")
-                    )
-                    return execution
-
-                logger.info(
-                    "step_executing",
+            step = step_by_id.get(node_id)
+            if step is None:
+                logger.warning(
+                    "dag_step_not_found",
                     rule=execution.rule.name,
-                    step_type=step.step_type,
-                    step_label=step.label,
-                    order=step.order,
+                    step_id=node_id,
                 )
+                return NodeOutcome(active_ports=frozenset())
 
-                _active_step = step
-                _active_step_started_at = datetime.now(UTC)
+            execution.current_step_id = step.id
+            db.commit()
 
-                # Emit step_started (one event per transition, one increment per code path).
-                await self._emit(
-                    StepStartedEvent(
-                        execution_id=execution.id,
-                        rule_id=execution.rule_id,
-                        rule_name=execution.rule.name,
-                        step_id=str(step.id),
-                        step_name=step.label or step.step_type,
-                        step_type=step.step_type,
-                        status="running",
-                        started_at=_active_step_started_at,
-                        sequence=self._next_seq(),
-                    ).model_dump(mode="json")
-                )
-
-                # Per-step timeout (coarse safety net for stuck LLM calls)
-                try:
-                    result = await asyncio.wait_for(
-                        self._execute_step(step, execution, pipeline_data, trigger),
-                        timeout=_PER_STEP_TIMEOUT,
-                    )
-                except TimeoutError:
-                    result = StepResult(
-                        success=False,
-                        data={"error": f"Step timed out after {_PER_STEP_TIMEOUT:.0f}s"},
-                    )
-
-                step_completed_at = datetime.now(UTC)
-                step_started_at = _active_step_started_at
-                assert step_started_at is not None
-                output_port = result.output_ports[0] if result.output_ports else "main"
+            # Cooperative cancellation: check if execution was cancelled
+            db.refresh(execution)
+            pipeline_data = execution.pipeline_data_json  # re-bind after refresh
+            if pipeline_data is None:
+                execution.pipeline_data_json = {}
+                pipeline_data = execution.pipeline_data_json
+            if execution.status == "cancelled":
                 step_timings.append(
                     _make_step_timing(
                         step,
-                        step_started_at,
-                        step_completed_at,
-                        result.success,
-                        error=result.data.get("error") if not result.success else None,
-                        output_port=output_port,
+                        datetime.now(UTC),
+                        datetime.now(UTC),
+                        success=False,
+                        error="Execution cancelled",
+                        cancellation_observed=True,
                     )
                 )
-                # Emit step_completed (one event per transition, one increment per code path).
-                elapsed_ms = int((step_completed_at - step_started_at).total_seconds() * 1000)
+                pipeline_data["_step_timings"] = step_timings
+                db.commit()
+                logger.info(
+                    "step_cancelled",
+                    rule=execution.rule.name,
+                    step_label=step.label,
+                )
                 await self._emit(
-                    StepCompletedEvent(
+                    PipelineCancelledEvent(
                         execution_id=execution.id,
                         rule_id=execution.rule_id,
                         rule_name=execution.rule.name,
-                        step_id=str(step.id),
-                        step_name=step.label or step.step_type,
-                        step_type=step.step_type,
-                        status="succeeded" if result.success else "failed",
-                        started_at=step_started_at,
-                        finished_at=step_completed_at,
-                        error_code=(result.data.get("error") if not result.success else None),
-                        output_port=output_port,
-                        elapsed_ms=elapsed_ms,
+                        status="cancelled",
+                        finished_at=datetime.now(UTC),
                         sequence=self._next_seq(),
                     ).model_dump(mode="json")
                 )
-                # Signal to the except-block that this step's timing is already saved
-                _active_step_started_at = None
+                should_stop_traversal = True
+                return NodeOutcome(active_ports=frozenset(), stop=True)
 
-                # Merge step output into the tracked dict via the canonical helper.
-                # apply_step_result writes steps.<label>.outputs and promotes
-                # pipeline control flags (_cooloff_triggered) to the top level.
-                apply_step_result(
-                    pipeline_data,
-                    step_id=step.id,
+            logger.info(
+                "step_executing",
+                rule=execution.rule.name,
+                step_type=step.step_type,
+                step_label=step.label,
+                order=step.order,
+            )
+
+            _active_step = step
+            _active_step_started_at = datetime.now(UTC)
+
+            # Emit step_started (one event per transition, one increment per code path).
+            await self._emit(
+                StepStartedEvent(
+                    execution_id=execution.id,
+                    rule_id=execution.rule_id,
+                    rule_name=execution.rule.name,
+                    step_id=str(step.id),
+                    step_name=step.label or step.step_type,
                     step_type=step.step_type,
-                    label=step.label,
-                    result_data=result.data,
+                    status="running",
+                    started_at=_active_step_started_at,
+                    sequence=self._next_seq(),
+                ).model_dump(mode="json")
+            )
+
+            # Per-step timeout (coarse safety net for stuck LLM calls)
+            try:
+                result = await asyncio.wait_for(
+                    self._execute_step(step, execution, pipeline_data, trigger),
+                    timeout=_PER_STEP_TIMEOUT,
+                )
+            except TimeoutError:
+                result = StepResult(
+                    success=False,
+                    data={"error": f"Step timed out after {_PER_STEP_TIMEOUT:.0f}s"},
                 )
 
-                pipeline_data["_step_timings"] = step_timings
-                db.commit()
+            step_completed_at = datetime.now(UTC)
+            step_started_at = _active_step_started_at
+            assert step_started_at is not None
+            output_port = result.output_ports[0] if result.output_ports else "main"
+            step_timings.append(
+                _make_step_timing(
+                    step,
+                    step_started_at,
+                    step_completed_at,
+                    result.success,
+                    error=result.data.get("error") if not result.success else None,
+                    output_port=output_port,
+                )
+            )
+            # Emit step_completed (one event per transition, one increment per code path).
+            elapsed_ms = int((step_completed_at - step_started_at).total_seconds() * 1000)
+            await self._emit(
+                StepCompletedEvent(
+                    execution_id=execution.id,
+                    rule_id=execution.rule_id,
+                    rule_name=execution.rule.name,
+                    step_id=str(step.id),
+                    step_name=step.label or step.step_type,
+                    step_type=step.step_type,
+                    status="succeeded" if result.success else "failed",
+                    started_at=step_started_at,
+                    finished_at=step_completed_at,
+                    error_code=(result.data.get("error") if not result.success else None),
+                    output_port=output_port,
+                    elapsed_ms=elapsed_ms,
+                    sequence=self._next_seq(),
+                ).model_dump(mode="json")
+            )
+            # Signal to the except-block that this step's timing is already saved
+            _active_step_started_at = None
 
-                # Handle wait
-                if result.wait_until:
-                    # Pausing serializes the whole execution, and resume() only
-                    # rebuilds work downstream of the waiting step. If any step
-                    # in a parallel branch (neither already processed nor
-                    # reachable from here) is still pending, resuming would
-                    # silently drop it. Fail loudly instead of losing a branch.
-                    # Resuming all branches across a wait is a future enhancement.
-                    abandoned = (
-                        step_ids_set
-                        - resolved
-                        - _descendants_via_adjacency(step.id, adjacency, step_ids_set)
-                    )
-                    if abandoned:
-                        logger.error(
-                            "pipeline_wait_parallel_branch_unsupported",
-                            execution_id=execution.id,
-                            step_label=step.label or step.step_type,
-                            abandoned_step_ids=sorted(abandoned),
-                        )
-                        raise ValidationError(
-                            f"Step '{step.label or step.step_type}' pauses (wait) while "
-                            f"{len(abandoned)} step(s) remain in a parallel branch. "
-                            "wait/interactive_prompt steps are not yet supported alongside "
-                            "fan-out branches; restructure the pipeline so the wait is not "
-                            "parallel to other steps."
-                        )
-                    execution.status = "waiting"
-                    execution.resume_at = result.wait_until
-                    # Record which step we are waiting on so resume() can
-                    # load the interactive response if needed.
-                    execution.current_step_id = step.id
-                    db.commit()
-                    if self._services.scheduler and step.step_type != "interactive_prompt":
-                        self._services.scheduler.schedule_workflow_resume(
-                            execution.id, result.wait_until
-                        )
-                    logger.info(
-                        "pipeline_waiting",
+            # Merge step output into the tracked dict via the canonical helper.
+            # apply_step_result writes steps.<label>.outputs and promotes
+            # pipeline control flags (_cooloff_triggered) to the top level.
+            apply_step_result(
+                pipeline_data,
+                step_id=step.id,
+                step_type=step.step_type,
+                label=step.label,
+                result_data=result.data,
+            )
+
+            pipeline_data["_step_timings"] = step_timings
+            db.commit()
+
+            # Handle wait
+            if result.wait_until:
+                # Pausing serializes the whole execution, and resume() only
+                # rebuilds work downstream of the waiting step. If any step
+                # in a parallel branch (neither already processed nor
+                # reachable from here) is still pending, resuming would
+                # silently drop it. Fail loudly instead of losing a branch.
+                # Resuming all branches across a wait is a future enhancement.
+                abandoned = (
+                    step_ids_set
+                    - resolved_nodes
+                    - _descendants_via_adjacency(step.id, adjacency, step_ids_set)
+                )
+                if abandoned:
+                    logger.error(
+                        "pipeline_wait_parallel_branch_unsupported",
                         execution_id=execution.id,
-                        resume_at=result.wait_until.isoformat(),
+                        step_label=step.label or step.step_type,
+                        abandoned_step_ids=sorted(abandoned),
                     )
-                    await self._emit(
-                        PipelineWaitingEvent(
-                            execution_id=execution.id,
-                            rule_id=execution.rule_id,
-                            rule_name=execution.rule.name,
-                            status="waiting",
-                            sequence=self._next_seq(),
-                        ).model_dump(mode="json")
+                    raise ValidationError(
+                        f"Step '{step.label or step.step_type}' pauses (wait) while "
+                        f"{len(abandoned)} step(s) remain in a parallel branch. "
+                        "wait/interactive_prompt steps are not yet supported alongside "
+                        "fan-out branches; restructure the pipeline so the wait is not "
+                        "parallel to other steps."
                     )
-                    return execution
-
-                # Handle early exit.
-                if not result.should_continue:
-                    completed_at = datetime.now(UTC)
-                    if result.success:
-                        execution.status = "completed"
-                        event_log_status = "ignored"
-                    else:
-                        execution.status = "failed"
-                        event_log_status = "failed"
-                    execution.completed_at = completed_at
-                    _mark_pipeline_completed(execution, completed_at)
-
-                    skip_reason = result.data.get("skip_reason")
-
-                    event_log = (
-                        db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
+                execution.status = "waiting"
+                execution.resume_at = result.wait_until
+                # Record which step we are waiting on so resume() can
+                # load the interactive response if needed.
+                execution.current_step_id = step.id
+                db.commit()
+                if self._services.scheduler and step.step_type != "interactive_prompt":
+                    self._services.scheduler.schedule_workflow_resume(
+                        execution.id, result.wait_until
                     )
-                    if event_log:
-                        event_log.status = event_log_status
-                        event_log.pipeline_data_json = copy_pipeline_snapshot(pipeline_data)
-                    db.commit()
-                    logger.info(
-                        "pipeline_early_exit",
-                        rule=execution.rule.name,
-                        step=step.label or step.step_type,
-                        event_log_status=event_log_status,
-                        skip_reason=skip_reason,
-                    )
-                    return execution
+                logger.info(
+                    "pipeline_waiting",
+                    execution_id=execution.id,
+                    resume_at=result.wait_until.isoformat(),
+                )
+                await self._emit(
+                    PipelineWaitingEvent(
+                        execution_id=execution.id,
+                        rule_id=execution.rule_id,
+                        rule_name=execution.rule.name,
+                        status="waiting",
+                        sequence=self._next_seq(),
+                    ).model_dump(mode="json")
+                )
+                should_stop_traversal = True
+                return NodeOutcome(active_ports=frozenset(), stop=True)
 
-                _resolve_out_edges(step.id, set(result.output_ports))
+            # Handle early exit.
+            if not result.should_continue:
+                completed_at = datetime.now(UTC)
+                if result.success:
+                    execution.status = "completed"
+                    event_log_status = "ignored"
+                else:
+                    execution.status = "failed"
+                    event_log_status = "failed"
+                execution.completed_at = completed_at
+                _mark_pipeline_completed(execution, completed_at)
+
+                skip_reason = result.data.get("skip_reason")
+
+                event_log = (
+                    db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
+                )
+                if event_log:
+                    event_log.status = event_log_status
+                    event_log.pipeline_data_json = copy_pipeline_snapshot(pipeline_data)
+                db.commit()
+                logger.info(
+                    "pipeline_early_exit",
+                    rule=execution.rule.name,
+                    step=step.label or step.step_type,
+                    event_log_status=event_log_status,
+                    skip_reason=skip_reason,
+                )
+                should_stop_traversal = True
+                return NodeOutcome(active_ports=frozenset(), stop=True)
+
+            return NodeOutcome(active_ports=frozenset(result.output_ports))
+
+        async def on_skip(node_id: int) -> None:
+            resolved_nodes.add(node_id)
+            step = step_by_id.get(node_id)
+            if step is not None:
+                logger.info(
+                    "step_skipped_dead_branch",
+                    rule=execution.rule.name,
+                    step_type=step.step_type,
+                    step_label=step.label,
+                )
+
+        try:
+            await traverse_dag(
+                node_ids=step_ids_set,
+                adjacency=adjacency,
+                entry_ids=entry_step_ids,
+                execute_node=execute_node,
+                on_skip=on_skip,
+            )
+
+            if should_stop_traversal:
+                return execution
 
             # All steps completed
             completed_at = datetime.now(UTC)

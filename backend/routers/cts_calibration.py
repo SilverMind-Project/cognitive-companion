@@ -37,7 +37,11 @@ from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.cts_camera import CtsCamera
 from backend.models.household_settings import HouseholdSettings
 from backend.routers.cts_deps import cts_enabled
-from backend.routers.dependencies import get_ingress_admin_client, get_minio_client, get_orchestrator_client
+from backend.routers.dependencies import (
+    get_ingress_admin_client,
+    get_minio_client,
+    get_orchestrator_client,
+)
 from backend.schemas.cts_camera import (
     AdjacencyRequest,
     CameraVisibilityPolygon,
@@ -89,7 +93,7 @@ async def _capture_reference_frame(
 
     try:
         jpeg_bytes = await ingress.snapshot(camera_id=camera_id)
-    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable, Exception) as exc:
+    except (UpstreamError, UpstreamTimeout, UpstreamUnavailable, Exception) as exc:  # noqa: BLE001
         logger.warning(
             "calibration_ref_frame_snapshot_failed",
             camera_id=camera_id,
@@ -102,7 +106,7 @@ async def _capture_reference_frame(
 
     try:
         await minio.async_upload_bytes(jpeg_bytes, ref_key, "image/jpeg")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning(
             "calibration_ref_frame_upload_failed",
             camera_id=camera_id,

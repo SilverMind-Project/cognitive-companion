@@ -7,15 +7,13 @@ the CTS test_drift.py).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy.orm import Session
 
 from backend.models.cts_camera import CtsCamera
 from backend.services.cts.drift_poll import _check_one_camera, _recent_keyframe_key
-
 
 # ---------------------------------------------------------------------------
 # Helpers

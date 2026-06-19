@@ -162,7 +162,7 @@ class Scheduler:
                 .filter(RuleCronTrigger.cron_trigger_id == cron_trigger_id)
                 .all()
             ]
-            rules = db.query(Rule).filter(Rule.id.in_(rule_ids), Rule.enabled.is_(True)).all()
+            rules = db.query(Rule).filter(Rule.id.in_(rule_ids), Rule.enabled.is_(True), Rule.filter_active()).all()
 
             logger.info(
                 "cron_trigger_fired",

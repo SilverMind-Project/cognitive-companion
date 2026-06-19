@@ -322,7 +322,7 @@ async def get_rules(enabled_only: bool = True) -> list[dict]:
 
     db: Session = _svc.db_factory()
     try:
-        stmt = select(Rule)
+        stmt = select(Rule).where(Rule.filter_active())
         if enabled_only:
             stmt = stmt.where(Rule.enabled.is_(True))
         rules = db.execute(stmt).scalars().all()
@@ -510,7 +510,7 @@ async def trigger_rule(rule_id: int) -> dict:
         db: Session = _svc.db_factory()
         try:
             rule = db.get(Rule, rule_id)
-            if not rule:
+            if not rule or rule.is_callable:
                 return {"error": f"Rule {rule_id} not found"}
 
             trigger = TriggerContext(trigger_type="manual", sensor_id=rule.primary_sensor_id)
@@ -1502,7 +1502,7 @@ async def list_rules() -> list[dict]:
 
     db = _svc.db_factory()
     try:
-        rules = db.query(Rule).order_by(Rule.name).all()
+        rules = db.query(Rule).filter(Rule.filter_active()).order_by(Rule.name).all()
         return [
             {
                 "id": r.id,

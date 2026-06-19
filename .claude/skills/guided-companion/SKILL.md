@@ -166,3 +166,10 @@ way `prune_observations` works for semantic memory.
 | Telling her an answer came from a human | Same voice, no attribution to her; audit internally only |
 | Building a graph/branching routine | Linear with optional skip-ahead only |
 | `time.sleep` / wall-clock in the state machine | Injected `now`; schedule via APScheduler |
+
+## 16. Gate graphs (vision-gate graphs)
+
+A vision-confirmation gate is a callable pipeline graph, represented as a `Rule` with `trigger_types == []`.
+- **`gate_safe` and `gate_only` flags:** Step metadata declares `gate_safe: bool = True` for read-only perception/reasoning steps (e.g. `media_window_poll`, `scene_analysis`, `condition`, `gate_verdict`). The `gate_only` flag (True for `gate_verdict`) filters steps so they only appear in vision-gate graph palettes.
+- **`gate_verdict` step:** The single required sink step of a gate graph. It evaluates a `complete_if` Lark-based expression, resolves JMESPath confidence and reason, and writes a standard `{complete, confidence, reason}` verdict block to `pipeline_data["gate_verdict"]`.
+- **`validate_gate_graph`:** Validates gate safety constraints (no side-effects, single reachable `gate_verdict` step). Run-time/attach-time validation enforces the full check, while save-time incremental edits use `gate_safe_only=True` to allow temporary missing/unwired steps.

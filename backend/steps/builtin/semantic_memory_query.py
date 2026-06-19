@@ -124,6 +124,7 @@ class SemanticMemoryQueryHandler(StepHandler):
                 "limit": 5,
                 "output_key": "memory_context",
             },
+            gate_safe=True,
         )
 
     async def execute(

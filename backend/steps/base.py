@@ -88,6 +88,8 @@ class StepMetadata:
     output_schema: dict = field(default_factory=dict)  # JSONSchema for step outputs
     tags: tuple[str, ...] = ()  # for palette grouping/search
     output_ports: tuple[str, ...] = ("main",)
+    gate_safe: bool = False
+    gate_only: bool = False
 
 
 @dataclass

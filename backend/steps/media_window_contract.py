@@ -168,4 +168,5 @@ def build_media_window_metadata(default_source: MediaSource) -> StepMetadata:
             ],
         },
         tags=("media", "cts", "recamera"),
+        gate_safe=True,
     )

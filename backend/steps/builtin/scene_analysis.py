@@ -208,6 +208,7 @@ class SceneAnalysisHandler(StepHandler):
                     "scene_memory_observation_id": {"type": ["integer", "null"]},
                 },
             },
+            gate_safe=True,
         )
 
     async def execute(

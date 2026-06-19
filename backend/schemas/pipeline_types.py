@@ -19,6 +19,8 @@ class StepTypeOut(BaseModel):
     output_schema: dict | None = None
     tags: list[str] = []
     output_ports: list[str] = ["main"]
+    gate_safe: bool = False
+    gate_only: bool = False
 
 
 class PipelineEdgeCreate(BaseModel):

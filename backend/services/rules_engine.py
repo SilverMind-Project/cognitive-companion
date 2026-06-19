@@ -50,6 +50,7 @@ class RulesEngine:
         now = datetime.now(self.tz)
         query = db.query(Rule).filter(
             Rule.enabled.is_(True),
+            Rule.filter_active(),
             Rule.trigger_types.contains([trigger_type]),
         )
         if trigger_type == "occupancy_duration":
@@ -139,6 +140,7 @@ class RulesEngine:
             db.query(Rule)
             .filter(
                 Rule.enabled.is_(True),
+                Rule.filter_active(),
                 Rule.trigger_types.contains([trigger_type]),
             )
             .all()

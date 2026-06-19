@@ -71,9 +71,7 @@ def _serve_image_for_sensor(
     # --- Determine which image bytes to serve ---
     if state and state.expires_at and state.expires_at < now:
         # Content has expired: fall back to the default template
-        image_bytes = minio.get_object(
-            eink_renderer.get_template_key(f"{default_template}.png")
-        )
+        image_bytes = minio.get_object(eink_renderer.get_template_key(f"{default_template}.png"))
     else:
         image_bytes = minio.get_object(eink_renderer.get_active_image_key(sensor_id))
         if image_bytes is None:
@@ -121,9 +119,7 @@ def serve_active_image(
     if not sensor_id:
         eink_renderer = request.app.state.eink_renderer
         default_template: str = settings.as_str("image.default_template", allow_empty=False)
-        default_bytes = minio.get_object(
-            eink_renderer.get_template_key(f"{default_template}.png")
-        )
+        default_bytes = minio.get_object(eink_renderer.get_template_key(f"{default_template}.png"))
         if default_bytes is None:
             raise NotFoundError("Image", "no sensor_id in auth context")
         return Response(content=default_bytes, media_type="image/png")

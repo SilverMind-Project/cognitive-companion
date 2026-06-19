@@ -63,7 +63,9 @@ class TestBathroomInferredDwellE2E:
     """C3: 25-minute camera-blind bathroom dwell produces inferred_dwell_exceeded."""
 
     @pytest.mark.asyncio
-    async def test_inferred_dwell_exceeded_fires_after_threshold(self, db_session: Session, db_factory) -> None:
+    async def test_inferred_dwell_exceeded_fires_after_threshold(
+        self, db_session: Session, db_factory
+    ) -> None:
         """After 25 minutes in a camera-blind bathroom, inferred_dwell_exceeded fires."""
         bathroom_room_id = _seed_room(db_session, has_camera=False)
         hallway_room_id = _seed_room(db_session, has_camera=True)
@@ -136,7 +138,9 @@ class TestBathroomInferredDwellE2E:
         assert rows[0]["person_id"] == PERSON_ID
 
     @pytest.mark.asyncio
-    async def test_dwell_below_threshold_does_not_fire(self, db_session: Session, db_factory) -> None:
+    async def test_dwell_below_threshold_does_not_fire(
+        self, db_session: Session, db_factory
+    ) -> None:
         """A dwell shorter than the threshold must not emit a signal."""
         bathroom_room_id = _seed_room(db_session, has_camera=False)
         hallway_room_id = _seed_room(db_session, has_camera=True)

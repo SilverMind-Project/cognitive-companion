@@ -87,16 +87,12 @@ def _sha256(data: bytes) -> str:
 class TestServeImageForSensor:
     # -- baseline cases -------------------------------------------------------
 
-    def test_first_poll_serves_image(
-        self, db_session, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_first_poll_serves_image(self, db_session, monkeypatch: pytest.MonkeyPatch) -> None:
         """First request for a device (no prior state) always delivers the image."""
         minio = _minio_stub(active_bytes=b"first-frame")
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-a", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-a", db_session, _request(), minio)
 
         assert response.status_code == 200
         assert response.body == b"first-frame"
@@ -140,15 +136,11 @@ class TestServeImageForSensor:
 
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-c", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-c", db_session, _request(), minio)
 
         assert response.status_code == 204
 
-    def test_204_has_empty_body(
-        self, db_session, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_204_has_empty_body(self, db_session, monkeypatch: pytest.MonkeyPatch) -> None:
         """The 204 response carries no body, so the display driver has nothing to render."""
         minio = _minio_stub(active_bytes=b"same-content")
 
@@ -163,9 +155,7 @@ class TestServeImageForSensor:
 
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-d", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-d", db_session, _request(), minio)
 
         assert not response.body
 
@@ -188,9 +178,7 @@ class TestServeImageForSensor:
 
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-e", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-e", db_session, _request(), minio)
 
         assert response.status_code == 200
         assert response.body == b"new-frame"
@@ -212,9 +200,7 @@ class TestServeImageForSensor:
 
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-f", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-f", db_session, _request(), minio)
 
         assert response.status_code == 200
         assert response.body == b"periodic-frame"
@@ -236,9 +222,7 @@ class TestServeImageForSensor:
 
         monkeypatch.setattr(image_router, "settings", _settings(0))
 
-        response = image_router._serve_image_for_sensor(
-            "device-g", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-g", db_session, _request(), minio)
 
         assert response.status_code == 200
 
@@ -259,9 +243,7 @@ class TestServeImageForSensor:
 
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-h", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-h", db_session, _request(), minio)
 
         assert response.status_code == 200
 
@@ -295,9 +277,7 @@ class TestServeImageForSensor:
         assert state.last_served_hash == _sha256(b"updated-img")
         assert state.last_served_at >= before
 
-    def test_no_state_update_on_204(
-        self, db_session, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_state_update_on_204(self, db_session, monkeypatch: pytest.MonkeyPatch) -> None:
         """When 204 is returned, the stored last_served_at is not advanced."""
         minio = _minio_stub(active_bytes=b"unchanged")
 
@@ -342,9 +322,7 @@ class TestServeImageForSensor:
 
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-k", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-k", db_session, _request(), minio)
 
         assert response.status_code == 200
         assert response.body == b"default-content"
@@ -357,9 +335,7 @@ class TestServeImageForSensor:
         minio = _minio_stub(active_bytes=None, default_bytes=b"default-fallback")
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
-        response = image_router._serve_image_for_sensor(
-            "device-l", db_session, _request(), minio
-        )
+        response = image_router._serve_image_for_sensor("device-l", db_session, _request(), minio)
 
         assert response.status_code == 200
         assert response.body == b"default-fallback"
@@ -372,9 +348,7 @@ class TestServeImageForSensor:
         monkeypatch.setattr(image_router, "settings", _settings(60))
 
         with pytest.raises(NotFoundError):
-            image_router._serve_image_for_sensor(
-                "device-m", db_session, _request(), minio
-            )
+            image_router._serve_image_for_sensor("device-m", db_session, _request(), minio)
 
 
 # ---------------------------------------------------------------------------

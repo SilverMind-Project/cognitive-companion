@@ -93,7 +93,6 @@ class Rule(Base, TimestampMixin):
         return func.jsonb_array_length(cls.trigger_types) == 0
 
 
-
 class RuleContext(Base):
     """Context filter for a rule. Multiple contexts of the same type are ORed;
     different types are ANDed.

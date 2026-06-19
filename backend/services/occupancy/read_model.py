@@ -121,9 +121,7 @@ class OccupancyReadModel:
             if not phs:
                 del self._rooms[rid]
 
-    async def get_occupancy(
-        self, room_name: str | None = None
-    ) -> list[RoomOccupancyStateEnvelope]:
+    async def get_occupancy(self, room_name: str | None = None) -> list[RoomOccupancyStateEnvelope]:
         """Return live occupancy, world-tracker rooms merged with HA sensors."""
         now = datetime.now(UTC)
         # Keyed by room_name so a room is never reported twice across sources.

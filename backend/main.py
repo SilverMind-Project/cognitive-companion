@@ -412,6 +412,11 @@ async def lifespan(app: FastAPI):
     pipeline_run_service = PipelineRunService(db_factory=get_session)
     app.state.pipeline_run_service = pipeline_run_service
 
+    from backend.services.guided_task.camera_selection import CameraSourceResolverService
+
+    camera_source_resolver = CameraSourceResolverService(get_session)
+    app.state.camera_source_resolver = camera_source_resolver
+
     pipeline_executor = PipelineExecutor(
         db_session_factory=get_session,
         person_tracking=person_tracking,
@@ -432,6 +437,7 @@ async def lifespan(app: FastAPI):
         minio_client=minio_client,
         rules_engine=rules_engine,
         event_publisher=pipeline_ws_manager.publish_event,
+        camera_source_resolver=camera_source_resolver,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor

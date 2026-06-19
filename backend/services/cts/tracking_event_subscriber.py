@@ -46,7 +46,7 @@ def _positive_probability(value: Any) -> float | None:
     """Return a usable probability, or None when evidence is absent."""
     try:
         probability = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if probability <= 0:
         return None

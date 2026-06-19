@@ -40,9 +40,7 @@ def _policy(**overrides) -> ResolvedPolicy:
 
 
 def test_step_completed_not_last_advances():
-    decision = GuidedTaskStateMachine.decide(
-        _session(), _step(), "step_completed", _policy(), NOW
-    )
+    decision = GuidedTaskStateMachine.decide(_session(), _step(), "step_completed", _policy(), NOW)
 
     assert decision.kind == "advance"
     assert decision.next_step_ord == 1

@@ -102,7 +102,10 @@ class GuidedTaskSafetyWatch:
                 }
             )
 
-        if session.attempts >= max(0, policy.max_step_attempts - 1) or self._blocked_count(session) >= 2:
+        if (
+            session.attempts >= max(0, policy.max_step_attempts - 1)
+            or self._blocked_count(session) >= 2
+        ):
             events.append(
                 {
                     "condition": "confusion_distress",

@@ -356,7 +356,9 @@ class GuidedMetricsService:
             window=window,
             timezone=tz_name,
             buckets=[
-                by_hour.get(hour, GuidedTimeOfDayBucket(hour=hour, started=0, completed=0, abandoned=0))
+                by_hour.get(
+                    hour, GuidedTimeOfDayBucket(hour=hour, started=0, completed=0, abandoned=0)
+                )
                 for hour in range(24)
             ],
         )

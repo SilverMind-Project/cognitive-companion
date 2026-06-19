@@ -211,4 +211,3 @@ def validate_gate_graph(
             pass
 
     return errors
-

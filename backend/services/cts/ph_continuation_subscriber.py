@@ -35,7 +35,8 @@ class PHContinuationSubscriber(StreamConsumer[PHContinuationMessage]):
         config: ConsumerConfig | None = None,
     ) -> None:
         super().__init__(
-            config or ConsumerConfig(
+            config
+            or ConsumerConfig(
                 redis_url=redis_url,
                 stream=STREAM,
                 group=GROUP,
@@ -50,9 +51,7 @@ class PHContinuationSubscriber(StreamConsumer[PHContinuationMessage]):
             return {
                 "predecessor_ph_id": _get_text_field(fields, b"predecessor_ph_id"),
                 "successor_ph_id": _get_text_field(fields, b"successor_ph_id"),
-                "predecessor_identity_id": _get_text_field(
-                    fields, b"predecessor_identity_id"
-                )
+                "predecessor_identity_id": _get_text_field(fields, b"predecessor_identity_id")
                 or None,
             }
         except Exception:  # noqa: BLE001

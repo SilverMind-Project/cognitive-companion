@@ -152,9 +152,7 @@ def test_caregiver_role_accepted(db_factory) -> None:
 
 
 def test_existing_roles_unchanged() -> None:
-    assert {"user", "assistant", "orchestrator", "rules_engine", "system"}.issubset(
-        ALLOWED_ACTORS
-    )
+    assert {"user", "assistant", "orchestrator", "rules_engine", "system"}.issubset(ALLOWED_ACTORS)
     assert "caregiver" in ALLOWED_ACTORS
 
 

@@ -89,13 +89,38 @@ def test_detail_marks_untaken_branch_step_skipped(db_session):
             "steps": {},
             "_graph": {
                 "steps": [
-                    {"id": 1, "label": "Condition", "step_type": "condition", "output_ports": ["true", "false"]},
-                    {"id": 2, "label": "True Notify", "step_type": "notification", "output_ports": ["main"]},
-                    {"id": 3, "label": "False Notify", "step_type": "notification", "output_ports": ["main"]},
+                    {
+                        "id": 1,
+                        "label": "Condition",
+                        "step_type": "condition",
+                        "output_ports": ["true", "false"],
+                    },
+                    {
+                        "id": 2,
+                        "label": "True Notify",
+                        "step_type": "notification",
+                        "output_ports": ["main"],
+                    },
+                    {
+                        "id": 3,
+                        "label": "False Notify",
+                        "step_type": "notification",
+                        "output_ports": ["main"],
+                    },
                 ],
                 "edges": [
-                    {"source_step_id": 1, "source_port": "true", "target_step_id": 2, "target_port": "main"},
-                    {"source_step_id": 1, "source_port": "false", "target_step_id": 3, "target_port": "main"},
+                    {
+                        "source_step_id": 1,
+                        "source_port": "true",
+                        "target_step_id": 2,
+                        "target_port": "main",
+                    },
+                    {
+                        "source_step_id": 1,
+                        "source_port": "false",
+                        "target_step_id": 3,
+                        "target_port": "main",
+                    },
                 ],
             },
             "_step_timings": [
@@ -157,7 +182,9 @@ async def test_rerun_returns_new_execution_id_and_rule_id(db_session):
     )
     new_execution = SimpleNamespace(id=99, rule_id=rule.id, status="running")
     pipeline_executor = SimpleNamespace(execute=AsyncMock(return_value=new_execution))
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(pipeline_executor=pipeline_executor)))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(pipeline_executor=pipeline_executor))
+    )
 
     result = await rerun_execution(
         execution.id,

@@ -213,7 +213,11 @@ async def test_heatmap_mcp_bff_same_person_id():
     client = TestClient(app)
     resp = client.get(
         "/api/v1/cts/analytics/heatmap",
-        params={"person_id": "alice", "start_time": _START.isoformat(), "end_time": _END.isoformat()},
+        params={
+            "person_id": "alice",
+            "start_time": _START.isoformat(),
+            "end_time": _END.isoformat(),
+        },
     )
     assert resp.status_code == 200
     bff_result = resp.json()
@@ -249,7 +253,11 @@ async def test_heatmap_mcp_bff_same_bin_count():
     client = TestClient(app)
     resp = client.get(
         "/api/v1/cts/analytics/heatmap",
-        params={"person_id": "alice", "start_time": _START.isoformat(), "end_time": _END.isoformat()},
+        params={
+            "person_id": "alice",
+            "start_time": _START.isoformat(),
+            "end_time": _END.isoformat(),
+        },
     )
     bff_result = resp.json()
 

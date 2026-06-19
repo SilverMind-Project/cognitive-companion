@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from backend.services.cts.event_bucketizer import CtsEventBucketizer
     from backend.services.daily_report import DailyReportService
     from backend.services.event_aggregator import EventAggregator
+    from backend.services.guided_task.camera_selection import CameraSourceResolver
     from backend.services.guided_task.service import GuidedTaskService
     from backend.services.interactive_response import InteractiveResponseService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
@@ -125,6 +126,7 @@ class ServiceContainer:
     # CTS sliding-window frame buffer, injected after CTS bootstrap. Read by the
     # canonical media poll step and its CTS alias.
     bucketizer: CtsEventBucketizer | None = None
+    camera_source_resolver: CameraSourceResolver | None = None
 
 
 # ---------------------------------------------------------------------------

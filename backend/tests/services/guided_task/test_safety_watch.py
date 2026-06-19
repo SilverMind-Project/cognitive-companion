@@ -168,7 +168,11 @@ async def test_wandered_off_emits_high(db_session, db_factory) -> None:
 
     events = await watch.evaluate(session=session)
 
-    assert {"condition": "abandoned", "severity": "high", "detail": {"reason": "left_expected_room"}} in events
+    assert {
+        "condition": "abandoned",
+        "severity": "high",
+        "detail": {"reason": "left_expected_room"},
+    } in events
 
 
 async def test_idle_beyond_timeout_emits_high(db_session, db_factory) -> None:
@@ -179,7 +183,10 @@ async def test_idle_beyond_timeout_emits_high(db_session, db_factory) -> None:
 
     events = await watch.evaluate(session=session)
 
-    assert any(event["condition"] == "abandoned" and event["detail"]["reason"] == "idle_timeout" for event in events)
+    assert any(
+        event["condition"] == "abandoned" and event["detail"]["reason"] == "idle_timeout"
+        for event in events
+    )
 
 
 async def test_hazard_emits_emergency(db_session, db_factory) -> None:
@@ -196,7 +203,10 @@ async def test_hazard_emits_emergency(db_session, db_factory) -> None:
 
     events = await watch.evaluate(session=session)
 
-    assert any(event["condition"] == "hazard_active" and event["severity"] == "emergency" for event in events)
+    assert any(
+        event["condition"] == "hazard_active" and event["severity"] == "emergency"
+        for event in events
+    )
 
 
 async def test_no_motion_signal_emits_emergency(db_session, db_factory) -> None:
@@ -206,7 +216,9 @@ async def test_no_motion_signal_emits_emergency(db_session, db_factory) -> None:
 
     events = await watch.evaluate(session=session)
 
-    assert any(event["condition"] == "no_motion" and event["severity"] == "emergency" for event in events)
+    assert any(
+        event["condition"] == "no_motion" and event["severity"] == "emergency" for event in events
+    )
 
 
 async def test_repeated_failures_emit_confusion_high(db_session, db_factory) -> None:
@@ -216,7 +228,10 @@ async def test_repeated_failures_emit_confusion_high(db_session, db_factory) -> 
 
     events = await watch.evaluate(session=session)
 
-    assert any(event["condition"] == "confusion_distress" and event["severity"] == "high" for event in events)
+    assert any(
+        event["condition"] == "confusion_distress" and event["severity"] == "high"
+        for event in events
+    )
 
 
 async def test_hazard_vlm_not_run_when_no_risk_signals(db_session, db_factory) -> None:

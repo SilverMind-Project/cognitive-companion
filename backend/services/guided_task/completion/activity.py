@@ -27,7 +27,9 @@ class ActivitySignalEvaluator:
         step: Any,
         evidence: dict,
     ) -> CompletionResult:
-        activity = self._gate_config.get("activity_signal") or self._gate_config.get("activity") or {}
+        activity = (
+            self._gate_config.get("activity_signal") or self._gate_config.get("activity") or {}
+        )
         activity_type = activity.get("activity_type") or activity.get("type")
         if not activity_type:
             return CompletionResult(False, 0.0, "activity_type_missing")

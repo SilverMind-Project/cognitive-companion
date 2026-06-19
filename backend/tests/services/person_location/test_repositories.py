@@ -51,8 +51,8 @@ def test_minute_window_wraps_past_midnight() -> None:
     # 22:00-03:00 -> start 1320, end 180 (wrap)
     assert minute_of_day_in_window(1320, 1320, 180) is True  # 22:00
     assert minute_of_day_in_window(1410, 1320, 180) is True  # 23:30
-    assert minute_of_day_in_window(0, 1320, 180) is True     # 00:00
-    assert minute_of_day_in_window(179, 1320, 180) is True   # 02:59
+    assert minute_of_day_in_window(0, 1320, 180) is True  # 00:00
+    assert minute_of_day_in_window(179, 1320, 180) is True  # 02:59
     assert minute_of_day_in_window(180, 1320, 180) is False  # 03:00
     assert minute_of_day_in_window(690, 1320, 180) is False  # 11:30
 
@@ -93,6 +93,7 @@ async def test_inmemory_heatmap_local_tz_wrap() -> None:
 
     assert len(bins) == 1
     assert bins[0].x_bin == pytest.approx(1.0)
+
 
 # ---------------------------------------------------------------------------
 # Exact migration SQL -- must stay byte-for-byte identical to
@@ -178,10 +179,7 @@ def _refresh(db_engine, since: datetime, until: datetime) -> None:
     # refresh_continuous_aggregate must run outside a transaction block.
     with db_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         conn.execute(
-            text(
-                "CALL refresh_continuous_aggregate("
-                "'location_heatmaps_15m', :since, :until)"
-            ),
+            text("CALL refresh_continuous_aggregate('location_heatmaps_15m', :since, :until)"),
             {"since": since, "until": until},
         )
 
@@ -207,9 +205,9 @@ async def test_observations_aggregate_into_spatial_bins(db_engine, db_factory) -
     repo = _make_repo(db_factory)
 
     # Two points in the same 0.5-m bin (x_bin=1.0, y_bin=2.0), one in another.
-    await repo.insert(_obs(person_id, x=1.0, y=2.0))   # bin (1.0, 2.0)
-    await repo.insert(_obs(person_id, x=1.2, y=2.3))   # bin (1.0, 2.0)
-    await repo.insert(_obs(person_id, x=3.0, y=4.0))   # bin (3.0, 4.0)
+    await repo.insert(_obs(person_id, x=1.0, y=2.0))  # bin (1.0, 2.0)
+    await repo.insert(_obs(person_id, x=1.2, y=2.3))  # bin (1.0, 2.0)
+    await repo.insert(_obs(person_id, x=3.0, y=4.0))  # bin (3.0, 4.0)
 
     _refresh(db_engine, _WINDOW_START, _WINDOW_END)
 
@@ -289,7 +287,7 @@ _DAY_END = datetime(2024, 1, 16, 0, 0, 0, tzinfo=UTC)
 
 # "Night" sundowning window 22:00-03:00 local -> wraps past midnight.
 _NIGHT_START_MIN = 22 * 60  # 1320
-_NIGHT_END_MIN = 3 * 60     # 180
+_NIGHT_END_MIN = 3 * 60  # 180
 
 
 @pytest.mark.asyncio

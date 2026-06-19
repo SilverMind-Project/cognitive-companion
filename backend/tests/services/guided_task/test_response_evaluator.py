@@ -7,7 +7,9 @@ from backend.services.guided_task.completion.response import ResponseEvaluator, 
 
 @pytest.mark.asyncio
 async def test_confirmed_evidence_completes():
-    result = await ResponseEvaluator().is_complete(session=None, step=None, evidence={"confirmed": True})
+    result = await ResponseEvaluator().is_complete(
+        session=None, step=None, evidence={"confirmed": True}
+    )
 
     assert result.complete is True
     assert result.confidence == 1.0

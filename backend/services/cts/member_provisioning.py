@@ -24,9 +24,7 @@ from backend.models.person import HouseholdMember
 logger = get_logger(__name__)
 
 
-def ensure_household_members(
-    db_factory: Callable[[], Session], identity_ids: set[str]
-) -> None:
+def ensure_household_members(db_factory: Callable[[], Session], identity_ids: set[str]) -> None:
     """Ensure a HouseholdMember row exists for each id in ``identity_ids``."""
     ids = {i for i in identity_ids if i}
     if not ids:

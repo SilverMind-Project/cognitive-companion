@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from unittest.mock import AsyncMock, MagicMock
 
-from backend.services.guided_task.camera_selection import select_cameras
+from backend.services.guided_task.camera_selection import (
+    ResolvedCamera,
+    select_cameras,
+    select_cameras_tagged,
+)
 
 
 @dataclass
@@ -186,3 +191,129 @@ async def test_never_reads_visibility_polygon() -> None:
     )
 
     assert cameras == ["room-cam"]
+
+
+async def test_tagged_explicit_cameras_carry_source() -> None:
+    def resolver(cid: str):
+        return "recamera" if cid == "cam-c" else "cts"
+
+    cameras = await select_cameras_tagged(
+        person_id="resident-1",
+        step=_Step(camera_ids=["cam-a", "cam-b", "cam-c"]),
+        zone_service=None,
+        person_location=None,
+        bucketizer=None,
+        camera_topology=None,
+        identity_resolver=None,
+        camera_source_resolver=resolver,
+    )
+
+    assert cameras == [
+        ResolvedCamera(id="cam-a", source="cts"),
+        ResolvedCamera(id="cam-b", source="cts"),
+        ResolvedCamera(id="cam-c", source="recamera"),
+    ]
+
+
+async def test_tagged_detection_tier_includes_recamera_when_aggregator_present() -> None:
+    aggregator = AsyncMock()
+    aggregator.query_recent_media.return_value = ["https://minio/recamera_image.jpg"]
+    aggregator._minio = MagicMock()
+    aggregator._minio.extract_object_name.side_effect = lambda url: url.split("/")[-1]
+
+    mock_row = MagicMock()
+    mock_row.object_name = "recamera_image.jpg"
+    mock_row.sensor_id = "sensor-recamera"
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.all.return_value = [mock_row]
+    aggregator._db_session_factory = lambda: mock_db
+
+    cameras = await select_cameras_tagged(
+        person_id="resident-1",
+        step=_Step(),
+        zone_service=None,
+        person_location=_LocationService(),
+        bucketizer=None,
+        event_aggregator=aggregator,
+        camera_topology=None,
+        identity_resolver=lambda _person_id: set(),
+        camera_source_resolver=lambda cid: "recamera" if cid == "sensor-recamera" else None,
+    )
+
+    assert cameras == [ResolvedCamera(id="sensor-recamera", source="recamera")]
+
+
+async def test_tagged_degrades_to_cts_only_when_no_aggregator() -> None:
+    bucketizer = _Bucketizer(
+        {
+            "cam-1": [{"detections": [{"identity_id": "resident-1"}]}],
+        }
+    )
+
+    cameras = await select_cameras_tagged(
+        person_id="resident-1",
+        step=_Step(),
+        zone_service=None,
+        person_location=_LocationService(),
+        bucketizer=bucketizer,
+        event_aggregator=None,
+        camera_topology=None,
+        identity_resolver=lambda _person_id: {"resident-1"},
+        camera_source_resolver=None,
+    )
+
+    assert cameras == [ResolvedCamera(id="cam-1", source="cts")]
+
+
+async def test_unknown_id_dropped_and_warned() -> None:
+    cameras = await select_cameras_tagged(
+        person_id="resident-1",
+        step=_Step(camera_ids=["cam-unknown"]),
+        zone_service=None,
+        person_location=None,
+        bucketizer=None,
+        camera_topology=None,
+        identity_resolver=None,
+        camera_source_resolver=lambda cid: None,
+    )
+
+    assert cameras == []
+
+
+async def test_select_cameras_wrapper_returns_ids_only() -> None:
+    def resolver(cid: str):
+        return "recamera" if cid == "cam-c" else "cts"
+
+    cameras = await select_cameras(
+        person_id="resident-1",
+        step=_Step(camera_ids=["cam-a", "cam-b", "cam-c"]),
+        zone_service=None,
+        person_location=None,
+        bucketizer=None,
+        camera_topology=None,
+        identity_resolver=None,
+        camera_source_resolver=resolver,
+    )
+
+    assert cameras == ["cam-a", "cam-b", "cam-c"]
+
+
+async def test_tagged_never_reads_visibility_polygon() -> None:
+    class _ExplodingTopology(_Topology):
+        @property
+        def visibility_polygon(self):
+            raise AssertionError("visibility polygon must not be read")
+
+    cameras = await select_cameras_tagged(
+        person_id="resident-1",
+        step=_Step(),
+        zone_service=None,
+        person_location=_LocationService(),
+        bucketizer=None,
+        camera_topology=_ExplodingTopology(),
+        identity_resolver=None,
+        camera_source_resolver=lambda cid: "cts" if cid == "room-cam" else None,
+    )
+
+    assert cameras == [ResolvedCamera(id="room-cam", source="cts")]

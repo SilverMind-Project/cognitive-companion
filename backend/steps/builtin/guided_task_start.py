@@ -125,11 +125,15 @@ class GuidedTaskStartStep(StepHandler):
                         }
                     )
 
-            first_step = db.execute(
-                select(RoutineStep)
-                .where(RoutineStep.routine_id == routine_id)
-                .order_by(RoutineStep.ord)
-            ).scalars().first()
+            first_step = (
+                db.execute(
+                    select(RoutineStep)
+                    .where(RoutineStep.routine_id == routine_id)
+                    .order_by(RoutineStep.ord)
+                )
+                .scalars()
+                .first()
+            )
             session_timeout_s = (
                 resolve_policy(routine, first_step, settings).step_timeout_s
                 if first_step is not None

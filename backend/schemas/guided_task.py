@@ -17,9 +17,7 @@ class RoutineStepIn(BaseModel):
 
     ord: int = Field(ge=0)
     prompt_template: str = Field(min_length=1)
-    completion_gate: dict[str, Any] = Field(
-        default_factory=lambda: {"kinds": ["response"]}
-    )
+    completion_gate: dict[str, Any] = Field(default_factory=lambda: {"kinds": ["response"]})
     skip_condition: dict[str, Any] | None = None
     camera_ids: list[str] | None = None
     zone_id: int | None = None

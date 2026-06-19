@@ -227,7 +227,7 @@ def _upstream_to_http(exc: UpstreamError) -> HTTPException:
             if isinstance(detail, dict):
                 upstream_code = detail.get("code", upstream_code)
                 message = detail.get("message", message)
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             pass
     return HTTPException(
         status_code=http_code,

@@ -41,7 +41,8 @@ class RoomTransitionSubscriber(StreamConsumer[RoomTransitionMessage]):
         config: ConsumerConfig | None = None,
     ) -> None:
         super().__init__(
-            config or ConsumerConfig(
+            config
+            or ConsumerConfig(
                 redis_url=redis_url,
                 stream=STREAM,
                 group=GROUP,

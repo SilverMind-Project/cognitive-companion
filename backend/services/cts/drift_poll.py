@@ -53,12 +53,16 @@ async def poll_camera_drift(
     # db_factory is a callable that returns a context-managed session.
     db: Session = session_factory()
     try:
-        cameras = db.execute(
-            select(CtsCamera).where(
-                CtsCamera.enabled.is_(True),
-                CtsCamera.calibration_ref_key.isnot(None),
+        cameras = (
+            db.execute(
+                select(CtsCamera).where(
+                    CtsCamera.enabled.is_(True),
+                    CtsCamera.calibration_ref_key.isnot(None),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         for cam in cameras:
             await _check_one_camera(cam=cam, db=db, orchestrator=orchestrator)

@@ -663,9 +663,7 @@ class GuidedTaskService:
     def list_routines(
         self, *, person_id: str | None = None, limit: int = 20, offset: int = 0
     ) -> RoutineListOut:
-        rows, total = self._store.list_routines(
-            person_id=person_id, limit=limit, offset=offset
-        )
+        rows, total = self._store.list_routines(person_id=person_id, limit=limit, offset=offset)
         items = []
         for r in rows:
             step_count = self._store.count_steps(r.id)
@@ -710,18 +708,14 @@ class GuidedTaskService:
         ords = [s["ord"] for s in steps_in]
         expected = list(range(len(ords)))
         if sorted(ords) != expected:
-            raise ValidationError(
-                f"Step ord values must be contiguous from 0; got {sorted(ords)}"
-            )
+            raise ValidationError(f"Step ord values must be contiguous from 0; got {sorted(ords)}")
         new_steps = self._store.replace_steps(routine_id, steps_in)
         routine_out = RoutineOut.model_validate(routine, from_attributes=True)
         routine_out = routine_out.model_copy(update={"step_count": len(new_steps)})
         steps_out = [RoutineStepOut.model_validate(s, from_attributes=True) for s in new_steps]
         return RoutineDetailOut(routine=routine_out, steps=steps_out)
 
-    async def test_run(
-        self, routine_id: int, *, surface_id: str | None = None
-    ) -> GuidedSessionOut:
+    async def test_run(self, routine_id: int, *, surface_id: str | None = None) -> GuidedSessionOut:
         routine = self._store.get_routine(routine_id)
         if routine is None:
             raise NotFoundError("Routine", routine_id)
@@ -810,7 +804,9 @@ class GuidedTaskService:
             if session.status == "caregiver_takeover":
                 continue
             if session.status == "escalated":
-                if (tick_at - session.last_activity_at).total_seconds() > self._escalation_grace_s():
+                if (
+                    tick_at - session.last_activity_at
+                ).total_seconds() > self._escalation_grace_s():
                     await self._abandon_escalated_unanswered(session, tick_at)
                 continue
             policy = resolve_policy(routine, step, self._settings)
@@ -1389,10 +1385,18 @@ class GuidedTaskService:
         routine_name = routine.name if routine is not None else f"routine {session.routine_id}"
         events = self._store.list_events(session_id=session.id, limit=200)
         completed_steps = sorted(
-            {event.step_ord for event in events if event.kind == "step_completed" and event.step_ord is not None}
+            {
+                event.step_ord
+                for event in events
+                if event.kind == "step_completed" and event.step_ord is not None
+            }
         )
         skipped_steps = sorted(
-            {event.step_ord for event in events if event.kind == "step_skipped" and event.step_ord is not None}
+            {
+                event.step_ord
+                for event in events
+                if event.kind == "step_skipped" and event.step_ord is not None
+            }
         )
         stalled_steps = sorted(
             {

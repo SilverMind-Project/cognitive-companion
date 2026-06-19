@@ -440,9 +440,7 @@ class TestPipelineExecutorBranching:
         with patch.object(executor, "_execute_step", side_effect=mock_execute):
             await executor.execute(rule, _make_trigger(), db_session)
 
-        completed = [
-            event for event in events if event.get("event_type") == "step_completed"
-        ]
+        completed = [event for event in events if event.get("event_type") == "step_completed"]
         assert completed[0]["output_port"] == "true"
 
 
@@ -591,8 +589,12 @@ class TestPipelineExecutorStepTiming:
     async def test_graph_snapshot_is_stable_after_rule_edit(self, db_session, db_factory):
         rule = _make_rule(db_session)
         step_a = _make_step(db_session, rule, order=1, step_type="condition")
-        true_step = _make_step(db_session, rule, order=2, step_type="notification", label="true_notify")
-        false_step = _make_step(db_session, rule, order=3, step_type="notification", label="false_notify")
+        true_step = _make_step(
+            db_session, rule, order=2, step_type="notification", label="true_notify"
+        )
+        false_step = _make_step(
+            db_session, rule, order=3, step_type="notification", label="false_notify"
+        )
         true_edge = _connect(db_session, rule, step_a, true_step, source_port="true")
         _connect(db_session, rule, step_a, false_step, source_port="false")
         db_session.commit()

@@ -132,7 +132,11 @@ async def test_exit_transition_updates_segment_to_outside_room():
     }
     assert await subscriber.handle(enter_msg) is True
 
-    exit_msg = {**enter_msg, "direction": "exit", "event_time": enter_msg["event_time"] + timedelta(seconds=1)}
+    exit_msg = {
+        **enter_msg,
+        "direction": "exit",
+        "event_time": enter_msg["event_time"] + timedelta(seconds=1),
+    }
     result = await subscriber.handle(exit_msg)
     assert result is True
 

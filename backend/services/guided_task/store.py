@@ -77,9 +77,7 @@ class GuidedTaskStore:
         finally:
             db.close()
 
-    def replace_steps(
-        self, routine_id: int, steps_data: list[dict[str, Any]]
-    ) -> list[RoutineStep]:
+    def replace_steps(self, routine_id: int, steps_data: list[dict[str, Any]]) -> list[RoutineStep]:
         db = self._db_factory()
         try:
             db.query(RoutineStep).filter(RoutineStep.routine_id == routine_id).delete(

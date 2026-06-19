@@ -56,8 +56,7 @@ class AgentSessionVoice:
             step_type="guided_task",
             base_instruction="",
             step_override=None,
-            resource_override=getattr(session, "routine_system_instruction_override", None)
-            or None,
+            resource_override=getattr(session, "routine_system_instruction_override", None) or None,
         )
         if voice_instruction:
             voice_instruction = render_template(

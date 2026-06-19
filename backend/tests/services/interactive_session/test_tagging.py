@@ -9,8 +9,7 @@ from backend.services.interactive_session.tagging import (
 
 def test_prefix_for_quiz_matches_legacy() -> None:
     assert (
-        prefix_for_delivery({"delivery_type": "quiz_start", "session_id": 7})
-        == "[quiz session 7]"
+        prefix_for_delivery({"delivery_type": "quiz_start", "session_id": 7}) == "[quiz session 7]"
     )
 
 
@@ -27,10 +26,7 @@ def test_register_session_prefix_adds_builder() -> None:
     try:
         register_session_prefix("sample", lambda session_id: f"[sample {session_id}]")
 
-        assert (
-            prefix_for_delivery({"delivery_type": "sample", "session_id": 9})
-            == "[sample 9]"
-        )
+        assert prefix_for_delivery({"delivery_type": "sample", "session_id": 9}) == "[sample 9]"
     finally:
         _PREFIX_BUILDERS.clear()
         _PREFIX_BUILDERS.update(previous_builders)

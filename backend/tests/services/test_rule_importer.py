@@ -83,10 +83,7 @@ def test_bundle_to_rule_creates_rule_steps_contexts(db_session):
     assert db_session.query(PipelineStep).filter(PipelineStep.rule_id == rule.id).count() == 1
     assert db_session.query(RuleContext).filter(RuleContext.rule_id == rule.id).count() == 1
     assert (
-        db_session.query(CronTrigger)
-        .join(CronTrigger.rules)
-        .filter(Rule.id == rule.id)
-        .count()
+        db_session.query(CronTrigger).join(CronTrigger.rules).filter(Rule.id == rule.id).count()
         == 1
     )
 

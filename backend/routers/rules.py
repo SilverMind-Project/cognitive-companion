@@ -395,7 +395,9 @@ def _collect_step_output_ports(steps: list[PipelineStep]) -> dict[int, tuple[str
     return output_ports
 
 
-def _validate_rule_graph_or_raise(steps: list[PipelineStep], edges: list[PipelineEdge], is_callable: bool = False) -> None:
+def _validate_rule_graph_or_raise(
+    steps: list[PipelineStep], edges: list[PipelineEdge], is_callable: bool = False
+) -> None:
     # Authoring-time validation: enforce structural integrity (unknown steps,
     # duplicate source ports, invalid ports, cycles) but NOT the single-entry
     # rule. A pipeline under construction routinely has unwired steps (multiple
@@ -403,10 +405,13 @@ def _validate_rule_graph_or_raise(steps: list[PipelineStep], edges: list[Pipelin
     # endpoint and enforced at execution time, not on every edge save.
     if is_callable:
         from backend.steps import StepRegistry
+
         errors = validate_gate_graph(
             steps,
             edges,
-            step_metadata=lambda t_name: StepRegistry.get(t_name).metadata() if StepRegistry.exists(t_name) else None,
+            step_metadata=lambda t_name: (
+                StepRegistry.get(t_name).metadata() if StepRegistry.exists(t_name) else None
+            ),
             gate_safe_only=True,
         )
     else:
@@ -592,10 +597,13 @@ def validate_rule(
         edges = db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule_id).all()
         if rule.is_callable:
             from backend.steps import StepRegistry
+
             graph_errors = validate_gate_graph(
                 steps,
                 edges,
-                step_metadata=lambda t_name: StepRegistry.get(t_name).metadata() if StepRegistry.exists(t_name) else None,
+                step_metadata=lambda t_name: (
+                    StepRegistry.get(t_name).metadata() if StepRegistry.exists(t_name) else None
+                ),
                 gate_safe_only=False,
             )
         else:

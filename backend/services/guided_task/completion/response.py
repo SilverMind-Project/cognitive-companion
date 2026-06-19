@@ -87,7 +87,9 @@ def build_evaluators(
                 )
             )
         elif kind == "zone_presence":
-            evaluators.append(ZonePresenceEvaluator(zone_service=zone_service, gate_config=gate_config))
+            evaluators.append(
+                ZonePresenceEvaluator(zone_service=zone_service, gate_config=gate_config)
+            )
         else:
             unsupported.add(kind)
     if unsupported:
@@ -122,7 +124,9 @@ async def evaluate_completion(
             details=_details(results),
         )
 
-    best = max((result for _kind, result in results), key=lambda item: item.confidence, default=None)
+    best = max(
+        (result for _kind, result in results), key=lambda item: item.confidence, default=None
+    )
     if best is None:
         best = CompletionResult(False, 0.0, "no_completion_evaluators")
     return GateEvaluation(result=best, details=_details(results))

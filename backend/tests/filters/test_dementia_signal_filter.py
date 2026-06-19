@@ -122,7 +122,9 @@ class TestKindsFilter:
                 "severity": "warning",
             },
         }
-        assert filt.evaluate({"kinds": ["fall_suspected"], "min_severity": 0.66}, event, _NOW) is True
+        assert (
+            filt.evaluate({"kinds": ["fall_suspected"], "min_severity": 0.66}, event, _NOW) is True
+        )
 
     def test_fall_suspected_fails_min_severity_emergency(self, filt: DementiaSignalFilter):
         event = {
@@ -133,7 +135,9 @@ class TestKindsFilter:
                 "severity": "warning",
             },
         }
-        assert filt.evaluate({"kinds": ["fall_suspected"], "min_severity": 1.0}, event, _NOW) is False
+        assert (
+            filt.evaluate({"kinds": ["fall_suspected"], "min_severity": 1.0}, event, _NOW) is False
+        )
 
 
 # ---------------------------------------------------------------------------

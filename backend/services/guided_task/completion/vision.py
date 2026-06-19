@@ -65,7 +65,9 @@ class VisionEvaluator:
         step: Any,
         evidence: dict,
     ) -> CompletionResult:
-        vision_cfg = self._gate_config.get("vision") or self._gate_config.get("vision_confirm") or {}
+        vision_cfg = (
+            self._gate_config.get("vision") or self._gate_config.get("vision_confirm") or {}
+        )
         cameras = await select_cameras(
             person_id=session.person_id,
             step=step,

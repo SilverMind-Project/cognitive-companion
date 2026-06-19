@@ -103,13 +103,26 @@ allowlist in `config/settings.yaml`. Browser-visible data behind a router and a 
 reads the same service function (see the bff-api-design skill). The MCP registry
 smoke test must still resolve every tool.
 
-## 9. Camera selection and the coordinate convention (D5, D19)
+## 9. Camera selection and the coordinate convention (D5, D19, D25)
 
 Select cameras for a vision check in this order: explicit `RoutineStep.camera_ids`
 or `RoomZone.camera_ids`, then cameras with live identity detections of her in the
-CTS buffer, then zone-covering cameras, then all cameras in her room. Runtime uses
-the explicit `camera_ids` and detection-driven steps. **Never use
-`cts_camera.visibility_polygon` as a runtime correctness input**: it is normalised
+CTS buffer or event aggregator (reCamera), then zone-covering cameras, then all cameras in her room.
+
+- **Source-tagged cameras (`ResolvedCamera`):** The cascade supports both CTS and reCamera.
+  Callers query `select_cameras_tagged`, which returns a list of `ResolvedCamera(id, source)`
+  objects, where `source` is `"cts"` or `"recamera"`. The legacy `select_cameras` remains
+  as a backward-compatible, id-only wrapper that defaults to `"cts"` if no resolver or
+  aggregator is provided.
+- **Camera source resolver:** Constructed as `CameraSourceResolverService` in `main.py`,
+  this resolver maps a camera/sensor ID to its source (`"cts"` if it exists in the `cts_cameras` table,
+  or `"recamera"` if it exists in the `sensors` table).
+- **Multi-source media polling:** `media_window_poll` partitions the tagged cameras,
+  fetches CTS frames via `collect_recent_cts_frames` and reCamera images via `query_media_by_sensor`,
+  then merges and sorts them chronologically before applying downsampling.
+  The step outputs `"source": "mixed"` when both sources are present.
+
+**Never use `cts_camera.visibility_polygon` as a runtime correctness input**: it is normalised
 [0,1] image space and is wall-contaminated until Track G lands. Zone polygons are
 floor meters, the same space as `location_observation.floor_x_m/floor_y_m`. Never
 compare a meter polygon against a normalised polygon; convert through the camera

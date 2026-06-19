@@ -134,8 +134,7 @@ def get_execution_detail(
 
     graph = _parse_execution_graph(pd.get("_graph"), execution_id=execution.id)
     timing_entries = [
-        _timing_to_entry(timing, pd, StepRegistry)
-        for timing in pd.get("_step_timings", [])
+        _timing_to_entry(timing, pd, StepRegistry) for timing in pd.get("_step_timings", [])
     ]
     timeline = _merge_graph_timeline(
         graph=graph,
@@ -265,11 +264,7 @@ def _merge_graph_timeline(
     if graph is None:
         return timing_entries
 
-    by_step_id = {
-        entry.step_id: entry
-        for entry in timing_entries
-        if entry.step_id is not None
-    }
+    by_step_id = {entry.step_id: entry for entry in timing_entries if entry.step_id is not None}
     graph_step_ids = {step.id for step in graph.steps}
     timeline: list[StepTimelineEntry] = []
 

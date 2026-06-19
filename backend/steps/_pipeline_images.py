@@ -55,6 +55,49 @@ def _looks_like_url(value: str) -> bool:
     return value.startswith(_URL_SCHEME_PREFIXES)
 
 
+def _as_int(value: object, default: int) -> int:
+    """Coerce an untyped config/JSON value to int, falling back to *default*."""
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
+def _as_float_or_none(value: object) -> float | None:
+    """Coerce an untyped config/JSON value to float, or None."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _as_str_or_none(value: object) -> str | None:
+    """Coerce an untyped config/JSON value to str, or None."""
+    return str(value) if value is not None else None
+
+
+def _as_str_list(value: object) -> list[str]:
+    """Coerce an untyped config/JSON value to a list of strings (else empty)."""
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value]
+    return []
+
+
+def _as_object_dict(value: object) -> dict[str, object]:
+    """Coerce an untyped config/JSON value to a str-keyed dict (else empty)."""
+    if isinstance(value, Mapping):
+        return {str(k): v for k, v in value.items()}
+    return {}
+
+
 def _normalize_dict(
     value: Mapping[str, object], *, default_source_type: str
 ) -> list[PipelineImageRef]:
@@ -62,45 +105,51 @@ def _normalize_dict(
 
     Handles CTS frame dicts (``minio_key``), crop output dicts
     (``object_name`` + metadata), and simple URL-bearing dicts.
+
+    Constructs the typed :class:`PipelineImageRef` directly (no untyped kwargs
+    splat) so the boundary is fully type-checked. Precedence is preserved:
+    source-identity fields take the last present alias (``camera_id`` overrides
+    ``source_camera_id``); dimension fields take the first present alias.
     """
-    ref_kwargs: dict[str, object] = {"source_type": default_source_type}
 
-    # -- source metadata fields ----------------------------------------------
-    for src_key, ref_key in (
-        ("source_sensor_id", "source_sensor_id"),
-        ("source_camera_id", "source_camera_id"),
-        ("source_room_name", "source_room_name"),
-        ("camera_id", "source_camera_id"),
-        ("room_name", "source_room_name"),
-        ("sensor_id", "source_sensor_id"),
-    ):
-        if src_key in value:
-            ref_kwargs[ref_key] = value[src_key]
+    def _last_present_str(*keys: str) -> str | None:
+        result: str | None = None
+        for key in keys:
+            v = value.get(key)
+            if v is not None:
+                result = str(v)
+        return result
 
-    # -- dimension fields ----------------------------------------------------
-    for dim_key, ref_key in (
-        ("frame_width", "width"),
-        ("frame_height", "height"),
-        ("original_width", "width"),
-        ("original_height", "height"),
-        ("width", "width"),
-        ("height", "height"),
-    ):
-        v = value.get(dim_key)
-        if v is not None and ref_key not in ref_kwargs:
-            ref_kwargs[ref_key] = v
+    def _first_present_int(*keys: str) -> int | None:
+        for key in keys:
+            v = value.get(key)
+            if isinstance(v, (int, float)):
+                return int(v)
+        return None
 
     # -- URL / object name resolution ----------------------------------------
-    if "minio_key" in value:
-        ref_kwargs["object_name"] = value["minio_key"]
-    elif "object_name" in value:
-        ref_kwargs["object_name"] = value["object_name"]
-    if "url" in value:
-        ref_kwargs["url"] = value["url"]
-    elif "image_url" in value:
-        ref_kwargs["url"] = value["image_url"]
+    object_name: str | None = None
+    if value.get("minio_key") is not None:
+        object_name = str(value["minio_key"])
+    elif value.get("object_name") is not None:
+        object_name = str(value["object_name"])
 
-    # -- Preserve remaining metadata fields ----------------------------------
+    url: str | None = None
+    if value.get("url") is not None:
+        url = str(value["url"])
+    elif value.get("image_url") is not None:
+        url = str(value["image_url"])
+
+    # Fallback: a bare ``image`` key (from media_window_poll outputs).
+    if url is None and object_name is None:
+        maybe_image = value.get("image")
+        if isinstance(maybe_image, str):
+            if _looks_like_url(maybe_image):
+                url = maybe_image
+            else:
+                object_name = maybe_image
+
+    # -- remaining metadata fields -------------------------------------------
     meta_fields = (
         "region_id",
         "region_name",
@@ -109,27 +158,21 @@ def _normalize_dict(
         "output_height",
         "crop_box",
     )
-    extra_meta: dict[str, object] = {k: value[k] for k in meta_fields if k in value}
-    if extra_meta:
-        existing_meta = dict(ref_kwargs.get("metadata", {}))
-        existing_meta.update(extra_meta)
-        ref_kwargs["metadata"] = existing_meta
-
-    # Fallback: if the dict has no recognizable image field but has an
-    # ``image`` key (from media_window_poll outputs), use that.
-    if "url" not in ref_kwargs and "object_name" not in ref_kwargs:
-        maybe_image = value.get("image")
-        if isinstance(maybe_image, str):
-            if _looks_like_url(maybe_image):
-                ref_kwargs["url"] = maybe_image
-            else:
-                ref_kwargs["object_name"] = maybe_image
+    metadata: dict[str, object] = {k: value[k] for k in meta_fields if k in value}
 
     return [
         PipelineImageRef(
-            **{k: v for k, v in ref_kwargs.items() if k in PipelineImageRef.__dataclass_fields__}
+            url=url,
+            object_name=object_name,
+            source_type=default_source_type,
+            source_sensor_id=_last_present_str("source_sensor_id", "sensor_id"),
+            source_camera_id=_last_present_str("source_camera_id", "camera_id"),
+            source_room_name=_last_present_str("source_room_name", "room_name"),
+            width=_first_present_int("frame_width", "original_width", "width"),
+            height=_first_present_int("frame_height", "original_height", "height"),
+            metadata=metadata,
         )
-    ]  # type: ignore[arg-type]
+    ]
 
 
 def normalize_image_value(
@@ -202,8 +245,7 @@ async def resolve_pipeline_image_refs(
     # -- trigger -------------------------------------------------------------
     if image_source in ("trigger", "both"):
         media_paths = trigger.media_paths or []
-        trigger_count_raw = config.get("trigger_images_count")
-        trigger_count = int(trigger_count_raw) if trigger_count_raw else 0
+        trigger_count = _as_int(config.get("trigger_images_count"), 0)
         if trigger_count > 0:
             media_paths = media_paths[-trigger_count:]
         for mp in media_paths:
@@ -211,18 +253,18 @@ async def resolve_pipeline_image_refs(
 
     # -- additional (reCamera EventAggregator) -------------------------------
     if image_source in ("additional", "both") and services.event_aggregator:
-        max_images = int(config.get("max_images", default_max_images))
-        additional_sensors: list[str] = list(config.get("additional_sensor_ids") or [])
-        additional_rooms: list[str] = list(config.get("additional_room_names") or [])
-        time_filter: dict = dict(config.get("image_time_filter") or {})
-        images_per_sensor = int(config.get("images_per_sensor", default_images_per_sensor))
-        sensor_frame_limits: dict = dict(config.get("sensor_frame_limits") or {})
-
-        time_kwargs = {
-            "since_minutes": time_filter.get("since_minutes"),
-            "time_start": time_filter.get("time_start"),
-            "time_end": time_filter.get("time_end"),
+        max_images = _as_int(config.get("max_images"), default_max_images)
+        additional_sensors: list[str] = _as_str_list(config.get("additional_sensor_ids"))
+        additional_rooms: list[str] = _as_str_list(config.get("additional_room_names"))
+        time_filter: dict[str, object] = _as_object_dict(config.get("image_time_filter"))
+        images_per_sensor = _as_int(config.get("images_per_sensor"), default_images_per_sensor)
+        sensor_frame_limits: dict[str, int] = {
+            k: _as_int(v, 0) for k, v in _as_object_dict(config.get("sensor_frame_limits")).items()
         }
+
+        since_minutes = _as_float_or_none(time_filter.get("since_minutes"))
+        time_start = _as_str_or_none(time_filter.get("time_start"))
+        time_end = _as_str_or_none(time_filter.get("time_end"))
 
         extra: list[str] = []
         if additional_rooms:
@@ -230,7 +272,9 @@ async def resolve_pipeline_image_refs(
                 sensor_ids=additional_sensors if additional_sensors else None,
                 room_names=additional_rooms,
                 limit=max_images,
-                **time_kwargs,
+                since_minutes=since_minutes,
+                time_start=time_start,
+                time_end=time_end,
             )
         elif additional_sensors:
             extra = await services.event_aggregator.query_media_by_sensor(
@@ -239,14 +283,18 @@ async def resolve_pipeline_image_refs(
                 sensor_frame_limits=sensor_frame_limits,
                 max_images=max_images,
                 chronological=sort_by_sensor,
-                **time_kwargs,
+                since_minutes=since_minutes,
+                time_start=time_start,
+                time_end=time_end,
             )
         elif image_source == "additional":
             extra = await services.event_aggregator.query_recent_media(
                 sensor_ids=None,
                 room_names=None,
                 limit=max_images,
-                **time_kwargs,
+                since_minutes=since_minutes,
+                time_start=time_start,
+                time_end=time_end,
             )
 
         for url in extra:
@@ -288,7 +336,7 @@ async def resolve_pipeline_image_refs(
                 refs.extend(normalize_image_value(raw, default_source_type="cts_window"))
 
     # -- apply max_images cap -----------------------------------------------
-    max_images = int(config.get("max_images", default_max_images))
+    max_images = _as_int(config.get("max_images"), default_max_images)
     if max_images > 0 and len(refs) > max_images:
         refs = refs[:max_images]
 

@@ -4,34 +4,21 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
-from backend.integrations.llm.json_utils import parse_llm_json
-from backend.services.guided_task._verdict_utils import _bounded_float
-from backend.services.guided_task.camera_selection import IdentityResolver, select_cameras
+from backend.services.guided_task.camera_selection import ResolvedCamera, select_cameras_tagged
 from backend.services.guided_task.completion.base import CompletionResult
-from backend.services.media_window_frames import CtsFrameWindowConfig, collect_recent_cts_frames
+from backend.services.guided_task.gate_runner import GateProfile, GateRunContext
 
 logger = get_logger(__name__)
-
-_VISION_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "complete": {"type": "boolean"},
-        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-        "reason": {"type": "string"},
-    },
-    "required": ["complete", "confidence", "reason"],
-    "additionalProperties": False,
-}
-
 
 VisionEventRecorder = Callable[[int, int | None, dict[str, Any]], None | Awaitable[None]]
 
 
 class VisionEvaluator:
-    """Completion gate backed by selected CTS frames and a vision-capable LLM."""
+    """Completion gate driven by a callable gate graph runner."""
 
     kind = "vision_confirm"
 
@@ -39,13 +26,15 @@ class VisionEvaluator:
         self,
         *,
         gate_config: dict | None,
-        zone_service: Any | None,
-        person_location: Any | None,
-        bucketizer: Any | None,
-        camera_topology: Any | None,
-        identity_resolver: IdentityResolver | None,
-        llm_model_registry: Any | None,
-        minio_client: Any | None,
+        zone_service: Any | None = None,
+        person_location: Any | None = None,
+        bucketizer: Any | None = None,
+        camera_topology: Any | None = None,
+        identity_resolver: Any | None = None,
+        gate_runner: Any | None = None,
+        camera_source_resolver: Any | None = None,
+        event_aggregator: Any | None = None,
+        settings: Any | None = None,
         event_recorder: VisionEventRecorder | None = None,
     ) -> None:
         self._gate_config = gate_config or {}
@@ -54,8 +43,10 @@ class VisionEvaluator:
         self._bucketizer = bucketizer
         self._camera_topology = camera_topology
         self._identity_resolver = identity_resolver
-        self._llm_model_registry = llm_model_registry
-        self._minio_client = minio_client
+        self._gate_runner = gate_runner
+        self._camera_source_resolver = camera_source_resolver
+        self._event_aggregator = event_aggregator
+        self._settings = settings
         self._event_recorder = event_recorder
 
     async def is_complete(
@@ -65,124 +56,224 @@ class VisionEvaluator:
         step: Any,
         evidence: dict,
     ) -> CompletionResult:
+        # 1. Resolve the gate rule
         vision_cfg = (
             self._gate_config.get("vision") or self._gate_config.get("vision_confirm") or {}
         )
-        cameras = await select_cameras(
+        gate_graph_rule_id = vision_cfg.get("gate_graph_rule_id")
+        if not gate_graph_rule_id:
+            await self._record(
+                session=session,
+                step=step,
+                cameras=[],
+                complete=False,
+                confidence=0.0,
+                reason="no_gate_graph",
+                gate_graph_rule_id=0,
+                node_results={},
+                cost={"model_calls": 0, "frames": 0, "latency_ms": 0},
+            )
+            return CompletionResult(False, 0.0, "no_gate_graph")
+
+        # 2. Resolve confirm profile
+        confirm_cfg = vision_cfg.get("confirm") or {}
+        routine = evidence.get("routine")
+        if routine is None:
+            try:
+                routine = getattr(session, "routine", None)
+            except Exception:  # noqa: BLE001
+                routine = None
+        routine_cfg = {}
+        if routine is not None:
+            routine_cfg = (
+                (getattr(routine, "config_json", None) or {})
+                .get("guided_task", {})
+                .get("vision", {})
+                .get("confirm", {})
+            )
+
+        def resolve_val(key: str, default_path: str, type_cast: Callable[[Any], Any]) -> Any:
+            if key in confirm_cfg and confirm_cfg[key] is not None:
+                return type_cast(confirm_cfg[key])
+            if key in routine_cfg and routine_cfg[key] is not None:
+                return type_cast(routine_cfg[key])
+            if self._settings is not None:
+                try:
+                    val = self._settings.get(default_path)
+                    if val is not None:
+                        return type_cast(val)
+                except Exception:  # noqa: BLE001
+                    pass
+            return None
+
+        window_s = resolve_val("window_s", "guided_task.vision.confirm.window_s", float)
+        if window_s is None:
+            window_s = 20.0
+
+        max_frames = resolve_val("max_frames", "guided_task.vision.confirm.max_frames", int)
+        if max_frames is None:
+            max_frames = 9
+
+        min_confidence = resolve_val(
+            "min_confidence", "guided_task.vision.confirm.min_confidence", float
+        )
+        if min_confidence is None:
+            min_confidence = 0.7
+
+        min_interval_s = resolve_val(
+            "min_interval_s", "guided_task.vision.confirm.min_interval_s", float
+        )
+        if min_interval_s is None:
+            min_interval_s = 15.0
+
+        model_id = resolve_val("model_id", "guided_task.vision.confirm.model_id", str)
+
+        confirm_profile = GateProfile(
+            name="confirm",
+            window_s=window_s,
+            max_frames=max_frames,
+            min_confidence=min_confidence,
+            model_id=model_id,
+            prune_heavy=False,
+        )
+
+        # 3. Resolve cameras
+        cameras = await select_cameras_tagged(
             person_id=session.person_id,
             step=step,
             zone_service=self._zone_service,
             person_location=self._person_location,
             bucketizer=self._bucketizer,
+            event_aggregator=self._event_aggregator,
             camera_topology=self._camera_topology,
             identity_resolver=self._identity_resolver,
-            max_cameras=int(vision_cfg.get("max_cameras", 3)),
+            camera_source_resolver=self._camera_source_resolver,
+            max_cameras=max_frames,
         )
         if not cameras:
-            await self._record(session, step, cameras, False, 0.0, "no_cameras")
+            await self._record(
+                session=session,
+                step=step,
+                cameras=[],
+                complete=False,
+                confidence=0.0,
+                reason="no_cameras",
+                gate_graph_rule_id=gate_graph_rule_id,
+                node_results={},
+                cost={"model_calls": 0, "frames": 0, "latency_ms": 0},
+            )
             return CompletionResult(False, 0.0, "no_cameras")
 
-        collected = await collect_recent_cts_frames(
-            bucketizer=self._bucketizer,
-            minio_client=self._minio_client,
-            config=CtsFrameWindowConfig(
-                window_id=f"guided_vision_{session.id}_{step.ord}",
+        # 4. Cool-off (D28)
+        cache_key = (str(session.id), int(step.ord), "confirm")
+        now_utc = evidence.get("now") or (
+            self._gate_runner._time_fn() if self._gate_runner else datetime.now(UTC)
+        )
+
+        if self._gate_runner is not None:
+            cached = self._gate_runner.cache.get_fresh(
+                cache_key,
+                min_interval_s=min_interval_s,
+                now=now_utc,
+            )
+            if cached is not None:
+                logger.info(
+                    "vision_confirm_cached_verdict_reused",
+                    session_id=session.id,
+                    step_ord=step.ord,
+                    complete=cached.complete,
+                    confidence=cached.confidence,
+                )
+                return CompletionResult(cached.complete, cached.confidence, cached.reason)
+
+        # 5. Run GateGraphRunner
+        if self._gate_runner is None:
+            logger.warning("guided_completion_gate_runner_unavailable")
+            await self._record(
+                session=session,
+                step=step,
                 cameras=cameras,
-                lookback_s=float(vision_cfg.get("lookback_s", 10.0)),
-                lookahead_s=float(vision_cfg.get("lookahead_s", 0.0)),
-                sample_period_s=float(vision_cfg.get("sample_period_s", 1.0)),
-                max_frames=int(vision_cfg.get("max_frames", 9)),
-                now=evidence.get("now"),
-            ),
+                complete=False,
+                confidence=0.0,
+                reason="gate_runner_unavailable",
+                gate_graph_rule_id=gate_graph_rule_id,
+                node_results={},
+                cost={"model_calls": 0, "frames": 0, "latency_ms": 0},
+            )
+            return CompletionResult(False, 0.0, "gate_runner_unavailable")
+
+        room_name = evidence.get("room_name")
+        if not room_name and self._person_location is not None:
+            try:
+                location = await self._person_location.where_is(session.person_id)
+                if location is not None:
+                    room_name = getattr(location, "room_name", None)
+            except Exception:  # noqa: BLE001
+                pass
+
+        sensor_id = evidence.get("sensor_id")
+
+        context = GateRunContext(
+            person_id=session.person_id,
+            room_name=room_name,
+            sensor_id=sensor_id,
+            session_id=str(session.id),
+            step_ord=int(step.ord),
         )
-        if not collected.images:
-            await self._record(session, step, cameras, False, 0.0, "no_images")
-            return CompletionResult(False, 0.0, "no_images")
 
-        provider, model_id = self._provider(vision_cfg)
-        if provider is None:
-            await self._record(session, step, cameras, False, 0.0, "vision_model_unavailable")
-            return CompletionResult(False, 0.0, "vision_model_unavailable")
-
-        prompt = _build_prompt(vision_cfg)
-        raw = await provider.call(
-            prompt=prompt,
-            media_paths=collected.images,
-            media_type="image",
-            response_schema=_VISION_RESPONSE_SCHEMA,
-            temperature=0.0,
-        )
-        parsed = parse_llm_json(raw or "")
-        if not isinstance(parsed, dict):
-            await self._record(session, step, cameras, False, 0.0, "parse_failed")
-            return CompletionResult(False, 0.0, "parse_failed")
-
-        complete = parsed.get("complete") is True
-        confidence = _bounded_float(parsed.get("confidence"))
-        reason = str(parsed.get("reason") or "vision_confirm")
-        min_confidence = float(vision_cfg.get("min_confidence", 0.7))
-        accepted = complete and confidence >= min_confidence
-        if not accepted and complete:
-            reason = "low_confidence"
-
-        logger.info(
-            "vision_confirm_result",
-            session_id=session.id,
-            step_ord=step.ord,
-            model_id=model_id,
-            complete=accepted,
-            confidence=confidence,
+        verdict = await self._gate_runner.run(
+            gate_rule_id=gate_graph_rule_id,
+            profile=confirm_profile,
             cameras=cameras,
+            context=context,
         )
-        await self._record(session, step, cameras, accepted, confidence, reason)
-        return CompletionResult(accepted, confidence, reason)
 
-    def _provider(self, vision_cfg: dict[str, Any]) -> tuple[Any | None, str | None]:
-        registry = self._llm_model_registry
-        if registry is None:
-            return None, None
-        model_id = vision_cfg.get("model_id")
-        if not model_id:
-            for cfg in registry.all_configs():
-                if "vision" in cfg.capabilities:
-                    model_id = cfg.id
-                    break
-        if not model_id:
-            return None, None
-        cfg = registry.get_config(str(model_id))
-        if cfg is None or "vision" not in cfg.capabilities:
-            return None, str(model_id)
-        return registry.get_provider(str(model_id)), str(model_id)
+        # Put in cool-off cache
+        self._gate_runner.cache.put(cache_key, verdict, now=now_utc)
+
+        await self._record(
+            session=session,
+            step=step,
+            cameras=cameras,
+            complete=verdict.complete,
+            confidence=verdict.confidence,
+            reason=verdict.reason,
+            gate_graph_rule_id=gate_graph_rule_id,
+            node_results=verdict.node_results,
+            cost=verdict.cost,
+        )
+
+        return CompletionResult(verdict.complete, verdict.confidence, verdict.reason)
 
     async def _record(
         self,
         session: Any,
         step: Any,
-        cameras: list[str],
+        cameras: list[ResolvedCamera],
         complete: bool,
         confidence: float,
         reason: str,
+        gate_graph_rule_id: int,
+        node_results: dict[str, Any],
+        cost: dict[str, Any],
     ) -> None:
         if self._event_recorder is None:
             return
+
+        formatted_cameras = [{"id": c.id, "source": c.source} for c in cameras]
+        formatted_node_results = list(node_results.values())
+
         detail = {
-            "cameras": cameras,
+            "profile": "confirm",
+            "gate_graph_rule_id": gate_graph_rule_id,
+            "cameras": formatted_cameras,
             "complete": complete,
             "confidence": confidence,
             "reason": reason,
+            "node_results": formatted_node_results,
+            "cost": cost,
         }
+
         result = self._event_recorder(session.id, getattr(step, "ord", None), detail)
         if inspect.isawaitable(result):
             await result
-
-
-def _build_prompt(vision_cfg: dict[str, Any]) -> str:
-    done_description = vision_cfg.get("done_description") or vision_cfg.get("description")
-    if not done_description:
-        done_description = "the resident has completed the current routine step"
-    return (
-        "You are checking whether a guided-care routine step appears complete. "
-        "Use only visible evidence from the image sequence. "
-        f"The step is complete if: {done_description}. "
-        'Respond with strict JSON: {"complete": bool, "confidence": 0..1, "reason": "..."}'
-    )

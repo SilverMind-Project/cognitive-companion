@@ -57,6 +57,71 @@ from backend.services.interactive_session.prompt_injection import inject_session
 logger = get_logger(__name__)
 
 
+def sanitize_completion_gate(gate: dict[str, Any]) -> dict[str, Any]:
+    import copy
+
+    if not isinstance(gate, dict):
+        return gate
+
+    gate = copy.deepcopy(gate)
+    vision = gate.get("vision") or gate.get("vision_confirm")
+    if isinstance(vision, dict):
+        legacy_keys = []
+        if "camera_ids" in vision:
+            legacy_keys.append("camera_ids")
+        if "description" in vision:
+            legacy_keys.append("description")
+
+        if legacy_keys:
+            logger.warning(
+                "legacy_vision_gate_keys_ignored",
+                keys=legacy_keys,
+            )
+            for k in legacy_keys:
+                vision.pop(k, None)
+
+        new_vision = {}
+        if "gate_graph_rule_id" in vision:
+            new_vision["gate_graph_rule_id"] = vision["gate_graph_rule_id"]
+
+        confirm = vision.get("confirm")
+        if isinstance(confirm, dict):
+            new_vision["confirm"] = {
+                "window_s": confirm.get("window_s"),
+                "max_frames": confirm.get("max_frames"),
+                "min_confidence": confirm.get("min_confidence"),
+                "min_interval_s": confirm.get("min_interval_s"),
+                "model_id": confirm.get("model_id"),
+                "on_max_disagreements": confirm.get("on_max_disagreements"),
+            }
+        elif "confirm" in vision:
+            new_vision["confirm"] = confirm
+
+        watch = vision.get("watch")
+        if isinstance(watch, dict):
+            new_vision["watch"] = {
+                "enabled": watch.get("enabled"),
+                "tick_s": watch.get("tick_s"),
+                "window_s": watch.get("window_s"),
+                "max_frames": watch.get("max_frames"),
+                "model_id": watch.get("model_id"),
+                "auto_advance": watch.get("auto_advance"),
+                "auto_advance_k": watch.get("auto_advance_k"),
+            }
+        elif "watch" in vision:
+            new_vision["watch"] = watch
+
+        for k, v in vision.items():
+            if k not in {"confirm", "watch", "gate_graph_rule_id", "camera_ids", "description"}:
+                new_vision[k] = v
+
+        gate["vision"] = new_vision
+        if "vision_confirm" in gate:
+            gate.pop("vision_confirm", None)
+
+    return gate
+
+
 class GuidedTaskService:
     """Headless guided-task runtime for routines, sessions, and events."""
 
@@ -88,6 +153,8 @@ class GuidedTaskService:
         settings: Settings | None = None,
         time_fn: Callable[[], datetime] | None = None,
         gate_runner: Any = None,
+        camera_source_resolver: Any = None,
+        event_aggregator: Any = None,
     ) -> None:
         self._db_factory = db_factory
         self._scheduler = scheduler
@@ -115,6 +182,8 @@ class GuidedTaskService:
         self._time_fn = time_fn or (lambda: datetime.now(UTC))
         self._store = GuidedTaskStore(db_factory)
         self._gate_runner = gate_runner
+        self._camera_source_resolver = camera_source_resolver
+        self._event_aggregator = event_aggregator
 
     def set_person_location_service(self, person_location_service: Any) -> None:
         self._person_location_service = person_location_service
@@ -353,7 +422,7 @@ class GuidedTaskService:
             )
             return self._decision_descriptor(decision)
 
-        evidence_with_now = {**evidence, "now": now}
+        evidence_with_now = {**evidence, "now": now, "routine": routine}
         evaluators = build_evaluators(
             step.completion_gate,
             activity_service=self._activity_service,
@@ -362,8 +431,10 @@ class GuidedTaskService:
             bucketizer=self._bucketizer,
             camera_topology=self._camera_topology,
             identity_resolver=self._identity_ids_for_person,
-            llm_model_registry=self._llm_model_registry,
-            minio_client=self._minio_client,
+            gate_runner=self._gate_runner,
+            camera_source_resolver=self._camera_source_resolver,
+            event_aggregator=self._event_aggregator,
+            settings=self._settings,
             event_recorder=self._record_vision_confirm_event,
         )
         mode = str((step.completion_gate or {}).get("mode", "any"))
@@ -376,6 +447,127 @@ class GuidedTaskService:
         )
         result = evaluation.result
         if not result.complete:
+            # Check if resident asserted done and vision disagreed
+            vision_detail = next(
+                (d for d in evaluation.details if d["kind"] == "vision_confirm"), None
+            )
+            if (
+                evidence.get("confirmed") is True
+                and vision_detail is not None
+                and vision_detail.get("complete") is False
+            ):
+                # Resolve max_disagreements: step -> routine -> global
+                confirm_cfg = (step.completion_gate or {}).get("vision", {}).get("confirm") or {}
+                max_disagreements = confirm_cfg.get("max_disagreements")
+                if max_disagreements is None:
+                    routine_cfg = (getattr(routine, "config_json", None) or {}).get(
+                        "guided_task", {}
+                    ).get("vision", {}).get("confirm") or {}
+                    max_disagreements = routine_cfg.get("max_disagreements")
+                if max_disagreements is None:
+                    max_disagreements = self._settings.as_int(
+                        "guided_task.vision.confirm.max_disagreements"
+                    )
+
+                # Resolve on_max_disagreements: step -> routine -> global
+                on_max = confirm_cfg.get("on_max_disagreements")
+                if on_max is None:
+                    routine_cfg = (getattr(routine, "config_json", None) or {}).get(
+                        "guided_task", {}
+                    ).get("vision", {}).get("confirm") or {}
+                    on_max = routine_cfg.get("on_max_disagreements")
+                if on_max is None:
+                    try:
+                        on_max = self._settings.as_str(
+                            "guided_task.vision.confirm.on_max_disagreements"
+                        )
+                    except Exception:  # noqa: BLE001
+                        on_max = "advance"
+
+                # Count disagreements in the DB for this step_ord.
+                # Since the current one was just recorded, we fetch all of them.
+                from sqlalchemy import select
+
+                from backend.models.guided_task import GuidedSessionEvent
+
+                db = self._db_factory()
+                try:
+                    stmt = select(GuidedSessionEvent).where(
+                        GuidedSessionEvent.session_id == session.id,
+                        GuidedSessionEvent.step_ord == step.ord,
+                        GuidedSessionEvent.kind == "vision_confirm",
+                    )
+                    events = db.execute(stmt).scalars().all()
+                    total_disagreements = sum(
+                        1 for e in events if e.detail and e.detail.get("complete") is False
+                    )
+                finally:
+                    db.close()
+
+                if total_disagreements >= max_disagreements:
+                    # Bounded disagreement threshold reached: defer to her word or escalate
+                    if on_max == "escalate":
+                        decision = Decision(
+                            kind="escalate",
+                            next_status="escalated",
+                            next_step_ord=session.current_step_ord,
+                            attempts=session.attempts,
+                            reason="vision_disagreement_escalation",
+                            emergency=False,
+                        )
+                        await self._apply_decision(
+                            session=session,
+                            routine=routine,
+                            steps=steps,
+                            decision=decision,
+                            now=now,
+                            event_kind="vision_deferred",
+                            actor="resident",
+                            detail={
+                                "completion_reason": "vision_deferred_to_response",
+                                "disagreements": total_disagreements,
+                                "last_vision_reason": vision_detail.get("reason"),
+                                "action": "escalate",
+                            },
+                            speak_on_advance=False,
+                        )
+                        return self._decision_descriptor(decision)
+                    else:  # "advance"
+                        decision = GuidedTaskStateMachine.decide(
+                            self._session_view(session, steps),
+                            self._step_view(step),
+                            "step_completed",
+                            resolve_policy(routine, step, self._settings),
+                            now,
+                            evidence=evidence,
+                        )
+                        await self._apply_decision(
+                            session=session,
+                            routine=routine,
+                            steps=steps,
+                            decision=decision,
+                            now=now,
+                            event_kind="vision_deferred",
+                            actor="resident",
+                            detail={
+                                "completion_reason": "vision_deferred_to_response",
+                                "disagreements": total_disagreements,
+                                "last_vision_reason": vision_detail.get("reason"),
+                                "action": "advance",
+                            },
+                            speak_on_advance=False,
+                        )
+                        return await self._advance_descriptor(session.id, routine, steps, decision)
+                else:
+                    decision = Decision(
+                        kind="wait",
+                        next_status=session.status,
+                        next_step_ord=session.current_step_ord,
+                        attempts=session.attempts,
+                        reason=vision_detail.get("reason") or result.reason,
+                    )
+                    return self._decision_descriptor(decision)
+
             decision = Decision(
                 kind="wait",
                 next_status=session.status,
@@ -711,6 +903,9 @@ class GuidedTaskService:
         expected = list(range(len(ords)))
         if sorted(ords) != expected:
             raise ValidationError(f"Step ord values must be contiguous from 0; got {sorted(ords)}")
+        for s in steps_in:
+            if "completion_gate" in s:
+                s["completion_gate"] = sanitize_completion_gate(s["completion_gate"])
         new_steps = self._store.replace_steps(routine_id, steps_in)
         routine_out = RoutineOut.model_validate(routine, from_attributes=True)
         routine_out = routine_out.model_copy(update={"step_count": len(new_steps)})

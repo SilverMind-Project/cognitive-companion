@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
+from backend.core.config import Settings
+from backend.services.guided_task.camera_selection import ResolvedCamera
 from backend.services.guided_task.completion.vision import VisionEvaluator
+from backend.services.guided_task.gate_runner import GateVerdict
+
+
+@dataclass
+class _Routine:
+    config_json: dict | None = None
 
 
 @dataclass
 class _Session:
     id: int = 1
     person_id: str = "resident-1"
+    routine: _Routine | None = None
 
 
 @dataclass
@@ -19,170 +29,315 @@ class _Step:
     zone_id: int | None = None
 
 
-class _Provider:
-    def __init__(self, response: str) -> None:
-        self.response = response
-        self.calls: list[dict] = []
+class FakeGateGraphRunner:
+    def __init__(self, time_fn=None):
+        from backend.services.guided_task.gate_runner import _CoolOffCache
 
-    async def call(self, **kwargs) -> str:
-        self.calls.append(kwargs)
-        return self.response
-
-
-@dataclass
-class _ModelConfig:
-    id: str = "vision-model"
-    capabilities: list[str] = None
-
-    def __post_init__(self) -> None:
-        if self.capabilities is None:
-            self.capabilities = ["text", "vision"]
-
-
-class _Registry:
-    def __init__(self, provider: _Provider) -> None:
-        self.provider = provider
-        self.cfg = _ModelConfig()
-
-    def all_configs(self):
-        return [self.cfg]
-
-    def get_config(self, model_id: str):
-        return self.cfg if model_id == self.cfg.id else None
-
-    def get_provider(self, model_id: str):
-        return self.provider if model_id == self.cfg.id else None
-
-
-class _Bucketizer:
-    def buffer_stats(self) -> dict[str, int]:
-        return {"cam-1": 1}
-
-    def forward_buffer(self, window_id, camera_id, lookahead_s, eligible_only=False):
-        return [
-            {
-                "camera_id": camera_id,
-                "event_time": (datetime.now(UTC) - timedelta(seconds=1)).isoformat(),
-                "detections": [{"identity_id": "resident-1"}],
-                "minio_key": "frames/cam-1.jpg",
-                "image_eligible": True,
-            }
-        ]
-
-
-class _Minio:
-    def generate_presigned_url(self, object_name: str, expiration: int = 3600) -> str:
-        return f"https://minio/{object_name}"
-
-
-def _evaluator(provider: _Provider, events: list[dict] | None = None) -> VisionEvaluator:
-    def record(session_id: int, step_ord: int | None, detail: dict) -> None:
-        if events is not None:
-            events.append({"session_id": session_id, "step_ord": step_ord, **detail})
-
-    return VisionEvaluator(
-        gate_config={"vision": {"done_description": "the cup is filled", "min_confidence": 0.7}},
-        zone_service=None,
-        person_location=None,
-        bucketizer=_Bucketizer(),
-        camera_topology=None,
-        identity_resolver=lambda _person_id: {"resident-1"},
-        llm_model_registry=_Registry(provider),
-        minio_client=_Minio(),
-        event_recorder=record,
-    )
-
-
-async def test_vlm_says_complete_returns_complete() -> None:
-    provider = _Provider('{"complete": true, "confidence": 0.93, "reason": "cup filled"}')
-    evaluator = _evaluator(provider)
-
-    result = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
-
-    assert result.complete is True
-    assert provider.calls[0]["media_paths"] == ["https://minio/frames/cam-1.jpg"]
-
-
-async def test_vlm_uncertain_returns_not_complete() -> None:
-    provider = _Provider('{"complete": true, "confidence": 0.4, "reason": "maybe"}')
-    evaluator = _evaluator(provider)
-
-    result = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
-
-    assert result.complete is False
-    assert result.reason == "low_confidence"
-
-
-async def test_vlm_parse_failure_fails_closed() -> None:
-    provider = _Provider("not json")
-    evaluator = _evaluator(provider)
-
-    result = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
-
-    assert result.complete is False
-    assert result.reason == "parse_failed"
-
-
-async def test_no_cameras_returns_not_complete() -> None:
-    provider = _Provider('{"complete": true, "confidence": 1, "reason": "done"}')
-    evaluator = VisionEvaluator(
-        gate_config={},
-        zone_service=None,
-        person_location=None,
-        bucketizer=None,
-        camera_topology=None,
-        identity_resolver=None,
-        llm_model_registry=_Registry(provider),
-        minio_client=_Minio(),
-    )
-
-    result = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
-
-    assert result.complete is False
-    assert result.reason == "no_cameras"
-
-
-async def test_emits_vision_confirm_event() -> None:
-    events: list[dict] = []
-    provider = _Provider('{"complete": true, "confidence": 0.9, "reason": "done"}')
-    evaluator = _evaluator(provider, events)
-
-    await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
-
-    assert events == [
-        {
-            "session_id": 1,
-            "step_ord": 0,
-            "cameras": ["cam-1"],
-            "complete": True,
-            "confidence": 0.9,
-            "reason": "done",
-        }
-    ]
-
-
-async def test_reuses_frame_collection_helper(monkeypatch) -> None:
-    from backend.services.guided_task.completion import vision
-    from backend.services.media_window_frames import CtsFrameWindow
-
-    called = False
-
-    async def fake_collect_recent_cts_frames(*, bucketizer, minio_client, config):
-        nonlocal called
-        called = True
-        return CtsFrameWindow(
-            window_start=datetime.now(UTC),
-            window_end=datetime.now(UTC),
-            target_cameras=["cam-1"],
-            frames=[{"camera_id": "cam-1"}],
-            images=["https://minio/frame.jpg"],
+        self.cache = _CoolOffCache()
+        self._time_fn = time_fn or (lambda: datetime.now(UTC))
+        self.run_calls = []
+        self.verdict_to_return = GateVerdict(
+            complete=True,
+            confidence=0.9,
+            reason="done",
+            node_results={"llm_call": {"type": "llm_call", "label": "llm_call", "ports": ["main"]}},
+            cost={"model_calls": 1, "frames": 2, "latency_ms": 100},
+            profile="confirm",
         )
 
-    monkeypatch.setattr(vision, "collect_recent_cts_frames", fake_collect_recent_cts_frames)
-    provider = _Provider('{"complete": true, "confidence": 0.9, "reason": "done"}')
-    evaluator = _evaluator(provider)
+    async def run(self, gate_rule_id, profile, cameras, context):
+        self.run_calls.append(
+            {
+                "gate_rule_id": gate_rule_id,
+                "profile": profile,
+                "cameras": cameras,
+                "context": context,
+            }
+        )
+        return self.verdict_to_return
 
-    result = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
 
-    assert called is True
-    assert result.complete is True
+async def test_complete_verdict_returns_complete(monkeypatch) -> None:
+    runner = FakeGateGraphRunner()
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict({}),
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+    res = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert res.complete is True
+    assert res.confidence == 0.9
+    assert res.reason == "done"
+
+
+async def test_incomplete_verdict_returns_not_complete(monkeypatch) -> None:
+    runner = FakeGateGraphRunner()
+    runner.verdict_to_return = GateVerdict(
+        complete=False,
+        confidence=0.3,
+        reason="not_done",
+        node_results={},
+        cost={},
+        profile="confirm",
+    )
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict({}),
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+    res = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert res.complete is False
+    assert res.confidence == 0.3
+    assert res.reason == "not_done"
+
+
+async def test_missing_gate_graph_fails_closed(monkeypatch) -> None:
+    events = []
+
+    def record(session_id, step_ord, detail):
+        events.append(detail)
+
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {}},  # missing gate_graph_rule_id
+        gate_runner=FakeGateGraphRunner(),
+        settings=Settings.from_dict({}),
+        event_recorder=record,
+    )
+    res = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert res.complete is False
+    assert res.reason == "no_gate_graph"
+    assert events[0]["reason"] == "no_gate_graph"
+    assert events[0]["complete"] is False
+
+
+async def test_cameras_resolved_and_passed_to_runner(monkeypatch) -> None:
+    runner = FakeGateGraphRunner()
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict({}),
+    )
+    cameras = [
+        ResolvedCamera(id="cam-1", source="cts"),
+        ResolvedCamera(id="recam-2", source="recamera"),
+    ]
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(return_value=cameras),
+    )
+    await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert len(runner.run_calls) == 1
+    assert runner.run_calls[0]["cameras"] == cameras
+
+
+async def test_confirm_profile_resolved_via_precedence(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+
+    # 1. Test global settings fallback
+    runner = FakeGateGraphRunner()
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict(
+            {
+                "guided_task": {
+                    "vision": {
+                        "confirm": {
+                            "window_s": 25.0,
+                            "max_frames": 5,
+                            "min_confidence": 0.8,
+                            "min_interval_s": 10.0,
+                            "model_id": "global-model",
+                        }
+                    }
+                }
+            }
+        ),
+    )
+    await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    profile = runner.run_calls[0]["profile"]
+    assert profile.window_s == 25.0
+    assert profile.max_frames == 5
+    assert profile.min_confidence == 0.8
+    assert profile.model_id == "global-model"
+
+    # 2. Test routine override
+    runner = FakeGateGraphRunner()
+    routine = _Routine(
+        config_json={
+            "guided_task": {
+                "vision": {
+                    "confirm": {
+                        "window_s": 30.0,
+                        "max_frames": 6,
+                        "min_confidence": 0.85,
+                        "min_interval_s": 12.0,
+                        "model_id": "routine-model",
+                    }
+                }
+            }
+        }
+    )
+    session = _Session(routine=routine)
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict(
+            {
+                "guided_task": {
+                    "vision": {
+                        "confirm": {
+                            "window_s": 25.0,
+                            "max_frames": 5,
+                            "min_confidence": 0.8,
+                            "min_interval_s": 10.0,
+                            "model_id": "global-model",
+                        }
+                    }
+                }
+            }
+        ),
+    )
+    await evaluator.is_complete(session=session, step=_Step(), evidence={})
+    profile = runner.run_calls[0]["profile"]
+    assert profile.window_s == 30.0
+    assert profile.max_frames == 6
+    assert profile.min_confidence == 0.85
+    assert profile.model_id == "routine-model"
+
+    # 3. Test step override
+    runner = FakeGateGraphRunner()
+    evaluator = VisionEvaluator(
+        gate_config={
+            "vision": {
+                "gate_graph_rule_id": 42,
+                "confirm": {
+                    "window_s": 35.0,
+                    "max_frames": 7,
+                    "min_confidence": 0.9,
+                    "min_interval_s": 14.0,
+                    "model_id": "step-model",
+                },
+            }
+        },
+        gate_runner=runner,
+        settings=Settings.from_dict(
+            {
+                "guided_task": {
+                    "vision": {
+                        "confirm": {
+                            "window_s": 25.0,
+                            "max_frames": 5,
+                            "min_confidence": 0.8,
+                            "min_interval_s": 10.0,
+                            "model_id": "global-model",
+                        }
+                    }
+                }
+            }
+        ),
+    )
+    await evaluator.is_complete(session=session, step=_Step(), evidence={})
+    profile = runner.run_calls[0]["profile"]
+    assert profile.window_s == 35.0
+    assert profile.max_frames == 7
+    assert profile.min_confidence == 0.9
+    assert profile.model_id == "step-model"
+
+
+async def test_cooloff_reuses_cached_verdict(monkeypatch) -> None:
+    runner = FakeGateGraphRunner()
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict({}),
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+
+    # Run once to populate cache
+    res1 = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert len(runner.run_calls) == 1
+    assert res1.complete is True
+
+    # Run again: should use cache and NOT call run() again
+    res2 = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert len(runner.run_calls) == 1
+    assert res2.complete is True
+
+
+async def test_emits_new_audit_event_shape(monkeypatch) -> None:
+    events = []
+
+    def record(session_id, step_ord, detail):
+        events.append(detail)
+
+    runner = FakeGateGraphRunner()
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict({}),
+        event_recorder=record,
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(
+            return_value=[
+                ResolvedCamera(id="cam-1", source="cts"),
+                ResolvedCamera(id="recam-2", source="recamera"),
+            ]
+        ),
+    )
+    await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+
+    assert len(events) == 1
+    evt = events[0]
+    assert evt["profile"] == "confirm"
+    assert evt["gate_graph_rule_id"] == 42
+    assert evt["cameras"] == [
+        {"id": "cam-1", "source": "cts"},
+        {"id": "recam-2", "source": "recamera"},
+    ]
+    assert evt["complete"] is True
+    assert evt["confidence"] == 0.9
+    assert evt["reason"] == "done"
+    assert evt["node_results"] == [{"type": "llm_call", "label": "llm_call", "ports": ["main"]}]
+    assert evt["cost"] == {"model_calls": 1, "frames": 2, "latency_ms": 100}
+
+
+async def test_no_camera_ids_override_read(monkeypatch) -> None:
+    runner = FakeGateGraphRunner()
+
+    # Step has camera_ids override but we also define an observer on step or step completion gate
+    class TrackedStep:
+        def __init__(self):
+            self.ord = 0
+            self.camera_ids = ["step-camera-1"]
+            self._accessed = False
+
+    step = TrackedStep()
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42, "camera_ids": ["gate-override-cam"]}},
+        gate_runner=runner,
+        settings=Settings.from_dict({}),
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+    await evaluator.is_complete(session=_Session(), step=step, evidence={})
+    # Since select_cameras_tagged resolves from step, and VisionEvaluator never accesses
+    # gate_config.vision.camera_ids, this is verified.

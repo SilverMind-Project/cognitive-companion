@@ -95,22 +95,34 @@ class MediaWindowPollHandler(StepHandler):
         has_recamera = any(c.source == "recamera" for c in resolved_cameras)
 
         if has_cts and has_recamera:
-            return await self._execute_mixed(config, execution, resolved_cameras, services, pipeline_data=pipeline_data)
+            return await self._execute_mixed(
+                config, execution, resolved_cameras, services, pipeline_data=pipeline_data
+            )
         elif resolved_cameras:
             if has_cts:
                 return await self._execute_cts(
-                    config, execution, services, cameras=[c.id for c in resolved_cameras], pipeline_data=pipeline_data
+                    config,
+                    execution,
+                    services,
+                    cameras=[c.id for c in resolved_cameras],
+                    pipeline_data=pipeline_data,
                 )
             else:
                 return await self._execute_recamera(
-                    config, execution, services, sensor_ids=[c.id for c in resolved_cameras], pipeline_data=pipeline_data
+                    config,
+                    execution,
+                    services,
+                    sensor_ids=[c.id for c in resolved_cameras],
+                    pipeline_data=pipeline_data,
                 )
 
         # 3. Fallback to single-source legacy behavior
         source = self._resolve_source(config, services)
         if source == "cts":
             return await self._execute_cts(config, execution, services, pipeline_data=pipeline_data)
-        return await self._execute_recamera(config, execution, services, pipeline_data=pipeline_data)
+        return await self._execute_recamera(
+            config, execution, services, pipeline_data=pipeline_data
+        )
 
     def _resolve_source(
         self,
@@ -230,7 +242,9 @@ class MediaWindowPollHandler(StepHandler):
                 since_minutes = float(lookback_val) / 60.0
             else:
                 profile = pipeline_data.get("_profile") if pipeline_data else None
-                since_minutes = float(profile["window_s"]) / 60.0 if profile and "window_s" in profile else 5.0
+                since_minutes = (
+                    float(profile["window_s"]) / 60.0 if profile and "window_s" in profile else 5.0
+                )
         else:
             since_minutes = float(since_minutes_val)
 
@@ -264,7 +278,9 @@ class MediaWindowPollHandler(StepHandler):
                 max_images = int(max_frames_val)
             else:
                 profile = pipeline_data.get("_profile") if pipeline_data else None
-                max_images = int(profile["max_frames"]) if profile and "max_frames" in profile else 10
+                max_images = (
+                    int(profile["max_frames"]) if profile and "max_frames" in profile else 10
+                )
         else:
             max_images = int(max_images_val)
         if sensor_ids:

@@ -1059,3 +1059,12 @@ primitives after M2 creates them.
 
 Full patterns:
 `/home/sriram/code/nanai/cognitive-companion/.claude/skills/guided-companion/SKILL.md`.
+
+---
+
+## 25. Extracting a reusable traversal/walk core
+
+When two features need the same graph walk (such as the durable executor and the non-durable gate runner both executing DAGs), extract a callback-parameterised core (`execute_node` / `on_skip`) that owns only the graph walk bookkeeping. The callers' closures remain responsible for all side effects (DB writes, logging, event emissions). Cite `traverse_dag` in [pipeline_graph_traversal.py](file:///home/sriram/code/nanai/cognitive-companion/backend/services/pipeline_graph_traversal.py) as the canonical example.
+
+### Regression-gating rule for executor refactors
+Any refactor touching the executor's traversal path must be regression-gated: the full existing pipeline executor test suite must pass with **unchanged** expectations. Modifying any existing test expectation is a signal that behavior has drifted, which violates the requirement for a pure refactor.

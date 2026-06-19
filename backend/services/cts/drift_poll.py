@@ -104,7 +104,7 @@ async def _check_one_camera(
             error=str(exc),
         )
         return
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning(
             "drift_poll_unexpected_error",
             camera_id=camera_id,
@@ -151,7 +151,7 @@ async def _recent_keyframe_key(
     """Return the MinIO key of a recent keyframe for *camera_id*, or None."""
     try:
         keyframes = await orchestrator.list_keyframes(limit=50)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning(
             "drift_poll_keyframe_fetch_failed",
             camera_id=camera_id,

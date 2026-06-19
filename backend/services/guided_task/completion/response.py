@@ -48,8 +48,10 @@ def build_evaluators(
     bucketizer: Any | None = None,
     camera_topology: Any | None = None,
     identity_resolver: Any | None = None,
-    llm_model_registry: Any | None = None,
-    minio_client: Any | None = None,
+    gate_runner: Any | None = None,
+    camera_source_resolver: Any | None = None,
+    event_aggregator: Any | None = None,
+    settings: Any | None = None,
     event_recorder: VisionEventRecorder | None = None,
 ) -> list[CompletionEvaluator]:
     """Build completion evaluators named by ``completion_gate.kinds``.
@@ -74,8 +76,10 @@ def build_evaluators(
                     bucketizer=bucketizer,
                     camera_topology=camera_topology,
                     identity_resolver=identity_resolver,
-                    llm_model_registry=llm_model_registry,
-                    minio_client=minio_client,
+                    gate_runner=gate_runner,
+                    camera_source_resolver=camera_source_resolver,
+                    event_aggregator=event_aggregator,
+                    settings=settings,
                     event_recorder=event_recorder,
                 )
             )

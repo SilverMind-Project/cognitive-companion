@@ -606,6 +606,8 @@ async def lifespan(app: FastAPI):
         safety_watch=guided_safety_watch,
         settings=settings,
         gate_runner=gate_runner,
+        camera_source_resolver=camera_source_resolver,
+        event_aggregator=event_aggregator,
     )
     app.state.guided_task_service = guided_task_service
     set_guided_task_service(guided_task_service)

@@ -74,7 +74,9 @@ class MockBucketizer:
     def buffer_stats(self) -> dict[str, int]:
         return self.stats
 
-    def forward_buffer(self, window_id: str, camera_id: str, lookahead_s: float, eligible_only: bool = False) -> list[dict[str, Any]]:
+    def forward_buffer(
+        self, window_id: str, camera_id: str, lookahead_s: float, eligible_only: bool = False
+    ) -> list[dict[str, Any]]:
         return [
             {
                 "camera_id": camera_id,
@@ -123,7 +125,15 @@ def _make_rule(db: Session, name: str = "Test Gate Rule", enabled: bool = True) 
     return rule
 
 
-def _make_step(db: Session, rule: Rule, order: int, step_type: str, config: dict[str, Any] | None = None, enabled: bool = True, label: str | None = None) -> PipelineStep:
+def _make_step(
+    db: Session,
+    rule: Rule,
+    order: int,
+    step_type: str,
+    config: dict[str, Any] | None = None,
+    enabled: bool = True,
+    label: str | None = None,
+) -> PipelineStep:
     if label is None:
         label = f"{step_type}_{order}"
     step = PipelineStep(
@@ -139,7 +149,9 @@ def _make_step(db: Session, rule: Rule, order: int, step_type: str, config: dict
     return step
 
 
-def _connect(db: Session, rule: Rule, source: PipelineStep, target: PipelineStep, source_port: str = "main") -> PipelineEdge:
+def _connect(
+    db: Session, rule: Rule, source: PipelineStep, target: PipelineStep, source_port: str = "main"
+) -> PipelineEdge:
     edge = PipelineEdge(
         rule_id=rule.id,
         source_step_id=source.id,
@@ -154,11 +166,13 @@ def _connect(db: Session, rule: Rule, source: PipelineStep, target: PipelineStep
 
 @pytest.fixture
 def test_settings() -> MockSettings:
-    return MockSettings({
-        "app.timezone": "UTC",
-        "guided_task.vision.gate_node_timeout_s": 1.0,
-        "guided_task.vision.confirm.min_confidence": 0.7,
-    })
+    return MockSettings(
+        {
+            "app.timezone": "UTC",
+            "guided_task.vision.gate_node_timeout_s": 1.0,
+            "guided_task.vision.confirm.min_confidence": 0.7,
+        }
+    )
 
 
 @pytest.fixture
@@ -174,16 +188,25 @@ def mock_services() -> ServiceContainer:
 
 
 @pytest.mark.asyncio
-async def test_minimal_gate_poll_to_verdict_complete(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_minimal_gate_poll_to_verdict_complete(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
     step1 = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    step2 = _make_step(db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0})
+    step2 = _make_step(
+        db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0}
+    )
     _connect(db_session, rule, step1, step2)
     db_session.commit()
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
     verdict = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
 
@@ -191,7 +214,12 @@ async def test_minimal_gate_poll_to_verdict_complete(db_session: Session, db_fac
 
 
 @pytest.mark.asyncio
-async def test_branchy_gate_cheap_exit(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_branchy_gate_cheap_exit(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     # Set up YOLO detection client to return empty detections (nothing on hob)
     mock_services.scene_analysis_client = MockSceneAnalysisClient(
         SceneAnalyzeResult(detections=[], detector_available=True)
@@ -201,20 +229,44 @@ async def test_branchy_gate_cheap_exit(db_session: Session, db_factory: Any, tes
 
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    yolo = _make_step(db_session, rule, 2, "scene_analysis", config={
-        "run_detect": True,
-        "image_source": "cts_window",
-        "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
-    })
-    cond = _make_step(db_session, rule, 3, "condition", config={"expression": "steps.scene_analysis_2.outputs.scene_detections | length(@) > 0"})
-    heavy = _make_step(db_session, rule, 4, "llm_call", config={
-        "prompt": "Is kettle on hob?",
-        "heavy": True,
-        "output_key": "response",
-        "response_format": "json_free",
-        "model_id": "vision-model",
-    })
-    verdict = _make_step(db_session, rule, 5, "gate_verdict", config={"complete_if": "steps.llm_call_4.outputs.response.complete", "min_confidence": 0.0})
+    yolo = _make_step(
+        db_session,
+        rule,
+        2,
+        "scene_analysis",
+        config={
+            "run_detect": True,
+            "image_source": "cts_window",
+            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+        },
+    )
+    cond = _make_step(
+        db_session,
+        rule,
+        3,
+        "condition",
+        config={"expression": "steps.scene_analysis_2.outputs.scene_detections | length(@) > 0"},
+    )
+    heavy = _make_step(
+        db_session,
+        rule,
+        4,
+        "llm_call",
+        config={
+            "prompt": "Is kettle on hob?",
+            "heavy": True,
+            "output_key": "response",
+            "response_format": "json_free",
+            "model_id": "vision-model",
+        },
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        5,
+        "gate_verdict",
+        config={"complete_if": "steps.llm_call_4.outputs.response.complete", "min_confidence": 0.0},
+    )
 
     _connect(db_session, rule, poll, yolo)
     _connect(db_session, rule, yolo, cond)
@@ -225,10 +277,14 @@ async def test_branchy_gate_cheap_exit(db_session: Session, db_factory: Any, tes
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
     with patch("backend.steps.builtin.scene_analysis._fetch_image", return_value=b"dummy"):
-        verdict_res = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
+        verdict_res = await runner.run(
+            gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+        )
 
     # Cond was false, so it should follow the false branch to verdict_false
     assert verdict_res.complete is False
@@ -238,35 +294,69 @@ async def test_branchy_gate_cheap_exit(db_session: Session, db_factory: Any, tes
 
 
 @pytest.mark.asyncio
-async def test_branchy_gate_heavy_path(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_branchy_gate_heavy_path(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     # Set up YOLO detection client to return a detection
     mock_services.scene_analysis_client = MockSceneAnalysisClient(
-        SceneAnalyzeResult(detections=[SceneDetection(label="kettle", confidence=0.9, bbox=[0,0,1,1], class_id=1)], detector_available=True)
+        SceneAnalyzeResult(
+            detections=[
+                SceneDetection(label="kettle", confidence=0.9, bbox=[0, 0, 1, 1], class_id=1)
+            ],
+            detector_available=True,
+        )
     )
     llm_provider = MockLLMProvider('{"complete": true, "confidence": 0.95}')
     mock_services.llm_model_registry = MockLLMRegistry(llm_provider)
 
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    yolo = _make_step(db_session, rule, 2, "scene_analysis", config={
-        "run_detect": True,
-        "image_source": "cts_window",
-        "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
-    })
-    cond = _make_step(db_session, rule, 3, "condition", config={"expression": "steps.scene_analysis_2.outputs.scene_detections | length(@) > 0"})
-    heavy = _make_step(db_session, rule, 4, "llm_call", config={
-        "prompt": "Is kettle on hob?",
-        "heavy": True,
-        "output_key": "res",
-        "response_format": "json_free",
-        "model_id": "vision-model",
-    })
-    verdict = _make_step(db_session, rule, 5, "gate_verdict", config={
-        "complete_if": "steps.llm_call_4.outputs.res.complete",
-        "confidence_path": "steps.llm_call_4.outputs.res.confidence",
-        "reason_path": "steps.llm_call_4.outputs.res.reason",
-        "min_confidence": 0.0,
-    })
+    yolo = _make_step(
+        db_session,
+        rule,
+        2,
+        "scene_analysis",
+        config={
+            "run_detect": True,
+            "image_source": "cts_window",
+            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+        },
+    )
+    cond = _make_step(
+        db_session,
+        rule,
+        3,
+        "condition",
+        config={"expression": "steps.scene_analysis_2.outputs.scene_detections | length(@) > 0"},
+    )
+    heavy = _make_step(
+        db_session,
+        rule,
+        4,
+        "llm_call",
+        config={
+            "prompt": "Is kettle on hob?",
+            "heavy": True,
+            "output_key": "res",
+            "response_format": "json_free",
+            "model_id": "vision-model",
+        },
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        5,
+        "gate_verdict",
+        config={
+            "complete_if": "steps.llm_call_4.outputs.res.complete",
+            "confidence_path": "steps.llm_call_4.outputs.res.confidence",
+            "reason_path": "steps.llm_call_4.outputs.res.reason",
+            "min_confidence": 0.0,
+        },
+    )
 
     _connect(db_session, rule, poll, yolo)
     _connect(db_session, rule, yolo, cond)
@@ -276,10 +366,14 @@ async def test_branchy_gate_heavy_path(db_session: Session, db_factory: Any, tes
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
     with patch("backend.steps.builtin.scene_analysis._fetch_image", return_value=b"dummy"):
-        res_verdict = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
+        res_verdict = await runner.run(
+            gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+        )
 
     assert res_verdict.complete is True
     assert res_verdict.confidence == 0.95
@@ -287,26 +381,42 @@ async def test_branchy_gate_heavy_path(db_session: Session, db_factory: Any, tes
 
 
 @pytest.mark.asyncio
-async def test_no_verdict_node_runs_fails_closed(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_no_verdict_node_runs_fails_closed(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
     cond = _make_step(db_session, rule, 2, "condition", config={"expression": "false"})
-    verdict = _make_step(db_session, rule, 3, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0})
+    verdict = _make_step(
+        db_session, rule, 3, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0}
+    )
     _connect(db_session, rule, poll, cond)
     _connect(db_session, rule, cond, verdict, source_port="true")
     db_session.commit()
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
-    res_verdict = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
+    res_verdict = await runner.run(
+        gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+    )
     assert res_verdict.complete is False
     assert res_verdict.reason == "no_verdict"
 
 
 @pytest.mark.asyncio
-async def test_non_gate_safe_step_refused(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_non_gate_safe_step_refused(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
     step1 = _make_step(db_session, rule, 1, "notification", config={"channel_type": "telegram"})
     step2 = _make_step(db_session, rule, 2, "gate_verdict", config={"complete_if": "true"})
@@ -315,7 +425,9 @@ async def test_non_gate_safe_step_refused(db_session: Session, db_factory: Any, 
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
     verdict = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
     assert verdict.complete is False
@@ -323,29 +435,49 @@ async def test_non_gate_safe_step_refused(db_session: Session, db_factory: Any, 
 
 
 @pytest.mark.asyncio
-async def test_node_exception_fails_that_node_closed_not_the_run(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_node_exception_fails_that_node_closed_not_the_run(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    verdict = _make_step(db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0})
+    verdict = _make_step(
+        db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0}
+    )
     _connect(db_session, rule, poll, verdict)
     db_session.commit()
 
-    mock_services.bucketizer.forward_buffer = MagicMock(side_effect=RuntimeError("MinIO connection failed"))
+    mock_services.bucketizer.forward_buffer = MagicMock(
+        side_effect=RuntimeError("MinIO connection failed")
+    )
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
-    verdict_res = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
+    verdict_res = await runner.run(
+        gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+    )
     assert verdict_res.complete is False
     assert verdict_res.reason == "no_verdict"
 
 
 @pytest.mark.asyncio
-async def test_node_timeout_fails_closed(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_node_timeout_fails_closed(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    verdict = _make_step(db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0})
+    verdict = _make_step(
+        db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0}
+    )
     _connect(db_session, rule, poll, verdict)
     db_session.commit()
 
@@ -362,27 +494,48 @@ async def test_node_timeout_fails_closed(db_session: Session, db_factory: Any, t
             node_timeout_s=0.05,
         )
         profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-        context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+        context = GateRunContext(
+            person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+        )
 
-        verdict_res = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
+        verdict_res = await runner.run(
+            gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+        )
         assert verdict_res.complete is False
         assert verdict_res.reason == "no_verdict"
 
 
 @pytest.mark.asyncio
-async def test_profile_injected_into_pipeline_data(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_profile_injected_into_pipeline_data(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
-    step1 = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts", "lookback_s": "inherit", "max_frames": "inherit"})
-    step2 = _make_step(db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0})
+    step1 = _make_step(
+        db_session,
+        rule,
+        1,
+        "media_window_poll",
+        config={"source": "cts", "lookback_s": "inherit", "max_frames": "inherit"},
+    )
+    step2 = _make_step(
+        db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0}
+    )
     _connect(db_session, rule, step1, step2)
     db_session.commit()
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=25, max_frames=15, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
     with patch("backend.steps.builtin.media_window_poll.collect_recent_cts_frames") as mock_collect:
-        mock_collect.return_value = MagicMock(frames=[], images=[], target_cameras=[], partial=False)
+        mock_collect.return_value = MagicMock(
+            frames=[], images=[], target_cameras=[], partial=False
+        )
         await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
 
         _, kwargs = mock_collect.call_args
@@ -392,19 +545,33 @@ async def test_profile_injected_into_pipeline_data(db_session: Session, db_facto
 
 
 @pytest.mark.asyncio
-async def test_cameras_injected(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_cameras_injected(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
     step1 = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "auto"})
-    step2 = _make_step(db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0})
+    step2 = _make_step(
+        db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0}
+    )
     _connect(db_session, rule, step1, step2)
     db_session.commit()
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    cameras = [ResolvedCamera(id="camera_a", source="cts"), ResolvedCamera(id="camera_b", source="recamera")]
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    cameras = [
+        ResolvedCamera(id="camera_a", source="cts"),
+        ResolvedCamera(id="camera_b", source="recamera"),
+    ]
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
-    with patch("backend.steps.builtin.media_window_poll.collect_recent_frames_multi_source") as mock_collect:
+    with patch(
+        "backend.steps.builtin.media_window_poll.collect_recent_frames_multi_source"
+    ) as mock_collect:
         mock_collect.return_value = {"frames": [], "images": [], "partial": False}
         await runner.run(gate_rule_id=rule.id, profile=profile, cameras=cameras, context=context)
 
@@ -416,62 +583,110 @@ async def test_cameras_injected(db_session: Session, db_factory: Any, test_setti
 
 
 @pytest.mark.asyncio
-async def test_prune_heavy_skips_tagged_node_in_watch(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_prune_heavy_skips_tagged_node_in_watch(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     llm_provider = MockLLMProvider('{"complete": true}')
     mock_services.llm_model_registry = MockLLMRegistry(llm_provider)
 
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    heavy = _make_step(db_session, rule, 2, "llm_call", config={
-        "prompt": "VLM confirm",
-        "heavy": True,
-        "output_key": "response",
-        "response_format": "json_free",
-        "model_id": "vision-model",
-    })
-    verdict = _make_step(db_session, rule, 3, "gate_verdict", config={"complete_if": "steps.llm_call_2.outputs.response.complete", "min_confidence": 0.0})
+    heavy = _make_step(
+        db_session,
+        rule,
+        2,
+        "llm_call",
+        config={
+            "prompt": "VLM confirm",
+            "heavy": True,
+            "output_key": "response",
+            "response_format": "json_free",
+            "model_id": "vision-model",
+        },
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        3,
+        "gate_verdict",
+        config={"complete_if": "steps.llm_call_2.outputs.response.complete", "min_confidence": 0.0},
+    )
 
     _connect(db_session, rule, poll, heavy)
     _connect(db_session, rule, heavy, verdict)
     db_session.commit()
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
     # 1. Watch profile (prune_heavy=True)
-    watch_profile = GateProfile(name="watch", window_s=4, max_frames=3, min_confidence=0.7, prune_heavy=True)
-    verdict_watch = await runner.run(gate_rule_id=rule.id, profile=watch_profile, cameras=[], context=context)
+    watch_profile = GateProfile(
+        name="watch", window_s=4, max_frames=3, min_confidence=0.7, prune_heavy=True
+    )
+    verdict_watch = await runner.run(
+        gate_rule_id=rule.id, profile=watch_profile, cameras=[], context=context
+    )
 
     assert verdict_watch.complete is False
     assert verdict_watch.reason == "no_verdict"  # heavy pruned, so verdict step not reached
     assert len(llm_provider.calls) == 0
 
     # 2. Confirm profile (prune_heavy=False)
-    confirm_profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7, prune_heavy=False)
-    verdict_confirm = await runner.run(gate_rule_id=rule.id, profile=confirm_profile, cameras=[], context=context)
+    confirm_profile = GateProfile(
+        name="confirm", window_s=20, max_frames=9, min_confidence=0.7, prune_heavy=False
+    )
+    verdict_confirm = await runner.run(
+        gate_rule_id=rule.id, profile=confirm_profile, cameras=[], context=context
+    )
 
     assert verdict_confirm.complete is True
     assert len(llm_provider.calls) == 1
 
 
 @pytest.mark.asyncio
-async def test_profile_model_override(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_profile_model_override(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     llm_provider = MockLLMProvider('{"complete": true}')
     mock_services.llm_model_registry = MockLLMRegistry(llm_provider)
 
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    llm = _make_step(db_session, rule, 2, "llm_call", config={"prompt": "VLM confirm", "model_id": "step-model", "use_profile_model": True})
-    verdict = _make_step(db_session, rule, 3, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0})
+    llm = _make_step(
+        db_session,
+        rule,
+        2,
+        "llm_call",
+        config={"prompt": "VLM confirm", "model_id": "step-model", "use_profile_model": True},
+    )
+    verdict = _make_step(
+        db_session, rule, 3, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0}
+    )
 
     _connect(db_session, rule, poll, llm)
     _connect(db_session, rule, llm, verdict)
     db_session.commit()
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
-    profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7, model_id="profile-override-model")
+    profile = GateProfile(
+        name="confirm",
+        window_s=20,
+        max_frames=9,
+        min_confidence=0.7,
+        model_id="profile-override-model",
+    )
     await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
 
     assert len(llm_provider.calls) == 1
@@ -479,16 +694,33 @@ async def test_profile_model_override(db_session: Session, db_factory: Any, test
 
 
 @pytest.mark.asyncio
-async def test_no_llm_registry_fails_closed(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_no_llm_registry_fails_closed(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     # Set model registry to None
     mock_services.llm_model_registry = None
 
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    llm = _make_step(db_session, rule, 2, "llm_call", config={"prompt": "VLM confirm", "model_id": "vision-model"})
-    verdict = _make_step(db_session, rule, 3, "gate_verdict", config={
-        "complete_if": "steps.llm_call_2.outputs.llm_response.complete",
-    })
+    llm = _make_step(
+        db_session,
+        rule,
+        2,
+        "llm_call",
+        config={"prompt": "VLM confirm", "model_id": "vision-model"},
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        3,
+        "gate_verdict",
+        config={
+            "complete_if": "steps.llm_call_2.outputs.llm_response.complete",
+        },
+    )
 
     _connect(db_session, rule, poll, llm)
     _connect(db_session, rule, llm, verdict)
@@ -496,42 +728,72 @@ async def test_no_llm_registry_fails_closed(db_session: Session, db_factory: Any
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
-    verdict_res = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
+    verdict_res = await runner.run(
+        gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+    )
     assert verdict_res.complete is False
 
 
 @pytest.mark.asyncio
-async def test_output_namespace_matches_executor(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_output_namespace_matches_executor(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
-    poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"}, label="my_poll")
-    verdict = _make_step(db_session, rule, 2, "gate_verdict", config={
-        "complete_if": "steps.my_poll.outputs.source == 'cts'",
-        "min_confidence": 0.0,
-    })
+    poll = _make_step(
+        db_session, rule, 1, "media_window_poll", config={"source": "cts"}, label="my_poll"
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        2,
+        "gate_verdict",
+        config={
+            "complete_if": "steps.my_poll.outputs.source == 'cts'",
+            "min_confidence": 0.0,
+        },
+    )
     _connect(db_session, rule, poll, verdict)
     db_session.commit()
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
-    verdict_res = await runner.run(gate_rule_id=rule.id, profile=profile, cameras=[], context=context)
+    verdict_res = await runner.run(
+        gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+    )
     assert verdict_res.complete is True
 
 
 @pytest.mark.asyncio
-async def test_runner_never_persists(db_session: Session, db_factory: Any, test_settings: MockSettings, mock_services: ServiceContainer) -> None:
+async def test_runner_never_persists(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
     rule = _make_rule(db_session)
     poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
-    verdict = _make_step(db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0})
+    verdict = _make_step(
+        db_session, rule, 2, "gate_verdict", config={"complete_if": "true", "min_confidence": 0.0}
+    )
     _connect(db_session, rule, poll, verdict)
     db_session.commit()
 
     runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
     profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
-    context = GateRunContext(person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
 
     execs_before = db_session.query(WorkflowExecution).count()
 

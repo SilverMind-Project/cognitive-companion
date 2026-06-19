@@ -8,14 +8,14 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
 from backend.core.logging import get_logger
-from backend.models.pipeline import PipelineEdge, PipelineStep
+from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.models.rule import Rule
 from backend.services.guided_task.camera_selection import ResolvedCamera
 from backend.services.pipeline_data_manager import (
@@ -51,8 +51,8 @@ class GateProfile:
     window_s: float
     max_frames: int
     min_confidence: float
-    model_id: str | None = None          # overrides VLM node model when set
-    prune_heavy: bool = False             # watch prunes heavy nodes by default
+    model_id: str | None = None  # overrides VLM node model when set
+    prune_heavy: bool = False  # watch prunes heavy nodes by default
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -118,9 +118,9 @@ class _SyntheticRule:
 
 @dataclass
 class _SyntheticExecution:
-    id: str                       # f"gate_{session_id}_{step_ord}_{profile}"
-    rule_id: int                  # the gate rule id
-    rule: _SyntheticRule          # exposes .name
+    id: str  # f"gate_{session_id}_{step_ord}_{profile}"
+    rule_id: int  # the gate rule id
+    rule: _SyntheticRule  # exposes .name
 
 
 def _synthetic_trigger(*, room_name: str | None, sensor_id: str | None) -> TriggerContext:
@@ -135,7 +135,9 @@ def _synthetic_trigger(*, room_name: str | None, sensor_id: str | None) -> Trigg
     )
 
 
-def _extract_cost_hint(step: PipelineStep, pipeline_data: dict, profile_model_id: str | None) -> dict[str, Any]:
+def _extract_cost_hint(
+    step: PipelineStep, pipeline_data: dict, profile_model_id: str | None
+) -> dict[str, Any]:
     hint: dict[str, Any] = {}
     config = step.config_json or {}
 
@@ -173,10 +175,10 @@ class GateGraphRunner:
         self,
         *,
         services: ServiceContainer,
-        db_factory: Callable[[], Session],     # read-only: load gate rule steps/edges
+        db_factory: Callable[[], Session],  # read-only: load gate rule steps/edges
         settings: Any = settings,
         time_fn: Callable[[], datetime] = lambda: datetime.now(UTC),
-        node_timeout_s: float | None = None,   # from guided_task.vision.gate_node_timeout_s
+        node_timeout_s: float | None = None,  # from guided_task.vision.gate_node_timeout_s
     ) -> None:
         self._services = services
         self._db_factory = db_factory
@@ -197,9 +199,9 @@ class GateGraphRunner:
         self,
         *,
         gate_rule_id: int,
-        profile: GateProfile,                  # confirm | watch params (resolved)
-        cameras: list[ResolvedCamera],         # from select_cameras_tagged (VG3)
-        context: GateRunContext,               # person_id, room_name, sensor_id, session_id, step_ord
+        profile: GateProfile,  # confirm | watch params (resolved)
+        cameras: list[ResolvedCamera],  # from select_cameras_tagged (VG3)
+        context: GateRunContext,  # person_id, room_name, sensor_id, session_id, step_ord
     ) -> GateVerdict:
         start_time = time.perf_counter()
 
@@ -212,7 +214,11 @@ class GateGraphRunner:
                     confidence=0.0,
                     reason="rule_not_found",
                     node_results={},
-                    cost={"model_calls": 0, "frames": 0, "latency_ms": int((time.perf_counter() - start_time) * 1000)},
+                    cost={
+                        "model_calls": 0,
+                        "frames": 0,
+                        "latency_ms": int((time.perf_counter() - start_time) * 1000),
+                    },
                     profile=profile.name,
                 )
             if not rule.enabled:
@@ -221,18 +227,22 @@ class GateGraphRunner:
                     confidence=0.0,
                     reason="rule_disabled",
                     node_results={},
-                    cost={"model_calls": 0, "frames": 0, "latency_ms": int((time.perf_counter() - start_time) * 1000)},
+                    cost={
+                        "model_calls": 0,
+                        "frames": 0,
+                        "latency_ms": int((time.perf_counter() - start_time) * 1000),
+                    },
                     profile=profile.name,
                 )
 
-            steps = db.query(PipelineStep).filter(
-                PipelineStep.rule_id == gate_rule_id,
-                PipelineStep.enabled.is_(True)
-            ).order_by(PipelineStep.order).all()
+            steps = (
+                db.query(PipelineStep)
+                .filter(PipelineStep.rule_id == gate_rule_id, PipelineStep.enabled.is_(True))
+                .order_by(PipelineStep.order)
+                .all()
+            )
 
-            edges = db.query(PipelineEdge).filter(
-                PipelineEdge.rule_id == gate_rule_id
-            ).all()
+            edges = db.query(PipelineEdge).filter(PipelineEdge.rule_id == gate_rule_id).all()
 
             rule_name = rule.name
 
@@ -256,7 +266,11 @@ class GateGraphRunner:
                 confidence=0.0,
                 reason="non_gate_safe_step",
                 node_results={},
-                cost={"model_calls": 0, "frames": 0, "latency_ms": int((time.perf_counter() - start_time) * 1000)},
+                cost={
+                    "model_calls": 0,
+                    "frames": 0,
+                    "latency_ms": int((time.perf_counter() - start_time) * 1000),
+                },
                 profile=profile.name,
             )
 
@@ -279,7 +293,11 @@ class GateGraphRunner:
                 confidence=0.0,
                 reason="invalid_graph",
                 node_results={},
-                cost={"model_calls": 0, "frames": 0, "latency_ms": int((time.perf_counter() - start_time) * 1000)},
+                cost={
+                    "model_calls": 0,
+                    "frames": 0,
+                    "latency_ms": int((time.perf_counter() - start_time) * 1000),
+                },
                 profile=profile.name,
             )
 
@@ -362,7 +380,12 @@ class GateGraphRunner:
 
             # VLM model override
             step_to_execute = step
-            if profile.model_id and step.step_type == "llm_call" and step.config_json and step.config_json.get("use_profile_model") is True:
+            if (
+                profile.model_id
+                and step.step_type == "llm_call"
+                and step.config_json
+                and step.config_json.get("use_profile_model") is True
+            ):
                 step_to_execute = copy.copy(step)
                 step_to_execute.config_json = copy.deepcopy(step.config_json)
                 step_to_execute.config_json["model_id"] = profile.model_id
@@ -383,7 +406,7 @@ class GateGraphRunner:
                 result = await asyncio.wait_for(
                     handler.execute(
                         step_to_execute,
-                        syn_exec,
+                        cast(WorkflowExecution, syn_exec),
                         pipeline_data,
                         syn_trigger,
                         self._services,

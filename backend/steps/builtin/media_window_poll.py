@@ -95,22 +95,22 @@ class MediaWindowPollHandler(StepHandler):
         has_recamera = any(c.source == "recamera" for c in resolved_cameras)
 
         if has_cts and has_recamera:
-            return await self._execute_mixed(config, execution, resolved_cameras, services)
+            return await self._execute_mixed(config, execution, resolved_cameras, services, pipeline_data=pipeline_data)
         elif resolved_cameras:
             if has_cts:
                 return await self._execute_cts(
-                    config, execution, services, cameras=[c.id for c in resolved_cameras]
+                    config, execution, services, cameras=[c.id for c in resolved_cameras], pipeline_data=pipeline_data
                 )
             else:
                 return await self._execute_recamera(
-                    config, execution, services, sensor_ids=[c.id for c in resolved_cameras]
+                    config, execution, services, sensor_ids=[c.id for c in resolved_cameras], pipeline_data=pipeline_data
                 )
 
         # 3. Fallback to single-source legacy behavior
         source = self._resolve_source(config, services)
         if source == "cts":
-            return await self._execute_cts(config, execution, services)
-        return await self._execute_recamera(config, execution, services)
+            return await self._execute_cts(config, execution, services, pipeline_data=pipeline_data)
+        return await self._execute_recamera(config, execution, services, pipeline_data=pipeline_data)
 
     def _resolve_source(
         self,
@@ -133,9 +133,17 @@ class MediaWindowPollHandler(StepHandler):
         execution: WorkflowExecution,
         services: ServiceContainer,
         cameras: list[str] | None = None,
+        *,
+        pipeline_data: dict | None = None,
     ) -> StepResult:
         now = datetime.now(UTC)
-        lookback_s = float(config.get("lookback_s", 5))
+        lookback_val = config.get("lookback_s")
+        if lookback_val is None or lookback_val == "inherit":
+            profile = pipeline_data.get("_profile") if pipeline_data else None
+            lookback_s = float(profile["window_s"]) if profile and "window_s" in profile else 5.0
+        else:
+            lookback_s = float(lookback_val)
+
         lookahead_s = float(config.get("lookahead_s", 5))
         window_start = now - timedelta(seconds=lookback_s)
         if cameras is None:
@@ -159,6 +167,13 @@ class MediaWindowPollHandler(StepHandler):
                 )
             )
 
+        max_frames_val = config.get("max_frames")
+        if max_frames_val is None or max_frames_val == "inherit":
+            profile = pipeline_data.get("_profile") if pipeline_data else None
+            max_frames = int(profile["max_frames"]) if profile and "max_frames" in profile else 30
+        else:
+            max_frames = int(max_frames_val)
+
         collected = await collect_recent_cts_frames(
             bucketizer=bucketizer,
             minio_client=services.minio_client,
@@ -169,7 +184,7 @@ class MediaWindowPollHandler(StepHandler):
                 lookback_s=lookback_s,
                 lookahead_s=lookahead_s,
                 sample_period_s=float(config.get("sample_period_s", 1.0)),
-                max_frames=int(config.get("max_frames", 30)),
+                max_frames=max_frames,
                 now=now,
             ),
         )
@@ -204,9 +219,21 @@ class MediaWindowPollHandler(StepHandler):
         execution: WorkflowExecution,
         services: ServiceContainer,
         sensor_ids: list[str] | None = None,
+        *,
+        pipeline_data: dict | None = None,
     ) -> StepResult:
         now = datetime.now(UTC)
-        since_minutes = float(config.get("since_minutes", 5))
+        since_minutes_val = config.get("since_minutes")
+        if since_minutes_val is None or since_minutes_val == "inherit":
+            lookback_val = config.get("lookback_s")
+            if lookback_val is not None and lookback_val != "inherit":
+                since_minutes = float(lookback_val) / 60.0
+            else:
+                profile = pipeline_data.get("_profile") if pipeline_data else None
+                since_minutes = float(profile["window_s"]) / 60.0 if profile and "window_s" in profile else 5.0
+        else:
+            since_minutes = float(since_minutes_val)
+
         window_start = now - timedelta(minutes=since_minutes)
         if sensor_ids is None:
             sensor_ids = list(config.get("sensor_ids") or config.get("cameras") or [])
@@ -230,7 +257,16 @@ class MediaWindowPollHandler(StepHandler):
                 )
             )
 
-        max_images = int(config.get("max_images", 10))
+        max_images_val = config.get("max_images")
+        if max_images_val is None or max_images_val == "inherit":
+            max_frames_val = config.get("max_frames")
+            if max_frames_val is not None and max_frames_val != "inherit":
+                max_images = int(max_frames_val)
+            else:
+                profile = pipeline_data.get("_profile") if pipeline_data else None
+                max_images = int(profile["max_frames"]) if profile and "max_frames" in profile else 10
+        else:
+            max_images = int(max_images_val)
         if sensor_ids:
             images = await aggregator.query_media_by_sensor(
                 sensor_ids_ordered=sensor_ids,
@@ -286,12 +322,33 @@ class MediaWindowPollHandler(StepHandler):
         execution: WorkflowExecution,
         resolved_cameras: list[ResolvedCamera],
         services: ServiceContainer,
+        *,
+        pipeline_data: dict | None = None,
     ) -> StepResult:
         now = datetime.now(UTC)
-        lookback_s = float(config.get("lookback_s", 5))
+        lookback_val = config.get("lookback_s")
+        if lookback_val is None or lookback_val == "inherit":
+            profile = pipeline_data.get("_profile") if pipeline_data else None
+            lookback_s = float(profile["window_s"]) if profile and "window_s" in profile else 5.0
+        else:
+            lookback_s = float(lookback_val)
+
         lookahead_s = float(config.get("lookahead_s", 5))
         window_start = now - timedelta(seconds=lookback_s)
         rooms: list[str] = list(config.get("rooms") or config.get("room_names") or [])
+
+        max_frames_val = config.get("max_frames")
+        if max_frames_val is None or max_frames_val == "inherit":
+            profile = pipeline_data.get("_profile") if pipeline_data else None
+            max_frames = int(profile["max_frames"]) if profile and "max_frames" in profile else 30
+        else:
+            max_frames = int(max_frames_val)
+
+        since_minutes_val = config.get("since_minutes")
+        if since_minutes_val is None or since_minutes_val == "inherit":
+            since_minutes = lookback_s / 60.0
+        else:
+            since_minutes = float(since_minutes_val)
 
         collected = await collect_recent_frames_multi_source(
             bucketizer=services.bucketizer,
@@ -303,9 +360,9 @@ class MediaWindowPollHandler(StepHandler):
             lookback_s=lookback_s,
             lookahead_s=lookahead_s,
             sample_period_s=float(config.get("sample_period_s", 1.0)),
-            max_frames=int(config.get("max_frames", 30)),
+            max_frames=max_frames,
             now=now,
-            since_minutes=config.get("since_minutes") or (lookback_s / 60.0),
+            since_minutes=since_minutes,
             images_per_sensor=int(config.get("images_per_sensor", 3)),
         )
 
@@ -331,7 +388,7 @@ class MediaWindowPollHandler(StepHandler):
                 "partial": collected["partial"],
                 "sensor_ids": sensor_ids,
                 "room_names": rooms,
-                "since_minutes": config.get("since_minutes") or (lookback_s / 60.0),
+                "since_minutes": since_minutes,
                 "polled_at": now.isoformat(),
             }
         )

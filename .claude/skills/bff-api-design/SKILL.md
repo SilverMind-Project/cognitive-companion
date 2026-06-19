@@ -197,6 +197,18 @@ Callable rules (vision gate graphs with `trigger_types == []`) are excluded from
 - **Filtering:** Use the `callable` query parameter (e.g. `GET /api/v1/rules?callable=true`) to list callable rules specifically, or `callable=false` (default) to list normal triggered rules.
 - **Parity:** Parity rules apply to both regular rules and callable rules. Always reuse the same underlying service functions.
 
+### Gate-graph CRUD endpoints (`backend/routers/gate_graphs.py`, VG08)
+
+Gate graphs get a thin gate-scoped router that **reuses the shared rule service** (`backend/services/rule_service.py`) instead of writing a parallel query. This is the single-service-layer rule in practice:
+- `GET /api/v1/gate-graphs` -> `rule_service.list_rules(db, callable_only=True)`, returns `{items, total}`. The rules router's `list_rules` delegates to the same function, so both surfaces share the callable filter (`Rule.filter_callable`). The parity test (`test_gate_graph_list_uses_rule_service`) asserts the router calls `rule_service.list_rules`, not a bespoke query.
+- `POST /api/v1/gate-graphs` creates a callable rule (`trigger_types == []`); `from_preset=<key>` builds through the shared `gate_presets` factory (one factory for presets, the backfill script, and tests).
+- `GET /api/v1/gate-graphs/{id}` reuses `rule_service.get_rule` (rule + steps + edges). Step/edge editing reuses the existing `/rules/{id}` endpoints and `PUT /rules/{id}/edges`; do not duplicate them.
+- `POST /api/v1/gate-graphs/{id}/validate` runs full `validate_gate_graph` (`gate_safe_only=False`): exactly one reachable `gate_verdict`, all steps gate-safe, plus per-step template linting.
+- `POST /api/v1/gate-graphs/{id}/test-run` returns a `GateVerdict` envelope `{complete, confidence, reason, node_results, cost, profile}`. It is a **fail-closed preview**: a missing gate service or no cameras returns `complete=False` with a reason, never a 5xx. It delegates to `GuidedTaskService.run_gate_preview`, which reuses the live camera cascade + `GateGraphRunner`.
+- `GET /api/v1/gate-presets` lists the seeded preset library metadata.
+
+Auth: `gate_graphs:read` (GET gate-graphs + gate-presets) and `gate_graphs:write` (all POSTs incl. validate/test-run) in `config/auth.yaml`, granted to `caregiver`. Register every method in `frontend/src/services/contracts.js`.
+
 ## Verification commands
 
 ```bash

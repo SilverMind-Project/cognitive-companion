@@ -6,6 +6,8 @@
       item-title="name"
       item-value="id"
       :label="label"
+      :hint="hint"
+      :persistent-hint="!!hint"
       :loading="loading"
       multiple
       chips
@@ -41,6 +43,7 @@ import { cts } from "@/services/cts.js";
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   label: { type: String, default: "Cameras" },
+  hint: { type: String, default: "" },
 });
 
 const emit = defineEmits(["update:modelValue"]);

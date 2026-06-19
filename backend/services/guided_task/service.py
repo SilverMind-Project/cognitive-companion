@@ -199,6 +199,83 @@ class GuidedTaskService:
     def set_safety_watch(self, safety_watch: SafetyWatch | None) -> None:
         self._safety_watch = safety_watch or NoopSafetyWatch()
 
+    async def run_gate_preview(
+        self,
+        *,
+        gate_rule_id: int,
+        person_id: str | None = None,
+        room_name: str | None = None,
+        sensor_id: str | None = None,
+        profile_name: str = "confirm",
+        camera_ids: list[str] | None = None,
+        zone_id: int | None = None,
+    ) -> Any:
+        """Resolve cameras and run a gate graph once for a preview (VG08 test-run).
+
+        Reuses the same camera cascade and gate runner the live confirm/watch
+        paths use. Fail-closed: a missing runner or no cameras returns a
+        ``GateVerdict`` with ``complete=False`` rather than raising.
+        """
+        from types import SimpleNamespace
+
+        from backend.services.guided_task.camera_selection import select_cameras_tagged
+        from backend.services.guided_task.gate_runner import (
+            GateRunContext,
+            GateVerdict,
+            build_default_profile,
+        )
+
+        name = "watch" if profile_name == "watch" else "confirm"
+        profile = build_default_profile(self._settings, name)
+
+        if self._gate_runner is None:
+            logger.warning("gate_preview_runner_unavailable", gate_rule_id=gate_rule_id)
+            return GateVerdict(
+                complete=False,
+                confidence=0.0,
+                reason="gate_runner_unavailable",
+                node_results={},
+                cost={"model_calls": 0, "frames": 0, "latency_ms": 0},
+                profile=name,
+            )
+
+        step_like = SimpleNamespace(camera_ids=camera_ids or [], zone_id=zone_id)
+        cameras = await select_cameras_tagged(
+            person_id=person_id or "",
+            step=step_like,
+            zone_service=self._zone_service,
+            person_location=self._person_location_service,
+            bucketizer=self._bucketizer,
+            event_aggregator=self._event_aggregator,
+            camera_topology=self._camera_topology,
+            identity_resolver=self._identity_ids_for_person,
+            camera_source_resolver=self._camera_source_resolver,
+            max_cameras=profile.max_frames,
+        )
+        if not cameras:
+            return GateVerdict(
+                complete=False,
+                confidence=0.0,
+                reason="no_cameras",
+                node_results={},
+                cost={"model_calls": 0, "frames": 0, "latency_ms": 0},
+                profile=name,
+            )
+
+        context = GateRunContext(
+            person_id=person_id,
+            room_name=room_name,
+            sensor_id=sensor_id,
+            session_id=f"preview_{gate_rule_id}",
+            step_ord=0,
+        )
+        return await self._gate_runner.run(
+            gate_rule_id=gate_rule_id,
+            profile=profile,
+            cameras=cameras,
+            context=context,
+        )
+
     async def start(
         self,
         routine_id: int,

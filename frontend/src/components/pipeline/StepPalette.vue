@@ -97,6 +97,9 @@ import DialogHeader from "../common/DialogHeader.vue";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
+  // "rule": full palette excluding gate-only steps (e.g. gate_verdict).
+  // "gate": only gate-safe steps, including gate-only steps (gate_verdict).
+  mode: { type: String, default: "rule" },
 });
 
 const emit = defineEmits(["update:modelValue", "select"]);
@@ -121,9 +124,22 @@ const CATEGORY_ICONS = {
   flow: "mdi-source-branch",
 };
 
+// Metadata-driven palette filter (single source of truth: the gate_safe /
+// gate_only flags VG2 added to StepMetadata). Never hardcode a step list.
+function isAllowedInMode(st) {
+  if (props.mode === "gate") {
+    // Gate canvas: only side-effect-free gate-safe steps, and include the
+    // gate-only sink (gate_verdict).
+    return Boolean(st.gate_safe);
+  }
+  // Rule canvas: everything except gate-only steps.
+  return !st.gate_only;
+}
+
 const groups = computed(() => {
   const byCategory = {};
   for (const st of stepTypes.value) {
+    if (!isAllowedInMode(st)) continue;
     const cat = st.category || "action";
     if (!byCategory[cat]) byCategory[cat] = [];
     byCategory[cat].push({

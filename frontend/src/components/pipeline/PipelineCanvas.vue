@@ -29,6 +29,15 @@
           Auto-arrange
         </v-btn>
         <v-btn
+          v-if="mode === 'gate'"
+          size="small"
+          variant="outlined"
+          prepend-icon="mdi-check-decagram-outline"
+          @click="validateGate"
+        >
+          Validate
+        </v-btn>
+        <v-btn
           color="primary"
           variant="flat"
           size="small"
@@ -38,6 +47,26 @@
           Add Step
         </v-btn>
       </div>
+
+      <v-alert
+        v-if="gateValidation"
+        :type="gateValidation.valid ? 'success' : 'warning'"
+        density="compact"
+        variant="tonal"
+        closable
+        class="cc-pipeline-canvas__error-banner"
+        @click:close="gateValidation = null"
+      >
+        <template v-if="gateValidation.valid">
+          Gate graph is valid: exactly one reachable verdict, all steps gate-safe.
+        </template>
+        <template v-else>
+          <div class="font-weight-medium mb-1">This gate graph is not valid yet:</div>
+          <ul class="pl-4">
+            <li v-for="(err, i) in gateValidation.errors" :key="i">{{ err }}</li>
+          </ul>
+        </template>
+      </v-alert>
 
       <v-progress-linear
         v-if="state.loading && state.ready"
@@ -133,7 +162,7 @@
       @delete="confirmAndRemove"
     />
 
-    <StepPalette v-model="paletteOpen" @select="onStepSelected" />
+    <StepPalette v-model="paletteOpen" :mode="mode" @select="onStepSelected" />
     <StepConfigDialog
       v-model="configOpen"
       :step="editingStep"
@@ -180,9 +209,21 @@ import "@vue-flow/minimap/dist/style.css";
 
 const props = defineProps({
   ruleId: { type: Number, required: true },
+  // "rule" (default) or "gate". In gate mode the palette filters to gate-safe
+  // steps (incl. gate_verdict) and a Validate action runs validate_gate_graph.
+  mode: { type: String, default: "rule" },
 });
 
 const emit = defineEmits(["updated"]);
+const gateValidation = ref(null);
+
+async function validateGate() {
+  try {
+    gateValidation.value = await api.validateGateGraph(props.ruleId);
+  } catch (error) {
+    notify.error(`Failed to validate gate graph: ${error.message || error}`);
+  }
+}
 const { notify } = useNotify();
 const { state, actions } = useCanvasPipeline(props.ruleId);
 const { fitView, screenToFlowCoordinate, onNodesInitialized } = useVueFlow();

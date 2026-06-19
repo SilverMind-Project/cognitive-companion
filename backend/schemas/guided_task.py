@@ -62,6 +62,7 @@ class RoutineStepIn(BaseModel):
                     "min_confidence": confirm.get("min_confidence"),
                     "min_interval_s": confirm.get("min_interval_s"),
                     "model_id": confirm.get("model_id"),
+                    "max_disagreements": confirm.get("max_disagreements"),
                     "on_max_disagreements": confirm.get("on_max_disagreements"),
                 }
             elif "confirm" in vision:

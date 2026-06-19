@@ -205,3 +205,16 @@ A vision-confirmation gate is a callable pipeline graph, represented as a `Rule`
   - `vision_agreement` evaluates resident-asserted confirm vs vision verdict using the updated event detail shape.
   - `watch_summary` reports watch run counts, auto-advances, confirmation matching rate, and average cost (calls, frames, latency).
   - `gate_cost_summary` aggregates gate execution costs (model calls, frames, latency) for Confirm + Watch combined to analyze overall compute spend.
+
+### Authoring a vision gate (preset-first, scoped canvas) (D26, D25, VG08)
+
+The routine spine stays a linear step list (D16); only a gate's internals are a graph (D26). A caregiver authors a gate in two tiers:
+
+- **Preset-first.** `CompletionGateEditor` shows a preset selector backed by `GET /api/v1/gate-presets`. Choosing a preset calls `POST /api/v1/gate-graphs {from_preset}` (the shared `gate_presets` factory) and stores the new `gate_graph_rule_id` in `completion_gate.vision`. Seeded presets: `generic_vlm_confirm` (poll -> VLM -> verdict), `kettle_on_hob` (the canonical cheap-first cascade: poll -> scene_analysis -> condition --true--> heavy VLM --> verdict; --false--> verdict, one sink via join), `person_at_sink`.
+- **Power user.** "Edit vision logic" opens `GateEditorDialog` (`AppDialog size="xl"`) hosting `PipelineCanvas mode="gate"` (gate-safe palette) plus a test-run preview. Casual caregivers never open it.
+
+The `completion_gate.vision` shape (VG0 section 4): `{ gate_graph_rule_id, confirm: {window_s, max_frames, min_confidence, min_interval_s, max_disagreements, on_max_disagreements, model_id}, watch: {enabled, tick_s, window_s, max_frames, model_id, auto_advance, auto_advance_k} }`. Empty override = inherit the `config/settings.yaml` default through `resolve_policy`; the editor shows the resolved default as a placeholder (precedence visible).
+
+**One camera control (D25).** The dead `completion_gate.vision.camera_ids` override is gone. The step-level `CameraPicker` (`step.camera_ids`, labeled "Cameras for vision + selection") is the single picker, backed by the source-tagged cascade; empty = auto-select. Never surface visibility polygons as truth (D19); camera suggestions are labeled best-effort.
+
+**The three sampling knobs** map to three layers: rate = `sample_period_s` (per `media_window_poll` node, set in the canvas), count = `max_frames` (per profile), cool-off = `min_interval_s` (gate-level throttle returning the cached verdict). The editor groups them under "Sampling and cool-off" so the caregiver's mental model matches the backend.

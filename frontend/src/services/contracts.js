@@ -81,6 +81,16 @@ def("rule.edges.replace", [{ id: "number", rule_id: "number", source_step_id: "n
 def("rule.steps.positions.update", { updated: "number" });
 
 // ---------------------------------------------------------------------------
+// Gate graphs (vision-confirm callable rules, VG08)
+// ---------------------------------------------------------------------------
+def("gate-graphs.list", { items: "array", total: "number" });
+def("gate-graphs.single", { id: "number", trigger_types: "array" });
+def("gate-graphs.detail", { rule: "object", steps: "array", edges: "array" });
+def("gate-graphs.validate", { valid: "boolean", errors: "array" });
+def("gate-graphs.verdict", { complete: "boolean", confidence: "number", reason: "string", cost: "object", profile: "string" });
+def("gate-graphs.presets", [{ key: "string", name: "string", description: "string", summary: "string" }]);
+
+// ---------------------------------------------------------------------------
 // Workflows
 // ---------------------------------------------------------------------------
 def("workflows.list", "array");

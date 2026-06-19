@@ -165,6 +165,17 @@ export const api = {
     request("/rules/import", { method: "POST", body: JSON.stringify(bundle) }),
   validateRule: (id) => request(`/rules/${id}/validate`, { method: "POST" }),
 
+  // Gate graphs (vision-confirm callable rules, VG08)
+  getGateGraphs: () => request("/gate-graphs", { contract: "gate-graphs.list" }),
+  createGateGraph: (data) =>
+    request("/gate-graphs", { method: "POST", body: JSON.stringify(data), contract: "gate-graphs.single" }),
+  getGateGraph: (id) => request(`/gate-graphs/${id}`, { contract: "gate-graphs.detail" }),
+  validateGateGraph: (id) =>
+    request(`/gate-graphs/${id}/validate`, { method: "POST", contract: "gate-graphs.validate" }),
+  testRunGateGraph: (id, data = {}) =>
+    request(`/gate-graphs/${id}/test-run`, { method: "POST", body: JSON.stringify(data), contract: "gate-graphs.verdict" }),
+  getGatePresets: () => request("/gate-presets", { contract: "gate-graphs.presets" }),
+
   // Unified signals feed (CTS dementia signals + pipeline-rule notifications)
   getSignalsFeed: (params = {}) => {
     const qs = new URLSearchParams(params).toString();

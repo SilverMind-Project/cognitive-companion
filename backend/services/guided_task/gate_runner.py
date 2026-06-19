@@ -65,6 +65,49 @@ class GateProfile:
         }
 
 
+def build_default_profile(settings_obj: Any, name: str) -> GateProfile:
+    """Build a profile from the global ``config/settings.yaml`` defaults only.
+
+    Used by previews (the gate test-run endpoint) where there is no routine or
+    step to resolve precedence against. This is intentionally distinct from the
+    full per-step/per-routine/global resolvers in ``VisionEvaluator`` (confirm)
+    and ``GuidedTaskService`` (watch); it does not duplicate their override
+    logic, it just reads the global tier.
+    """
+
+    def _f(key: str, default: float) -> float:
+        try:
+            val = settings_obj.as_float(key)
+            return float(val) if val is not None else default
+        except Exception:  # noqa: BLE001
+            return default
+
+    def _i(key: str, default: int) -> int:
+        try:
+            val = settings_obj.as_int(key)
+            return int(val) if val is not None else default
+        except Exception:  # noqa: BLE001
+            return default
+
+    if name == "watch":
+        return GateProfile(
+            name="watch",
+            window_s=_f("guided_task.vision.watch.window_s", 4.0),
+            max_frames=_i("guided_task.vision.watch.max_frames", 3),
+            min_confidence=_f("guided_task.vision.confirm.min_confidence", 0.7),
+            model_id=None,
+            prune_heavy=True,
+        )
+    return GateProfile(
+        name="confirm",
+        window_s=_f("guided_task.vision.confirm.window_s", 20.0),
+        max_frames=_i("guided_task.vision.confirm.max_frames", 9),
+        min_confidence=_f("guided_task.vision.confirm.min_confidence", 0.7),
+        model_id=None,
+        prune_heavy=False,
+    )
+
+
 @dataclass(frozen=True)
 class GateVerdict:
     complete: bool

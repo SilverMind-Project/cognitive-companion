@@ -955,6 +955,7 @@ def create_app() -> FastAPI:
         cts_window_triggers,
         device,
         events,
+        gate_graphs,
         guided_metrics,
         guided_sessions,
         ha_sync,
@@ -1000,6 +1001,8 @@ def create_app() -> FastAPI:
     app.include_router(occupancy.router, prefix=api)
     app.include_router(conversations.router, prefix=api)
     app.include_router(companion_surfaces.router, prefix=api)
+    app.include_router(gate_graphs.router, prefix=api)
+    app.include_router(gate_graphs.presets_router, prefix=api)
     app.include_router(guided_metrics.router, prefix=api)
     app.include_router(guided_sessions.router, prefix=api)
     app.include_router(routines.router, prefix=api)

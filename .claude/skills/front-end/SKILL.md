@@ -259,6 +259,16 @@ Use `<v-card variant="tonal">` for grouped sub-sections inside a dialog:
 
 This gets `--cc-surface-2` background from the global tonal card rule. No custom classes needed.
 
+### Embedding the pipeline canvas in scoped mode (vision gates)
+
+A vision-confirm gate is a callable rule authored in the **same** `PipelineCanvas`, not a second editor. To embed it (VG08):
+
+- Pass the gate's rule id and `mode="gate"`: `<PipelineCanvas :rule-id="gateRuleId" mode="gate" />`. The default `mode="rule"`.
+- The `mode` prop threads to `StepPalette`. Palette filtering is **metadata-driven**, never a hardcoded list: in `gate` mode it shows only steps with `gate_safe` (and includes `gate_only` steps like `gate_verdict`); in `rule` mode it hides `gate_only` steps. The flags come from `GET /pipeline/step-types` (`gate_safe`/`gate_only` on each step). Drive any new mode behaviour off those flags.
+- In `gate` mode the canvas exposes a **Validate** action that calls `POST /api/v1/gate-graphs/{id}/validate` (full `validate_gate_graph`) and surfaces "exactly one reachable `gate_verdict`" + "all steps gate-safe" inline. Edge saves still go through the existing `PUT /rules/{id}/edges` (gate-safe structural check at edit time).
+- Host the canvas inside `GateEditorDialog` (an `AppDialog size="xl"`). Add a preview/test-run button that calls `POST /api/v1/gate-graphs/{id}/test-run` and renders the `GateVerdict` (complete/confidence/reason + cost). See the AppDialog standard above.
+- New step config components register in `frontend/src/components/pipeline/steps/index.js` and `stepMeta.js` (label/icon/dot color). Reuse the condition expression widget (`_shared/TemplateInput.vue`) for any expression field (`gate_verdict.complete_if`); do not build a new expression editor.
+
 ### Right-side drawer pattern
 
 Right-side drawers overlay the main content as full-viewport panels. The `.cc-drawer-right` class is a **global utility in `theme.css`**; do not add scoped CSS for it in individual views.

@@ -128,7 +128,8 @@
           <v-col cols="6">
             <CameraPicker
               v-model="localStep.camera_ids"
-              label="Cameras"
+              label="Cameras for vision + selection"
+              hint="Used for the vision check and camera selection. Leave empty to auto-select from where she is."
             />
           </v-col>
         </v-row>

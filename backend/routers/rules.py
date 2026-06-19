@@ -37,6 +37,7 @@ from backend.schemas.rule import (
     RuleUpdate,
 )
 from backend.schemas.rule_bundle import ImportReport, RuleBundle
+from backend.services import rule_service
 from backend.services.pipeline_graph import validate_gate_graph, validate_graph
 from backend.services.rule_importer import bundle_to_rule
 from backend.services.rule_serializer import rule_to_bundle, validate_bundle
@@ -94,15 +95,7 @@ def list_rules(
         .subquery()
     )
 
-    query = db.query(Rule)
-    if callable is True:
-        query = query.filter(Rule.filter_callable())
-    elif callable is False:
-        query = query.filter(Rule.filter_active())
-    else:
-        query = query.filter(Rule.filter_active())
-
-    rules = query.order_by(Rule.name).all()
+    rules = rule_service.list_rules(db, callable_only=callable is True)
 
     count_map: dict[int, RuleExecutionCounts] = {
         row.rule_id: RuleExecutionCounts(
@@ -159,17 +152,7 @@ def get_rule(
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:read")),
 ):
-    rule = (
-        db.query(Rule)
-        .options(
-            joinedload(Rule.steps),
-            joinedload(Rule.contexts),
-            joinedload(Rule.dependencies),
-            joinedload(Rule.cron_triggers),
-        )
-        .filter(Rule.id == rule_id)
-        .first()
-    )
+    rule = rule_service.get_rule(db, rule_id)
     if not rule:
         raise NotFoundError("Rule", rule_id)
     return rule
@@ -406,11 +389,12 @@ def _validate_rule_graph_or_raise(
     if is_callable:
         from backend.steps import StepRegistry
 
+        StepRegistry.discover()
         errors = validate_gate_graph(
             steps,
             edges,
             step_metadata=lambda t_name: (
-                StepRegistry.get(t_name).metadata() if StepRegistry.exists(t_name) else None
+                h.metadata() if (h := StepRegistry.get(t_name)) else None
             ),
             gate_safe_only=True,
         )
@@ -598,11 +582,12 @@ def validate_rule(
         if rule.is_callable:
             from backend.steps import StepRegistry
 
+            StepRegistry.discover()
             graph_errors = validate_gate_graph(
                 steps,
                 edges,
                 step_metadata=lambda t_name: (
-                    StepRegistry.get(t_name).metadata() if StepRegistry.exists(t_name) else None
+                    h.metadata() if (h := StepRegistry.get(t_name)) else None
                 ),
                 gate_safe_only=False,
             )

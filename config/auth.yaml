@@ -132,6 +132,8 @@ permission_map:
     - "guided_sessions:read"
     - "guided_sessions:takeover"
     - "guided_metrics:read"
+    - "gate_graphs:read"
+    - "gate_graphs:write"
 
   caregiver_admin:
     - "GET /api/v1/*"
@@ -225,6 +227,15 @@ permission_map:
   rules:write_via_mcp:
     - "POST /api/v1/rules/import"
     - "POST /api/v1/rules/import/preview"
+
+  # VG08: gate-graph (vision-confirm callable rule) authoring.
+  gate_graphs:read:
+    - "GET /api/v1/gate-graphs"
+    - "GET /api/v1/gate-graphs/*"
+    - "GET /api/v1/gate-presets"
+  gate_graphs:write:
+    - "POST /api/v1/gate-graphs"
+    - "POST /api/v1/gate-graphs/*"
 
   cts_ingress:
     - "GET /api/v1/cts/cameras"

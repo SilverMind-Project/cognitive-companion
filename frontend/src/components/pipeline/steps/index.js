@@ -23,6 +23,7 @@ import GenericPluginConfig, { stepDefaults as genericDefaults, stepTabs as gener
 import MediaWindowPollConfig, { stepDefaults as mwpDefaults, stepTabs as mwpTabs } from "./MediaWindowPollConfig.vue";
 import InfoCardConfig, { stepDefaults as infoCardDefaults, stepTabs as infoCardTabs } from "./InfoCardConfig.vue";
 import ImageCropConfig, { stepDefaults as imageCropDefaults, stepTabs as imageCropTabs } from "./ImageCropConfig.vue";
+import GateVerdictConfig, { stepDefaults as gateVerdictDefaults, stepTabs as gateVerdictTabs } from "./GateVerdictConfig.vue";
 
 export const stepConfigMap = {
   wait:                { component: WaitConfig,                defaults: waitDefaults,    tabs: waitTabs },
@@ -47,6 +48,7 @@ export const stepConfigMap = {
   media_window_poll:   { component: MediaWindowPollConfig,     defaults: mwpDefaults,     tabs: mwpTabs },
   info_card:           { component: InfoCardConfig,            defaults: infoCardDefaults, tabs: infoCardTabs },
   image_crop:          { component: ImageCropConfig,           defaults: imageCropDefaults, tabs: imageCropTabs },
+  gate_verdict:        { component: GateVerdictConfig,         defaults: gateVerdictDefaults, tabs: gateVerdictTabs },
 };
 import SchemaForm from "./_shared/SchemaForm.vue";
 

@@ -6,6 +6,12 @@
       </span>
       <v-spacer />
       <v-btn
+        icon="mdi-pencil-outline"
+        variant="text"
+        size="small"
+        @click="openEditDialog"
+      />
+      <v-btn
         icon="mdi-arrow-up"
         variant="text"
         size="small"
@@ -28,121 +34,178 @@
       />
     </div>
 
-    <v-card-text class="pt-0">
-      <!-- Prompt template -->
-      <v-textarea
-        :model-value="step.prompt_template"
-        label="Prompt"
-        rows="2"
-        density="comfortable"
-        placeholder="e.g. Please fill the kettle with water from the tap."
-        :hint="'Use {{ variable }} for personalization.'"
-        persistent-hint
-        @update:model-value="update('prompt_template', $event)"
-      />
+    <v-card-text class="pt-0 pb-3">
+      <div class="text-body-1 font-weight-medium mb-2" style="color: var(--cc-text-1)">
+        {{ step.prompt_template || "(No prompt defined)" }}
+      </div>
 
-      <!-- Completion gate -->
-      <CompletionGateEditor
-        :model-value="step.completion_gate"
-        :room-id="roomId"
-        class="mt-2"
-        @update:model-value="update('completion_gate', $event)"
-      />
+      <div class="d-flex flex-wrap ga-2 text-caption">
+        <!-- Completion Gate summary -->
+        <span class="cc-badge cc-badge--brand" v-if="step.completion_gate">
+          <span class="cc-badge__dot"></span>
+          Gates: {{ step.completion_gate.kinds.join(', ') }}
+        </span>
 
-      <!-- Zone + Camera pickers -->
-      <v-row class="mt-0">
-        <v-col cols="6">
-          <ZonePicker
-            :model-value="step.zone_id"
-            :room-id="roomId"
-            label="Zone"
-            @update:model-value="update('zone_id', $event)"
-          />
-        </v-col>
-        <v-col cols="6">
-          <CameraPicker
-            :model-value="step.camera_ids"
-            label="Cameras"
-            @update:model-value="update('camera_ids', $event)"
-          />
-        </v-col>
-      </v-row>
+        <!-- Room/Zone context -->
+        <span class="cc-badge cc-badge--info" v-if="step.zone_id">
+          <span class="cc-badge__dot"></span>
+          Zone: {{ step.zone_id }}
+        </span>
 
-      <!-- Skip condition (JSON) -->
-      <v-textarea
-        :model-value="skipConditionText"
-        label="Skip condition (JSON, optional)"
-        rows="2"
-        density="compact"
-        hide-details
-        class="mt-2 font-monospace"
-        placeholder='{"kind": "already_done"}'
-        @update:model-value="updateSkipCondition($event)"
-      />
+        <!-- Cameras context -->
+        <span class="cc-badge cc-badge--info" v-if="step.camera_ids && step.camera_ids.length">
+          <span class="cc-badge__dot"></span>
+          Cameras: {{ step.camera_ids.join(', ') }}
+        </span>
 
-      <!-- Override fields -->
-      <v-expansion-panels variant="accordion" class="mt-3" flat>
-        <v-expansion-panel>
-          <v-expansion-panel-title class="text-caption text-medium-emphasis pa-0">
-            Per-step overrides
-          </v-expansion-panel-title>
-          <v-expansion-panel-text class="pa-0">
-            <v-row class="mt-1">
-              <v-col cols="4">
-                <v-text-field
-                  :model-value="step.min_duration_s ?? ''"
-                  label="Min duration (s)"
-                  type="number"
-                  density="compact"
-                  hide-details
-                  :placeholder="'inherit'"
-                  @update:model-value="update('min_duration_s', $event ? parseInt($event) : null)"
-                />
-              </v-col>
-              <v-col cols="4">
-                <v-text-field
-                  :model-value="step.step_timeout_s_override ?? ''"
-                  label="Timeout (s)"
-                  type="number"
-                  density="compact"
-                  hide-details
-                  :placeholder="inheritedTimeout ? String(inheritedTimeout) : 'inherit'"
-                  @update:model-value="update('step_timeout_s_override', $event ? parseInt($event) : null)"
-                />
-              </v-col>
-              <v-col cols="4">
-                <v-text-field
-                  :model-value="step.max_step_attempts_override ?? ''"
-                  label="Max attempts"
-                  type="number"
-                  density="compact"
-                  hide-details
-                  :placeholder="inheritedMaxAttempts ? String(inheritedMaxAttempts) : 'inherit'"
-                  @update:model-value="update('max_step_attempts_override', $event ? parseInt($event) : null)"
-                />
-              </v-col>
-            </v-row>
-            <v-checkbox
-              :model-value="step.is_safety_critical"
-              label="Safety critical step"
-              density="compact"
-              hide-details
-              color="error"
-              class="mt-1"
-              @update:model-value="update('is_safety_critical', $event)"
-            />
-          </v-expansion-panel-text>
-        </v-expansion-panel>
-      </v-expansion-panels>
+        <!-- Timeout override -->
+        <span class="cc-badge cc-badge--notice" v-if="step.step_timeout_s_override">
+          <span class="cc-badge__dot"></span>
+          Timeout: {{ step.step_timeout_s_override }}s
+        </span>
+
+        <!-- Safety Critical badge -->
+        <span class="cc-badge cc-badge--alert" v-if="step.is_safety_critical">
+          <span class="cc-badge__dot"></span>
+          Safety Critical
+        </span>
+      </div>
+
+      <div class="mt-3">
+        <v-btn
+          variant="outlined"
+          color="primary"
+          size="small"
+          prepend-icon="mdi-pencil-outline"
+          @click="openEditDialog"
+        >
+          Edit Step
+        </v-btn>
+      </div>
     </v-card-text>
+
+    <!-- AppDialog Modal for Step Details Editing -->
+    <AppDialog
+      v-model="editDialogOpen"
+      size="lg"
+      icon="mdi-pencil-outline"
+      :label="`Step ${step.ord + 1}`"
+      title="Edit Step Details"
+      confirm-label="Apply"
+      @confirm="saveEdit"
+      @cancel="closeEdit"
+    >
+      <div class="pa-4">
+        <!-- Prompt template -->
+        <v-textarea
+          v-model="localStep.prompt_template"
+          label="Prompt"
+          rows="2"
+          density="comfortable"
+          placeholder="e.g. Please fill the kettle with water from the tap."
+          :hint="'Use {{ variable }} for personalization.'"
+          persistent-hint
+          class="mb-3"
+        />
+
+        <!-- Completion gate -->
+        <CompletionGateEditor
+          v-slot:default
+          v-model="localStep.completion_gate"
+          :room-id="roomId"
+          class="mt-2"
+        />
+
+        <!-- Zone + Camera pickers -->
+        <v-row class="mt-0">
+          <v-col cols="6">
+            <ZonePicker
+              v-model="localStep.zone_id"
+              :room-id="roomId"
+              label="Zone"
+            />
+          </v-col>
+          <v-col cols="6">
+            <CameraPicker
+              v-model="localStep.camera_ids"
+              label="Cameras"
+            />
+          </v-col>
+        </v-row>
+
+        <!-- Skip condition (JSON) -->
+        <v-textarea
+          v-model="localSkipConditionText"
+          label="Skip condition (JSON, optional)"
+          rows="2"
+          density="compact"
+          hide-details
+          class="mt-2 font-monospace"
+          placeholder='{"kind": "already_done"}'
+        />
+
+        <!-- Override fields -->
+        <v-expansion-panels variant="accordion" class="mt-3" flat>
+          <v-expansion-panel>
+            <v-expansion-panel-title class="text-caption text-medium-emphasis pa-0">
+              Per-step overrides
+            </v-expansion-panel-title>
+            <v-expansion-panel-text class="pa-0">
+              <v-row class="mt-1">
+                <v-col cols="4">
+                  <v-text-field
+                    v-model.number="localStep.min_duration_s"
+                    label="Min duration (s)"
+                    type="number"
+                    density="compact"
+                    hide-details
+                    :placeholder="'inherit'"
+                  />
+                </v-col>
+                <v-col cols="4">
+                  <v-text-field
+                    v-model.number="localStep.step_timeout_s_override"
+                    label="Timeout (s)"
+                    type="number"
+                    density="compact"
+                    hide-details
+                    :placeholder="inheritedTimeout ? String(inheritedTimeout) : 'inherit'"
+                  />
+                </v-col>
+                <v-col cols="4">
+                  <v-text-field
+                    v-model.number="localStep.max_step_attempts_override"
+                    label="Max attempts"
+                    type="number"
+                    density="compact"
+                    hide-details
+                    :placeholder="inheritedMaxAttempts ? String(inheritedMaxAttempts) : 'inherit'"
+                  />
+                </v-col>
+              </v-row>
+              <v-checkbox
+                v-model="localStep.is_safety_critical"
+                label="Safety critical step"
+                density="compact"
+                hide-details
+                color="error"
+                class="mt-1"
+              />
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
+      </div>
+    </AppDialog>
   </v-card>
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { ref, watch } from "vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 import CompletionGateEditor from "./CompletionGateEditor.vue";
 import ZonePicker from "./ZonePicker.vue";
 import CameraPicker from "./CameraPicker.vue";
+import { useNotify } from "@/composables/useNotify.js";
 
 const props = defineProps({
   step: { type: Object, required: true },
@@ -156,29 +219,60 @@ const props = defineProps({
 
 const emit = defineEmits(["update", "remove", "move-up", "move-down"]);
 
-const skipConditionText = computed(() => {
-  if (!props.step.skip_condition) return "";
-  try {
-    return JSON.stringify(props.step.skip_condition, null, 2);
-  } catch {
-    return "";
-  }
-});
+const { notify } = useNotify();
 
-function update(field, value) {
-  emit("update", { ...props.step, [field]: value });
+const editDialogOpen = ref(false);
+const localStep = ref(JSON.parse(JSON.stringify(props.step)));
+const localSkipConditionText = ref("");
+
+// Sync localStep when props.step changes
+watch(
+  () => props.step,
+  (newStep) => {
+    localStep.value = JSON.parse(JSON.stringify(newStep));
+  },
+  { deep: true }
+);
+
+function openEditDialog() {
+  localStep.value = JSON.parse(JSON.stringify(props.step));
+  localSkipConditionText.value = localStep.value.skip_condition
+    ? JSON.stringify(localStep.value.skip_condition, null, 2)
+    : "";
+  editDialogOpen.value = true;
 }
 
-function updateSkipCondition(text) {
-  if (!text.trim()) {
-    update("skip_condition", null);
-    return;
+function closeEdit() {
+  editDialogOpen.value = false;
+}
+
+function saveEdit() {
+  // Parse skip condition
+  const skipText = localSkipConditionText.value.trim();
+  if (!skipText) {
+    localStep.value.skip_condition = null;
+  } else {
+    try {
+      localStep.value.skip_condition = JSON.parse(skipText);
+    } catch {
+      notify.error("Invalid JSON in skip condition. Please correct it.");
+      return;
+    }
   }
-  try {
-    update("skip_condition", JSON.parse(text));
-  } catch {
-    // keep previous value until valid JSON is entered
+
+  // Clean empty numbers
+  if (localStep.value.min_duration_s === "") {
+    localStep.value.min_duration_s = null;
   }
+  if (localStep.value.step_timeout_s_override === "") {
+    localStep.value.step_timeout_s_override = null;
+  }
+  if (localStep.value.max_step_attempts_override === "") {
+    localStep.value.max_step_attempts_override = null;
+  }
+
+  emit("update", { ...localStep.value });
+  editDialogOpen.value = false;
 }
 </script>
 

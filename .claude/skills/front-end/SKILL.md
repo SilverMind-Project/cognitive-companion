@@ -232,6 +232,20 @@ Dialogs use a solid elevated surface (`--cc-bg-elevated`), not the translucent `
 `theme.css` has a global card rule at specificity (0,6,0) that applies `--cc-surface`. The dialog override sits at specificity (0,8,0) -- it repeats the `:not()` chain to win with `!important`. If you ever add more `:not()` exclusions to the global card rule, add the same exclusion to the dialog rule so the dialog keeps `--cc-bg-elevated`.
 - Always put the primary action on the right (`v-spacer` between Cancel and Save).
 
+### Detail modals: use `AppDialog`
+
+Use `AppDialog` for any medium/large detail modal; pick `size` from the preset table; never hand-roll a `v-dialog` + `v-card` + header/footer.
+`DialogHeader`/`DialogFooter` are the building blocks; `AppDialog` composes them.
+Migrate legacy `v-dialog`s to `AppDialog` opportunistically when touching a file.
+Tokens only; `cc-glass`; fullscreen on mobile; scrollable.
+
+| size | width | use |
+| --- | --- | --- |
+| `sm` | 480 | confirmations, single-field edits |
+| `md` | 720 | standard detail forms (default) |
+| `lg` | 1080 | rich detail / multi-column |
+| `xl` | 1440 | canvas / workbench (matches `StepConfigDialog`) |
+
 ### Inset sections within dialogs
 
 Use `<v-card variant="tonal">` for grouped sub-sections inside a dialog:

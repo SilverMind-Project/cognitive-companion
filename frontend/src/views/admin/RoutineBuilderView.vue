@@ -235,17 +235,26 @@
     </v-row>
 
     <!-- Confirm delete step dialog -->
-    <v-dialog v-model="confirmDialog" max-width="400" persistent>
-      <v-card rounded="xl">
-        <v-card-title>Remove step?</v-card-title>
-        <v-card-text>{{ confirmText }}</v-card-text>
-        <v-card-actions>
+    <AppDialog
+      v-model="confirmDialog"
+      size="sm"
+      icon="mdi-delete-outline"
+      label="Confirmation"
+      title="Remove step?"
+      hide-footer
+    >
+      <div class="pa-4">
+        {{ confirmText }}
+      </div>
+      <template #footer>
+        <v-divider />
+        <v-card-actions class="px-6 py-3">
           <v-spacer />
           <v-btn variant="text" @click="onCancel">Cancel</v-btn>
           <v-btn color="error" variant="flat" @click="onConfirm">Remove</v-btn>
         </v-card-actions>
-      </v-card>
-    </v-dialog>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -255,6 +264,7 @@ import { useRoutineBuilder } from "@/composables/useRoutineBuilder.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { api } from "@/services/api.js";
 import RoutineStepCard from "@/components/routines/RoutineStepCard.vue";
+import AppDialog from "@/components/common/AppDialog.vue";
 
 const props = defineProps({
   id: { type: String, required: true },

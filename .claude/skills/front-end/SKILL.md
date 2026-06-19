@@ -1328,6 +1328,10 @@ frontend/
 
 ## Adding a new admin list view
 
+For CTS identity keyframes, Person Hypothesis corrections, provenance badges, or ReID review
+surfaces, also load
+`/home/sriram/code/nanai/cognitive-companion/.claude/skills/cts-identity-admin/SKILL.md`.
+
 1. Create `frontend/src/views/admin/NewResourceView.vue`
 2. Follow the page layout pattern (header row + glass-card + table + dialogs)
 3. Add API methods to `api.js` with contract names

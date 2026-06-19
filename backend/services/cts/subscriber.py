@@ -15,6 +15,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from cts_contracts import DementiaSignalKind, DementiaSignalSeverity
+
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import signals_pb2
 from backend.services.cts import metrics
@@ -29,26 +31,28 @@ logger = get_logger(__name__)
 FIELD = b"signal"
 
 
-# Proto enum -> CC-canonical string. CC tables and filters key on the
-# string form (matches the orchestrator's domain Literal aliases) so this
-# subscriber is the single point of translation.
+# Proto enum -> shared canonical vocabulary (``cts_contracts``). The members are a
+# ``StrEnum`` and compare/serialize equal to their wire strings, so CC tables,
+# filters, and metrics that key on the string form are unaffected; the vocabulary
+# now has one source of truth shared with the orchestrator (Phase 1 of the
+# shared-types migration). This subscriber stays the single proto->string point.
 
-_PROTO_KIND_TO_STR: dict[int, str] = {
-    signals_pb2.DEMENTIA_SIGNAL_KIND_PACING: "pacing",
-    signals_pb2.DEMENTIA_SIGNAL_KIND_SUNDOWNING_INDEX: "sundowning_index",
-    signals_pb2.DEMENTIA_SIGNAL_KIND_BATHROOM_DWELL_ANOMALY: "bathroom_dwell_anomaly",
-    signals_pb2.DEMENTIA_SIGNAL_KIND_NIGHTTIME_MOVEMENT: "nighttime_movement",
-    signals_pb2.DEMENTIA_SIGNAL_KIND_STILLNESS_ANOMALY: "stillness_anomaly",
-    signals_pb2.DEMENTIA_SIGNAL_KIND_ABSENCE: "absence",
-    signals_pb2.DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED: "fall_suspected",
-    signals_pb2.DEMENTIA_SIGNAL_KIND_GAIT_SLOWING: "gait_slowing",
-    signals_pb2.DEMENTIA_SIGNAL_KIND_AGITATION_INDEX: "agitation_index",
+_PROTO_KIND_TO_STR: dict[int, DementiaSignalKind] = {
+    signals_pb2.DEMENTIA_SIGNAL_KIND_PACING: DementiaSignalKind.PACING,
+    signals_pb2.DEMENTIA_SIGNAL_KIND_SUNDOWNING_INDEX: DementiaSignalKind.SUNDOWNING_INDEX,
+    signals_pb2.DEMENTIA_SIGNAL_KIND_BATHROOM_DWELL_ANOMALY: DementiaSignalKind.BATHROOM_DWELL_ANOMALY,
+    signals_pb2.DEMENTIA_SIGNAL_KIND_NIGHTTIME_MOVEMENT: DementiaSignalKind.NIGHTTIME_MOVEMENT,
+    signals_pb2.DEMENTIA_SIGNAL_KIND_STILLNESS_ANOMALY: DementiaSignalKind.STILLNESS_ANOMALY,
+    signals_pb2.DEMENTIA_SIGNAL_KIND_ABSENCE: DementiaSignalKind.ABSENCE,
+    signals_pb2.DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED: DementiaSignalKind.FALL_SUSPECTED,
+    signals_pb2.DEMENTIA_SIGNAL_KIND_GAIT_SLOWING: DementiaSignalKind.GAIT_SLOWING,
+    signals_pb2.DEMENTIA_SIGNAL_KIND_AGITATION_INDEX: DementiaSignalKind.AGITATION_INDEX,
 }
 
-_PROTO_SEVERITY_TO_STR: dict[int, str] = {
-    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_INFO: "info",
-    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_WARNING: "warning",
-    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_EMERGENCY: "emergency",
+_PROTO_SEVERITY_TO_STR: dict[int, DementiaSignalSeverity] = {
+    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_INFO: DementiaSignalSeverity.INFO,
+    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_WARNING: DementiaSignalSeverity.WARNING,
+    signals_pb2.DEMENTIA_SIGNAL_SEVERITY_EMERGENCY: DementiaSignalSeverity.EMERGENCY,
 }
 
 

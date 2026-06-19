@@ -32,6 +32,8 @@ jobs:
         with:
           enable-cache: true
 
+      # cts-contracts and triton-shared are git-source deps; `uv sync` clones them at
+      # the commit pinned in uv.lock, so no extra checkout is needed.
       - name: Install Python and locked dependencies
         run: |
           uv python install 3.14

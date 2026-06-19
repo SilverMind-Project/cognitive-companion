@@ -326,12 +326,13 @@ wheels = [
 
 [[package]]
 name = "cognitive-companion"
-version = "0.7.55"
+version = "0.7.56"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "apscheduler" },
     { name = "boto3" },
+    { name = "cts-contracts" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "httpx-ws" },
@@ -391,6 +392,7 @@ requires-dist = [
     { name = "apscheduler", specifier = ">=3.10" },
     { name = "boto3", specifier = ">=1.35" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.6" },
+    { name = "cts-contracts", git = "https://github.com/SilverMind-Project/cts-contracts" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "google-genai", marker = "extra == 'gemini'", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -535,6 +537,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/23/6e6f32143ab5d8b36ca848a502c4bcd477ae75b9e1677e3530d669062578/cryptography-48.0.0-cp39-abi3-win32.whl", hash = "sha256:77a2ccbbe917f6710e05ba9adaa25fb5075620bf3ea6fb751997875aff4ae4bd", size = 3279117, upload-time = "2026-05-04T22:59:12.019Z" },
     { url = "https://files.pythonhosted.org/packages/9d/9a/0fea98a70cf1749d41d738836f6349d97945f7c89433a259a6c2642eefeb/cryptography-48.0.0-cp39-abi3-win_amd64.whl", hash = "sha256:16cd65b9330583e4619939b3a3843eec1e6e789744bb01e7c7e2e62e33c239c8", size = 3792100, upload-time = "2026-05-04T22:59:14.884Z" },
 ]
+
+[[package]]
+name = "cts-contracts"
+version = "0.1.0"
+source = { git = "https://github.com/SilverMind-Project/cts-contracts#222b3b0f1816fe31abfb457964f9b57661b6bd10" }
 
 [[package]]
 name = "cuda-bindings"

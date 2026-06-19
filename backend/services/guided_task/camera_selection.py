@@ -291,8 +291,6 @@ async def _detection_driven(
         tagged_recamera = _tag_cameras(
             _dedupe(recamera_ids), camera_source_resolver, default_source="recamera"
         )
-        if camera_source_resolver is None:
-            tagged_recamera = [ResolvedCamera(id=c.id, source="recamera") for c in tagged_recamera]
 
     return tagged_cts + tagged_recamera
 
@@ -337,12 +335,6 @@ def _log_and_cap_tagged(
 ) -> list[ResolvedCamera]:
     capped = cameras[: max(0, max_cameras)]
     logger.info("camera_cascade_tier", tier=tier, count=len(capped), cameras=[c.id for c in capped])
-    return capped
-
-
-def _log_and_cap(tier: str, cameras: list[str], max_cameras: int) -> list[str]:
-    capped = cameras[: max(0, max_cameras)]
-    logger.info("camera_cascade_tier", tier=tier, count=len(capped), cameras=capped)
     return capped
 
 

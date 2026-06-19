@@ -11,6 +11,7 @@ from backend.core.logging import get_logger
 from backend.services.guided_task.camera_selection import ResolvedCamera, select_cameras_tagged
 from backend.services.guided_task.completion.base import CompletionResult
 from backend.services.guided_task.gate_runner import GateProfile, GateRunContext
+from backend.services.guided_task.policy import resolve_vision_override
 
 logger = get_logger(__name__)
 
@@ -92,40 +93,27 @@ class VisionEvaluator:
                 .get("confirm", {})
             )
 
-        def resolve_val(key: str, default_path: str, type_cast: Callable[[Any], Any]) -> Any:
-            if key in confirm_cfg and confirm_cfg[key] is not None:
-                return type_cast(confirm_cfg[key])
-            if key in routine_cfg and routine_cfg[key] is not None:
-                return type_cast(routine_cfg[key])
-            if self._settings is not None:
-                try:
-                    val = self._settings.get(default_path)
-                    if val is not None:
-                        return type_cast(val)
-                except Exception:  # noqa: BLE001
-                    pass
-            return None
+        def resolve_val(
+            key: str, default_path: str, type_cast: Callable[[Any], Any], default: Any = None
+        ) -> Any:
+            return resolve_vision_override(
+                key,
+                step_cfg=confirm_cfg,
+                routine_cfg=routine_cfg,
+                settings=self._settings,
+                settings_path=default_path,
+                cast=type_cast,
+                default=default,
+            )
 
-        window_s = resolve_val("window_s", "guided_task.vision.confirm.window_s", float)
-        if window_s is None:
-            window_s = 20.0
-
-        max_frames = resolve_val("max_frames", "guided_task.vision.confirm.max_frames", int)
-        if max_frames is None:
-            max_frames = 9
-
+        window_s = resolve_val("window_s", "guided_task.vision.confirm.window_s", float, 20.0)
+        max_frames = resolve_val("max_frames", "guided_task.vision.confirm.max_frames", int, 9)
         min_confidence = resolve_val(
-            "min_confidence", "guided_task.vision.confirm.min_confidence", float
+            "min_confidence", "guided_task.vision.confirm.min_confidence", float, 0.7
         )
-        if min_confidence is None:
-            min_confidence = 0.7
-
         min_interval_s = resolve_val(
-            "min_interval_s", "guided_task.vision.confirm.min_interval_s", float
+            "min_interval_s", "guided_task.vision.confirm.min_interval_s", float, 15.0
         )
-        if min_interval_s is None:
-            min_interval_s = 15.0
-
         model_id = resolve_val("model_id", "guided_task.vision.confirm.model_id", str)
 
         confirm_profile = GateProfile(

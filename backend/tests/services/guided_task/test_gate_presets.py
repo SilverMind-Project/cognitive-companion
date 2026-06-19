@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from backend.models.pipeline import PipelineEdge, PipelineStep
+from backend.services.guided_task.camera_selection import ResolvedCamera
 from backend.services.guided_task.gate_presets import (
     GATE_PRESETS,
     build_default_vlm_gate,
@@ -160,6 +161,57 @@ async def test_default_gate_runs_to_verdict(db_session: Session) -> None:
     assert verdict.complete is True
     assert verdict.confidence == 0.85
     assert verdict.reason == "success"
+
+
+@pytest.mark.asyncio
+async def test_preset_threshold_is_profile_inherited_end_to_end(db_session: Session) -> None:
+    """End-to-end proof that the preset's fail-closed threshold is the
+    profile-inherited ``min_confidence`` (the preset no longer hardcodes it).
+
+    The VLM returns confidence 0.85; a strict profile threshold of 0.95 must fail the
+    verdict closed. This exercises the load-bearing F2 injection path
+    (``GateGraphRunner`` -> ``pipeline_data["_profile"]`` -> ``gate_verdict``) that a
+    unit test on a fake step cannot reach. The complementary "completes when threshold
+    is below the score" direction is covered by ``test_default_gate_runs_to_verdict``
+    (profile 0.7, confidence 0.85 -> complete). Each test runs a single gate so the
+    shared ``db_session`` (which ``runner.run`` closes via its ``with`` block) stays
+    valid; the real app's ``db_factory`` opens a fresh session per run.
+    """
+    rule = build_default_vlm_gate(db_session, name="Test Profile Threshold")
+
+    llm_provider = MockLLMProvider('{"complete": true, "confidence": 0.85, "reason": "ok"}')
+    services = ServiceContainer(
+        db_factory=lambda: db_session,
+        bucketizer=MockBucketizer(),
+        minio_client=MagicMock(),
+        event_aggregator=MagicMock(),
+        llm_model_registry=MockLLMRegistry(llm_provider),
+        scene_analysis_client=MagicMock(),
+    )
+    test_settings = MockSettings(
+        {
+            "app.timezone": "UTC",
+            "guided_task.vision.gate_node_timeout_s": 5.0,
+            "guided_task.vision.confirm.min_confidence": 0.7,
+        }
+    )
+    runner = GateGraphRunner(
+        services=services, db_factory=lambda: db_session, settings=test_settings
+    )
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
+    cameras = [ResolvedCamera(id="cam1", source="cts")]
+
+    # Strict threshold above the VLM's 0.85 -> inherited min_confidence fails it closed.
+    strict = GateProfile(
+        name="confirm", window_s=20.0, max_frames=9, min_confidence=0.95, model_id="mock-model"
+    )
+    verdict = await runner.run(
+        gate_rule_id=rule.id, profile=strict, cameras=cameras, context=context
+    )
+    assert verdict.complete is False
+    assert verdict.reason == "low_confidence"
 
 
 def _gate_meta_fn():

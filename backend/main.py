@@ -562,6 +562,15 @@ async def lifespan(app: FastAPI):
         minio_client=minio_client,
         settings=settings,
     )
+    from backend.services.guided_task.gate_runner import GateGraphRunner
+
+    gate_runner = GateGraphRunner(
+        services=pipeline_executor._services,
+        db_factory=get_session,
+        settings=settings,
+    )
+    app.state.gate_runner = gate_runner
+
     guided_task_service = GuidedTaskService(
         db_factory=get_session,
         scheduler=scheduler_bridge,
@@ -596,6 +605,7 @@ async def lifespan(app: FastAPI):
         ),
         safety_watch=guided_safety_watch,
         settings=settings,
+        gate_runner=gate_runner,
     )
     app.state.guided_task_service = guided_task_service
     set_guided_task_service(guided_task_service)

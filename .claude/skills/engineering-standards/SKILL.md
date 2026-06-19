@@ -439,6 +439,23 @@ multiple parents. There is no unique constraint on `(source_step_id, source_port
 
 **Authoring-time vs execution-time graph validation.** `validate_graph(..., check_entry=...)` separates the two. The "exactly one entry node" rule is an *execution* invariant, enforced by the executor, rule import, and the read-only `GET /rules/{id}/validate` endpoint (which surfaces it as a non-blocking `graph_errors` warning). The edge-save endpoint (`PUT /rules/{id}/edges`) passes `check_entry=False`, because a pipeline under construction routinely has unwired steps (multiple entry nodes) and must remain editable. Structural checks (unknown step refs, invalid ports, cycles) always run. Never re-add the entry-count check to the edge-save path; it makes incremental editing and edge deletion 422.
 
+### Running a pipeline subgraph non-durably (the GateGraphRunner pattern)
+
+When you need to execute a subset or variation of a pipeline without storing state or starting database transactions (e.g. evaluating a vision-confirmation gate rule), use the `GateGraphRunner` pattern.
+
+1. **Reuse traversal core:** Never duplicate the DAG traversal logic. Reuse the existing pure traversal core functions: `traverse_dag`, `build_adjacency`, `build_graph_snapshot`, `apply_step_result`, and `resolve_pipeline_value`.
+2. **Synthetic execution & trigger context:** To support the `StepHandler` interface without DB persistence:
+   - Construct minimal, in-memory python class instances (e.g., `_SyntheticExecution` and `_SyntheticRule`) that duck-type only the fields actually read by the handlers.
+   - Enforce that these objects are never added to a SQLAlchemy session.
+   - Below is the current mapping of fields read by gate-safe handlers:
+     - `media_window_poll`: execution `.id` (used as lookback window key and for logs).
+     - `scene_analysis`: trigger `.sensor_id`, `.room_name`.
+     - `llm_call`: execution `.rule.name` (for trace tags), trigger `.room_name`, `.sensor_id`, `.media_type`.
+     - `gate_verdict` and `condition`: access only `pipeline_data`.
+3. **Short-lived read transactions:** Only query metadata (steps/edges) using a short-lived read-only session, and close it before traversal starts.
+4. **Three-layer gate-safety check:** Cross-link with the `gate_safe` convention (defined in `guided-companion` skill Section 16). Enforce that step types are `gate_safe` during graph validation, rule attachment/execution prep, and at runner runtime. Refuse the entire run if any unsafe node type is present.
+5. **Fail closed per node:** Run each node's handler under `asyncio.wait_for` with a timeout. If a handler throws an exception or times out, catch it, log `gate_node_failed`, and return an empty set of active ports (frozenset) to fail the node closed. Never let a node-level exception escape the traversal to crash the runner.
+
 ---
 
 ## 10. API design

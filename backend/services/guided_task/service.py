@@ -87,6 +87,7 @@ class GuidedTaskService:
         escalator: Escalator | None = None,
         settings: Settings | None = None,
         time_fn: Callable[[], datetime] | None = None,
+        gate_runner: Any = None,
     ) -> None:
         self._db_factory = db_factory
         self._scheduler = scheduler
@@ -113,6 +114,7 @@ class GuidedTaskService:
         self._settings = settings or default_settings
         self._time_fn = time_fn or (lambda: datetime.now(UTC))
         self._store = GuidedTaskStore(db_factory)
+        self._gate_runner = gate_runner
 
     def set_person_location_service(self, person_location_service: Any) -> None:
         self._person_location_service = person_location_service

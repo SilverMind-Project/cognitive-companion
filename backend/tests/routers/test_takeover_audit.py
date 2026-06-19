@@ -52,9 +52,7 @@ def _seed(db_session) -> GuidedSession:
     db_session.add(routine)
     db_session.flush()
     for ord_ in range(2):
-        db_session.add(
-            RoutineStep(routine_id=routine.id, ord=ord_, prompt_template=f"Step {ord_}")
-        )
+        db_session.add(RoutineStep(routine_id=routine.id, ord=ord_, prompt_template=f"Step {ord_}"))
     session = GuidedSession(
         routine_id=routine.id,
         person_id="resident-1",

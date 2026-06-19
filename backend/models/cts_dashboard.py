@@ -29,9 +29,7 @@ class CtsAlertSuppression(Base):
     """Caregiver suppression window for dementia-signal alerts."""
 
     __tablename__ = "cts_alert_suppressions"
-    __table_args__ = (
-        Index("ix_alert_suppressions_person_until", "person_id", "suppressed_until"),
-    )
+    __table_args__ = (Index("ix_alert_suppressions_person_until", "person_id", "suppressed_until"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     person_id: Mapped[str] = mapped_column(

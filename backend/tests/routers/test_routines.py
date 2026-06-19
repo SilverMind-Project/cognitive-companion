@@ -205,7 +205,9 @@ def test_auth_rejection(db_factory) -> None:
         client.post("/api/v1/routines/1/test-run", json={}),
     ]
     for resp in responses:
-        assert resp.status_code in (401, 403), f"Expected 401/403, got {resp.status_code} for {resp.url}"
+        assert resp.status_code in (401, 403), (
+            f"Expected 401/403, got {resp.status_code} for {resp.url}"
+        )
 
 
 def test_test_run_starts_session_without_presence_check(db_factory, db_session) -> None:

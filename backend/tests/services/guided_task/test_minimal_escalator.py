@@ -37,9 +37,7 @@ def _seed(db_session, *, channels: list[str] | None = None) -> GuidedSession:
     )
     db_session.add(routine)
     db_session.flush()
-    db_session.add(
-        RoutineStep(routine_id=routine.id, ord=0, prompt_template="Pour water.")
-    )
+    db_session.add(RoutineStep(routine_id=routine.id, ord=0, prompt_template="Pour water."))
     session = GuidedSession(
         routine_id=routine.id,
         person_id="resident-1",

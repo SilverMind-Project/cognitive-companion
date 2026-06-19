@@ -125,7 +125,10 @@ class GaitTrendService:
                     recent_sufficient.append((median_speed, total_walking_s))
 
         # Classify trend.
-        if len(baseline_sufficient) < _MIN_QUALIFYING_DAYS or len(recent_sufficient) < _MIN_QUALIFYING_DAYS:
+        if (
+            len(baseline_sufficient) < _MIN_QUALIFYING_DAYS
+            or len(recent_sufficient) < _MIN_QUALIFYING_DAYS
+        ):
             return GaitTrendEnvelope(
                 person_id=person_id,
                 days=day_points,
@@ -141,9 +144,8 @@ class GaitTrendService:
         decline_floor = max(_DECLINE_ABS_FLOOR, _DECLINE_PCT_FLOOR * baseline_median)
         mz = _modified_z(recent_median, list(b_speeds))
 
-        is_declining = (
-            recent_median <= baseline_median - decline_floor
-            and (mz is None or mz <= -2.0)
+        is_declining = recent_median <= baseline_median - decline_floor and (
+            mz is None or mz <= -2.0
         )
 
         return GaitTrendEnvelope(

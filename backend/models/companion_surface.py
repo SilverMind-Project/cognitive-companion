@@ -19,9 +19,7 @@ class CompanionSurface(Base):
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     surface_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    room_id: Mapped[int | None] = mapped_column(
-        ForeignKey("rooms.id"), index=True, nullable=True
-    )
+    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), index=True, nullable=True)
     room_source: Mapped[str] = mapped_column(String(16), nullable=False, default="caregiver")
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

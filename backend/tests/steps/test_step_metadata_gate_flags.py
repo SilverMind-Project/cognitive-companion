@@ -38,7 +38,9 @@ def test_expected_steps_are_gate_safe(step_type: str, expected_gate_safe: bool):
     handler = StepRegistry.get(step_type)
     assert handler is not None, f"Step type {step_type} is not registered"
     meta = handler.metadata()
-    assert meta.gate_safe == expected_gate_safe, f"Step type {step_type} gate_safe flag was expected to be {expected_gate_safe}"
+    assert meta.gate_safe == expected_gate_safe, (
+        f"Step type {step_type} gate_safe flag was expected to be {expected_gate_safe}"
+    )
 
 
 def test_gate_verdict_is_gate_only_and_hidden_from_normal_palette():

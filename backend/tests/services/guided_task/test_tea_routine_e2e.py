@@ -128,9 +128,7 @@ def _service(
 
 
 @pytest.mark.asyncio
-async def test_tea_routine_happy_path_advances_and_resumes_pipeline(
-    db_session, db_factory
-) -> None:
+async def test_tea_routine_happy_path_advances_and_resumes_pipeline(db_session, db_factory) -> None:
     routine_id = _seed_tea_routine(db_session)
     clock = _Clock()
     voice = _Voice()

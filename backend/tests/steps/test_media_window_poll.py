@@ -51,6 +51,9 @@ class _FakeMinio:
         self.presigned.append(object_name)
         return f"https://minio/{object_name}"
 
+    def extract_object_name(self, presigned_url: str) -> str:
+        return presigned_url.split("/")[-1].split("?")[0]
+
     async def async_get_object(self, object_name: str) -> bytes:
         return object_name.encode()
 
@@ -81,11 +84,12 @@ async def _execute(
     bucketizer: _FakeBucketizer | None = None,
     event_aggregator=None,
     minio_client=None,
+    pipeline_data=None,
 ) -> dict:
     result = await (handler or MediaWindowPollHandler()).execute(
         step=_FakeStep(config_json=config),
         execution=_FakeExecution(),
-        pipeline_data={},
+        pipeline_data=pipeline_data if pipeline_data is not None else {},
         trigger=TriggerContext(trigger_type="manual"),
         services=ServiceContainer(
             db_factory=lambda: None,
@@ -279,3 +283,122 @@ async def test_recamera_respects_sensor_and_room_filters() -> None:
         limit=10,
         since_minutes=5.0,
     )
+
+
+async def test_mixed_sources_merge_and_order_chronologically() -> None:
+    bucketizer = _FakeBucketizer({"cam-cts": [_frame(camera_id="cam-cts", seconds_ago=2.0)]})
+    aggregator = AsyncMock()
+    aggregator.query_media_by_sensor.return_value = [
+        "https://minio/3.0.jpg",
+        "https://minio/1.0.jpg",
+    ]
+    aggregator._minio = _FakeMinio()
+
+    data = await _execute(
+        {
+            "source": "auto",
+            "cameras": ["cam-cts", "recamera:sensor-1"],
+            "lookback_s": 5,
+            "sample_period_s": 0.1,
+        },
+        bucketizer=bucketizer,
+        event_aggregator=aggregator,
+        minio_client=_FakeMinio(),
+    )
+
+    assert len(data["frames"]) == 3
+    # Sorted chronologically (oldest to newest): 3.0s, 2.0s, 1.0s
+    times = [float(f["minio_key"].split("/")[-1].replace(".jpg", "")) for f in data["frames"]]
+    assert times == [3.0, 2.0, 1.0]
+    assert data["source"] == "mixed"
+
+
+async def test_mixed_downsample_caps_merged_stream() -> None:
+    bucketizer = _FakeBucketizer(
+        {
+            "cam-cts": [
+                _frame(camera_id="cam-cts", seconds_ago=4.0),
+                _frame(camera_id="cam-cts", seconds_ago=2.0),
+            ]
+        }
+    )
+    aggregator = AsyncMock()
+    aggregator.query_media_by_sensor.return_value = [
+        "https://minio/3.0.jpg",
+        "https://minio/1.0.jpg",
+    ]
+    aggregator._minio = _FakeMinio()
+
+    data = await _execute(
+        {
+            "source": "auto",
+            "cameras": ["cam-cts", "recamera:sensor-1"],
+            "lookback_s": 5,
+            "sample_period_s": 1.5,
+            "max_frames": 2,
+        },
+        bucketizer=bucketizer,
+        event_aggregator=aggregator,
+        minio_client=_FakeMinio(),
+    )
+
+    # Raw: 4.0, 3.0, 2.0, 1.0
+    # Downsampled with sample_period_s=1.5, max_frames=2:
+    # 4.0 -> kept
+    # 3.0 -> diff is 1.0 < 1.5 -> skip
+    # 2.0 -> diff is 2.0 >= 1.5 -> kept
+    # max_frames=2 reached -> stop
+    assert len(data["frames"]) == 2
+    times = [float(f["minio_key"].split("/")[-1].replace(".jpg", "")) for f in data["frames"]]
+    assert times == [4.0, 2.0]
+
+
+async def test_consumes_injected_cameras_when_source_auto() -> None:
+    bucketizer = _FakeBucketizer({"cam-cts": [_frame(camera_id="cam-cts", seconds_ago=2.0)]})
+    aggregator = AsyncMock()
+    aggregator.query_media_by_sensor.return_value = ["https://minio/1.0.jpg"]
+    aggregator._minio = _FakeMinio()
+
+    data = await _execute(
+        {"source": "auto", "lookback_s": 5},
+        bucketizer=bucketizer,
+        event_aggregator=aggregator,
+        minio_client=_FakeMinio(),
+        pipeline_data={
+            "_cameras": [
+                {"id": "cam-cts", "source": "cts"},
+                {"id": "recamera:sensor-1", "source": "recamera"},
+            ]
+        },
+    )
+
+    assert len(data["frames"]) == 2
+    assert data["source"] == "mixed"
+
+
+async def test_all_cts_path_identical_to_legacy() -> None:
+    bucketizer = _FakeBucketizer({"cam-cts": [_frame(camera_id="cam-cts", seconds_ago=2.0)]})
+    data = await _execute(
+        {"source": "cts", "cameras": ["cam-cts"], "lookback_s": 5},
+        bucketizer=bucketizer,
+        minio_client=_FakeMinio(),
+    )
+
+    assert data["source"] == "cts"
+    assert len(data["frames"]) == 1
+
+
+async def test_source_field_is_mixed_when_both_present() -> None:
+    bucketizer = _FakeBucketizer({"cam-cts": [_frame(camera_id="cam-cts", seconds_ago=2.0)]})
+    aggregator = AsyncMock()
+    aggregator.query_media_by_sensor.return_value = ["https://minio/1.0.jpg"]
+    aggregator._minio = _FakeMinio()
+
+    data = await _execute(
+        {"source": "auto", "cameras": ["cam-cts", "recamera:sensor-1"], "lookback_s": 5},
+        bucketizer=bucketizer,
+        event_aggregator=aggregator,
+        minio_client=_FakeMinio(),
+    )
+
+    assert data["source"] == "mixed"

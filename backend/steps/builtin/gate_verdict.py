@@ -140,7 +140,9 @@ class GateVerdictHandler(StepHandler):
                 raw_conf = resolve_pipeline_value(pipeline_data, confidence_path)
                 confidence = _bounded_float(raw_conf)
             except Exception as e:  # noqa: BLE001
-                logger.warning("gate_verdict_confidence_resolve_failed", error=str(e), path=confidence_path)
+                logger.warning(
+                    "gate_verdict_confidence_resolve_failed", error=str(e), path=confidence_path
+                )
                 confidence = 0.0
         else:
             confidence = 0.0

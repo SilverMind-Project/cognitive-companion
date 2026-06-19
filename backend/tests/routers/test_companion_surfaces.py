@@ -162,7 +162,4 @@ def test_auth_yaml_covers_companion_surface_routes():
         "POST /api/v1/companion-surfaces/*/heartbeat"
         in permission_map["companion_surfaces:heartbeat"]
     )
-    assert (
-        "POST /api/v1/companion-surfaces/*/heartbeat"
-        in permission_map["device:reterminal"]
-    )
+    assert "POST /api/v1/companion-surfaces/*/heartbeat" in permission_map["device:reterminal"]

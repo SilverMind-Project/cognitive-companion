@@ -36,7 +36,9 @@ async def test_handle_tool_calls_sends_provider_neutral_responses() -> None:
     )
     handler._current_session = session
 
-    await handler._handle_tool_calls([_FunctionCall(name="get_active_guided_step", args={}, id="c1")])
+    await handler._handle_tool_calls(
+        [_FunctionCall(name="get_active_guided_step", args={}, id="c1")]
+    )
 
     provider.send_tool_response.assert_awaited_once_with(
         session,

@@ -205,12 +205,18 @@ class CompanionSurfaceService:
     async def cross_check_room(self, surface_id: str, person_id: str) -> None:
         person_location = self._person_location_service
         if person_location is None:
-            logger.info("surface_room_cross_check_skipped", surface_id=surface_id, reason="no_location_service")
+            logger.info(
+                "surface_room_cross_check_skipped",
+                surface_id=surface_id,
+                reason="no_location_service",
+            )
             return
 
         location = await person_location.where_is(person_id)
         if location is None or location.room_id is None:
-            logger.info("surface_room_cross_check_skipped", surface_id=surface_id, reason="no_location")
+            logger.info(
+                "surface_room_cross_check_skipped", surface_id=surface_id, reason="no_location"
+            )
             return
 
         db = self._db_factory()

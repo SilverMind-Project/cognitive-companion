@@ -339,5 +339,5 @@ def _in_window(fired_at: str | None, ws: datetime, we: datetime) -> bool:
     try:
         t = _parse_iso(fired_at)
         return ws <= t <= we
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False

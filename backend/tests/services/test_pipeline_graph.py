@@ -173,8 +173,6 @@ def test_validate_graph_check_entry_false_still_catches_cycles():
 def test_validate_graph_check_entry_false_still_catches_invalid_ports():
     edges = [_FakeEdge(1, "maybe", 2)]
 
-    errors = validate_graph(
-        {1, 2}, edges, {1: ("true", "false"), 2: ("main",)}, check_entry=False
-    )
+    errors = validate_graph({1, 2}, edges, {1: ("true", "false"), 2: ("main",)}, check_entry=False)
 
     assert any("not in declared output_ports" in error for error in errors)

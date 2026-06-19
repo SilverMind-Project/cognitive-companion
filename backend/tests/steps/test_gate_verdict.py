@@ -151,7 +151,9 @@ async def test_expression_error_fails_closed_and_logs(caplog):
     pipeline_data = {}
 
     with caplog.at_level(logging.ERROR):
-        result = await handler.execute(step, _FakeExecution(), pipeline_data, _trigger(), MagicMock())
+        result = await handler.execute(
+            step, _FakeExecution(), pipeline_data, _trigger(), MagicMock()
+        )
 
     verdict = result.data["gate_verdict"]
     assert verdict["complete"] is False

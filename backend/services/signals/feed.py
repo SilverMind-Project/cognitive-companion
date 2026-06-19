@@ -56,9 +56,7 @@ class SignalsFeedService:
         envelopes: list[SignalEnvelope] = []
         if source in (None, "cts"):
             envelopes.extend(
-                await self._cts_signals(
-                    person_id=person_id, window_hours=window_hours, limit=limit
-                )
+                await self._cts_signals(person_id=person_id, window_hours=window_hours, limit=limit)
             )
         if source in (None, "pipeline_rule"):
             envelopes.extend(self._pipeline_rule_alerts(window_hours=window_hours))
@@ -152,9 +150,7 @@ class SignalsFeedService:
             return {}
         db = self._db_factory()
         try:
-            members = (
-                db.query(HouseholdMember).filter(HouseholdMember.id.in_(clean)).all()
-            )
+            members = db.query(HouseholdMember).filter(HouseholdMember.id.in_(clean)).all()
             return {m.id: m.name for m in members}
         finally:
             db.close()

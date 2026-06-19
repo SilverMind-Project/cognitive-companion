@@ -388,9 +388,7 @@ class SignalStore:
         """SQL GROUP BY room_name from context_json."""
         db = self._db_factory()
         try:
-            room_expr = DementiaSignal.context_json.op("->>")(
-                "room_name"
-            ).label("room_name")
+            room_expr = DementiaSignal.context_json.op("->>")("room_name").label("room_name")
             q = (
                 select(
                     room_expr,

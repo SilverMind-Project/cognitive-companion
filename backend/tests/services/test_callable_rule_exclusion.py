@@ -41,8 +41,10 @@ def test_callable_rule_not_in_default_rules_list(db_session: Session):
 
     # Set up client to request /rules
     app = FastAPI()
+
     async def override_get_db():
         yield db_session
+
     async def override_auth():
         return AuthContext(key="test", name="Test", permissions=["*"])
 
@@ -92,11 +94,20 @@ def test_callable_rule_not_scheduled(db_session: Session):
     db_session.add(link)
     db_session.commit()
 
-    rule_ids = [row[0] for row in db_session.query(RuleCronTrigger.rule_id).filter(RuleCronTrigger.cron_trigger_id == 1).all()]
+    rule_ids = [
+        row[0]
+        for row in db_session.query(RuleCronTrigger.rule_id)
+        .filter(RuleCronTrigger.cron_trigger_id == 1)
+        .all()
+    ]
     assert callable_rule.id in rule_ids
 
     # Query using active rules filter
-    rules = db_session.query(Rule).filter(Rule.id.in_(rule_ids), Rule.enabled.is_(True), Rule.filter_active()).all()
+    rules = (
+        db_session.query(Rule)
+        .filter(Rule.id.in_(rule_ids), Rule.enabled.is_(True), Rule.filter_active())
+        .all()
+    )
     assert len(rules) == 0
 
 
@@ -134,8 +145,10 @@ def test_callable_rule_not_telegram_or_webhook_target(db_session: Session):
     db_session.commit()
 
     app = FastAPI()
+
     async def override_get_db():
         yield db_session
+
     app.dependency_overrides[get_db] = override_get_db
     app.include_router(webhooks_router)
     client = TestClient(app)

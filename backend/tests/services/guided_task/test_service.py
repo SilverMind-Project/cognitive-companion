@@ -99,7 +99,7 @@ def _settings(max_step_attempts: int = 3, resume_grace_s: int = 600) -> Settings
                 "max_step_attempts": max_step_attempts,
                 "resume_grace_s": resume_grace_s,
                 "transcript_retention_days": 30,
-            }
+            },
         }
     )
 
@@ -183,9 +183,7 @@ async def test_handle_completion_advances_to_next_step(db_session, db_factory):
     service = _service(db_factory, clock, voice=voice)
     session = await service.start(routine_id, "resident-1")
 
-    result = await service.handle_completion(
-        session.id, {"confirmed": True, "step_ord": 0}
-    )
+    result = await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
 
     assert result["advanced"] is True
     assert result["done"] is False
@@ -207,9 +205,7 @@ async def test_handle_completion_on_last_step_completes_and_resumes_pipeline(
     service = _service(db_factory, clock, pipeline_executor=executor)
     session = await service.start(routine_id, "resident-1", execution_id=42)
 
-    result = await service.handle_completion(
-        session.id, {"confirmed": True, "step_ord": 0}
-    )
+    result = await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
 
     assert result["advanced"] is True
     assert result["done"] is True
@@ -228,9 +224,7 @@ async def test_duplicate_completion_is_idempotent(db_session, db_factory):
     session = await service.start(routine_id, "resident-1")
     await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
 
-    result = await service.handle_completion(
-        session.id, {"confirmed": True, "step_ord": 0}
-    )
+    result = await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
 
     assert result["advanced"] is False
     assert result["reason"] == "stale_step_completion"

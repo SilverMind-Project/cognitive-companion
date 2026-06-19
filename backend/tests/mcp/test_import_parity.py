@@ -132,9 +132,7 @@ def _snapshot_rule(db_factory, name: str) -> dict[str, Any]:
                 )
                 for edge in edges
             ],
-            "context_count": db.query(RuleContext)
-            .filter(RuleContext.rule_id == rule.id)
-            .count(),
+            "context_count": db.query(RuleContext).filter(RuleContext.rule_id == rule.id).count(),
         }
     finally:
         db.close()

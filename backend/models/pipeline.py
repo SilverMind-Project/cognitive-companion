@@ -75,13 +75,9 @@ class PipelineEdge(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     rule_id: Mapped[int] = mapped_column(ForeignKey("rules.id", ondelete="CASCADE"), index=True)
-    source_step_id: Mapped[int] = mapped_column(
-        ForeignKey("pipeline_steps.id", ondelete="CASCADE")
-    )
+    source_step_id: Mapped[int] = mapped_column(ForeignKey("pipeline_steps.id", ondelete="CASCADE"))
     source_port: Mapped[str] = mapped_column(String(64))
-    target_step_id: Mapped[int] = mapped_column(
-        ForeignKey("pipeline_steps.id", ondelete="CASCADE")
-    )
+    target_step_id: Mapped[int] = mapped_column(ForeignKey("pipeline_steps.id", ondelete="CASCADE"))
     target_port: Mapped[str] = mapped_column(String(64), server_default="main")
 
     # No unique constraint on (source_step_id, source_port): a single output

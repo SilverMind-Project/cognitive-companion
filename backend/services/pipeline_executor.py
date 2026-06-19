@@ -147,6 +147,7 @@ class PipelineExecutor:
         minio_client=None,
         rules_engine=None,
         event_publisher: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+        camera_source_resolver=None,
     ) -> None:
         self._services = ServiceContainer(
             db_factory=db_session_factory,
@@ -167,6 +168,7 @@ class PipelineExecutor:
             signals=signals,
             knowledge_delivery=knowledge_delivery,
             minio_client=minio_client,
+            camera_source_resolver=camera_source_resolver,
         )
         self._rules_engine = rules_engine
         self._event_publisher = event_publisher
@@ -814,9 +816,7 @@ class PipelineExecutor:
 
                 skip_reason = result.data.get("skip_reason")
 
-                event_log = (
-                    db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
-                )
+                event_log = db.query(EventLog).filter(EventLog.id == execution.event_log_id).first()
                 if event_log:
                     event_log.status = event_log_status
                     event_log.pipeline_data_json = copy_pipeline_snapshot(pipeline_data)

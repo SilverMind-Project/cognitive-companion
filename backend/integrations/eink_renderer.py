@@ -51,9 +51,7 @@ class EInkRenderer:
         self._display_height = settings.as_int("image.display_height")
 
         # Template dir is only used for seeding at startup; not accessed at render time.
-        self._local_templates_dir = Path(
-            settings.as_str("image.template_dir", allow_empty=False)
-        )
+        self._local_templates_dir = Path(settings.as_str("image.template_dir", allow_empty=False))
 
     # ------------------------------------------------------------------
     # Key helpers

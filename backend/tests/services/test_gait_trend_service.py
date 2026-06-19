@@ -92,7 +92,7 @@ async def test_sufficient_flag_applied_correctly(svc, client_mock):
     today = datetime.now(UTC).date()
     rows = [
         _make_row(today - timedelta(days=5), bout_count=2, total_walking_s=100),  # insufficient
-        _make_row(today - timedelta(days=6), bout_count=4, total_walking_s=40),   # insufficient
+        _make_row(today - timedelta(days=6), bout_count=4, total_walking_s=40),  # insufficient
         _make_row(today - timedelta(days=7), bout_count=5, total_walking_s=120),  # sufficient
     ]
     client_mock.list_gait_daily = AsyncMock(return_value=rows)

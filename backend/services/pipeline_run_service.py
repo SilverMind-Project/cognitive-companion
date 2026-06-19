@@ -192,7 +192,10 @@ def _build_envelope(execution: WorkflowExecution) -> PipelineRunEnvelope:
     db = object_session(execution)
     if rule is not None and db is not None:
         for edge in db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule_id).all():
-            if edge.source_step_id not in enabled_step_ids or edge.target_step_id not in enabled_step_ids:
+            if (
+                edge.source_step_id not in enabled_step_ids
+                or edge.target_step_id not in enabled_step_ids
+            ):
                 continue
             edges.append(
                 DagEdge(

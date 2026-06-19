@@ -94,6 +94,7 @@ def _include_object(object_, name, type_, reflected, compare_to) -> bool:
     """Exclude extension-owned tables from autogenerate drift checks."""
     return not (type_ == "table" and name in _IGNORED_TABLES)
 
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")

@@ -7,9 +7,11 @@ from typing import Any, Literal
 
 from backend.core.logging import get_logger
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.services.guided_task.camera_selection import ResolvedCamera
 from backend.services.media_window_frames import (
     CtsFrameWindowConfig,
     collect_recent_cts_frames,
+    collect_recent_frames_multi_source,
     parse_event_time,
 )
 from backend.steps import StepRegistry
@@ -56,6 +58,55 @@ class MediaWindowPollHandler(StepHandler):
         services: ServiceContainer,
     ) -> StepResult:
         config: dict[str, Any] = step.config_json or {}
+
+        # 1. Resolve source-tagged cameras
+        injected_cameras = pipeline_data.get("_cameras") if pipeline_data else None
+        configured_source = str(config.get("source", self.DEFAULT_SOURCE))
+        explicit_cameras = list(config.get("cameras") or [])
+
+        resolved_cameras: list[ResolvedCamera] = []
+
+        if configured_source == "auto" and not explicit_cameras and injected_cameras:
+            for c in injected_cameras:
+                resolved_cameras.append(ResolvedCamera(id=c["id"], source=c["source"]))
+        elif explicit_cameras:
+            resolver = services.camera_source_resolver
+            for cid in explicit_cameras:
+                if resolver is not None:
+                    src = resolver(cid)
+                    if src is not None:
+                        resolved_cameras.append(ResolvedCamera(id=cid, source=src))
+                    else:
+                        logger.warning("media_window_poll_camera_source_unknown", camera_id=cid)
+                        resolved_cameras.append(
+                            ResolvedCamera(
+                                id=cid, source="recamera" if cid.startswith("recamera:") else "cts"
+                            )
+                        )
+                else:
+                    resolved_cameras.append(
+                        ResolvedCamera(
+                            id=cid, source="recamera" if cid.startswith("recamera:") else "cts"
+                        )
+                    )
+
+        # 2. Check if we have mixed sources
+        has_cts = any(c.source == "cts" for c in resolved_cameras)
+        has_recamera = any(c.source == "recamera" for c in resolved_cameras)
+
+        if has_cts and has_recamera:
+            return await self._execute_mixed(config, execution, resolved_cameras, services)
+        elif resolved_cameras:
+            if has_cts:
+                return await self._execute_cts(
+                    config, execution, services, cameras=[c.id for c in resolved_cameras]
+                )
+            else:
+                return await self._execute_recamera(
+                    config, execution, services, sensor_ids=[c.id for c in resolved_cameras]
+                )
+
+        # 3. Fallback to single-source legacy behavior
         source = self._resolve_source(config, services)
         if source == "cts":
             return await self._execute_cts(config, execution, services)
@@ -81,12 +132,14 @@ class MediaWindowPollHandler(StepHandler):
         config: dict[str, Any],
         execution: WorkflowExecution,
         services: ServiceContainer,
+        cameras: list[str] | None = None,
     ) -> StepResult:
         now = datetime.now(UTC)
         lookback_s = float(config.get("lookback_s", 5))
         lookahead_s = float(config.get("lookahead_s", 5))
         window_start = now - timedelta(seconds=lookback_s)
-        cameras: list[str] = list(config.get("cameras") or [])
+        if cameras is None:
+            cameras = list(config.get("cameras") or [])
         rooms: list[str] = list(config.get("rooms") or [])
 
         bucketizer = services.bucketizer
@@ -150,11 +203,13 @@ class MediaWindowPollHandler(StepHandler):
         config: dict[str, Any],
         execution: WorkflowExecution,
         services: ServiceContainer,
+        sensor_ids: list[str] | None = None,
     ) -> StepResult:
         now = datetime.now(UTC)
         since_minutes = float(config.get("since_minutes", 5))
         window_start = now - timedelta(minutes=since_minutes)
-        sensor_ids: list[str] = list(config.get("sensor_ids") or config.get("cameras") or [])
+        if sensor_ids is None:
+            sensor_ids = list(config.get("sensor_ids") or config.get("cameras") or [])
         room_names: list[str] = list(config.get("room_names") or config.get("rooms") or [])
 
         aggregator = services.event_aggregator
@@ -221,6 +276,62 @@ class MediaWindowPollHandler(StepHandler):
                 "sensor_ids": sensor_ids,
                 "room_names": room_names,
                 "since_minutes": since_minutes,
+                "polled_at": now.isoformat(),
+            }
+        )
+
+    async def _execute_mixed(
+        self,
+        config: dict[str, Any],
+        execution: WorkflowExecution,
+        resolved_cameras: list[ResolvedCamera],
+        services: ServiceContainer,
+    ) -> StepResult:
+        now = datetime.now(UTC)
+        lookback_s = float(config.get("lookback_s", 5))
+        lookahead_s = float(config.get("lookahead_s", 5))
+        window_start = now - timedelta(seconds=lookback_s)
+        rooms: list[str] = list(config.get("rooms") or config.get("room_names") or [])
+
+        collected = await collect_recent_frames_multi_source(
+            bucketizer=services.bucketizer,
+            event_aggregator=services.event_aggregator,
+            minio_client=services.minio_client,
+            db_factory=services.db_factory,
+            cameras=resolved_cameras,
+            rooms=rooms,
+            lookback_s=lookback_s,
+            lookahead_s=lookahead_s,
+            sample_period_s=float(config.get("sample_period_s", 1.0)),
+            max_frames=int(config.get("max_frames", 30)),
+            now=now,
+            since_minutes=config.get("since_minutes") or (lookback_s / 60.0),
+            images_per_sensor=int(config.get("images_per_sensor", 3)),
+        )
+
+        if bool(config.get("include_scene", False)):
+            await _add_scene_captions(collected["frames"], execution, services)
+
+        summary = _summarize_frames(collected["frames"])
+
+        sensor_ids = [c.id for c in resolved_cameras if c.source == "recamera"]
+
+        return StepResult(
+            data={
+                "trigger_id": execution.id,
+                "window_start": window_start.isoformat(),
+                "window_end": now.isoformat(),
+                "cameras": [c.id for c in resolved_cameras],
+                "rooms": summary["rooms"] or rooms,
+                "frames": collected["frames"],
+                "images": collected["images"],
+                "count": len(collected["images"]),
+                "summary": summary,
+                "source": "mixed",
+                "partial": collected["partial"],
+                "sensor_ids": sensor_ids,
+                "room_names": rooms,
+                "since_minutes": config.get("since_minutes") or (lookback_s / 60.0),
                 "polled_at": now.isoformat(),
             }
         )

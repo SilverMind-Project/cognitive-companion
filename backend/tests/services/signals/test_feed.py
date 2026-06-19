@@ -151,12 +151,26 @@ async def test_severity_min_filters_lower_severities():
     svc = SignalsFeedService(db_factory=lambda: db)
 
     cts_rows = [
-        {"id": 1, "person_id": None, "signal_type": "x", "severity": "info",
-         "context_json": {}, "received_at": "2026-06-03T11:00:00+00:00",
-         "window_end": None, "acknowledged_at": None},
-        {"id": 2, "person_id": None, "signal_type": "y", "severity": "emergency",
-         "context_json": {}, "received_at": "2026-06-03T11:30:00+00:00",
-         "window_end": None, "acknowledged_at": None},
+        {
+            "id": 1,
+            "person_id": None,
+            "signal_type": "x",
+            "severity": "info",
+            "context_json": {},
+            "received_at": "2026-06-03T11:00:00+00:00",
+            "window_end": None,
+            "acknowledged_at": None,
+        },
+        {
+            "id": 2,
+            "person_id": None,
+            "signal_type": "y",
+            "severity": "emergency",
+            "context_json": {},
+            "received_at": "2026-06-03T11:30:00+00:00",
+            "window_end": None,
+            "acknowledged_at": None,
+        },
     ]
     with patch(
         "backend.services.signals.feed.SignalStore.list_recent",

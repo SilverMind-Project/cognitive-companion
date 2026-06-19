@@ -61,9 +61,7 @@ def _seed(db_session, *, status: str = "escalated", steps: int = 2) -> GuidedSes
     db_session.add(routine)
     db_session.flush()
     for ord_ in range(steps):
-        db_session.add(
-            RoutineStep(routine_id=routine.id, ord=ord_, prompt_template=f"Step {ord_}")
-        )
+        db_session.add(RoutineStep(routine_id=routine.id, ord=ord_, prompt_template=f"Step {ord_}"))
     session = GuidedSession(
         routine_id=routine.id,
         person_id="resident-1",
@@ -180,7 +178,6 @@ def test_auth_yaml_covers_takeover_routes() -> None:
     assert "GET /api/v1/guided-sessions/*/detail" in permission_map["guided_sessions:read"]
     for action in ["takeover", "say", "advance", "complete", "release"]:
         assert (
-            f"POST /api/v1/guided-sessions/*/{action}"
-            in permission_map["guided_sessions:takeover"]
+            f"POST /api/v1/guided-sessions/*/{action}" in permission_map["guided_sessions:takeover"]
         )
     assert "guided_sessions:takeover" in permission_map["caregiver"]

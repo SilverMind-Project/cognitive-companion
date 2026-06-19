@@ -14,7 +14,7 @@ from backend.services.cts._types import ConnectionManager
 logger = get_logger(__name__)
 
 _DEBOUNCE_S = 0.200  # 5 Hz max
-_HEARTBEAT_S = 5.0   # heartbeat when idle
+_HEARTBEAT_S = 5.0  # heartbeat when idle
 
 # Two camera observations for the same identified person are considered
 # simultaneous (and eligible for position averaging) when their
@@ -95,9 +95,7 @@ class WorldSnapshotPublisher:
 
     def mark_dirty(self, camera_id: str, ph_data_list: list[dict[str, Any]]) -> None:
         """Replace camera_id's PH entries atomically and schedule a snapshot."""
-        self._camera_phs[camera_id] = {
-            ph["ph_id"]: ph for ph in ph_data_list if ph.get("ph_id")
-        }
+        self._camera_phs[camera_id] = {ph["ph_id"]: ph for ph in ph_data_list if ph.get("ph_id")}
         self._dirty.set()
 
     async def start(self) -> None:
@@ -127,7 +125,7 @@ class WorldSnapshotPublisher:
         """
         # Collect all current observations from every camera.
         identified: dict[str, list[dict[str, Any]]] = {}  # identity_id → [ph_data, ...]
-        anonymous: dict[str, dict[str, Any]] = {}          # ph_id → latest ph_data
+        anonymous: dict[str, dict[str, Any]] = {}  # ph_id → latest ph_data
 
         for cam_phs in self._camera_phs.values():
             for ph in cam_phs.values():
@@ -137,7 +135,9 @@ class WorldSnapshotPublisher:
                     identified.setdefault(identity_id, []).append(ph)
                 elif ph_id:
                     prev = anonymous.get(ph_id)
-                    if prev is None or (ph.get("last_observed_at") or "") >= (prev.get("last_observed_at") or ""):
+                    if prev is None or (ph.get("last_observed_at") or "") >= (
+                        prev.get("last_observed_at") or ""
+                    ):
                         anonymous[ph_id] = ph
 
         result: list[dict[str, Any]] = list(anonymous.values())
@@ -155,7 +155,8 @@ class WorldSnapshotPublisher:
                 continue
 
             recent = [
-                o for o in observations
+                o
+                for o in observations
                 if (t := _ts(o.get("last_observed_at"))) is not None
                 and (latest_ts - t).total_seconds() <= _MULTI_CAM_WINDOW_S
             ]

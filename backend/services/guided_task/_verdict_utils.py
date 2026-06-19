@@ -12,6 +12,6 @@ def _bounded_float(value: Any) -> float:
         return 0.0
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
     return min(1.0, max(0.0, parsed))

@@ -37,9 +37,7 @@ def _make_client(svc_mock: AsyncMock) -> TestClient:
 
 def _svc_mock() -> AsyncMock:
     svc = AsyncMock()
-    svc.get_heatmap = AsyncMock(
-        return_value=HeatmapEnvelope(person_id="alice", bins=[])
-    )
+    svc.get_heatmap = AsyncMock(return_value=HeatmapEnvelope(person_id="alice", bins=[]))
     return svc
 
 

@@ -259,9 +259,7 @@ class AudioSessionHandler:
                                             await self.provider.disconnect(session)
                                         tool_declarations = None
                                         if self.tool_adapter:
-                                            tool_declarations = (
-                                                self.tool_adapter.get_declarations()
-                                            )
+                                            tool_declarations = self.tool_adapter.get_declarations()
                                         config = self.provider.build_config(
                                             system_instruction=voice_instruction,
                                             conversation_history=self._get_history_text(),

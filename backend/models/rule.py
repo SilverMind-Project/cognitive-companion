@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -76,6 +76,22 @@ class Rule(Base, TimestampMixin):
         secondary="rule_cts_window_triggers",
         back_populates="rules",
     )
+
+    @property
+    def is_callable(self) -> bool:
+        """True if this rule has no triggers and is only callable (e.g. vision gate graph)."""
+        return not self.trigger_types
+
+    @classmethod
+    def filter_active(cls):
+        """Returns a SQLAlchemy filter clause that excludes callable rules (trigger_types is not empty)."""
+        return func.jsonb_array_length(cls.trigger_types) > 0
+
+    @classmethod
+    def filter_callable(cls):
+        """Returns a SQLAlchemy filter clause that matches only callable rules (trigger_types is empty)."""
+        return func.jsonb_array_length(cls.trigger_types) == 0
+
 
 
 class RuleContext(Base):

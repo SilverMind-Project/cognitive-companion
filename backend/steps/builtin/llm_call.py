@@ -299,6 +299,7 @@ class LLMCallHandler(StepHandler):
                     "notification_suppressed": {"type": "boolean"},
                 },
             },
+            gate_safe=True,
         )
 
     async def execute(

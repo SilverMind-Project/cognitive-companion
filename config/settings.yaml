@@ -156,6 +156,21 @@ guided_task:
   escalation_channels: ["telegram", "pwa_popup_text"]
   summon_channels: ["ha_speaker_tts", "pwa_popup_text"]
   rephrase_via: "agent"
+  vision:
+    confirm:
+      window_s: 20
+      max_frames: 9
+      min_confidence: 0.7
+      min_interval_s: 15
+      max_disagreements: 2
+    watch:
+      enabled: false
+      tick_s: 20
+      window_s: 4
+      max_frames: 3
+      auto_advance: false
+      auto_advance_k: 3
+    gate_node_timeout_s: 30
 
 # WebSocket
 websocket:

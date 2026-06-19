@@ -49,6 +49,8 @@ def list_step_types(
             output_schema=m.output_schema if m.output_schema else None,
             tags=list(m.tags),
             output_ports=list(m.output_ports),
+            gate_safe=m.gate_safe,
+            gate_only=m.gate_only,
         )
         for m in StepRegistry.all_metadata()
     ]

@@ -142,6 +142,7 @@ class ImageCropHandler(StepHandler):
                 },
                 "required": ["images", "cropped_images", "count", "skipped", "cropped_at"],
             },
+            gate_safe=True,
         )
 
     # ------------------------------------------------------------------

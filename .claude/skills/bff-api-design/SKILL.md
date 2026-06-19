@@ -190,6 +190,13 @@ Add each tool to the `mcp.gemini_tools` allowlist in `config/settings.yaml`. Add
 registry smoke coverage plus router/MCP parity or direct service/tool coverage for
 any browser-visible guided-task data or mutation.
 
+## Rules and Callable Rules (Gate Graphs)
+
+Callable rules (vision gate graphs with `trigger_types == []`) are excluded from general rule-enumeration surfaces, cron schedulers, Telegram trigger lists, and webhook targets.
+- **List and CRUD endpoints:** The `GET /rules` router endpoint and MCP tools (`list_rules`, `get_rules`) exclude callable rules by default.
+- **Filtering:** Use the `callable` query parameter (e.g. `GET /api/v1/rules?callable=true`) to list callable rules specifically, or `callable=false` (default) to list normal triggered rules.
+- **Parity:** Parity rules apply to both regular rules and callable rules. Always reuse the same underlying service functions.
+
 ## Verification commands
 
 ```bash

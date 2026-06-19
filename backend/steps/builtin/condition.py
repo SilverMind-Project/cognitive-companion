@@ -72,6 +72,7 @@ class ConditionHandler(StepHandler):
                 },
             },
             output_ports=("true", "false"),
+            gate_safe=True,
         )
 
     async def execute(

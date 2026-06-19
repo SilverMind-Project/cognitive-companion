@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from collections.abc import Callable
 
-from backend.models.pipeline import PipelineEdge
+from backend.models.pipeline import PipelineEdge, PipelineStep
+from backend.steps.base import StepMetadata
 
 
 def build_adjacency(edges: list[PipelineEdge]) -> dict[int, dict[str, list[int]]]:
@@ -127,3 +129,86 @@ def validate_graph(
         errors.append(str(exc))
 
     return errors
+
+
+def validate_gate_graph(
+    steps: list[PipelineStep],
+    edges: list[PipelineEdge],
+    *,
+    step_metadata: Callable[[str], StepMetadata | None],
+    gate_safe_only: bool = False,
+) -> list[str]:
+    """Validate graph topology and gate safety rules for callable vision gate graphs.
+
+    Reuses validate_graph for topological validation, and adds:
+      - every step's type must be gate_safe (reject non-gate-safe with offending type names)
+      - if gate_safe_only is False:
+        - exactly one gate_verdict step must exist
+        - that gate_verdict step must be reachable from the entry node
+    """
+    errors: list[str] = []
+
+    step_ids = {s.id for s in steps}
+
+    # Check that all step types are gate_safe
+    unsafe_types: set[str] = set()
+    step_output_ports: dict[int, tuple[str, ...]] = {}
+    for s in steps:
+        meta = step_metadata(s.step_type)
+        if meta:
+            step_output_ports[s.id] = meta.output_ports
+            if not meta.gate_safe:
+                unsafe_types.add(s.step_type)
+        else:
+            # If metadata not found, it's an unknown step type
+            unsafe_types.add(s.step_type)
+            errors.append(f"Step {s.id} has unknown step type '{s.step_type}'.")
+
+    if unsafe_types:
+        errors.append(f"Gate graph contains non-gate-safe step types: {sorted(unsafe_types)}.")
+
+    # Run base structural validation
+    # If gate_safe_only is True, we don't enforce exactly one entry node yet (similar to check_entry=False in validate_graph)
+    base_errors = validate_graph(
+        step_ids=step_ids,
+        edges=edges,
+        step_output_ports=step_output_ports,
+        check_entry=not gate_safe_only,
+    )
+    errors.extend(base_errors)
+
+    # If gate_safe_only is True, skip strict verdict count and reachability checks
+    if gate_safe_only:
+        return errors
+
+    # Check for exactly one gate_verdict step
+    verdict_steps = [s for s in steps if s.step_type == "gate_verdict"]
+    if len(verdict_steps) == 0:
+        errors.append("Gate graph must contain exactly one gate_verdict step; found none.")
+    elif len(verdict_steps) > 1:
+        errors.append(
+            f"Gate graph must contain exactly one gate_verdict step; found {len(verdict_steps)}: {[s.id for s in verdict_steps]}."
+        )
+    else:
+        # Exactly one verdict step
+        verdict_step = verdict_steps[0]
+        # Check reachability from the entry node
+        entries = find_entry_step_ids(step_ids, edges)
+        if len(entries) == 1:
+            entry_id = entries[0]
+            if entry_id == verdict_step.id:
+                # Direct route (poll is verdict) - reachable
+                pass
+            else:
+                descendants = find_descendants(entry_id, step_ids, edges)
+                if verdict_step.id not in descendants:
+                    errors.append(
+                        f"The gate_verdict step {verdict_step.id} is not reachable from the entry node {entry_id}."
+                    )
+        elif len(entries) > 1:
+            # If there are multiple entry nodes, validate_graph (check_entry=True) already reported it,
+            # but we also cannot reliably trace reachability from a single entry.
+            pass
+
+    return errors
+

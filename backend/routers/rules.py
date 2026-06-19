@@ -37,7 +37,7 @@ from backend.schemas.rule import (
     RuleUpdate,
 )
 from backend.schemas.rule_bundle import ImportReport, RuleBundle
-from backend.services.pipeline_graph import validate_graph
+from backend.services.pipeline_graph import validate_gate_graph, validate_graph
 from backend.services.rule_importer import bundle_to_rule
 from backend.services.rule_serializer import rule_to_bundle, validate_bundle
 from backend.services.template_validator import validate_step_config
@@ -72,6 +72,7 @@ def _app_version() -> str:
 
 @router.get("", response_model=list[RuleListOut])
 def list_rules(
+    callable: bool | None = None,
     db: Session = Depends(get_db),
     _auth: AuthContext = Depends(require_permission("rules:read")),
 ) -> list[RuleListOut]:
@@ -93,6 +94,16 @@ def list_rules(
         .subquery()
     )
 
+    query = db.query(Rule)
+    if callable is True:
+        query = query.filter(Rule.filter_callable())
+    elif callable is False:
+        query = query.filter(Rule.filter_active())
+    else:
+        query = query.filter(Rule.filter_active())
+
+    rules = query.order_by(Rule.name).all()
+
     count_map: dict[int, RuleExecutionCounts] = {
         row.rule_id: RuleExecutionCounts(
             last_15m=row.last_15m or 0,
@@ -103,7 +114,6 @@ def list_rules(
         for row in db.query(counts_sq).all()
     }
 
-    rules = db.query(Rule).order_by(Rule.name).all()
     result: list[RuleListOut] = []
     for rule in rules:
         out = RuleListOut.model_validate(rule)
@@ -310,7 +320,7 @@ def replace_rule_edges(
             )
         )
 
-    _validate_rule_graph_or_raise(list(rule.steps), new_edges)
+    _validate_rule_graph_or_raise(list(rule.steps), new_edges, is_callable=rule.is_callable)
 
     db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule_id).delete(synchronize_session=False)
     db.add_all(new_edges)
@@ -385,18 +395,27 @@ def _collect_step_output_ports(steps: list[PipelineStep]) -> dict[int, tuple[str
     return output_ports
 
 
-def _validate_rule_graph_or_raise(steps: list[PipelineStep], edges: list[PipelineEdge]) -> None:
+def _validate_rule_graph_or_raise(steps: list[PipelineStep], edges: list[PipelineEdge], is_callable: bool = False) -> None:
     # Authoring-time validation: enforce structural integrity (unknown steps,
     # duplicate source ports, invalid ports, cycles) but NOT the single-entry
     # rule. A pipeline under construction routinely has unwired steps (multiple
     # entry nodes); that is reported as a non-blocking warning by the validate
     # endpoint and enforced at execution time, not on every edge save.
-    errors = validate_graph(
-        {step.id for step in steps},
-        edges,
-        _collect_step_output_ports(steps),
-        check_entry=False,
-    )
+    if is_callable:
+        from backend.steps import StepRegistry
+        errors = validate_gate_graph(
+            steps,
+            edges,
+            step_metadata=lambda t_name: StepRegistry.get(t_name).metadata() if StepRegistry.exists(t_name) else None,
+            gate_safe_only=True,
+        )
+    else:
+        errors = validate_graph(
+            {step.id for step in steps},
+            edges,
+            _collect_step_output_ports(steps),
+            check_entry=False,
+        )
     if errors:
         raise ValidationError("; ".join(errors))
 
@@ -571,11 +590,20 @@ def validate_rule(
     graph_errors: list[str] = []
     if steps:
         edges = db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule_id).all()
-        graph_errors = validate_graph(
-            {step.id for step in steps},
-            edges,
-            _collect_step_output_ports(steps),
-        )
+        if rule.is_callable:
+            from backend.steps import StepRegistry
+            graph_errors = validate_gate_graph(
+                steps,
+                edges,
+                step_metadata=lambda t_name: StepRegistry.get(t_name).metadata() if StepRegistry.exists(t_name) else None,
+                gate_safe_only=False,
+            )
+        else:
+            graph_errors = validate_graph(
+                {step.id for step in steps},
+                edges,
+                _collect_step_output_ports(steps),
+            )
 
     return {
         "rule_id": rule_id,

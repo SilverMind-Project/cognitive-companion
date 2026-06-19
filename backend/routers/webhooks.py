@@ -52,7 +52,7 @@ async def trigger_webhook(
     rule = (
         db.query(Rule)
         .options(joinedload(Rule.steps))
-        .filter(Rule.id == rule_id, Rule.enabled.is_(True))
+        .filter(Rule.id == rule_id, Rule.enabled.is_(True), Rule.filter_active())
         .first()
     )
     if not rule:
@@ -109,9 +109,9 @@ async def regenerate_webhook_secret(
     db: Session = Depends(get_db),
 ):
     """Generate or regenerate the webhook secret for a rule."""
-    rule = db.get(Rule, rule_id)
+    rule = db.query(Rule).filter(Rule.id == rule_id, Rule.filter_active()).first()
     if not rule:
-        raise HTTPException(status_code=404, detail="Rule not found")
+        raise HTTPException(status_code=404, detail="Rule not found or is a gate rule")
 
     new_secret = generate_webhook_secret()
     if not rule.webhook_config:

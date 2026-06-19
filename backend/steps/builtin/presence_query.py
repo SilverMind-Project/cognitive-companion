@@ -120,6 +120,7 @@ class PresenceQueryHandler(StepHandler):
                 "signal_window_minutes": 30,
                 "output_key": "presence",
             },
+            gate_safe=True,
         )
 
     async def execute(

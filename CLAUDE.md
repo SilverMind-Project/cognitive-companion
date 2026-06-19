@@ -54,12 +54,15 @@ Shared camera aggregation primitives live in `backend/services/aggregation/`;
 - An output port may fan out to multiple targets, and a step may fan in (join). The executor traverses in-degree-gated: a join runs once, after all parents; dead branches (a `condition`'s unactivated port) are skipped and the skip propagates. `build_adjacency` maps `{source: {port: [targets]}}`.
 - The single-entry-node rule is execution-time only. Edge-save (`PUT /rules/{id}/edges`) uses `validate_graph(check_entry=False)` so in-progress pipelines with unwired steps stay editable; structural checks (cycles, ports, unknown steps) always run.
 - `wait`/`interactive_prompt` must be on a linear segment; in a parallel branch the executor fails loud (resume cannot rebuild sibling branches).
+- **Callable Rules (Vision Gates):** Rules with `trigger_types == []` are callable rules representing vision-gate validation graphs. They are excluded from scheduling, telegram, webhooks, and rules listings by default.
+- **Gate-Safe & Gate-Only Steps:** Steps with `gate_safe=True` (read-only perception/logic steps, e.g. `media_window_poll`, `scene_analysis`, `condition`, `gate_verdict`, etc.) are allowed to run inside non-durable gate graphs. Steps with `gate_only=True` (such as `gate_verdict`) only appear in vision-gate graph palettes.
 
-Current built-in step types: `activity_detection`, `activity_session_start`, `activity_session_end`, `condition`, `daily_report`, `ha_action`, `home_state`, `image_crop`, `info_card`, `interactive_prompt`, `llm_call`, `media_window_poll`, `notification`, `object_trend_analysis`, `person_identification`, `presence_query`, `quiz_start`, `scene_analysis`, `semantic_memory_query`, `semantic_memory_write`, `verification`, `wait`. `media_window_poll` is the single camera polling step for both CTS and reCamera sources (select via its `source` config: `auto`, `cts`, or `recamera`). The former `cts_window_poll` and `recamera_media_poll` step types have been removed.
+Current built-in step types: `activity_detection`, `activity_session_start`, `activity_session_end`, `condition`, `daily_report`, `gate_verdict`, `ha_action`, `home_state`, `image_crop`, `info_card`, `interactive_prompt`, `llm_call`, `media_window_poll`, `notification`, `object_trend_analysis`, `person_identification`, `presence_query`, `quiz_start`, `scene_analysis`, `semantic_memory_query`, `semantic_memory_write`, `verification`, `wait`. `media_window_poll` is the single camera polling step for both CTS and reCamera sources (select via its `source` config: `auto`, `cts`, or `recamera`). The former `cts_window_poll` and `recamera_media_poll` step types have been removed.
 
 Channels: `pwa_popup_text`, `pwa_realtime_ai`, `pwa_tts_announcement`, `telegram`, `eink`, `ha_speaker_tts`, `webhook`.
 
 Filters: `room`, `time_range`, `day_of_week`, `person_presence`, `person_activity`, `room_transition`, `person_movement_memory`, `scene_contains`, `scene_trend`, `home_state`, `presence_status`, `presence_dwell`, `dementia_signal`.
+
 
 ## Execution observability
 

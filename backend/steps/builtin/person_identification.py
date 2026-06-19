@@ -124,6 +124,7 @@ class PersonIdentificationHandler(StepHandler):
                     "skip_reason": {"type": "string"},
                 },
             },
+            gate_safe=True,
         )
 
     # ------------------------------------------------------------------

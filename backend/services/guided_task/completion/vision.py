@@ -8,6 +8,7 @@ from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.llm.json_utils import parse_llm_json
+from backend.services.guided_task._verdict_utils import _bounded_float
 from backend.services.guided_task.camera_selection import IdentityResolver, select_cameras
 from backend.services.guided_task.completion.base import CompletionResult
 from backend.services.media_window_frames import CtsFrameWindowConfig, collect_recent_cts_frames
@@ -183,11 +184,3 @@ def _build_prompt(vision_cfg: dict[str, Any]) -> str:
         f"The step is complete if: {done_description}. "
         'Respond with strict JSON: {"complete": bool, "confidence": 0..1, "reason": "..."}'
     )
-
-
-def _bounded_float(value: Any) -> float:
-    try:
-        parsed = float(value)
-    except TypeError, ValueError:
-        return 0.0
-    return min(1.0, max(0.0, parsed))

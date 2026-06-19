@@ -53,6 +53,19 @@
 
     <!-- Vision confirm config -->
     <template v-if="gate.kinds.includes('vision_confirm')">
+      <div class="d-flex align-center justify-space-between mb-2">
+        <v-btn
+          variant="outlined"
+          color="primary"
+          size="small"
+          prepend-icon="mdi-eye-outline"
+          class="my-1"
+          @click="showGateEditor = true"
+        >
+          Edit vision logic
+        </v-btn>
+      </div>
+
       <v-textarea
         :model-value="gate.vision?.description ?? ''"
         label="What 'done' looks like (English)"
@@ -67,6 +80,12 @@
         :model-value="gate.vision?.camera_ids ?? null"
         label="Camera override (vision check)"
         @update:model-value="updateSub('vision', 'camera_ids', $event)"
+      />
+
+      <GateEditorDialog
+        v-model="showGateEditor"
+        :gate="gate"
+        @save="onSaveGate"
       />
     </template>
 
@@ -110,9 +129,10 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { ref, computed } from "vue";
 import ZonePicker from "./ZonePicker.vue";
 import CameraPicker from "./CameraPicker.vue";
+import GateEditorDialog from "./GateEditorDialog.vue";
 
 const props = defineProps({
   modelValue: {
@@ -123,6 +143,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update:modelValue"]);
+
+const showGateEditor = ref(false);
 
 const gate = computed(() => ({
   kinds: ["response"],
@@ -146,5 +168,9 @@ function toggleKind(kind, enabled) {
 function updateSub(section, key, value) {
   const existing = gate.value[section] ?? {};
   emit("update:modelValue", { ...gate.value, [section]: { ...existing, [key]: value } });
+}
+
+function onSaveGate(newGate) {
+  emit("update:modelValue", newGate);
 }
 </script>

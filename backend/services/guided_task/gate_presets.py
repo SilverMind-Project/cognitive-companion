@@ -172,10 +172,10 @@ def build_default_vlm_gate(
     verdict = _add_step(
         db, rule, order=2, step_type="gate_verdict", label="gate_verdict_2",
         config=_verdict_config(
-            complete_if=(
-                "steps.llm_call_1.outputs.vision_response.complete and "
-                "steps.llm_call_1.outputs.vision_response.confidence >= 0.7"
-            ),
+            # The threshold is the single ``min_confidence`` knob (inherited from the
+            # runner profile, per-step/per-routine overridable); do not duplicate it
+            # in the expression. The verdict node fails closed below it.
+            complete_if="steps.llm_call_1.outputs.vision_response.complete",
             confidence_path="steps.llm_call_1.outputs.vision_response.confidence",
             reason_path="steps.llm_call_1.outputs.vision_response.reason",
         ),
@@ -243,10 +243,10 @@ def build_kettle_on_hob_gate(db: Session, *, name: str = "Kettle on Hob Gate") -
     verdict = _add_step(
         db, rule, order=4, step_type="gate_verdict", label="gate_verdict_1",
         config=_verdict_config(
-            complete_if=(
-                "steps.llm_call_1.outputs.vision_response.complete and "
-                "steps.llm_call_1.outputs.vision_response.confidence >= 0.7"
-            ),
+            # Single threshold via ``min_confidence`` (profile-inherited); not duplicated
+            # here. On the cheap false branch the VLM output is never written, so this
+            # path resolves False and the verdict fails closed with no model call.
+            complete_if="steps.llm_call_1.outputs.vision_response.complete",
             confidence_path="steps.llm_call_1.outputs.vision_response.confidence",
             reason_path="steps.llm_call_1.outputs.vision_response.reason",
         ),

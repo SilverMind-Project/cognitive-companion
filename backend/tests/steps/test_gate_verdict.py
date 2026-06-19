@@ -125,6 +125,57 @@ async def test_low_confidence_fails_closed():
     assert verdict["reason"] == "low_confidence"
 
 
+async def test_profile_min_confidence_is_inherited_when_node_unset():
+    """When the node leaves ``min_confidence`` unset, the runner profile's
+    threshold (injected as ``_profile``) is the effective fail-closed floor.
+
+    This is the regression for the previously-dead
+    ``completion_gate.vision.*.min_confidence`` override: flipping the profile
+    threshold must flip the verdict for the same confidence.
+    """
+    handler = GateVerdictHandler()
+    step = _FakeStep(
+        config_json={
+            "complete_if": "steps.vlm.outputs.complete",
+            "confidence_path": "steps.vlm.outputs.confidence",
+        }
+    )
+    base = {
+        "steps": {"vlm": {"outputs": {"complete": True, "confidence": 0.8}}},
+    }
+
+    # Profile threshold below the score -> stays complete.
+    low = {**base, "_profile": {"name": "confirm", "min_confidence": 0.6}}
+    result = await handler.execute(step, _FakeExecution(), low, _trigger(), MagicMock())
+    assert result.data["gate_verdict"]["complete"] is True
+
+    # Same node + same score, profile threshold raised above the score -> the
+    # override now fails the verdict closed (previously this had no effect).
+    high = {**base, "_profile": {"name": "confirm", "min_confidence": 0.9}}
+    result = await handler.execute(step, _FakeExecution(), high, _trigger(), MagicMock())
+    assert result.data["gate_verdict"]["complete"] is False
+    assert result.data["gate_verdict"]["reason"] == "low_confidence"
+
+
+async def test_node_min_confidence_overrides_profile():
+    """An explicit node ``min_confidence`` wins over the profile threshold."""
+    handler = GateVerdictHandler()
+    step = _FakeStep(
+        config_json={
+            "complete_if": "steps.vlm.outputs.complete",
+            "confidence_path": "steps.vlm.outputs.confidence",
+            "min_confidence": 0.5,
+        }
+    )
+    pipeline_data = {
+        "steps": {"vlm": {"outputs": {"complete": True, "confidence": 0.6}}},
+        "_profile": {"name": "confirm", "min_confidence": 0.95},
+    }
+
+    result = await handler.execute(step, _FakeExecution(), pipeline_data, _trigger(), MagicMock())
+    assert result.data["gate_verdict"]["complete"] is True
+
+
 async def test_missing_confidence_path_defaults_zero():
     handler = GateVerdictHandler()
     step = _FakeStep(

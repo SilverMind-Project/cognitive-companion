@@ -109,14 +109,22 @@ class GateVerdictHandler(StepHandler):
         confidence_path = config.get("confidence_path", "")
         reason_path = config.get("reason_path", "")
 
-        # Load min_confidence from config, falling back to settings
+        # Resolve the fail-closed confidence threshold. Precedence: the node's own
+        # ``min_confidence`` config, then the runner profile's ``min_confidence``
+        # (injected as ``pipeline_data["_profile"]``, the same inheritance path as
+        # window_s/max_frames), then the ``config/settings.yaml`` global. Inheriting
+        # the profile keeps the documented ``completion_gate.vision.*.min_confidence``
+        # override live in one place (D22/D23) rather than dead in the runner.
         try:
             default_min_conf = settings.as_float("guided_task.vision.confirm.min_confidence")
         except Exception:  # noqa: BLE001
             default_min_conf = 0.7
         min_confidence = config.get("min_confidence")
         if min_confidence is None:
-            min_confidence = default_min_conf
+            profile_min = (pipeline_data.get("_profile") or {}).get("min_confidence")
+            min_confidence = (
+                _bounded_float(profile_min) if profile_min is not None else default_min_conf
+            )
         else:
             min_confidence = _bounded_float(min_confidence)
 

@@ -61,6 +61,8 @@ EXPECTED_TOOLS = {
     "get_guided_abandonment",
     "get_guided_escalation_breakdown",
     "get_guided_vision_agreement",
+    "get_guided_watch_summary",
+    "get_guided_gate_cost_summary",
     "get_guided_time_of_day",
     "list_rules",
     "list_plugin_metadata",
@@ -71,7 +73,7 @@ EXPECTED_TOOLS = {
     "acknowledge_dementia_signal",
 }
 
-EXPECTED_COUNT = 54
+EXPECTED_COUNT = 56
 
 
 # ---------------------------------------------------------------------------

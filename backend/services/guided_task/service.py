@@ -37,7 +37,7 @@ from backend.schemas.guided_task_ws import GuidedSessionUpdateEvent
 from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
 from backend.services.guided_task.completion.response import build_evaluators, evaluate_completion
 from backend.services.guided_task.domain import Decision, SessionView, StepView
-from backend.services.guided_task.policy import resolve_policy
+from backend.services.guided_task.policy import resolve_policy, resolve_vision_override
 from backend.services.guided_task.ports import (
     Escalator,
     NoopEscalator,
@@ -535,33 +535,33 @@ class GuidedTaskService:
                 and vision_detail is not None
                 and vision_detail.get("complete") is False
             ):
-                # Resolve max_disagreements: step -> routine -> global
+                # Resolve the disagreement bound: step -> routine -> global -> default.
                 confirm_cfg = (step.completion_gate or {}).get("vision", {}).get("confirm") or {}
-                max_disagreements = confirm_cfg.get("max_disagreements")
-                if max_disagreements is None:
-                    routine_cfg = (getattr(routine, "config_json", None) or {}).get(
-                        "guided_task", {}
-                    ).get("vision", {}).get("confirm") or {}
-                    max_disagreements = routine_cfg.get("max_disagreements")
-                if max_disagreements is None:
-                    max_disagreements = self._settings.as_int(
-                        "guided_task.vision.confirm.max_disagreements"
-                    )
-
-                # Resolve on_max_disagreements: step -> routine -> global
-                on_max = confirm_cfg.get("on_max_disagreements")
-                if on_max is None:
-                    routine_cfg = (getattr(routine, "config_json", None) or {}).get(
-                        "guided_task", {}
-                    ).get("vision", {}).get("confirm") or {}
-                    on_max = routine_cfg.get("on_max_disagreements")
-                if on_max is None:
-                    try:
-                        on_max = self._settings.as_str(
-                            "guided_task.vision.confirm.on_max_disagreements"
-                        )
-                    except Exception:  # noqa: BLE001
-                        on_max = "advance"
+                routine_confirm_cfg = (
+                    (getattr(routine, "config_json", None) or {})
+                    .get("guided_task", {})
+                    .get("vision", {})
+                    .get("confirm")
+                    or {}
+                )
+                max_disagreements = resolve_vision_override(
+                    "max_disagreements",
+                    step_cfg=confirm_cfg,
+                    routine_cfg=routine_confirm_cfg,
+                    settings=self._settings,
+                    settings_path="guided_task.vision.confirm.max_disagreements",
+                    cast=int,
+                    default=2,
+                )
+                on_max = resolve_vision_override(
+                    "on_max_disagreements",
+                    step_cfg=confirm_cfg,
+                    routine_cfg=routine_confirm_cfg,
+                    settings=self._settings,
+                    settings_path="guided_task.vision.confirm.on_max_disagreements",
+                    cast=str,
+                    default="advance",
+                )
 
                 # Count disagreements in the DB for this step_ord.
                 # Since the current one was just recorded, we fetch all of them.
@@ -1881,19 +1881,18 @@ class GuidedTaskService:
         confirm_cfg = vision_cfg.get("confirm") or {}
         routine_cfg = (getattr(routine, "config_json", None) or {}).get("guided_task", {}).get("vision", {})
 
+        r_watch = routine_cfg.get("watch") or {}
+
         def resolve_val(key: str, default_path: str, type_cast: Callable[[Any], Any], fallback: Any = None) -> Any:
-            if key in watch_cfg and watch_cfg[key] is not None:
-                return type_cast(watch_cfg[key])
-            r_watch = routine_cfg.get("watch") or {}
-            if key in r_watch and r_watch[key] is not None:
-                return type_cast(r_watch[key])
-            if self._settings is not None:
-                import contextlib
-                with contextlib.suppress(Exception):
-                    val = self._settings.get(default_path)
-                    if val is not None:
-                        return type_cast(val)
-            return fallback
+            return resolve_vision_override(
+                key,
+                step_cfg=watch_cfg,
+                routine_cfg=r_watch,
+                settings=self._settings,
+                settings_path=default_path,
+                cast=type_cast,
+                default=fallback,
+            )
 
         enabled = resolve_val("enabled", "guided_task.vision.watch.enabled", bool, False)
         if not enabled:
@@ -1921,18 +1920,19 @@ class GuidedTaskService:
         model_id = resolve_val("model_id", "guided_task.vision.watch.model_id", str)
         prune_heavy = resolve_val("prune_heavy", "guided_task.vision.watch.prune_heavy", bool, True)
 
+        # Watch has no dedicated min_confidence default; fall back to the confirm
+        # threshold (step -> routine -> global -> 0.7) when watch leaves it unset.
         min_confidence = resolve_val("min_confidence", "guided_task.vision.watch.min_confidence", float)
         if min_confidence is None:
-            min_confidence = (confirm_cfg or {}).get("min_confidence")
-            if min_confidence is None:
-                r_confirm = routine_cfg.get("confirm") or {}
-                min_confidence = r_confirm.get("min_confidence")
-            if min_confidence is None and self._settings is not None:
-                import contextlib
-                with contextlib.suppress(Exception):
-                    min_confidence = self._settings.as_float("guided_task.vision.confirm.min_confidence")
-            if min_confidence is None:
-                min_confidence = 0.7
+            min_confidence = resolve_vision_override(
+                "min_confidence",
+                step_cfg=confirm_cfg,
+                routine_cfg=routine_cfg.get("confirm") or {},
+                settings=self._settings,
+                settings_path="guided_task.vision.confirm.min_confidence",
+                cast=float,
+                default=0.7,
+            )
 
         from backend.services.guided_task.gate_runner import GateProfile, GateRunContext
         watch_profile = GateProfile(

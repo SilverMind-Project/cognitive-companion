@@ -5,6 +5,10 @@ description: "Use when adding or changing a browser-visible BFF envelope, endpoi
 
 # BFF API Design
 
+For CTS identity target, provenance, segment correction, or ReID review contracts, also load
+`/home/sriram/code/nanai/cognitive-companion/.claude/skills/cts-identity-admin/SKILL.md` and
+`/home/sriram/code/nanai/continuous-tracking/.claude/skills/cts-identity-governance/SKILL.md`.
+
 This skill covers how to add a new endpoint to the Cognitive Companion BFF in a way that automatically satisfies the MCP/BFF parity guarantee (design rule D6): the same service function powers both the Vue UI router and the MCP tool.
 
 ## The invariant

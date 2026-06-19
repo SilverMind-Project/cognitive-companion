@@ -19,6 +19,7 @@ from backend.schemas.guided_metrics import (
     GuidedCompletionSummaryEnvelope,
     GuidedEscalationBreakdownEnvelope,
     GuidedEscalationMetric,
+    GuidedGateCostSummaryEnvelope,
     GuidedMetricsDashboardEnvelope,
     GuidedMetricsWindow,
     GuidedOutcomeCount,
@@ -29,6 +30,7 @@ from backend.schemas.guided_metrics import (
     GuidedTimeOfDayEnvelope,
     GuidedTimeToCompleteEnvelope,
     GuidedVisionAgreementEnvelope,
+    GuidedWatchSummaryEnvelope,
 )
 
 
@@ -284,8 +286,27 @@ class GuidedMetricsService:
         until: datetime | None = None,
     ) -> GuidedVisionAgreementEnvelope:
         window = self._window(person_id=person_id, routine_id=routine_id, since=since, until=until)
-        agreed_expr = self._json_bool(GuidedSessionEvent.detail, "agreed")
-        uncertain_expr = self._json_bool(GuidedSessionEvent.detail, "uncertain")
+        agreed_expr = case(
+            (GuidedSessionEvent.detail["complete"].astext == "true", true()),
+            (GuidedSessionEvent.detail["agreed"].astext == "true", true()),
+            else_=false(),
+        )
+        min_conf = 0.7
+        if self._settings is not None:
+            import contextlib
+            with contextlib.suppress(Exception):
+                min_conf = self._settings.as_float("guided_task.vision.confirm.min_confidence")
+
+        from sqlalchemy import Float
+        uncertain_expr = case(
+            (GuidedSessionEvent.detail["uncertain"].astext == "true", true()),
+            (case(
+                (GuidedSessionEvent.detail["confidence"].astext.isnot(None),
+                 GuidedSessionEvent.detail["confidence"].astext.cast(Float) < min_conf),
+                else_=false()
+            ).is_(true()), true()),
+            else_=false(),
+        )
         db = self._db_factory()
         try:
             row = db.execute(
@@ -311,6 +332,182 @@ class GuidedMetricsService:
             agreed=agreed,
             uncertain=int(row[2]),
             agreement_rate=self._rate(agreed, total),
+        )
+
+    def watch_summary(
+        self,
+        *,
+        person_id: str,
+        routine_id: int | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> GuidedWatchSummaryEnvelope:
+        window = self._window(person_id=person_id, routine_id=routine_id, since=since, until=until)
+        db = self._db_factory()
+        try:
+            filters = self._session_filters(window)
+            total_runs = int(
+                db.execute(
+                    select(func.count(GuidedSessionEvent.id))
+                    .join(GuidedSession, GuidedSession.id == GuidedSessionEvent.session_id)
+                    .where(*filters, GuidedSessionEvent.kind == "watch")
+                ).scalar_one()
+            )
+
+            auto_advances = int(
+                db.execute(
+                    select(func.count(GuidedSessionEvent.id))
+                    .join(GuidedSession, GuidedSession.id == GuidedSessionEvent.session_id)
+                    .where(
+                        *filters,
+                        GuidedSessionEvent.kind == "step_completed",
+                        GuidedSessionEvent.detail["completion_reason"].astext == "watch_auto_advance",
+                    )
+                ).scalar_one()
+            )
+
+            watch_events_stmt = (
+                select(GuidedSessionEvent)
+                .join(GuidedSession, GuidedSession.id == GuidedSessionEvent.session_id)
+                .where(*filters, GuidedSessionEvent.kind == "watch")
+                .order_by(GuidedSessionEvent.session_id, GuidedSessionEvent.step_ord, GuidedSessionEvent.at)
+            )
+            watch_events = list(db.execute(watch_events_stmt).scalars().all())
+
+            confirm_events_stmt = (
+                select(GuidedSessionEvent)
+                .join(GuidedSession, GuidedSession.id == GuidedSessionEvent.session_id)
+                .where(*filters, GuidedSessionEvent.kind == "vision_confirm")
+                .order_by(GuidedSessionEvent.session_id, GuidedSessionEvent.step_ord, GuidedSessionEvent.at)
+            )
+            confirm_events = list(db.execute(confirm_events_stmt).scalars().all())
+        finally:
+            db.close()
+
+        total_model_calls = 0
+        total_frames = 0
+        total_latency_ms = 0.0
+        for e in watch_events:
+            cost = (e.detail or {}).get("cost") or {}
+            total_model_calls += cost.get("model_calls", 0)
+            total_frames += cost.get("frames", 0)
+            total_latency_ms += cost.get("latency_ms", 0.0)
+
+        avg_model_calls = (total_model_calls / total_runs) if total_runs > 0 else 0.0
+        avg_frames = (total_frames / total_runs) if total_runs > 0 else 0.0
+        avg_latency_ms = (total_latency_ms / total_runs) if total_runs > 0 else 0.0
+
+        from collections import defaultdict
+        watch_by_step = defaultdict(list)
+        for e in watch_events:
+            watch_by_step[(e.session_id, e.step_ord)].append(e)
+
+        agreed_comparisons = 0
+        total_comparisons = 0
+
+        for c_event in confirm_events:
+            step_watches = watch_by_step.get((c_event.session_id, c_event.step_ord))
+            if not step_watches:
+                continue
+
+            last_watch = None
+            for w in step_watches:
+                if w.at < c_event.at:
+                    last_watch = w
+                else:
+                    break
+
+            if last_watch is not None:
+                total_comparisons += 1
+                c_detail = c_event.detail or {}
+                c_complete = c_detail.get("complete")
+                if c_complete is None:
+                    c_complete = c_detail.get("agreed")
+
+                w_detail = last_watch.detail or {}
+                w_complete = w_detail.get("complete")
+                if w_complete is None:
+                    w_complete = w_detail.get("agreed")
+
+                if w_complete == c_complete:
+                    agreed_comparisons += 1
+
+        agreement_rate = (agreed_comparisons / total_comparisons) if total_comparisons > 0 else 0.0
+
+        return GuidedWatchSummaryEnvelope(
+            window=window,
+            total_runs=total_runs,
+            auto_advances=auto_advances,
+            agreement_rate=agreement_rate,
+            average_model_calls=avg_model_calls,
+            average_frames=avg_frames,
+            average_latency_ms=avg_latency_ms,
+        )
+
+    def gate_cost_summary(
+        self,
+        *,
+        person_id: str,
+        routine_id: int | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> GuidedGateCostSummaryEnvelope:
+        window = self._window(person_id=person_id, routine_id=routine_id, since=since, until=until)
+        db = self._db_factory()
+        try:
+            filters = self._session_filters(window)
+            events_stmt = (
+                select(GuidedSessionEvent)
+                .join(GuidedSession, GuidedSession.id == GuidedSessionEvent.session_id)
+                .where(
+                    *filters,
+                    GuidedSessionEvent.kind.in_(("watch", "vision_confirm")),
+                )
+            )
+            events = list(db.execute(events_stmt).scalars().all())
+        finally:
+            db.close()
+
+        confirm_model_calls = 0
+        confirm_frames = 0
+        confirm_latency_ms = 0.0
+        watch_model_calls = 0
+        watch_frames = 0
+        watch_latency_ms = 0.0
+
+        for e in events:
+            cost = (e.detail or {}).get("cost") or {}
+            m_calls = cost.get("model_calls", 0)
+            frames = cost.get("frames", 0)
+            latency = cost.get("latency_ms", 0.0)
+
+            if e.kind == "vision_confirm":
+                confirm_model_calls += m_calls
+                confirm_frames += frames
+                confirm_latency_ms += latency
+            elif e.kind == "watch":
+                watch_model_calls += m_calls
+                watch_frames += frames
+                watch_latency_ms += latency
+
+        from backend.schemas.guided_metrics import GuidedGateCostMetric
+        return GuidedGateCostSummaryEnvelope(
+            window=window,
+            confirm_cost=GuidedGateCostMetric(
+                model_calls=confirm_model_calls,
+                frames=confirm_frames,
+                latency_ms=confirm_latency_ms,
+            ),
+            watch_cost=GuidedGateCostMetric(
+                model_calls=watch_model_calls,
+                frames=watch_frames,
+                latency_ms=watch_latency_ms,
+            ),
+            total_cost=GuidedGateCostMetric(
+                model_calls=confirm_model_calls + watch_model_calls,
+                frames=confirm_frames + watch_frames,
+                latency_ms=confirm_latency_ms + watch_latency_ms,
+            ),
         )
 
     def time_of_day(
@@ -391,6 +588,12 @@ class GuidedMetricsService:
                 person_id=person_id, routine_id=routine_id, since=since, until=until
             ),
             time_of_day=self.time_of_day(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
+            watch_summary=self.watch_summary(
+                person_id=person_id, routine_id=routine_id, since=since, until=until
+            ),
+            gate_cost_summary=self.gate_cost_summary(
                 person_id=person_id, routine_id=routine_id, since=since, until=until
             ),
         )

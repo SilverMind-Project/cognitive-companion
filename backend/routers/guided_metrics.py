@@ -13,10 +13,12 @@ from backend.schemas.guided_metrics import (
     GuidedAttemptsPerStepEnvelope,
     GuidedCompletionSummaryEnvelope,
     GuidedEscalationBreakdownEnvelope,
+    GuidedGateCostSummaryEnvelope,
     GuidedMetricsDashboardEnvelope,
     GuidedTimeOfDayEnvelope,
     GuidedTimeToCompleteEnvelope,
     GuidedVisionAgreementEnvelope,
+    GuidedWatchSummaryEnvelope,
 )
 from backend.services.guided_task.metrics_service import GuidedMetricsService
 
@@ -142,3 +144,27 @@ def get_guided_metrics_dashboard(
     _auth: AuthContext = Depends(require_permission("guided_metrics:read")),
 ) -> GuidedMetricsDashboardEnvelope:
     return svc.dashboard(person_id=person_id, routine_id=routine_id, since=since, until=until)
+
+
+@router.get("/watch-summary", response_model=GuidedWatchSummaryEnvelope)
+def get_guided_watch_summary(
+    person_id: str = Query(min_length=1),
+    routine_id: int | None = Query(default=None, ge=1),
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    svc: GuidedMetricsService = Depends(get_guided_metrics_service),
+    _auth: AuthContext = Depends(require_permission("guided_metrics:read")),
+) -> GuidedWatchSummaryEnvelope:
+    return svc.watch_summary(person_id=person_id, routine_id=routine_id, since=since, until=until)
+
+
+@router.get("/gate-cost-summary", response_model=GuidedGateCostSummaryEnvelope)
+def get_guided_gate_cost_summary(
+    person_id: str = Query(min_length=1),
+    routine_id: int | None = Query(default=None, ge=1),
+    since: datetime | None = Query(default=None),
+    until: datetime | None = Query(default=None),
+    svc: GuidedMetricsService = Depends(get_guided_metrics_service),
+    _auth: AuthContext = Depends(require_permission("guided_metrics:read")),
+) -> GuidedGateCostSummaryEnvelope:
+    return svc.gate_cost_summary(person_id=person_id, routine_id=routine_id, since=since, until=until)

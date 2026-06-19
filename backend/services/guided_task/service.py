@@ -184,6 +184,8 @@ class GuidedTaskService:
         self._gate_runner = gate_runner
         self._camera_source_resolver = camera_source_resolver
         self._event_aggregator = event_aggregator
+        self._last_watch_at: dict[tuple[int, int], datetime] = {}
+        self._progress_seen_at: dict[tuple[int, int], datetime] = {}
 
     def set_person_location_service(self, person_location_service: Any) -> None:
         self._person_location_service = person_location_service
@@ -952,11 +954,33 @@ class GuidedTaskService:
                 attempts=session.attempts,
                 reason="caregiver_takeover_paused",
             )
+
+        # Nag suppression (Part B)
+        progress_seen_at = self._progress_seen_at.get((session.id, step.ord))
+        policy = resolve_policy(routine, step, self._settings)
+        if progress_seen_at is not None:
+            elapsed = (now - progress_seen_at).total_seconds()
+            if elapsed < policy.step_timeout_s:
+                logger.info(
+                    "nag_suppressed",
+                    session_id=session.id,
+                    step_ord=step.ord,
+                    progress_seen_at=progress_seen_at,
+                )
+                self._schedule_timeout(session, routine, step, progress_seen_at)
+                return Decision(
+                    kind="noop",
+                    next_status=session.status,
+                    next_step_ord=session.current_step_ord,
+                    attempts=session.attempts,
+                    reason="nag_suppressed",
+                )
+
         decision = GuidedTaskStateMachine.decide(
             self._session_view(session, steps),
             self._step_view(step),
             "timeout_tick",
-            resolve_policy(routine, step, self._settings),
+            policy,
             now,
         )
         await self._apply_decision(
@@ -1006,6 +1030,23 @@ class GuidedTaskService:
                 ).total_seconds() > self._escalation_grace_s():
                     await self._abandon_escalated_unanswered(session, tick_at)
                 continue
+
+            # Evaluate watch profile if enabled
+            advanced = False
+            if session.status in ("active", "waiting"):
+                try:
+                    advanced = await self._evaluate_watch(session, routine, steps, step, tick_at)
+                except Exception as e:
+                    logger.error(
+                        "watch_tick_failed",
+                        session_id=session.id,
+                        step_ord=step.ord,
+                        error=str(e),
+                        exc_info=True,
+                    )
+            if advanced:
+                continue
+
             policy = resolve_policy(routine, step, self._settings)
             if (tick_at - session.last_activity_at).total_seconds() > policy.resume_grace_s:
                 decision = GuidedTaskStateMachine.decide(
@@ -1256,6 +1297,7 @@ class GuidedTaskService:
         actor: str,
         detail: dict | None,
         speak_on_advance: bool = True,
+        speak_prefix: str | None = None,
     ) -> None:
         if decision.kind == "noop":
             return
@@ -1328,7 +1370,7 @@ class GuidedTaskService:
                 actor="system",
             )
             if speak_on_advance:
-                await self._speak(updated, next_step, is_retry=False)
+                await self._speak(updated, next_step, is_retry=False, prefix=speak_prefix)
             self._schedule_timeout(updated, routine, next_step, now)
             return
 
@@ -1389,11 +1431,13 @@ class GuidedTaskService:
             guided_metrics.guided_steps_total.labels(result="completed").inc()
             await self.complete(session.id, "completed")
 
-    async def _speak(self, session: GuidedSession, step: RoutineStep, *, is_retry: bool) -> None:
+    async def _speak(self, session: GuidedSession, step: RoutineStep, *, is_retry: bool, prefix: str | None = None) -> None:
         routine = self._store.get_routine(session.routine_id)
         if routine is None:
             raise NotFoundError("Routine", session.routine_id)
         rendered = await self._render_step_prompt(session, routine, step)
+        if prefix:
+            rendered = f"{prefix} {rendered}"
         voice_session = SimpleNamespace(
             id=session.id,
             routine_id=session.routine_id,
@@ -1744,3 +1788,225 @@ class GuidedTaskService:
             finalize=self.on_step_timeout,
             args=[session.id],
         )
+
+    async def _evaluate_watch(
+        self,
+        session: GuidedSession,
+        routine: Routine,
+        steps: list[RoutineStep],
+        step: RoutineStep,
+        now: datetime,
+    ) -> bool:
+        vision_cfg = (
+            (step.completion_gate or {}).get("vision") or (step.completion_gate or {}).get("vision_confirm") or {}
+        )
+        watch_cfg = vision_cfg.get("watch") or {}
+        confirm_cfg = vision_cfg.get("confirm") or {}
+        routine_cfg = (getattr(routine, "config_json", None) or {}).get("guided_task", {}).get("vision", {})
+
+        def resolve_val(key: str, default_path: str, type_cast: Callable[[Any], Any], fallback: Any = None) -> Any:
+            if key in watch_cfg and watch_cfg[key] is not None:
+                return type_cast(watch_cfg[key])
+            r_watch = routine_cfg.get("watch") or {}
+            if key in r_watch and r_watch[key] is not None:
+                return type_cast(r_watch[key])
+            if self._settings is not None:
+                import contextlib
+                with contextlib.suppress(Exception):
+                    val = self._settings.get(default_path)
+                    if val is not None:
+                        return type_cast(val)
+            return fallback
+
+        enabled = resolve_val("enabled", "guided_task.vision.watch.enabled", bool, False)
+        if not enabled:
+            return False
+
+        tick_s = resolve_val("tick_s", "guided_task.vision.watch.tick_s", float, 20.0)
+
+        # 1. Per-session watch throttle
+        last_watch = self._last_watch_at.get((session.id, step.ord))
+        if last_watch is not None:
+            elapsed = (now - last_watch).total_seconds()
+            if elapsed < tick_s:
+                return False
+
+        gate_graph_rule_id = vision_cfg.get("gate_graph_rule_id")
+        if not gate_graph_rule_id:
+            return False
+
+        # Update last watch timestamp
+        self._last_watch_at[(session.id, step.ord)] = now
+
+        # Resolve other profile keys
+        window_s = resolve_val("window_s", "guided_task.vision.watch.window_s", float, 4.0)
+        max_frames = resolve_val("max_frames", "guided_task.vision.watch.max_frames", int, 3)
+        model_id = resolve_val("model_id", "guided_task.vision.watch.model_id", str)
+        prune_heavy = resolve_val("prune_heavy", "guided_task.vision.watch.prune_heavy", bool, True)
+
+        min_confidence = resolve_val("min_confidence", "guided_task.vision.watch.min_confidence", float)
+        if min_confidence is None:
+            min_confidence = (confirm_cfg or {}).get("min_confidence")
+            if min_confidence is None:
+                r_confirm = routine_cfg.get("confirm") or {}
+                min_confidence = r_confirm.get("min_confidence")
+            if min_confidence is None and self._settings is not None:
+                import contextlib
+                with contextlib.suppress(Exception):
+                    min_confidence = self._settings.as_float("guided_task.vision.confirm.min_confidence")
+            if min_confidence is None:
+                min_confidence = 0.7
+
+        from backend.services.guided_task.gate_runner import GateProfile, GateRunContext
+        watch_profile = GateProfile(
+            name="watch",
+            window_s=window_s,
+            max_frames=max_frames,
+            min_confidence=min_confidence,
+            model_id=model_id,
+            prune_heavy=prune_heavy,
+        )
+
+        # 2. Resolve cameras
+        from backend.services.guided_task.camera_selection import select_cameras_tagged
+        cameras = await select_cameras_tagged(
+            person_id=session.person_id,
+            step=step,
+            zone_service=self._zone_service,
+            person_location=self._person_location_service,
+            bucketizer=self._bucketizer,
+            event_aggregator=self._event_aggregator,
+            camera_topology=self._camera_topology,
+            identity_resolver=self._identity_ids_for_person,
+            camera_source_resolver=self._camera_source_resolver,
+            max_cameras=max_frames,
+        )
+        if not cameras:
+            return False
+
+        # 3. Run GateGraphRunner
+        if self._gate_runner is None:
+            logger.warning("guided_watch_gate_runner_unavailable", session_id=session.id)
+            return False
+
+        room_name = None
+        if self._person_location_service is not None:
+            import contextlib
+            with contextlib.suppress(Exception):
+                location = await self._person_location_service.where_is(session.person_id)
+                if location is not None:
+                    room_name = getattr(location, "room_name", None)
+
+        context = GateRunContext(
+            person_id=session.person_id,
+            room_name=room_name,
+            sensor_id=None,
+            session_id=str(session.id),
+            step_ord=int(step.ord),
+        )
+
+        verdict = await self._gate_runner.run(
+            gate_rule_id=gate_graph_rule_id,
+            profile=watch_profile,
+            cameras=cameras,
+            context=context,
+        )
+
+        # Warm/put in cool-off cache for confirm & watch
+        cache_key_watch = (str(session.id), int(step.ord), "watch")
+        cache_key_confirm = (str(session.id), int(step.ord), "confirm")
+        self._gate_runner.cache.put(cache_key_watch, verdict, now=now)
+        self._gate_runner.cache.put(cache_key_confirm, verdict, now=now)
+
+        # Emit GuidedSessionEvent(kind="watch")
+        formatted_cameras = [{"id": c.id, "source": c.source} for c in cameras]
+        formatted_node_results = list(verdict.node_results.values())
+        detail = {
+            "profile": "watch",
+            "gate_graph_rule_id": gate_graph_rule_id,
+            "cameras": formatted_cameras,
+            "complete": verdict.complete,
+            "confidence": verdict.confidence,
+            "reason": verdict.reason,
+            "node_results": formatted_node_results,
+            "cost": verdict.cost,
+        }
+
+        self._store.add_event(
+            session_id=session.id,
+            at=now,
+            kind="watch",
+            step_ord=step.ord,
+            actor="system",
+            detail=detail,
+        )
+
+        # Part B: Nag-suppression
+        if verdict.complete and verdict.confidence >= min_confidence:
+            self._progress_seen_at[(session.id, step.ord)] = now
+
+        # Part C: Opt-in conservative auto-advance
+        auto_advance = resolve_val("auto_advance", "guided_task.vision.watch.auto_advance", bool, False)
+        if auto_advance and not step.is_safety_critical:
+            auto_advance_k = resolve_val("auto_advance_k", "guided_task.vision.watch.auto_advance_k", int, 3)
+            db = self._db_factory()
+            try:
+                from sqlalchemy import select
+
+                from backend.models.guided_task import GuidedSessionEvent
+                stmt = (
+                    select(GuidedSessionEvent)
+                    .where(
+                        GuidedSessionEvent.session_id == session.id,
+                        GuidedSessionEvent.step_ord == step.ord,
+                        GuidedSessionEvent.kind == "watch",
+                    )
+                    .order_by(GuidedSessionEvent.at.desc(), GuidedSessionEvent.id.desc())
+                    .limit(auto_advance_k)
+                )
+                watch_events = list(db.execute(stmt).scalars().all())
+            finally:
+                db.close()
+
+            if len(watch_events) >= auto_advance_k:
+                all_complete = True
+                for we in watch_events:
+                    we_detail = we.detail or {}
+                    we_comp = we_detail.get("complete")
+                    we_conf = we_detail.get("confidence", 0.0)
+                    if not we_comp or we_conf < min_confidence:
+                        all_complete = False
+                        break
+
+                if all_complete:
+                    decision = GuidedTaskStateMachine.decide(
+                        self._session_view(session, steps),
+                        self._step_view(step),
+                        "step_completed",
+                        resolve_policy(routine, step, self._settings),
+                        now,
+                    )
+                    speak_prefix = "I can see you've done that, lovely, now"
+                    await self._apply_decision(
+                        session=session,
+                        routine=routine,
+                        steps=steps,
+                        decision=decision,
+                        now=now,
+                        event_kind="step_completed",
+                        actor="orchestrator",
+                        detail={
+                            "completion_reason": "watch_auto_advance",
+                            "streak": auto_advance_k,
+                            "confidence": verdict.confidence,
+                        },
+                        speak_prefix=speak_prefix,
+                    )
+                    logger.info(
+                        "guided_watch_auto_advanced",
+                        session_id=session.id,
+                        step_ord=step.ord,
+                        streak=auto_advance_k,
+                    )
+                    return True
+        return False

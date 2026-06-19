@@ -1481,6 +1481,44 @@ async def get_guided_time_of_day(
     return result.model_dump(mode="json")
 
 
+@_register
+async def get_guided_watch_summary(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: summarize guided-task watch runs and agreement."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.watch_summary(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
+@_register
+async def get_guided_gate_cost_summary(
+    person_id: str,
+    routine_id: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """Caregiver-facing: summarize guided-task gate execution costs."""
+    if _svc.guided_metrics_service is None:
+        return {"error": "Guided metrics service not available"}
+    result = _svc.guided_metrics_service.gate_cost_summary(
+        person_id=person_id,
+        routine_id=routine_id,
+        since=_parse_optional_datetime(since),
+        until=_parse_optional_datetime(until),
+    )
+    return result.model_dump(mode="json")
+
+
 def _parse_optional_datetime(value: str | None) -> datetime | None:
     if value is None:
         return None

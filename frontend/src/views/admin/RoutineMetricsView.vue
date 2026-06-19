@@ -51,6 +51,21 @@
         </v-col>
       </v-row>
 
+      <v-row class="mb-4">
+        <v-col cols="12" sm="6" lg="3">
+          <CcMetricTile label="Watch runs" :value="watchRuns" status="info" />
+        </v-col>
+        <v-col cols="12" sm="6" lg="3">
+          <CcMetricTile label="Watch auto-advances" :value="watchAutoAdvances" status="ok" />
+        </v-col>
+        <v-col cols="12" sm="6" lg="3">
+          <CcMetricTile label="Watch agreement" :value="watchAgreement" status="info" />
+        </v-col>
+        <v-col cols="12" sm="6" lg="3">
+          <CcMetricTile label="Total VLM cost" :value="totalVlmCost" status="warning" />
+        </v-col>
+      </v-row>
+
       <v-row>
         <v-col cols="12" lg="6">
           <CcSectionCard title="Attempts by step">
@@ -90,6 +105,40 @@
             <div class="chart-box chart-box--gauge">
               <CcGaugeChart :value="visionAgreementPct" label="Agreement" unit="%" />
             </div>
+          </CcSectionCard>
+        </v-col>
+        <v-col cols="12" lg="6">
+          <CcSectionCard title="Gate compute cost">
+            <v-table class="bg-transparent" density="comfortable">
+              <thead>
+                <tr>
+                  <th class="text-left font-weight-bold text-medium-emphasis">Profile</th>
+                  <th class="text-right font-weight-bold text-medium-emphasis">Model Calls</th>
+                  <th class="text-right font-weight-bold text-medium-emphasis">Frames</th>
+                  <th class="text-right font-weight-bold text-medium-emphasis">Latency</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="text-left">Confirm</td>
+                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.confirm_cost?.model_calls ?? 0 }}</td>
+                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.confirm_cost?.frames ?? 0 }}</td>
+                  <td class="text-right">{{ formatLatency(state.dashboard?.gate_cost_summary?.confirm_cost?.latency_ms) }}</td>
+                </tr>
+                <tr>
+                  <td class="text-left">Watch</td>
+                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.watch_cost?.model_calls ?? 0 }}</td>
+                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.watch_cost?.frames ?? 0 }}</td>
+                  <td class="text-right">{{ formatLatency(state.dashboard?.gate_cost_summary?.watch_cost?.latency_ms) }}</td>
+                </tr>
+                <tr class="font-weight-bold">
+                  <td class="text-left">Total</td>
+                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.total_cost?.model_calls ?? 0 }}</td>
+                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.total_cost?.frames ?? 0 }}</td>
+                  <td class="text-right">{{ formatLatency(state.dashboard?.gate_cost_summary?.total_cost?.latency_ms) }}</td>
+                </tr>
+              </tbody>
+            </v-table>
           </CcSectionCard>
         </v-col>
       </v-row>
@@ -162,6 +211,21 @@ const hasVisionData = computed(() => (state.dashboard?.vision_agreement.total ??
 const visionAgreementPct = computed(() =>
   Math.round((state.dashboard?.vision_agreement.agreement_rate ?? 0) * 100),
 );
+
+const watchRuns = computed(() => state.dashboard?.watch_summary?.total_runs ?? 0);
+const watchAutoAdvances = computed(() => state.dashboard?.watch_summary?.auto_advances ?? 0);
+const watchAgreement = computed(() =>
+  formatPercent(state.dashboard?.watch_summary?.agreement_rate ?? 0),
+);
+const totalVlmCost = computed(() => {
+  const calls = state.dashboard?.gate_cost_summary?.total_cost?.model_calls ?? 0;
+  return `${calls} calls`;
+});
+
+function formatLatency(ms) {
+  if (ms == null) return "0.00s";
+  return `${(ms / 1000).toFixed(2)}s`;
+}
 
 function formatPercent(value) {
   return `${Math.round(value * 100)}%`;

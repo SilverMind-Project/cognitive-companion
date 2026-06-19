@@ -126,6 +126,35 @@ class GuidedTimeOfDayEnvelope(BaseModel):
     buckets: list[GuidedTimeOfDayBucket]
 
 
+class GuidedWatchSummaryEnvelope(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    window: GuidedMetricsWindow
+    total_runs: int = Field(ge=0)
+    auto_advances: int = Field(ge=0)
+    agreement_rate: float = Field(ge=0.0, le=1.0)
+    average_model_calls: float = Field(ge=0.0)
+    average_frames: float = Field(ge=0.0)
+    average_latency_ms: float = Field(ge=0.0)
+
+
+class GuidedGateCostMetric(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    model_calls: int = Field(ge=0)
+    frames: int = Field(ge=0)
+    latency_ms: float = Field(ge=0.0)
+
+
+class GuidedGateCostSummaryEnvelope(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    window: GuidedMetricsWindow
+    confirm_cost: GuidedGateCostMetric
+    watch_cost: GuidedGateCostMetric
+    total_cost: GuidedGateCostMetric
+
+
 class GuidedMetricsDashboardEnvelope(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -136,3 +165,5 @@ class GuidedMetricsDashboardEnvelope(BaseModel):
     escalation_breakdown: GuidedEscalationBreakdownEnvelope
     vision_agreement: GuidedVisionAgreementEnvelope
     time_of_day: GuidedTimeOfDayEnvelope
+    watch_summary: GuidedWatchSummaryEnvelope
+    gate_cost_summary: GuidedGateCostSummaryEnvelope

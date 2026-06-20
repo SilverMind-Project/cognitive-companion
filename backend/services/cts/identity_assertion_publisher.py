@@ -18,6 +18,8 @@ logger = get_logger(__name__)
 STREAM = "cc.identity_assertions"
 
 
+from backend.integrations.proto.continuoustracking.v1.tracking_pb2 import CCIdentityAssertion
+
 class IdentityAssertionPublisher:
     """Publishes identity assertions to the cc.identity_assertions Redis stream."""
 
@@ -32,6 +34,12 @@ class IdentityAssertionPublisher:
         captured_at: datetime | None = None,
         floor_x_m: float = 0.0,
         floor_y_m: float = 0.0,
+        raw_similarity: float = 0.0,
+        calibrated_confidence: float | None = None,
+        calibration_status: str = "uncalibrated",
+        source: str = "cc-vlm",
+        model_version: str = "v1",
+        preprocessing_version: str = "v1",
     ) -> None:
         """Publish a person-identity assertion.
 
@@ -41,18 +49,33 @@ class IdentityAssertionPublisher:
             camera_id: Which camera produced the identification.
             captured_at: When the identification was made.
             floor_x_m, floor_y_m: Floor coordinates in metres.
+            raw_similarity: Raw cosine similarity from the face ID service.
+            calibrated_confidence: Calibrated confidence, if calibration is enabled.
+            calibration_status: Status of the calibration ("calibrated", "uncalibrated", "extrapolated").
+            source: The component that generated this assertion (e.g., "cc-arcface").
+            model_version: Which model version was used.
+            preprocessing_version: Which preprocessing version was used.
         """
         if captured_at is None:
             captured_at = datetime.now(UTC)
 
-        fields = {
-            "person_id": str(person_id),
-            "confidence": str(confidence),
-            "camera_id": str(camera_id),
-            "captured_at": captured_at.isoformat(),
-            "floor_x_m": str(floor_x_m),
-            "floor_y_m": str(floor_y_m),
-        }
+        msg = CCIdentityAssertion(
+            person_id=str(person_id),
+            camera_id=str(camera_id),
+            captured_at_unix_ns=int(captured_at.timestamp() * 1e9),
+            floor_x_m=float(floor_x_m),
+            floor_y_m=float(floor_y_m),
+            raw_similarity=float(raw_similarity),
+            calibration_status=str(calibration_status),
+            source=str(source),
+            model_version=str(model_version),
+            preprocessing_version=str(preprocessing_version),
+        )
+        if calibrated_confidence is not None:
+            msg.calibrated_confidence = float(calibrated_confidence)
+
+        fields = {b"assertion": msg.SerializeToString()}
+        
         try:
             await self._redis.xadd(STREAM, fields)
             logger.debug(

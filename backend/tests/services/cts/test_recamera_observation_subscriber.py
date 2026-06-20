@@ -65,10 +65,13 @@ async def test_ingests_recamera_event_into_person_location():
     # Identity assertion should have been published.
     redis_mock.xadd.assert_called_once()
     fields = redis_mock.xadd.call_args[0][1]
-    assert fields["person_id"] == "alice"
-    assert fields["camera_id"] == "cam-1"
-    assert fields["floor_x_m"] == "1.5"
-    assert fields["floor_y_m"] == "3.2"
+    from backend.integrations.proto.continuoustracking.v1.tracking_pb2 import CCIdentityAssertion
+    msg = CCIdentityAssertion.FromString(fields[b"assertion"])
+    assert msg.person_id == "alice"
+    assert msg.camera_id == "cam-1"
+    import math
+    assert math.isclose(msg.floor_x_m, 1.5, abs_tol=1e-5)
+    assert math.isclose(msg.floor_y_m, 3.2, abs_tol=1e-5)
 
 
 @pytest.mark.asyncio
@@ -123,10 +126,13 @@ async def test_publishes_identity_assertion_with_required_fields():
     redis_mock.xadd.assert_called_once()
     fields = redis_mock.xadd.call_args[0][1]
 
-    # All required fields must be present.
-    assert "person_id" in fields
-    assert "confidence" in fields
-    assert "camera_id" in fields
-    assert "captured_at" in fields
-    assert "floor_x_m" in fields
-    assert "floor_y_m" in fields
+    assert b"assertion" in fields
+    from backend.integrations.proto.continuoustracking.v1.tracking_pb2 import CCIdentityAssertion
+    msg = CCIdentityAssertion.FromString(fields[b"assertion"])
+    
+    assert msg.person_id == "bob"
+    assert msg.camera_id == "cam-2"
+    import math
+    assert math.isclose(msg.floor_x_m, 2.0, abs_tol=1e-5)
+    assert math.isclose(msg.floor_y_m, 4.0, abs_tol=1e-5)
+    assert msg.captured_at_unix_ns > 0

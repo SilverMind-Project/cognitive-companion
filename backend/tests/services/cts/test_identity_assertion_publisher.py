@@ -7,6 +7,7 @@ expected stream name to cc.identity_assertions.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import math
 from unittest.mock import AsyncMock
 
 import pytest
@@ -17,10 +18,12 @@ from backend.services.cts.identity_assertion_publisher import (
 )
 
 
+from backend.integrations.proto.continuoustracking.v1.tracking_pb2 import CCIdentityAssertion
+
 @pytest.mark.asyncio
 async def test_publisher_emits_all_required_fields():
     """publish() must send person_id, confidence, camera_id, captured_at,
-    floor_x_m, and floor_y_m to the cc.identity_assertions stream."""
+    floor_x_m, and floor_y_m via protobuf to the cc.identity_assertions stream."""
     redis_mock = AsyncMock()
     redis_mock.xadd = AsyncMock()
 
@@ -34,6 +37,8 @@ async def test_publisher_emits_all_required_fields():
         captured_at=now,
         floor_x_m=1.5,
         floor_y_m=3.2,
+        raw_similarity=0.88,
+        calibrated_confidence=0.92,
     )
 
     redis_mock.xadd.assert_called_once()
@@ -42,12 +47,17 @@ async def test_publisher_emits_all_required_fields():
     assert call_args[0][0] == STREAM
     # Second arg is the fields dict.
     fields = call_args[0][1]
-    assert fields["person_id"] == "alice"
-    assert fields["confidence"] == "0.92"
-    assert fields["camera_id"] == "cam-1"
-    assert fields["floor_x_m"] == "1.5"
-    assert fields["floor_y_m"] == "3.2"
-    assert "captured_at" in fields
+    
+    assert b"assertion" in fields
+    msg = CCIdentityAssertion.FromString(fields[b"assertion"])
+    
+    assert msg.person_id == "alice"
+    assert msg.camera_id == "cam-1"
+    assert math.isclose(msg.floor_x_m, 1.5, abs_tol=1e-5)
+    assert math.isclose(msg.floor_y_m, 3.2, abs_tol=1e-5)
+    assert math.isclose(msg.raw_similarity, 0.88, abs_tol=1e-5)
+    assert math.isclose(msg.calibrated_confidence, 0.92, abs_tol=1e-5)
+    assert msg.captured_at_unix_ns == int(now.timestamp() * 1e9)
 
 
 @pytest.mark.asyncio
@@ -65,10 +75,10 @@ async def test_publisher_defaults_captured_at_to_now():
 
     redis_mock.xadd.assert_called_once()
     fields = redis_mock.xadd.call_args[0][1]
-    assert fields["person_id"] == "bob"
-    assert fields["captured_at"] is not None
-    # Should be a valid ISO format string.
-    datetime.fromisoformat(fields["captured_at"])
+    msg = CCIdentityAssertion.FromString(fields[b"assertion"])
+    
+    assert msg.person_id == "bob"
+    assert msg.captured_at_unix_ns > 0
 
 
 @pytest.mark.asyncio

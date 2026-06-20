@@ -17,12 +17,25 @@ class DwellEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     DWELL_EVENT_TYPE_UNSPECIFIED: _ClassVar[DwellEventType]
     DWELL_EVENT_TYPE_STARTED: _ClassVar[DwellEventType]
     DWELL_EVENT_TYPE_ENDED: _ClassVar[DwellEventType]
+
+class SceneSampleKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    SCENE_SAMPLE_KIND_UNSPECIFIED: _ClassVar[SceneSampleKind]
+    SCENE_SAMPLE_KIND_ISOLATED_PERSON: _ClassVar[SceneSampleKind]
+    SCENE_SAMPLE_KIND_INTERACTION: _ClassVar[SceneSampleKind]
+    SCENE_SAMPLE_KIND_CROWD: _ClassVar[SceneSampleKind]
+    SCENE_SAMPLE_KIND_EMPTY: _ClassVar[SceneSampleKind]
 PRESENCE_EVENT_TYPE_UNSPECIFIED: PresenceEventType
 PRESENCE_EVENT_TYPE_APPEARED: PresenceEventType
 PRESENCE_EVENT_TYPE_DISAPPEARED: PresenceEventType
 DWELL_EVENT_TYPE_UNSPECIFIED: DwellEventType
 DWELL_EVENT_TYPE_STARTED: DwellEventType
 DWELL_EVENT_TYPE_ENDED: DwellEventType
+SCENE_SAMPLE_KIND_UNSPECIFIED: SceneSampleKind
+SCENE_SAMPLE_KIND_ISOLATED_PERSON: SceneSampleKind
+SCENE_SAMPLE_KIND_INTERACTION: SceneSampleKind
+SCENE_SAMPLE_KIND_CROWD: SceneSampleKind
+SCENE_SAMPLE_KIND_EMPTY: SceneSampleKind
 
 class TrackingEvent(_message.Message):
     __slots__ = ("camera_id", "event_time_unix_ns", "frame_ref", "detections", "identity_revisions", "room_name", "event_id", "identity_snapshots")
@@ -137,7 +150,7 @@ class FloorPoint(_message.Message):
     def __init__(self, x_mm: _Optional[int] = ..., y_mm: _Optional[int] = ..., calibrated: bool = ...) -> None: ...
 
 class IdentityRevision(_message.Message):
-    __slots__ = ("ph_id", "candidates", "map_identity_id", "posterior_entropy", "revision_time_unix_ns", "revision_id", "previous_identity_id", "new_identity_id", "reason", "evidence_json")
+    __slots__ = ("ph_id", "candidates", "map_identity_id", "posterior_entropy", "revision_time_unix_ns", "revision_id", "previous_identity_id", "new_identity_id", "reason", "evidence_json", "inferred_identity_id", "effective_identity_id", "authority", "decision_source", "decision_id", "conflict")
     PH_ID_FIELD_NUMBER: _ClassVar[int]
     CANDIDATES_FIELD_NUMBER: _ClassVar[int]
     MAP_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
@@ -148,6 +161,12 @@ class IdentityRevision(_message.Message):
     NEW_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     EVIDENCE_JSON_FIELD_NUMBER: _ClassVar[int]
+    INFERRED_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
+    EFFECTIVE_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
+    AUTHORITY_FIELD_NUMBER: _ClassVar[int]
+    DECISION_SOURCE_FIELD_NUMBER: _ClassVar[int]
+    DECISION_ID_FIELD_NUMBER: _ClassVar[int]
+    CONFLICT_FIELD_NUMBER: _ClassVar[int]
     ph_id: str
     candidates: _containers.RepeatedCompositeFieldContainer[IdentityCandidate]
     map_identity_id: str
@@ -158,10 +177,16 @@ class IdentityRevision(_message.Message):
     new_identity_id: str
     reason: str
     evidence_json: str
-    def __init__(self, ph_id: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[IdentityCandidate, _Mapping]]] = ..., map_identity_id: _Optional[str] = ..., posterior_entropy: _Optional[float] = ..., revision_time_unix_ns: _Optional[int] = ..., revision_id: _Optional[str] = ..., previous_identity_id: _Optional[str] = ..., new_identity_id: _Optional[str] = ..., reason: _Optional[str] = ..., evidence_json: _Optional[str] = ...) -> None: ...
+    inferred_identity_id: str
+    effective_identity_id: str
+    authority: str
+    decision_source: str
+    decision_id: str
+    conflict: str
+    def __init__(self, ph_id: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[IdentityCandidate, _Mapping]]] = ..., map_identity_id: _Optional[str] = ..., posterior_entropy: _Optional[float] = ..., revision_time_unix_ns: _Optional[int] = ..., revision_id: _Optional[str] = ..., previous_identity_id: _Optional[str] = ..., new_identity_id: _Optional[str] = ..., reason: _Optional[str] = ..., evidence_json: _Optional[str] = ..., inferred_identity_id: _Optional[str] = ..., effective_identity_id: _Optional[str] = ..., authority: _Optional[str] = ..., decision_source: _Optional[str] = ..., decision_id: _Optional[str] = ..., conflict: _Optional[str] = ...) -> None: ...
 
 class IdentitySnapshot(_message.Message):
-    __slots__ = ("ph_id", "identity_id", "top_probability", "second_probability", "posterior_entropy", "direct_face_evidence", "evidence_json", "mean_quality")
+    __slots__ = ("ph_id", "identity_id", "top_probability", "second_probability", "posterior_entropy", "direct_face_evidence", "evidence_json", "mean_quality", "inferred_identity_id", "effective_identity_id", "authority", "decision_source", "decision_id", "conflict", "last_independent_evidence_at_unix_ns", "config_hash", "model_set_version")
     PH_ID_FIELD_NUMBER: _ClassVar[int]
     IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
     TOP_PROBABILITY_FIELD_NUMBER: _ClassVar[int]
@@ -170,6 +195,15 @@ class IdentitySnapshot(_message.Message):
     DIRECT_FACE_EVIDENCE_FIELD_NUMBER: _ClassVar[int]
     EVIDENCE_JSON_FIELD_NUMBER: _ClassVar[int]
     MEAN_QUALITY_FIELD_NUMBER: _ClassVar[int]
+    INFERRED_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
+    EFFECTIVE_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
+    AUTHORITY_FIELD_NUMBER: _ClassVar[int]
+    DECISION_SOURCE_FIELD_NUMBER: _ClassVar[int]
+    DECISION_ID_FIELD_NUMBER: _ClassVar[int]
+    CONFLICT_FIELD_NUMBER: _ClassVar[int]
+    LAST_INDEPENDENT_EVIDENCE_AT_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
+    CONFIG_HASH_FIELD_NUMBER: _ClassVar[int]
+    MODEL_SET_VERSION_FIELD_NUMBER: _ClassVar[int]
     ph_id: str
     identity_id: str
     top_probability: float
@@ -178,7 +212,16 @@ class IdentitySnapshot(_message.Message):
     direct_face_evidence: bool
     evidence_json: str
     mean_quality: float
-    def __init__(self, ph_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., top_probability: _Optional[float] = ..., second_probability: _Optional[float] = ..., posterior_entropy: _Optional[float] = ..., direct_face_evidence: bool = ..., evidence_json: _Optional[str] = ..., mean_quality: _Optional[float] = ...) -> None: ...
+    inferred_identity_id: str
+    effective_identity_id: str
+    authority: str
+    decision_source: str
+    decision_id: str
+    conflict: str
+    last_independent_evidence_at_unix_ns: int
+    config_hash: str
+    model_set_version: str
+    def __init__(self, ph_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., top_probability: _Optional[float] = ..., second_probability: _Optional[float] = ..., posterior_entropy: _Optional[float] = ..., direct_face_evidence: bool = ..., evidence_json: _Optional[str] = ..., mean_quality: _Optional[float] = ..., inferred_identity_id: _Optional[str] = ..., effective_identity_id: _Optional[str] = ..., authority: _Optional[str] = ..., decision_source: _Optional[str] = ..., decision_id: _Optional[str] = ..., conflict: _Optional[str] = ..., last_independent_evidence_at_unix_ns: _Optional[int] = ..., config_hash: _Optional[str] = ..., model_set_version: _Optional[str] = ...) -> None: ...
 
 class IdentityCandidate(_message.Message):
     __slots__ = ("identity_id", "display_name", "probability")
@@ -219,3 +262,29 @@ class DwellEvent(_message.Message):
     event_time_unix_ns: int
     duration_s: int
     def __init__(self, ph_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., event_type: _Optional[_Union[DwellEventType, str]] = ..., room_name: _Optional[str] = ..., event_time_unix_ns: _Optional[int] = ..., duration_s: _Optional[int] = ...) -> None: ...
+
+class CCIdentityAssertion(_message.Message):
+    __slots__ = ("person_id", "camera_id", "captured_at_unix_ns", "floor_x_m", "floor_y_m", "raw_similarity", "calibrated_confidence", "calibration_status", "source", "model_version", "preprocessing_version")
+    PERSON_ID_FIELD_NUMBER: _ClassVar[int]
+    CAMERA_ID_FIELD_NUMBER: _ClassVar[int]
+    CAPTURED_AT_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
+    FLOOR_X_M_FIELD_NUMBER: _ClassVar[int]
+    FLOOR_Y_M_FIELD_NUMBER: _ClassVar[int]
+    RAW_SIMILARITY_FIELD_NUMBER: _ClassVar[int]
+    CALIBRATED_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    CALIBRATION_STATUS_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    MODEL_VERSION_FIELD_NUMBER: _ClassVar[int]
+    PREPROCESSING_VERSION_FIELD_NUMBER: _ClassVar[int]
+    person_id: str
+    camera_id: str
+    captured_at_unix_ns: int
+    floor_x_m: float
+    floor_y_m: float
+    raw_similarity: float
+    calibrated_confidence: float
+    calibration_status: str
+    source: str
+    model_version: str
+    preprocessing_version: str
+    def __init__(self, person_id: _Optional[str] = ..., camera_id: _Optional[str] = ..., captured_at_unix_ns: _Optional[int] = ..., floor_x_m: _Optional[float] = ..., floor_y_m: _Optional[float] = ..., raw_similarity: _Optional[float] = ..., calibrated_confidence: _Optional[float] = ..., calibration_status: _Optional[str] = ..., source: _Optional[str] = ..., model_version: _Optional[str] = ..., preprocessing_version: _Optional[str] = ...) -> None: ...

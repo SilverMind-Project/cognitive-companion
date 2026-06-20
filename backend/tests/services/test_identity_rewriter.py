@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from backend.models.cts_signal import DementiaSignal
 from backend.models.person import HouseholdMember, PersonLocationHistory, PersonLocationState
 from backend.services.cts.identity_rewriter import IdentityRewriter
 
@@ -148,3 +149,70 @@ class TestRewrite:
         result = await rewriter.apply(_revision(new_identity_id=None))
         assert result["rewritten"] == 1
         assert result["inserted"] == 0
+
+
+def _seed_signal(db_factory, person_id: str, window_start: datetime) -> None:
+    db = db_factory()
+    try:
+        db.add(
+            DementiaSignal(
+                signal_id="sig-1",
+                person_id=person_id,
+                signal_type="pacing",
+                severity="warning",
+                window_start=window_start,
+                window_end=window_start + timedelta(minutes=10),
+                value=5.0,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+class TestSignalSupersession:
+    @pytest.mark.asyncio
+    async def test_signal_superseded_and_recreated_under_new_identity(
+        self, rewriter, db_factory
+    ):
+        window = datetime.now(UTC) - timedelta(minutes=20)
+        _seed_signal(db_factory, "grandma", window)
+        revision = _revision()
+        revision["revision_kind"] = "operator_correction"
+        revision["range_start"] = (window - timedelta(minutes=1)).isoformat()
+        revision["range_end"] = (window + timedelta(minutes=30)).isoformat()
+
+        result = await rewriter.apply(revision)
+        assert result["signals_superseded"] == 1
+
+        db = db_factory()
+        try:
+            rows = db.query(DementiaSignal).all()
+            assert len(rows) == 2  # original retained + replacement
+            old = next(r for r in rows if r.person_id == "grandma")
+            assert old.superseded_by_revision_id == "rev-1"
+            new = next(r for r in rows if r.person_id == "grandpa")
+            assert new.superseded_by_revision_id is None
+            assert new.signal_type == "pacing"
+        finally:
+            db.close()
+
+    @pytest.mark.asyncio
+    async def test_signal_supersession_skipped_without_range(self, rewriter, db_factory):
+        window = datetime.now(UTC) - timedelta(minutes=20)
+        _seed_signal(db_factory, "grandma", window)
+        # No range_start/range_end -> signals are not touched.
+        result = await rewriter.apply(_revision())
+        assert result["signals_superseded"] == 0
+
+    @pytest.mark.asyncio
+    async def test_signal_supersession_idempotent(self, rewriter, db_factory):
+        window = datetime.now(UTC) - timedelta(minutes=20)
+        _seed_signal(db_factory, "grandma", window)
+        revision = _revision()
+        revision["range_start"] = (window - timedelta(minutes=1)).isoformat()
+        revision["range_end"] = (window + timedelta(minutes=30)).isoformat()
+        first = await rewriter.apply(revision)
+        assert first["signals_superseded"] == 1
+        second = await rewriter.apply(revision)
+        assert second["signals_superseded"] == 0

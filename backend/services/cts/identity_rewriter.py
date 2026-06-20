@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
+from backend.models.cts_signal import DementiaSignal
 from backend.models.person import PersonLocationHistory, PersonLocationState
 from backend.services.cts._time import parse_ts
 
@@ -154,22 +155,55 @@ class IdentityRewriter:
                     state.status = "home"
                     state.confidence = 1.0
 
+            # M06: supersede dementia-signal rows under the prior identity within
+            # the corrected range and insert replacements under the new identity.
+            # Originals are retained for audit.
+            signals_superseded = _supersede_signals(
+                db,
+                revision_id=revision_id,
+                previous_identity_id=previous_identity_id,
+                new_identity_id=new_identity_id,
+                range_start=parse_ts(revision.get("range_start"))
+                if revision.get("range_start")
+                else None,
+                range_end=parse_ts(revision.get("range_end"))
+                if revision.get("range_end")
+                else None,
+            )
+
             # Write to the first-class audit log.  Use ON CONFLICT DO UPDATE
             # for rewritten_rows so that a preliminary manual entry (written
             # by the corrections router with rewritten_rows=0) gets updated
             # with the actual count once the rewriter processes the revision.
+            revision_kind = revision.get("revision_kind") or ""
+            kind = "manual_correct" if revision_kind.startswith("operator") else "auto"
+            # Retain the M06 revision-range lineage alongside the evidence so the
+            # CC audit log mirrors the CTS operator record.
+            evidence = dict(revision.get("evidence") or {})
+            for key in (
+                "revision_kind",
+                "range_start",
+                "range_end",
+                "range_authority",
+                "revision_range_id",
+                "correction_id",
+            ):
+                value = revision.get(key)
+                if value is not None:
+                    evidence[key] = value
+
             _upsert_revision_log(
                 db,
                 revision_id=revision_id,
                 ph_id=ph_id or "",
                 previous_identity_id=previous_identity_id,
                 new_identity_id=new_identity_id,
-                actor="cts_resolver",
+                actor=revision.get("actor") or "cts_resolver",
                 reason=revision.get("reason"),
                 applied_at=applied_at,
-                kind="auto",
+                kind=kind,
                 rewritten_rows=rewritten,
-                evidence=revision.get("evidence"),
+                evidence=evidence,
             )
 
             db.commit()
@@ -191,6 +225,7 @@ class IdentityRewriter:
             new_identity_id=new_identity_id,
             rewritten=rewritten,
             inserted=inserted,
+            signals_superseded=signals_superseded,
         )
 
         if self._ws_manager is not None:
@@ -214,7 +249,61 @@ class IdentityRewriter:
             "revision_id": revision_id,
             "rewritten": rewritten,
             "inserted": inserted,
+            "signals_superseded": signals_superseded,
         }
+
+
+def _supersede_signals(
+    db: Session,
+    *,
+    revision_id: str,
+    previous_identity_id: str | None,
+    new_identity_id: str | None,
+    range_start,
+    range_end,
+) -> int:
+    """Supersede dementia-signal rows under the prior identity within the range.
+
+    Each affected row is stamped with ``superseded_by_revision_id`` (retained for
+    audit) and, when a new identity is given, copied under it. Idempotent on
+    replay because already-superseded rows are filtered out. Returns the count of
+    superseded rows.
+    """
+    if not previous_identity_id or range_start is None or range_end is None:
+        return 0
+
+    rows = (
+        db.query(DementiaSignal)
+        .filter(
+            DementiaSignal.superseded_by_revision_id.is_(None),
+            DementiaSignal.person_id == previous_identity_id,
+            DementiaSignal.window_start >= range_start,
+            DementiaSignal.window_start <= range_end,
+        )
+        .all()
+    )
+    superseded = 0
+    for row in rows:
+        row.superseded_by_revision_id = revision_id
+        superseded += 1
+        if new_identity_id:
+            db.add(
+                DementiaSignal(
+                    signal_id=row.signal_id,
+                    person_id=new_identity_id,
+                    signal_type=row.signal_type,
+                    severity=row.severity,
+                    window_start=row.window_start,
+                    window_end=row.window_end,
+                    value=row.value,
+                    baseline=row.baseline,
+                    z_score=row.z_score,
+                    context_json=row.context_json,
+                    algorithm_version=row.algorithm_version,
+                    evidence_grade=row.evidence_grade,
+                )
+            )
+    return superseded
 
 
 def _upsert_revision_log(

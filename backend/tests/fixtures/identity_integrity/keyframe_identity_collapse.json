@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "scenario": "two_bbox_identities_one_trigger_identity",
+  "keyframe": {
+    "sample_id": "00000000-0000-0000-0000-000000000501",
+    "ph_id": "00000000-0000-0000-0000-000000000511",
+    "camera_id": "camera-synthetic-a",
+    "captured_at": "2026-06-19T12:04:00+00:00",
+    "minio_key": "frames/camera-synthetic-a/2026/06/19/12/00000000000000000001-0.jpg",
+    "person_id": "resident-alpha",
+    "bboxes": [
+      {
+        "ph_id": "00000000-0000-0000-0000-000000000511",
+        "identity_id": "resident-alpha",
+        "bbox": [10, 20, 110, 220]
+      },
+      {
+        "ph_id": "00000000-0000-0000-0000-000000000512",
+        "identity_id": "resident-beta",
+        "bbox": [150, 25, 250, 225]
+      }
+    ]
+  },
+  "current_baseline": {
+    "card_identity_source": "trigger person_id",
+    "visible_card_identities": ["resident-alpha"]
+  },
+  "target_invariant": "A physical-frame card aggregates every unique effective bbox identity."
+}
+

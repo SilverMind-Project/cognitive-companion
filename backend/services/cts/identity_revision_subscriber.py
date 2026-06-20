@@ -38,6 +38,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         pipeline: PipelineExecutor | None = None,
         ws_manager: ConnectionManager | None = None,
         person_location_service: object | None = None,
+        orchestrator_client: object | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -52,6 +53,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         self._pipeline = pipeline
         self._ws_manager = ws_manager
         self._pls = person_location_service
+        self._orchestrator = orchestrator_client
 
     # -- StreamConsumer abstract methods -------------------------------------
 
@@ -97,6 +99,19 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
             "reason": message.reason,
             "evidence": evidence,
             "revision_time": ns_to_iso(message.revision_time_unix_ns),
+            # -- M06 typed revision-range / projection metadata --
+            "revision_kind": message.revision_kind or None,
+            "range_start": ns_to_iso(message.range_start_unix_ns)
+            if message.range_start_unix_ns
+            else None,
+            "range_end": ns_to_iso(message.range_end_unix_ns)
+            if message.range_end_unix_ns
+            else None,
+            "range_authority": message.range_authority or None,
+            "revision_range_id": message.revision_range_id or None,
+            "correction_id": message.correction_id or None,
+            "required_projections": list(message.required_projections),
+            "revision_schema_version": message.revision_schema_version or "1",
         }
 
     async def handle(self, revision: dict[str, Any]) -> bool:
@@ -106,9 +121,24 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         except Exception:
             logger.exception("identity_revision_apply_error", revision=revision)
             metrics.cts_revisions_dropped.inc()
+            # Tell CTS this projection failed so the revision job is marked
+            # failed and retried idempotently (M06). Never acknowledge success.
+            await self._ack_projection(revision, status="failed", counts={})
             return False
 
         metrics.cts_revisions_persisted.inc()
+
+        # M06: acknowledge the projection so CTS can complete the revision job.
+        # Only revisions that explicitly require the "cc" projection expect an
+        # ack; legacy automatic revisions carry no required_projections.
+        await self._ack_projection(
+            revision,
+            status="acked",
+            counts={
+                "rewritten": int(result.get("rewritten", 0)),
+                "inserted": int(result.get("inserted", 0)),
+            },
+        )
 
         # Apply revision to PersonLocationService for segment rewrites.
         if self._pls is not None:
@@ -163,3 +193,28 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
                 logger.exception("cts_ph_correction_broadcast_error")
 
         return True
+
+    async def _ack_projection(
+        self, revision: dict[str, Any], *, status: str, counts: dict[str, int]
+    ) -> None:
+        """POST a projection ack back to CTS (M06), best-effort.
+
+        Only revisions that list ``cc`` in ``required_projections`` expect an
+        ack; legacy automatic revisions carry none and are skipped. Ack failure
+        never undoes the local rewrite; CTS retries the job idempotently.
+        """
+        required = revision.get("required_projections") or []
+        if self._orchestrator is None or "cc" not in required:
+            return
+        try:
+            await self._orchestrator.post_projection_ack(  # type: ignore[attr-defined]
+                revision_id=revision["revision_id"],
+                consumer="cc",
+                schema_version=revision.get("revision_schema_version") or "1",
+                status=status,
+                counts=counts,
+            )
+        except Exception:
+            logger.exception(
+                "cts_projection_ack_failed", revision_id=revision.get("revision_id")
+            )

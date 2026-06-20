@@ -775,6 +775,7 @@ async def lifespan(app: FastAPI):
             authority=shared_authority,
             person_location_service=person_location_service,
             occupancy_read_model=occupancy_read_model,
+            orchestrator_client=getattr(app.state, "orchestrator_client", None),
         )
         app.state.cts_runtime = cts_runtime
         # Give the pipeline executor access to the CTS frame buffer so the

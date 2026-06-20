@@ -101,6 +101,7 @@ class CTSRuntime:
         recamera_subscriber: object | None = None,
         person_location_service: object | None = None,
         occupancy_read_model: OccupancyReadModel | None = None,
+        orchestrator_client: object | None = None,
     ) -> None:
         self._cfg = config
         self._db_factory = db_factory
@@ -192,6 +193,7 @@ class CTSRuntime:
             rewriter=self.identity_rewriter,
             pipeline=pipeline,
             ws_manager=ws_manager,
+            orchestrator_client=orchestrator_client,
         )
         self.dementia_signal_subscriber = DementiaSignalSubscriber(
             redis_url=config.redis_url,

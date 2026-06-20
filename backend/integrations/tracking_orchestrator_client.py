@@ -113,6 +113,33 @@ class OrchestratorClient(UpstreamClient):
     async def post_reload(self) -> None:
         await self._request("POST", "/internal/calibration/reload")
 
+    async def post_projection_ack(
+        self,
+        *,
+        revision_id: str,
+        consumer: str = "cc",
+        schema_version: str = "1",
+        status: str = "acked",
+        counts: dict[str, int] | None = None,
+    ) -> None:
+        """Acknowledge that this consumer applied an identity revision.
+
+        CTS marks the revision job complete only after every required projection
+        acknowledges the same ``revision_id`` (M06). A ``failed`` status flips the
+        job to ``failed`` so it can be retried idempotently.
+        """
+        await self._request(
+            "POST",
+            "/internal/projection-acks",
+            json={
+                "revision_id": revision_id,
+                "consumer": consumer,
+                "schema_version": schema_version,
+                "status": status,
+                "counts": counts or {},
+            },
+        )
+
     async def get_identities(self, *, active_only: bool = True) -> list[dict]:
         """Fetch all named identities from the ReID gallery."""
         r = await self._request(

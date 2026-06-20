@@ -150,7 +150,7 @@ class FloorPoint(_message.Message):
     def __init__(self, x_mm: _Optional[int] = ..., y_mm: _Optional[int] = ..., calibrated: bool = ...) -> None: ...
 
 class IdentityRevision(_message.Message):
-    __slots__ = ("ph_id", "candidates", "map_identity_id", "posterior_entropy", "revision_time_unix_ns", "revision_id", "previous_identity_id", "new_identity_id", "reason", "evidence_json", "inferred_identity_id", "effective_identity_id", "authority", "decision_source", "decision_id", "conflict")
+    __slots__ = ("ph_id", "candidates", "map_identity_id", "posterior_entropy", "revision_time_unix_ns", "revision_id", "previous_identity_id", "new_identity_id", "reason", "evidence_json", "inferred_identity_id", "effective_identity_id", "authority", "decision_source", "decision_id", "conflict", "revision_kind", "range_start_unix_ns", "range_end_unix_ns", "range_authority", "revision_range_id", "correction_id", "required_projections", "revision_schema_version")
     PH_ID_FIELD_NUMBER: _ClassVar[int]
     CANDIDATES_FIELD_NUMBER: _ClassVar[int]
     MAP_IDENTITY_ID_FIELD_NUMBER: _ClassVar[int]
@@ -167,6 +167,14 @@ class IdentityRevision(_message.Message):
     DECISION_SOURCE_FIELD_NUMBER: _ClassVar[int]
     DECISION_ID_FIELD_NUMBER: _ClassVar[int]
     CONFLICT_FIELD_NUMBER: _ClassVar[int]
+    REVISION_KIND_FIELD_NUMBER: _ClassVar[int]
+    RANGE_START_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
+    RANGE_END_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
+    RANGE_AUTHORITY_FIELD_NUMBER: _ClassVar[int]
+    REVISION_RANGE_ID_FIELD_NUMBER: _ClassVar[int]
+    CORRECTION_ID_FIELD_NUMBER: _ClassVar[int]
+    REQUIRED_PROJECTIONS_FIELD_NUMBER: _ClassVar[int]
+    REVISION_SCHEMA_VERSION_FIELD_NUMBER: _ClassVar[int]
     ph_id: str
     candidates: _containers.RepeatedCompositeFieldContainer[IdentityCandidate]
     map_identity_id: str
@@ -183,7 +191,15 @@ class IdentityRevision(_message.Message):
     decision_source: str
     decision_id: str
     conflict: str
-    def __init__(self, ph_id: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[IdentityCandidate, _Mapping]]] = ..., map_identity_id: _Optional[str] = ..., posterior_entropy: _Optional[float] = ..., revision_time_unix_ns: _Optional[int] = ..., revision_id: _Optional[str] = ..., previous_identity_id: _Optional[str] = ..., new_identity_id: _Optional[str] = ..., reason: _Optional[str] = ..., evidence_json: _Optional[str] = ..., inferred_identity_id: _Optional[str] = ..., effective_identity_id: _Optional[str] = ..., authority: _Optional[str] = ..., decision_source: _Optional[str] = ..., decision_id: _Optional[str] = ..., conflict: _Optional[str] = ...) -> None: ...
+    revision_kind: str
+    range_start_unix_ns: int
+    range_end_unix_ns: int
+    range_authority: str
+    revision_range_id: str
+    correction_id: str
+    required_projections: _containers.RepeatedScalarFieldContainer[str]
+    revision_schema_version: str
+    def __init__(self, ph_id: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[IdentityCandidate, _Mapping]]] = ..., map_identity_id: _Optional[str] = ..., posterior_entropy: _Optional[float] = ..., revision_time_unix_ns: _Optional[int] = ..., revision_id: _Optional[str] = ..., previous_identity_id: _Optional[str] = ..., new_identity_id: _Optional[str] = ..., reason: _Optional[str] = ..., evidence_json: _Optional[str] = ..., inferred_identity_id: _Optional[str] = ..., effective_identity_id: _Optional[str] = ..., authority: _Optional[str] = ..., decision_source: _Optional[str] = ..., decision_id: _Optional[str] = ..., conflict: _Optional[str] = ..., revision_kind: _Optional[str] = ..., range_start_unix_ns: _Optional[int] = ..., range_end_unix_ns: _Optional[int] = ..., range_authority: _Optional[str] = ..., revision_range_id: _Optional[str] = ..., correction_id: _Optional[str] = ..., required_projections: _Optional[_Iterable[str]] = ..., revision_schema_version: _Optional[str] = ...) -> None: ...
 
 class IdentitySnapshot(_message.Message):
     __slots__ = ("ph_id", "identity_id", "top_probability", "second_probability", "posterior_entropy", "direct_face_evidence", "evidence_json", "mean_quality", "inferred_identity_id", "effective_identity_id", "authority", "decision_source", "decision_id", "conflict", "last_independent_evidence_at_unix_ns", "config_hash", "model_set_version")

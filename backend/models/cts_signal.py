@@ -65,5 +65,12 @@ class DementiaSignal(Base):
     # Evidence grade from the originating AlgorithmSpec (e.g. "experimental").
     evidence_grade: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
+    # M06: revision that superseded this signal row. NULL means live. The
+    # original row is retained for audit; a replacement row is inserted under the
+    # corrected identity when an operator correction changes the effective label.
+    superseded_by_revision_id: Mapped[str | None] = mapped_column(
+        String(128), index=True, nullable=True
+    )
+
     # When the signal was received by Cognitive Companion.
     received_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now())

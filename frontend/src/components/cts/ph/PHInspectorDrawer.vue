@@ -137,17 +137,30 @@
         />
       </div>
 
-      <!-- Correction forms -->
-      <PHCorrectionForm
-        v-if="activeForm"
-        :ph-id="phId"
-        :identities="identities"
-        :saving="correction.state.saving.value"
+      <!-- Identity correction: the shared workflow (same component the Keyframes
+           surface uses). Geometry/lifecycle stay separate. -->
+      <div v-if="activeForm === 'correct'" class="pa-3">
+        <v-divider class="mb-3" />
+        <div class="text-subtitle-2 mb-2">Correct Identity</div>
+        <IdentityCorrectionWorkflow
+          :ph-id="phId"
+          :observation-id="selectedObservationId"
+          :observations="detail.state.observations.value"
+          source-view="ph_inspector"
+          default-scope="segment"
+          @applied="onWorkflowApplied"
+          @close="activeForm = null"
+        />
+      </div>
+
+      <!-- PH lifecycle: merge / split -->
+      <PHLifecycleActions
+        v-else-if="activeForm === 'merge' || activeForm === 'split'"
+        :saving="lifecycle.state.saving.value"
         :mode="activeForm"
         :merge-candidates="mergeCandidateItems"
         :observations="detail.state.observations.value"
         :selected-observation-id="selectedObservationId"
-        @correct="onCorrectSubmit"
         @merge="onMergeSubmit"
         @split="onSplitSubmit"
       />
@@ -161,12 +174,12 @@
       </div>
     </div>
 
+    <!-- Geometry editing only; identity correction is the shared workflow above. -->
     <KeyframeAnnotationDialog
       v-if="lightboxFrame"
       v-model="lightboxOpen"
       :image-url="annotationImageUrl"
       :keyframe-id="annotationKeyframeId"
-      :identities="identities"
       @saved="onAnnotationSaved"
       @error="notify.error($event)"
     />
@@ -190,16 +203,17 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { formatRelative } from "@/composables/useFormatRelative";
 import { usePHDetail } from "@/composables/usePHDetail";
-import { usePHCorrection } from "@/composables/usePHCorrection";
+import { usePHLifecycle } from "@/composables/usePHLifecycle";
 import { useNotify } from "@/composables/useNotify";
 import { useConfirm } from "@/composables/useConfirm";
 import PHPosteriorPanel from "./PHPosteriorPanel.vue";
 import PHKeyframeStrip from "./PHKeyframeStrip.vue";
 import PHObservationsTimeline from "./PHObservationsTimeline.vue";
 import PHTrailMiniFloorPlan from "./PHTrailMiniFloorPlan.vue";
-import PHCorrectionForm from "./PHCorrectionForm.vue";
+import PHLifecycleActions from "./PHLifecycleActions.vue";
 import PHRevisionsFeed from "./PHRevisionsFeed.vue";
 import PHListPanel from "./PHListPanel.vue";
+import IdentityCorrectionWorkflow from "@/components/cts/identity/IdentityCorrectionWorkflow.vue";
 import KeyframeAnnotationDialog from "@/components/cts/keyframes/KeyframeAnnotationDialog.vue";
 
 export default {
@@ -209,15 +223,15 @@ export default {
     PHKeyframeStrip,
     PHObservationsTimeline,
     PHTrailMiniFloorPlan,
-    PHCorrectionForm,
+    PHLifecycleActions,
     PHRevisionsFeed,
     PHListPanel,
+    IdentityCorrectionWorkflow,
     KeyframeAnnotationDialog,
   },
   props: {
     phId: { type: String, required: true },
     mode: { type: String, default: "view" },
-    identities: { type: Array, default: () => [] },
     mergeCandidates: { type: Array, default: () => [] },
   },
   emits: ["apply", "close", "inspect-ph"],
@@ -236,7 +250,7 @@ export default {
       onConfirm,
       onCancel,
     } = useConfirm();
-    const correction = usePHCorrection(notify);
+    const lifecycle = usePHLifecycle(notify);
 
     const activeForm = ref(props.mode === "correct" ? "correct" : null);
     const selectedObservationId = ref("");
@@ -329,16 +343,9 @@ export default {
       }
     }
 
-    async function onCorrectSubmit({ new_identity_id, reason }) {
-      try {
-        await correction.actions.apply("correct", {
-          ph_id: props.phId,
-          new_identity_id,
-          reason,
-        });
-        activeForm.value = null;
-        emit("apply");
-      } catch { /* error notified by correction composable */ }
+    function onWorkflowApplied() {
+      activeForm.value = null;
+      emit("apply");
     }
 
     async function onMergeSubmit({ target_ph_id, reason }) {
@@ -348,7 +355,7 @@ export default {
       );
       if (!ok) return;
       try {
-        await correction.actions.apply("merge", {
+        await lifecycle.actions.apply("merge", {
           source_ph_id: props.phId,
           target_ph_id,
           reason,
@@ -365,7 +372,7 @@ export default {
       );
       if (!ok) return;
       try {
-        await correction.actions.apply("split", {
+        await lifecycle.actions.apply("split", {
           ph_id: props.phId,
           at_observation_id,
           reason,
@@ -377,7 +384,7 @@ export default {
 
     return {
       detail,
-      correction,
+      lifecycle,
       activeForm,
       selectedObservationId,
       lightboxOpen,
@@ -402,7 +409,7 @@ export default {
       onKeyframeSelect,
       onAnnotationSaved,
       copyPhId,
-      onCorrectSubmit,
+      onWorkflowApplied,
       onMergeSubmit,
       onSplitSubmit,
     };

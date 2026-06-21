@@ -1,13 +1,17 @@
 /**
- * N3: PH correction composable -- apply correct/merge/split with toasts.
+ * PH lifecycle operations: merge and split.
  *
- * Returns { state, actions } per engineering-standards Section 17.
+ * These are PH-structure operations, distinct from identity-label correction
+ * (which lives in the shared `useIdentityCorrection` workflow). They are kept
+ * separate because merging/splitting changes the hypothesis graph, not just an
+ * effective label. Returns `{ state, actions }` per engineering-standards
+ * Section 17.
  */
 
 import { ref } from "vue";
 import { ctsPh } from "@/services/cts_ph";
 
-export function usePHCorrection(notify) {
+export function usePHLifecycle(notify) {
   const saving = ref(false);
   const lastRevision = ref(null);
 
@@ -16,12 +20,7 @@ export function usePHCorrection(notify) {
     lastRevision.value = null;
     try {
       let result;
-      if (action === "correct") {
-        result = await ctsPh.correct(payload.ph_id, {
-          new_identity_id: payload.new_identity_id,
-          reason: payload.reason,
-        });
-      } else if (action === "merge") {
+      if (action === "merge") {
         result = await ctsPh.merge({
           source_ph_id: payload.source_ph_id,
           target_ph_id: payload.target_ph_id,
@@ -32,13 +31,14 @@ export function usePHCorrection(notify) {
           at_observation_id: payload.at_observation_id,
           reason: payload.reason,
         });
+      } else {
+        throw new Error(`Unknown lifecycle action: ${action}`);
       }
       lastRevision.value = result?.revision || null;
-      if (notify) notify.success("Correction applied");
+      if (notify) notify.success(action === "merge" ? "PHs merged" : "PH split");
       return result;
     } catch (err) {
-      const msg = String(err.message || err);
-      if (notify) notify.error(msg);
+      if (notify) notify.error(String(err.message || err));
       throw err;
     } finally {
       saving.value = false;

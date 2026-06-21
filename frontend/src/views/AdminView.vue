@@ -262,6 +262,7 @@ const navSections = [
       { to: "/admin/cts/privacy",     icon: "mdi-eye-off-outline",         title: "Privacy Zones"   },
       { to: "/admin/cts/adjacency",   icon: "mdi-graph-outline",           title: "Camera Adjacency"},
       { to: "/admin/cts/keyframes",   icon: "mdi-image-search-outline",    title: "Keyframes"       },
+      { to: "/admin/cts/reid-review", icon: "mdi-account-check-outline",   title: "ReID Review"     },
     ],
   },
   {

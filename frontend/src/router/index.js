@@ -200,6 +200,11 @@ const routes = [
         name: "cts-keyframes",
         component: () => import("../views/admin/CTSKeyframesView.vue"),
       },
+      {
+        path: "cts/reid-review",
+        name: "cts-reid-review",
+        component: () => import("../views/admin/CTSReIDReviewView.vue"),
+      },
 
       // ── Superseded monitoring routes: redirect into workspace panels ──────────
       {

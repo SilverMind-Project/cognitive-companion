@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from backend.services.cts.identity_correction_service import IdentityCorrectionService
     from backend.services.cts.keyframe_read_service import KeyframeReadService
     from backend.services.cts.ph_enrichment import PHEnrichmentService
+    from backend.services.cts.reid_review_service import ReIDReviewService
     from backend.services.cts.runtime import CTSRuntime
     from backend.services.event_aggregator import EventAggregator
     from backend.services.guided_task.metrics_service import GuidedMetricsService
@@ -132,6 +133,14 @@ def get_identity_correction_service(request: Request) -> IdentityCorrectionServi
     )
     if service is None:
         raise _raise_503("identity_correction_service", "Identity correction service")
+    return service
+
+
+def get_reid_review_service(request: Request) -> ReIDReviewService:
+    """Return the lifespan-managed M09 ReID review service (503 if unavailable)."""
+    service: ReIDReviewService | None = request.app.state.reid_review_service
+    if service is None:
+        raise _raise_503("reid_review_service", "ReID review service")
     return service
 
 

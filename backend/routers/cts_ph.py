@@ -19,7 +19,18 @@ from backend.core.logging import get_logger
 from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.routers.cts_deps import cts_enabled, presigned_image_url
-from backend.routers.dependencies import get_orchestrator_client, get_ph_enrichment_service
+from backend.routers.dependencies import (
+    get_identity_correction_service,
+    get_orchestrator_client,
+    get_ph_enrichment_service,
+)
+from backend.schemas.cts_correction import (
+    ApplySegmentRequest,
+    CorrectionJobResponse,
+    CorrectionResultResponse,
+    ProposeSegmentRequest,
+    SegmentProposalResponse,
+)
 from backend.schemas.cts_ph import (
     BatchCorrectRequest,
     BatchCorrectResponse,
@@ -47,6 +58,11 @@ from backend.schemas.cts_ph import (
     SplitResponse,
 )
 from backend.services.cts.correction_targets import list_correction_targets
+from backend.services.cts.identity_correction_service import (
+    CorrectionContractError,
+    CorrectionUpstreamError,
+    IdentityCorrectionService,
+)
 from backend.services.cts.ph_enrichment import PHEnrichmentService
 
 logger = get_logger(__name__)
@@ -449,6 +465,113 @@ async def purge_unknown(
         idempotency_key=idempotency_key,
     )
     return PurgeUnknownResponse(**data)
+
+
+# ---------------------------------------------------------------------------
+# Segment correction workflow (M08): propose / apply / compensate / job status
+# ---------------------------------------------------------------------------
+
+
+def _raise_for_correction(exc: CorrectionUpstreamError) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status,
+        detail={
+            "code": exc.code,
+            "message": exc.message,
+            "service": "tracking_orchestrator",
+        },
+    )
+
+
+@router.post("/identity/corrections/propose", response_model=SegmentProposalResponse)
+async def propose_correction_segment(
+    body: ProposeSegmentRequest,
+    svc: IdentityCorrectionService = Depends(get_identity_correction_service),
+    _auth=Depends(require_permission("cts.identity.view")),
+) -> SegmentProposalResponse:
+    """Advisory observation-bounded segment proposal for caregiver review."""
+    cts_enabled()
+    try:
+        return await svc.propose_segment(
+            ph_id=body.ph_id, observation_id=body.observation_id, at=body.at
+        )
+    except CorrectionUpstreamError as exc:
+        raise _raise_for_correction(exc) from exc
+    except CorrectionContractError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "correction.upstream_contract", "message": str(exc)},
+        ) from exc
+
+
+@router.post("/identity/corrections/apply", response_model=CorrectionResultResponse)
+async def apply_correction_segment(
+    body: ApplySegmentRequest,
+    request: Request,
+    svc: IdentityCorrectionService = Depends(get_identity_correction_service),
+    _auth=Depends(require_permission("cts.identity.correct")),
+) -> CorrectionResultResponse:
+    """Apply an explicit frame-only/bounded correction or Set-to-Unknown.
+
+    The audited actor is taken from the auth context, never from the browser.
+    A stale ``base_ph_version`` returns 409 ``correction.stale_version``.
+    """
+    cts_enabled()
+    try:
+        return await svc.apply_correction(
+            payload=body.model_dump(exclude_none=True), actor=_actor(request)
+        )
+    except CorrectionUpstreamError as exc:
+        raise _raise_for_correction(exc) from exc
+    except CorrectionContractError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "correction.upstream_contract", "message": str(exc)},
+        ) from exc
+
+
+@router.post(
+    "/identity/corrections/{correction_id}/compensate",
+    response_model=CorrectionResultResponse,
+)
+async def compensate_correction(
+    correction_id: str,
+    request: Request,
+    svc: IdentityCorrectionService = Depends(get_identity_correction_service),
+    _auth=Depends(require_permission("cts.identity.correct")),
+) -> CorrectionResultResponse:
+    """Undo a correction via a compensating revision (never deletes the original)."""
+    cts_enabled()
+    try:
+        return await svc.compensate(correction_id=correction_id, actor=_actor(request))
+    except CorrectionUpstreamError as exc:
+        raise _raise_for_correction(exc) from exc
+    except CorrectionContractError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "correction.upstream_contract", "message": str(exc)},
+        ) from exc
+
+
+@router.get(
+    "/identity/corrections/jobs/{revision_id}", response_model=CorrectionJobResponse
+)
+async def get_correction_job(
+    revision_id: str,
+    svc: IdentityCorrectionService = Depends(get_identity_correction_service),
+    _auth=Depends(require_permission("cts.identity.view")),
+) -> CorrectionJobResponse:
+    """Projection-job status for a revision; polled until terminal."""
+    cts_enabled()
+    try:
+        return await svc.get_job(revision_id=revision_id)
+    except CorrectionUpstreamError as exc:
+        raise _raise_for_correction(exc) from exc
+    except CorrectionContractError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "correction.upstream_contract", "message": str(exc)},
+        ) from exc
 
 
 # ---------------------------------------------------------------------------

@@ -70,6 +70,27 @@ def client_off(db_engine: Engine):
     c._patcher.stop()  # type: ignore[attr-defined]
 
 
+@pytest.fixture(autouse=True)
+def _isolate_cameras(db_engine: Engine):
+    """Start each camera test from an empty cts_cameras table.
+
+    db_engine is session-scoped with no per-test rollback, so cameras seeded by
+    earlier modules (the calibration tests create cal-cam and floor-cam) would
+    otherwise leak into these tests, which assert an empty list and inspect
+    specific rows.
+    """
+    from backend.models.cts_camera import CtsCamera
+
+    Session = sessionmaker(bind=db_engine, autoflush=False, expire_on_commit=False)
+    db = Session()
+    try:
+        db.query(CtsCamera).delete()
+        db.commit()
+    finally:
+        db.close()
+    yield
+
+
 # ---------------------------------------------------------------------------
 # CRUD tests
 # ---------------------------------------------------------------------------

@@ -187,6 +187,8 @@ mcp:
     - "get_room_occupancy"
     - "get_recent_images"
     - "list_keyframe_frames"
+    - "propose_identity_correction"
+    - "get_identity_correction_job"
     - "get_light_level"
     - "get_signals_feed"
     - "get_event_logs"

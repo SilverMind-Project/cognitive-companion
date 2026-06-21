@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from backend.mcp.gemini_adapter import GeminiToolAdapter
     from backend.services.companion_surface import CompanionSurfaceService
     from backend.services.conversation_manager import ConversationManager
+    from backend.services.cts.identity_correction_service import IdentityCorrectionService
     from backend.services.cts.keyframe_read_service import KeyframeReadService
     from backend.services.cts.ph_enrichment import PHEnrichmentService
     from backend.services.cts.runtime import CTSRuntime
@@ -67,7 +68,9 @@ __all__ = [
     "get_guided_metrics_service",
     "get_guided_task_service",
     "get_ha_client",
+    "get_identity_correction_service",
     "get_ingress_admin_client",
+    "get_keyframe_read_service",
     "get_knowledge_delivery",
     "get_llm_model_registry",
     "get_media_observability",
@@ -119,6 +122,16 @@ def get_keyframe_read_service(request: Request) -> KeyframeReadService:
     service: KeyframeReadService | None = request.app.state.keyframe_read_service
     if service is None:
         raise _raise_503("keyframe_read_service", "Keyframe read service")
+    return service
+
+
+def get_identity_correction_service(request: Request) -> IdentityCorrectionService:
+    """Return the lifespan-managed M08 identity correction service (503 if unavailable)."""
+    service: IdentityCorrectionService | None = (
+        request.app.state.identity_correction_service
+    )
+    if service is None:
+        raise _raise_503("identity_correction_service", "Identity correction service")
     return service
 
 

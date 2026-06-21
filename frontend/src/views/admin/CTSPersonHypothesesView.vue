@@ -315,7 +315,6 @@
         v-if="inspectorPh"
         :ph-id="inspectorPh.ph_id"
         :mode="drawerMode"
-        :identities="identities"
         :merge-candidates="tableMergeCandidates"
         @apply="onDrawerApply"
         @close="drawerOpen = false"
@@ -461,7 +460,6 @@ export default {
     const drawerOpen = ref(false);
     const drawerMode = ref("view");
     const inspectorPh = ref(null);
-    const identities = ref([]);
     const activeTab = ref("hypotheses");
     const selectedPhIds = ref([]);
     const bulkDeleting = ref(false);
@@ -493,49 +491,12 @@ export default {
 
     onMounted(() => {
       phList.actions.fetch();
-      loadIdentities();
     });
 
     // Mirror WS status into a local ref for the template
     watch(status, (val) => {
       wsStatus.value = val;
     }, { immediate: true });
-
-    async function loadIdentities() {
-      const byId = new Map();
-      try {
-        const { cts } = await import("@/services/cts");
-        const data = await cts.getIdentities();
-        for (const identity of data.identities || []) {
-          const identityId = identity.identity_id || identity.id;
-          if (!identityId) continue;
-          byId.set(identityId, {
-            identity_id: identityId,
-            display_name: identity.display_name || identity.name || identityId,
-            source: "gallery",
-          });
-        }
-      } catch { /* gallery identities are non-critical */ }
-
-      try {
-        const { api } = await import("@/services/api");
-        const people = await api.getPersons();
-        for (const person of people || []) {
-          if (!person.id || person.is_active === false) continue;
-          if (!byId.has(person.id)) {
-            byId.set(person.id, {
-              identity_id: person.id,
-              display_name: person.name || person.id,
-              source: "household",
-            });
-          }
-        }
-      } catch { /* household members are non-critical */ }
-
-      identities.value = [...byId.values()].sort((a, b) =>
-        (a.display_name || a.identity_id).localeCompare(b.display_name || b.identity_id)
-      );
-    }
 
     const tableMergeCandidates = computed(() =>
       phList.state.items.value.filter((ph) => ph.ph_id !== inspectorPh.value?.ph_id)
@@ -798,7 +759,6 @@ export default {
       drawerOpen,
       drawerMode,
       inspectorPh,
-      identities,
       selectedPhIds,
       bulkDeleting,
       bulkMerging,

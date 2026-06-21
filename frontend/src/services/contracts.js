@@ -162,6 +162,32 @@ def("cts.transitZones", "array");
 def("cts.gait.trend", { person_id: "string", days: "array", trend: "string" });
 
 // ---------------------------------------------------------------------------
+// CTS identity correction workflow (M08)
+// ---------------------------------------------------------------------------
+def("cts.identity.correctionTargets", { targets: "array", gallery_available: "boolean" });
+def("cts.identity.proposal", {
+  ph_id: "string",
+  observation_ids: "array",
+  start: "object",
+  end: "object",
+  ph_version: "number",
+});
+def("cts.identity.correctionResult", {
+  revision_id: "string",
+  correction_id: "string",
+  ph_id: "string",
+  range_id: "string",
+  job_status: "string",
+});
+def("cts.identity.correctionJob", {
+  revision_id: "string",
+  status: "string",
+  required_projections: "array",
+  row_counts: "object",
+  attempts: "number",
+});
+
+// ---------------------------------------------------------------------------
 // Pipeline runs
 // ---------------------------------------------------------------------------
 def("pipeline.runs.list", "array");

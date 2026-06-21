@@ -68,6 +68,7 @@ class MCPServices:
     guided_task_service: Any = None
     guided_metrics_service: Any = None
     keyframe_read_service: Any = None  # M07 grouped physical-frame read model
+    identity_correction_service: Any = None  # M08 segment correction workflow
 
 
 _svc = MCPServices()
@@ -283,6 +284,39 @@ async def list_keyframe_frames(
         offset=offset,
     )
     return page.model_dump(mode="json")
+
+
+@_register
+async def propose_identity_correction(
+    ph_id: str,
+    observation_id: str | None = None,
+    at: str | None = None,
+) -> dict:
+    """Propose an observation-bounded correction segment for a PH (M08).
+
+    D6: reads ``IdentityCorrectionService.propose_segment`` -- the same service
+    function behind ``POST /api/v1/cts/identity/corrections/propose``. Advisory
+    only; applying requires an explicit confirmed range plus the version token.
+    """
+    svc = _svc.identity_correction_service
+    if svc is None:
+        return {"error": "identity_correction_service unavailable"}
+    proposal = await svc.propose_segment(ph_id=ph_id, observation_id=observation_id, at=at)
+    return proposal.model_dump(mode="json")
+
+
+@_register
+async def get_identity_correction_job(revision_id: str) -> dict:
+    """Projection-job status for a correction revision (M08).
+
+    D6: reads ``IdentityCorrectionService.get_job`` -- the same service function
+    behind ``GET /api/v1/cts/identity/corrections/jobs/{revision_id}``.
+    """
+    svc = _svc.identity_correction_service
+    if svc is None:
+        return {"error": "identity_correction_service unavailable"}
+    job = await svc.get_job(revision_id=revision_id)
+    return job.model_dump(mode="json")
 
 
 @_register

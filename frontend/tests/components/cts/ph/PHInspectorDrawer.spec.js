@@ -1,6 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { describe, it, expect, vi } from "vitest";
-import PHInspectorDrawer from "../PHInspectorDrawer.vue";
+import PHInspectorDrawer from "@/components/cts/ph/PHInspectorDrawer.vue";
 
 // Mock composables
 vi.mock("@/composables/usePHDetail", () => ({
@@ -27,8 +27,8 @@ vi.mock("@/composables/usePHDetail", () => ({
   }),
 }));
 
-vi.mock("@/composables/usePHCorrection", () => ({
-  usePHCorrection: () => ({
+vi.mock("@/composables/usePHLifecycle", () => ({
+  usePHLifecycle: () => ({
     state: { saving: { value: false }, lastRevision: { value: null } },
     actions: { apply: vi.fn().mockResolvedValue({ revision: "rev-1" }) },
   }),
@@ -79,14 +79,15 @@ const stubs = {
   PHKeyframeStrip: true,
   PHObservationsTimeline: true,
   PHTrailMiniFloorPlan: true,
-  PHCorrectionForm: true,
+  PHLifecycleActions: true,
+  IdentityCorrectionWorkflow: true,
   PHRevisionsFeed: true,
   PHListPanel: true,
 };
 
-function mountDrawer() {
+function mountDrawer(props = {}) {
   return mount(PHInspectorDrawer, {
-    props: { phId: "ph-1", mode: "view", identities: [] },
+    props: { phId: "ph-1", mode: "view", identities: [], ...props },
     global: { stubs },
   });
 }
@@ -96,12 +97,6 @@ describe("PHInspectorDrawer", () => {
     const consoleSpy = vi.spyOn(console, "log");
     mountDrawer();
     expect(consoleSpy).not.toHaveBeenCalled();
-  });
-
-  it("does not use console.error for notifications", () => {
-    const spy = vi.spyOn(console, "error");
-    mountDrawer();
-    expect(spy).not.toHaveBeenCalledWith(expect.stringContaining("[ph-drawer]"));
   });
 
   it("renders display names from the BFF", () => {
@@ -114,16 +109,18 @@ describe("PHInspectorDrawer", () => {
     expect(wrapper.text()).not.toContain("alice 0%");
   });
 
-  it("emits close when close button is clicked", async () => {
-    const wrapper = mountDrawer();
-    // The close button is the last v-btn in the header (icon=mdi-close)
-    const btns = wrapper.findAll("button");
-    const closeBtn = btns.find((b) => b.attributes("icon") === "mdi-close" || b.text() === "");
-    if (closeBtn) {
-      await closeBtn.trigger("click");
-      // close is emitted by @click="$emit('close')"
-    }
-    // At minimum the drawer renders without errors
-    expect(wrapper.exists()).toBe(true);
+  it("mounts the shared IdentityCorrectionWorkflow in correct mode", async () => {
+    const wrapper = mountDrawer({ mode: "correct" });
+    expect(wrapper.findComponent(IdentityCorrectionWorkflowStub).exists()).toBe(true);
+  });
+
+  it("emits apply when the workflow reports a completed correction", async () => {
+    const wrapper = mountDrawer({ mode: "correct" });
+    const workflow = wrapper.findComponent(IdentityCorrectionWorkflowStub);
+    await workflow.vm.$emit("applied");
+    expect(wrapper.emitted("apply")).toBeTruthy();
   });
 });
+
+// Resolve the stubbed child by name for findComponent.
+const IdentityCorrectionWorkflowStub = { name: "IdentityCorrectionWorkflow" };

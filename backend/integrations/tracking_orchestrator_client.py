@@ -594,3 +594,36 @@ class OrchestratorClient(UpstreamClient):
             params["before_id"] = before_id
         r = await self._request("GET", "/ph/revisions", params=params)
         return r.json()
+
+    # -- M08 segment correction (propose / apply / compensate / job) ----------
+
+    async def propose_segment(
+        self,
+        *,
+        ph_id: str,
+        observation_id: str | None = None,
+        at: str | None = None,
+    ) -> dict:
+        body: dict[str, object] = {"ph_id": ph_id}
+        if observation_id is not None:
+            body["observation_id"] = observation_id
+        if at is not None:
+            body["at"] = at
+        r = await self._request("POST", "/internal/corrections/propose", json=body)
+        return r.json()
+
+    async def apply_segment_correction(self, *, payload: dict) -> dict:
+        r = await self._request("POST", "/internal/corrections/apply", json=payload)
+        return r.json()
+
+    async def compensate_correction(self, *, correction_id: str, actor: str) -> dict:
+        r = await self._request(
+            "POST",
+            f"/internal/corrections/{correction_id}/compensate",
+            json={"actor": actor},
+        )
+        return r.json()
+
+    async def get_correction_job(self, *, revision_id: str) -> dict:
+        r = await self._request("GET", f"/internal/corrections/jobs/{revision_id}")
+        return r.json()

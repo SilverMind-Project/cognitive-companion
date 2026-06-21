@@ -1,50 +1,6 @@
 <template>
   <div>
-    <!-- Correct identity form -->
-    <template v-if="mode === 'correct'">
-      <v-divider />
-      <div class="pa-3">
-        <div class="text-subtitle-2 mb-2">Correct Identity</div>
-        <v-autocomplete
-          v-model="correctIdentityId"
-          :items="identityItems"
-          label="Select identity"
-          variant="outlined"
-          density="compact"
-          hide-details
-          class="mb-2"
-          clearable
-          no-data-text="No identities available"
-        />
-        <v-alert
-          v-if="identityItems.length === 0"
-          type="info"
-          variant="tonal"
-          density="compact"
-          class="mb-2"
-        >
-          Add or activate household members, or seed the tracking gallery, to correct this PH.
-        </v-alert>
-        <v-text-field
-          v-model="correctReason"
-          label="Reason"
-          variant="outlined"
-          density="compact"
-          hide-details
-          class="mb-3"
-        />
-        <v-btn
-          block
-          color="primary"
-          :loading="saving"
-          @click="$emit('correct', { new_identity_id: correctIdentityId, reason: correctReason })"
-        >
-          Apply Correction
-        </v-btn>
-      </div>
-    </template>
-
-    <!-- Merge form -->
+    <!-- Merge -->
     <template v-if="mode === 'merge'">
       <v-divider />
       <div class="pa-3">
@@ -98,7 +54,7 @@
       </div>
     </template>
 
-    <!-- Split form -->
+    <!-- Split -->
     <template v-if="mode === 'split'">
       <v-divider />
       <div class="pa-3">
@@ -140,37 +96,20 @@ import { ref, computed, watch } from "vue";
 import { formatRelative } from "@/composables/useFormatRelative";
 
 export default {
-  name: "PHCorrectionForm",
+  name: "PHLifecycleActions",
   props: {
-    phId: { type: String, required: true },
-    identities: { type: Array, default: () => [] },
     saving: { type: Boolean, default: false },
-    mode: { type: String, default: "correct" },
+    mode: { type: String, default: "merge" }, // 'merge' | 'split'
     mergeCandidates: { type: Array, default: () => [] },
     observations: { type: Array, default: () => [] },
     selectedObservationId: { type: String, default: "" },
   },
-  emits: ["correct", "merge", "split"],
+  emits: ["merge", "split"],
   setup(props) {
-    const correctIdentityId = ref(null);
-    const correctReason = ref("manual");
     const mergeTargetId = ref("");
     const mergeReason = ref("manual");
     const splitObsId = ref("");
     const splitReason = ref("manual");
-
-    const identityItems = computed(() =>
-      props.identities
-        .map((id) => {
-          const identityId = id.identity_id || id.id;
-          if (!identityId) return null;
-          return {
-            title: id.display_name || id.name || identityId,
-            value: identityId,
-          };
-        })
-        .filter(Boolean)
-    );
 
     const observationItems = computed(() =>
       props.observations
@@ -194,13 +133,10 @@ export default {
     );
 
     return {
-      correctIdentityId,
-      correctReason,
       mergeTargetId,
       mergeReason,
       splitObsId,
       splitReason,
-      identityItems,
       observationItems,
       formatRelative,
       shortPhId,

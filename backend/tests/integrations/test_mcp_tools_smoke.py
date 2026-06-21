@@ -69,12 +69,14 @@ EXPECTED_TOOLS = {
     "get_rule_bundle",
     "import_rule_bundle",
     "get_heatmap",
+    "get_identity_correction_job",
     "get_gait_trend",
     "acknowledge_dementia_signal",
     "list_keyframe_frames",
+    "propose_identity_correction",
 }
 
-EXPECTED_COUNT = 57
+EXPECTED_COUNT = 59
 
 
 # ---------------------------------------------------------------------------

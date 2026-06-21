@@ -8,8 +8,22 @@
       <v-spacer />
       <v-select
         v-model="filters.person_id"
-        :items="persons"
+        :items="personOptions"
+        item-title="title"
+        item-value="value"
         label="Person"
+        variant="outlined"
+        density="compact"
+        clearable
+        hide-details
+        style="width: 200px"
+        :loading="personsLoading"
+        @update:modelValue="loadKeyframes"
+      />
+      <v-select
+        v-model="filters.tag_reason"
+        :items="triggerReasons"
+        label="Trigger Reason"
         variant="outlined"
         density="compact"
         clearable
@@ -17,17 +31,12 @@
         style="width: 200px"
         @update:modelValue="loadKeyframes"
       />
-      <v-select
-        v-model="filters.signal_type"
-        :items="signalTypes"
-        label="Signal Type"
-        variant="outlined"
-        density="compact"
-        clearable
-        hide-details
-        style="width: 220px"
-        @update:modelValue="loadKeyframes"
-      />
+      <v-btn
+        :variant="filters.conflict_only ? 'flat' : 'tonal'"
+        :color="filters.conflict_only ? 'error' : undefined"
+        prepend-icon="mdi-alert"
+        @click="toggleConflictOnly"
+      >Conflicts</v-btn>
       <v-select
         v-model="filters.limit"
         :items="[20, 50, 100]"
@@ -89,24 +98,58 @@
                 />
               </v-overlay>
               <v-overlay opacity="0.6" class="align-end" contained>
-                <div class="pa-2">
+                <div class="pa-2 d-flex flex-wrap ga-1">
                   <v-chip
-                    v-if="kf.signal_type || kf.tag_reason"
+                    v-for="reason in kf.trigger_reasons || []"
+                    :key="reason"
                     size="x-small"
-                    :color="kf.signal_type ? 'primary' : 'secondary'"
+                    color="secondary"
                   >
-                    {{ (kf.signal_type || kf.tag_reason).replace(/_/g, " ") }}
+                    {{ reason.replace(/_/g, " ") }}
                   </v-chip>
-                  <v-chip v-if="kf.severity" size="x-small" :color="severityColor(kf.severity)" class="ml-1">
-                    {{ kf.severity }}
-                  </v-chip>
+                  <v-chip
+                    v-if="kf.conflict_count"
+                    size="x-small"
+                    color="error"
+                    prepend-icon="mdi-alert"
+                  >{{ kf.conflict_count }} conflict</v-chip>
+                  <v-chip
+                    v-if="kf.unknown_count"
+                    size="x-small"
+                    color="warning"
+                  >{{ kf.unknown_count }} unknown</v-chip>
+                  <v-chip
+                    v-if="kf.pending_review_count"
+                    size="x-small"
+                    color="info"
+                    prepend-icon="mdi-clock-outline"
+                  >{{ kf.pending_review_count }} pending</v-chip>
                 </div>
               </v-overlay>
             </v-img>
 
             <v-card-actions class="pa-2">
               <div class="d-flex flex-column ga-1 flex-grow-1">
-                <span class="text-caption font-weight-medium">{{ kf.person_id || "Unknown" }}</span>
+                <!-- Server-computed card summary: every effective identity with count -->
+                <div class="d-flex flex-wrap ga-1">
+                  <v-chip
+                    v-for="item in kf.identity_summary || []"
+                    :key="item.effective_identity_id || 'unknown'"
+                    size="x-small"
+                    :color="item.effective_identity_id ? 'primary' : 'warning'"
+                    variant="tonal"
+                  >
+                    {{ item.effective_identity_id || "Unknown" }}
+                    <span v-if="item.count > 1" class="ml-1">×{{ item.count }}</span>
+                    <v-tooltip activator="parent" location="top">
+                      {{ (item.source_badges || []).join(", ") || "no source" }}
+                    </v-tooltip>
+                  </v-chip>
+                  <span
+                    v-if="!(kf.identity_summary || []).length"
+                    class="text-caption text-medium-emphasis"
+                  >No identities</span>
+                </div>
                 <span class="text-caption text-medium-emphasis">{{ formatTime(kf.captured_at) }}</span>
                 <div class="d-flex ga-1">
                   <v-btn size="x-small" variant="text" color="primary" @click="viewKeyframe(kf)">
@@ -137,9 +180,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import { cts } from "../../services/cts.js";
-import { severityColor } from "../../composables/useCtsSeverity";
 import { formatDateTime } from "../../services/timezone.js";
 import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
 import { useNotify } from "../../composables/useNotify.js";
@@ -158,36 +200,61 @@ const availableIdentities = ref([]);
 
 const filters = ref({
   person_id: null,
-  signal_type: null,
+  tag_reason: null,
+  conflict_only: false,
   limit: 50,
 });
 
-const signalTypes = ref([
-  "pacing",
-  "bathroom_dwell_anomaly",
-  "sundowning_index",
-  "nighttime_movement",
-  "stillness_anomaly",
-  "absence",
+const triggerReasons = ref([
+  "periodic",
+  "identity_changed",
+  "hazard",
+  "dwell_start",
+  "fall",
+  "dementia_signal",
 ]);
 
-async function refreshSignalTypes() {
-  // Augment the static list with signal types and tag_reasons seen in
-  // the current keyframe set so caregivers can filter by any value.
-  const seen = new Set(signalTypes.value);
+function refreshTriggerReasons() {
+  // Augment the static list with any trigger reasons present in the
+  // current card set so caregivers can filter by any value seen.
+  const seen = new Set(triggerReasons.value);
   for (const kf of keyframes.value) {
-    const val = kf.signal_type || kf.tag_reason;
-    if (val && !seen.has(val)) {
-      seen.add(val);
-      signalTypes.value.push(val);
+    for (const reason of kf.trigger_reasons || []) {
+      if (reason && !seen.has(reason)) {
+        seen.add(reason);
+        triggerReasons.value.push(reason);
+      }
     }
   }
 }
 
-const persons = computed(() => {
-  const ids = new Set(keyframes.value.map((k) => k.person_id).filter(Boolean));
-  return Array.from(ids).sort();
-});
+// Filter options come from the authoritative correction-target endpoint
+// (active household members), not the current result page. An explicit Unknown
+// option maps to the server-side explicit_unknown filter.
+const UNKNOWN_OPTION = "__unknown__";
+const personsLoading = ref(false);
+const personOptions = ref([{ title: "Unknown", value: UNKNOWN_OPTION }]);
+
+async function loadPersonOptions() {
+  personsLoading.value = true;
+  try {
+    const data = await cts.getCorrectionTargets();
+    const targets = (data?.targets || []).map((t) => ({
+      title: t.display_name || t.identity_id,
+      value: t.identity_id,
+    }));
+    personOptions.value = [{ title: "Unknown", value: UNKNOWN_OPTION }, ...targets];
+  } catch (e) {
+    console.error("Failed to load correction targets:", e);
+  } finally {
+    personsLoading.value = false;
+  }
+}
+
+function toggleConflictOnly() {
+  filters.value.conflict_only = !filters.value.conflict_only;
+  loadKeyframes();
+}
 
 // ── Selection mode ─────────────────────────────────────────────────────────
 const selectMode = ref(false);
@@ -207,19 +274,24 @@ function toggleSelect(kf) {
 }
 
 onMounted(() => {
+  loadPersonOptions();
   loadKeyframes();
 });
 
 async function loadKeyframes() {
   loading.value = true;
   try {
+    const selected = filters.value.person_id;
+    const isUnknown = selected === UNKNOWN_OPTION;
     const data = await cts.getKeyframes({
-      person_id: filters.value.person_id,
-      signal_type: filters.value.signal_type,
+      person_id: isUnknown ? null : selected,
+      explicit_unknown: isUnknown,
+      tag_reason: filters.value.tag_reason,
+      conflict_only: filters.value.conflict_only,
       limit: filters.value.limit,
     });
     keyframes.value = data.keyframes || [];
-    refreshSignalTypes();
+    refreshTriggerReasons();
   } catch (e) {
     console.error("Failed to load keyframes:", e);
   } finally {

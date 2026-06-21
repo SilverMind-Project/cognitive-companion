@@ -186,6 +186,7 @@ mcp:
     - "get_sensors"
     - "get_room_occupancy"
     - "get_recent_images"
+    - "list_keyframe_frames"
     - "get_light_level"
     - "get_signals_feed"
     - "get_event_logs"

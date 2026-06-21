@@ -67,6 +67,7 @@ class MCPServices:
     gait_trend_service: Any = None
     guided_task_service: Any = None
     guided_metrics_service: Any = None
+    keyframe_read_service: Any = None  # M07 grouped physical-frame read model
 
 
 _svc = MCPServices()
@@ -239,6 +240,49 @@ async def get_room_occupancy(room_name: str | None = None) -> list[dict]:
 
     records = await model.get_occupancy(room_name=room_name)
     return [rec.to_mcp() for rec in records]
+
+
+@_register
+async def list_keyframe_frames(
+    person_id: str | None = None,
+    camera_id: str | None = None,
+    tag_reason: str | None = None,
+    after: str | None = None,
+    before: str | None = None,
+    explicit_unknown: bool = False,
+    authority: str | None = None,
+    decision_source: str | None = None,
+    conflict_only: bool = False,
+    pending_review_only: bool = False,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """List keyframes grouped into one card per physical source frame (M07).
+
+    D6: reads ``KeyframeReadService.list_frames`` -- the same service function
+    that powers ``GET /api/v1/cts/keyframes``. Each card carries every visible
+    bbox with server-owned effective identity, a card summary, and explicit
+    Unknown/conflict/pending counts. ``person_id`` filters on effective
+    household identity.
+    """
+    svc = _svc.keyframe_read_service
+    if svc is None:
+        return {"error": "keyframe_read_service unavailable"}
+    page = await svc.list_frames(
+        camera_id=camera_id,
+        tag_reason=tag_reason,
+        after=after,
+        before=before,
+        effective_identity_id=person_id,
+        explicit_unknown=explicit_unknown,
+        authority=authority,
+        decision_source=decision_source,
+        conflict_only=conflict_only,
+        pending_review_only=pending_review_only,
+        limit=limit,
+        offset=offset,
+    )
+    return page.model_dump(mode="json")
 
 
 @_register

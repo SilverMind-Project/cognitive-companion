@@ -1,23 +1,59 @@
 {
-  "schema_version": 1,
-  "scenario": "two_bbox_identities_one_trigger_identity",
-  "keyframe": {
-    "sample_id": "00000000-0000-0000-0000-000000000501",
-    "ph_id": "00000000-0000-0000-0000-000000000511",
-    "camera_id": "camera-synthetic-a",
-    "captured_at": "2026-06-19T12:04:00+00:00",
-    "minio_key": "frames/camera-synthetic-a/2026/06/19/12/00000000000000000001-0.jpg",
-    "person_id": "resident-alpha",
-    "bboxes": [
+  "schema_version": 2,
+  "scenario": "two_bbox_identities_one_physical_frame",
+  "note": "M07 grouped read-model envelope: one physical frame, two PH triggers, two effective bbox identities.",
+  "page": {
+    "total": 1,
+    "frames": [
       {
-        "ph_id": "00000000-0000-0000-0000-000000000511",
-        "identity_id": "resident-alpha",
-        "bbox": [10, 20, 110, 220]
-      },
-      {
-        "ph_id": "00000000-0000-0000-0000-000000000512",
-        "identity_id": "resident-beta",
-        "bbox": [150, 25, 250, 225]
+        "physical_frame_id": "00000000-0000-0000-0000-0000000005f1",
+        "camera_id": "camera-synthetic-a",
+        "minio_key": "frames/camera-synthetic-a/2026/06/19/12/00000000000000000001-0.jpg",
+        "captured_at": "2026-06-19T12:04:00+00:00",
+        "frame_width": 1920,
+        "frame_height": 1080,
+        "triggers": [
+          {"keyframe_id": "00000000-0000-0000-0000-000000000501", "ph_id": "00000000-0000-0000-0000-000000000511", "tag_reason": "identity_changed"},
+          {"keyframe_id": "00000000-0000-0000-0000-000000000502", "ph_id": "00000000-0000-0000-0000-000000000512", "tag_reason": "periodic"}
+        ],
+        "trigger_reasons": ["identity_changed", "periodic"],
+        "unknown_count": 0,
+        "conflict_count": 0,
+        "pending_review_count": 0,
+        "bboxes": [
+          {
+            "bbox_id": "00000000-0000-0000-0000-0000000005a1",
+            "ph_id": "00000000-0000-0000-0000-000000000511",
+            "x1": 10, "y1": 20, "x2": 110, "y2": 220,
+            "detection_confidence": 0.92,
+            "frame_width": 1920, "frame_height": 1080,
+            "inferred_identity_id": "resident-alpha",
+            "effective_identity_id": "resident-alpha",
+            "authority": "arcface_authority",
+            "decision_source": "face",
+            "calibrated_confidence": 0.88,
+            "conflict": false,
+            "conflict_kind": null,
+            "revision_id": null,
+            "pending_review": false
+          },
+          {
+            "bbox_id": "00000000-0000-0000-0000-0000000005a2",
+            "ph_id": "00000000-0000-0000-0000-000000000512",
+            "x1": 150, "y1": 25, "x2": 250, "y2": 225,
+            "detection_confidence": 0.90,
+            "frame_width": 1920, "frame_height": 1080,
+            "inferred_identity_id": "resident-beta",
+            "effective_identity_id": "resident-beta",
+            "authority": "reid",
+            "decision_source": "reid",
+            "calibrated_confidence": 0.71,
+            "conflict": false,
+            "conflict_kind": null,
+            "revision_id": null,
+            "pending_review": false
+          }
+        ]
       }
     ]
   },
@@ -27,4 +63,3 @@
   },
   "target_invariant": "A physical-frame card aggregates every unique effective bbox identity."
 }
-

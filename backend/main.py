@@ -709,6 +709,7 @@ async def lifespan(app: FastAPI):
     cts_runtime = None
     app.state.ph_enrichment_service = None
     app.state.person_location_service = None
+    app.state.keyframe_read_service = None
     if settings.as_bool("cts.enabled"):
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
@@ -724,6 +725,10 @@ async def lifespan(app: FastAPI):
         app.state.ingress_admin_client = IngressAdminClient()
         app.state.orchestrator_client = OrchestratorClient()
         app.state.ph_enrichment_service = PHEnrichmentService(app.state.orchestrator_client)
+
+        from backend.services.cts.keyframe_read_service import KeyframeReadService
+
+        app.state.keyframe_read_service = KeyframeReadService(app.state.orchestrator_client)
 
         from backend.services.gait_trend_service import GaitTrendService
 
@@ -848,6 +853,7 @@ async def lifespan(app: FastAPI):
         _mcp_svc.cts_runtime = cts_runtime
         _mcp_svc.person_location_service = person_location_service
         _mcp_svc.gait_trend_service = gait_trend_service
+        _mcp_svc.keyframe_read_service = app.state.keyframe_read_service
         logger.info("cts_runtime_started")
 
         # -- Drift detection poll (M11) -------------------------------------
@@ -873,6 +879,7 @@ async def lifespan(app: FastAPI):
         app.state.ingress_admin_client = None
         app.state.orchestrator_client = None
         app.state.ph_enrichment_service = None
+        app.state.keyframe_read_service = None
         app.state.cts_runtime = None
         app.state.dementia_signal_subscriber = None
         app.state.tracking_event_subscriber = None

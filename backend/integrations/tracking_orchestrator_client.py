@@ -244,6 +244,17 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("GET", "/internal/keyframes", params=params)
         return r.json().get("keyframes", [])
 
+    async def list_keyframe_frames(self, params: dict[str, str]) -> dict:
+        """List keyframes grouped into physical-frame cards (M07).
+
+        Returns the orchestrator's grouped envelope ``{"frames": [...],
+        "total": int, "limit": int, "offset": int}`` from
+        ``/internal/keyframes/grouped``. The BFF validates this shape and
+        derives the card summary; it does not re-query.
+        """
+        r = await self._request("GET", "/internal/keyframes/grouped", params=params)
+        return r.json()
+
     async def get_keyframe(self, sample_id: str) -> dict:
         """Get a single tagged keyframe by sample ID."""
         r = await self._request("GET", f"/internal/keyframes/{sample_id}")

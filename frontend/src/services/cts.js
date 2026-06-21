@@ -170,11 +170,20 @@ export const cts = {
 
   // ── Tagged keyframes ────────────────────────────────────────────────────────
   getKeyframes: (params = {}) => {
+    // M07: grouped physical-frame cards with server-side filters.
     const qs = new URLSearchParams();
     if (params.person_id) qs.set("person_id", params.person_id);
-    if (params.signal_type) qs.set("signal_type", params.signal_type);
+    if (params.camera_id) qs.set("camera_id", params.camera_id);
+    if (params.tag_reason) qs.set("tag_reason", params.tag_reason);
     if (params.after) qs.set("after", params.after);
+    if (params.before) qs.set("before", params.before);
+    if (params.explicit_unknown) qs.set("explicit_unknown", "true");
+    if (params.authority) qs.set("authority", params.authority);
+    if (params.decision_source) qs.set("decision_source", params.decision_source);
+    if (params.conflict_only) qs.set("conflict_only", "true");
+    if (params.pending_review_only) qs.set("pending_review_only", "true");
     if (params.limit) qs.set("limit", params.limit);
+    if (params.offset) qs.set("offset", params.offset);
     const q = qs.toString();
     return q ? req(`/keyframes?${q}`) : req("/keyframes");
   },
@@ -243,6 +252,9 @@ export const cts = {
 
   // ── Identity corrections ──────────────────────────────────────────────────
   getIdentities: () => req("/identity/identities"),
+  // Authoritative correction targets (active household members), independent of
+  // the ReID gallery. Used for filter options, not page-derived identities.
+  getCorrectionTargets: () => req("/identity/correction-targets"),
   applyCorrection: (payload) =>
     req("/identity/corrections", {
       method: "POST",

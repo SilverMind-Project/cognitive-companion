@@ -24,7 +24,14 @@ from backend.core.upstream_errors import UpstreamError
 from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.models.cts_signal import DementiaSignal
 from backend.routers.cts_deps import cts_enabled, inject_image_urls
-from backend.routers.dependencies import get_orchestrator_client
+from backend.routers.dependencies import (
+    get_keyframe_read_service,
+    get_orchestrator_client,
+)
+from backend.services.cts.keyframe_read_service import (
+    KeyframeReadContractError,
+    KeyframeReadService,
+)
 
 router = APIRouter(prefix="/cts/keyframes", tags=["cts-keyframes"])
 
@@ -110,36 +117,65 @@ def _enrich_with_signals(keyframes: list[dict], person_ids: set[str]) -> list[di
 @router.get("")
 async def list_keyframes(
     request: Request,
-    person_id: str | None = Query(None, description="Filter by person ID"),
-    signal_type: str | None = Query(None, description="Filter by signal type"),
-    after: str | None = Query(None, description="ISO-8601 timestamp"),
-    limit: int = Query(100, ge=1, le=500, description="Max results"),
+    person_id: str | None = Query(
+        None, description="Effective household identity (frame matches any bbox)"
+    ),
+    camera_id: str | None = Query(None, description="Filter by camera"),
+    tag_reason: str | None = Query(None, description="Filter by trigger reason"),
+    after: str | None = Query(None, description="ISO-8601 start time"),
+    before: str | None = Query(None, description="ISO-8601 end time"),
+    explicit_unknown: bool = Query(False, description="Only frames with an Unknown bbox"),
+    authority: str | None = Query(None, description="Match any bbox with this authority"),
+    decision_source: str | None = Query(None, description="Match any bbox source"),
+    conflict_only: bool = Query(False, description="Only frames with a conflict"),
+    pending_review_only: bool = Query(False, description="Only frames pending ReID review"),
+    limit: int = Query(50, ge=1, le=200, description="Max physical-frame cards"),
+    offset: int = Query(0, ge=0),
     _auth: AuthContext = Depends(require_permission("cts.keyframes.view")),
-    client: OrchestratorClient = Depends(get_orchestrator_client),
+    svc: KeyframeReadService = Depends(get_keyframe_read_service),
 ) -> dict:
-    """List tagged keyframes from the tracking-orchestrator."""
+    """List keyframes grouped into one card per physical source frame (M07).
+
+    Each card carries every visible bbox with server-owned effective identity,
+    a card summary, and explicit Unknown/conflict/pending counts. Filtering and
+    pagination are server-side; a matching frame still returns all of its bboxes
+    for context.
+    """
     cts_enabled()
-    keyframes = await client.list_keyframes(
-        person_id=person_id,
-        signal_type=signal_type,
-        after=after,
-        limit=limit,
-    )
+    try:
+        page = await svc.list_frames(
+            camera_id=camera_id,
+            tag_reason=tag_reason,
+            after=after,
+            before=before,
+            effective_identity_id=person_id,
+            explicit_unknown=explicit_unknown,
+            authority=authority,
+            decision_source=decision_source,
+            conflict_only=conflict_only,
+            pending_review_only=pending_review_only,
+            limit=limit,
+            offset=offset,
+        )
+    except KeyframeReadContractError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "keyframe.upstream_contract",
+                "message": "Upstream keyframe envelope was malformed.",
+            },
+        ) from exc
+
+    keyframes = [card.model_dump(mode="json") for card in page.keyframes]
     keyframes = inject_image_urls(keyframes, request)
-
-    # Enrich keyframes with dementia signal metadata (signal_type,
-    # severity, signal_id) from the CC-side signals table so the
-    # UI can show per-keyframe signal chips and filter by signal type.
-    person_ids = {kf.get("person_id") for kf in keyframes if kf.get("person_id")}
-    keyframes = _enrich_with_signals(keyframes, person_ids)
-
-    # Apply signal_type filter post-enrichment when the orchestrator
-    # didn't apply it (e.g. when signal_type is a dementia signal kind
-    # rather than a tag_reason value).
-    if signal_type:
-        keyframes = [k for k in keyframes if k.get("signal_type") == signal_type]
-
-    return {"keyframes": keyframes, "count": len(keyframes)}
+    return {
+        "keyframes": keyframes,
+        "count": page.count,
+        "total": page.total,
+        "truncated": page.truncated,
+        "limit": page.limit,
+        "offset": page.offset,
+    }
 
 
 # ---------------------------------------------------------------------------

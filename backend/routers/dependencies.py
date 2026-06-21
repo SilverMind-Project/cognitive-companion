@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from backend.mcp.gemini_adapter import GeminiToolAdapter
     from backend.services.companion_surface import CompanionSurfaceService
     from backend.services.conversation_manager import ConversationManager
+    from backend.services.cts.keyframe_read_service import KeyframeReadService
     from backend.services.cts.ph_enrichment import PHEnrichmentService
     from backend.services.cts.runtime import CTSRuntime
     from backend.services.event_aggregator import EventAggregator
@@ -110,6 +111,14 @@ def get_ph_enrichment_service(request: Request) -> PHEnrichmentService:
     service: PHEnrichmentService | None = request.app.state.ph_enrichment_service
     if service is None:
         raise _raise_503("ph_enrichment_service", "PH enrichment service")
+    return service
+
+
+def get_keyframe_read_service(request: Request) -> KeyframeReadService:
+    """Return the lifespan-managed M07 keyframe read service (503 if unavailable)."""
+    service: KeyframeReadService | None = request.app.state.keyframe_read_service
+    if service is None:
+        raise _raise_503("keyframe_read_service", "Keyframe read service")
     return service
 
 

@@ -71,9 +71,10 @@ EXPECTED_TOOLS = {
     "get_heatmap",
     "get_gait_trend",
     "acknowledge_dementia_signal",
+    "list_keyframe_frames",
 }
 
-EXPECTED_COUNT = 56
+EXPECTED_COUNT = 57
 
 
 # ---------------------------------------------------------------------------

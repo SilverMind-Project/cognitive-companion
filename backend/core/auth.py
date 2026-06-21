@@ -43,6 +43,7 @@ __all__ = [
     "get_auth_context",
     "invalidate_lookup_cache",
     "require_permission",
+    "require_token",
 ]
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -146,6 +147,18 @@ class KeyStore:
                 return True
         return False
 
+    def has_token(self, auth: AuthContext, *tokens: str) -> bool:
+        """Return True if *auth* explicitly carries one of *tokens* (or ``*``).
+
+        Unlike :meth:`has_permission`, this ignores method/path glob grants such
+        as ``GET /api/v1/*``. It is a strict token-membership check used to gate
+        a surface that broad role globs must not unlock (M09 gallery review).
+        """
+        granted = set(self.expand_permissions(auth.permissions))
+        if "*" in granted:
+            return True
+        return any(token in granted for token in tokens)
+
 
 # ─── Module-level facade ─────────────────────────────────────────────────────
 #
@@ -226,6 +239,28 @@ def require_permission(
         auth: AuthContext = Depends(get_auth_context),
     ) -> AuthContext:
         if not _ensure_keystore().has_permission(auth, request.method, request.url.path):
+            raise PermissionDeniedError()
+        return auth
+
+    return _checker
+
+
+def require_token(
+    *tokens: str,
+) -> Callable[..., Awaitable[AuthContext]]:
+    """Dependency factory enforcing strict token membership, not path globs.
+
+    Use for a surface that must stay separate from broad role grants: a caller
+    holding only ``GET /api/v1/*`` or ``cts.identity.correct`` is rejected unless
+    it also carries one of *tokens* (or the ``*`` superuser grant). This is the
+    enforcement seam for the M09 ``cts.identity.gallery_review`` permission.
+    """
+
+    async def _checker(
+        request: Request,
+        auth: AuthContext = Depends(get_auth_context),
+    ) -> AuthContext:
+        if not _ensure_keystore().has_token(auth, *tokens):
             raise PermissionDeniedError()
         return auth
 

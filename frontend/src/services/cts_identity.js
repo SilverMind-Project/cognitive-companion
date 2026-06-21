@@ -98,3 +98,81 @@ export const ctsIdentity = {
       contract: "cts.identity.correctionJob",
     }),
 };
+
+/**
+ * M09: ReID gallery review-queue client.
+ *
+ * A separate biometric-admin surface behind the `cts.identity.gallery_review`
+ * permission. The same `CorrectionError` carries the upstream `status`/`code`,
+ * so the composable can disable a stale approval on a 409 rather than retry it.
+ * `actor` is always injected server-side; never send it from the browser.
+ */
+export const ctsReidReview = {
+  /** Paginated review candidates with filters. `query` is a plain object. */
+  list: (query = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== null && v !== undefined && v !== "") params.set(k, v);
+    });
+    const qs = params.toString();
+    return req(`/identity/reid-review/candidates${qs ? `?${qs}` : ""}`, {
+      contract: "cts.reidReview.list",
+    });
+  },
+
+  /** Candidate detail: provenance, review history, and server eligibility. */
+  detail: (candidateId) =>
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}`, {
+      contract: "cts.reidReview.detail",
+    }),
+
+  /** Review history for one candidate. */
+  events: (candidateId) =>
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/events`, {
+      contract: "cts.reidReview.events",
+    }),
+
+  /** Queue counts used by Keyframe/PH indicators. */
+  counts: () =>
+    req("/identity/reid-review/counts", { contract: "cts.reidReview.counts" }),
+
+  /** Approve one candidate (individual only). 409 when stale/ineligible. */
+  approve: (candidateId, { base_audit_version, note = null }) =>
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ base_audit_version, note }),
+      contract: "cts.reidReview.candidate",
+    }),
+
+  /** Relabel one candidate to a household target (individual only). */
+  relabel: (candidateId, { base_audit_version, target_identity_id, note = null }) =>
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/relabel`, {
+      method: "POST",
+      body: JSON.stringify({ base_audit_version, target_identity_id, note }),
+      contract: "cts.reidReview.candidate",
+    }),
+
+  /** Reject one candidate with a structured reason. */
+  reject: (candidateId, { base_audit_version, reason, note = null }) =>
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ base_audit_version, reason, note }),
+      contract: "cts.reidReview.candidate",
+    }),
+
+  /** Batch rejection (the only batch action; bulk approval does not exist). */
+  rejectBatch: ({ reason, note = null, items }) =>
+    req("/identity/reid-review/reject-batch", {
+      method: "POST",
+      body: JSON.stringify({ reason, note, items }),
+      contract: "cts.reidReview.batchResult",
+    }),
+
+  /** Compensating action: un-verify an approved candidate from its history. */
+  compensate: (candidateId) =>
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/compensate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+      contract: "cts.reidReview.candidate",
+    }),
+};

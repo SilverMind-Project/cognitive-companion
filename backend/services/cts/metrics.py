@@ -6,10 +6,37 @@ so that silent signal loss becomes visible to operators.
 
 from __future__ import annotations
 
-from prometheus_client import Counter
+from prometheus_client import Counter, Histogram
 
 SIGNAL_KIND_LABEL = "signal_kind"
 EVENT_TYPE_LABEL = "event_type"
+
+# -- M09 ReID review-queue metrics --------------------------------------------
+
+REVIEW_ACTION_LABEL = "action"  # approve | relabel | reject | reject_batch | compensate
+
+cts_reid_review_actions_total = Counter(
+    "cts_reid_review_actions_total",
+    "Total ReID review-queue operator actions by type.",
+    [REVIEW_ACTION_LABEL],
+)
+
+cts_reid_review_relabels_total = Counter(
+    "cts_reid_review_relabels_total",
+    "Total ReID review-queue relabel actions (a relabel is also counted as an action).",
+)
+
+cts_reid_review_failures_total = Counter(
+    "cts_reid_review_failures_total",
+    "Total ReID review-queue actions that failed (stale, ineligible, or upstream error).",
+    [REVIEW_ACTION_LABEL],
+)
+
+cts_reid_review_action_latency_seconds = Histogram(
+    "cts_reid_review_action_latency_seconds",
+    "Wall-clock latency of a ReID review-queue mutation round-trip to the orchestrator.",
+    [REVIEW_ACTION_LABEL],
+)
 
 # -- DementiaSignal counters --------------------------------------------------
 

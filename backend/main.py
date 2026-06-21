@@ -711,6 +711,7 @@ async def lifespan(app: FastAPI):
     app.state.person_location_service = None
     app.state.keyframe_read_service = None
     app.state.identity_correction_service = None
+    app.state.reid_review_service = None
     if settings.as_bool("cts.enabled"):
         from backend.integrations.ingress_admin_client import IngressAdminClient
         from backend.integrations.tracking_orchestrator_client import OrchestratorClient
@@ -738,6 +739,10 @@ async def lifespan(app: FastAPI):
         app.state.identity_correction_service = IdentityCorrectionService(
             app.state.orchestrator_client
         )
+
+        from backend.services.cts.reid_review_service import ReIDReviewService
+
+        app.state.reid_review_service = ReIDReviewService(app.state.orchestrator_client)
 
         from backend.services.gait_trend_service import GaitTrendService
 
@@ -891,6 +896,7 @@ async def lifespan(app: FastAPI):
         app.state.ph_enrichment_service = None
         app.state.keyframe_read_service = None
         app.state.identity_correction_service = None
+        app.state.reid_review_service = None
         app.state.cts_runtime = None
         app.state.dementia_signal_subscriber = None
         app.state.tracking_event_subscriber = None
@@ -967,6 +973,7 @@ def create_app() -> FastAPI:
         cts_ph,
         cts_presence,
         cts_presence_timeline,
+        cts_reid_review,
         cts_signal_evidence,
         cts_signals,
         cts_trajectory,
@@ -1056,6 +1063,7 @@ def create_app() -> FastAPI:
     app.include_router(cts_dashboard.router, prefix=api)
     app.include_router(cts_gait.router, prefix=api)
     app.include_router(cts_ph.router, prefix=api)
+    app.include_router(cts_reid_review.router, prefix=api)
     app.include_router(cts_bboxes.router, prefix=api)
     app.include_router(cts_overlap_groups.router, prefix=api)
     app.include_router(cts_diagnostics.router, prefix=api)

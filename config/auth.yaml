@@ -156,6 +156,10 @@ permission_map:
     - "cts.bboxes.write"
     - "cts.identity.correct.batch"
     - "cts.identity.read_enriched"
+    # M09 ReID gallery review: a distinct biometric-admin grant, separate from
+    # cts.identity.correct. Enforced by require_token, so the broad GET/POST
+    # globs above do not unlock the review surface on their own.
+    - "cts.identity.gallery_review"
     - "persons.read"
     - "persons.write_overrides"
     - "cts.replay"

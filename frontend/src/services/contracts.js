@@ -188,6 +188,33 @@ def("cts.identity.correctionJob", {
 });
 
 // ---------------------------------------------------------------------------
+// CTS ReID review queue (M09)
+// ---------------------------------------------------------------------------
+def("cts.reidReview.list", {
+  candidates: "array",
+  total: "number",
+  limit: "number",
+  offset: "number",
+});
+def("cts.reidReview.detail", {
+  candidate: "object",
+  events: "array",
+  eligibility: "object",
+});
+def("cts.reidReview.events", { events: "array" });
+def("cts.reidReview.counts", {
+  pending_review: "number",
+  operator_verified: "number",
+  rejected: "number",
+});
+def("cts.reidReview.candidate", { candidate_id: "string", state: "string" });
+def("cts.reidReview.batchResult", {
+  results: "array",
+  rejected: "number",
+  failed: "number",
+});
+
+// ---------------------------------------------------------------------------
 // Pipeline runs
 // ---------------------------------------------------------------------------
 def("pipeline.runs.list", "array");

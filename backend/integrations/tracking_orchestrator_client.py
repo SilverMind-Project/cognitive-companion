@@ -627,3 +627,63 @@ class OrchestratorClient(UpstreamClient):
     async def get_correction_job(self, *, revision_id: str) -> dict:
         r = await self._request("GET", f"/internal/corrections/jobs/{revision_id}")
         return r.json()
+
+    # -- M09 ReID review queue ------------------------------------------------
+
+    async def list_review_candidates(self, params: dict[str, str]) -> dict:
+        r = await self._request("GET", "/internal/reid-review/candidates", params=params)
+        return r.json()
+
+    async def get_review_candidate(self, candidate_id: str) -> dict:
+        r = await self._request(
+            "GET", f"/internal/reid-review/candidates/{candidate_id}"
+        )
+        return r.json()
+
+    async def list_review_events(self, candidate_id: str) -> dict:
+        r = await self._request(
+            "GET", f"/internal/reid-review/candidates/{candidate_id}/events"
+        )
+        return r.json()
+
+    async def get_review_counts(self) -> dict:
+        r = await self._request("GET", "/internal/reid-review/counts")
+        return r.json()
+
+    async def approve_review_candidate(self, candidate_id: str, *, payload: dict) -> dict:
+        r = await self._request(
+            "POST",
+            f"/internal/reid-review/candidates/{candidate_id}/approve",
+            json=payload,
+        )
+        return r.json()
+
+    async def relabel_review_candidate(self, candidate_id: str, *, payload: dict) -> dict:
+        r = await self._request(
+            "POST",
+            f"/internal/reid-review/candidates/{candidate_id}/relabel",
+            json=payload,
+        )
+        return r.json()
+
+    async def reject_review_candidate(self, candidate_id: str, *, payload: dict) -> dict:
+        r = await self._request(
+            "POST",
+            f"/internal/reid-review/candidates/{candidate_id}/reject",
+            json=payload,
+        )
+        return r.json()
+
+    async def reject_review_batch(self, *, payload: dict) -> dict:
+        r = await self._request(
+            "POST", "/internal/reid-review/reject-batch", json=payload
+        )
+        return r.json()
+
+    async def compensate_review_candidate(self, candidate_id: str, *, actor: str) -> dict:
+        r = await self._request(
+            "POST",
+            f"/internal/reid-review/candidates/{candidate_id}/compensate",
+            json={"actor": actor},
+        )
+        return r.json()

@@ -311,6 +311,15 @@ finally:
   and recreated; `alembic_version` holds stale entries from any prior chain.
 - **Post-release lifecycle:** Each atomic change gets its own `NNNN_description.py`. The
   `downgrade()` must exactly reverse `upgrade()`. The baseline `downgrade()` stays a no-op.
+- **Revision ids must be 32 characters or fewer.** Alembic's `alembic_version.version_num`
+  column is `varchar(32)`, and we do not widen it. An over-length `revision`/`down_revision`
+  string passes file generation and graph resolution, then fails *at apply time* when Alembic
+  writes the head: Postgres raises `StringDataRightTruncation: value too long for type character
+  varying(32)`, and transactional DDL rolls the whole migration back (the column it added never
+  lands). Keep ids in the `NNNN_short_name` form and run `echo -n "<id>" | wc -c` if a name looks
+  long. Match the filename to the `revision` string. To fix an over-length id that has not been
+  applied anywhere, rename the file and both the `revision` value and the docstring `Revision ID:`,
+  then confirm a single clean head with `alembic heads`.
 - Verify no schema drift after folding: `alembic check` against live models.
 - **CTS (tracking-orchestrator)** uses a custom `MigrationRunner` with raw `.up.sql`/`.down.sql`
   files; Alembic is not used there. The same pre-release/post-release lifecycle applies.

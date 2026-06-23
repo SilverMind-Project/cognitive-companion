@@ -4,7 +4,7 @@ An operator identity correction supersedes the signal rows under the old identit
 within the corrected range and inserts replacement rows under the corrected
 identity. The original rows are retained for audit; this column marks them.
 
-Revision ID: 0013_signal_revision_supersession
+Revision ID: 0013_signal_supersession
 Revises: 0012_drift_detection
 Create Date: 2026-06-20
 """
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0013_signal_revision_supersession"
+revision: str = "0013_signal_supersession"
 down_revision: str | Sequence[str] | None = "0012_drift_detection"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

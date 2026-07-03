@@ -148,6 +148,11 @@ Verify per repo: a direct `git push origin main` is rejected, and a PR with a de
 
 ## WP2: consistency tests so docs cannot drift from code
 
+**Status: implemented** (branch `claude/silvermind-wp2` in cognitive-companion and in the docs repo; no CTS component). Both sub-parts matched the plan's design closely; two things worth knowing before reading further:
+
+1. **WP2a needed a prerequisite fix.** `backend/channels/builtin/webhook.py` was missing `@ChannelRegistry.register` (every other builtin channel has it), so `webhook` had never actually registered despite being documented as one of the 7 channels. Fixed on its own commit (`claude/silvermind-fix-webhook-registration`, cherry-picked into WP2's branch) since WP2a's test would otherwise fail immediately against a real, separate bug rather than a docs problem.
+2. **A large false alarm along the way, worth recording so it isn't repeated.** While verifying WP2a, a full-repo `ast.parse` scan (run with plain `python3`, which resolves to Python 3.11 in that sandbox) found 24 files using `except A, B:` instead of `except (A, B):`. That syntax is invalid in every Python 3 version through at least 3.13 and was fixed in all 24 files, then reverted in full after discovering the fix was wrong: this project's `target-version = "py314"` and real CI (which runs on actual Python 3.14) both confirm Python 3.14 accepts bare comma-separated exception types, and `ruff format --target-version py314` actively strips the parenthesized form back out. The original code was correct for this project's target interpreter. Lesson for future WPs: **this codebase targets Python 3.14, a version whose grammar is not yet reflected in general model/tooling knowledge; verify against this project's own `ruff`/`target-version` config (or real CI) before concluding any construct is "obviously" invalid syntax, especially anything touching `except`, `type` statements, or PEP 695 generics (`def foo[T](...)`).** The webhook fix (item 1) is unrelated to this and stands on its own.
+
 **Why:** three hand-maintained step-type lists disagreed with the code (22 vs 23 vs 24) and the docs site documented two removed step types. These are mechanical drifts; make a machine catch them.
 
 **Depends on:** nothing (WP1 makes it enforced).
@@ -184,7 +189,7 @@ Add `tests/consistency.test.ts` that:
 
 When a count legitimately changes, the committer updates the manifest in the same PR; that is the point.
 
-**Verification:** run the new tests; then temporarily edit one count in a doc and confirm the test fails; revert.
+**Verification:** run the new tests; then temporarily edit one count in a doc and confirm the test fails; revert. Both WP2a and WP2b were verified exactly this way (WP2a via a standalone regex check plus a static cross-reference of every `type_name=`/`channel_name=`/`filter_type=` declaration against both markdown files, since this sandbox cannot run the real Python 3.14 test suite directly; WP2b by running the real vitest suite, corrupting `docs/.manifest.json`, confirming failure, and reverting).
 
 ---
 

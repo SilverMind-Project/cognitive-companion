@@ -52,11 +52,25 @@ This plan is written for an implementing agent (for example Claude Sonnet) worki
 
 ## WP1: CI gates on every PR (do this first)
 
-**Why first:** every code problem found in the July 2026 review came from milestone merges that skipped `make check`. The gates exist and are good; nothing enforces them.
+**Status: implemented** (branch `claude/silvermind-wp1` in all three repos). **The premise below was wrong and left here for history; read this box first.** All three repos already had a `.github/workflows/*.yml` that ran on `pull_request` (CC and CTS had a full `ci.yml`; the docs repo had only `deploy.yml`, which runs on push-to-main/`workflow_dispatch` and never runs tests). The actual problem was not "no CI exists" but **CI existed and had been failing on every single run for months** (CTS: 89 runs checked, every one red since at least mid-June; CC: every run red until the previous session's lint fixes landed), with no branch protection to make that failure block a merge. A red, unenforced check is worse than no check: it trains everyone to ignore it. Root causes found and fixed, one per job:
 
-**Depends on:** nothing.
+- CTS `python-test`: ran `psql -f tracking-orchestrator/migrations/0001_init.sql`, a file that has never existed (migrations are `.up.sql`/`.down.sql` pairs). The step, and the `services: postgres/redis` blocks feeding it, were also dead weight: integration-marked tests provision and migrate their own `timescale/timescaledb-ha:pg18` testcontainer via the session-scoped `_postgres_container` fixture in `tests/conftest.py`. Removed the dead blocks and the broken step.
+- CTS `go-test`: ran `make check` inside `rtsp-ingress`, whose `check` target chains `lint vet test build`; `lint` invokes the bare `golangci-lint` binary, never installed in this job (unlike the separate `go-lint` job, which uses `golangci-lint-action`). Changed to `make vet test build`.
+- CTS `proto-lint`: `buf generate`'s drift check shells out to `protoc-gen-go`, never installed, so it failed before ever comparing generated output. Added a `go install protoc-gen-go@v1.36.11` step (pinned to the `google.golang.org/protobuf` version in `rtsp-ingress/go.mod`) and put it on `$GITHUB_PATH`. This then correctly detected **real, 2-milestone-old drift**: `tracking.proto` was edited by Milestone 04 and Milestone 06 (both identity-governance work) without regenerating the committed Go bindings (Python bindings were regenerated correctly both times). Regenerated `tracking.pb.go`/`frame.pb.go` and committed them; verified inert in practice since `rtsp-ingress` only ever constructs `FrameReady`, never the affected message types.
+- CC `Frontend gates`: `npm run build` failed on a real dependency incompatibility, not a CI config bug: dependabot bumped `@vue-flow/minimap` and `@vue-flow/controls` to versions that import `wheelDelta`/`isMacOs` from `@vue-flow/core`, but `@vue-flow/core` stayed at 1.41.7 (those symbols don't exist before 1.46.0, bisected locally, even though the peer range `^1.23.0` technically allowed it). Bumped `@vue-flow/core` to 1.46.0. This is arguably a hair outside "CI plumbing," but leaving it red would have meant WP1d's required check could never go green, so it was in scope.
+- Docs: added `.github/workflows/check.yml` (`npm ci && npm test && npm run docs:build` on `pull_request` and push-to-main), since nothing ran tests on PRs before.
 
-### WP1a: continuous-tracking workflow
+**Required check names for WP1d, once these branches merge:**
+
+- `continuous-tracking`: `python-lint`, `python-test`, `go-lint`, `go-test`, `proto-lint`, `security-scan` (all from `.github/workflows/ci.yml`, job `CI`).
+- `cognitive-companion`: `Backend gates`, `Frontend gates` (from `.github/workflows/ci.yml`, job `CI`).
+- `SilverMind-Project.github.io`: `docs` (from the new `.github/workflows/check.yml`, job `Check`).
+
+None of this was verified by an actual GitHub Actions run in the implementing session (no PR was opened, per that session's scope instructions; also no Docker available in that sandbox to exercise the CTS testcontainer path end-to-end). Verification was `make check`/`make check-all` locally (CTS, 1501 tests), direct `go build`/`go vet`/`go test -race` against system Go (CTS toolchain download was network-blocked in that sandbox), `npm run build`/`npm test` (CC frontend, 686 tests), and `npm test && npm run docs:build` (docs). Confirm green on the actual PRs before proceeding to WP1d.
+
+The rest of this section is the original plan text, kept for context; treat the box above as authoritative over it.
+
+### WP1a: continuous-tracking workflow (original draft; workflow already existed, see status box above)
 
 Create `.github/workflows/check.yml` in `continuous-tracking`:
 
@@ -92,7 +106,7 @@ Adjust target names to the real Makefile: run `grep -E '^[a-z-]+:' Makefile` fir
 
 Optional second job, nightly only (schedule trigger), running `make ci` for the Docker-backed integration proofs.
 
-### WP1b: cognitive-companion workflow
+### WP1b: cognitive-companion workflow (original draft; workflow already existed, see status box above)
 
 Same shape, single Python job:
 
@@ -105,13 +119,13 @@ Same shape, single Python job:
 
 Plus a frontend job if `frontend/package.json` has a `lint`/`test` script (check first; add `npm ci && npm run lint && npm run test -- --run` accordingly, skipping scripts that do not exist).
 
-### WP1c: docs workflow
+### WP1c: docs workflow (implemented; this one really was missing)
 
-In `SilverMind-Project.github.io`: `npm ci && npm test && npm run docs:build`.
+In `SilverMind-Project.github.io`: `npm ci && npm test && npm run docs:build`. Landed as `.github/workflows/check.yml`.
 
 ### WP1d: branch protection (`DECISION`, admin action)
 
-The owner must enable required status checks on `main` in all three repos. An agent cannot do this: it requires repo admin rights, and the agent tooling has no branch-protection endpoint. The implementing agent's only job here is to put a checklist in the WP1 PR description naming the exact check names created in WP1a-c.
+The owner must enable required status checks on `main` in all three repos. An agent cannot do this: it requires repo admin rights, and the agent tooling has no branch-protection endpoint. The exact check names to require are listed in the status box at the top of WP1.
 
 Exact owner steps, once per repo, AFTER the WP1 workflows are merged to main and at least one PR has run them (GitHub's check picker only offers names it has already seen; WP2's PR is a good trigger):
 

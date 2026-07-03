@@ -111,7 +111,22 @@ In `SilverMind-Project.github.io`: `npm ci && npm test && npm run docs:build`.
 
 ### WP1d: branch protection (`DECISION`, admin action)
 
-The owner must enable required status checks on `main` in all three repos. An agent cannot do this; put a checklist in the PR description naming the exact check names created in WP1a-c.
+The owner must enable required status checks on `main` in all three repos. An agent cannot do this: it requires repo admin rights, and the agent tooling has no branch-protection endpoint. The implementing agent's only job here is to put a checklist in the WP1 PR description naming the exact check names created in WP1a-c.
+
+Exact owner steps, once per repo, AFTER the WP1 workflows are merged to main and at least one PR has run them (GitHub's check picker only offers names it has already seen; WP2's PR is a good trigger):
+
+1. Repo on GitHub -> Settings -> Rules -> Rulesets -> New ruleset -> New branch ruleset.
+2. Name: `protect-main`. Enforcement status: Active.
+3. Target branches -> Add target -> Include default branch.
+4. Enable rules:
+   - Require a pull request before merging, with Required approvals: 0 (solo maintainer; 1 would block merging your own agent PRs).
+   - Require status checks to pass -> Add checks -> select the exact job names from the WP1 workflows (copy them verbatim from the checks tab of any PR that ran them).
+   - Optionally: Require branches to be up to date before merging.
+   - Block force pushes stays on (ruleset default).
+5. Bypass list: leave empty, so the rules apply to admins too. Add yourself temporarily for emergencies instead of weakening the ruleset.
+6. Create.
+
+Verify per repo: a direct `git push origin main` is rejected, and a PR with a deliberate lint error has its merge button blocked until checks pass.
 
 **Verification:** open a draft PR with an intentional lint error in a scratch file; the workflow must fail. Remove the scratch file; the workflow must pass. Delete the draft PR.
 

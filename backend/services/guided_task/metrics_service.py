@@ -294,17 +294,24 @@ class GuidedMetricsService:
         min_conf = 0.7
         if self._settings is not None:
             import contextlib
+
             with contextlib.suppress(Exception):
                 min_conf = self._settings.as_float("guided_task.vision.confirm.min_confidence")
 
         from sqlalchemy import Float
+
         uncertain_expr = case(
             (GuidedSessionEvent.detail["uncertain"].astext == "true", true()),
-            (case(
-                (GuidedSessionEvent.detail["confidence"].astext.isnot(None),
-                 GuidedSessionEvent.detail["confidence"].astext.cast(Float) < min_conf),
-                else_=false()
-            ).is_(true()), true()),
+            (
+                case(
+                    (
+                        GuidedSessionEvent.detail["confidence"].astext.isnot(None),
+                        GuidedSessionEvent.detail["confidence"].astext.cast(Float) < min_conf,
+                    ),
+                    else_=false(),
+                ).is_(true()),
+                true(),
+            ),
             else_=false(),
         )
         db = self._db_factory()
@@ -361,7 +368,8 @@ class GuidedMetricsService:
                     .where(
                         *filters,
                         GuidedSessionEvent.kind == "step_completed",
-                        GuidedSessionEvent.detail["completion_reason"].astext == "watch_auto_advance",
+                        GuidedSessionEvent.detail["completion_reason"].astext
+                        == "watch_auto_advance",
                     )
                 ).scalar_one()
             )
@@ -370,7 +378,11 @@ class GuidedMetricsService:
                 select(GuidedSessionEvent)
                 .join(GuidedSession, GuidedSession.id == GuidedSessionEvent.session_id)
                 .where(*filters, GuidedSessionEvent.kind == "watch")
-                .order_by(GuidedSessionEvent.session_id, GuidedSessionEvent.step_ord, GuidedSessionEvent.at)
+                .order_by(
+                    GuidedSessionEvent.session_id,
+                    GuidedSessionEvent.step_ord,
+                    GuidedSessionEvent.at,
+                )
             )
             watch_events = list(db.execute(watch_events_stmt).scalars().all())
 
@@ -378,7 +390,11 @@ class GuidedMetricsService:
                 select(GuidedSessionEvent)
                 .join(GuidedSession, GuidedSession.id == GuidedSessionEvent.session_id)
                 .where(*filters, GuidedSessionEvent.kind == "vision_confirm")
-                .order_by(GuidedSessionEvent.session_id, GuidedSessionEvent.step_ord, GuidedSessionEvent.at)
+                .order_by(
+                    GuidedSessionEvent.session_id,
+                    GuidedSessionEvent.step_ord,
+                    GuidedSessionEvent.at,
+                )
             )
             confirm_events = list(db.execute(confirm_events_stmt).scalars().all())
         finally:
@@ -398,6 +414,7 @@ class GuidedMetricsService:
         avg_latency_ms = (total_latency_ms / total_runs) if total_runs > 0 else 0.0
 
         from collections import defaultdict
+
         watch_by_step = defaultdict(list)
         for e in watch_events:
             watch_by_step[(e.session_id, e.step_ord)].append(e)
@@ -491,6 +508,7 @@ class GuidedMetricsService:
                 watch_latency_ms += latency
 
         from backend.schemas.guided_metrics import GuidedGateCostMetric
+
         return GuidedGateCostSummaryEnvelope(
             window=window,
             confirm_cost=GuidedGateCostMetric(

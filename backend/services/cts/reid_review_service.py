@@ -73,7 +73,7 @@ def _translate(exc: UpstreamError) -> ReviewUpstreamError:
         if isinstance(detail, dict):
             code = str(detail.get("code") or code)
             message = str(detail.get("message") or message)
-    except (json.JSONDecodeError, AttributeError, TypeError):
+    except json.JSONDecodeError, AttributeError, TypeError:
         pass
     status = 502 if exc.status >= 500 else exc.status
     return ReviewUpstreamError(status=status, code=code, message=message)

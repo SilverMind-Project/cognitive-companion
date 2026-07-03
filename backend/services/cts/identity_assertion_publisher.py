@@ -12,13 +12,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 from backend.core.logging import get_logger
+from backend.integrations.proto.continuoustracking.v1.tracking_pb2 import (
+    CCIdentityAssertion,
+)
 
 logger = get_logger(__name__)
 
 STREAM = "cc.identity_assertions"
 
-
-from backend.integrations.proto.continuoustracking.v1.tracking_pb2 import CCIdentityAssertion
 
 class IdentityAssertionPublisher:
     """Publishes identity assertions to the cc.identity_assertions Redis stream."""
@@ -75,7 +76,7 @@ class IdentityAssertionPublisher:
             msg.calibrated_confidence = float(calibrated_confidence)
 
         fields = {b"assertion": msg.SerializeToString()}
-        
+
         try:
             await self._redis.xadd(STREAM, fields)
             logger.debug(

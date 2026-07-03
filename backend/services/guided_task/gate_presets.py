@@ -187,16 +187,33 @@ def build_default_vlm_gate(
     desc = done_description or "the resident has completed the current routine step"
 
     poll = _add_step(
-        db, rule, order=0, step_type="media_window_poll", label="media_poll_0",
-        config={"source": "auto"}, position_x=0, position_y=0,
+        db,
+        rule,
+        order=0,
+        step_type="media_window_poll",
+        label="media_poll_0",
+        config={"source": "auto"},
+        position_x=0,
+        position_y=0,
     )
     llm = _add_step(
-        db, rule, order=1, step_type="llm_call", label="llm_call_1",
-        config=_vlm_call_config(poll_label="media_poll_0", done_description=desc, model_id=model_id),
-        position_x=320, position_y=0,
+        db,
+        rule,
+        order=1,
+        step_type="llm_call",
+        label="llm_call_1",
+        config=_vlm_call_config(
+            poll_label="media_poll_0", done_description=desc, model_id=model_id
+        ),
+        position_x=320,
+        position_y=0,
     )
     verdict = _add_step(
-        db, rule, order=2, step_type="gate_verdict", label="gate_verdict_2",
+        db,
+        rule,
+        order=2,
+        step_type="gate_verdict",
+        label="gate_verdict_2",
         config=_verdict_config(
             # The threshold is the single ``min_confidence`` knob (inherited from the
             # runner profile, per-step/per-routine overridable); do not duplicate it
@@ -205,7 +222,8 @@ def build_default_vlm_gate(
             confidence_path="steps.llm_call_1.outputs.vision_response.confidence",
             reason_path="steps.llm_call_1.outputs.vision_response.reason",
         ),
-        position_x=640, position_y=0,
+        position_x=640,
+        position_y=0,
     )
     db.flush()
 
@@ -235,19 +253,34 @@ def build_kettle_on_hob_gate(db: Session, *, name: str = "Kettle on Hob Gate") -
     db.flush()
 
     poll = _add_step(
-        db, rule, order=0, step_type="media_window_poll", label="media_poll_0",
-        config={"source": "auto"}, position_x=0, position_y=0,
+        db,
+        rule,
+        order=0,
+        step_type="media_window_poll",
+        label="media_poll_0",
+        config={"source": "auto"},
+        position_x=0,
+        position_y=0,
     )
     scene = _add_step(
-        db, rule, order=1, step_type="scene_analysis", label="scene_analysis_1",
+        db,
+        rule,
+        order=1,
+        step_type="scene_analysis",
+        label="scene_analysis_1",
         config={
             "image_source": "pipeline",
             "pipeline_image_path": "steps.media_poll_0.outputs.images",
         },
-        position_x=320, position_y=0,
+        position_x=320,
+        position_y=0,
     )
     cond = _add_step(
-        db, rule, order=2, step_type="condition", label="kettle_detected",
+        db,
+        rule,
+        order=2,
+        step_type="condition",
+        label="kettle_detected",
         config={
             "expression": (
                 "{{ steps.scene_analysis_1.outputs.scene_detections | "
@@ -255,19 +288,29 @@ def build_kettle_on_hob_gate(db: Session, *, name: str = "Kettle on Hob Gate") -
                 "icontains(steps.scene_analysis_1.outputs.scene_description, 'kettle') }}"
             ),
         },
-        position_x=640, position_y=0,
+        position_x=640,
+        position_y=0,
     )
     llm = _add_step(
-        db, rule, order=3, step_type="llm_call", label="llm_call_1",
+        db,
+        rule,
+        order=3,
+        step_type="llm_call",
+        label="llm_call_1",
         config=_vlm_call_config(
             poll_label="media_poll_0",
             done_description="the kettle is filled and placed on the hob",
             heavy=True,
         ),
-        position_x=960, position_y=-120,
+        position_x=960,
+        position_y=-120,
     )
     verdict = _add_step(
-        db, rule, order=4, step_type="gate_verdict", label="gate_verdict_1",
+        db,
+        rule,
+        order=4,
+        step_type="gate_verdict",
+        label="gate_verdict_1",
         config=_verdict_config(
             # Single threshold via ``min_confidence`` (profile-inherited); not duplicated
             # here. On the cheap false branch the VLM output is never written, so this
@@ -276,7 +319,8 @@ def build_kettle_on_hob_gate(db: Session, *, name: str = "Kettle on Hob Gate") -
             confidence_path="steps.llm_call_1.outputs.vision_response.confidence",
             reason_path="steps.llm_call_1.outputs.vision_response.reason",
         ),
-        position_x=1280, position_y=0,
+        position_x=1280,
+        position_y=0,
     )
     db.flush()
 
@@ -306,21 +350,37 @@ def build_person_at_sink_gate(db: Session, *, name: str = "Person at Sink Gate")
     db.flush()
 
     poll = _add_step(
-        db, rule, order=0, step_type="media_window_poll", label="media_poll_0",
-        config={"source": "auto"}, position_x=0, position_y=0,
+        db,
+        rule,
+        order=0,
+        step_type="media_window_poll",
+        label="media_poll_0",
+        config={"source": "auto"},
+        position_x=0,
+        position_y=0,
     )
     cond = _add_step(
-        db, rule, order=1, step_type="condition", label="person_present",
+        db,
+        rule,
+        order=1,
+        step_type="condition",
+        label="person_present",
         config={"expression": "{{ steps.media_poll_0.outputs.count > 0 }}"},
-        position_x=320, position_y=0,
+        position_x=320,
+        position_y=0,
     )
     verdict = _add_step(
-        db, rule, order=2, step_type="gate_verdict", label="gate_verdict_1",
+        db,
+        rule,
+        order=2,
+        step_type="gate_verdict",
+        label="gate_verdict_1",
         config=_verdict_config(
             complete_if="{{ steps.media_poll_0.outputs.count > 0 }}",
             min_confidence=0.0,
         ),
-        position_x=640, position_y=0,
+        position_x=640,
+        position_y=0,
     )
     db.flush()
 

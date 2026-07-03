@@ -89,7 +89,7 @@ def _seed_routine_with_watch(
                         "tick_s": 20,
                         "window_s": 4,
                         "max_frames": 3,
-                    }
+                    },
                 },
                 "mode": "all",
             },
@@ -123,7 +123,7 @@ def _settings(step_timeout_s: int = 100, resume_grace_s: int = 600) -> Settings:
                         "tick_s": 20,
                         "window_s": 4,
                         "max_frames": 3,
-                    }
+                    },
                 },
             },
         }
@@ -133,6 +133,7 @@ def _settings(step_timeout_s: int = 100, resume_grace_s: int = 600) -> Settings:
 @pytest.mark.asyncio
 async def test_progress_verdict_defers_reprompt(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -181,6 +182,7 @@ async def test_progress_verdict_defers_reprompt(db_session, monkeypatch) -> None
 @pytest.mark.asyncio
 async def test_no_progress_does_not_suppress(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -227,6 +229,7 @@ async def test_no_progress_does_not_suppress(db_session, monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_suppression_does_not_block_abandonment(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -244,7 +247,9 @@ async def test_suppression_does_not_block_abandonment(db_session, monkeypatch) -
         profile="watch",
     )
 
-    routine_id = _seed_routine_with_watch(db_session, watch_enabled=True, step_timeout_s=100, resume_grace_s=600)
+    routine_id = _seed_routine_with_watch(
+        db_session, watch_enabled=True, step_timeout_s=100, resume_grace_s=600
+    )
     svc = GuidedTaskService(
         db_factory=lambda: db_session,
         voice=_RecordingVoice(),

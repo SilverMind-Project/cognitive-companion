@@ -91,7 +91,7 @@ def _seed_routine_with_auto_advance(
                         "max_frames": 3,
                         "auto_advance": auto_advance,
                         "auto_advance_k": auto_advance_k,
-                    }
+                    },
                 },
                 "mode": "all",
             },
@@ -136,7 +136,7 @@ def _settings() -> Settings:
                         "max_frames": 3,
                         "auto_advance": False,
                         "auto_advance_k": 3,
-                    }
+                    },
                 },
             },
         }
@@ -146,6 +146,7 @@ def _settings() -> Settings:
 @pytest.mark.asyncio
 async def test_k_consecutive_completes_advances(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -195,13 +196,16 @@ async def test_k_consecutive_completes_advances(db_session, monkeypatch) -> None
     assert session.current_step_ord == 1
 
     # Check spoken warm transition
-    assert len(voice.calls) == 2  # first call was step 0 start, second was step 1 enter (with prefix)
+    assert (
+        len(voice.calls) == 2
+    )  # first call was step 0 start, second was step 1 enter (with prefix)
     assert "I can see you've done that, lovely, now" in voice.calls[1]
 
 
 @pytest.mark.asyncio
 async def test_streak_resets_on_low_confidence(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -250,6 +254,7 @@ async def test_streak_resets_on_low_confidence(db_session, monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_streak_resets_on_incomplete(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -298,6 +303,7 @@ async def test_streak_resets_on_incomplete(db_session, monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_auto_advance_disabled_by_default(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -340,6 +346,7 @@ async def test_auto_advance_disabled_by_default(db_session, monkeypatch) -> None
 @pytest.mark.asyncio
 async def test_safety_critical_step_never_auto_advances(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -358,7 +365,9 @@ async def test_safety_critical_step_never_auto_advances(db_session, monkeypatch)
     voice = _RecordingVoice()
 
     # step is_safety_critical = True
-    routine_id = _seed_routine_with_auto_advance(db_session, auto_advance=True, is_safety_critical=True)
+    routine_id = _seed_routine_with_auto_advance(
+        db_session, auto_advance=True, is_safety_critical=True
+    )
     svc = GuidedTaskService(
         db_factory=lambda: db_session,
         voice=voice,

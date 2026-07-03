@@ -65,7 +65,7 @@ def _translate(exc: UpstreamError) -> CorrectionUpstreamError:
         if isinstance(detail, dict):
             code = str(detail.get("code") or code)
             message = str(detail.get("message") or message)
-    except (json.JSONDecodeError, AttributeError, TypeError):
+    except json.JSONDecodeError, AttributeError, TypeError:
         pass
     status = 502 if exc.status >= 500 else exc.status
     return CorrectionUpstreamError(status=status, code=code, message=message)
@@ -115,9 +115,7 @@ class IdentityCorrectionService:
             raise CorrectionContractError("malformed proposal envelope") from exc
         return proposal
 
-    async def apply_correction(
-        self, *, payload: dict, actor: str
-    ) -> CorrectionResultResponse:
+    async def apply_correction(self, *, payload: dict, actor: str) -> CorrectionResultResponse:
         # Server-injected actor: never trust a browser-supplied subject.
         upstream_payload = {**payload, "actor": actor}
         try:
@@ -126,13 +124,9 @@ class IdentityCorrectionService:
             raise _translate(exc) from exc
         return self._result(raw)
 
-    async def compensate(
-        self, *, correction_id: str, actor: str
-    ) -> CorrectionResultResponse:
+    async def compensate(self, *, correction_id: str, actor: str) -> CorrectionResultResponse:
         try:
-            raw = await self._client.compensate_correction(
-                correction_id=correction_id, actor=actor
-            )
+            raw = await self._client.compensate_correction(correction_id=correction_id, actor=actor)
         except UpstreamError as exc:
             raise _translate(exc) from exc
         return self._result(raw)

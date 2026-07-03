@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 
+from backend.channels import ChannelRegistry
 from backend.channels.base import ChannelMetadata, NotificationChannel
 from backend.core.config import settings
 from backend.core.logging import get_logger
@@ -18,6 +19,7 @@ from backend.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+@ChannelRegistry.register
 class WebhookChannel(NotificationChannel):
     """Notification channel for outbound webhooks."""
 

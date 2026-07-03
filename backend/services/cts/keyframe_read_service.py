@@ -122,9 +122,7 @@ def _build_card(frame: UpstreamFrame) -> PhysicalFrameCard:
         frame_width=frame.frame_width,
         frame_height=frame.frame_height,
         triggers=[
-            KeyframeTriggerView(
-                keyframe_id=t.keyframe_id, ph_id=t.ph_id, tag_reason=t.tag_reason
-            )
+            KeyframeTriggerView(keyframe_id=t.keyframe_id, ph_id=t.ph_id, tag_reason=t.tag_reason)
             for t in frame.triggers
         ],
         trigger_reasons=frame.trigger_reasons,

@@ -537,13 +537,9 @@ class GuidedTaskService:
             ):
                 # Resolve the disagreement bound: step -> routine -> global -> default.
                 confirm_cfg = (step.completion_gate or {}).get("vision", {}).get("confirm") or {}
-                routine_confirm_cfg = (
-                    (getattr(routine, "config_json", None) or {})
-                    .get("guided_task", {})
-                    .get("vision", {})
-                    .get("confirm")
-                    or {}
-                )
+                routine_confirm_cfg = (getattr(routine, "config_json", None) or {}).get(
+                    "guided_task", {}
+                ).get("vision", {}).get("confirm") or {}
                 max_disagreements = resolve_vision_override(
                     "max_disagreements",
                     step_cfg=confirm_cfg,
@@ -1508,7 +1504,14 @@ class GuidedTaskService:
             guided_metrics.guided_steps_total.labels(result="completed").inc()
             await self.complete(session.id, "completed")
 
-    async def _speak(self, session: GuidedSession, step: RoutineStep, *, is_retry: bool, prefix: str | None = None) -> None:
+    async def _speak(
+        self,
+        session: GuidedSession,
+        step: RoutineStep,
+        *,
+        is_retry: bool,
+        prefix: str | None = None,
+    ) -> None:
         routine = self._store.get_routine(session.routine_id)
         if routine is None:
             raise NotFoundError("Routine", session.routine_id)
@@ -1875,15 +1878,21 @@ class GuidedTaskService:
         now: datetime,
     ) -> bool:
         vision_cfg = (
-            (step.completion_gate or {}).get("vision") or (step.completion_gate or {}).get("vision_confirm") or {}
+            (step.completion_gate or {}).get("vision")
+            or (step.completion_gate or {}).get("vision_confirm")
+            or {}
         )
         watch_cfg = vision_cfg.get("watch") or {}
         confirm_cfg = vision_cfg.get("confirm") or {}
-        routine_cfg = (getattr(routine, "config_json", None) or {}).get("guided_task", {}).get("vision", {})
+        routine_cfg = (
+            (getattr(routine, "config_json", None) or {}).get("guided_task", {}).get("vision", {})
+        )
 
         r_watch = routine_cfg.get("watch") or {}
 
-        def resolve_val(key: str, default_path: str, type_cast: Callable[[Any], Any], fallback: Any = None) -> Any:
+        def resolve_val(
+            key: str, default_path: str, type_cast: Callable[[Any], Any], fallback: Any = None
+        ) -> Any:
             return resolve_vision_override(
                 key,
                 step_cfg=watch_cfg,
@@ -1922,7 +1931,9 @@ class GuidedTaskService:
 
         # Watch has no dedicated min_confidence default; fall back to the confirm
         # threshold (step -> routine -> global -> 0.7) when watch leaves it unset.
-        min_confidence = resolve_val("min_confidence", "guided_task.vision.watch.min_confidence", float)
+        min_confidence = resolve_val(
+            "min_confidence", "guided_task.vision.watch.min_confidence", float
+        )
         if min_confidence is None:
             min_confidence = resolve_vision_override(
                 "min_confidence",
@@ -1935,6 +1946,7 @@ class GuidedTaskService:
             )
 
         from backend.services.guided_task.gate_runner import GateProfile, GateRunContext
+
         watch_profile = GateProfile(
             name="watch",
             window_s=window_s,
@@ -1946,6 +1958,7 @@ class GuidedTaskService:
 
         # 2. Resolve cameras
         from backend.services.guided_task.camera_selection import select_cameras_tagged
+
         cameras = await select_cameras_tagged(
             person_id=session.person_id,
             step=step,
@@ -1969,6 +1982,7 @@ class GuidedTaskService:
         room_name = None
         if self._person_location_service is not None:
             import contextlib
+
             with contextlib.suppress(Exception):
                 location = await self._person_location_service.where_is(session.person_id)
                 if location is not None:
@@ -2023,14 +2037,19 @@ class GuidedTaskService:
             self._progress_seen_at[(session.id, step.ord)] = now
 
         # Part C: Opt-in conservative auto-advance
-        auto_advance = resolve_val("auto_advance", "guided_task.vision.watch.auto_advance", bool, False)
+        auto_advance = resolve_val(
+            "auto_advance", "guided_task.vision.watch.auto_advance", bool, False
+        )
         if auto_advance and not step.is_safety_critical:
-            auto_advance_k = resolve_val("auto_advance_k", "guided_task.vision.watch.auto_advance_k", int, 3)
+            auto_advance_k = resolve_val(
+                "auto_advance_k", "guided_task.vision.watch.auto_advance_k", int, 3
+            )
             db = self._db_factory()
             try:
                 from sqlalchemy import select
 
                 from backend.models.guided_task import GuidedSessionEvent
+
                 stmt = (
                     select(GuidedSessionEvent)
                     .where(

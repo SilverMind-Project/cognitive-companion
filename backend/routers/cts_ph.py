@@ -553,9 +553,7 @@ async def compensate_correction(
         ) from exc
 
 
-@router.get(
-    "/identity/corrections/jobs/{revision_id}", response_model=CorrectionJobResponse
-)
+@router.get("/identity/corrections/jobs/{revision_id}", response_model=CorrectionJobResponse)
 async def get_correction_job(
     revision_id: str,
     svc: IdentityCorrectionService = Depends(get_identity_correction_service),

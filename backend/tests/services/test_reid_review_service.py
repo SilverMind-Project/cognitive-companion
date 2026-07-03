@@ -77,7 +77,12 @@ async def test_rejected_candidate_never_presigns_crop(service_and_client):
     service, client = service_and_client
     client.reject_review_candidate = AsyncMock(return_value=_raw_candidate(state="rejected"))
     view = await service.reject(
-        "c1", actor="alice", base_audit_version=1, reason="wrong_person", note=None, presign=_presign
+        "c1",
+        actor="alice",
+        base_audit_version=1,
+        reason="wrong_person",
+        note=None,
+        presign=_presign,
     )
     # The crop object is deleted upstream; presigning it would 404 in the browser.
     assert view.crop_url is None
@@ -86,7 +91,9 @@ async def test_rejected_candidate_never_presigns_crop(service_and_client):
 
 async def test_actor_injected_into_upstream_payload(service_and_client):
     service, client = service_and_client
-    client.approve_review_candidate = AsyncMock(return_value=_raw_candidate(state="operator_verified"))
+    client.approve_review_candidate = AsyncMock(
+        return_value=_raw_candidate(state="operator_verified")
+    )
     await service.approve("c1", actor="alice", base_audit_version=1, note="ok")
     payload = client.approve_review_candidate.await_args.kwargs["payload"]
     assert payload["actor"] == "alice"

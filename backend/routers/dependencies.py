@@ -128,9 +128,7 @@ def get_keyframe_read_service(request: Request) -> KeyframeReadService:
 
 def get_identity_correction_service(request: Request) -> IdentityCorrectionService:
     """Return the lifespan-managed M08 identity correction service (503 if unavailable)."""
-    service: IdentityCorrectionService | None = (
-        request.app.state.identity_correction_service
-    )
+    service: IdentityCorrectionService | None = request.app.state.identity_correction_service
     if service is None:
         raise _raise_503("identity_correction_service", "Identity correction service")
     return service

@@ -20,9 +20,7 @@ def _frame(bboxes: list[dict], **overrides) -> dict:
         "captured_at": "2026-06-19T12:00:00+00:00",
         "frame_width": 1920,
         "frame_height": 1080,
-        "triggers": [
-            {"keyframe_id": "kf-1", "ph_id": "ph-a", "tag_reason": "periodic"}
-        ],
+        "triggers": [{"keyframe_id": "kf-1", "ph_id": "ph-a", "tag_reason": "periodic"}],
         "trigger_reasons": ["periodic"],
         "unknown_count": 0,
         "conflict_count": 0,

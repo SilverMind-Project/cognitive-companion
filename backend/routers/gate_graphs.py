@@ -76,7 +76,9 @@ def create_gate_graph(
         if payload.description is not None:
             rule.description = payload.description
     else:
-        rule = Rule(name=payload.name, description=payload.description, enabled=True, trigger_types=[])
+        rule = Rule(
+            name=payload.name, description=payload.description, enabled=True, trigger_types=[]
+        )
         db.add(rule)
 
     db.commit()
@@ -120,9 +122,7 @@ def validate_gate_graph_endpoint(
     edges = db.query(PipelineEdge).filter(PipelineEdge.rule_id == rule_id).all()
 
     # Full gate validation: exactly one reachable gate_verdict + all gate-safe.
-    errors = validate_gate_graph(
-        steps, edges, step_metadata=_gate_metadata, gate_safe_only=False
-    )
+    errors = validate_gate_graph(steps, edges, step_metadata=_gate_metadata, gate_safe_only=False)
 
     # Per-step template expression linting (mirrors POST /rules/{id}/validate).
     known_labels = [s.label for s in steps]

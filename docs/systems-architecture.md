@@ -272,7 +272,7 @@ There are 24 registered built-in step types:
 | Perception and media | `person_identification`, `scene_analysis`, `media_window_poll`, `image_crop`, `object_trend_analysis` |
 | Presence and state | `presence_query`, `home_state`, `activity_detection`, `activity_session_start`, `activity_session_end`, `daily_report` |
 | Knowledge | `semantic_memory_query`, `semantic_memory_write`, `info_card`, `quiz_start` |
-| Reasoning and flow | `llm_call`, `condition`, `verification`, `wait`, `interactive_prompt` |
+| Reasoning and flow | `llm_call`, `condition`, `verification`, `wait`, `interactive_prompt`, `gate_verdict`, `guided_task_start` |
 | Actions | `notification`, `ha_action` |
 
 Every data-emitting step declares `StepMetadata.output_schema`. The step metadata endpoint exposes `config_schema`, `ui_hints`, `output_schema`, tags, and `output_ports` to the frontend.

@@ -215,6 +215,4 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
                 counts=counts,
             )
         except Exception:
-            logger.exception(
-                "cts_projection_ack_failed", revision_id=revision.get("revision_id")
-            )
+            logger.exception("cts_projection_ack_failed", revision_id=revision.get("revision_id"))

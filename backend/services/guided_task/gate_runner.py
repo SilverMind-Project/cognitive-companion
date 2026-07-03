@@ -307,9 +307,7 @@ class GateGraphRunner:
                     reason="rule_not_found", profile=profile, start_time=start_time
                 )
             if not rule.enabled:
-                return _fail_verdict(
-                    reason="rule_disabled", profile=profile, start_time=start_time
-                )
+                return _fail_verdict(reason="rule_disabled", profile=profile, start_time=start_time)
 
             steps = (
                 db.query(PipelineStep)
@@ -355,9 +353,7 @@ class GateGraphRunner:
                 reason="invalid_graph",
                 errors=errors,
             )
-            return _fail_verdict(
-                reason="invalid_graph", profile=profile, start_time=start_time
-            )
+            return _fail_verdict(reason="invalid_graph", profile=profile, start_time=start_time)
 
         # 3. Seed pipeline_data
         local_tz = ZoneInfo(self._settings.as_str("app.timezone"))

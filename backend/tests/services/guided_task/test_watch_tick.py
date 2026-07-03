@@ -62,6 +62,7 @@ class FakeGateGraphRunner:
 class FailingGateGraphRunner:
     def __init__(self):
         from backend.services.guided_task.gate_runner import _CoolOffCache
+
         self.cache = _CoolOffCache()
         self._time_fn = lambda: datetime.now(UTC)
 
@@ -107,7 +108,7 @@ def _seed_routine_with_watch(
                         "tick_s": tick_s,
                         "window_s": 4,
                         "max_frames": 3,
-                    }
+                    },
                 },
                 "mode": "all",
             },
@@ -141,7 +142,7 @@ def _settings() -> Settings:
                         "tick_s": 20,
                         "window_s": 4,
                         "max_frames": 3,
-                    }
+                    },
                 },
             },
         }
@@ -151,6 +152,7 @@ def _settings() -> Settings:
 @pytest.mark.asyncio
 async def test_watch_runs_only_when_enabled(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -181,6 +183,7 @@ async def test_watch_runs_only_when_enabled(db_session, monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_watch_throttled_by_tick_s(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -220,6 +223,7 @@ async def test_watch_throttled_by_tick_s(db_session, monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_watch_emits_event_and_warms_cache(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -244,8 +248,16 @@ async def test_watch_emits_event_and_warms_cache(db_session, monkeypatch) -> Non
     await svc.tick(clock.now)
 
     # Check cache has both keys warmed
-    assert gate_runner.cache.get_fresh((str(session.id), 0, "watch"), min_interval_s=15, now=clock.now) is not None
-    assert gate_runner.cache.get_fresh((str(session.id), 0, "confirm"), min_interval_s=15, now=clock.now) is not None
+    assert (
+        gate_runner.cache.get_fresh((str(session.id), 0, "watch"), min_interval_s=15, now=clock.now)
+        is not None
+    )
+    assert (
+        gate_runner.cache.get_fresh(
+            (str(session.id), 0, "confirm"), min_interval_s=15, now=clock.now
+        )
+        is not None
+    )
 
     # Check event was written
     events = svc._store.list_events(session_id=session.id)
@@ -258,6 +270,7 @@ async def test_watch_emits_event_and_warms_cache(db_session, monkeypatch) -> Non
 @pytest.mark.asyncio
 async def test_watch_does_not_change_step_state(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
@@ -298,6 +311,7 @@ async def test_watch_does_not_change_step_state(db_session, monkeypatch) -> None
 @pytest.mark.asyncio
 async def test_watch_error_isolated_from_safety_watch(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
+
     monkeypatch.setattr(
         "backend.services.guided_task.camera_selection.select_cameras_tagged",
         AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),

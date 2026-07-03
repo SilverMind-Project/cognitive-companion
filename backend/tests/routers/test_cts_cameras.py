@@ -88,7 +88,7 @@ def _isolate_cameras(db_engine: Engine):
         db.commit()
     finally:
         db.close()
-    yield
+    return
 
 
 # ---------------------------------------------------------------------------

@@ -172,9 +172,7 @@ def _seed_signal(db_factory, person_id: str, window_start: datetime) -> None:
 
 class TestSignalSupersession:
     @pytest.mark.asyncio
-    async def test_signal_superseded_and_recreated_under_new_identity(
-        self, rewriter, db_factory
-    ):
+    async def test_signal_superseded_and_recreated_under_new_identity(self, rewriter, db_factory):
         window = datetime.now(UTC) - timedelta(minutes=20)
         _seed_signal(db_factory, "grandma", window)
         revision = _revision()

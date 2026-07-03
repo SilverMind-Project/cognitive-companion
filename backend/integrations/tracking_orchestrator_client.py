@@ -635,15 +635,11 @@ class OrchestratorClient(UpstreamClient):
         return r.json()
 
     async def get_review_candidate(self, candidate_id: str) -> dict:
-        r = await self._request(
-            "GET", f"/internal/reid-review/candidates/{candidate_id}"
-        )
+        r = await self._request("GET", f"/internal/reid-review/candidates/{candidate_id}")
         return r.json()
 
     async def list_review_events(self, candidate_id: str) -> dict:
-        r = await self._request(
-            "GET", f"/internal/reid-review/candidates/{candidate_id}/events"
-        )
+        r = await self._request("GET", f"/internal/reid-review/candidates/{candidate_id}/events")
         return r.json()
 
     async def get_review_counts(self) -> dict:
@@ -675,9 +671,7 @@ class OrchestratorClient(UpstreamClient):
         return r.json()
 
     async def reject_review_batch(self, *, payload: dict) -> dict:
-        r = await self._request(
-            "POST", "/internal/reid-review/reject-batch", json=payload
-        )
+        r = await self._request("POST", "/internal/reid-review/reject-batch", json=payload)
         return r.json()
 
     async def compensate_review_candidate(self, candidate_id: str, *, actor: str) -> dict:

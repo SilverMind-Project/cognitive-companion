@@ -112,9 +112,7 @@ def test_gate_graph_list_uses_rule_service(db_session, monkeypatch) -> None:
 
 
 def test_create_blank_sets_empty_trigger_types(db_session) -> None:
-    resp = _client(db_session, _admin()).post(
-        "/api/v1/gate-graphs", json={"name": "Blank Gate"}
-    )
+    resp = _client(db_session, _admin()).post("/api/v1/gate-graphs", json={"name": "Blank Gate"})
     assert resp.status_code == 201
     body = resp.json()
     assert body["trigger_types"] == []
@@ -135,7 +133,9 @@ def test_create_from_preset_clones_steps_edges(db_session) -> None:
     step_types = {s.step_type for s in steps}
     assert "gate_verdict" in step_types
     assert "llm_call" in step_types
-    assert len(edges) >= 4  # poll->scene->cond, cond--true-->llm, cond--false-->verdict, llm->verdict
+    assert (
+        len(edges) >= 4
+    )  # poll->scene->cond, cond--true-->llm, cond--false-->verdict, llm->verdict
 
 
 def test_create_from_unknown_preset_404(db_session) -> None:
@@ -155,8 +155,12 @@ def test_validate_reports_missing_verdict_and_non_gate_safe(db_session) -> None:
     # notification is a side-effecting step: not gate_safe, and there is no verdict.
     db_session.add(
         PipelineStep(
-            rule_id=rule.id, order=0, step_type="notification", label="notify_1",
-            config_json={}, enabled=True,
+            rule_id=rule.id,
+            order=0,
+            step_type="notification",
+            label="notify_1",
+            config_json={},
+            enabled=True,
         )
     )
     db_session.commit()
@@ -201,9 +205,7 @@ def test_test_run_returns_verdict(db_session) -> None:
 def test_test_run_fails_closed_without_service(db_session) -> None:
     rule = build_default_vlm_gate(db_session, name="No Service Gate")
     db_session.commit()
-    resp = _client(db_session, _admin()).post(
-        f"/api/v1/gate-graphs/{rule.id}/test-run", json={}
-    )
+    resp = _client(db_session, _admin()).post(f"/api/v1/gate-graphs/{rule.id}/test-run", json={})
     assert resp.status_code == 200
     assert resp.json()["complete"] is False
     assert resp.json()["reason"] == "gate_service_unavailable"
@@ -226,9 +228,7 @@ def test_auth_required_and_rejected_without_permission(db_session) -> None:
     # No credentials at all -> 401.
     assert _client(db_session).get("/api/v1/gate-graphs").status_code == 401
     assert _client(db_session).get("/api/v1/gate-presets").status_code == 401
-    assert (
-        _client(db_session).post("/api/v1/gate-graphs", json={"name": "x"}).status_code == 401
-    )
+    assert _client(db_session).post("/api/v1/gate-graphs", json={"name": "x"}).status_code == 401
 
     # Read-only key cannot write.
     reader = _reader()

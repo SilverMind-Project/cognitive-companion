@@ -26,7 +26,12 @@ def test_new_vision_shape_round_trips_including_max_disagreements() -> None:
                     "on_max_disagreements": "escalate",
                     "model_id": None,
                 },
-                "watch": {"enabled": True, "tick_s": 15, "auto_advance": False, "auto_advance_k": 2},
+                "watch": {
+                    "enabled": True,
+                    "tick_s": 15,
+                    "auto_advance": False,
+                    "auto_advance_k": 2,
+                },
             },
         }
     )

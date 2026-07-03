@@ -393,9 +393,7 @@ def _validate_rule_graph_or_raise(
         errors = validate_gate_graph(
             steps,
             edges,
-            step_metadata=lambda t_name: (
-                h.metadata() if (h := StepRegistry.get(t_name)) else None
-            ),
+            step_metadata=lambda t_name: h.metadata() if (h := StepRegistry.get(t_name)) else None,
             gate_safe_only=True,
         )
     else:

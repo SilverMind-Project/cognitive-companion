@@ -266,7 +266,9 @@ async def test_kettle_preset_cheap_exit_when_no_detection(db_session: Session) -
     exit and the heavy VLM is never invoked (the join still fires the verdict)."""
     rule = build_kettle_on_hob_gate(db_session, name="Kettle Cheap Exit Test")
 
-    llm_provider = MockLLMProvider('{"complete": true, "confidence": 0.9, "reason": "kettle on hob"}')
+    llm_provider = MockLLMProvider(
+        '{"complete": true, "confidence": 0.9, "reason": "kettle on hob"}'
+    )
     llm_registry = MockLLMRegistry(llm_provider)
 
     services = ServiceContainer(

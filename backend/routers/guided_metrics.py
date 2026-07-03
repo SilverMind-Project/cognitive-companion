@@ -167,4 +167,6 @@ def get_guided_gate_cost_summary(
     svc: GuidedMetricsService = Depends(get_guided_metrics_service),
     _auth: AuthContext = Depends(require_permission("guided_metrics:read")),
 ) -> GuidedGateCostSummaryEnvelope:
-    return svc.gate_cost_summary(person_id=person_id, routine_id=routine_id, since=since, until=until)
+    return svc.gate_cost_summary(
+        person_id=person_id, routine_id=routine_id, since=since, until=until
+    )

@@ -21,8 +21,16 @@ def _proposal(**overrides) -> dict:
     raw = {
         "ph_id": "ph-1",
         "observation_ids": ["o1", "o2"],
-        "start": {"observation_id": "o1", "captured_at": "2026-06-20T12:00:00+00:00", "reason": "segment_edge"},
-        "end": {"observation_id": "o2", "captured_at": "2026-06-20T12:00:05+00:00", "reason": "association_discontinuity"},
+        "start": {
+            "observation_id": "o1",
+            "captured_at": "2026-06-20T12:00:00+00:00",
+            "reason": "segment_edge",
+        },
+        "end": {
+            "observation_id": "o2",
+            "captured_at": "2026-06-20T12:00:05+00:00",
+            "reason": "association_discontinuity",
+        },
         "ph_version": 3,
         "effective_identity_id": "amma",
     }
@@ -87,9 +95,7 @@ async def test_apply_stale_version_propagates_409_code() -> None:
 
 async def test_upstream_5xx_becomes_502() -> None:
     client = MagicMock()
-    client.propose_segment = AsyncMock(
-        side_effect=UpstreamError("tracking_orchestrator", 503, "")
-    )
+    client.propose_segment = AsyncMock(side_effect=UpstreamError("tracking_orchestrator", 503, ""))
     with pytest.raises(CorrectionUpstreamError) as ei:
         await _service(client).propose_segment(ph_id="ph-1")
     assert ei.value.status == 502

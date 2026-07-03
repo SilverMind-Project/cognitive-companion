@@ -26,8 +26,12 @@ def _proposal() -> SegmentProposalResponse:
     return SegmentProposalResponse(
         ph_id="ph-1",
         observation_ids=["o1", "o2"],
-        start=SegmentBoundaryView(observation_id="o1", captured_at="2026-06-20T12:00:00+00:00", reason="segment_edge"),
-        end=SegmentBoundaryView(observation_id="o2", captured_at="2026-06-20T12:00:05+00:00", reason="segment_edge"),
+        start=SegmentBoundaryView(
+            observation_id="o1", captured_at="2026-06-20T12:00:00+00:00", reason="segment_edge"
+        ),
+        end=SegmentBoundaryView(
+            observation_id="o2", captured_at="2026-06-20T12:00:05+00:00", reason="segment_edge"
+        ),
         ph_version=2,
         effective_identity_id="amma",
         person_id="amma",

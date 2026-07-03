@@ -72,9 +72,7 @@ def _contract_502(exc: ReviewContractError) -> HTTPException:
     )
 
 
-@router.get(
-    "/identity/reid-review/candidates", response_model=ReviewCandidateListResponse
-)
+@router.get("/identity/reid-review/candidates", response_model=ReviewCandidateListResponse)
 async def list_candidates(
     request: Request,
     state: str = "pending_review",
@@ -242,9 +240,7 @@ async def reject_candidate(
         raise _contract_502(exc) from exc
 
 
-@router.post(
-    "/identity/reid-review/reject-batch", response_model=BatchRejectResponse
-)
+@router.post("/identity/reid-review/reject-batch", response_model=BatchRejectResponse)
 async def reject_batch(
     body: BatchRejectRequest,
     request: Request,

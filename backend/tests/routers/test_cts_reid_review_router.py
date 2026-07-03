@@ -32,7 +32,9 @@ from backend.schemas.cts_reid_review import (
 from backend.services.cts.reid_review_service import ReviewUpstreamError
 
 
-def _candidate(state: str = "pending_review", crop_url: str | None = "https://x/crop") -> ReviewCandidateView:
+def _candidate(
+    state: str = "pending_review", crop_url: str | None = "https://x/crop"
+) -> ReviewCandidateView:
     return ReviewCandidateView(
         candidate_id="c1",
         identity_id="amma",
@@ -138,7 +140,11 @@ def test_view_or_correct_alone_cannot_access_any_route(perms):
     client, _, patcher = _build_app(perms)
     try:
         for method, path, body in _ROUTES:
-            resp = getattr(client, method)(path, json=body) if body is not None else getattr(client, method)(path)
+            resp = (
+                getattr(client, method)(path, json=body)
+                if body is not None
+                else getattr(client, method)(path)
+            )
             assert resp.status_code == 403, f"{method} {path} leaked to {perms}: {resp.status_code}"
     finally:
         patcher.stop()
@@ -149,8 +155,14 @@ def test_gallery_review_token_grants_access(perms):
     client, _, patcher = _build_app(perms)
     try:
         for method, path, body in _ROUTES:
-            resp = getattr(client, method)(path, json=body) if body is not None else getattr(client, method)(path)
-            assert resp.status_code == 200, f"{method} {path} denied for {perms}: {resp.status_code}"
+            resp = (
+                getattr(client, method)(path, json=body)
+                if body is not None
+                else getattr(client, method)(path)
+            )
+            assert resp.status_code == 200, (
+                f"{method} {path} denied for {perms}: {resp.status_code}"
+            )
     finally:
         patcher.stop()
 

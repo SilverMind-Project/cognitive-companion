@@ -261,7 +261,7 @@ class NotificationHandler(StepHandler):
                         "description": "Sensor IDs of eink displays (empty = all)",
                     },
                     "eink_template_id": {
-                        "type": "integer",
+                        "type": ["integer", "null"],
                         "description": (
                             "ID of the image template to render onto. "
                             "Leave empty to use the default alert template."

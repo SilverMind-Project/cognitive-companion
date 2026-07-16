@@ -204,6 +204,17 @@ export const stepTabs = [
   { key: "regions", label: "Regions", icon: "mdi-crop" },
   { key: "output", label: "Output", icon: "mdi-tune" },
 ];
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  const source = cfg.image_source || "trigger";
+  out.push(chip(source, "mdi-image-outline", "teal"));
+  const regionCount = cfg.regions?.length || 0;
+  if (regionCount > 0) out.push(chip(`${regionCount} region${regionCount > 1 ? "s" : ""}`, "mdi-crop", "green"));
+  const maxImgs = cfg.max_images ?? 1;
+  if (maxImgs > 0) out.push(chip(`max ${maxImgs}`, "mdi-image-multiple-outline", "teal"));
+  return out;
+}
 </script>
 
 <script setup>

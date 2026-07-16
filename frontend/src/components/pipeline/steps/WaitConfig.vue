@@ -12,6 +12,11 @@
 <script>
 export const stepDefaults = { minutes: 5 };
 export const stepTabs = [];
+
+export function chips(cfg, { chip }) {
+  const mins = cfg.minutes ?? 5;
+  return [chip(`${mins} min`, "mdi-timer-sand", "amber")];
+}
 </script>
 
 <script setup>

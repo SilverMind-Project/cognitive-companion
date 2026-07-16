@@ -303,6 +303,17 @@ export function beforeSave(cfg) {
 export function onStepLoaded(cfg) {
   // Time filter normalization handled by TimeFilterCard internally
 }
+
+export function chips(cfg, { chip, ALERT_COLORS }) {
+  const out = [];
+  const level = cfg.alert_level || "warning";
+  out.push(chip(level, "mdi-bell-outline", ALERT_COLORS[level] || "orange"));
+  if (cfg.channels?.length) out.push(chip(cfg.channels.join(", "), "mdi-send-outline", undefined));
+  const telegramSrc = cfg.telegram_image_source;
+  if (telegramSrc && telegramSrc !== "trigger") out.push(chip(`telegram: ${telegramSrc}`, "mdi-send", "blue"));
+  if (cfg.trigger_cooloff === false) out.push(chip("no cooloff", "mdi-timer-off-outline", "warning"));
+  return out;
+}
 </script>
 
 <script setup>

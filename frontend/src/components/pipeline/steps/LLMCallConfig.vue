@@ -296,6 +296,25 @@ export function onStepLoaded(cfg) {
   // Handled by the component internally
 }
 
+export function chips(cfg, { chip, truncate }) {
+  const out = [];
+  if (cfg.model_id) {
+    const short = truncate(cfg.model_id, 28);
+    out.push(chip(short, "mdi-chip", "purple", cfg.model_id !== short ? cfg.model_id : undefined));
+  }
+  const maxImgs = cfg.max_images ?? 5;
+  const triggerImgs = cfg.trigger_images_count ?? 0;
+  const additionalSensors = cfg.additional_sensor_ids?.length || 0;
+  const additionalRooms = cfg.additional_room_names?.length || 0;
+  if (maxImgs > 0) out.push(chip(`<= ${maxImgs} images`, "mdi-image-multiple-outline", "teal"));
+  if (triggerImgs > 0) out.push(chip(`${triggerImgs} trigger frame${triggerImgs > 1 ? "s" : ""}`, "mdi-camera", "teal"));
+  if (additionalSensors > 0) out.push(chip(`+${additionalSensors} sensor${additionalSensors > 1 ? "s" : ""}`, "mdi-camera-plus-outline", "cyan"));
+  if (additionalRooms > 0) out.push(chip(cfg.additional_room_names.join(", "), "mdi-home-outline", "cyan"));
+  if (cfg.output_key && cfg.output_key !== "llm_response") out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
+  if (cfg.response_format && cfg.response_format !== "default") out.push(chip(cfg.response_format, "mdi-code-json", "blue-grey"));
+  return out;
+}
+
 </script>
 
 <script setup>

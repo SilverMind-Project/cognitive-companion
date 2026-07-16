@@ -44,6 +44,13 @@ export const stepDefaults = {
   output_key: "closed_session",
 };
 export const stepTabs = [];
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  if (cfg.activity_type) out.push(chip(cfg.activity_type, "mdi-run", "indigo"));
+  if (cfg.source_key) out.push(chip(`source: ${cfg.source_key}`, "mdi-link-variant", "blue-grey"));
+  return out;
+}
 </script>
 
 <script setup>

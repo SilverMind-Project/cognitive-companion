@@ -87,6 +87,16 @@ export const stepDefaults = {
   trigger_cooloff: true,
 };
 export const stepTabs = [];
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  if (cfg.activity_type) out.push(chip(cfg.activity_type, "mdi-run", "indigo"));
+  if (cfg.person_id) out.push(chip(cfg.person_id, "mdi-account-outline", undefined));
+  if (cfg.room_name) out.push(chip(cfg.room_name, "mdi-home-outline", undefined));
+  const conf = cfg.confidence ?? 0.8;
+  out.push(chip(`${Math.round(conf * 100)}% conf`, "mdi-percent", "teal"));
+  return out;
+}
 </script>
 
 <script setup>

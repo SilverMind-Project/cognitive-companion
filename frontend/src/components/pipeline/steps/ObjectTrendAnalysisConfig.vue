@@ -48,6 +48,15 @@ export const stepDefaults = {
   output_key: "room_trends",
 };
 export const stepTabs = [];
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  if (cfg.room_ids?.length) out.push(chip(cfg.room_ids.join(", "), "mdi-home-group", "indigo"));
+  else out.push(chip("all rooms", "mdi-home-group", "indigo"));
+  if (cfg.severity_threshold) out.push(chip(cfg.severity_threshold, "mdi-alert-circle-outline", undefined));
+  if (cfg.output_key && cfg.output_key !== "room_trends") out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
+  return out;
+}
 </script>
 
 <script setup>

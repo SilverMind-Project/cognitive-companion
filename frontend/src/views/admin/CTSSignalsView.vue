@@ -140,6 +140,7 @@
 import { ref, computed, onMounted, watch } from "vue";
 import { cts } from "../../services/cts.js";
 import { severityColor } from "../../composables/useCtsSeverity";
+import vocabularies from "@/generated/vocabularies.json";
 
 const signals = ref([]);
 const trend = ref([]);
@@ -151,18 +152,7 @@ const filters = ref({
   window_hours: 24,
 });
 
-const signalTypes = [
-  "pacing",
-  "room_revisit_rate",
-  "bathroom_dwell_anomaly",
-  "sundowning_index",
-  "nighttime_movement",
-  "stillness_anomaly",
-  "absence",
-  "fall_suspected",
-  "gait_slowing",
-  "agitation_index",
-];
+const signalTypes = vocabularies.signal_kinds;
 
 const signalIcons = {
   pacing: "🚶",

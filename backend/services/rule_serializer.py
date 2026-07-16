@@ -23,6 +23,7 @@ from backend.schemas.rule_bundle import (
     StepBundle,
     StepImportResult,
 )
+from backend.services.step_config_validation import validate_step_config_schema
 
 
 def rule_to_bundle(
@@ -210,6 +211,22 @@ def validate_bundle(bundle: RuleBundle, current_app_version: str) -> ImportRepor
                     description="Config matches current schema version",
                 )
             )
+
+        config_errors = validate_step_config_schema(step_bundle.step_type, step_bundle.config)
+        if config_errors:
+            report.steps.append(
+                StepImportResult(
+                    label=step_bundle.label,
+                    step_type=step_bundle.step_type,
+                    status="error",
+                    description="Config violates the step's config_schema: "
+                    + "; ".join(config_errors),
+                )
+            )
+            report.errors.append(
+                f"Step '{step_bundle.label}': " + "; ".join(config_errors)
+            )
+            report.status = "error"
 
     # Validate context types
     from backend.filters import FilterRegistry

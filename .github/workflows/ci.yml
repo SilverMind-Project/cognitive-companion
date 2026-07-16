@@ -45,6 +45,11 @@ jobs:
       - name: Import-linter (layer boundaries)
         run: make import-lint
 
+      - name: Vocabulary drift gate (generated frontend artifact)
+        run: |
+          make vocabularies
+          git diff --exit-code frontend/src/generated/
+
       - name: Type-check core (strict)
         run: make typecheck-core
 

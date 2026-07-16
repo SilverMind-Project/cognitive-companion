@@ -55,6 +55,12 @@
 <script>
 export const stepDefaults = { expression: "", trigger_cooloff: false };
 export const stepTabs = [];
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  if (cfg.trigger_cooloff) out.push(chip("cooloff on match", "mdi-timer-outline", "blue-grey"));
+  return out;
+}
 </script>
 
 <script setup>

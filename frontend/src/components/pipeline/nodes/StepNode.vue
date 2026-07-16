@@ -60,8 +60,8 @@
 <script setup>
 import { computed } from "vue";
 import { Handle, Position } from "@vue-flow/core";
+import { buildStepDetailChips } from "../steps/index.js";
 import {
-  buildStepDetailChips,
   buildTextPreview,
   humanize,
   stepDotColor,

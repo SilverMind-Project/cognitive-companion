@@ -1,0 +1,284 @@
+{
+  "channel_types": [
+    "eink",
+    "ha_speaker_tts",
+    "pwa_popup_text",
+    "pwa_realtime_ai",
+    "pwa_tts_announcement",
+    "telegram",
+    "webhook"
+  ],
+  "filter_types": [
+    "day_of_week",
+    "dementia_signal",
+    "home_state",
+    "person_activity",
+    "person_movement_memory",
+    "person_presence",
+    "presence_dwell",
+    "presence_status",
+    "room",
+    "room_transition",
+    "scene_contains",
+    "scene_trend",
+    "time_range"
+  ],
+  "signal_kinds": [
+    "absence",
+    "agitation_index",
+    "bathroom_dwell_anomaly",
+    "fall_suspected",
+    "gait_slowing",
+    "identity_disagreement",
+    "inferred_dwell_exceeded",
+    "nighttime_movement",
+    "pacing",
+    "presumed_location_unknown",
+    "room_revisit_rate",
+    "stillness_anomaly",
+    "sundowning_index"
+  ],
+  "step_types": [
+    {
+      "category": "state",
+      "display_name": "Record Activity",
+      "gate_safe": false,
+      "icon": "mdi-database-plus",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "activity_detection"
+    },
+    {
+      "category": "action",
+      "display_name": "End Activity Session",
+      "gate_safe": false,
+      "icon": "mdi-stop",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "activity_session_end"
+    },
+    {
+      "category": "action",
+      "display_name": "Start Activity Session",
+      "gate_safe": false,
+      "icon": "mdi-play",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "activity_session_start"
+    },
+    {
+      "category": "reasoning",
+      "display_name": "Condition",
+      "gate_safe": true,
+      "icon": "mdi-help-circle",
+      "output_ports": [
+        "true",
+        "false"
+      ],
+      "type_name": "condition"
+    },
+    {
+      "category": "action",
+      "display_name": "Generate Daily Report",
+      "gate_safe": false,
+      "icon": "mdi-file-chart",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "daily_report"
+    },
+    {
+      "category": "flow",
+      "display_name": "Gate Verdict",
+      "gate_safe": true,
+      "icon": "mdi-check-decagram",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "gate_verdict"
+    },
+    {
+      "category": "flow",
+      "display_name": "Guided Task Start",
+      "gate_safe": false,
+      "icon": "mdi-clipboard-list-outline",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "guided_task_start"
+    },
+    {
+      "category": "action",
+      "display_name": "HA Action",
+      "gate_safe": false,
+      "icon": "mdi-home-automation",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "ha_action"
+    },
+    {
+      "category": "perception",
+      "display_name": "Home State",
+      "gate_safe": false,
+      "icon": "mdi-home-variant",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "home_state"
+    },
+    {
+      "category": "perception",
+      "display_name": "Crop Image",
+      "gate_safe": true,
+      "icon": "mdi-crop",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "image_crop"
+    },
+    {
+      "category": "action",
+      "display_name": "Info Card",
+      "gate_safe": false,
+      "icon": "mdi-card-text-outline",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "info_card"
+    },
+    {
+      "category": "flow",
+      "display_name": "Interactive Prompt",
+      "gate_safe": false,
+      "icon": "mdi-message-question",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "interactive_prompt"
+    },
+    {
+      "category": "reasoning",
+      "display_name": "LLM Call",
+      "gate_safe": true,
+      "icon": "mdi-brain",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "llm_call"
+    },
+    {
+      "category": "perception",
+      "display_name": "Poll Media Window",
+      "gate_safe": true,
+      "icon": "mdi-camera-burst",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "media_window_poll"
+    },
+    {
+      "category": "action",
+      "display_name": "Notification",
+      "gate_safe": false,
+      "icon": "mdi-bell",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "notification"
+    },
+    {
+      "category": "perception",
+      "display_name": "Room Trend Query",
+      "gate_safe": false,
+      "icon": "mdi-chart-line",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "object_trend_analysis"
+    },
+    {
+      "category": "perception",
+      "display_name": "Person Identification",
+      "gate_safe": true,
+      "icon": "mdi-face-recognition",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "person_identification"
+    },
+    {
+      "category": "perception",
+      "display_name": "Presence Query",
+      "gate_safe": true,
+      "icon": "mdi-map-marker-radius",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "presence_query"
+    },
+    {
+      "category": "flow",
+      "display_name": "Quiz Start",
+      "gate_safe": false,
+      "icon": "mdi-help-box-outline",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "quiz_start"
+    },
+    {
+      "category": "perception",
+      "display_name": "Scene Analysis",
+      "gate_safe": true,
+      "icon": "mdi-image-search",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "scene_analysis"
+    },
+    {
+      "category": "perception",
+      "display_name": "Semantic Memory Query",
+      "gate_safe": true,
+      "icon": "mdi-database-search-outline",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "semantic_memory_query"
+    },
+    {
+      "category": "state",
+      "display_name": "Semantic Memory Write",
+      "gate_safe": false,
+      "icon": "mdi-database-plus-outline",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "semantic_memory_write"
+    },
+    {
+      "category": "state",
+      "display_name": "Verify Activity",
+      "gate_safe": false,
+      "icon": "mdi-check-decagram",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "verification"
+    },
+    {
+      "category": "flow",
+      "display_name": "Wait",
+      "gate_safe": false,
+      "icon": "mdi-timer-sand",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "wait"
+    }
+  ]
+}

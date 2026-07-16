@@ -51,6 +51,15 @@ export const stepDefaults = {
   trigger_cooloff: true,
 };
 export const stepTabs = [];
+
+export function chips(cfg, { chip, truncate }) {
+  const out = [];
+  const domain = cfg.domain || "";
+  const service = cfg.service || "";
+  if (domain || service) out.push(chip(`${domain}.${service}`, "mdi-home-automation", "blue"));
+  if (cfg.entity_id) out.push(chip(truncate(cfg.entity_id, 32), "mdi-identifier", undefined, cfg.entity_id.length > 32 ? cfg.entity_id : undefined));
+  return out;
+}
 </script>
 
 <script setup>

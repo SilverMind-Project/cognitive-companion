@@ -31,6 +31,7 @@ help:
 	@echo "  make coverage          Run core tests with branch coverage (terminal)"
 	@echo "  make coverage-services Coverage for services (terminal)"
 	@echo "  make coverage-html     Coverage + HTML report under ./htmlcov"
+	@echo "  make vocabularies      Export backend vocabularies to frontend/src/generated/"
 	@echo "  make lint              Ruff lint (no fixes)"
 	@echo "  make lint-fix          Ruff lint with --fix"
 	@echo "  make format            Ruff format"
@@ -84,6 +85,10 @@ format:
 .PHONY: import-lint
 import-lint:
 	uv run --project backend lint-imports --config backend/pyproject.toml
+
+.PHONY: vocabularies
+vocabularies:
+	$(PY) backend/scripts/export_vocabularies.py
 
 .PHONY: typecheck
 typecheck:

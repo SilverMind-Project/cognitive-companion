@@ -88,11 +88,7 @@ class PersonMovementMemoryFilter(ContextFilter):
         min_confidence: float = config.get("min_confidence", 0.0)
 
         # Primary: semantic memory client.
-        if (
-            services
-            and hasattr(services, "semantic_memory_client")
-            and services.semantic_memory_client
-        ):
+        if services is not None and services.semantic_memory_client is not None:
             client = services.semantic_memory_client
             transitions = await client.get_transitions(
                 person_id,
@@ -103,11 +99,7 @@ class PersonMovementMemoryFilter(ContextFilter):
             return any(t.confidence >= min_confidence for t in transitions)
 
         # PersonLocationService presence_history fallback.
-        if (
-            services
-            and hasattr(services, "person_location")
-            and services.person_location is not None
-        ):
+        if services is not None and services.person_location is not None:
             try:
                 cutoff = now - timedelta(minutes=within_minutes)
                 segments = await services.person_location.presence_history(

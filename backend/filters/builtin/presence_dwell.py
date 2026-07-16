@@ -72,11 +72,7 @@ class PresenceDwellFilter(ContextFilter):
             return False
 
         # Use PersonLocationService (entered_at-based dwell).
-        if (
-            services
-            and hasattr(services, "person_location")
-            and services.person_location is not None
-        ):
+        if services is not None and services.person_location is not None:
             try:
                 dwell = await services.person_location.current_dwell(person_id)
             except Exception:  # noqa: BLE001
@@ -97,7 +93,7 @@ class PresenceDwellFilter(ContextFilter):
             return elapsed >= (min_minutes * 60)
 
         # Legacy fallback: use the presence service (last_seen_at-based).
-        if services and hasattr(services, "presence") and services.presence is not None:
+        if services is not None and services.presence is not None:
             try:
                 snapshot = await services.presence.get(person_id)
             except Exception:  # noqa: BLE001

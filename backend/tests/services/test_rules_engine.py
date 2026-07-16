@@ -11,6 +11,7 @@ from backend.models.event import EventLog
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.models.sensor import Sensor
 from backend.services.rules_engine import RulesEngine
+from backend.steps.base import ServiceContainer
 
 # Ensure built-in context filters are registered for the test suite.
 # In production this is triggered by main.py's lifespan; tests must do it explicitly.
@@ -58,68 +59,74 @@ def _log_completed(db, rule, minutes_ago=0):
     return log
 
 
-def _engine_utc() -> RulesEngine:
+def _services(**overrides) -> ServiceContainer:
+    return ServiceContainer(db_factory=lambda: None, **overrides)
+
+
+def _engine_utc(**services_overrides) -> RulesEngine:
     """Return a RulesEngine using UTC so timestamp comparisons are consistent
     with the UTC datetimes stored by ``_log_completed`` in the test DB."""
-    return RulesEngine(tz_name="UTC")
+    return RulesEngine(_services(**services_overrides), tz_name="UTC")
 
 
 class TestRulesEngineBasicMatching:
-    def test_enabled_rule_matches(self, db_session):
+    async def test_enabled_rule_matches(self, db_session):
         sensor = _make_sensor(db_session)
         _make_rule(db_session)
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert len(matched) == 1
 
-    def test_disabled_rule_not_matched(self, db_session):
+    async def test_disabled_rule_not_matched(self, db_session):
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session)
         rule.enabled = False
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert matched == []
 
-    def test_wrong_trigger_type_not_matched(self, db_session):
+    async def test_wrong_trigger_type_not_matched(self, db_session):
         sensor = _make_sensor(db_session)
         _make_rule(db_session, trigger_types=["cron"])
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session, trigger_type="sensor_event")
+        matched = await _engine_utc().get_matching_rules(
+            sensor, db_session, trigger_type="sensor_event"
+        )
         assert matched == []
 
-    def test_multiple_rules_all_matched(self, db_session):
+    async def test_multiple_rules_all_matched(self, db_session):
         sensor = _make_sensor(db_session)
         _make_rule(db_session, name="Rule A")
         _make_rule(db_session, name="Rule B")
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert len(matched) == 2
 
 
 class TestRulesEngineRateLimits:
-    def test_cool_off_blocks_recent_completion(self, db_session):
+    async def test_cool_off_blocks_recent_completion(self, db_session):
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session, cool_off_minutes=60)
         _log_completed(db_session, rule, minutes_ago=5)  # fired 5 min ago
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert matched == []
 
-    def test_cool_off_allows_after_window(self, db_session):
+    async def test_cool_off_allows_after_window(self, db_session):
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session, cool_off_minutes=10)
         _log_completed(db_session, rule, minutes_ago=15)  # fired 15 min ago
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert len(matched) == 1
 
-    def test_max_daily_triggers_blocks_at_limit(self, db_session):
+    async def test_max_daily_triggers_blocks_at_limit(self, db_session):
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session, max_daily_triggers=3)
 
@@ -147,31 +154,31 @@ class TestRulesEngineRateLimits:
         # Patch datetime.now so the engine's internal "now" matches ref_time.
         with unittest.mock.patch("backend.services.rules_engine.datetime") as mock_dt:
             mock_dt.now.return_value = ref_time
-            matched = _engine_utc().get_matching_rules(sensor, db_session)
+            matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert matched == []
 
-    def test_max_daily_triggers_allows_below_limit(self, db_session):
+    async def test_max_daily_triggers_allows_below_limit(self, db_session):
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session, max_daily_triggers=5)
         for _ in range(3):
             _log_completed(db_session, rule, minutes_ago=30)
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert len(matched) == 1
 
-    def test_zero_cool_off_never_blocks(self, db_session):
+    async def test_zero_cool_off_never_blocks(self, db_session):
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session, cool_off_minutes=0)
         _log_completed(db_session, rule, minutes_ago=0)
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert len(matched) == 1
 
 
 class TestRulesEngineDependencies:
-    def test_require_success_passes_when_parent_completed(self, db_session):
+    async def test_require_success_passes_when_parent_completed(self, db_session):
         sensor = _make_sensor(db_session)
         parent = _make_rule(db_session, name="Parent")
         child = _make_rule(db_session, name="Child")
@@ -186,11 +193,11 @@ class TestRulesEngineDependencies:
         _log_completed(db_session, parent, minutes_ago=10)
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         matched_names = {r.name for r in matched}
         assert "Child" in matched_names
 
-    def test_require_success_fails_when_parent_not_completed(self, db_session):
+    async def test_require_success_fails_when_parent_not_completed(self, db_session):
         sensor = _make_sensor(db_session)
         parent = _make_rule(db_session, name="Parent")
         child = _make_rule(db_session, name="Child")
@@ -205,13 +212,13 @@ class TestRulesEngineDependencies:
         # No completed log for parent
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         matched_names = {r.name for r in matched}
         assert "Child" not in matched_names
 
 
 class TestRulesEngineContextFilters:
-    def test_unknown_context_type_does_not_filter(self, db_session):
+    async def test_unknown_context_type_does_not_filter(self, db_session):
         """Unknown filter types should fall through (return True) to avoid
         accidentally blocking rules when a plugin isn't loaded."""
         sensor = _make_sensor(db_session)
@@ -224,10 +231,10 @@ class TestRulesEngineContextFilters:
         db_session.add(ctx)
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         assert len(matched) == 1
 
-    def test_negated_unknown_context_still_allows_rule(self, db_session):
+    async def test_negated_unknown_context_still_allows_rule(self, db_session):
         """Negating an unknown context type keeps the rule allowed.
 
         ``_matches_context`` returns True for unknown filter types regardless of
@@ -246,7 +253,7 @@ class TestRulesEngineContextFilters:
         db_session.add(ctx)
         db_session.commit()
 
-        matched = _engine_utc().get_matching_rules(sensor, db_session)
+        matched = await _engine_utc().get_matching_rules(sensor, db_session)
         # Unknown filter always passes (negate is ignored for unresolved types)
         assert len(matched) == 1
 
@@ -268,7 +275,7 @@ class TestTimezoneAwareLimits:
     _TZ_NY = "America/New_York"
 
     def _engine_ny(self) -> RulesEngine:
-        return RulesEngine(tz_name=self._TZ_NY)
+        return RulesEngine(_services(), tz_name=self._TZ_NY)
 
     def _log_utc(self, db, rule, utc_dt: datetime):
         """Insert a completed EventLog at an explicit UTC datetime."""
@@ -365,9 +372,9 @@ class TestTimeRangeContextFilter:
     _TZ_NY = "America/New_York"
 
     def _engine_ny(self) -> RulesEngine:
-        return RulesEngine(tz_name=self._TZ_NY)
+        return RulesEngine(_services(), tz_name=self._TZ_NY)
 
-    def test_time_range_matches_local_time(self, db_session):
+    async def test_time_range_matches_local_time(self, db_session):
         """A time_range filter should fire when local time is inside the window,
         even when that local window straddles midnight UTC."""
         sensor = _make_sensor(db_session)
@@ -384,10 +391,10 @@ class TestTimeRangeContextFilter:
         now_et = datetime(2024, 1, 16, 23, 0, 0, tzinfo=ZoneInfo(self._TZ_NY))
         engine = self._engine_ny()
         # Call _check_contexts directly so we can supply our fixed 'now'.
-        result = engine._check_contexts(rule, sensor, now_et, db_session)
+        result = await engine._check_contexts(rule, sensor, now_et, db_session, "sensor")
         assert result is True, "23:00 ET should match 22:00-23:59 ET window"
 
-    def test_time_range_blocks_outside_local_window(self, db_session):
+    async def test_time_range_blocks_outside_local_window(self, db_session):
         """A time_range filter should NOT fire when local time is outside window."""
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session)
@@ -402,10 +409,10 @@ class TestTimeRangeContextFilter:
         # 20:00 ET (outside 09:00-17:00)
         now_et = datetime(2024, 1, 16, 20, 0, 0, tzinfo=ZoneInfo(self._TZ_NY))
         engine = self._engine_ny()
-        result = engine._check_contexts(rule, sensor, now_et, db_session)
+        result = await engine._check_contexts(rule, sensor, now_et, db_session, "sensor")
         assert result is False, "20:00 ET should not match 09:00-17:00 ET window"
 
-    def test_time_range_overnight_wraps_correctly(self, db_session):
+    async def test_time_range_overnight_wraps_correctly(self, db_session):
         """An overnight window like 22:00-06:00 should match at 23:30 ET."""
         sensor = _make_sensor(db_session)
         rule = _make_rule(db_session)
@@ -419,7 +426,7 @@ class TestTimeRangeContextFilter:
 
         now_et = datetime(2024, 1, 16, 23, 30, 0, tzinfo=ZoneInfo(self._TZ_NY))
         engine = self._engine_ny()
-        result = engine._check_contexts(rule, sensor, now_et, db_session)
+        result = await engine._check_contexts(rule, sensor, now_et, db_session, "sensor")
         assert result is True, "23:30 ET should match overnight 22:00-06:00 window"
 
 
@@ -429,34 +436,34 @@ class TestTimeRangeContextFilter:
 
 
 class TestGetMatchingRulesForEvent:
-    def test_matches_rule_with_dementia_signal_trigger_type(self, db_session):
+    async def test_matches_rule_with_dementia_signal_trigger_type(self, db_session):
         rule = _make_rule(db_session, trigger_types=["dementia_signal"])
-        engine = RulesEngine(tz_name="UTC")
+        engine = _engine_utc()
         event = {
             "kind": "dementia_signal",
             "payload": {"signal_kind": "pacing", "person_id": "grandma", "severity": "warning"},
         }
-        matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
+        matched = await engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
         assert len(matched) == 1
         assert matched[0].id == rule.id
 
-    def test_excludes_rules_with_other_trigger_types(self, db_session):
+    async def test_excludes_rules_with_other_trigger_types(self, db_session):
         _make_rule(db_session, name="sensor-rule", trigger_types=["sensor_event"])
-        engine = RulesEngine(tz_name="UTC")
+        engine = _engine_utc()
         event = {"kind": "dementia_signal", "payload": {}}
-        matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
+        matched = await engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
         assert matched == []
 
-    def test_excludes_disabled_rules(self, db_session):
+    async def test_excludes_disabled_rules(self, db_session):
         rule = _make_rule(db_session, trigger_types=["dementia_signal"])
         rule.enabled = False
         db_session.commit()
-        engine = RulesEngine(tz_name="UTC")
+        engine = _engine_utc()
         event = {"kind": "dementia_signal", "payload": {}}
-        matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
+        matched = await engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
         assert matched == []
 
-    def test_dementia_signal_filter_evaluated_against_event(self, db_session):
+    async def test_dementia_signal_filter_evaluated_against_event(self, db_session):
         rule = _make_rule(db_session, trigger_types=["dementia_signal"])
         ctx = RuleContext(
             rule_id=rule.id,
@@ -466,23 +473,27 @@ class TestGetMatchingRulesForEvent:
         db_session.add(ctx)
         db_session.commit()
 
-        engine = RulesEngine(tz_name="UTC")
+        engine = _engine_utc()
 
         # pacing event matches
         pacing_event = {
             "kind": "dementia_signal",
             "payload": {"signal_kind": "pacing", "person_id": "grandma", "severity": "warning"},
         }
-        assert engine.get_matching_rules_for_event(pacing_event, "dementia_signal", db_session)
+        assert await engine.get_matching_rules_for_event(
+            pacing_event, "dementia_signal", db_session
+        )
 
         # absence event does not match
         absence_event = {
             "kind": "dementia_signal",
             "payload": {"signal_kind": "absence", "person_id": "grandma", "severity": "warning"},
         }
-        assert not engine.get_matching_rules_for_event(absence_event, "dementia_signal", db_session)
+        assert not await engine.get_matching_rules_for_event(
+            absence_event, "dementia_signal", db_session
+        )
 
-    def test_room_filter_is_skipped_for_event(self, db_session):
+    async def test_room_filter_is_skipped_for_event(self, db_session):
         """Room filter requires a Sensor ORM row; it must be skipped without error."""
         rule = _make_rule(db_session, trigger_types=["dementia_signal"])
         ctx = RuleContext(
@@ -493,8 +504,8 @@ class TestGetMatchingRulesForEvent:
         db_session.add(ctx)
         db_session.commit()
 
-        engine = RulesEngine(tz_name="UTC")
+        engine = _engine_utc()
         event = {"kind": "dementia_signal", "payload": {}}
         # Should not raise, and should still match (room filter skipped)
-        matched = engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
+        matched = await engine.get_matching_rules_for_event(event, "dementia_signal", db_session)
         assert len(matched) == 1

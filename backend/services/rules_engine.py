@@ -5,7 +5,7 @@ contexts (via FilterRegistry), dependencies, and rate limits.
 
 from __future__ import annotations
 
-import asyncio
+import inspect
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -19,6 +19,7 @@ from backend.filters import FilterRegistry
 from backend.models.event import EventLog
 from backend.models.rule import Rule, RuleContext, RuleDependency
 from backend.models.sensor import Sensor
+from backend.steps.base import ServiceContainer
 
 logger = get_logger(__name__)
 
@@ -26,12 +27,13 @@ logger = get_logger(__name__)
 class RulesEngine:
     """Determines which rules should fire for a given sensor event."""
 
-    def __init__(self, tz_name: str | None = None) -> None:
+    def __init__(self, services: ServiceContainer, tz_name: str | None = None) -> None:
+        self._services = services
         self.tz = ZoneInfo(tz_name or settings.as_str("app.timezone"))
 
     # -- public API -----------------------------------------------------------
 
-    def get_matching_rules(
+    async def get_matching_rules(
         self,
         sensor: Sensor,
         db: Session,
@@ -66,7 +68,7 @@ class RulesEngine:
 
         matched: list[Rule] = []
         for rule in rules:
-            if not self._check_contexts(rule, sensor, now, db):
+            if not await self._check_contexts(rule, sensor, now, db, "sensor"):
                 logger.info("rule_skipped_context", rule=rule.name, sensor_id=sensor.id)
                 continue
             if not self._check_dependencies(rule, db, now):
@@ -88,7 +90,7 @@ class RulesEngine:
         )
         return matched
 
-    def get_matching_rules_for_cron(
+    async def get_matching_rules_for_cron(
         self,
         rule: Rule,
         db: Session,
@@ -104,7 +106,7 @@ class RulesEngine:
         if not rule.enabled:
             return False
 
-        if not self._check_contexts_for_cron(rule, now, db):
+        if not await self._check_contexts(rule, None, now, db, "cron"):
             logger.info("rule_skipped_context", rule=rule.name, trigger="cron")
             return False
         if not self._check_dependencies(rule, db, now):
@@ -116,7 +118,7 @@ class RulesEngine:
 
         return True
 
-    def get_matching_rules_for_event(
+    async def get_matching_rules_for_event(
         self,
         event: dict[str, Any],
         trigger_type: str,
@@ -148,7 +150,7 @@ class RulesEngine:
 
         matched: list[Rule] = []
         for rule in rules:
-            if not self._check_contexts_for_event(rule, event, now, db):
+            if not await self._check_contexts(rule, event, now, db, "event"):
                 logger.info(
                     "rule_skipped_context",
                     rule=rule.name,
@@ -180,82 +182,34 @@ class RulesEngine:
         )
         return matched
 
-    def _check_contexts_for_event(
-        self,
-        rule: Rule,
-        event: dict[str, Any],
-        now: datetime,
-        db: Session | None = None,
-        services: Any = None,
-    ) -> bool:
-        """Evaluate rule contexts against a dict event.
-
-        Sensor-dependent filter types are skipped (they require a SQLAlchemy
-        Sensor row). All other filter types receive the event dict as their
-        ``sensor`` argument.
-        """
-        if not rule.contexts:
-            return True
-
-        by_type: dict[str, list[RuleContext]] = {}
-        for ctx in rule.contexts:
-            by_type.setdefault(ctx.context_type, []).append(ctx)
-
-        for ctx_type, contexts in by_type.items():
-            if ctx_type in self._SENSOR_DEPENDENT_FILTERS:
-                logger.warning(
-                    "event_context_skipped_sensor_dependent",
-                    rule=rule.name,
-                    context_type=ctx_type,
-                )
-                continue
-            if not any(self._matches_context(ctx, event, now, db, services) for ctx in contexts):
-                return False
-        return True
+    # -- context checking (via FilterRegistry) --------------------------------
 
     _SENSOR_DEPENDENT_FILTERS = frozenset({"room", "room_transition", "person_movement_memory"})
 
-    def _check_contexts_for_cron(
-        self, rule: Rule, now: datetime, db: Session | None = None, services: Any = None
-    ) -> bool:
-        """Evaluate contexts for a cron trigger (no sensor available).
+    # Warning event names selected by trigger_label so existing log-based
+    # dashboards keep working; the sensor path never actually skips (subject
+    # is always a real Sensor there) but gets a name for completeness.
+    _SKIP_WARNING_EVENT = {
+        "sensor": "sensor_context_skipped_sensor_dependent",
+        "cron": "cron_context_skipped_sensor_dependent",
+        "event": "event_context_skipped_sensor_dependent",
+    }
 
-        Filters that require a sensor (room, room_transition, etc.) are skipped
-        with a warning since cron triggers have no associated sensor event.
-        """
-        if not rule.contexts:
-            return True
-
-        by_type: dict[str, list[RuleContext]] = {}
-        for ctx in rule.contexts:
-            by_type.setdefault(ctx.context_type, []).append(ctx)
-
-        for ctx_type, contexts in by_type.items():
-            if ctx_type in self._SENSOR_DEPENDENT_FILTERS:
-                logger.warning(
-                    "cron_context_skipped_sensor_dependent",
-                    rule=rule.name,
-                    context_type=ctx_type,
-                )
-                continue
-            if not any(self._matches_context(ctx, None, now, db, services) for ctx in contexts):
-                return False
-        return True
-
-    # -- context checking (via FilterRegistry) --------------------------------
-
-    def _check_contexts(
+    async def _check_contexts(
         self,
         rule: Rule,
-        sensor: Sensor,
+        subject: Sensor | dict[str, Any] | None,
         now: datetime,
-        db: Session | None = None,
-        services: Any = None,
+        db: Session | None,
+        trigger_label: str,
     ) -> bool:
         """Contexts act as filters.
 
         Within each ``context_type`` group, at least one must match (OR).
-        Across groups, all must pass (AND).
+        Across groups, all must pass (AND). Sensor-dependent filter types
+        are skipped (with a warning) when *subject* is not a real
+        :class:`Sensor` row -- true for cron triggers (no subject) and
+        dict-based event triggers (dementia signals etc.).
         """
         if not rule.contexts:
             return True
@@ -264,33 +218,59 @@ class RulesEngine:
         for ctx in rule.contexts:
             by_type.setdefault(ctx.context_type, []).append(ctx)
 
-        for _ctx_type, contexts in by_type.items():
-            if not any(self._matches_context(ctx, sensor, now, db, services) for ctx in contexts):
+        subject_is_sensor = isinstance(subject, Sensor)
+
+        for ctx_type, contexts in by_type.items():
+            if ctx_type in self._SENSOR_DEPENDENT_FILTERS and not subject_is_sensor:
+                logger.warning(
+                    self._SKIP_WARNING_EVENT[trigger_label],
+                    rule=rule.name,
+                    context_type=ctx_type,
+                )
+                continue
+            if not await self._any_context_matches(contexts, subject, now, db):
                 return False
         return True
 
-    def _matches_context(
+    async def _any_context_matches(
+        self,
+        contexts: list[RuleContext],
+        subject: Sensor | dict[str, Any] | None,
+        now: datetime,
+        db: Session | None,
+    ) -> bool:
+        for ctx in contexts:
+            if await self._matches_context(ctx, subject, now, db):
+                return True
+        return False
+
+    async def _matches_context(
         self,
         ctx: RuleContext,
-        sensor: Sensor,
+        subject: Sensor | dict[str, Any] | None,
         now: datetime,
         db: Session | None = None,
-        services: Any = None,
     ) -> bool:
         """Delegate context evaluation to the FilterRegistry.
 
         When ``ctx.negate`` is True the filter result is inverted, enabling
         rules like "NOT in Kitchen" or "NOT during 09:00-17:00".
 
-        Filter evaluate methods may be sync or async. Async results are
-        awaited here so the rest of the engine stays synchronous.
+        Filter evaluate methods may be sync or async; async results are
+        awaited on the caller's running loop (never bridged with
+        ``run_until_complete``).
         """
         filter_instance = FilterRegistry.get(ctx.context_type)
         if filter_instance:
-            result = filter_instance.evaluate(ctx.config_json or {}, sensor, now, db, services)
-            if asyncio.iscoroutine(result):
-                result = asyncio.get_event_loop().run_until_complete(result)
-            assert isinstance(result, bool)
+            result = filter_instance.evaluate(
+                ctx.config_json or {}, subject, now, db, self._services
+            )
+            if inspect.isawaitable(result):
+                result = await result
+            if not isinstance(result, bool):
+                raise TypeError(
+                    f"filter {ctx.context_type} returned {type(result).__name__}, expected bool"
+                )
             return (not result) if ctx.negate else result
         logger.warning("unknown_context_type", context_type=ctx.context_type)
         return True  # unknown type = don't filter

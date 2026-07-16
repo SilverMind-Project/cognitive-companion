@@ -16,11 +16,9 @@ from backend.core.registry import HasMetadata
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 
 if TYPE_CHECKING:
-    from backend.integrations.ha_state_cache import HaStateCache
     from backend.integrations.homeassistant import HomeAssistantClient
     from backend.integrations.llm import LLMModelRegistry
     from backend.integrations.minio_client import MinioClient
-    from backend.integrations.person_id_client import PersonIDClient
     from backend.integrations.scene_analysis_client import SceneAnalysisClient
     from backend.integrations.semantic_memory_client import SemanticMemoryClient
     from backend.services.activity.service import ActivityService
@@ -33,6 +31,7 @@ if TYPE_CHECKING:
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
     from backend.services.memory_query.service import MemoryQueryService
     from backend.services.notification_dispatcher import NotificationDispatcher
+    from backend.services.person_location.service import PersonLocationService
     from backend.services.person_tracking import PersonTrackingService
     from backend.services.presence.service import PresenceService
     from backend.services.scene_intel.service import SceneIntelService
@@ -103,15 +102,13 @@ class ServiceContainer:
 
     db_factory: Callable
     person_tracking: PersonTrackingService | None = None
-    person_id_client: PersonIDClient | None = None
     notification_dispatcher: NotificationDispatcher | None = None
     ha_client: HomeAssistantClient | None = None
     event_aggregator: EventAggregator | None = None
     scheduler: SchedulerBridge | None = None
-    rag_service: MemoryQueryService | None = None
     llm_model_registry: LLMModelRegistry | None = None
-    ha_state_cache: HaStateCache | None = None
     presence: PresenceService | None = None
+    person_location: PersonLocationService | None = None
     scene_analysis_client: SceneAnalysisClient | None = None
     daily_report_service: DailyReportService | None = None
     semantic_memory_client: SemanticMemoryClient | None = None

@@ -39,7 +39,7 @@ def _execution(rule_id: int = 1) -> WorkflowExecution:
 
 @pytest.mark.asyncio
 async def test_process_event_unknown_sensor(db_session) -> None:
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock()
 
@@ -57,7 +57,7 @@ async def test_process_event_unknown_sensor(db_session) -> None:
 @pytest.mark.asyncio
 async def test_process_event_disabled_sensor(db_session) -> None:
     _make_sensor(db_session, enabled=False)
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock()
 
@@ -71,7 +71,7 @@ async def test_process_event_disabled_sensor(db_session) -> None:
 @pytest.mark.asyncio
 async def test_process_event_no_matching_rules(db_session) -> None:
     _make_sensor(db_session)
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     rules_engine.get_matching_rules.return_value = []
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock()
@@ -89,7 +89,7 @@ async def test_process_event_executes_matched_rules(db_session) -> None:
     _make_sensor(db_session)
     rule1 = MagicMock(id=1, name="rule1", max_concurrent_executions=0)
     rule2 = MagicMock(id=2, name="rule2", max_concurrent_executions=0)
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     rules_engine.get_matching_rules.return_value = [rule1, rule2]
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock(side_effect=[_execution(1), _execution(2)])
@@ -116,7 +116,7 @@ async def test_process_event_sensor_without_room(db_session) -> None:
     db_session.add(sensor)
     db_session.flush()
 
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     rules_engine.get_matching_rules.return_value = [
         MagicMock(id=1, name="rule", max_concurrent_executions=0)
     ]
@@ -136,7 +136,7 @@ async def test_process_event_exception_is_logged_not_raised(db_session) -> None:
     _make_sensor(db_session)
     rule_ok = MagicMock(id=1, name="ok", max_concurrent_executions=0)
     rule_bad = MagicMock(id=2, name="bad", max_concurrent_executions=0)
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     rules_engine.get_matching_rules.return_value = [rule_ok, rule_bad]
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock(side_effect=[_execution(1), RuntimeError("boom")])
@@ -158,7 +158,7 @@ async def test_process_event_exception_is_logged_not_raised(db_session) -> None:
 @pytest.mark.asyncio
 async def test_process_occupancy_no_matches(db_session) -> None:
     sensor = _make_sensor(db_session)
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     rules_engine.get_matching_rules.return_value = []
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock()
@@ -174,7 +174,7 @@ async def test_process_occupancy_no_matches(db_session) -> None:
 async def test_process_occupancy_executes_rules(db_session) -> None:
     sensor = _make_sensor(db_session)
     rule = MagicMock(id=1, name="occupancy", max_concurrent_executions=0)
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     rules_engine.get_matching_rules.return_value = [rule]
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock(return_value=_execution(1))
@@ -197,7 +197,7 @@ async def test_process_occupancy_executes_rules(db_session) -> None:
 async def test_process_occupancy_logs_exception(db_session) -> None:
     sensor = _make_sensor(db_session)
     rule = MagicMock(id=1, name="occupancy", max_concurrent_executions=0)
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     rules_engine.get_matching_rules.return_value = [rule]
     pipeline_executor = MagicMock()
     pipeline_executor.execute = AsyncMock(side_effect=RuntimeError("boom"))

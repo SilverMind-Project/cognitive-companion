@@ -49,7 +49,7 @@ class WorkflowPipeline:
             return []
 
         room_name = sensor.room.name if sensor.room else "Unknown"
-        matched_rules = self.rules_engine.get_matching_rules(sensor, db)
+        matched_rules = await self.rules_engine.get_matching_rules(sensor, db)
 
         if not matched_rules:
             logger.info("no_matching_rules", sensor_id=sensor_id, room=room_name)
@@ -104,7 +104,7 @@ class WorkflowPipeline:
         filters, and rate limits  so this method fires at most once per
         ``cool_off_minutes`` per rule even though polling runs every 30 s.
         """
-        matched_rules = self.rules_engine.get_matching_rules(
+        matched_rules = await self.rules_engine.get_matching_rules(
             sensor,
             db,
             trigger_type="occupancy_duration",

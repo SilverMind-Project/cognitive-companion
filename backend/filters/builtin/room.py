@@ -49,7 +49,7 @@ class RoomFilter(ContextFilter):
             return False
 
         # PersonLocationService is the SSOT.  Fail closed when unavailable.
-        if not (services and getattr(services, "person_location", None)):
+        if services is None or services.person_location is None:
             cts_filter_degraded_total.labels(filter=_FILTER_NAME).inc()
             logger.warning(
                 "cts_filter_degraded_no_person_location",

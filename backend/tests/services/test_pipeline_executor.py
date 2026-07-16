@@ -11,7 +11,7 @@ from backend.models.event import EventLog
 from backend.models.pipeline import PipelineEdge, PipelineStep
 from backend.models.rule import Rule
 from backend.services.pipeline_executor import PipelineExecutor
-from backend.steps.base import StepResult, TriggerContext
+from backend.steps.base import ServiceContainer, StepResult, TriggerContext
 
 
 def _make_rule(db, name="Test Rule", **kwargs):
@@ -63,10 +63,13 @@ async def _append_event(events, event):
     events.append(event)
 
 
-def _make_executor(db_factory):
+def _make_executor(db_factory, **kwargs):
     """Build a PipelineExecutor with all optional services mocked out."""
-    executor = PipelineExecutor(db_session_factory=db_factory)
-    return executor
+    event_publisher = kwargs.pop("event_publisher", None)
+    return PipelineExecutor(
+        ServiceContainer(db_factory=db_factory, **kwargs),
+        event_publisher=event_publisher,
+    )
 
 
 def _make_trigger():
@@ -428,7 +431,7 @@ class TestPipelineExecutorBranching:
 
         events = []
         executor = PipelineExecutor(
-            db_session_factory=db_factory,
+            ServiceContainer(db_factory=db_factory),
             event_publisher=lambda event: _append_event(events, event),
         )
 
@@ -1086,150 +1089,6 @@ class TestPipelineExecutorEarlyExit:
         assert early_exit_calls[0].kwargs.get("skip_reason") is None
 
 
-class TestOptimisticLockingRetry:
-    """Tests for _update_pipeline_data_with_retry function."""
-
-    async def test_successful_update_on_first_attempt(self, db_session, db_factory):
-        """When no conflict occurs, update succeeds on first attempt."""
-        from backend.services.pipeline_executor import _update_pipeline_data_with_retry
-
-        rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1)
-        db_session.commit()
-
-        executor = _make_executor(db_factory)
-        trigger = _make_trigger()
-
-        with patch.object(
-            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
-        ):
-            execution = await executor.execute(rule, trigger, db_session)
-
-        # Update pipeline data using retry logic
-        def update_fn(data):
-            data["test_key"] = "test_value"
-
-        await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
-
-        db_session.refresh(execution)
-        assert execution.pipeline_data_json["test_key"] == "test_value"
-
-    async def test_retry_on_stale_data_error(self, db_session, db_factory):
-        """When StaleDataError occurs, function retries with exponential backoff."""
-        from sqlalchemy.orm.exc import StaleDataError
-
-        from backend.services.pipeline_executor import _update_pipeline_data_with_retry
-
-        rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1)
-        db_session.commit()
-
-        executor = _make_executor(db_factory)
-        trigger = _make_trigger()
-
-        with patch.object(
-            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
-        ):
-            execution = await executor.execute(rule, trigger, db_session)
-
-        # Simulate StaleDataError on first attempt, success on second
-        attempt_count = [0]
-
-        original_commit = db_session.commit
-
-        def mock_commit():
-            attempt_count[0] += 1
-            if attempt_count[0] == 1:
-                raise StaleDataError("Version mismatch")
-            return original_commit()
-
-        def update_fn(data):
-            data["retry_test"] = f"attempt_{attempt_count[0]}"
-
-        with patch.object(db_session, "commit", side_effect=mock_commit):
-            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
-
-        # Should have retried once
-        assert attempt_count[0] == 2
-
-    async def test_exhausted_retries_raises_error(self, db_session, db_factory):
-        """When all retries are exhausted, StaleDataError is raised."""
-        import pytest
-        from sqlalchemy.orm.exc import StaleDataError
-
-        from backend.services.pipeline_executor import _update_pipeline_data_with_retry
-
-        rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1)
-        db_session.commit()
-
-        executor = _make_executor(db_factory)
-        trigger = _make_trigger()
-
-        with patch.object(
-            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
-        ):
-            execution = await executor.execute(rule, trigger, db_session)
-
-        def update_fn(data):
-            data["will_fail"] = True
-
-        # Mock commit to always raise StaleDataError
-        with (
-            patch.object(db_session, "commit", side_effect=StaleDataError("Always fails")),
-            pytest.raises(StaleDataError),
-        ):
-            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
-
-    async def test_lock_conflict_logging(self, db_session, db_factory):
-        """Lock conflicts are logged with appropriate warnings."""
-        from sqlalchemy.orm.exc import StaleDataError
-
-        import backend.services.pipeline_executor as pe_module
-        from backend.services.pipeline_executor import _update_pipeline_data_with_retry
-
-        rule = _make_rule(db_session)
-        _make_step(db_session, rule, order=1)
-        db_session.commit()
-
-        executor = _make_executor(db_factory)
-        trigger = _make_trigger()
-
-        with patch.object(
-            executor, "_execute_step", new_callable=AsyncMock, return_value=StepResult(success=True)
-        ):
-            execution = await executor.execute(rule, trigger, db_session)
-
-        attempt_count = [0]
-        original_commit = db_session.commit
-
-        def mock_commit():
-            attempt_count[0] += 1
-            if attempt_count[0] == 1:
-                raise StaleDataError("Version mismatch")
-            return original_commit()
-
-        def update_fn(data):
-            data["logging_test"] = True
-
-        with (
-            patch.object(pe_module, "logger") as mock_logger,
-            patch.object(db_session, "commit", side_effect=mock_commit),
-        ):
-            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
-
-        # Verify warning was logged
-        warning_calls = [
-            call
-            for call in mock_logger.warning.call_args_list
-            if call.args and call.args[0] == "optimistic_lock_conflict"
-        ]
-        assert len(warning_calls) == 1
-        kwargs = warning_calls[0].kwargs
-        assert kwargs.get("execution_id") == execution.id
-        assert kwargs.get("attempt") == 1
-
-
 class TestCanonicalStepNamespace:
     """Canonical steps.<label> namespace is written and survives persistence."""
 
@@ -1501,3 +1360,80 @@ class TestInteractivePromptResumeIntegration:
         # Must remain waiting -- no step should have been executed
         assert result.status == "waiting"
         mock_step.assert_not_awaited()
+
+
+class TestServiceContainerPresenceWiring:
+    """C3 regression: presence_query/home_state must see the real PresenceService
+    when it is wired onto the shared ServiceContainer, not a private copy."""
+
+    async def test_presence_query_step_sees_wired_presence_service(self, db_session, db_factory):
+        from backend.services.presence import PresenceSnapshot, PresenceStatus
+
+        class _StubPresenceService:
+            async def get(self, person_id, *, at=None):
+                return PresenceSnapshot(
+                    person_id=person_id,
+                    status=PresenceStatus.PRESENT_ROOM,
+                    room_id="k1",
+                    room_name="kitchen",
+                    confidence=0.9,
+                    last_seen_at=datetime.now(UTC),
+                    dwell_minutes=5.0,
+                    sources=(),
+                    inferred_at=datetime.now(UTC),
+                )
+
+        rule = _make_rule(db_session)
+        _make_step(
+            db_session,
+            rule,
+            order=1,
+            step_type="presence_query",
+            config={"person_id": "mom"},
+            label="presence_query_1",
+        )
+        db_session.commit()
+
+        executor = _make_executor(db_factory, presence=_StubPresenceService())
+        result = await executor.execute(rule, _make_trigger(), db_session)
+
+        db_session.refresh(result)
+        outputs = result.pipeline_data_json["steps"]["presence_query_1"]["outputs"]
+        assert outputs["presence_available"] is True
+        assert outputs["presence_status"] == "present_room"
+
+    async def test_home_state_step_sees_wired_presence_service(self, db_session, db_factory):
+        from backend.services.presence import PresenceSnapshot, PresenceStatus
+
+        class _StubPresenceService:
+            async def get(self, person_id, *, at=None):
+                return PresenceSnapshot(
+                    person_id=person_id,
+                    status=PresenceStatus.PRESENT_ROOM,
+                    room_id="k1",
+                    room_name="kitchen",
+                    confidence=0.9,
+                    last_seen_at=datetime.now(UTC),
+                    dwell_minutes=5.0,
+                    sources=(),
+                    inferred_at=datetime.now(UTC),
+                )
+
+        rule = _make_rule(db_session)
+        _make_step(
+            db_session,
+            rule,
+            order=1,
+            step_type="home_state",
+            config={"person_id": "mom"},
+            label="home_state_1",
+        )
+        db_session.commit()
+
+        executor = _make_executor(db_factory, presence=_StubPresenceService())
+        result = await executor.execute(rule, _make_trigger(), db_session)
+
+        db_session.refresh(result)
+        outputs = result.pipeline_data_json["steps"]["home_state_1"]["outputs"]
+        assert outputs["home_state_unknown"] is False
+        assert outputs["home_at_home"] is True

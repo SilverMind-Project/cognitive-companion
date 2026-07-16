@@ -68,11 +68,7 @@ class PresenceStatusFilter(ContextFilter):
         room_name = config.get("room_name")
 
         # Use PersonLocationService when available.
-        if (
-            services
-            and hasattr(services, "person_location")
-            and services.person_location is not None
-        ):
+        if services is not None and services.person_location is not None:
             try:
                 current = await services.person_location.where_is(person_id)
             except Exception:  # noqa: BLE001
@@ -89,7 +85,7 @@ class PresenceStatusFilter(ContextFilter):
             return True
 
         # Legacy fallback: use presence service.
-        if services and hasattr(services, "presence") and services.presence is not None:
+        if services is not None and services.presence is not None:
             try:
                 snapshot = await services.presence.get(person_id)
             except Exception:  # noqa: BLE001

@@ -8,39 +8,23 @@ enforcing per-rule execution timeouts.
 
 ## Concurrency Control and Locking Strategy
 
-The pipeline executor uses a **hybrid locking strategy** to protect
-WorkflowExecution records from race conditions during concurrent access:
+WorkflowExecution status transitions use **pessimistic locking**
+(`SELECT ... FOR UPDATE`) to block concurrent access until commit:
 
-### Optimistic Locking (Default)
-- Used for: Pipeline step updates to `pipeline_data_json`
-- Mechanism: Version column with automatic conflict detection
-- Behavior: Retry with exponential backoff on `StaleDataError`
-- Configuration: MAX_RETRIES=3, BASE_DELAY=0.1s
-- Function: `_update_pipeline_data_with_retry()`
-- Rationale: Low contention, high throughput, retries acceptable
+1. **Resume operations** (`resume()`): Prevents concurrent resume attempts
+   (manual + scheduled) from racing on status transition waiting->running
+2. **Timeout handling** (`_handle_timeout()`): Ensures exclusive access
+   when marking execution as failed after cancellation, preventing conflicts
+   with the cancelled coroutine's uncommitted changes
+3. **Status transitions**: Any operation that changes execution.status
+   requires exclusive access to prevent invalid state transitions
 
-### Pessimistic Locking (Critical Sections)
-- Used for: Status transitions and exclusive state changes
-- Mechanism: `SELECT ... FOR UPDATE` row-level locks
-- Behavior: Block concurrent access until transaction commits
-- Critical sections:
-  1. **Resume operations** (`resume()`): Prevents concurrent resume attempts
-     (manual + scheduled) from racing on status transition waiting->running
-  2. **Timeout handling** (`_handle_timeout()`): Ensures exclusive access
-     when marking execution as failed after cancellation, preventing conflicts
-     with the cancelled coroutine's uncommitted changes
-  3. **Status transitions**: Any operation that changes execution.status
-     requires exclusive access to prevent invalid state transitions
-
-### When to Use Each Strategy
-
-| Operation | Strategy | Rationale |
-|-----------|----------|-----------|
-| Pipeline step data updates | Optimistic | Fast, low contention |
-| Status transitions | Pessimistic | Critical state, must not race |
-| Resume from wait | Pessimistic | Prevent duplicate resumes |
-| Timeout handling | Pessimistic | Clean up cancelled coroutine |
-| Normal step execution | Optimistic | High throughput needed |
+`WorkflowExecution.pipeline_data_json` also carries a `version` column
+(`version_id_col`, see `models/pipeline.py`) for conflict *detection* on
+flush: SQLAlchemy raises `StaleDataError` if a concurrent writer already
+bumped the version. There is no retry loop around this — a lost-update race
+on pipeline data is expected to be rare enough that the failing write
+surfaces as an error rather than being silently retried.
 
 ### Lock Ordering and Deadlock Prevention
 - Always acquire WorkflowExecution lock before EventLog lock
@@ -66,7 +50,6 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy.orm.exc import StaleDataError
 
 from backend.core.config import settings
 from backend.core.exceptions import ValidationError
@@ -103,10 +86,6 @@ from backend.steps.base import ServiceContainer, StepResult, TriggerContext
 
 logger = get_logger(__name__)
 
-# Optimistic locking retry configuration
-MAX_RETRIES = 3
-BASE_DELAY = 0.1  # seconds
-
 
 class PipelineExecutor:
     """Execute a rule's composable pipeline steps in sequence.
@@ -127,49 +106,12 @@ class PipelineExecutor:
 
     def __init__(
         self,
-        db_session_factory,
-        person_tracking=None,
-        person_id_client=None,
-        notification_dispatcher=None,
-        ha_client=None,
-        event_aggregator=None,
-        scheduler=None,
-        llm_model_registry=None,
-        scene_analysis_client=None,
-        daily_report_service=None,
-        semantic_memory_client=None,
-        interactive_response_service=None,
-        memory_query=None,
-        scene_intel=None,
-        activity=None,
-        signals=None,
-        knowledge_delivery=None,
-        minio_client=None,
+        services: ServiceContainer,
+        *,
         rules_engine=None,
         event_publisher: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
-        camera_source_resolver=None,
     ) -> None:
-        self._services = ServiceContainer(
-            db_factory=db_session_factory,
-            person_tracking=person_tracking,
-            person_id_client=person_id_client,
-            notification_dispatcher=notification_dispatcher,
-            ha_client=ha_client,
-            event_aggregator=event_aggregator,
-            scheduler=scheduler,
-            llm_model_registry=llm_model_registry,
-            scene_analysis_client=scene_analysis_client,
-            daily_report_service=daily_report_service,
-            semantic_memory_client=semantic_memory_client,
-            interactive_response_service=interactive_response_service,
-            memory_query=memory_query,
-            scene_intel=scene_intel,
-            activity=activity,
-            signals=signals,
-            knowledge_delivery=knowledge_delivery,
-            minio_client=minio_client,
-            camera_source_resolver=camera_source_resolver,
-        )
+        self._services = services
         self._rules_engine = rules_engine
         self._event_publisher = event_publisher
         # Monotonic sequence counter for ordering events across executions.
@@ -251,7 +193,7 @@ class PipelineExecutor:
         event = {"kind": kind, "payload": payload}
         db = self._services.db_factory()
         try:
-            rules = self._rules_engine.get_matching_rules_for_event(event, kind, db)
+            rules = await self._rules_engine.get_matching_rules_for_event(event, kind, db)
         finally:
             db.close()
 
@@ -259,7 +201,8 @@ class PipelineExecutor:
             return
 
         trigger = TriggerContext(trigger_type=kind)
-        for rule in rules:
+
+        async def _run_rule(rule: Rule) -> None:
             rule_db = self._services.db_factory()
             try:
                 await self.execute(rule, trigger, rule_db)
@@ -267,6 +210,8 @@ class PipelineExecutor:
                 logger.exception("fire_event_rule_execute_error", rule=rule.name, kind=kind)
             finally:
                 rule_db.close()
+
+        await asyncio.gather(*(_run_rule(rule) for rule in rules), return_exceptions=True)
 
     async def execute(
         self,
@@ -1114,47 +1059,3 @@ def _mark_pipeline_completed(execution: WorkflowExecution, completed_at: datetim
     block = pipeline_data.setdefault("_pipeline", {})
     block["completed_at"] = completed_at.isoformat()
     flag_modified(execution, "pipeline_data_json")
-
-
-async def _update_pipeline_data_with_retry(
-    db: Session,
-    execution_id: int,
-    update_fn: Callable[[dict], None],
-) -> None:
-    """Update pipeline_data_json with optimistic locking retry.
-
-    Implements exponential backoff retry on StaleDataError to handle
-    concurrent updates to WorkflowExecution.pipeline_data_json.
-
-    Args:
-        db: Database session
-        execution_id: ID of the WorkflowExecution to update
-        update_fn: Callable that receives pipeline_data_json dict and mutates it
-
-    Raises:
-        StaleDataError: If all retry attempts are exhausted
-    """
-    for attempt in range(MAX_RETRIES):
-        try:
-            execution = db.query(WorkflowExecution).filter_by(id=execution_id).one()
-            update_fn(execution.pipeline_data_json)
-            flag_modified(execution, "pipeline_data_json")
-            db.commit()
-            return
-        except StaleDataError:
-            if attempt == MAX_RETRIES - 1:
-                logger.error(
-                    "optimistic_lock_exhausted",
-                    execution_id=execution_id,
-                    attempts=MAX_RETRIES,
-                )
-                raise
-            delay = BASE_DELAY * (2**attempt)  # Exponential backoff
-            logger.warning(
-                "optimistic_lock_conflict",
-                execution_id=execution_id,
-                attempt=attempt + 1,
-                retry_delay_seconds=delay,
-            )
-            await asyncio.sleep(delay)
-            db.rollback()

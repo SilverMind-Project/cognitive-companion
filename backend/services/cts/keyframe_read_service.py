@@ -47,8 +47,10 @@ def _source_badge(bbox: UpstreamBbox) -> str:
         return "Operator"
     source = bbox.decision_source
     if source == "face":
-        # Authoritative ArcFace vs weak/uncalibrated face evidence.
-        return "ArcFace" if bbox.authority == "arcface_authority" else "ArcFace / Uncalibrated"
+        # Authoritative ArcFace vs weak/uncalibrated face evidence. "direct_face" is the
+        # resolver's bounded IdentityAuthority vocabulary value (M07/F9) -- never an
+        # identity id or the decision_source string "arcface_authority".
+        return "ArcFace" if bbox.authority == "direct_face" else "ArcFace / Uncalibrated"
     if source == "reid":
         return "ReID"
     if source in {"temporal_prior", "prior"}:

@@ -43,7 +43,7 @@ def _bbox(ph_id: str, eff: str | None, **overrides) -> dict:
         "frame_height": 1080,
         "inferred_identity_id": eff,
         "effective_identity_id": eff,
-        "authority": "arcface_authority",
+        "authority": "direct_face",
         "decision_source": "face",
         "calibrated_confidence": 0.8,
         "conflict": False,
@@ -109,6 +109,26 @@ async def test_operator_badge_and_conflict_badge() -> None:
     summary = {i.effective_identity_id: i for i in result.keyframes[0].identity_summary}
     assert summary["amma"].source_badges == ["Operator"]
     assert summary["grandma"].source_badges == ["Conflict"]
+
+
+async def test_arcface_badge_requires_direct_face_authority() -> None:
+    """M07/F9: the badge must key off the bounded authority value ``direct_face``,
+    never the decision_source string ``arcface_authority`` (the pre-M07 bug)."""
+    page = {
+        "total": 1,
+        "frames": [
+            _frame(
+                [
+                    _bbox("ph-a", "amma", authority="direct_face", decision_source="face"),
+                    _bbox("ph-b", "grandma", authority="posterior", decision_source="face"),
+                ]
+            )
+        ],
+    }
+    result = await _service(page).list_frames()
+    summary = {i.effective_identity_id: i for i in result.keyframes[0].identity_summary}
+    assert summary["amma"].source_badges == ["ArcFace"]
+    assert summary["grandma"].source_badges == ["ArcFace / Uncalibrated"]
 
 
 async def test_malformed_upstream_raises_contract_error() -> None:

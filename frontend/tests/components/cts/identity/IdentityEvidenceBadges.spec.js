@@ -24,14 +24,14 @@ describe("IdentityEvidenceBadges", () => {
   });
 
   it("shows calibrated confidence as a percent for non-operator decisions", () => {
-    const w = mountBadges({ authority: "arcface_authority", decision_source: "face", effective_identity_id: "amma", calibrated_confidence: 0.77 });
+    const w = mountBadges({ authority: "direct_face", decision_source: "face", effective_identity_id: "amma", calibrated_confidence: 0.77 });
     expect(w.text()).toContain("77%");
   });
 
   it("renders raw ArcFace similarity only as 'Raw similarity', never as confidence", () => {
     const w = mountBadges(
       {
-        authority: "arcface_authority",
+        authority: "direct_face",
         decision_source: "face",
         effective_identity_id: "amma",
         inferred_identity_id: "amma",
@@ -58,7 +58,7 @@ describe("IdentityEvidenceBadges", () => {
   });
 
   it("surfaces a pending-review chip", () => {
-    const w = mountBadges({ authority: "arcface_authority", decision_source: "face", effective_identity_id: "amma", pending_review: true });
+    const w = mountBadges({ authority: "direct_face", decision_source: "face", effective_identity_id: "amma", pending_review: true });
     expect(w.text()).toContain("Pending review");
   });
 });

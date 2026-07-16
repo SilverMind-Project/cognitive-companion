@@ -58,10 +58,11 @@ jobs:
 
       # Backend tests use testcontainers (TimescaleDB pg18); Docker is available
       # on the GitHub-hosted ubuntu runner.
-      - name: Backend tests (core + services)
-        run: |
-          make test-core
-          make test-services
+      - name: Backend tests with coverage floor (core + services)
+        run: make coverage-gate
+
+      - name: Dependency hygiene (deptry)
+        run: make deps-check
 
   frontend:
     name: Frontend gates

@@ -597,6 +597,14 @@ Running bare `python` or `pip` without the venv installs packages into the syste
 
 ## 14. Pre-commit checklist
 
+> Deterministic backend gates: `make lint` (ruff), `make import-lint`, `make typecheck-core` +
+> `typecheck-ratchet` (mypy strict allowlist), `make coverage-gate` (coverage floor from
+> pyproject `fail_under` — ratchet up, never down, and never delete a test to satisfy it),
+> `make deps-check` (deptry; every ignore justified in-line). Test isolation is
+> engine-level: any test that touches the DB gets an unconditional table truncation on
+> teardown; never reintroduce fixture-name-gated cleanup, and never deselect a failing test
+> in the Makefile — fix it or delete it with rationale.
+
 Before opening a PR, verify:
 
 ### Backend

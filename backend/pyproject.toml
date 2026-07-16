@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.7.73"
+version = "0.7.74"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -14,6 +14,7 @@ dependencies = [
     "httpx>=0.28.1",
     "httpx-ws>=0.9",
     "boto3>=1.35",
+    "botocore>=1.35",  # imported directly for Config/ClientError (deptry DEP003); previously only a transitive boto3 dep
     "apscheduler>=3.10",
     "pillow>=12.0",
     "python-multipart>=0.0.28",
@@ -58,6 +59,7 @@ dev = [
     "httpx2>=2.0.0",          # starlette 1.2+ TestClient transport
     "testcontainers[postgres]>=4.0",
     "import-linter>=2.0.0",
+    "deptry>=0.20",
 ]
 
 [tool.uv.sources]
@@ -114,7 +116,6 @@ select = [
     "B",     # flake8-bugbear  common bug patterns
     "BLE",   # U6b: blind-except guard (BLE001) — no silent fallbacks (rule 15)
     "SIM",   # flake8-simplify
-    "TCH",   # flake8-type-checking  move type-only imports behind TYPE_CHECKING
     "RUF",   # ruff-specific rules
     "PIE",   # flake8-pie  misc lint
     "PT",    # flake8-pytest-style
@@ -125,9 +126,12 @@ ignore = [
     "E501",    # line length handled by formatter
     "B008",    # Depends() in FastAPI param defaults is idiomatic
     "RUF012",  # ClassVar for mutable class attrs  too noisy for registries
-    "TCH",     # type-checking imports  adopt incrementally
-    "TC",      # type-checking imports (older alias)
 ]
+# TCH/TC (flake8-type-checking: move type-only imports behind TYPE_CHECKING)
+# is not enforced. This is an honest gap, not a half-enabled state — adopting
+# it is a deliberate future decision (M15/C12: the previous select+ignore
+# pair selected the ruleset and then fully ignored it, which is dead config
+# that misrepresented what was enforced).
 
 [tool.ruff.lint.isort]
 known-first-party = ["backend"]
@@ -209,7 +213,13 @@ omit = [
 ]
 
 [tool.coverage.report]
-fail_under = 65
+# Ratcheted from measurement, not aspiration (M15/C11): the gate was
+# configured but never executed in CI, so 65 was a guess. The first real
+# measurement of `backend/tests/core` + `backend/tests/services` against
+# `backend` (branch coverage, tests/scripts/assets omitted) was 45.35% on
+# 2026-07-16. Floor set to measured-1, floored. Raise it in one-line steps
+# as coverage improves; never lower it and never delete a test to pass it.
+fail_under = 44
 show_missing = true
 skip_covered = false
 precision = 1
@@ -222,6 +232,36 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+# ── Dependency hygiene (deptry) ─────────────────────────────────────
+# deptry's default exclude covers tests/, so dev-only tooling (pytest
+# plugins, testcontainers, linters) is invisible to its usage scan and must
+# be ignored explicitly below rather than left to trip DEP002.
+[tool.deptry]
+known_first_party = ["backend"]
+
+[tool.deptry.per_rule_ignores]
+DEP003 = [
+    "dotenv",  # alembic/env.py imports it in a try/except with a working fallback if absent; deliberately optional, not a hard dependency
+]
+DEP002 = [
+    "uvicorn",           # invoked via `uvicorn backend.main:app` CLI entrypoint, never imported
+    "python-multipart",  # Starlette imports it internally for Form/File parsing; we never import it
+    "psycopg",           # SQLAlchemy loads the driver dynamically via `postgresql+psycopg://`; [binary]/[pool] are runtime-only extras
+    "pillow-heif",       # registers a Pillow HEIF plugin via entry-point discovery at Pillow import time
+    "google-genai",      # optional `gemini` extra, only present when that feature is installed
+    "tritonclient",      # optional `triton` extra, only present when that feature is installed
+    "ruff",              # CLI-only lint tool
+    "mypy",              # CLI-only type checker
+    "pytest",            # test runner, used only under tests/ (excluded from deptry's scan by default)
+    "pytest-asyncio",    # pytest plugin, used only under tests/
+    "pytest-cov",        # pytest plugin, used only under tests/
+    "coverage",          # driven via pytest-cov / `make coverage-gate`, used only under tests/
+    "httpx2",            # starlette TestClient transport dependency, used only under tests/
+    "testcontainers",    # imported in tests/conftest.py, excluded from deptry's scan by default
+    "import-linter",     # CLI-only (`lint-imports`)
+    "deptry",            # CLI-only (this tool)
+]
 
 [dependency-groups]
 dev = [

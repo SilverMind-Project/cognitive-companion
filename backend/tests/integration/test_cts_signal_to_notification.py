@@ -3,11 +3,15 @@
 Validates the write and read paths for dementia signals through the
 real PostgreSQL test container, confirming the SignalStore works
 end-to-end with the database.
+
+Marked ``@pytest.mark.integration`` so CI selects it.
 """
 
 from __future__ import annotations
 
 import pytest
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

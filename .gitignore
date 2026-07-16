@@ -16,6 +16,9 @@ frontend/dist/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
 kubernetes/local/
 .vscode/
 .claude/settings.json

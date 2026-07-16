@@ -777,6 +777,7 @@ async def lifespan(app: FastAPI):
                 redis_url=redis_url,
                 consumer_id=consumer_id,
                 cts_lock_s=settings.as_float("cts.lock_seconds"),
+                revision_horizon_s=settings.as_float("cts.revision_horizon_s"),
                 bucketizer_rate=BucketizerRateConfig.model_validate(
                     {
                         "image_rate_per_second": cts_settings.get("image_rate_per_second", 0.5),

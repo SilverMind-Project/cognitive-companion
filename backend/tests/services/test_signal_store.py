@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from backend.services.cts.signal_store import SignalStore
+from backend.services.cts.signal_store import SignalStore, derive_signal_id
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -241,3 +241,35 @@ class TestGetDailyTrend:
         trend = await store.get_daily_trend("grandma", days=1)
         assert len(trend) == 1
         assert trend[0]["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# derive_signal_id (M06, F8)
+# ---------------------------------------------------------------------------
+
+
+class TestDeriveSignalId:
+    def test_golden_vector_matches_cts_producer(self):
+        """Pinned UUID. The identical assertion exists in the CTS suite
+        (tracking-orchestrator/tests/test_dementia_signals.py::
+        TestStableSignalIdVector) so the two derivations cannot drift
+        silently.
+        """
+        result = derive_signal_id(
+            "amma", "pacing", "2026-07-01T10:00:00+00:00", "2026-07-01T10:30:00+00:00"
+        )
+        assert result == "9c66218f-54ac-5ee4-bf71-4c3d6e1f4a24"
+
+    def test_differs_by_identity(self):
+        window_start = "2026-07-01T10:00:00+00:00"
+        window_end = "2026-07-01T10:30:00+00:00"
+        a = derive_signal_id("amma", "pacing", window_start, window_end)
+        b = derive_signal_id("grandma", "pacing", window_start, window_end)
+        assert a != b
+
+    def test_is_deterministic(self):
+        window_start = "2026-07-01T10:00:00+00:00"
+        window_end = "2026-07-01T10:30:00+00:00"
+        a = derive_signal_id("amma", "pacing", window_start, window_end)
+        b = derive_signal_id("amma", "pacing", window_start, window_end)
+        assert a == b

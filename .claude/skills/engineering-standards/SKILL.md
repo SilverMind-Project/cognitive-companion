@@ -947,6 +947,14 @@ The orchestrator's hysteresis guarantees idempotent DB rows but does not guarant
 
 `SignalStore.upsert()` enforces this contract. The `DementiaSignalSubscriber.handle()` method gates pipeline event firing on the `action` returned by upsert. The `DementiaSignalFilter` should honor this as a second line of defense.
 
+### Projection supersession scoping
+
+Projection supersession is always bounded: operator revisions by their `range_start`/
+`range_end`, automatic revisions by `cts.revision_horizon_s` (mirror of CTS
+`resolver.revision_horizon_s`; change both together). A replacement row derived from a
+superseded row must re-derive any identity-scoped stable ID (`derive_signal_id`); never
+copy an ID that encodes the old identity.
+
 ### Algorithm version tracking
 
 Every signal carries `algorithm_version` from the orchestrator. The CC persists this value and surfaces it in `CTSSignalsView`. The `get_24h_summary` and `list_recent` endpoints should allow filtering out signals from stale detector generations.

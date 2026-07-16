@@ -25,6 +25,7 @@ for consistency with :class:`LocationWriter` and testability.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -35,6 +36,7 @@ from backend.models.cts_identity_revision_log import CtsIdentityRevisionLog
 from backend.models.cts_signal import DementiaSignal
 from backend.models.person import PersonLocationHistory, PersonLocationState
 from backend.services.cts._time import parse_ts
+from backend.services.cts.signal_store import derive_signal_id
 
 logger = get_logger(__name__)
 
@@ -52,6 +54,10 @@ class IdentityRewriter:
         to the repository protocol.
     ws_manager:
         Optional :class:`ConnectionManager` to broadcast revision events.
+    revision_horizon_s:
+        Fallback supersession window (seconds) for automatic revisions that
+        carry no explicit ``range_start``/``range_end``. Mirrors CTS
+        ``resolver.revision_horizon_s``; change both together.
     """
 
     SOURCE = "cts"
@@ -60,9 +66,11 @@ class IdentityRewriter:
         self,
         db_factory: Callable[[], Session],
         ws_manager: Any = None,
+        revision_horizon_s: float = 600.0,
     ) -> None:
         self._db_factory = db_factory
         self._ws_manager = ws_manager
+        self._revision_horizon_s = revision_horizon_s
 
     async def apply(self, revision: dict[str, Any]) -> dict[str, Any]:
         """Apply one revision dict.  Returns a summary dict with row counts."""
@@ -82,6 +90,22 @@ class IdentityRewriter:
                 # was or which global track carried the rewritten rows.
                 return {"revision_id": revision_id, "rewritten": 0, "inserted": 0}
 
+            # M06: a revision touches exactly the rows its authority covers.
+            # Operator corrections carry an explicit range_start/range_end.
+            # Automatic revisions carry neither, so fall back to the
+            # cross-repo revision-horizon contract (mirrors CTS
+            # resolver.revision_horizon_s) rather than rewriting unbounded
+            # history.
+            range_start = (
+                parse_ts(revision.get("range_start")) if revision.get("range_start") else None
+            )
+            range_end = parse_ts(revision.get("range_end")) if revision.get("range_end") else None
+            horizon_applied = False
+            if range_start is None and range_end is None and applied_at is not None:
+                range_start = applied_at - timedelta(seconds=self._revision_horizon_s)
+                range_end = applied_at
+                horizon_applied = True
+
             query = db.query(PersonLocationHistory).filter(
                 PersonLocationHistory.superseded_by_revision_id.is_(None),
             )
@@ -91,8 +115,17 @@ class IdentityRewriter:
                 query = query.filter(PersonLocationHistory.person_id == previous_identity_id)
             if ph_id:
                 query = query.filter(PersonLocationHistory.ph_id == ph_id)
+            if range_start is not None:
+                query = query.filter(PersonLocationHistory.entered_at >= range_start)
+            if range_end is not None:
+                query = query.filter(PersonLocationHistory.entered_at <= range_end)
 
             affected = query.all()
+            # Determine live-edge reach before mutating any row, so the
+            # "still-live" check sees the pre-correction state.
+            live_edge = _reaches_live_edge(
+                db, previous_identity_id=previous_identity_id, ph_id=ph_id, affected=affected
+            )
             rewritten = 0
             inserted = 0
 
@@ -117,43 +150,18 @@ class IdentityRewriter:
                     )
                     inserted += 1
 
-            # Update PersonLocationState for both prior + new identity so
-            # live reads see the correction.
-            if previous_identity_id and new_identity_id:
-                prior = (
-                    db.query(PersonLocationState)
-                    .filter(PersonLocationState.person_id == previous_identity_id)
-                    .first()
-                )
-                if prior is not None:
-                    # Prior is no longer in that room from this track's POV.
-                    prior.status = "unknown"
-
-            if new_identity_id and affected:
-                latest = max(affected, key=lambda r: r.entered_at)
-                state = (
-                    db.query(PersonLocationState)
-                    .filter(PersonLocationState.person_id == new_identity_id)
-                    .first()
-                )
-                if state is None:
-                    state = PersonLocationState(
-                        person_id=new_identity_id,
-                        current_room_id=latest.room_id,
-                        current_room_name=latest.room_name,
-                        last_seen_at=applied_at,
-                        last_sensor_id=self.SOURCE,
-                        status="home",
-                        confidence=1.0,
-                    )
-                    db.add(state)
-                else:
-                    state.current_room_id = latest.room_id
-                    state.current_room_name = latest.room_name
-                    state.last_seen_at = applied_at
-                    state.last_sensor_id = self.SOURCE
-                    state.status = "home"
-                    state.confidence = 1.0
+            # Update PersonLocationState for both prior + new identity, but only
+            # when the correction reaches the PH's live edge. A purely
+            # historical correction must not flip current presence.
+            _update_location_state(
+                db,
+                previous_identity_id=previous_identity_id,
+                new_identity_id=new_identity_id,
+                affected=affected,
+                applied_at=applied_at,
+                live_edge=live_edge,
+                source=self.SOURCE,
+            )
 
             # M06: supersede dementia-signal rows under the prior identity within
             # the corrected range and insert replacements under the new identity.
@@ -163,12 +171,8 @@ class IdentityRewriter:
                 revision_id=revision_id,
                 previous_identity_id=previous_identity_id,
                 new_identity_id=new_identity_id,
-                range_start=parse_ts(revision.get("range_start"))
-                if revision.get("range_start")
-                else None,
-                range_end=parse_ts(revision.get("range_end"))
-                if revision.get("range_end")
-                else None,
+                range_start=range_start,
+                range_end=range_end,
             )
 
             # Write to the first-class audit log.  Use ON CONFLICT DO UPDATE
@@ -226,6 +230,9 @@ class IdentityRewriter:
             rewritten=rewritten,
             inserted=inserted,
             signals_superseded=signals_superseded,
+            range_start=range_start.isoformat() if range_start else None,
+            range_end=range_end.isoformat() if range_end else None,
+            horizon_applied=horizon_applied,
         )
 
         if self._ws_manager is not None:
@@ -289,7 +296,15 @@ def _supersede_signals(
         if new_identity_id:
             db.add(
                 DementiaSignal(
-                    signal_id=row.signal_id,
+                    # The stable ID encodes the identity; a replacement row
+                    # under a different identity must re-derive it, never
+                    # copy the superseded row's ID (F8).
+                    signal_id=derive_signal_id(
+                        new_identity_id,
+                        row.signal_type,
+                        row.window_start.isoformat(),
+                        row.window_end.isoformat(),
+                    ),
                     person_id=new_identity_id,
                     signal_type=row.signal_type,
                     severity=row.severity,
@@ -304,6 +319,100 @@ def _supersede_signals(
                 )
             )
     return superseded
+
+
+def _reaches_live_edge(
+    db: Session,
+    *,
+    previous_identity_id: str | None,
+    ph_id: str | None,
+    affected: list[PersonLocationHistory],
+) -> bool:
+    """Return True when the superseded set reaches the PH's current live edge.
+
+    The newest affected row is the live edge if it is still open
+    (``exited_at IS NULL``) or if no un-superseded row exists after it for
+    the same ``(person, ph)``. Must be called before ``affected`` rows are
+    mutated, so the "still-live" check sees pre-correction state.
+
+    A revision with no ``previous_identity_id`` (a first-time identification
+    of a previously-unlabeled PH, not a retroactive correction) has no prior
+    identity's presence at stake, so it always counts as reaching the live
+    edge.
+    """
+    if not affected:
+        return False
+    if not previous_identity_id:
+        return True
+
+    latest_affected = max(affected, key=lambda r: r.entered_at)
+    if latest_affected.exited_at is None:
+        return True
+
+    newer_query = db.query(PersonLocationHistory.id).filter(
+        PersonLocationHistory.superseded_by_revision_id.is_(None),
+        PersonLocationHistory.person_id == previous_identity_id,
+        PersonLocationHistory.entered_at > latest_affected.entered_at,
+    )
+    if ph_id:
+        newer_query = newer_query.filter(PersonLocationHistory.ph_id == ph_id)
+    return newer_query.first() is None
+
+
+def _update_location_state(
+    db: Session,
+    *,
+    previous_identity_id: str | None,
+    new_identity_id: str | None,
+    affected: list[PersonLocationHistory],
+    applied_at: datetime,
+    live_edge: bool,
+    source: str,
+) -> None:
+    """Rewrite PersonLocationState for prior + new identity, live-edge only.
+
+    A purely historical correction (the superseded set does not reach the
+    PH's current live edge) must not flip current presence for either
+    identity; only the location-history rows are rewritten.
+    """
+    if not live_edge:
+        return
+
+    if previous_identity_id and new_identity_id:
+        prior = (
+            db.query(PersonLocationState)
+            .filter(PersonLocationState.person_id == previous_identity_id)
+            .first()
+        )
+        if prior is not None:
+            # Prior is no longer in that room from this track's POV.
+            prior.status = "unknown"
+
+    if new_identity_id and affected:
+        latest = max(affected, key=lambda r: r.entered_at)
+        state = (
+            db.query(PersonLocationState)
+            .filter(PersonLocationState.person_id == new_identity_id)
+            .first()
+        )
+        if state is None:
+            state = PersonLocationState(
+                person_id=new_identity_id,
+                current_room_id=latest.room_id,
+                current_room_name=latest.room_name,
+                last_seen_at=applied_at,
+                last_sensor_id=source,
+                status="home",
+                confidence=1.0,
+            )
+            db.add(state)
+        else:
+            state.current_room_id = latest.room_id
+            state.current_room_name = latest.room_name
+            state.last_seen_at = applied_at
+            state.last_sensor_id = source
+            state.status = "home"
+            state.confidence = 1.0
 
 
 def _upsert_revision_log(

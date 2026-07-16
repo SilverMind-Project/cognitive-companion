@@ -11,6 +11,7 @@ PostgreSQL fixture.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -20,6 +21,23 @@ from sqlalchemy.orm import Session
 
 from backend.models.cts_signal import DementiaSignal
 from backend.services.cts._time import parse_ts
+
+
+def derive_signal_id(
+    identity_id: str, signal_kind: str, window_start_iso: str, window_end_iso: str
+) -> str:
+    """Derive the same stable UUID5 signal ID the CTS producer derives.
+
+    Must match ``_stable_signal_id`` in both
+    ``tracking-orchestrator/app/trajectory/dementia_signals.py`` and
+    ``tracking-orchestrator/app/services/identity_rewriter.py`` byte-for-byte:
+    ``uuid5(uuid.NAMESPACE_DNS, f"{identity}\\x00{kind}\\x00{start}\\x00{end}")``.
+    The ID encodes the identity, so any row copied under a different identity
+    (an M06 revision replacement row) must re-derive its ID here rather than
+    reuse the superseded row's ID.
+    """
+    key = f"{identity_id}\x00{signal_kind}\x00{window_start_iso}\x00{window_end_iso}"
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
 
 
 class SignalStore:

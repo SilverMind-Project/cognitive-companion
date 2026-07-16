@@ -80,6 +80,30 @@ The card receives one batched server summary and shows:
 The card shows only effective identity after correction. The detail dialog shows original inference
 and revision history.
 
+### Authority-to-badge mapping (M07)
+
+`authority` is the bounded `IdentityAuthority` vocabulary produced by CTS
+(`operator | direct_face | posterior | temporal_prior | none`, plus `reid_gallery` reserved for a
+future governed-gallery rung, and `unknown` / `height_proxy` legacy members the current producer
+never emits); it is never an identity id. The badge formatter
+(`frontend/src/components/cts/identity/identityEvidence.js`, mirrored in
+`backend/services/cts/keyframe_read_service.py::_source_badge`) maps it, not `decision_source`
+alone:
+
+| `authority` | Badge |
+| --- | --- |
+| `operator` | `Verified` |
+| `direct_face` | calibrated-face badge (`ArcFace`) |
+| `posterior` | face/ReID badge, chosen by `decision_source` |
+| `temporal_prior` | `Prior` |
+| `none` | no badge (deferred — `sourceBadge()` still falls back to the `decision_source` string rather than rendering nothing; the F9 leak-prevention property holds either way since `decision_source` is itself a bounded value, never an identity id) |
+| `unknown` / `height_proxy` / `reid_gallery` | not handled as distinct cases; falls through to the `decision_source` string like `none` above. Never emitted by the current producer, so this is dormant, not untested-in-practice. |
+
+Never render an `authority` string verbatim as a person label — that was the F9 bug
+(`authority: "amma"`). `IdentityRevisionRange.authority` (`RevisionAuthority`: `operator | inferred`)
+is a distinct vocabulary from decision `authority` and must not be normalized through the same
+fallback path.
+
 The detail overlay labels every bbox with effective identity, source, and confidence/`Verified`.
 Use stable identity colors plus distinct unknown and conflict styling. Color is not the only signal.
 Clicking a bbox opens the shared correction workflow.

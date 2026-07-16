@@ -955,6 +955,22 @@ Projection supersession is always bounded: operator revisions by their `range_st
 superseded row must re-derive any identity-scoped stable ID (`derive_signal_id`); never
 copy an ID that encodes the old identity.
 
+### Authority vocabulary (M07)
+
+CTS `IdentityDecision.authority` (received over the wire, e.g. `bbox.authority` in
+`keyframe_read_service.py`) is a bounded vocabulary produced by CTS
+(`operator | direct_face | posterior | temporal_prior | none`, plus `reid_gallery` reserved and
+`unknown` / `height_proxy` legacy members the current CTS producer never emits),
+never an identity id. CTS validates it at its own repository boundary
+(`validate_identity_authority()`); CC receives it already validated and must not re-derive or
+guess it client-side — branch on the string verbatim (`bbox.authority == "direct_face"`, not
+`decision_source == "arcface_authority"`, the F9 workaround this milestone removed). Do not
+confuse it with the unrelated `SourceAuthority` class (`backend/services/cts/source_authority.py`),
+which governs CTS-vs-non-CTS location-write precedence. See
+`.claude/skills/cts-identity-admin/SKILL.md` for the badge-rendering mapping and the distinct
+`IdentityRevisionRange.authority` (`RevisionAuthority`) vocabulary, which must never be normalized
+through the same fallback path as decision `authority`.
+
 ### Algorithm version tracking
 
 Every signal carries `algorithm_version` from the orchestrator. The CC persists this value and surfaces it in `CTSSignalsView`. The `get_24h_summary` and `list_recent` endpoints should allow filtering out signals from stale detector generations.

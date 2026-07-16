@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session, joinedload
 
+from backend.core.auth import require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.models.rule import Rule
@@ -103,7 +104,10 @@ async def trigger_webhook(
     }
 
 
-@router.post("/{rule_id}/generate-secret")
+@router.post(
+    "/{rule_id}/generate-secret",
+    dependencies=[Depends(require_permission("rules:write"))],
+)
 async def regenerate_webhook_secret(
     rule_id: int,
     db: Session = Depends(get_db),

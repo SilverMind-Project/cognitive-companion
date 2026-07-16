@@ -16,6 +16,10 @@ from backend.services.presence import (
     PresenceSource,
     PresenceStatus,
 )
+from backend.tests.routers.conftest import CTS_PRESENCE_AUTH as AUTH
+
+# M16: the presence routes now require cts.presence.view.
+pytestmark = pytest.mark.usefixtures("cts_presence_keystore")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -78,7 +82,7 @@ async def test_cts_disabled_returns_404():
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/presence/mom")
+            resp = await client.get("/api/v1/cts/presence/mom", headers=AUTH)
 
     assert resp.status_code == 404
     body = resp.json()
@@ -114,7 +118,7 @@ async def test_person_not_in_repo_returns_unknown(presence_service: PresenceServ
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/presence/mom")
+            resp = await client.get("/api/v1/cts/presence/mom", headers=AUTH)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -143,7 +147,7 @@ async def test_person_in_repo_returns_present_room(presence_service: PresenceSer
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/presence/mom")
+            resp = await client.get("/api/v1/cts/presence/mom", headers=AUTH)
 
     assert resp.status_code == 200
     body = resp.json()

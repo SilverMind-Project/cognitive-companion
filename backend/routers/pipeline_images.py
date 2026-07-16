@@ -10,9 +10,10 @@ from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from PIL import Image
 
+from backend.core.auth import require_permission
 from backend.core.database import get_session
 from backend.core.logging import get_logger
 from backend.models.media_cache import MediaCache
@@ -24,7 +25,10 @@ logger = get_logger(__name__)
 _SAMPLE_EXPIRY_MINUTES = 5
 
 
-@router.get("/sample")
+@router.get(
+    "/sample",
+    dependencies=[Depends(require_permission("rules:read"))],
+)
 async def get_sample_image(
     request: Request,
     source_type: str = Query(..., pattern="^(recamera|cts)$"),

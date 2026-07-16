@@ -11,9 +11,12 @@ from backend.core.auth import (
     AuthContext,
     KeyStore,
     _resolve_key,
+    assert_declared_tokens_known,
     get_auth_context,
+    get_auth_context_device,
     invalidate_lookup_cache,
     require_permission,
+    require_token,
 )
 from backend.core.config import Settings
 from backend.core.exceptions import AuthenticationError
@@ -179,8 +182,14 @@ def _make_app() -> FastAPI:
     async def list_rooms(auth: AuthContext = Depends(require_permission("rooms:read"))) -> dict:
         return {"as": auth.name}
 
+    # Browser-facing surface: header only.
+    @app.post("/rooms")
+    async def create_room(auth: AuthContext = Depends(get_auth_context)) -> dict:
+        return {"as": auth.name}
+
+    # Device surface: opts into the permissive resolver.
     @app.post("/device/report")
-    async def device_report(auth: AuthContext = Depends(get_auth_context)) -> dict:
+    async def device_report(auth: AuthContext = Depends(get_auth_context_device)) -> dict:
         return {"device": auth.name, "sensor": auth.sensor_id}
 
     return app
@@ -193,10 +202,16 @@ class TestGetAuthContextIntegration:
         assert r.status_code == 200
         assert r.json() == {"as": "admin"}
 
-    def test_query_param_key_accepted(self, stub_keystore: KeyStore) -> None:
+    def test_query_param_key_rejected_on_default_resolver(self, stub_keystore: KeyStore) -> None:
+        """M16: keys in query strings leak into access logs and browser history."""
         client = TestClient(_make_app())
         r = client.get("/rooms?api_key=ADMIN")
-        assert r.status_code == 200
+        assert r.status_code == 401
+
+    def test_body_key_rejected_on_default_resolver(self, stub_keystore: KeyStore) -> None:
+        client = TestClient(_make_app())
+        r = client.post("/rooms", json={"api_key": "ADMIN"})
+        assert r.status_code == 401
 
     def test_missing_key_returns_401(self, stub_keystore: KeyStore) -> None:
         client = TestClient(_make_app())
@@ -242,6 +257,23 @@ class TestGetAuthContextIntegration:
         r = client.post("/device/report", json={"api_key": "ADMIN"})
         assert r.status_code == 200
 
+    def test_device_resolver_accepts_query_param(self, stub_keystore: KeyStore) -> None:
+        client = TestClient(_make_app())
+        r = client.post("/device/report?api_key=DEVICE01")
+        assert r.status_code == 200
+
+    def test_device_resolver_accepts_header(self, stub_keystore: KeyStore) -> None:
+        client = TestClient(_make_app())
+        r = client.post("/device/report", headers={"X-API-Key": "DEVICE01"})
+        assert r.status_code == 200
+
+    def test_device_resolver_prefers_header_over_query(self, stub_keystore: KeyStore) -> None:
+        """Documented lookup order: header, then query, then body."""
+        client = TestClient(_make_app())
+        r = client.post("/device/report?api_key=ADMIN", headers={"X-API-Key": "DEVICE01"})
+        assert r.status_code == 200
+        assert r.json()["device"] == "cam"
+
     def test_malformed_json_body_does_not_crash(self, stub_keystore: KeyStore) -> None:
         client = TestClient(_make_app())
         r = client.post(
@@ -251,3 +283,126 @@ class TestGetAuthContextIntegration:
         )
         # Missing key → 401, NOT 500.
         assert r.status_code == 401
+
+
+# ─── Declared-token startup contract (M16) ────────────────────────────────
+
+
+class TestAssertDeclaredTokensKnown:
+    def test_unknown_token_raises_and_names_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"rooms:read", "totally:bogus"})
+        ks = KeyStore(permission_map={"rooms:read": ["GET /rooms*"]})
+        with pytest.raises(RuntimeError, match="totally:bogus"):
+            assert_declared_tokens_known(ks)
+
+    def test_known_tokens_pass(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"rooms:read"})
+        ks = KeyStore(permission_map={"rooms:read": ["GET /rooms*"]})
+        assert_declared_tokens_known(ks)  # does not raise
+
+    def test_token_granted_only_as_a_role_value_is_known(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """auth.yaml grants require_token names as role values, not map keys."""
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"cts.view"})
+        ks = KeyStore(permission_map={"caregiver": ["cts.view"]})
+        assert_declared_tokens_known(ks)
+
+    def test_literal_path_patterns_need_no_definition(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", {"GET /api/v1/rooms"})
+        assert_declared_tokens_known(KeyStore(permission_map={}))
+
+    def test_declaring_a_token_registers_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", set())
+        require_permission("some:token")
+        require_token("other:token")
+        assert {"some:token", "other:token"} <= auth_module._DECLARED_TOKENS
+
+
+# ─── Checker marker + resolver plumbing (M16) ─────────────────────────────
+
+
+class TestCheckerMarker:
+    """_DECLARED_TOKENS is process-global: isolate it so declaring throwaway
+    tokens here cannot leak into the real-app startup contract asserted by
+    tests/routers/test_route_auth_coverage.py."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_declared_tokens(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(auth_module, "_DECLARED_TOKENS", set())
+
+    def test_both_factories_mark_their_checker(self) -> None:
+        for checker in (require_permission("rooms:read"), require_token("rooms:read")):
+            assert getattr(checker, "__cc_auth_checker__", False) is True
+
+    def test_marker_records_declared_tokens(self) -> None:
+        checker = require_permission("a:b", "c:d")
+        assert checker.__cc_auth_tokens__ == ("a:b", "c:d")
+        assert checker.__cc_auth_kind__ == "permission"
+
+
+class TestResolverPlumbing:
+    def _app(self, dep) -> FastAPI:
+        app = FastAPI()
+        from backend.core.exceptions import register_exception_handlers
+
+        register_exception_handlers(app)
+
+        @app.post("/thing")
+        async def thing(auth: AuthContext = Depends(dep)) -> dict:
+            return {"as": auth.name}
+
+        return app
+
+    def test_require_permission_default_resolver_rejects_query(
+        self, stub_keystore: KeyStore
+    ) -> None:
+        client = TestClient(self._app(require_permission("rooms:read")))
+        assert client.post("/thing?api_key=ADMIN").status_code == 401
+
+    def test_require_permission_device_resolver_accepts_query(
+        self, stub_keystore: KeyStore
+    ) -> None:
+        dep = require_permission("rooms:read", resolver=get_auth_context_device)
+        client = TestClient(self._app(dep))
+        assert client.post("/thing?api_key=ADMIN").status_code == 200
+
+    def test_require_token_device_resolver_accepts_query(self, stub_keystore: KeyStore) -> None:
+        dep = require_token("*", resolver=get_auth_context_device)
+        client = TestClient(self._app(dep))
+        assert client.post("/thing?api_key=ADMIN").status_code == 200
+
+
+# ─── Denial logging (M16) ─────────────────────────────────────────────────
+
+
+class TestAuthDeniedLogging:
+    def test_unknown_key_logs_without_key_material(
+        self, stub_keystore: KeyStore, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        client = TestClient(_make_app())
+        with caplog.at_level("INFO"):
+            client.get("/rooms", headers={"X-API-Key": "SUPERSECRET"})
+        records = [r for r in caplog.records if "auth_denied" in r.getMessage()]
+        assert records, "expected an auth_denied event"
+        assert "SUPERSECRET" not in caplog.text
+
+    def test_permission_denial_logs_reason(
+        self, stub_keystore: KeyStore, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        app = FastAPI()
+        from backend.core.exceptions import register_exception_handlers
+
+        register_exception_handlers(app)
+
+        @app.get("/secret")
+        async def secret(_a: AuthContext = Depends(require_permission("secret:read"))) -> dict:
+            return {}
+
+        with caplog.at_level("INFO"):
+            r = TestClient(app).get("/secret", headers={"X-API-Key": "READER"})
+        assert r.status_code == 403
+        assert "auth_denied" in caplog.text
+        assert "READER" not in caplog.text

@@ -23,6 +23,10 @@ from backend.services.presence import (
     PresenceSource,
     PresenceStatus,
 )
+from backend.tests.routers.conftest import CTS_PRESENCE_AUTH as AUTH
+
+# M16: the presence routes now require cts.presence.view.
+pytestmark = pytest.mark.usefixtures("cts_presence_keystore")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -88,7 +92,7 @@ async def test_response_keys_match_contract(presence_service: PresenceService):
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/presence/mom")
+            resp = await client.get("/api/v1/cts/presence/mom", headers=AUTH)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -132,7 +136,7 @@ async def test_response_types(presence_service: PresenceService):
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/presence/mom")
+            resp = await client.get("/api/v1/cts/presence/mom", headers=AUTH)
 
     body = resp.json()
 
@@ -182,7 +186,7 @@ async def test_unknown_snapshot_empty_sources(presence_service: PresenceService)
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/presence/mom")
+            resp = await client.get("/api/v1/cts/presence/mom", headers=AUTH)
 
     body = resp.json()
     assert body["status"] == PresenceStatus.UNKNOWN

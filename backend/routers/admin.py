@@ -89,7 +89,10 @@ async def app_info():
     }
 
 
-@router.get("/health/person-id")
+@router.get(
+    "/health/person-id",
+    dependencies=[Depends(require_permission("admin:read"))],
+)
 async def person_id_health():
     """Proxy health check to the Person Identification service."""
     from backend.integrations.person_id_client import PersonIDClient
@@ -103,7 +106,10 @@ async def person_id_health():
     return {"configured": True, **data}
 
 
-@router.get("/health/tts")
+@router.get(
+    "/health/tts",
+    dependencies=[Depends(require_permission("admin:read"))],
+)
 async def tts_health():
     """Proxy health check to the TTS service."""
     tts_url = settings.as_str("tts.url")
@@ -138,7 +144,10 @@ async def _proxy_health(url: str, timeout: float = 5.0) -> dict:
         return {"configured": True, "status": "unreachable"}
 
 
-@router.get("/health/tracking-orchestrator")
+@router.get(
+    "/health/tracking-orchestrator",
+    dependencies=[Depends(require_permission("admin:read"))],
+)
 async def tracking_orchestrator_health():
     """Proxy health check to the Tracking Orchestrator service."""
     url = settings.as_str("tracking_orchestrator.url")
@@ -146,7 +155,10 @@ async def tracking_orchestrator_health():
     return await _proxy_health(url, timeout)
 
 
-@router.get("/health/scene-analysis")
+@router.get(
+    "/health/scene-analysis",
+    dependencies=[Depends(require_permission("admin:read"))],
+)
 async def scene_analysis_health():
     """Proxy health check to the Scene Analysis service."""
     url = settings.as_str("scene_analysis.url")
@@ -154,7 +166,10 @@ async def scene_analysis_health():
     return await _proxy_health(url, timeout)
 
 
-@router.get("/health/semantic-memory")
+@router.get(
+    "/health/semantic-memory",
+    dependencies=[Depends(require_permission("admin:read"))],
+)
 async def semantic_memory_health():
     """Proxy health check to the Semantic Memory service."""
     url = settings.as_str("semantic_memory.url")
@@ -162,7 +177,10 @@ async def semantic_memory_health():
     return await _proxy_health(url, timeout)
 
 
-@router.get("/health/triton")
+@router.get(
+    "/health/triton",
+    dependencies=[Depends(require_permission("admin:read"))],
+)
 async def triton_health():
     """Health check for Triton Inference Server.
 
@@ -195,7 +213,10 @@ async def triton_health():
         return {"configured": True, "status": "unreachable", "models": []}
 
 
-@router.get("/health/llm-models")
+@router.get(
+    "/health/llm-models",
+    dependencies=[Depends(require_permission("admin:read"))],
+)
 async def llm_models_health() -> list[dict]:
     """Concurrently check the health of all configured LLM models."""
     models = settings.as_list("llm.models")

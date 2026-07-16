@@ -31,6 +31,8 @@ help:
 	@echo "  make coverage          Run core tests with branch coverage (terminal)"
 	@echo "  make coverage-services Coverage for services (terminal)"
 	@echo "  make coverage-html     Coverage + HTML report under ./htmlcov"
+	@echo "  make coverage-gate     Core+services coverage enforcing pyproject fail_under (CI gate)"
+	@echo "  make deps-check        Dependency hygiene (deptry): unused/missing/misplaced deps"
 	@echo "  make vocabularies      Export backend vocabularies to frontend/src/generated/"
 	@echo "  make lint              Ruff lint (no fixes)"
 	@echo "  make lint-fix          Ruff lint with --fix"
@@ -70,6 +72,15 @@ coverage-html:
 	$(PYTEST) $(CORE_TESTS) --cov=$(CORE_PKG) --cov-report=html --cov-report=term
 	@echo "HTML report: file://$(CURDIR)/htmlcov/index.html"
 
+# fail_under is read from backend/pyproject.toml [tool.coverage.report]; do
+# not duplicate the number here. --cov-config is required because coverage.py
+# only auto-discovers config relative to cwd, and this target (like CI) runs
+# from the repo root, not backend/.
+.PHONY: coverage-gate
+coverage-gate:
+	$(PYTEST) $(CORE_TESTS) $(SERVICES_TESTS) --cov=backend --cov-config=backend/pyproject.toml \
+		--cov-report=term --cov-report=xml -q
+
 .PHONY: lint
 lint:
 	$(RUFF) check backend
@@ -85,6 +96,10 @@ format:
 .PHONY: import-lint
 import-lint:
 	uv run --project backend lint-imports --config backend/pyproject.toml
+
+.PHONY: deps-check
+deps-check:
+	cd backend && uv run deptry .
 
 .PHONY: vocabularies
 vocabularies:
@@ -116,17 +131,9 @@ frontend-build:
 frontend-test:
 	$(call RUN_FRONTEND,npm run test --silent)
 
-# Deselected: test_cts_signal_to_notification and test_service_container_integration
-# have pre-existing test-isolation failures (cross-test DB contamination, verified
-# present before R1). They are deselected here so the gate stays green; a follow-up
-# will fix the isolation root cause before R2.
-_DESELECT_PREEXISTING = \
-	--deselect backend/tests/integration/test_cts_signal_to_notification.py \
-	--deselect backend/tests/integration/test_service_container_integration.py
-
 .PHONY: test-integration
 test-integration:
-	$(PYTEST) -m integration backend/tests/integration -v $(_DESELECT_PREEXISTING)
+	$(PYTEST) -m integration backend/tests/integration -v
 
 .PHONY: check
 check: lint typecheck-core typecheck-ratchet test-core

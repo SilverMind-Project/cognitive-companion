@@ -1,10 +1,20 @@
-"""Integration test to verify InteractiveResponseService is properly registered in ServiceContainer."""
+"""Integration test to verify InteractiveResponseService is properly registered in ServiceContainer.
+
+Marked ``@pytest.mark.integration`` so CI selects it (it does not need the
+testcontainer -- ``db_factory`` is a plain ``MagicMock`` here -- but it lives
+in ``tests/integration/`` and should run under ``make test-integration``
+like the rest of the directory).
+"""
 
 from unittest.mock import MagicMock
+
+import pytest
 
 from backend.services.interactive_response import InteractiveResponseService
 from backend.services.pipeline_executor import PipelineExecutor
 from backend.steps.base import ServiceContainer
+
+pytestmark = pytest.mark.integration
 
 
 def test_interactive_response_service_in_service_container():

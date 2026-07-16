@@ -28,7 +28,7 @@ import os
 import uuid
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.postgres import PostgresContainer
 
@@ -43,6 +43,19 @@ logger = logging.getLogger(__name__)
 _CONTAINER_NAME_PREFIX = "cc-test-postgres"
 _container_ref: PostgresContainer | None = None
 _container_name: str | None = None
+
+# Set by a ``checkout`` event listener registered on the session-scoped test
+# engine (see ``db_engine``) whenever *any* connection is checked out of the
+# pool -- regardless of which fixture initiated it. ``_truncate_tables``
+# reads and clears this flag instead of gating on fixture names, so a
+# TestClient dependency override or a service built with its own
+# ``sessionmaker(bind=db_engine, ...)`` cannot silently bypass cleanup.
+_db_engine_touched = False
+
+
+def _mark_db_engine_touched(*_args: object, **_kwargs: object) -> None:
+    global _db_engine_touched
+    _db_engine_touched = True
 
 
 def _force_kill_container(name: str) -> None:
@@ -143,6 +156,7 @@ def db_engine(postgres_url):
         max_overflow=10,
         pool_pre_ping=True,
     )
+    event.listen(engine, "checkout", _mark_db_engine_touched)
 
     # Extensions -- timescaledb must be loaded before create_all so that the
     # hypertable call below succeeds.
@@ -180,17 +194,25 @@ def db_engine(postgres_url):
 
 @pytest.fixture(autouse=True)
 def _truncate_tables(request, db_engine):
-    """Truncate all user tables after each test that touches the database.
+    """Truncate all user tables after each test that touched the database.
 
-    Only runs when the test requested ``db_session`` or ``db_factory``.
+    Gated on the engine-level ``checkout`` event (see
+    ``_mark_db_engine_touched``), not on which fixture the test requested by
+    name. A test that opens its own session straight off ``db_engine`` (a
+    ``TestClient`` dependency override, a service built with its own
+    ``sessionmaker``, ...) still trips the listener and gets cleaned up --
+    the old fixture-name gate missed exactly these indirect writers.
     ``TRUNCATE … RESTART IDENTITY CASCADE`` resets sequences and clears
     FK-linked rows without recreating the schema.
     """
+    global _db_engine_touched
+    _db_engine_touched = False
+
     yield  # let the test run first
 
-    db_fixtures = {"db_session", "db_factory"}
-    if not db_fixtures.intersection(request.fixturenames):
+    if not _db_engine_touched:
         return
+    _db_engine_touched = False
 
     try:
         table_names = inspect(db_engine).get_table_names(schema="public")

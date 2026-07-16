@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from math import floor
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -19,7 +19,14 @@ from backend.core.database import transaction
 from backend.models.location_observation import LocationObservation as LOObs
 from backend.models.presence_segment import PresenceSegment as PSeg
 
-from .types import HeatmapBin, LocationObservation, PresenceSegment
+from .types import (
+    EntrySource,
+    ExitSource,
+    HeatmapBin,
+    LocationObservation,
+    PresenceSegment,
+    SourceTag,
+)
 
 
 def minute_of_day_in_window(
@@ -68,7 +75,7 @@ class SegmentRepository(Protocol):
     async def update(self, seg: PresenceSegment) -> None: ...
     async def get_by_id(self, segment_id: UUID) -> PresenceSegment | None: ...
     async def close_segment(
-        self, segment_id: UUID, exited_at: datetime, exit_source: str
+        self, segment_id: UUID, exited_at: datetime, exit_source: ExitSource
     ) -> None: ...
     async def get_open(self, person_id: str) -> PresenceSegment | None: ...
     async def list_for_person(
@@ -82,8 +89,8 @@ class SegmentRepository(Protocol):
     async def apply_decision(
         self,
         writes: list[PresenceSegment],
-        closes: list[tuple[UUID, datetime, str]],
-        supersedes: list[tuple[UUID, str | None]],
+        closes: list[tuple[UUID, datetime, ExitSource]],
+        supersedes: list[tuple[UUID, UUID | None]],
     ) -> None: ...
 
 
@@ -175,7 +182,9 @@ class InMemorySegmentRepository:
     async def get_by_id(self, segment_id: UUID) -> PresenceSegment | None:
         return self._rows.get(segment_id)
 
-    async def close_segment(self, segment_id: UUID, exited_at: datetime, exit_source: str) -> None:
+    async def close_segment(
+        self, segment_id: UUID, exited_at: datetime, exit_source: ExitSource
+    ) -> None:
         seg = self._rows.get(segment_id)
         if seg is not None:
             self._rows[segment_id] = PresenceSegment(
@@ -230,8 +239,8 @@ class InMemorySegmentRepository:
     async def apply_decision(
         self,
         writes: list[PresenceSegment],
-        closes: list[tuple[UUID, datetime, str]],
-        supersedes: list[tuple[UUID, str | None]],
+        closes: list[tuple[UUID, datetime, ExitSource]],
+        supersedes: list[tuple[UUID, UUID | None]],
     ) -> None:
         for seg in writes:
             self._rows[seg.id] = seg
@@ -406,7 +415,9 @@ class SqlAlchemySegmentRepository:
             row = db.get(PSeg, segment_id)
         return _seg_to_domain(row) if row else None
 
-    async def close_segment(self, segment_id: UUID, exited_at: datetime, exit_source: str) -> None:
+    async def close_segment(
+        self, segment_id: UUID, exited_at: datetime, exit_source: ExitSource
+    ) -> None:
         with transaction(self._db_factory) as db:
             row = db.get(PSeg, segment_id)
             if row is not None:
@@ -497,8 +508,8 @@ class SqlAlchemySegmentRepository:
     async def apply_decision(
         self,
         writes: list[PresenceSegment],
-        closes: list[tuple[UUID, datetime, str]],
-        supersedes: list[tuple[UUID, str | None]],
+        closes: list[tuple[UUID, datetime, ExitSource]],
+        supersedes: list[tuple[UUID, UUID | None]],
     ) -> None:
         """Apply a segment decision atomically in a single transaction."""
         with transaction(self._db_factory) as db:
@@ -531,7 +542,10 @@ def _obs_to_domain(row: LOObs) -> LocationObservation:
         id=UUID(str(row.id)),
         person_id=str(row.person_id),
         observed_at=row.observed_at,
-        source=row.source,
+        # The column is a plain String(32); every writer goes through the
+        # Literal-typed domain type above, so the stored value is in-vocabulary
+        # by construction. Asserted rather than re-validated on each row read.
+        source=cast(SourceTag, row.source),
         source_ref=row.source_ref,
         floor_point=fp,
         room_id=int(row.room_id) if row.room_id is not None else None,
@@ -547,8 +561,10 @@ def _seg_to_domain(row: PSeg) -> PresenceSegment:
         room_id=int(row.room_id),
         entered_at=row.entered_at,
         exited_at=row.exited_at,
-        entry_source=row.entry_source,
-        exit_source=row.exit_source,
+        # Plain String(32) columns; in-vocabulary by construction (see
+        # _obs_to_domain).
+        entry_source=cast(EntrySource, row.entry_source),
+        exit_source=cast("ExitSource | None", row.exit_source),
         confidence=row.confidence,
         quality=float(getattr(row, "quality", 0.0) or 0.0),
         last_observed_at=row.last_observed_at,

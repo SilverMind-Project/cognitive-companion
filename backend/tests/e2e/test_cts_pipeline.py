@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import socket
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import fakeredis.aioredis as fakeredis
 import pytest
@@ -43,6 +43,19 @@ from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.location_repository import SqlAlchemyLocationRepository
 from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
+
+# Base of the synthetic timeline (2024-12-27T13:20:00Z). Every wire timestamp
+# in this test derives from it -- events and the revision that corrects them
+# must share one clock. A revision stamped with the wall clock instead would
+# be range-scoped to "now" and match none of the rows it is meant to rewrite
+# (see ``IdentityRewriter``: M06 bounds every revision to an explicit
+# range_start/range_end, or to ``revision_horizon_s`` around revision_time).
+_T0_NS = 1735305600000000000
+_T0 = datetime.fromtimestamp(_T0_NS / 1e9, UTC)
+
+
+def _dt_to_ns(value: datetime) -> int:
+    return int(value.timestamp() * 1e9)
 
 
 class _StubWSManager:
@@ -76,7 +89,7 @@ def _make_event_fields(
     ev = tracking_pb2.TrackingEvent(
         camera_id=camera_id,
         event_id=f"evt-{frame_index}",
-        event_time_unix_ns=1735305600000000000 + frame_index * 1_000_000_000,
+        event_time_unix_ns=_T0_NS + frame_index * 1_000_000_000,
         room_name=room,
     )
     ev.frame_ref.minio_key = f"frames/{camera_id}/{frame_index}.jpg"
@@ -105,9 +118,19 @@ def _make_revision_fields(
     previous_identity_id: str | None,
     new_identity_id: str | None,
     revision_time: datetime,
+    range_start: datetime,
+    range_end: datetime,
     reason: str = "manual_override",
+    revision_kind: str = "operator_correction",
+    range_authority: str = "operator",
 ) -> dict[bytes, bytes]:
-    """Build a Redis-Streams field dict carrying an IdentityRevision proto."""
+    """Build a Redis-Streams field dict carrying an IdentityRevision proto.
+
+    Models an M06 operator correction: ``manual_override`` carries an explicit
+    ``range_start``/``range_end`` bounding what the operator's authority covers,
+    rather than relying on the automatic-revision horizon fallback. These are
+    typed proto fields (18-21), so this also exercises their decode path.
+    """
     msg = tracking_pb2.IdentityRevision(
         revision_id=revision_id,
         ph_id=ph_id,
@@ -117,7 +140,11 @@ def _make_revision_fields(
         posterior_entropy=0.0,
         reason=reason,
         evidence_json="{}",
-        revision_time_unix_ns=int(revision_time.timestamp() * 1e9),
+        revision_time_unix_ns=_dt_to_ns(revision_time),
+        revision_kind=revision_kind,
+        range_start_unix_ns=_dt_to_ns(range_start),
+        range_end_unix_ns=_dt_to_ns(range_end),
+        range_authority=range_authority,
     )
     return {b"revision": msg.SerializeToString()}
 
@@ -237,7 +264,11 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
             ph_id="ph-grandma",
             previous_identity_id="grandma",
             new_identity_id="caregiver",
-            revision_time=datetime.now(UTC),
+            # An operator correcting the two events a minute after they landed,
+            # with authority bounded to a window that brackets both of them.
+            revision_time=_T0 + timedelta(seconds=60),
+            range_start=_T0 - timedelta(seconds=60),
+            range_end=_T0 + timedelta(seconds=60),
         ),
     )
 

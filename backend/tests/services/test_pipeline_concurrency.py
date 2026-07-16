@@ -18,11 +18,8 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.models.rule import Rule
-from backend.services.pipeline_executor import (
-    PipelineExecutor,
-    _update_pipeline_data_with_retry,
-)
-from backend.steps.base import StepResult, TriggerContext
+from backend.services.pipeline_executor import PipelineExecutor
+from backend.steps.base import ServiceContainer, StepResult, TriggerContext
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -91,7 +88,7 @@ def _make_execution(db: Session, rule: Rule, status: str = "running") -> Workflo
 
 def _make_executor(db_factory) -> PipelineExecutor:
     """Build a PipelineExecutor with mocked services."""
-    return PipelineExecutor(db_session_factory=db_factory)
+    return PipelineExecutor(ServiceContainer(db_factory=db_factory))
 
 
 def _make_trigger() -> TriggerContext:
@@ -160,87 +157,6 @@ class TestOptimisticLocking:
         finally:
             session1.close()
             session2.close()
-
-    async def test_retry_logic_succeeds_after_conflict(self, db_session: Session):
-        """_update_pipeline_data_with_retry must retry on StaleDataError."""
-        rule = _make_rule(db_session)
-        execution = _make_execution(db_session, rule)
-        db_session.commit()
-
-        call_count = 0
-
-        def update_fn(data: dict):
-            nonlocal call_count
-            call_count += 1
-            data["attempt"] = call_count
-
-        # Mock commit to raise StaleDataError on first attempt
-        original_commit = db_session.commit
-        commit_count = 0
-
-        def mock_commit():
-            nonlocal commit_count
-            commit_count += 1
-            if commit_count == 1:
-                raise StaleDataError("Simulated conflict")
-            return original_commit()
-
-        with patch.object(db_session, "commit", side_effect=mock_commit):
-            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
-
-        # Should have retried once
-        assert call_count == 2
-        assert commit_count == 2
-
-    async def test_retry_logic_exhausts_after_max_retries(self, db_session: Session):
-        """_update_pipeline_data_with_retry must raise after MAX_RETRIES."""
-        rule = _make_rule(db_session)
-        execution = _make_execution(db_session, rule)
-        db_session.commit()
-
-        def update_fn(data: dict):
-            data["test"] = "value"
-
-        # Mock commit to always raise StaleDataError
-        with (
-            patch.object(db_session, "commit", side_effect=StaleDataError("Always fails")),
-            pytest.raises(StaleDataError),
-        ):
-            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
-
-    async def test_retry_logic_uses_exponential_backoff(self, db_session: Session):
-        """_update_pipeline_data_with_retry must use exponential backoff."""
-        rule = _make_rule(db_session)
-        execution = _make_execution(db_session, rule)
-        db_session.commit()
-
-        sleep_delays = []
-
-        async def mock_sleep(delay: float):
-            sleep_delays.append(delay)
-
-        def update_fn(data: dict):
-            data["test"] = "value"
-
-        # Mock commit to raise StaleDataError twice
-        commit_count = 0
-
-        def mock_commit():
-            nonlocal commit_count
-            commit_count += 1
-            if commit_count <= 2:
-                raise StaleDataError("Simulated conflict")
-
-        with (
-            patch.object(db_session, "commit", side_effect=mock_commit),
-            patch("asyncio.sleep", side_effect=mock_sleep),
-        ):
-            await _update_pipeline_data_with_retry(db_session, execution.id, update_fn)
-
-        # Should have exponential backoff: 0.1, 0.2
-        assert len(sleep_delays) == 2
-        assert sleep_delays[0] == 0.1
-        assert sleep_delays[1] == 0.2
 
 
 # ---------------------------------------------------------------------------

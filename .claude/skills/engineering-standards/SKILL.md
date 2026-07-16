@@ -403,6 +403,18 @@ reCamera sources through one handler, selected by its `source` config (`auto`,
 `cts`, `recamera`). The former `cts_window_poll` and `recamera_media_poll` step
 types were removed once no stored rules referenced them.
 
+Rule matching (`RulesEngine`) is async end-to-end: a context filter's
+`evaluate` may be sync or async, and the engine awaits it on the caller's
+running loop. **Never bridge a coroutine with `run_until_complete` inside
+request/loop context anywhere in this codebase** -- every production trigger
+path already runs on the event loop, and `run_until_complete` raises there.
+`RulesEngine` receives the shared `ServiceContainer` at construction; a new
+filter that needs a service adds the field to the container (with
+`assert_container_complete` and consumer-guard coverage per the note below)
+rather than importing a service module directly. Every builtin filter must
+have a through-the-engine test (`tests/filters/test_filters_through_engine.py`)
+proving both its match and its fail-closed behavior.
+
 ### Step handler contract
 
 ```python
@@ -435,6 +447,13 @@ class YourStepHandler(StepHandler):
 - Return `StepResult(success=True, data={...})` on success.
 - Return `StepResult(success=False, data={"error": "..."})` on expected failure.
 - Let unexpected exceptions bubble; `PipelineExecutor` handles them.
+- `ServiceContainer` is built exactly once in the lifespan and shared by reference with the
+  executor, the gate runner, and the rules engine. Late-phase services are assigned onto the
+  shared instance (never onto a private copy, never via `executor._services`).
+  `assert_container_complete` (`backend/services/container_wiring.py`) runs at the end of
+  startup and must be extended when a new field or feature flag is added. Every container field
+  must have a consumer in `steps/` or `filters/` (`tests/steps/test_container_field_consumers.py`);
+  a field without a consumer is deleted, not kept for later.
 
 ### Pipeline DAG execution contract
 

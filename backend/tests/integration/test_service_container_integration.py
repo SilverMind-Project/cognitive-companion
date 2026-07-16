@@ -31,8 +31,10 @@ def test_pipeline_executor_accepts_interactive_response_service():
 
     # Create PipelineExecutor with the service
     executor = PipelineExecutor(
-        db_session_factory=mock_db_factory,
-        interactive_response_service=mock_service,
+        ServiceContainer(
+            db_factory=mock_db_factory,
+            interactive_response_service=mock_service,
+        ),
     )
 
     # Verify the service is stored in the internal ServiceContainer
@@ -48,17 +50,16 @@ def test_service_container_has_all_required_fields():
     expected_fields = [
         "db_factory",
         "person_tracking",
-        "person_id_client",
         "notification_dispatcher",
         "ha_client",
         "event_aggregator",
         "scheduler",
-        "rag_service",
         "llm_model_registry",
         "scene_analysis_client",
         "daily_report_service",
         "semantic_memory_client",
         "interactive_response_service",
+        "person_location",
     ]
 
     for field in expected_fields:

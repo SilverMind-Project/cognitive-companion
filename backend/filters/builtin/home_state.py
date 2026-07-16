@@ -57,11 +57,7 @@ class HomeStateFilter(ContextFilter):
             return False
 
         # Use PersonLocationService (async-safe).
-        if (
-            services
-            and hasattr(services, "person_location")
-            and services.person_location is not None
-        ):
+        if services is not None and services.person_location is not None:
             try:
                 current = await services.person_location.where_is(person_id)
             except Exception:  # noqa: BLE001
@@ -79,7 +75,7 @@ class HomeStateFilter(ContextFilter):
             return False
 
         # Legacy fallback: presence service.
-        if services and hasattr(services, "presence") and services.presence is not None:
+        if services is not None and services.presence is not None:
             try:
                 snapshot = await services.presence.get(person_id)
             except Exception:  # noqa: BLE001

@@ -8,6 +8,7 @@ import pytest
 
 from backend.filters.builtin.presence_status import PresenceStatusFilter
 from backend.services.presence import PresenceSnapshot, PresenceSource, PresenceStatus
+from backend.steps.base import ServiceContainer
 
 
 class _StubPresenceService:
@@ -41,7 +42,7 @@ def now():
 async def test_match_present_room(now):
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM)
     filter_instance = PresenceStatusFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
+    services = ServiceContainer(db_factory=lambda: None, presence=_StubPresenceService(snapshot))
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "status": "present_room"},
         sensor=None,
@@ -55,7 +56,7 @@ async def test_match_present_room(now):
 async def test_no_match_wrong_status(now):
     snapshot = _make_snapshot(PresenceStatus.AWAY)
     filter_instance = PresenceStatusFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
+    services = ServiceContainer(db_factory=lambda: None, presence=_StubPresenceService(snapshot))
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "status": "present_room"},
         sensor=None,
@@ -68,7 +69,7 @@ async def test_no_match_wrong_status(now):
 @pytest.mark.asyncio
 async def test_no_person_returns_false(now):
     filter_instance = PresenceStatusFilter()
-    services = type("Svc", (), {"presence": None})()
+    services = ServiceContainer(db_factory=lambda: None, presence=None)
     result = await filter_instance.evaluate(
         config={"status": "present_room"},
         sensor=None,
@@ -82,7 +83,7 @@ async def test_no_person_returns_false(now):
 async def test_room_filter_matches(now):
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM, room_name="kitchen")
     filter_instance = PresenceStatusFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
+    services = ServiceContainer(db_factory=lambda: None, presence=_StubPresenceService(snapshot))
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "status": "present_room", "room_name": "kitchen"},
         sensor=None,
@@ -96,7 +97,7 @@ async def test_room_filter_matches(now):
 async def test_room_filter_no_match(now):
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM, room_name="kitchen")
     filter_instance = PresenceStatusFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
+    services = ServiceContainer(db_factory=lambda: None, presence=_StubPresenceService(snapshot))
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "status": "present_room", "room_name": "bedroom"},
         sensor=None,
@@ -110,7 +111,7 @@ async def test_room_filter_no_match(now):
 async def test_asleep_status(now):
     snapshot = _make_snapshot(PresenceStatus.ASLEEP, room_name="bedroom")
     filter_instance = PresenceStatusFilter()
-    services = type("Svc", (), {"presence": _StubPresenceService(snapshot)})()
+    services = ServiceContainer(db_factory=lambda: None, presence=_StubPresenceService(snapshot))
     result = await filter_instance.evaluate(
         config={"person_id": "mom", "status": "asleep"},
         sensor=None,

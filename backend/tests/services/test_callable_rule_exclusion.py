@@ -19,6 +19,7 @@ from backend.schemas.rule_bundle import RuleBundle
 from backend.services.rule_importer import bundle_to_rule
 from backend.services.rules_engine import RulesEngine
 from backend.services.telegram_trigger import TelegramTriggerService
+from backend.steps.base import ServiceContainer
 
 
 def test_is_callable_property():
@@ -111,7 +112,7 @@ def test_callable_rule_not_scheduled(db_session: Session):
     assert len(rules) == 0
 
 
-def test_callable_rule_not_matched_by_rules_engine(db_session: Session):
+async def test_callable_rule_not_matched_by_rules_engine(db_session: Session):
     # Rule with dementia_signal trigger type
     r1 = Rule(name="Active Rule 1", trigger_types=["dementia_signal"], enabled=True)
     # Callable rule (empty trigger_types)
@@ -120,10 +121,10 @@ def test_callable_rule_not_matched_by_rules_engine(db_session: Session):
     db_session.add(r2)
     db_session.commit()
 
-    engine = RulesEngine(tz_name="America/New_York")
+    engine = RulesEngine(ServiceContainer(db_factory=lambda: None), tz_name="America/New_York")
 
     # Generic rules evaluation
-    matched = engine.get_matching_rules_for_event(
+    matched = await engine.get_matching_rules_for_event(
         event={"kind": "dementia_signal", "payload": {}},
         trigger_type="dementia_signal",
         db=db_session,

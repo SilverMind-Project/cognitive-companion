@@ -55,7 +55,7 @@ def _add_running_execution(db, rule: Rule) -> WorkflowExecution:
 
 def _make_workflow_pipeline(matched_rules):
     """Build a WorkflowPipeline with a rules engine stub and mock executor."""
-    rules_engine = MagicMock()
+    rules_engine = AsyncMock()
     rules_engine.get_matching_rules.return_value = matched_rules
 
     executor = MagicMock()
@@ -219,7 +219,7 @@ class TestProcessEventConcurrencyGating:
 
         executor = MagicMock()
         executor.execute = AsyncMock(side_effect=RuntimeError("pipeline failed"))
-        rules_engine = MagicMock()
+        rules_engine = AsyncMock()
         # Blocked rule comes first -- this is what exposed the zip bug.
         rules_engine.get_matching_rules.return_value = [rule_busy, rule_free]
 

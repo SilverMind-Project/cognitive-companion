@@ -236,10 +236,27 @@ async def lifespan(app: FastAPI):
     )
     app.state.notification_dispatcher = notifier
 
+    # -- Shared ServiceContainer ---------------------------------------------
+    # Built once, here, with every service available at this point in the
+    # lifespan. Later services are assigned onto this same instance as they
+    # come up (never rebuilt) so the executor, gate runner, and rules engine
+    # -- all constructed below -- see late-phase services automatically.
+    from backend.steps.base import ServiceContainer
+
+    services_container = ServiceContainer(
+        db_factory=get_session,
+        notification_dispatcher=notifier,
+        ha_client=ha_client,
+        llm_model_registry=llm_model_registry,
+        minio_client=minio_client,
+        knowledge_delivery=knowledge_delivery,
+    )
+    app.state.service_container = services_container
+
     # -- Rules engine ------------------------------------------------------
     from backend.services.rules_engine import RulesEngine
 
-    rules_engine = RulesEngine()
+    rules_engine = RulesEngine(services_container)
 
     # -- Person identification client --------------------------------------
     from backend.integrations.person_id_client import PersonIDClient
@@ -252,6 +269,7 @@ async def lifespan(app: FastAPI):
 
     scene_analysis_client = SceneAnalysisClient()
     app.state.scene_analysis_client = scene_analysis_client
+    services_container.scene_analysis_client = scene_analysis_client
 
     # -- Semantic memory client --------------------------------------------
     from backend.integrations.semantic_memory_client import SemanticMemoryClient
@@ -259,6 +277,7 @@ async def lifespan(app: FastAPI):
     _smc = SemanticMemoryClient()
     semantic_memory_client: SemanticMemoryClient | None = _smc if _smc.configured else None
     app.state.semantic_memory_client = semantic_memory_client
+    services_container.semantic_memory_client = semantic_memory_client
 
     # Startup health check: warn if semantic_memory is enabled but unreachable.
     if semantic_memory_client is not None:
@@ -292,6 +311,7 @@ async def lifespan(app: FastAPI):
         cache_maxsize=mq_cache_maxsize,
     )
     app.state.memory_query = memory_query_service
+    services_container.memory_query = memory_query_service
 
     # -- Scene intel service (Block 4) -------------------------------------
     from backend.services.scene_intel import SceneIntelService
@@ -301,6 +321,7 @@ async def lifespan(app: FastAPI):
         memory_client=semantic_memory_client,
     )
     app.state.scene_intel = scene_intel_service
+    services_container.scene_intel = scene_intel_service
 
     # -- Source authority (sole arbiter for person location writes, CR-15) ---
     from backend.services.cts.source_authority import SourceAuthority
@@ -321,6 +342,7 @@ async def lifespan(app: FastAPI):
         authority=shared_authority,
     )
     app.state.person_tracking = person_tracking
+    services_container.person_tracking = person_tracking
 
     # -- Event aggregator --------------------------------------------------
     from backend.services.event_aggregator import EventAggregator
@@ -337,6 +359,7 @@ async def lifespan(app: FastAPI):
         process_callback=_noop_callback,
     )
     app.state.event_aggregator = event_aggregator
+    services_container.event_aggregator = event_aggregator
 
     # -- Activity session service ------------------------------------------
     from backend.services.activity_session import ActivitySessionService
@@ -352,12 +375,14 @@ async def lifespan(app: FastAPI):
         activity_session=activity_session_service,
     )
     app.state.activity_service = activity_service
+    services_container.activity = activity_service
 
     # -- Daily report service ----------------------------------------------
     from backend.services.daily_report import DailyReportService
 
     daily_report_service = DailyReportService(get_session)
     app.state.daily_report_service = daily_report_service
+    services_container.daily_report_service = daily_report_service
 
     # -- Interactive response service --------------------------------------
     from backend.services.interactive_response import InteractiveResponseService
@@ -368,12 +393,14 @@ async def lifespan(app: FastAPI):
         scheduler=None,  # Injected later
     )
     app.state.interactive_response_service = interactive_response_service
+    services_container.interactive_response_service = interactive_response_service
 
     # -- SignalsService (Block 10) -----------------------------------------
     from backend.services.signals import SignalsService
 
     signals_service = SignalsService(db_factory=get_session)
     app.state.signals = signals_service
+    services_container.signals = signals_service
 
     # -- Companion surface registry ----------------------------------------
     from backend.services.companion_surface import CompanionSurfaceService
@@ -416,28 +443,12 @@ async def lifespan(app: FastAPI):
 
     camera_source_resolver = CameraSourceResolverService(get_session)
     app.state.camera_source_resolver = camera_source_resolver
+    services_container.camera_source_resolver = camera_source_resolver
 
     pipeline_executor = PipelineExecutor(
-        db_session_factory=get_session,
-        person_tracking=person_tracking,
-        person_id_client=person_id_client,
-        notification_dispatcher=notifier,
-        ha_client=ha_client,
-        event_aggregator=event_aggregator,
-        llm_model_registry=llm_model_registry,
-        scene_analysis_client=scene_analysis_client,
-        daily_report_service=daily_report_service,
-        semantic_memory_client=semantic_memory_client,
-        interactive_response_service=interactive_response_service,
-        memory_query=memory_query_service,
-        scene_intel=scene_intel_service,
-        activity=activity_service,
-        signals=signals_service,
-        knowledge_delivery=knowledge_delivery,
-        minio_client=minio_client,
+        services_container,
         rules_engine=rules_engine,
         event_publisher=pipeline_ws_manager.publish_event,
-        camera_source_resolver=camera_source_resolver,
         # scheduler bridge injected below after scheduler is created
     )
     app.state.pipeline_executor = pipeline_executor
@@ -565,7 +576,7 @@ async def lifespan(app: FastAPI):
     from backend.services.guided_task.gate_runner import GateGraphRunner
 
     gate_runner = GateGraphRunner(
-        services=pipeline_executor._services,
+        services=services_container,
         db_factory=get_session,
         settings=settings,
     )
@@ -611,7 +622,7 @@ async def lifespan(app: FastAPI):
     )
     app.state.guided_task_service = guided_task_service
     set_guided_task_service(guided_task_service)
-    pipeline_executor._services.guided_task = guided_task_service
+    services_container.guided_task = guided_task_service
     guided_metrics_service = GuidedMetricsService(db_factory=get_session, settings=settings)
     app.state.guided_metrics_service = guided_metrics_service
     from backend.mcp.server import set_guided_metrics_service
@@ -764,6 +775,7 @@ async def lifespan(app: FastAPI):
 
         person_location_service = _make_pls()
         app.state.person_location_service = person_location_service
+        services_container.person_location = person_location_service
         companion_surface_service.set_person_location_service(person_location_service)
         zone_service.set_person_location_service(person_location_service)
         guided_task_service.set_person_location_service(person_location_service)
@@ -857,6 +869,7 @@ async def lifespan(app: FastAPI):
             fusion_config=presence_config.fusion,
         )
         app.state.presence = presence_service
+        services_container.presence = presence_service
         logger.info(
             "presence_service_started",
             providers=[p.name for p in providers],
@@ -904,6 +917,12 @@ async def lifespan(app: FastAPI):
         app.state.identity_revision_subscriber = None
         app.state.person_location_service = None
         app.state.gait_trend_service = None
+
+    # -- ServiceContainer completeness check (must stay last before yield) --
+    from backend.services.container_wiring import assert_container_complete
+
+    enabled_features = {"cts"} if settings.as_bool("cts.enabled") else set()
+    assert_container_complete(services_container, enabled_features)
 
     # Start MCP session manager for streamable HTTP transport
     from backend.mcp.server import mcp_server

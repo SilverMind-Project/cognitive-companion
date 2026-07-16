@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from backend.services.pipeline_executor import PipelineExecutor
+from backend.steps.base import ServiceContainer
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -29,7 +30,7 @@ from backend.services.pipeline_executor import PipelineExecutor
 
 def _make_executor(publisher=None) -> PipelineExecutor:
     return PipelineExecutor(
-        db_session_factory=MagicMock(),
+        ServiceContainer(db_factory=MagicMock()),
         event_publisher=publisher,
     )
 

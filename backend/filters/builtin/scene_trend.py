@@ -143,7 +143,7 @@ class SceneTrendFilter(ContextFilter):
         # unusual_activity only needs PersonActivity (db), so it can skip
         # the PersonLocationService requirement.
         needs_location = trend_type in ("prolonged_stay", "frequent_visits", "no_recent_activity")
-        if needs_location and not (services and getattr(services, "person_location", None)):
+        if needs_location and (services is None or services.person_location is None):
             cts_filter_degraded_total.labels(filter=_FILTER_NAME).inc()
             logger.warning(
                 "cts_filter_degraded_no_person_location",

@@ -236,3 +236,22 @@ def db_factory(db_engine):
         return factory()
 
     return _make
+
+
+@pytest.fixture
+def make_executor(db_factory):
+    """Build a :class:`PipelineExecutor` from a :class:`ServiceContainer`.
+
+    Pass an already-built ``services`` container, or omit it and pass field
+    overrides directly (``person_tracking=...``) to build one on the fly with
+    ``db_factory`` from the fixture above.
+    """
+    from backend.services.pipeline_executor import PipelineExecutor
+    from backend.steps.base import ServiceContainer
+
+    def _make(services: ServiceContainer | None = None, *, rules_engine=None, event_publisher=None, **container_overrides):
+        if services is None:
+            services = ServiceContainer(db_factory=db_factory, **container_overrides)
+        return PipelineExecutor(services, rules_engine=rules_engine, event_publisher=event_publisher)
+
+    return _make

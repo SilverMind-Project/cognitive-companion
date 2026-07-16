@@ -78,6 +78,24 @@ export const stepTabs = [
 export function onStepLoaded(cfg) {
   // No special normalization needed
 }
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  const source = cfg.image_source || "trigger";
+  out.push(chip(source, "mdi-image-outline", "teal"));
+  const maxImgs = cfg.max_images ?? 1;
+  if (maxImgs > 1) out.push(chip(`<= ${maxImgs} images`, "mdi-image-multiple-outline", "teal"));
+  if (cfg.run_detect !== false) out.push(chip("detect", "mdi-eye-outline", "green"));
+  if (cfg.run_describe !== false) out.push(chip("describe", "mdi-text-box-outline", "green"));
+  if (cfg.run_hazards !== false) out.push(chip("hazards", "mdi-alert-outline", "orange"));
+  if (cfg.run_embed) out.push(chip("embed", "mdi-vector-combine", "blue"));
+  const addSensors = cfg.additional_sensor_ids?.length || 0;
+  const addRooms = cfg.additional_room_names?.length || 0;
+  if (addSensors > 0) out.push(chip(`+${addSensors} sensor${addSensors > 1 ? "s" : ""}`, "mdi-camera-plus-outline", "cyan"));
+  if (addRooms > 0) out.push(chip(cfg.additional_room_names.join(", "), "mdi-home-outline", "cyan"));
+  if (cfg.output_key && cfg.output_key !== "scene_images") out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
+  return out;
+}
 </script>
 
 <script setup>

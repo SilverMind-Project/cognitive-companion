@@ -45,6 +45,7 @@ from typing import Any
 
 from backend.core.logging import get_logger
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.services.cts.signal_config import ALL_SIGNAL_KINDS
 from backend.steps import StepRegistry
 from backend.steps._helpers import resolve_person_id
 from backend.steps.base import (
@@ -87,6 +88,10 @@ class PresenceQueryHandler(StepHandler):
                     },
                     "signal_kind": {
                         "type": "string",
+                        # "" is the config dialog's unset state ("leave blank to include all
+                        # kinds"); the enum otherwise pins the value to the canonical set so a
+                        # typo (e.g. "gait_slowng") is rejected at save time.
+                        "enum": ["", *ALL_SIGNAL_KINDS],
                         "description": (
                             "Filter recent dementia signals to this kind "
                             "(e.g. 'bathroom_dwell_anomaly')."

@@ -121,6 +121,19 @@ export const stepTabs = [
   { key: "images", label: "Images", icon: "mdi-camera-outline" },
   { key: "presence", label: "Presence", icon: "mdi-map-marker-outline" },
 ];
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  if (cfg.target_persons?.length) {
+    out.push(chip(cfg.target_persons.join(", "), "mdi-account-outline", "indigo"));
+  } else {
+    out.push(chip("all persons", "mdi-account-group-outline", "indigo"));
+  }
+  if (cfg.min_confidence != null) out.push(chip(`>= ${Math.round(cfg.min_confidence * 100)}% conf`, "mdi-percent", "teal"));
+  if (cfg.include_annotated_image) out.push(chip("annotated image", "mdi-image-edit-outline", undefined));
+  if (cfg.write_movements_to_memory) out.push(chip("writes to memory", "mdi-database-arrow-up-outline", "purple"));
+  return out;
+}
 </script>
 
 <script setup>

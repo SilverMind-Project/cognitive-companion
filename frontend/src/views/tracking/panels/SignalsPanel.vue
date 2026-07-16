@@ -203,6 +203,7 @@ import CcBarChart from "@/components/charts/CcBarChart.vue";
 import CcSectionCard from "@/components/dashboard/CcSectionCard.vue";
 import CcProvenanceBadge from "@/components/dashboard/CcProvenanceBadge.vue";
 import TrackingPanelHeader from "@/components/tracking/TrackingPanelHeader.vue";
+import vocabularies from "@/generated/vocabularies.json";
 
 const { notify } = useNotify();
 
@@ -226,11 +227,10 @@ const headers = [
   { title: "",          key: "actions",     width: 260 },
 ];
 
-const kindOptions = [
-  "pacing", "bathroom_dwell_anomaly", "sundowning_index", "nighttime_movement",
-  "stillness_anomaly", "absence", "fall_suspected", "gait_slowing",
-  "inferred_dwell_exceeded", "presumed_location_unknown", "identity_disagreement",
-].map((k) => ({ title: k.replace(/_/g, " "), value: k }));
+const kindOptions = vocabularies.signal_kinds.map((k) => ({
+  title: k.replace(/_/g, " "),
+  value: k,
+}));
 
 const kindBars = computed(() => {
   const byKind = aggregates.value.by_kind || {};

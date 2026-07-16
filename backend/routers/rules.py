@@ -41,6 +41,7 @@ from backend.services import rule_service
 from backend.services.pipeline_graph import validate_gate_graph, validate_graph
 from backend.services.rule_importer import bundle_to_rule
 from backend.services.rule_serializer import rule_to_bundle, validate_bundle
+from backend.services.step_config_validation import validate_step_config_schema
 from backend.services.template_validator import validate_step_config
 
 router = APIRouter(prefix="/rules", tags=["rules"])
@@ -355,14 +356,15 @@ def _get_known_labels(db: Session, rule_id: int, exclude_step_id: int | None = N
 
 
 def _assert_valid_templates(step_type: str, config: dict, known_labels: list[str]) -> None:
-    """Raise HTTPException 422 if any template expression in *config* is invalid."""
-    errors = validate_step_config(step_type, config, known_labels)
-    if errors:
+    """Raise HTTPException 422 if the step config is schema-invalid or has a bad template."""
+    schema_errors = validate_step_config_schema(step_type, config)
+    template_errors = validate_step_config(step_type, config, known_labels)
+    if schema_errors or template_errors:
         raise HTTPException(
             status_code=422,
             detail={
-                "message": "Template validation failed",
-                "errors": [e.to_dict() for e in errors],
+                "message": "Step config validation failed",
+                "errors": schema_errors + [e.to_dict() for e in template_errors],
             },
         )
 

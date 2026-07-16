@@ -101,6 +101,13 @@ export const stepDefaults = {
   output_key: "memory_context",
 };
 export const stepTabs = [];
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  if (cfg.output_key) out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
+  if (cfg.top_k) out.push(chip(`top ${cfg.top_k}`, "mdi-format-list-numbered", undefined));
+  return out;
+}
 </script>
 
 <script setup>

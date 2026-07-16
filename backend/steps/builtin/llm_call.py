@@ -240,19 +240,19 @@ class LLMCallHandler(StepHandler):
                         ),
                     },
                     "temperature": {
-                        "type": "number",
+                        "type": ["number", "null"],
                         "minimum": 0.0,
                         "maximum": 2.0,
                         "description": "Sampling temperature override. Leave blank to use the model default.",
                     },
                     "top_p": {
-                        "type": "number",
+                        "type": ["number", "null"],
                         "minimum": 0.0,
                         "maximum": 1.0,
                         "description": "Top-p (nucleus) sampling override. Leave blank to use the model default.",
                     },
                     "max_tokens": {
-                        "type": "integer",
+                        "type": ["integer", "null"],
                         "minimum": 1,
                         "description": "Max tokens to generate override. Leave blank to use the model default.",
                     },

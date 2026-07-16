@@ -126,6 +126,19 @@ def test_bundle_to_rule_raises_conflict_on_duplicate_name(db_session):
         bundle_to_rule(_bundle("duplicate"), db_session, app_version="1.0.0")
 
 
+def test_bundle_to_rule_rejects_schema_invalid_step_config(db_session):
+    bundle = _bundle(
+        "import-invalid-step-config",
+        steps=[StepBundle(label="pause", step_type="wait", config={"minutes": "not-a-number"})],
+    )
+
+    report = bundle_to_rule(bundle, db_session, app_version="1.0.0")
+
+    assert report.status == "error"
+    assert any("pause" in error for error in report.errors)
+    assert db_session.query(Rule).filter(Rule.name == "import-invalid-step-config").first() is None
+
+
 def test_bundle_to_rule_warns_on_unresolved_dependency(db_session):
     bundle = _bundle(
         "import-unresolved-dep",

@@ -1,0 +1,391 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'activity_detection' 1`] = `
+[
+  {
+    "color": "indigo",
+    "icon": "mdi-run",
+    "key": 0,
+    "label": "eating",
+    "tooltip": undefined,
+  },
+  {
+    "color": undefined,
+    "icon": "mdi-account-outline",
+    "key": 1,
+    "label": "grandma",
+    "tooltip": undefined,
+  },
+  {
+    "color": undefined,
+    "icon": "mdi-home-outline",
+    "key": 2,
+    "label": "Kitchen",
+    "tooltip": undefined,
+  },
+  {
+    "color": "teal",
+    "icon": "mdi-percent",
+    "key": 3,
+    "label": "90% conf",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'activity_session_end' 1`] = `
+[
+  {
+    "color": "indigo",
+    "icon": "mdi-run",
+    "key": 0,
+    "label": "cooking",
+    "tooltip": undefined,
+  },
+  {
+    "color": "blue-grey",
+    "icon": "mdi-link-variant",
+    "key": 1,
+    "label": "source: stove_sensor",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'activity_session_start' 1`] = `
+[
+  {
+    "color": "indigo",
+    "icon": "mdi-run",
+    "key": 0,
+    "label": "cooking",
+    "tooltip": undefined,
+  },
+  {
+    "color": "blue-grey",
+    "icon": "mdi-link-variant",
+    "key": 1,
+    "label": "source: stove_sensor",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'condition' 1`] = `
+[
+  {
+    "color": "blue-grey",
+    "icon": "mdi-timer-outline",
+    "key": 0,
+    "label": "cooloff on match",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'ha_action' 1`] = `
+[
+  {
+    "color": "blue",
+    "icon": "mdi-home-automation",
+    "key": 0,
+    "label": "light.turn_on",
+    "tooltip": undefined,
+  },
+  {
+    "color": undefined,
+    "icon": "mdi-identifier",
+    "key": 1,
+    "label": "light.living_room_lamp_with_a_ve...",
+    "tooltip": "light.living_room_lamp_with_a_very_long_entity_id_string",
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'image_crop' 1`] = `
+[
+  {
+    "color": "teal",
+    "icon": "mdi-image-outline",
+    "key": 0,
+    "label": "additional",
+    "tooltip": undefined,
+  },
+  {
+    "color": "green",
+    "icon": "mdi-crop",
+    "key": 1,
+    "label": "2 regions",
+    "tooltip": undefined,
+  },
+  {
+    "color": "teal",
+    "icon": "mdi-image-multiple-outline",
+    "key": 2,
+    "label": "max 3",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'llm_call' 1`] = `
+[
+  {
+    "color": "purple",
+    "icon": "mdi-chip",
+    "key": 0,
+    "label": "vllm-qwen3-32b-instruct-quan...",
+    "tooltip": "vllm-qwen3-32b-instruct-quantized-fp8",
+  },
+  {
+    "color": "teal",
+    "icon": "mdi-image-multiple-outline",
+    "key": 1,
+    "label": "<= 3 images",
+    "tooltip": undefined,
+  },
+  {
+    "color": "teal",
+    "icon": "mdi-camera",
+    "key": 2,
+    "label": "2 trigger frames",
+    "tooltip": undefined,
+  },
+  {
+    "color": "cyan",
+    "icon": "mdi-camera-plus-outline",
+    "key": 3,
+    "label": "+2 sensors",
+    "tooltip": undefined,
+  },
+  {
+    "color": "cyan",
+    "icon": "mdi-home-outline",
+    "key": 4,
+    "label": "Kitchen",
+    "tooltip": undefined,
+  },
+  {
+    "color": "blue-grey",
+    "icon": "mdi-export-variant",
+    "key": 5,
+    "label": "-> custom_llm_out",
+    "tooltip": undefined,
+  },
+  {
+    "color": "blue-grey",
+    "icon": "mdi-code-json",
+    "key": 6,
+    "label": "json",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'notification' 1`] = `
+[
+  {
+    "color": "red",
+    "icon": "mdi-bell-outline",
+    "key": 0,
+    "label": "emergency",
+    "tooltip": undefined,
+  },
+  {
+    "color": undefined,
+    "icon": "mdi-send-outline",
+    "key": 1,
+    "label": "telegram, pwa_popup_text",
+    "tooltip": undefined,
+  },
+  {
+    "color": "blue",
+    "icon": "mdi-send",
+    "key": 2,
+    "label": "telegram: additional",
+    "tooltip": undefined,
+  },
+  {
+    "color": "warning",
+    "icon": "mdi-timer-off-outline",
+    "key": 3,
+    "label": "no cooloff",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'object_trend_analysis' 1`] = `
+[
+  {
+    "color": "indigo",
+    "icon": "mdi-home-group",
+    "key": 0,
+    "label": "kitchen, bathroom",
+    "tooltip": undefined,
+  },
+  {
+    "color": undefined,
+    "icon": "mdi-alert-circle-outline",
+    "key": 1,
+    "label": "high",
+    "tooltip": undefined,
+  },
+  {
+    "color": "blue-grey",
+    "icon": "mdi-export-variant",
+    "key": 2,
+    "label": "-> custom_trends_out",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'person_identification' 1`] = `
+[
+  {
+    "color": "indigo",
+    "icon": "mdi-account-outline",
+    "key": 0,
+    "label": "grandma",
+    "tooltip": undefined,
+  },
+  {
+    "color": "teal",
+    "icon": "mdi-percent",
+    "key": 1,
+    "label": ">= 85% conf",
+    "tooltip": undefined,
+  },
+  {
+    "color": undefined,
+    "icon": "mdi-image-edit-outline",
+    "key": 2,
+    "label": "annotated image",
+    "tooltip": undefined,
+  },
+  {
+    "color": "purple",
+    "icon": "mdi-database-arrow-up-outline",
+    "key": 3,
+    "label": "writes to memory",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'scene_analysis' 1`] = `
+[
+  {
+    "color": "teal",
+    "icon": "mdi-image-outline",
+    "key": 0,
+    "label": "additional",
+    "tooltip": undefined,
+  },
+  {
+    "color": "teal",
+    "icon": "mdi-image-multiple-outline",
+    "key": 1,
+    "label": "<= 2 images",
+    "tooltip": undefined,
+  },
+  {
+    "color": "green",
+    "icon": "mdi-text-box-outline",
+    "key": 2,
+    "label": "describe",
+    "tooltip": undefined,
+  },
+  {
+    "color": "blue",
+    "icon": "mdi-vector-combine",
+    "key": 3,
+    "label": "embed",
+    "tooltip": undefined,
+  },
+  {
+    "color": "cyan",
+    "icon": "mdi-camera-plus-outline",
+    "key": 4,
+    "label": "+1 sensor",
+    "tooltip": undefined,
+  },
+  {
+    "color": "cyan",
+    "icon": "mdi-home-outline",
+    "key": 5,
+    "label": "Bathroom",
+    "tooltip": undefined,
+  },
+  {
+    "color": "blue-grey",
+    "icon": "mdi-export-variant",
+    "key": 6,
+    "label": "-> custom_scene_out",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'semantic_memory_query' 1`] = `
+[
+  {
+    "color": "blue-grey",
+    "icon": "mdi-export-variant",
+    "key": 0,
+    "label": "-> custom_mem_out",
+    "tooltip": undefined,
+  },
+  {
+    "color": undefined,
+    "icon": "mdi-format-list-numbered",
+    "key": 1,
+    "label": "top 5",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'semantic_memory_write' 1`] = `
+[
+  {
+    "color": "blue-grey",
+    "icon": "mdi-link-variant",
+    "key": 0,
+    "label": "source: observation_1",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'verification' 1`] = `
+[
+  {
+    "color": undefined,
+    "icon": "mdi-check-all",
+    "key": 0,
+    "label": "2 conditions (any)",
+    "tooltip": undefined,
+  },
+  {
+    "color": "orange",
+    "icon": "mdi-bell-ring-outline",
+    "key": 1,
+    "label": "re-notify 10min",
+    "tooltip": undefined,
+  },
+]
+`;
+
+exports[`buildStepDetailChips parity pin > pins chip output for 'wait' 1`] = `
+[
+  {
+    "color": "amber",
+    "icon": "mdi-timer-sand",
+    "key": 0,
+    "label": "15 min",
+    "tooltip": undefined,
+  },
+]
+`;

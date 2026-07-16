@@ -171,6 +171,16 @@ export function onStepLoaded(cfg, { isoToLocalHHMM }) {
     }));
   }
 }
+
+export function chips(cfg, { chip }) {
+  const out = [];
+  if (cfg.conditions?.length) {
+    const mode = cfg.match_mode || "all";
+    out.push(chip(`${cfg.conditions.length} condition${cfg.conditions.length > 1 ? "s" : ""} (${mode})`, "mdi-check-all", undefined));
+  }
+  if (cfg.re_notify_if_failed) out.push(chip(`re-notify ${cfg.re_notify_delay_minutes || 5}min`, "mdi-bell-ring-outline", "orange"));
+  return out;
+}
 </script>
 
 <script setup>

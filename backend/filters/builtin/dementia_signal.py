@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from backend.filters import FilterRegistry
 from backend.filters.base import ContextFilter, FilterMetadata
+from backend.services.cts.signal_config import ALL_SIGNAL_KINDS
 
 
 @FilterRegistry.register
@@ -48,19 +49,7 @@ class DementiaSignalFilter(ContextFilter):
                 "properties": {
                     "kinds": {
                         "type": "array",
-                        "items": {"type": "string"},
-                        "enum": [
-                            "pacing",
-                            "room_revisit_rate",
-                            "bathroom_dwell_anomaly",
-                            "sundowning_index",
-                            "nighttime_movement",
-                            "stillness_anomaly",
-                            "absence",
-                            "fall_suspected",
-                            "gait_slowing",
-                            "agitation_index",
-                        ],
+                        "items": {"type": "string", "enum": list(ALL_SIGNAL_KINDS)},
                         "description": "Signal types to match (empty = any).",
                     },
                     "person_ids": {

@@ -376,6 +376,11 @@ cts:
   # protected from a subsequent out-of-order CTS event (seconds).
   lock_seconds: 60
 
+  # M06: fallback identity-revision supersession window (seconds) for
+  # automatic revisions carrying no explicit range_start/range_end. Mirrors
+  # CTS resolver.revision_horizon_s; change both together.
+  revision_horizon_s: 600.0
+
   # Service JWT signing (EdDSA).  Leave blank for dev mode (no JWT).
   jwt:
     private_key_pem: ""   # PEM-encoded Ed25519 private key

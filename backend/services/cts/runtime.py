@@ -64,6 +64,9 @@ class CTSRuntimeConfig:
     consumer_id: str
     cts_lock_s: float = 60.0
     bucketizer_rate: BucketizerRateConfig = field(default_factory=BucketizerRateConfig)
+    # M06: fallback supersession window for automatic revisions with no
+    # explicit range_start/range_end. Mirrors CTS resolver.revision_horizon_s.
+    revision_horizon_s: float = 600.0
 
 
 @dataclass
@@ -132,7 +135,11 @@ class CTSRuntime:
             authority=self.authority,
             camera_room_map=camera_map,
         )
-        self.identity_rewriter = IdentityRewriter(db_factory=db_factory, ws_manager=ws_manager)
+        self.identity_rewriter = IdentityRewriter(
+            db_factory=db_factory,
+            ws_manager=ws_manager,
+            revision_horizon_s=config.revision_horizon_s,
+        )
         self.signal_store = SignalStore(db_factory=db_factory)
 
         # Bucketizer for cts_window triggers. Loads enabled triggers from the

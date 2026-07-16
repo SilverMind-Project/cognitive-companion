@@ -16,7 +16,10 @@ export function sourceBadge(bbox = {}) {
   }
   const source = bbox.decision_source;
   if (source === "face") {
-    return bbox.authority === "arcface_authority"
+    // "direct_face" is the resolver's bounded IdentityAuthority vocabulary value for a
+    // calibrated, authoritative ArcFace commit (M07/F9) -- never an identity id or the
+    // decision_source string "arcface_authority".
+    return bbox.authority === "direct_face"
       ? { label: "ArcFace", icon: "mdi-face-recognition", tone: "info" }
       : { label: "ArcFace / Uncalibrated", icon: "mdi-face-recognition", tone: "warning" };
   }

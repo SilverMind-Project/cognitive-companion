@@ -21,7 +21,7 @@ function bbox(over = {}) {
     x1: 10, y1: 20, x2: 110, y2: 220,
     frame_width: 1920, frame_height: 1080,
     effective_identity_id: "amma",
-    authority: "arcface_authority",
+    authority: "direct_face",
     decision_source: "face",
     conflict: false,
     ...over,

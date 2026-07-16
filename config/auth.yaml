@@ -252,9 +252,46 @@ permission_map:
   "device:recamera":
     - "POST /api/v1/device/recamera"
 
+  # M16: "POST /api/v1/device/reterminal" removed -- no such route exists; the
+  # reTerminal surface reports in via the companion-surfaces heartbeat.
   "device:reterminal":
-    - "POST /api/v1/device/reterminal"
     - "POST /api/v1/companion-surfaces/*/heartbeat"
+
+  # M16: definitions for the tokens named at require_permission call sites in
+  # the core CRUD routers. These are definitions, not grants: no role list
+  # below was changed, so access is still decided by each role's own patterns
+  # (admin's "*", caregiver's "GET /api/v1/*"). They exist so that every name
+  # a call site declares resolves to a real, reviewable pattern set, which
+  # assert_declared_tokens_known() enforces at startup.
+  "rooms:read":
+    - "GET /api/v1/rooms*"
+  "rooms:write":
+    - "POST /api/v1/rooms"
+    - "PUT /api/v1/rooms/*"
+    - "DELETE /api/v1/rooms/*"
+
+  "sensors:read":
+    - "GET /api/v1/sensors*"
+  "sensors:write":
+    - "POST /api/v1/sensors"
+    - "PUT /api/v1/sensors/*"
+    - "DELETE /api/v1/sensors/*"
+
+  "events:read":
+    - "GET /api/v1/events*"
+
+  "rules:read":
+    - "GET /api/v1/rules*"
+    - "GET /api/v1/pipeline/*"
+    - "POST /api/v1/pipeline/cron/preview"
+    - "POST /api/v1/rules/*/validate"
+  "rules:write":
+    - "POST /api/v1/rules*"
+    - "PUT /api/v1/rules*"
+    - "DELETE /api/v1/rules*"
+
+  "admin:read":
+    - "GET /api/v1/admin/*"
 
   "image:read":
     - "GET /api/v1/image/*"

@@ -254,7 +254,9 @@ Browser-visible envelope changes require an MCP/BFF parity test whenever an MCP 
 - `backend/tests/routers/test_signals_feed.py` for direct router/service/MCP parity.
 - `backend/tests/mcp/test_signal_ack_parity.py` for a mutation.
 
-Every new or changed endpoint also needs an authorization coverage check against `config/auth.yaml`: verify the permission token exists under `permission_map`, verify the intended role includes that token or concrete route pattern, and add a focused route test proving unauthorized access is rejected. There is no generic route-to-auth coverage test today, so do not assume `make check` discovers a missing mapping automatically.
+Every new or changed endpoint also needs an authorization coverage check against `config/auth.yaml`: verify the permission token exists under `permission_map`, verify the intended role includes that token or concrete route pattern, and add a focused route test proving unauthorized access is rejected.
+
+Route-auth coverage is enforced by `backend/tests/routers/test_route_auth_coverage.py`: every route carries `require_permission`/`require_token` (or is in the justified allowlist), every named permission token exists in `config/auth.yaml`, and every route is reachable by at least one configured role. The token-name contract is also checked at startup by `assert_declared_tokens_known()` in the lifespan, so a typo'd token fails the boot rather than lying at the call site. API keys travel in the `X-API-Key` header everywhere except the device surface (`get_auth_context_device`, opted into per call site via `require_permission(..., resolver=...)`); never add a query-param or body key path to a browser-facing endpoint. Accepted risk (recorded 2026-07-15): the admin SPA stores its key in `localStorage`; revisit only as a product decision.
 
 Follow the complete recipe in `/home/sriram/code/nanai/cognitive-companion/.claude/skills/bff-api-design/SKILL.md`; do not duplicate router and MCP business logic in tests.
 

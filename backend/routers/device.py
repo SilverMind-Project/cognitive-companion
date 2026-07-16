@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, Request
 from PIL import Image
 from sqlalchemy.orm import Session
 
-from backend.core.auth import AuthContext, require_permission
+from backend.core.auth import AuthContext, get_auth_context_device, require_permission
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.logging import get_logger
@@ -85,7 +85,9 @@ async def recamera_upload(
     payload: ReCameraPayload,
     request: Request,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("device:recamera")),
+    auth: AuthContext = Depends(
+        require_permission("device:recamera", resolver=get_auth_context_device)
+    ),
 ):
     """Accept a YOLO-annotated image payload from a reCamera device."""
     sensor_id = auth.sensor_id or "unknown"

@@ -15,7 +15,7 @@ from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.core.auth import AuthContext, require_permission
+from backend.core.auth import AuthContext, get_auth_context_device, require_permission
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.exceptions import NotFoundError
@@ -112,9 +112,17 @@ def serve_active_image(
     request: Request,
     db: Session = Depends(get_db),
     minio: MinioClient = Depends(get_config_minio_client),
-    auth: AuthContext = Depends(require_permission("image:read")),
+    auth: AuthContext = Depends(
+        require_permission("image:read", resolver=get_auth_context_device)
+    ),
 ):
-    """Serve the active image for the authenticated device."""
+    """Serve the active image for the authenticated device.
+
+    Device surface: ``image:read`` is held only by reTerminal e-ink device
+    keys, whose firmware is out of tree and may send the key by query string.
+    Uses the permissive resolver for that reason -- no browser client calls
+    this endpoint.
+    """
     sensor_id = auth.sensor_id
     if not sensor_id:
         eink_renderer = request.app.state.eink_renderer

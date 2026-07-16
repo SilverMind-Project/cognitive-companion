@@ -25,6 +25,10 @@ from backend.services.presence import (
     PresenceSource,
     PresenceStatus,
 )
+from backend.tests.routers.conftest import CTS_PRESENCE_AUTH as AUTH
+
+# M16: the presence routes now require cts.presence.view.
+pytestmark = pytest.mark.usefixtures("cts_presence_keystore")
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -81,7 +85,7 @@ async def test_get_config_disabled_returns_404(presence_service: PresenceService
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/presence-config")
+            resp = await client.get("/api/v1/cts/presence-config", headers=AUTH)
 
     assert resp.status_code == 404
     body = resp.json()
@@ -109,7 +113,7 @@ async def test_get_config_happy_path(presence_service: PresenceService):
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/api/v1/cts/presence-config")
+            resp = await client.get("/api/v1/cts/presence-config", headers=AUTH)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -151,7 +155,7 @@ async def test_reload_disabled_returns_404(presence_service: PresenceService):
     with patch("backend.routers.cts_deps.settings", mock_settings):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.post("/api/v1/cts/presence-config/reload")
+            resp = await client.post("/api/v1/cts/presence-config/reload", headers=AUTH)
 
     assert resp.status_code == 404
     body = resp.json()
@@ -195,7 +199,7 @@ async def test_reload_with_valid_yaml(presence_service: PresenceService, tmp_pat
         with patch("backend.routers.cts_deps.settings", mock_settings):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post("/api/v1/cts/presence-config/reload")
+                resp = await client.post("/api/v1/cts/presence-config/reload", headers=AUTH)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -229,7 +233,7 @@ async def test_reload_with_invalid_yaml(presence_service: PresenceService):
         with patch("backend.routers.cts_deps.settings", mock_settings):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
-                resp = await client.post("/api/v1/cts/presence-config/reload")
+                resp = await client.post("/api/v1/cts/presence-config/reload", headers=AUTH)
 
     assert resp.status_code == 422
     body = resp.json()

@@ -918,6 +918,11 @@ async def lifespan(app: FastAPI):
         app.state.person_location_service = None
         app.state.gait_trend_service = None
 
+    # -- Auth: every token named at a call site must exist in auth.yaml -----
+    from backend.core.auth import assert_declared_tokens_known
+
+    assert_declared_tokens_known()
+
     # -- ServiceContainer completeness check (must stay last before yield) --
     from backend.services.container_wiring import assert_container_complete
 

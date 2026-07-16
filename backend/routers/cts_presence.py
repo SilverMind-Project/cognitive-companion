@@ -14,9 +14,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
+from backend.core.auth import require_permission
 from backend.core.logging import get_logger
 from backend.routers.cts_deps import cts_enabled
 from backend.services.presence import (
@@ -175,7 +176,11 @@ def _build_provider_summaries(
 # FastAPI does not match "presence-config" as a person_id value.
 
 
-@router.get("/presence-config", response_model=PresenceConfigOut)
+@router.get(
+    "/presence-config",
+    response_model=PresenceConfigOut,
+    dependencies=[Depends(require_permission("cts.presence.view"))],
+)
 async def get_presence_config(request: Request) -> PresenceConfigOut:
     """Return the active presence fuser configuration (sanitized)."""
     cts_enabled()
@@ -199,7 +204,11 @@ async def get_presence_config(request: Request) -> PresenceConfigOut:
     )
 
 
-@router.post("/presence-config/reload", response_model=PresenceConfigOut)
+@router.post(
+    "/presence-config/reload",
+    response_model=PresenceConfigOut,
+    dependencies=[Depends(require_permission("cts.presence.view"))],
+)
 async def reload_presence_config(request: Request) -> PresenceConfigOut:
     """Reload presence.yaml from disk into the running fuser.
 
@@ -280,7 +289,11 @@ async def reload_presence_config(request: Request) -> PresenceConfigOut:
     )
 
 
-@router.get("/presence/{person_id}", response_model=PresenceSnapshotOut)
+@router.get(
+    "/presence/{person_id}",
+    response_model=PresenceSnapshotOut,
+    dependencies=[Depends(require_permission("cts.presence.view"))],
+)
 async def get_presence(
     person_id: str,
     request: Request,

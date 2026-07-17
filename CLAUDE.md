@@ -6,7 +6,7 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 
 1. Read [docs/systems-architecture.md](docs/systems-architecture.md) for the current system shape.
 2. Read [docs/api/reference.md](docs/api/reference.md) before changing BFF contracts.
-3. Use `backend/main.py` as the source of truth for service wiring.
+3. Use `backend/bootstrap/` as the source of truth for service wiring (see `backend/bootstrap/README.md` for the phase-by-phase attribute inventory); `backend/main.py` only builds the FastAPI app and includes routers.
 4. Use `backend/steps/base.py`, `backend/models/pipeline.py`, and `backend/schemas/workflow.py` for pipeline and execution contracts.
 
 ## Skills to load
@@ -29,7 +29,7 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 ## Non-negotiable invariants
 
 - `backend.core` has no upward imports.
-- Services live in FastAPI lifespan and are read from `app.state`.
+- Services are wired in `backend/bootstrap/` phase modules (orchestrated by `backend/bootstrap/lifespan.py`) and read from `app.state`. `backend.bootstrap` may not be imported outside `backend.main` and itself, and may not import `backend.routers` (import-linter enforced).
 - Routers are thin and permission-protected.
 - New endpoints need `config/auth.yaml` coverage, a `response_model` (unless 204), and a
   `(path, method)` no other route already registers.

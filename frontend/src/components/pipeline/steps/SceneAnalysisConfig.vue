@@ -5,31 +5,36 @@
     <v-checkbox
       :model-value="modelValue.run_detect"
       label="Run YOLO object detection"
-      hide-details class="mb-1"
+      hide-details
+      class="mb-1"
       @update:model-value="emit('update:modelValue', { ...modelValue, run_detect: $event })"
     />
     <v-checkbox
       :model-value="modelValue.run_describe"
       label="Run Florence-2 scene description"
-      hide-details class="mb-1"
+      hide-details
+      class="mb-1"
       @update:model-value="emit('update:modelValue', { ...modelValue, run_describe: $event })"
     />
     <v-checkbox
       :model-value="modelValue.run_hazards"
       label="Evaluate hazard rules on detections"
-      hide-details class="mb-1"
+      hide-details
+      class="mb-1"
       @update:model-value="emit('update:modelValue', { ...modelValue, run_hazards: $event })"
     />
     <v-checkbox
       :model-value="modelValue.run_embed"
       label="Run CLIP embedding (slow)"
-      hide-details class="mb-4"
+      hide-details
+      class="mb-4"
       @update:model-value="emit('update:modelValue', { ...modelValue, run_embed: $event })"
     />
     <v-checkbox
       :model-value="modelValue.write_to_memory"
       label="Write result to semantic memory"
-      hide-details class="mb-2"
+      hide-details
+      class="mb-2"
       @update:model-value="emit('update:modelValue', { ...modelValue, write_to_memory: $event })"
     />
   </div>
@@ -71,13 +76,7 @@ export const stepDefaults = {
   pipeline_image_object_name_field: "object_name",
   cts_frames_path: "steps.media_window_poll_1.outputs.frames",
 };
-export const stepTabs = [
-  { key: "images", label: "Images", icon: "mdi-camera-outline" },
-];
-
-export function onStepLoaded(cfg) {
-  // No special normalization needed
-}
+export const stepTabs = [{ key: "images", label: "Images", icon: "mdi-camera-outline" }];
 
 export function chips(cfg, { chip }) {
   const out = [];
@@ -91,9 +90,14 @@ export function chips(cfg, { chip }) {
   if (cfg.run_embed) out.push(chip("embed", "mdi-vector-combine", "blue"));
   const addSensors = cfg.additional_sensor_ids?.length || 0;
   const addRooms = cfg.additional_room_names?.length || 0;
-  if (addSensors > 0) out.push(chip(`+${addSensors} sensor${addSensors > 1 ? "s" : ""}`, "mdi-camera-plus-outline", "cyan"));
-  if (addRooms > 0) out.push(chip(cfg.additional_room_names.join(", "), "mdi-home-outline", "cyan"));
-  if (cfg.output_key && cfg.output_key !== "scene_images") out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
+  if (addSensors > 0)
+    out.push(
+      chip(`+${addSensors} sensor${addSensors > 1 ? "s" : ""}`, "mdi-camera-plus-outline", "cyan"),
+    );
+  if (addRooms > 0)
+    out.push(chip(cfg.additional_room_names.join(", "), "mdi-home-outline", "cyan"));
+  if (cfg.output_key && cfg.output_key !== "scene_images")
+    out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
   return out;
 }
 </script>

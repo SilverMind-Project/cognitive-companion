@@ -6,8 +6,8 @@
  * and asserts that committed boxes are rendered via MaraudersInkBox (and that
  * the overlay is absent in normal mode).
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mount, flushPromises } from "@vue/test-utils";
+import { describe, it, expect, vi } from "vitest";
+import { mount } from "@vue/test-utils";
 
 vi.mock("roughjs", () => {
   const toPaths = vi.fn(() => [{ d: "M0 0 L100 0 L100 50 L0 50 Z" }]);

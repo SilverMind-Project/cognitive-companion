@@ -12,8 +12,18 @@ vi.mock("@/composables/useNotify.js", () => ({ useNotify: () => ({ notify: mocks
 import CompletionGateEditor from "@/components/routines/CompletionGateEditor.vue";
 
 const PRESETS = [
-  { key: "generic_vlm_confirm", name: "Generic VLM Confirm", description: "d", summary: "poll -> llm -> verdict" },
-  { key: "kettle_on_hob", name: "Kettle on Hob", description: "d", summary: "poll -> scene -> cond -> verdict" },
+  {
+    key: "generic_vlm_confirm",
+    name: "Generic VLM Confirm",
+    description: "d",
+    summary: "poll -> llm -> verdict",
+  },
+  {
+    key: "kettle_on_hob",
+    name: "Kettle on Hob",
+    description: "d",
+    summary: "poll -> scene -> cond -> verdict",
+  },
 ];
 
 const passThrough = (name) => ({ name, template: "<div><slot /></div>" });

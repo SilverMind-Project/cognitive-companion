@@ -17,7 +17,9 @@
     <v-slider
       :model-value="modelValue.min_confidence"
       label="Min Confidence"
-      :min="0" :max="1" :step="0.05"
+      :min="0"
+      :max="1"
+      :step="0.05"
       thumb-label="always"
       color="primary"
       class="mb-4"
@@ -26,19 +28,24 @@
     <v-checkbox
       :model-value="modelValue.include_annotated_image"
       label="Include annotated image"
-      class="mb-1" hide-details
-      @update:model-value="emit('update:modelValue', { ...modelValue, include_annotated_image: $event })"
+      class="mb-1"
+      hide-details
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, include_annotated_image: $event })
+      "
     />
     <v-checkbox
       :model-value="modelValue.include_motion"
       label="Include motion data"
-      class="mb-1" hide-details
+      class="mb-1"
+      hide-details
       @update:model-value="emit('update:modelValue', { ...modelValue, include_motion: $event })"
     />
     <v-checkbox
       :model-value="modelValue.save_guest_images"
       label="Save guest images (unidentified faces)"
-      class="mb-4" hide-details
+      class="mb-4"
+      hide-details
       @update:model-value="emit('update:modelValue', { ...modelValue, save_guest_images: $event })"
     />
   </div>
@@ -84,7 +91,9 @@
       item-value="value"
       label="Presence Room Source"
       class="mb-4"
-      @update:model-value="emit('update:modelValue', { ...modelValue, presence_room_source: $event })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, presence_room_source: $event })
+      "
     />
 
     <v-combobox
@@ -129,9 +138,12 @@ export function chips(cfg, { chip }) {
   } else {
     out.push(chip("all persons", "mdi-account-group-outline", "indigo"));
   }
-  if (cfg.min_confidence != null) out.push(chip(`>= ${Math.round(cfg.min_confidence * 100)}% conf`, "mdi-percent", "teal"));
-  if (cfg.include_annotated_image) out.push(chip("annotated image", "mdi-image-edit-outline", undefined));
-  if (cfg.write_movements_to_memory) out.push(chip("writes to memory", "mdi-database-arrow-up-outline", "purple"));
+  if (cfg.min_confidence != null)
+    out.push(chip(`>= ${Math.round(cfg.min_confidence * 100)}% conf`, "mdi-percent", "teal"));
+  if (cfg.include_annotated_image)
+    out.push(chip("annotated image", "mdi-image-edit-outline", undefined));
+  if (cfg.write_movements_to_memory)
+    out.push(chip("writes to memory", "mdi-database-arrow-up-outline", "purple"));
   return out;
 }
 </script>

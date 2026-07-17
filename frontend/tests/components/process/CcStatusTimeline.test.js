@@ -16,8 +16,23 @@ vi.mock("vue-echarts", () => ({
 }));
 vi.mock("echarts/core", () => ({ use: vi.fn() }));
 vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
-vi.mock("echarts/charts", () => ({ LineChart: {}, BarChart: {}, HeatmapChart: {}, ScatterChart: {}, GaugeChart: {}, GraphChart: {} }));
-vi.mock("echarts/components", () => ({ GridComponent: {}, TooltipComponent: {}, LegendComponent: {}, MarkLineComponent: {}, VisualMapComponent: {}, DataZoomComponent: {}, TitleComponent: {} }));
+vi.mock("echarts/charts", () => ({
+  LineChart: {},
+  BarChart: {},
+  HeatmapChart: {},
+  ScatterChart: {},
+  GaugeChart: {},
+  GraphChart: {},
+}));
+vi.mock("echarts/components", () => ({
+  GridComponent: {},
+  TooltipComponent: {},
+  LegendComponent: {},
+  MarkLineComponent: {},
+  VisualMapComponent: {},
+  DataZoomComponent: {},
+  TitleComponent: {},
+}));
 
 vi.mock("@/composables/useChartTheme.js", () => ({
   useChartTheme: () => ({
@@ -26,8 +41,20 @@ vi.mock("@/composables/useChartTheme.js", () => ({
         color: ["#0a84ff"],
         backgroundColor: "transparent",
         textStyle: { color: "#fff" },
-        xAxis: { axisLabel: { color: "#ccc", rotate: 0 }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333", type: "dashed" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
-        yAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333", type: "dashed" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
+        xAxis: {
+          axisLabel: { color: "#ccc", rotate: 0 },
+          axisLine: { lineStyle: { color: "#333" } },
+          splitLine: { lineStyle: { color: "#333", type: "dashed" } },
+          axisTick: { lineStyle: { color: "#333" } },
+          nameTextStyle: { color: "#ccc" },
+        },
+        yAxis: {
+          axisLabel: { color: "#ccc" },
+          axisLine: { lineStyle: { color: "#333" } },
+          splitLine: { lineStyle: { color: "#333", type: "dashed" } },
+          axisTick: { lineStyle: { color: "#333" } },
+          nameTextStyle: { color: "#ccc" },
+        },
         tooltip: { backgroundColor: "#111", borderColor: "#333", textStyle: { color: "#fff" } },
         _severity: {},
       },

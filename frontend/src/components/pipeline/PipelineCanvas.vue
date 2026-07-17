@@ -20,12 +20,7 @@
         >
           Fit
         </v-btn>
-        <v-btn
-          size="small"
-          variant="outlined"
-          prepend-icon="mdi-auto-fix"
-          @click="autoArrange"
-        >
+        <v-btn size="small" variant="outlined" prepend-icon="mdi-auto-fix" @click="autoArrange">
           Auto-arrange
         </v-btn>
         <v-btn
@@ -109,12 +104,7 @@
         @node-drag-stop="actions.onNodeDragStop"
         @node-double-click="onNodeDoubleClick"
       >
-        <Background
-          variant="dots"
-          :gap="20"
-          :size="1.35"
-          color="var(--cc-pipeline-canvas-dot)"
-        />
+        <Background variant="dots" :gap="20" :size="1.35" color="var(--cc-pipeline-canvas-dot)" />
         <Controls />
         <MiniMap
           :node-color="minimapNodeColor"
@@ -128,25 +118,17 @@
         <v-icon size="40" color="var(--cc-text-3)">mdi-sitemap-outline</v-icon>
         <div class="cc-pipeline-canvas__empty-title">Build your pipeline</div>
         <div class="cc-pipeline-canvas__empty-sub">
-          Add a step to define what happens when this rule fires, then drag
-          between steps to connect them into a flow.
+          Add a step to define what happens when this rule fires, then drag between steps to connect
+          them into a flow.
         </div>
         <div class="cc-pipeline-canvas__empty-action">
-          <v-btn
-            color="primary"
-            variant="flat"
-            prepend-icon="mdi-plus"
-            @click="paletteOpen = true"
-          >
+          <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="paletteOpen = true">
             Add your first step
           </v-btn>
         </div>
       </div>
 
-      <div
-        v-if="state.loading && !state.ready"
-        class="cc-pipeline-canvas__state"
-      >
+      <div v-if="state.loading && !state.ready" class="cc-pipeline-canvas__state">
         <v-progress-circular indeterminate color="primary" />
       </div>
     </template>
@@ -261,9 +243,7 @@ const defaultEdgeOptions = { type: "deletable", animated: false };
 // Render editor edges with the deletable edge type (inline x affordance). The
 // shared edgesToVueFlow helper emits `smoothstep` so the read-only monitor
 // canvas keeps plain edges; here we override just the type for editing.
-const editorEdges = computed(() =>
-  state.edges.map((edge) => ({ ...edge, type: "deletable" })),
-);
+const editorEdges = computed(() => state.edges.map((edge) => ({ ...edge, type: "deletable" })));
 const flowElement = ref(null);
 const canvasRef = ref(null);
 const minimapSize = useCanvasMiniMapSize(flowElement);
@@ -348,10 +328,9 @@ function onNodesChange(changes) {
 
 async function confirmAndRemove(stepId) {
   closeContextMenu();
-  const ok = await confirmRequire(
-    "Delete this step? Connected edges will also be removed.",
-    { confirmText: "Delete" },
-  );
+  const ok = await confirmRequire("Delete this step? Connected edges will also be removed.", {
+    confirmText: "Delete",
+  });
   if (!ok) return;
 
   const removed = await actions.removeNode(Number(stepId));

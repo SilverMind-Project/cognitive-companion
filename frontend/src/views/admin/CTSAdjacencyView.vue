@@ -5,13 +5,17 @@
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Camera Adjacency</h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
-          Define which cameras share a physical boundary. Use "Infer from coverage"
-          for a starting point, then adjust transit times as needed.
+          Define which cameras share a physical boundary. Use "Infer from coverage" for a starting
+          point, then adjust transit times as needed.
         </div>
       </div>
       <v-spacer />
       <v-tooltip
-        :text="hasPolygons ? 'Analyze visibility polygons to suggest adjacency edges' : 'Calibrate at least one camera homography to enable inference'"
+        :text="
+          hasPolygons
+            ? 'Analyze visibility polygons to suggest adjacency edges'
+            : 'Calibrate at least one camera homography to enable inference'
+        "
       >
         <template #activator="{ props }">
           <v-btn
@@ -40,19 +44,26 @@
           <v-card-title class="text-body-1 font-weight-medium">Coverage Map</v-card-title>
           <v-divider />
           <v-card-text class="pa-0">
-            <div style="position:relative;overflow:hidden">
+            <div style="position: relative; overflow: hidden">
               <template v-if="floorPlanUrl">
                 <img
+                  ref="mapImgRef"
                   :src="floorPlanUrl"
                   class="marauders-no-paint"
-                  style="display:block;width:100%;height:auto"
-                  ref="mapImgRef"
+                  style="display: block; width: 100%; height: auto"
                   @load="onMapImgLoad"
                 />
                 <svg
                   v-if="mapImgLoaded"
                   :viewBox="`0 0 ${mapImgW} ${mapImgH}`"
-                  style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"
+                  style="
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    pointer-events: none;
+                  "
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <!-- Camera visibility polygons (muted, background) -->
@@ -103,23 +114,37 @@
                 <v-card flat>
                   <v-card-text class="text-grey text-h6">No floor plan uploaded</v-card-text>
                   <v-card-text class="text-grey">
-                    Upload a floor plan with its scale in Floor Plan settings
-                    to see camera coverage and infer adjacency.
+                    Upload a floor plan with its scale in Floor Plan settings to see camera coverage
+                    and infer adjacency.
                   </v-card-text>
                 </v-card>
               </div>
             </div>
             <div class="d-flex align-center flex-wrap ga-3 px-4 py-2 text-caption">
               <span class="d-flex align-center ga-1">
-                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="var(--cc-success)" stroke-width="2"/></svg>
+                <svg width="20" height="10">
+                  <line x1="0" y1="5" x2="20" y2="5" stroke="var(--cc-success)" stroke-width="2" />
+                </svg>
                 Overlap
               </span>
               <span class="d-flex align-center ga-1">
-                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="var(--cc-chart-2)" stroke-width="2"/></svg>
+                <svg width="20" height="10">
+                  <line x1="0" y1="5" x2="20" y2="5" stroke="var(--cc-chart-2)" stroke-width="2" />
+                </svg>
                 Adjacent
               </span>
               <span class="d-flex align-center ga-1">
-                <svg width="20" height="10"><line x1="0" y1="5" x2="20" y2="5" stroke="var(--cc-text-3)" stroke-width="2" stroke-dasharray="4,2"/></svg>
+                <svg width="20" height="10">
+                  <line
+                    x1="0"
+                    y1="5"
+                    x2="20"
+                    y2="5"
+                    stroke="var(--cc-text-3)"
+                    stroke-width="2"
+                    stroke-dasharray="4,2"
+                  />
+                </svg>
                 Staged (unsaved)
               </span>
             </div>
@@ -132,12 +157,14 @@
             >
               <template v-if="calibratedWithoutPolygons.length > 0">
                 Coverage polygons could not be computed for
-                {{ calibratedWithoutPolygons.length }} calibrated camera(s).
-                Recompute coverage in Floor Plan settings, or revisit the calibration point correspondences.
+                {{ calibratedWithoutPolygons.length }} calibrated camera(s). Recompute coverage in
+                Floor Plan settings, or revisit the calibration point correspondences.
               </template>
               <template v-else>
                 Calibrate camera homographies in
-                <router-link to="/admin/cts/calibration" class="text-primary">Homography Calibration</router-link>
+                <router-link to="/admin/cts/calibration" class="text-primary"
+                  >Homography Calibration</router-link
+                >
                 to compute visibility polygons and enable coverage-based inference.
               </template>
             </v-alert>
@@ -156,17 +183,10 @@
           </v-card-title>
           <v-divider />
           <v-list density="compact">
-            <v-list-item
-              v-for="edge in stagedEdges"
-              :key="edge._key"
-              class="py-1"
-            >
+            <v-list-item v-for="edge in stagedEdges" :key="edge._key" class="py-1">
               <template #prepend>
-                <v-icon
-                  :color="edge.overlap ? 'success' : 'secondary'"
-                  size="small"
-                >
-                  {{ edge.overlap ? 'mdi-link-variant' : 'mdi-arrow-right' }}
+                <v-icon :color="edge.overlap ? 'success' : 'secondary'" size="small">
+                  {{ edge.overlap ? "mdi-link-variant" : "mdi-arrow-right" }}
                 </v-icon>
               </template>
               <v-list-item-title class="text-body-2">
@@ -177,8 +197,20 @@
                 <span v-if="edge.overlap" class="ml-1 text-success">overlap</span>
               </v-list-item-subtitle>
               <template #append>
-                <v-btn icon="mdi-pencil" size="x-small" variant="text" color="primary" @click="openEdit(edge)" />
-                <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="removeEdge(edge)" />
+                <v-btn
+                  icon="mdi-pencil"
+                  size="x-small"
+                  variant="text"
+                  color="primary"
+                  @click="openEdit(edge)"
+                />
+                <v-btn
+                  icon="mdi-delete"
+                  size="x-small"
+                  variant="text"
+                  color="error"
+                  @click="removeEdge(edge)"
+                />
               </template>
             </v-list-item>
           </v-list>
@@ -206,17 +238,10 @@
           </v-card-title>
           <v-divider />
           <v-list v-if="savedEdges.length > 0" density="compact">
-            <v-list-item
-              v-for="edge in savedEdges"
-              :key="edge._key"
-              class="py-1"
-            >
+            <v-list-item v-for="edge in savedEdges" :key="edge._key" class="py-1">
               <template #prepend>
-                <v-icon
-                  :color="edge.overlap ? 'success' : 'secondary'"
-                  size="small"
-                >
-                  {{ edge.overlap ? 'mdi-link-variant' : 'mdi-arrow-right' }}
+                <v-icon :color="edge.overlap ? 'success' : 'secondary'" size="small">
+                  {{ edge.overlap ? "mdi-link-variant" : "mdi-arrow-right" }}
                 </v-icon>
               </template>
               <v-list-item-title class="text-body-2">
@@ -226,7 +251,13 @@
                 {{ edge.min_transit_s }}s – {{ edge.max_transit_s }}s
               </v-list-item-subtitle>
               <template #append>
-                <v-btn icon="mdi-pencil" size="x-small" variant="text" color="primary" @click="stageForEdit(edge)" />
+                <v-btn
+                  icon="mdi-pencil"
+                  size="x-small"
+                  variant="text"
+                  color="primary"
+                  @click="stageForEdit(edge)"
+                />
               </template>
             </v-list-item>
           </v-list>
@@ -246,7 +277,7 @@
           class="mt-3"
         >
           {{ skippedCameraIds.length }} camera(s) skipped (no polygon):
-          {{ skippedCameraIds.join(', ') }}. Calibrate or place them to include in inference.
+          {{ skippedCameraIds.join(", ") }}. Calibrate or place them to include in inference.
         </v-alert>
       </v-col>
     </v-row>
@@ -299,7 +330,9 @@
                 v-model.number="form.min_transit_s"
                 label="Min transit (s)"
                 variant="outlined"
-                type="number" min="0" step="0.5"
+                type="number"
+                min="0"
+                step="0.5"
                 density="compact"
               />
             </v-col>
@@ -308,7 +341,9 @@
                 v-model.number="form.max_transit_s"
                 label="Max transit (s)"
                 variant="outlined"
-                type="number" min="0" step="1"
+                type="number"
+                min="0"
+                step="1"
                 density="compact"
               />
             </v-col>
@@ -321,10 +356,16 @@
           >
             Max transit must be at least min transit.
           </v-alert>
-          <v-switch v-model="form.overlap" label="Field-of-view overlap" color="success" class="mt-1" />
+          <v-switch
+            v-model="form.overlap"
+            label="Field-of-view overlap"
+            color="success"
+            class="mt-1"
+          />
           <div class="text-caption text-medium-emphasis mt-1">
-            Enable when cameras physically share a viewing zone (e.g. two cameras covering the same doorway).
-            The cross-camera resolver will treat detections as potentially simultaneous rather than sequential.
+            Enable when cameras physically share a viewing zone (e.g. two cameras covering the same
+            doorway). The cross-camera resolver will treat detections as potentially simultaneous
+            rather than sequential.
           </div>
           <v-switch
             v-model="form.addSymmetric"
@@ -334,20 +375,24 @@
             :disabled="editingIdx !== null"
           />
           <div class="text-caption text-medium-emphasis mt-1">
-            Most adjacencies are bidirectional. Uncheck only for one-way flows
-            (e.g. exit-only camera).
+            Most adjacencies are bidirectional. Uncheck only for one-way flows (e.g. exit-only
+            camera).
           </div>
         </v-card-text>
         <DialogFooter
           hint="Adjacency edges define directed transit paths between cameras. A&rarr;B is not the same as B&rarr;A. For most physical adjacencies, add both directions."
           :confirm-label="editingIdx !== null ? 'Update' : 'Add'"
-          :confirm-disabled="form.max_transit_s < form.min_transit_s || !form.from || !form.to || form.from === form.to"
+          :confirm-disabled="
+            form.max_transit_s < form.min_transit_s ||
+            !form.from ||
+            !form.to ||
+            form.from === form.to
+          "
           @cancel="dialog = false"
           @confirm="commitEdge"
         />
       </v-card>
     </v-dialog>
-
   </div>
 </template>
 
@@ -406,12 +451,10 @@ const form = ref(emptyForm());
 // Derived
 // ---------------------------------------------------------------------------
 
-const hasPolygons = computed(() =>
-  coverageCameras.value.some((c) => c.visibility_polygon)
-);
+const hasPolygons = computed(() => coverageCameras.value.some((c) => c.visibility_polygon));
 
 const calibratedWithoutPolygons = computed(() =>
-  coverageCameras.value.filter((c) => c.has_homography && !c.visibility_polygon)
+  coverageCameras.value.filter((c) => c.has_homography && !c.visibility_polygon),
 );
 
 const allEdgesForMap = computed(() => {
@@ -429,10 +472,7 @@ const centroidMap = computed(() => {
     const pts = cam.visibility_polygon;
     const sx = pts.reduce((s, [x]) => s + x, 0);
     const sy = pts.reduce((s, [, y]) => s + y, 0);
-    result[cam.camera_id] = [
-      (sx / pts.length) * mapImgW.value,
-      (sy / pts.length) * mapImgH.value,
-    ];
+    result[cam.camera_id] = [(sx / pts.length) * mapImgW.value, (sy / pts.length) * mapImgH.value];
   }
   return result;
 });
@@ -516,12 +556,21 @@ function validateVisibilityPolygons(raw) {
 // ---------------------------------------------------------------------------
 
 function emptyForm() {
-  return { from: "", to: "", min_transit_s: 0.5, max_transit_s: 30, overlap: false, addSymmetric: true };
+  return {
+    from: "",
+    to: "",
+    min_transit_s: 0.5,
+    max_transit_s: 30,
+    overlap: false,
+    addSymmetric: true,
+  };
 }
 
 function toSvgPoints(polygon) {
   if (!mapImgW.value || !mapImgH.value) return "";
-  return polygon.map(([x, y]) => `${(x * mapImgW.value).toFixed(1)},${(y * mapImgH.value).toFixed(1)}`).join(" ");
+  return polygon
+    .map(([x, y]) => `${(x * mapImgW.value).toFixed(1)},${(y * mapImgH.value).toFixed(1)}`)
+    .join(" ");
 }
 
 function centroidOf(cameraId) {
@@ -546,7 +595,13 @@ function applyGroupDefaults() {
 // ---------------------------------------------------------------------------
 
 async function loadAll() {
-  await Promise.all([loadCameras(), loadCoverage(), loadSavedEdges(), loadFloorPlan(), loadOverlapGroups()]);
+  await Promise.all([
+    loadCameras(),
+    loadCoverage(),
+    loadSavedEdges(),
+    loadFloorPlan(),
+    loadOverlapGroups(),
+  ]);
 }
 
 async function loadCameras() {
@@ -663,7 +718,7 @@ function openEdit(edge) {
 
 function stageForEdit(savedEdge) {
   const existingIdx = stagedEdges.value.findIndex(
-    (e) => e.from === savedEdge.from && e.to === savedEdge.to
+    (e) => e.from === savedEdge.from && e.to === savedEdge.to,
   );
   if (existingIdx >= 0) {
     editingIdx.value = existingIdx;

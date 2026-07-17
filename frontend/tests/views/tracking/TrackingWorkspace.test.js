@@ -15,7 +15,7 @@ const mockQuery = { panel: "" };
 const mockReplace = vi.fn();
 
 vi.mock("vue-router", () => ({
-  useRoute:  () => ({ query: mockQuery }),
+  useRoute: () => ({ query: mockQuery }),
   useRouter: () => ({ replace: mockReplace }),
 }));
 
@@ -28,21 +28,35 @@ vi.mock("@/composables/usePersonPresence.js", () => ({
   }),
 }));
 
-vi.mock("@/views/tracking/panels/OverviewPanel.vue",          () => ({ default: { template: '<div data-testid="panel-overview" />' } }));
-vi.mock("@/views/tracking/panels/LiveFloorPanel.vue",         () => ({ default: { template: '<div data-testid="panel-live-floor" />' } }));
-vi.mock("@/views/tracking/panels/MobilityPanel.vue",          () => ({ default: { template: '<div data-testid="panel-mobility" />' } }));
-vi.mock("@/views/tracking/panels/PeoplePanel.vue",            () => ({ default: { template: '<div data-testid="panel-people" />' } }));
-vi.mock("@/views/tracking/panels/PresenceTimelinePanel.vue",  () => ({ default: { template: '<div data-testid="panel-presence-timeline" />' } }));
-vi.mock("@/views/tracking/panels/SignalsPanel.vue",           () => ({ default: { template: '<div data-testid="panel-signals" />' } }));
-vi.mock("@/views/tracking/panels/ReportsPanel.vue",           () => ({ default: { template: '<div data-testid="panel-reports" />' } }));
+vi.mock("@/views/tracking/panels/OverviewPanel.vue", () => ({
+  default: { template: '<div data-testid="panel-overview" />' },
+}));
+vi.mock("@/views/tracking/panels/LiveFloorPanel.vue", () => ({
+  default: { template: '<div data-testid="panel-live-floor" />' },
+}));
+vi.mock("@/views/tracking/panels/MobilityPanel.vue", () => ({
+  default: { template: '<div data-testid="panel-mobility" />' },
+}));
+vi.mock("@/views/tracking/panels/PeoplePanel.vue", () => ({
+  default: { template: '<div data-testid="panel-people" />' },
+}));
+vi.mock("@/views/tracking/panels/PresenceTimelinePanel.vue", () => ({
+  default: { template: '<div data-testid="panel-presence-timeline" />' },
+}));
+vi.mock("@/views/tracking/panels/SignalsPanel.vue", () => ({
+  default: { template: '<div data-testid="panel-signals" />' },
+}));
+vi.mock("@/views/tracking/panels/ReportsPanel.vue", () => ({
+  default: { template: '<div data-testid="panel-reports" />' },
+}));
 
 import TrackingWorkspace from "../../../src/views/tracking/TrackingWorkspace.vue";
 
 const stubs = {
-  "v-tabs":        { template: '<div><slot /></div>' },
-  "v-tab":         { template: '<button :value="$attrs.value"><slot /></button>', props: ["value"] },
-  "v-window":      { template: '<div><slot /></div>' },
-  "v-window-item": { template: '<div><slot /></div>', props: ["value"] },
+  "v-tabs": { template: "<div><slot /></div>" },
+  "v-tab": { template: '<button :value="$attrs.value"><slot /></button>', props: ["value"] },
+  "v-window": { template: "<div><slot /></div>" },
+  "v-window-item": { template: "<div><slot /></div>", props: ["value"] },
 };
 
 function mountWorkspace(queryPanel = "", props = {}) {

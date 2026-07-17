@@ -10,7 +10,9 @@
         <v-icon size="12" :color="identityColor(ph.current_identity_id || '')">mdi-circle</v-icon>
       </template>
       <template #title>
-        <span class="text-body-2">{{ ph.identity_display_name || ph.current_identity_id || "UNKNOWN" }}</span>
+        <span class="text-body-2">{{
+          ph.identity_display_name || ph.current_identity_id || "UNKNOWN"
+        }}</span>
       </template>
       <template #subtitle>
         <span class="text-caption text-medium-emphasis">

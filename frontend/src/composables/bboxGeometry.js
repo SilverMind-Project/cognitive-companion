@@ -11,7 +11,7 @@
  */
 
 /** Pointer distance (px) within which a corner handle is considered hit. */
-export const HANDLE_HIT_PX = 10;
+const HANDLE_HIT_PX = 10;
 
 /** Clamp a value to the [0, 1] ratio range. */
 export function clamp01(v) {

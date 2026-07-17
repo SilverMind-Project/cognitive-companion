@@ -7,17 +7,35 @@
         size="small"
         :variant="mode === opt.value ? 'flat' : 'outlined'"
         :color="mode === opt.value ? 'primary' : undefined"
-        @click="mode = opt.value; onModeChange()"
-      >{{ opt.label }}</v-btn>
+        @click="
+          mode = opt.value;
+          onModeChange();
+        "
+        >{{ opt.label }}</v-btn
+      >
     </div>
 
     <!-- Daily: time of day -->
     <v-row v-if="mode === 'daily'" dense>
       <v-col cols="6">
-        <v-select v-model="hour" :items="hourItems" label="Hour" variant="outlined" density="compact" @update:model-value="onDailyTimeChange" />
+        <v-select
+          v-model="hour"
+          :items="hourItems"
+          label="Hour"
+          variant="outlined"
+          density="compact"
+          @update:model-value="onDailyTimeChange"
+        />
       </v-col>
       <v-col cols="6">
-        <v-select v-model="minute" :items="minuteItems" label="Minute" variant="outlined" density="compact" @update:model-value="onDailyTimeChange" />
+        <v-select
+          v-model="minute"
+          :items="minuteItems"
+          label="Minute"
+          variant="outlined"
+          density="compact"
+          @update:model-value="onDailyTimeChange"
+        />
       </v-col>
     </v-row>
 
@@ -25,15 +43,36 @@
     <template v-if="mode === 'weekly'">
       <v-row dense>
         <v-col v-for="d in dayOptions" :key="d.value" cols="auto">
-          <v-checkbox v-model="selectedDays" :label="d.label" :value="d.value" density="compact" hide-details @update:model-value="onWeeklyChange" />
+          <v-checkbox
+            v-model="selectedDays"
+            :label="d.label"
+            :value="d.value"
+            density="compact"
+            hide-details
+            @update:model-value="onWeeklyChange"
+          />
         </v-col>
       </v-row>
       <v-row dense class="mt-2">
         <v-col cols="6">
-          <v-select v-model="hour" :items="hourItems" label="Hour" variant="outlined" density="compact" @update:model-value="onWeeklyChange" />
+          <v-select
+            v-model="hour"
+            :items="hourItems"
+            label="Hour"
+            variant="outlined"
+            density="compact"
+            @update:model-value="onWeeklyChange"
+          />
         </v-col>
         <v-col cols="6">
-          <v-select v-model="minute" :items="minuteItems" label="Minute" variant="outlined" density="compact" @update:model-value="onWeeklyChange" />
+          <v-select
+            v-model="minute"
+            :items="minuteItems"
+            label="Minute"
+            variant="outlined"
+            density="compact"
+            @update:model-value="onWeeklyChange"
+          />
         </v-col>
       </v-row>
     </template>
@@ -41,7 +80,14 @@
     <!-- Hourly: minute of hour -->
     <v-row v-if="mode === 'hourly'" dense>
       <v-col cols="12">
-        <v-select v-model="minute" :items="minuteItems" label="Minute of hour" variant="outlined" density="compact" @update:model-value="onHourlyChange" />
+        <v-select
+          v-model="minute"
+          :items="minuteItems"
+          label="Minute of hour"
+          variant="outlined"
+          density="compact"
+          @update:model-value="onHourlyChange"
+        />
       </v-col>
     </v-row>
 
@@ -99,7 +145,9 @@
       <div>{{ humanReadable }} ({{ timezone }})</div>
       <div v-if="nextRuns.length" class="mt-1">
         Next runs:
-        <span v-for="(r, i) in nextRuns" :key="i" class="d-block text-xs">{{ formatDateTime(r) }}</span>
+        <span v-for="(r, i) in nextRuns" :key="i" class="d-block text-xs">{{
+          formatDateTime(r)
+        }}</span>
       </div>
     </div>
     <v-alert v-if="!valid && rawExpression.length > 0" type="error" density="compact" class="mt-2">
@@ -123,11 +171,11 @@ const emit = defineEmits(["update:modelValue"]);
 
 const mode = ref("custom");
 const modeOptions = [
-  { value: "daily",    label: "Daily"      },
-  { value: "weekly",   label: "Weekly"     },
-  { value: "hourly",   label: "Hourly"     },
-  { value: "interval", label: "Every N min"},
-  { value: "custom",   label: "Custom"     },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "hourly", label: "Hourly" },
+  { value: "interval", label: "Every N min" },
+  { value: "custom", label: "Custom" },
 ];
 const hour = ref(9);
 const minute = ref(0);
@@ -260,7 +308,12 @@ function applyPresetFromParsed(parsed, preset) {
   }
 
   // Extract interval
-  if (preset === "interval" && minField && minField.length === 1 && typeof minField[0] === "string") {
+  if (
+    preset === "interval" &&
+    minField &&
+    minField.length === 1 &&
+    typeof minField[0] === "string"
+  ) {
     const match = String(minField[0]).match(/^\*\/(\d+)$/);
     if (match) intervalMinutes.value = parseInt(match[1], 10);
   }

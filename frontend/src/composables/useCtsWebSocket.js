@@ -35,7 +35,11 @@ export function useCtsWebSocket(onMessage) {
       attempted.value = true;
     };
     ws.onclose = (ev) => {
-      console.warn("[cts_live] WS closed", { code: ev.code, reason: ev.reason, will_reconnect: !closed });
+      console.warn("[cts_live] WS closed", {
+        code: ev.code,
+        reason: ev.reason,
+        will_reconnect: !closed,
+      });
       status.value = "closed";
       attempted.value = true;
       ws = null;

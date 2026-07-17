@@ -1,4 +1,4 @@
-import { reactive, ref, computed, onBeforeUnmount, getCurrentInstance } from "vue";
+import { reactive, computed, onBeforeUnmount, getCurrentInstance } from "vue";
 
 /**
  * Composable that adds mouse-wheel zoom and click-drag pan to a canvas/image area.
@@ -18,12 +18,7 @@ import { reactive, ref, computed, onBeforeUnmount, getCurrentInstance } from "vu
  * @returns {{ state, containerToLocal, actions }}
  */
 export function useCanvasZoom(options = {}) {
-  const {
-    minZoom = 0.2,
-    maxZoom = 6,
-    wheelStep = 0.08,
-    panThreshold = 3,
-  } = options;
+  const { minZoom = 0.2, maxZoom = 6, wheelStep = 0.08, panThreshold = 3 } = options;
 
   // ── state ───────────────────────────────────────────────────────────────
   const state = reactive({
@@ -35,8 +30,9 @@ export function useCanvasZoom(options = {}) {
     didPan: false,
 
     /** CSS transform string for the inner content wrapper. */
-    transformStyle: computed(() =>
-      `transform: translate(${state.panX}px, ${state.panY}px) scale(${state.zoom}); transform-origin: 0 0;`
+    transformStyle: computed(
+      () =>
+        `transform: translate(${state.panX}px, ${state.panY}px) scale(${state.zoom}); transform-origin: 0 0;`,
     ),
   });
 
@@ -132,7 +128,10 @@ export function useCanvasZoom(options = {}) {
   /** Zoom in by one step, centered on the container midpoint. */
   function zoomIn(containerEl) {
     const newZoom = Math.min(maxZoom, state.zoom * (1 + wheelStep * 2));
-    if (!containerEl) { state.zoom = newZoom; return; }
+    if (!containerEl) {
+      state.zoom = newZoom;
+      return;
+    }
     const rect = containerEl.getBoundingClientRect();
     const mx = rect.width / 2;
     const my = rect.height / 2;
@@ -145,7 +144,10 @@ export function useCanvasZoom(options = {}) {
   /** Zoom out by one step, centered on the container midpoint. */
   function zoomOut(containerEl) {
     const newZoom = Math.max(minZoom, state.zoom / (1 + wheelStep * 2));
-    if (!containerEl) { state.zoom = newZoom; return; }
+    if (!containerEl) {
+      state.zoom = newZoom;
+      return;
+    }
     const rect = containerEl.getBoundingClientRect();
     const mx = rect.width / 2;
     const my = rect.height / 2;

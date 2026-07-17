@@ -10,7 +10,7 @@
           </div>
         </template>
         <v-list-item-title class="text-caption">
-          {{ t.from_room_name || 'Unknown' }} &rarr; {{ t.to_room_name }}
+          {{ t.from_room_name || "Unknown" }} &rarr; {{ t.to_room_name }}
         </v-list-item-title>
         <v-list-item-subtitle class="text-caption text-medium-emphasis">
           {{ formatTimeOnly(t.transitioned_at) }}

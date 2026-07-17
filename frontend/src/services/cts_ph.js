@@ -25,9 +25,9 @@ async function req(path, options = {}) {
       if (detail && typeof detail === "object") {
         const msg =
           [detail.code, detail.message].filter(Boolean).join(": ") || JSON.stringify(detail);
-        throw new Error(msg);
+        throw new Error(msg, { cause: err });
       }
-      throw new Error(err.message);
+      throw new Error(err.message, { cause: err });
     }
     throw err;
   }
@@ -54,8 +54,7 @@ export const ctsPh = {
   observations: (phId, limit = 200) =>
     req(`/ph/${encodeURIComponent(phId)}/observations?limit=${limit}`),
 
-  keyframes: (phId, limit = 24) =>
-    req(`/ph/${encodeURIComponent(phId)}/keyframes?limit=${limit}`),
+  keyframes: (phId, limit = 24) => req(`/ph/${encodeURIComponent(phId)}/keyframes?limit=${limit}`),
 
   trail: (phId, since) => {
     const qs = new URLSearchParams();

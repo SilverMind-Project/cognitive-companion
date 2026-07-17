@@ -18,7 +18,9 @@
 
     <v-divider class="mb-4" />
 
-    <div class="text-overline text-medium-emphasis mb-2">Recent dementia signal filter (optional)</div>
+    <div class="text-overline text-medium-emphasis mb-2">
+      Recent dementia signal filter (optional)
+    </div>
 
     <v-combobox
       :model-value="modelValue.signal_kind"
@@ -47,7 +49,9 @@
           density="compact"
           hide-details="auto"
           rounded="lg"
-          @update:model-value="emit('update:modelValue', { ...modelValue, signal_severity_min: $event })"
+          @update:model-value="
+            emit('update:modelValue', { ...modelValue, signal_severity_min: $event })
+          "
         />
       </v-col>
       <v-col cols="12" md="6">
@@ -57,12 +61,16 @@
           type="number"
           :min="1"
           :max="1440"
-          :rules="[v => (Number.isInteger(Number(v)) && v >= 1 && v <= 1440) || 'Must be 1..1440']"
+          :rules="[
+            (v) => (Number.isInteger(Number(v)) && v >= 1 && v <= 1440) || 'Must be 1..1440',
+          ]"
           variant="outlined"
           density="compact"
           hide-details="auto"
           rounded="lg"
-          @update:model-value="emit('update:modelValue', { ...modelValue, signal_window_minutes: Number($event) || 0 })"
+          @update:model-value="
+            emit('update:modelValue', { ...modelValue, signal_window_minutes: Number($event) || 0 })
+          "
         />
       </v-col>
     </v-row>
@@ -70,7 +78,11 @@
     <v-text-field
       :model-value="modelValue.output_key"
       label="Output Key"
-      :rules="[v => /^[a-z][a-z0-9_]*$/.test(v) || 'Lowercase letters, digits, underscores only; must start with a letter.']"
+      :rules="[
+        (v) =>
+          /^[a-z][a-z0-9_]*$/.test(v) ||
+          'Lowercase letters, digits, underscores only; must start with a letter.',
+      ]"
       hint="pipeline_data key for the result dict. Default: presence."
       persistent-hint
       variant="outlined"
@@ -82,7 +94,10 @@
     />
 
     <v-alert type="info" variant="tonal" density="compact" class="mt-4">
-      This step also writes flat keys at the top of pipeline_data: <code>presence_status</code>, <code>presence_room_name</code>, <code>presence_dwell_minutes</code>, <code>presence_at_home</code>, <code>presence_asleep</code>, <code>presence_away</code>. Use these directly in <code>condition</code> step expressions.
+      This step also writes flat keys at the top of pipeline_data: <code>presence_status</code>,
+      <code>presence_room_name</code>, <code>presence_dwell_minutes</code>,
+      <code>presence_at_home</code>, <code>presence_asleep</code>, <code>presence_away</code>. Use
+      these directly in <code>condition</code> step expressions.
     </v-alert>
   </v-form>
 </template>

@@ -1,13 +1,7 @@
 <!-- Backend: backend/steps/builtin/info_card.py -->
 <template>
   <div>
-    <v-alert
-      v-if="cardsError"
-      type="warning"
-      variant="tonal"
-      density="compact"
-      class="mb-4"
-    >
+    <v-alert v-if="cardsError" type="warning" variant="tonal" density="compact" class="mb-4">
       Could not load info cards: {{ cardsError }}
     </v-alert>
 
@@ -89,7 +83,12 @@
           hint="Auto-dismiss the popup after N seconds"
           persistent-hint
           class="mb-4"
-          @update:model-value="emit('update:modelValue', { ...modelValue, pwa_dismiss_seconds: Math.max(5, Math.min(600, Number($event) || 60)) })"
+          @update:model-value="
+            emit('update:modelValue', {
+              ...modelValue,
+              pwa_dismiss_seconds: Math.max(5, Math.min(600, Number($event) || 60)),
+            })
+          "
         />
       </v-col>
       <v-col v-if="hasChannel('eink')" cols="12" md="6">
@@ -106,7 +105,12 @@
           hint="Revert eInk to default after N minutes"
           persistent-hint
           class="mb-4"
-          @update:model-value="emit('update:modelValue', { ...modelValue, eink_expiry_minutes: Math.max(1, Math.min(1440, Number($event) || 30)) })"
+          @update:model-value="
+            emit('update:modelValue', {
+              ...modelValue,
+              eink_expiry_minutes: Math.max(1, Math.min(1440, Number($event) || 30)),
+            })
+          "
         />
       </v-col>
     </v-row>
@@ -118,7 +122,9 @@
         :multiline="true"
         :rows="3"
         hint="Overrides the Gemini Live system instruction. Supports {{template}} syntax (type {{ for variable autocomplete)."
-        @update:model-value="emit('update:modelValue', { ...modelValue, voice_instruction: $event })"
+        @update:model-value="
+          emit('update:modelValue', { ...modelValue, voice_instruction: $event })
+        "
       />
     </template>
 
@@ -163,9 +169,7 @@ const allCards = ref([]);
 const cardsLoading = ref(false);
 const cardsError = ref("");
 
-const approvedCards = computed(() =>
-  allCards.value.filter((c) => c.status === "approved")
-);
+const approvedCards = computed(() => allCards.value.filter((c) => c.status === "approved"));
 
 function hasChannel(name) {
   const channels = props.modelValue.channels || [];

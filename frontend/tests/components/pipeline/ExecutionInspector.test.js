@@ -24,7 +24,8 @@ vi.mock("@/components/pipeline/PipelineMonitorCanvas.vue", () => ({
   default: {
     name: "PipelineMonitorCanvas",
     emits: ["step-selected"],
-    template: '<button data-testid="canvas-node" @click="$emit(\'step-selected\', { step_id: 2, label: \'Notify\', status: \'success\' })">canvas</button>',
+    template:
+      "<button data-testid=\"canvas-node\" @click=\"$emit('step-selected', { step_id: 2, label: 'Notify', status: 'success' })\">canvas</button>",
   },
 }));
 
@@ -49,38 +50,44 @@ const DETAIL = {
   cooloff_triggered: false,
   error: null,
   graph: { steps: [], edges: [] },
-  timeline: [{
-    step_id: 1,
-    label: "Condition",
-    step_type: "condition",
-    status: "success",
-    resolved_config: { expression: "true" },
-    outputs: { matched: true },
-  }],
+  timeline: [
+    {
+      step_id: 1,
+      label: "Condition",
+      step_type: "condition",
+      status: "success",
+      resolved_config: { expression: "true" },
+      outputs: { matched: true },
+    },
+  ],
   can_cancel: true,
   can_rerun: false,
 };
 
 const stubs = {
-  "v-card": { template: '<section><slot /></section>' },
-  "v-card-text": { template: '<div><slot /></div>' },
-  "v-card-title": { template: '<div><slot /></div>' },
-  "v-card-actions": { template: '<div><slot /></div>' },
-  "v-divider": { template: '<hr />' },
-  "v-spacer": { template: '<span />' },
-  "v-chip": { template: '<span><slot /></span>', props: ["color", "size", "variant"] },
-  "v-alert": { template: '<div><slot /></div>', props: ["type", "density", "variant"] },
-  "v-list": { template: '<ul><slot /></ul>', props: ["density"] },
+  "v-card": { template: "<section><slot /></section>" },
+  "v-card-text": { template: "<div><slot /></div>" },
+  "v-card-title": { template: "<div><slot /></div>" },
+  "v-card-actions": { template: "<div><slot /></div>" },
+  "v-divider": { template: "<hr />" },
+  "v-spacer": { template: "<span />" },
+  "v-chip": { template: "<span><slot /></span>", props: ["color", "size", "variant"] },
+  "v-alert": { template: "<div><slot /></div>", props: ["type", "density", "variant"] },
+  "v-list": { template: "<ul><slot /></ul>", props: ["density"] },
   "v-list-item": { template: '<li><slot name="prepend" /><slot /><slot name="append" /></li>' },
-  "v-list-item-title": { template: '<span><slot /></span>' },
-  "v-list-item-subtitle": { template: '<span><slot /></span>' },
-  "v-progress-circular": { template: '<div />' },
-  "v-snackbar": { template: '<div><slot /></div>', props: ["modelValue", "color", "timeout"] },
-  "v-dialog": { template: '<div v-if="modelValue"><slot /></div>', props: ["modelValue", "maxWidth", "persistent"] },
+  "v-list-item-title": { template: "<span><slot /></span>" },
+  "v-list-item-subtitle": { template: "<span><slot /></span>" },
+  "v-progress-circular": { template: "<div />" },
+  "v-snackbar": { template: "<div><slot /></div>", props: ["modelValue", "color", "timeout"] },
+  "v-dialog": {
+    template: '<div v-if="modelValue"><slot /></div>',
+    props: ["modelValue", "maxWidth", "persistent"],
+  },
   "v-btn": {
     inheritAttrs: false,
     emits: ["click"],
-    template: '<button :disabled="loading" @click="$emit(\'click\')"><slot />{{ icon || "" }}</button>',
+    template:
+      '<button :disabled="loading" @click="$emit(\'click\')"><slot />{{ icon || "" }}</button>',
     props: ["color", "variant", "size", "prependIcon", "icon", "loading"],
   },
 };
@@ -107,19 +114,33 @@ describe("ExecutionInspector", () => {
     const wrapper = mountInspector();
     await flushPromises();
 
-    await wrapper.findAll("button").find((button) => button.text().includes("Cancel")).trigger("click");
-    await wrapper.findAll("button").find((button) => button.text().includes("Confirm")).trigger("click");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Cancel"))
+      .trigger("click");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Confirm"))
+      .trigger("click");
     await flushPromises();
 
     expect(mocks.cancelWorkflow).toHaveBeenCalledWith(44);
   });
 
   it("shows Rerun when can_rerun and navigates to the new execution", async () => {
-    mocks.getWorkflowDetail.mockResolvedValue({ ...DETAIL, status: "completed", can_cancel: false, can_rerun: true });
+    mocks.getWorkflowDetail.mockResolvedValue({
+      ...DETAIL,
+      status: "completed",
+      can_cancel: false,
+      can_rerun: true,
+    });
     const wrapper = mountInspector();
     await flushPromises();
 
-    await wrapper.findAll("button").find((button) => button.text().includes("Rerun")).trigger("click");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Rerun"))
+      .trigger("click");
     await flushPromises();
 
     expect(mocks.rerunWorkflow).toHaveBeenCalledWith(44);
@@ -153,7 +174,9 @@ describe("ExecutionInspector", () => {
 
     expect(wrapper.text()).toContain("Manual trigger");
     expect(wrapper.text()).toContain("Duration 1m 5s");
-    expect(wrapper.find('[data-testid="execution-error"]').text()).toContain("Notification delivery failed");
+    expect(wrapper.find('[data-testid="execution-error"]').text()).toContain(
+      "Notification delivery failed",
+    );
     expect(wrapper.find('[data-testid="cooloff-alert"]').exists()).toBe(true);
   });
 
@@ -166,7 +189,10 @@ describe("ExecutionInspector", () => {
     const wrapper = mountInspector();
     await flushPromises();
 
-    await wrapper.findAll("button").find((button) => button.text().includes("Copy data")).trigger("click");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Copy data"))
+      .trigger("click");
     await flushPromises();
 
     expect(writeText).toHaveBeenCalledOnce();
@@ -182,7 +208,10 @@ describe("ExecutionInspector", () => {
     await Promise.resolve();
 
     expect(wrapper.vm.polling).toBe(true);
-    await wrapper.findAll("button").find((button) => button.text().includes("Pause")).trigger("click");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text().includes("Pause"))
+      .trigger("click");
     expect(wrapper.vm.polling).toBe(false);
 
     wrapper.unmount();

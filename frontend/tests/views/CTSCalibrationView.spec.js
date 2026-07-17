@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
 import { ref } from "vue";
 
-const { mockNotify, mockAutoCalibrate, mockPostHomography, mockPostFloorRegion } = vi.hoisted(() => ({
-  mockNotify: vi.fn(),
-  mockAutoCalibrate: vi.fn(),
-  mockPostHomography: vi.fn(),
-  mockPostFloorRegion: vi.fn(),
-}));
+const { mockNotify, mockAutoCalibrate, mockPostHomography, mockPostFloorRegion } = vi.hoisted(
+  () => ({
+    mockNotify: vi.fn(),
+    mockAutoCalibrate: vi.fn(),
+    mockPostHomography: vi.fn(),
+    mockPostFloorRegion: vi.fn(),
+  }),
+);
 
 vi.mock("@/services/cts.js", () => ({
   cts: {
@@ -15,7 +17,11 @@ vi.mock("@/services/cts.js", () => ({
     getSnapshot: vi.fn().mockResolvedValue("blob:snapshot"),
     getHomography: vi.fn().mockRejectedValue(new Error("missing")),
     previewHomography: vi.fn().mockResolvedValue({
-      matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      matrix: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
       residuals_m: [0, 0, 0, 0],
       status: "ok",
     }),
@@ -73,7 +79,7 @@ const stubComponents = {
   "v-icon": { template: "<span><slot /></span>" },
   "v-spacer": { template: "<span />" },
   "v-select": { template: "<select><slot /></select>" },
-  "CcSegmentedToggle": { template: "<div />", props: ["modelValue", "options", "size"] },
+  CcSegmentedToggle: { template: "<div />", props: ["modelValue", "options", "size"] },
   "v-chip": { template: "<span><slot /></span>" },
   "v-alert": { template: "<div><slot /></div>" },
   "v-table": { template: "<table><slot /></table>" },
@@ -102,7 +108,11 @@ describe("CTSCalibrationView auto-calibration draft", () => {
     vi.clearAllMocks();
     mockAutoCalibrate.mockResolvedValue({
       camera_id: "cam-1",
-      draft_matrix: [[100, 0, -9999], [0, 100, -9999], [0, 0, 1]],
+      draft_matrix: [
+        [100, 0, -9999],
+        [0, 100, -9999],
+        [0, 0, 1],
+      ],
       suggested_points: [
         { pixel: [120, 300], local_floor_m: [-3, 4] },
         { pixel: [360, 420], local_floor_m: [5, -2] },
@@ -117,7 +127,11 @@ describe("CTSCalibrationView auto-calibration draft", () => {
     });
     mockPostHomography.mockResolvedValue({
       camera_id: "cam-1",
-      matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      matrix: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
       residuals_m: [0, 0, 0, 0],
       max_residual_m: 0,
       status: "ok",
@@ -172,13 +186,22 @@ describe("CTSCalibrationView auto-calibration draft", () => {
 });
 
 describe("CTSCalibrationView floor-region overlay", () => {
-  const FLOOR_REGION = [[0.2, 0.4], [0.8, 0.4], [0.8, 0.9], [0.2, 0.9]];
+  const FLOOR_REGION = [
+    [0.2, 0.4],
+    [0.8, 0.4],
+    [0.8, 0.9],
+    [0.2, 0.9],
+  ];
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockAutoCalibrate.mockResolvedValue({
       camera_id: "cam-1",
-      draft_matrix: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      draft_matrix: [
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+      ],
       suggested_points: [],
       confidence: 0.8,
       inlier_count: 100,

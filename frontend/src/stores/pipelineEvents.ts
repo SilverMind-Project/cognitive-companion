@@ -129,9 +129,7 @@ export const usePipelineEventsStore = defineStore("pipelineEvents", () => {
         return {
           ...r,
           active_node_id: data.step_id,
-          nodes: r.nodes.map((n: any) =>
-            n.id === data.step_id ? { ...n, status: "running" } : n,
-          ),
+          nodes: r.nodes.map((n: any) => (n.id === data.step_id ? { ...n, status: "running" } : n)),
         };
       });
     } else if (et === "step_completed") {

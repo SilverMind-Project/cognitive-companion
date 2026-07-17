@@ -6,9 +6,10 @@ const stubs = {
   "v-btn": {
     props: ["icon", "disabled", "title", "size"],
     emits: ["click"],
-    template: "<button :title=\"title\" :disabled=\"disabled\" :data-icon=\"icon\" :data-size=\"size\" @click=\"$emit('click')\"><slot /></button>",
+    template:
+      '<button :title="title" :disabled="disabled" :data-icon="icon" :data-size="size" @click="$emit(\'click\')"><slot /></button>',
   },
-  "v-chip": { template: "<span class=\"cc-zoom-pct\"><slot /></span>" },
+  "v-chip": { template: '<span class="cc-zoom-pct"><slot /></span>' },
 };
 
 function mountControls(props = {}) {

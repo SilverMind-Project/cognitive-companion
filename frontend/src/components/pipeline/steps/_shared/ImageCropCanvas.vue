@@ -12,7 +12,11 @@
   height} in 0..1) so they are resolution-independent.
 -->
 <template>
-  <div ref="wrapperRef" class="crop-canvas-wrapper" :style="{ minHeight: imageLoaded ? null : '200px' }">
+  <div
+    ref="wrapperRef"
+    class="crop-canvas-wrapper"
+    :style="{ minHeight: imageLoaded ? null : '200px' }"
+  >
     <div v-if="!imageUrl" class="crop-canvas-placeholder d-flex align-center justify-center">
       <div class="text-center text-medium-emphasis">
         <v-icon size="48" color="var(--cc-text-3)">mdi-image-outline</v-icon>
@@ -21,13 +25,7 @@
     </div>
 
     <template v-else>
-      <img
-        ref="imgRef"
-        :src="imageUrl"
-        class="crop-image"
-        draggable="false"
-        @load="onImageLoad"
-      />
+      <img ref="imgRef" :src="imageUrl" class="crop-image" draggable="false" @load="onImageLoad" />
       <canvas
         ref="canvasRef"
         class="crop-overlay"
@@ -137,11 +135,7 @@ function onImageLoad() {
 }
 
 // Redraw when regions, selection, or the theme change.
-watch(
-  () => [props.regions, props.selectedIndex, marauders.state.enabled],
-  draw,
-  { deep: true },
-);
+watch(() => [props.regions, props.selectedIndex, marauders.state.enabled], draw, { deep: true });
 
 // ---- Coordinate conversion (ratio <-> canvas px) ----
 

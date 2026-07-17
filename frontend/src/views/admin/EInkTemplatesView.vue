@@ -10,7 +10,9 @@
       </div>
       <v-spacer />
       <v-btn variant="tonal" prepend-icon="mdi-refresh" class="mr-2" @click="load">Refresh</v-btn>
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">New Template</v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate"
+        >New Template</v-btn
+      >
     </div>
 
     <!-- ── Device Status Panel ─────────────────────────────────────────── -->
@@ -27,7 +29,13 @@
           <v-icon start>mdi-monitor</v-icon>
           {{ s.sensor_id }}
           <span class="ml-1 text-caption">
-            {{ s.expired ? "(expired)" : s.rendered_text ? `"${truncate(s.rendered_text)}"` : "(active)" }}
+            {{
+              s.expired
+                ? "(expired)"
+                : s.rendered_text
+                  ? `"${truncate(s.rendered_text)}"`
+                  : "(active)"
+            }}
           </span>
         </v-chip>
         <span v-if="!states.length" class="text-grey">No active displays</span>
@@ -36,13 +44,7 @@
 
     <!-- ── Templates Table ─────────────────────────────────────────────── -->
     <v-card class="glass-card">
-      <v-data-table
-        :headers="headers"
-        :items="templates"
-        :loading="loading"
-        item-value="id"
-        hover
-      >
+      <v-data-table :headers="headers" :items="templates" :loading="loading" item-value="id" hover>
         <template #item.is_default="{ item }">
           <v-icon v-if="item.is_default" color="success">mdi-check-circle</v-icon>
         </template>
@@ -51,7 +53,13 @@
         </template>
         <template #item.actions="{ item }">
           <div style="white-space: nowrap">
-            <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click.stop="openEdit(item)" />
+            <v-btn
+              icon="mdi-pencil"
+              size="small"
+              variant="text"
+              color="primary"
+              @click.stop="openEdit(item)"
+            />
             <v-btn
               icon="mdi-delete"
               size="small"
@@ -65,7 +73,10 @@
           <div class="pa-6 text-center">
             <v-card flat>
               <v-card-text class="text-grey text-h6">No templates yet</v-card-text>
-              <v-card-text class="text-grey">Create e-ink display templates to show custom content on connected displays.</v-card-text>
+              <v-card-text class="text-grey"
+                >Create e-ink display templates to show custom content on connected
+                displays.</v-card-text
+              >
             </v-card>
           </div>
         </template>
@@ -97,15 +108,11 @@
             color="primary"
             class="eink-dialog-tabs flex-shrink-0"
           >
-            <v-tab value="settings" class="justify-start" prepend-icon="mdi-cog">
-              Settings
-            </v-tab>
+            <v-tab value="settings" class="justify-start" prepend-icon="mdi-cog"> Settings </v-tab>
             <v-tab value="regions" class="justify-start" prepend-icon="mdi-vector-rectangle">
               Regions
             </v-tab>
-            <v-tab value="preview" class="justify-start" prepend-icon="mdi-eye">
-              Preview
-            </v-tab>
+            <v-tab value="preview" class="justify-start" prepend-icon="mdi-eye"> Preview </v-tab>
           </v-tabs>
 
           <v-divider vertical />
@@ -113,7 +120,6 @@
           <!-- Tab content -->
           <div class="eink-dialog-content flex-grow-1">
             <v-window v-model="activeTab">
-
               <!-- ── Settings Tab ────────────────────────────────────────── -->
               <v-window-item value="settings" class="pa-6">
                 <v-text-field
@@ -214,8 +220,14 @@
                         @delete="deleteRegion"
                       />
                     </template>
-                    <div v-else class="d-flex flex-column align-center justify-center pa-6 text-center" style="min-height: 200px">
-                      <v-icon size="40" class="text-medium-emphasis mb-2">mdi-cursor-default-click</v-icon>
+                    <div
+                      v-else
+                      class="d-flex flex-column align-center justify-center pa-6 text-center"
+                      style="min-height: 200px"
+                    >
+                      <v-icon size="40" class="text-medium-emphasis mb-2"
+                        >mdi-cursor-default-click</v-icon
+                      >
                       <span class="text-body-2 text-medium-emphasis">
                         Draw a region on the canvas<br />or click an existing one to edit it.
                       </span>
@@ -250,12 +262,7 @@
                 <template v-if="renderedPreviewUrl">
                   <v-divider class="my-4" />
                   <div class="text-caption text-medium-emphasis mb-2">Rendered output</div>
-                  <v-img
-                    :src="renderedPreviewUrl"
-                    class="rounded-lg"
-                    max-height="300"
-                    cover
-                  />
+                  <v-img :src="renderedPreviewUrl" class="rounded-lg" max-height="300" cover />
                 </template>
 
                 <v-empty-state
@@ -265,7 +272,6 @@
                   class="mt-6"
                 />
               </v-window-item>
-
             </v-window>
           </div>
         </div>
@@ -310,8 +316,7 @@ import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 
 const { notify } = useNotify();
-const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } =
-  useConfirm();
+const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -329,12 +334,12 @@ const editingId = ref(null);
 const selectedRegion = ref(-1);
 
 // Image file refs
-const imageFile = ref(null);     // Create mode: new template image
-const newImageFile = ref(null);  // Edit mode: replacement image
-const bboxCanvas = ref(null);    // BoundingBoxCanvas component ref
+const imageFile = ref(null); // Create mode: new template image
+const newImageFile = ref(null); // Edit mode: replacement image
+const bboxCanvas = ref(null); // BoundingBoxCanvas component ref
 
 // URLs
-const previewUrl = ref("");          // Canvas background (always an object URL or "")
+const previewUrl = ref(""); // Canvas background (always an object URL or "")
 const previewText = ref("Hello, this is a sample notification message.");
 const renderedPreviewUrl = ref("");
 const previewing = ref(false);
@@ -595,7 +600,6 @@ onMounted(load);
 .tracking-tight {
   letter-spacing: -0.018em;
 }
-
 
 .eink-dialog-body {
   min-height: 0; /* Required for flex children to shrink */

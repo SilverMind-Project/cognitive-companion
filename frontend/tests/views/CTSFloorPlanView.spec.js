@@ -77,7 +77,6 @@ vi.mock("@/services/api", () => ({
   },
 }));
 
-
 // Stub Vuetify components.
 const stubComponents = {
   "v-btn": { template: "<button @click=\"$emit('click')\"><slot /></button>" },
@@ -105,7 +104,7 @@ const stubComponents = {
   "v-tab": { template: "<div><slot /></div>" },
   "v-window": { template: "<div><slot /></div>" },
   "v-window-item": { template: "<div><slot /></div>" },
-  "CcSegmentedToggle": { template: "<div />", props: ["modelValue", "options", "size"] },
+  CcSegmentedToggle: { template: "<div />", props: ["modelValue", "options", "size"] },
   "v-file-input": { template: "<input type='file' />" },
   "v-text-field": { template: "<input />" },
   "v-select": { template: "<select><slot /></select>" },
@@ -135,14 +134,29 @@ const stubComponents = {
   },
   DoorZoneEditor: {
     props: ["zones"],
-    template: "<div data-testid='door-zone-editor'><span v-for='zone in zones' :key='zone.id'>{{ zone.name }}</span></div>",
+    template:
+      "<div data-testid='door-zone-editor'><span v-for='zone in zones' :key='zone.id'>{{ zone.name }}</span></div>",
   },
   InferredPresenceBadge: { template: "<div />" },
   CcZoomControls: { template: "<div />" },
   MaraudersToggle: { template: "<button data-testid='marauders-toggle' />" },
-  MaraudersInkPolygon: { props: ["points", "canvasW", "canvasH", "seedKey", "label", "fill"], template: "<g data-testid='marauders-ink-polygon' />" },
+  MaraudersInkPolygon: {
+    props: ["points", "canvasW", "canvasH", "seedKey", "label", "fill"],
+    template: "<g data-testid='marauders-ink-polygon' />",
+  },
   MaraudersFloorMarkers: {
-    props: ["markers", "phCount", "canvasH", "trails", "nowMs", "fpWidth", "fpHeight", "fpMpp", "canvasW", "reducedMotion"],
+    props: [
+      "markers",
+      "phCount",
+      "canvasH",
+      "trails",
+      "nowMs",
+      "fpWidth",
+      "fpHeight",
+      "fpMpp",
+      "canvasW",
+      "reducedMotion",
+    ],
     emits: ["phClick"],
     template: "<g data-testid='marauders-floor-markers' />",
   },
@@ -378,7 +392,15 @@ describe("CTSFloorPlanView — heatmap mode", () => {
 
     const timeKeys = TIME_PRESETS.map((p) => p.key);
     expect(timeKeys).toEqual(
-      expect.arrayContaining(["all", "morning", "afternoon", "sundowning", "evening", "night", "custom"]),
+      expect.arrayContaining([
+        "all",
+        "morning",
+        "afternoon",
+        "sundowning",
+        "evening",
+        "night",
+        "custom",
+      ]),
     );
     // Night wraps past midnight: start (21:00) > end (06:00).
     const night = TIME_PRESETS.find((p) => p.key === "night");
@@ -467,7 +489,6 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     expect(api.getPersons).toHaveBeenCalled();
   });
 });
-
 
 describe("CTSFloorPlanView — M1 seam: layer delegation", () => {
   beforeEach(() => {
@@ -566,12 +587,30 @@ describe("CTSFloorPlanView — M3 seam: ink rendering", () => {
   it("live view: plain <polygon> renders when marauders disabled", async () => {
     const { household } = await import("@/services/household");
     household.getRooms.mockResolvedValueOnce([
-      { id: 1, name: "Kitchen", floor_polygon: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+      {
+        id: 1,
+        name: "Kitchen",
+        floor_polygon: [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ],
+      },
     ]);
     const wrapper = await mountView();
     wrapper.vm.$.setupState.canvasReady = true;
     wrapper.vm.$.setupState.rooms = [
-      { id: 1, name: "Kitchen", floor_polygon: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+      {
+        id: 1,
+        name: "Kitchen",
+        floor_polygon: [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ],
+      },
     ];
     await wrapper.vm.$nextTick();
 
@@ -583,7 +622,16 @@ describe("CTSFloorPlanView — M3 seam: ink rendering", () => {
     const wrapper = await mountView();
     maraudersState.enabled = true;
     wrapper.vm.$.setupState.rooms = [
-      { id: 1, name: "Kitchen", floor_polygon: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+      {
+        id: 1,
+        name: "Kitchen",
+        floor_polygon: [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ],
+      },
     ];
     await wrapper.vm.$nextTick();
 
@@ -643,7 +691,11 @@ describe("CTSFloorPlanView — door zones mode", () => {
         id: "zone-1",
         name: "Bathroom threshold",
         kind: "door",
-        polygon: [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]],
+        polygon: [
+          [0.1, 0.2],
+          [0.3, 0.2],
+          [0.3, 0.4],
+        ],
         inside_room_id: 1,
         outside_room_id: 2,
         direction_vec: [1, 0],

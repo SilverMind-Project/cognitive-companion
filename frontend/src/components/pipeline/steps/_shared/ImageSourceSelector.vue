@@ -36,11 +36,7 @@
       @update:model-value="patch({ max_images: Number($event) || 1 })"
     />
 
-    <v-card
-      v-if="showTriggerCard && isTrigger"
-      variant="tonal"
-      class="mb-4 pa-4"
-    >
+    <v-card v-if="showTriggerCard && isTrigger" variant="tonal" class="mb-4 pa-4">
       <div class="text-subtitle-2">Trigger Camera</div>
       <v-text-field
         :model-value="modelValue.trigger_images_count"

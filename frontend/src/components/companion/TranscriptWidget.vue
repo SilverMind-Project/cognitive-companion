@@ -1,10 +1,20 @@
 <template>
-  <div class="transcript-card" :class="expanded ? 'transcript-card--open' : 'transcript-card--closed'">
+  <div
+    class="transcript-card"
+    :class="expanded ? 'transcript-card--open' : 'transcript-card--closed'"
+  >
     <!-- Header (always visible) -->
-    <div class="transcript-header" @click="expanded = !expanded" role="button" :aria-expanded="expanded">
+    <div
+      class="transcript-header"
+      role="button"
+      :aria-expanded="expanded"
+      @click="expanded = !expanded"
+    >
       <v-icon size="18" color="var(--cc-text-3)" class="mr-2">mdi-message-text</v-icon>
       <span class="header-title">Conversation</span>
-      <span v-if="transcript.length && !expanded" class="message-count">{{ transcript.length }}</span>
+      <span v-if="transcript.length && !expanded" class="message-count">{{
+        transcript.length
+      }}</span>
       <v-spacer />
       <button
         v-if="transcript.length && expanded"
@@ -20,10 +30,12 @@
     </div>
 
     <!-- Messages (only when expanded) -->
-    <div v-if="expanded" class="messages-scroll" ref="scrollRef">
+    <div v-if="expanded" ref="scrollRef" class="messages-scroll">
       <!-- Empty state -->
       <div v-if="transcript.length === 0" class="empty-state">
-        <v-icon size="52" color="var(--cc-divider-strong)" class="mb-4">mdi-chat-sleep-outline</v-icon>
+        <v-icon size="52" color="var(--cc-divider-strong)" class="mb-4"
+          >mdi-chat-sleep-outline</v-icon
+        >
         <p class="empty-title">No conversation yet</p>
         <p class="empty-hint">Tap the microphone to start talking with your companion</p>
       </div>
@@ -46,7 +58,9 @@
             <p class="bubble-text">{{ msg.text }}</p>
             <span class="bubble-time">
               {{ msg.source === "user" ? "You" : "System" }}
-              <span v-if="msg.timestamp" class="ml-1 opacity-60">&middot; {{ formatTime(msg.timestamp) }}</span>
+              <span v-if="msg.timestamp" class="ml-1 opacity-60"
+                >&middot; {{ formatTime(msg.timestamp) }}</span
+              >
             </span>
           </div>
 
@@ -197,7 +211,9 @@ const formatTime = formatTimeOnly;
   border-radius: 4px;
 }
 
-.scroll-spacer { height: 16px; }
+.scroll-spacer {
+  height: 16px;
+}
 
 /* ── Empty state ────────────────────────────────────────────────────────── */
 .empty-state {
@@ -246,8 +262,14 @@ const formatTime = formatTimeOnly;
   margin-bottom: 2px;
 }
 
-.avatar--ai   { background: var(--sage-50);  border: 1px solid var(--sage-200); }
-.avatar--user { background: var(--sage-50);  border: 1px solid var(--line-brand); }
+.avatar--ai {
+  background: var(--sage-50);
+  border: 1px solid var(--sage-200);
+}
+.avatar--user {
+  background: var(--sage-50);
+  border: 1px solid var(--line-brand);
+}
 
 /* ── Bubbles (DS TranscriptBubble) ──────────────────────────────────────── */
 .bubble {

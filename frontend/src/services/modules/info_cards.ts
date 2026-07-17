@@ -9,7 +9,6 @@ export type InfoCardOut = Schemas["InfoCardOut"];
 export type InfoCardListOut = Schemas["InfoCardListOut"];
 
 type ListParams = operations["list_info_cards"]["parameters"]["query"];
-type SuggestParams = operations["suggest_info_card"]["parameters"]["query"];
 
 export const getInfoCards = (params: ListParams = {}) =>
   unwrap(client.GET("/api/v1/info-cards", { params: { query: params } }));
@@ -29,13 +28,19 @@ export const deleteInfoCard = (id: number) =>
   unwrap(client.DELETE("/api/v1/info-cards/{card_id}", { params: { path: { card_id: id } } }));
 
 export const approveInfoCard = (id: number) =>
-  unwrap(client.POST("/api/v1/info-cards/{card_id}/approve", { params: { path: { card_id: id } } }));
+  unwrap(
+    client.POST("/api/v1/info-cards/{card_id}/approve", { params: { path: { card_id: id } } }),
+  );
 
 export const archiveInfoCard = (id: number) =>
-  unwrap(client.POST("/api/v1/info-cards/{card_id}/archive", { params: { path: { card_id: id } } }));
+  unwrap(
+    client.POST("/api/v1/info-cards/{card_id}/archive", { params: { path: { card_id: id } } }),
+  );
 
 export const restoreInfoCard = (id: number) =>
-  unwrap(client.POST("/api/v1/info-cards/{card_id}/restore", { params: { path: { card_id: id } } }));
+  unwrap(
+    client.POST("/api/v1/info-cards/{card_id}/restore", { params: { path: { card_id: id } } }),
+  );
 
 export const suggestInfoCard = (documentId: number, modelId?: string) =>
   unwrap(

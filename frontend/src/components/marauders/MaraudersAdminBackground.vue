@@ -106,12 +106,7 @@ function drawSketchEdge(ctx, first, second, alpha) {
     ctx.lineWidth = pass === 0 ? 0.85 : 0.45;
     ctx.beginPath();
     ctx.moveTo(first.x + startJitterX, first.y + startJitterY);
-    ctx.quadraticCurveTo(
-      midX + bendX,
-      midY + bendY,
-      second.x + endJitterX,
-      second.y + endJitterY,
-    );
+    ctx.quadraticCurveTo(midX + bendX, midY + bendY, second.x + endJitterX, second.y + endJitterY);
     ctx.stroke();
   }
 }
@@ -263,13 +258,7 @@ onUnmounted(() => {
   z-index: 0;
   color: var(--cc-particle);
   pointer-events: none;
-  mask-image: linear-gradient(
-    to bottom,
-    black 0%,
-    transparent 22%,
-    transparent 78%,
-    black 100%
-  );
+  mask-image: linear-gradient(to bottom, black 0%, transparent 22%, transparent 78%, black 100%);
   -webkit-mask-image: linear-gradient(
     to bottom,
     black 0%,
@@ -311,8 +300,12 @@ onUnmounted(() => {
 
 @keyframes marauders-print-fade {
   0%,
-  100% { opacity: 0.12; }
-  45% { opacity: 0.5; }
+  100% {
+    opacity: 0.12;
+  }
+  45% {
+    opacity: 0.5;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

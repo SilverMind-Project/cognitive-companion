@@ -8,12 +8,14 @@ import {
 
 describe("useSpatialCanvas", () => {
   it("computes landscape letterbox content rect", () => {
-    expect(calculateContentRect({
-      naturalWidth: 1600,
-      naturalHeight: 800,
-      boxWidth: 400,
-      boxHeight: 400,
-    })).toEqual({
+    expect(
+      calculateContentRect({
+        naturalWidth: 1600,
+        naturalHeight: 800,
+        boxWidth: 400,
+        boxHeight: 400,
+      }),
+    ).toEqual({
       naturalWidth: 1600,
       naturalHeight: 800,
       width: 400,
@@ -24,12 +26,14 @@ describe("useSpatialCanvas", () => {
   });
 
   it("computes portrait letterbox content rect", () => {
-    expect(calculateContentRect({
-      naturalWidth: 800,
-      naturalHeight: 1600,
-      boxWidth: 400,
-      boxHeight: 400,
-    })).toEqual({
+    expect(
+      calculateContentRect({
+        naturalWidth: 800,
+        naturalHeight: 1600,
+        boxWidth: 400,
+        boxHeight: 400,
+      }),
+    ).toEqual({
       naturalWidth: 800,
       naturalHeight: 1600,
       width: 200,
@@ -40,7 +44,13 @@ describe("useSpatialCanvas", () => {
   });
 
   it("round-trips natural, ratio, and metres spaces", () => {
-    const shape = { type: "polygon", points: [[0.25, 0.5], [0.75, 0.25]] };
+    const shape = {
+      type: "polygon",
+      points: [
+        [0.25, 0.5],
+        [0.75, 0.25],
+      ],
+    };
     const options = { naturalWidth: 2000, naturalHeight: 1000, mpp: 0.02 };
 
     for (const space of ["natural", "ratio", "metres"]) {
@@ -64,7 +74,7 @@ describe("useSpatialCanvas", () => {
       convertShapeToSpace({ type: "point", point: [0.5, 0.5] }, "metres", {
         naturalWidth: 100,
         naturalHeight: 100,
-      })
+      }),
     ).toThrow("positive mpp");
   });
 });

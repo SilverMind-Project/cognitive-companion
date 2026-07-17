@@ -81,7 +81,10 @@ describe("CcSpatialEditor", () => {
     expect(latestUpdate(wrapper)[0]).toEqual({
       id: expect.any(String),
       type: "line",
-      points: [[0.1, 0.2], [0.3, 0.4]],
+      points: [
+        [0.1, 0.2],
+        [0.3, 0.4],
+      ],
     });
   });
 
@@ -105,7 +108,17 @@ describe("CcSpatialEditor", () => {
 
   it("drags polygon vertices", async () => {
     const wrapper = await mountEditor({
-      modelValue: [{ id: "poly", type: "polygon", points: [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]] }],
+      modelValue: [
+        {
+          id: "poly",
+          type: "polygon",
+          points: [
+            [0.1, 0.2],
+            [0.3, 0.2],
+            [0.3, 0.4],
+          ],
+        },
+      ],
     });
     const handle = wrapper.find(".cc-spatial-editor__handle-hit");
 
@@ -119,7 +132,17 @@ describe("CcSpatialEditor", () => {
   it("hides internal polygon geometry while retaining vertex handles", async () => {
     const wrapper = await mountEditor({
       hideInternalPolygon: true,
-      modelValue: [{ id: "poly", type: "polygon", points: [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]] }],
+      modelValue: [
+        {
+          id: "poly",
+          type: "polygon",
+          points: [
+            [0.1, 0.2],
+            [0.3, 0.2],
+            [0.3, 0.4],
+          ],
+        },
+      ],
     });
 
     expect(wrapper.find(".cc-spatial-editor__shape polygon").exists()).toBe(false);
@@ -130,11 +153,7 @@ describe("CcSpatialEditor", () => {
     const wrapper = await mountEditor(
       {},
       {
-        overlay: ({ isDragging }) => h(
-          "text",
-          { "data-testid": "drag-state" },
-          String(isDragging),
-        ),
+        overlay: ({ isDragging }) => h("text", { "data-testid": "drag-state" }, String(isDragging)),
       },
     );
 
@@ -144,7 +163,17 @@ describe("CcSpatialEditor", () => {
   it("shows straight polygon geometry while a vertex is actively dragged", async () => {
     const wrapper = await mountEditor({
       hideInternalPolygon: true,
-      modelValue: [{ id: "poly", type: "polygon", points: [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]] }],
+      modelValue: [
+        {
+          id: "poly",
+          type: "polygon",
+          points: [
+            [0.1, 0.2],
+            [0.3, 0.2],
+            [0.3, 0.4],
+          ],
+        },
+      ],
     });
 
     await wrapper.find(".cc-spatial-editor__handle-hit").trigger("mousedown", {

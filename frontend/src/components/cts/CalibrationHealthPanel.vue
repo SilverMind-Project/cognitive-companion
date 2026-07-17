@@ -1,6 +1,8 @@
 <template>
   <div>
-    <div v-if="loading" class="text-body-2 text-medium-emphasis pa-2">Loading calibration health...</div>
+    <div v-if="loading" class="text-body-2 text-medium-emphasis pa-2">
+      Loading calibration health...
+    </div>
     <div v-else-if="!cameras.length" class="text-body-2 text-medium-emphasis pa-2">
       No enabled cameras found.
     </div>
@@ -58,7 +60,13 @@ onMounted(loadHealth);
   border-radius: 50%;
   flex-shrink: 0;
 }
-.cal-dot--ok { background: #4caf50; }
-.cal-dot--warning { background: #ff9800; }
-.cal-dot--error { background: #f44336; }
+.cal-dot--ok {
+  background: #4caf50;
+}
+.cal-dot--warning {
+  background: #ff9800;
+}
+.cal-dot--error {
+  background: #f44336;
+}
 </style>

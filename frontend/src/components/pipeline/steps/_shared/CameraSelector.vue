@@ -76,7 +76,7 @@
 </template>
 
 <script setup>
-import { ref, computed, toRefs } from "vue";
+import { ref, computed } from "vue";
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -88,7 +88,6 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue"]);
 
 const p = props.fieldPrefix;
-const cfg = toRefs(props.modelValue);
 
 const newCameraId = ref(null);
 const showRooms = ref(false);
@@ -99,7 +98,7 @@ const imagesPerSensor = computed(() => props.modelValue[`${p}images_per_sensor`]
 const roomNames = computed(() => props.modelValue[`${p}additional_room_names`] || []);
 
 const availableCameraItems = computed(() =>
-  props.cameraSensorItems.filter((id) => !sensorIds.value.includes(id))
+  props.cameraSensorItems.filter((id) => !sensorIds.value.includes(id)),
 );
 
 const cameraRows = computed(() => {
@@ -117,7 +116,7 @@ function emitUpdate(patch) {
 
 function emitSensorFrameLimit(sensorId, value) {
   const defaultLimit = imagesPerSensor.value;
-  const limits = { ...props.modelValue[`${p}sensor_frame_limits`] || {} };
+  const limits = { ...(props.modelValue[`${p}sensor_frame_limits`] || {}) };
   if (value <= 0 || value === defaultLimit) {
     delete limits[sensorId];
   } else {

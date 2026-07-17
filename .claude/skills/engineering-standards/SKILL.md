@@ -611,7 +611,7 @@ Before opening a PR, verify:
 
 ### Backend
 - [ ] `make check` passes (lint + strict mypy on core + core tests)
-- [ ] If services/schemas changed: `make check-all` passes
+- [ ] If services/schemas changed: `make check-all` passes (includes the frontend lint leg: ESLint, Prettier format check, and knip, alongside typecheck and tests)
 - [ ] New public code has tests under `backend/tests/<mirror_path>/`
 - [ ] Tests cover: success path, missing-service path, at least one edge case
 - [ ] New endpoints have `auth.yaml` permission entries
@@ -623,6 +623,7 @@ Before opening a PR, verify:
 
 ### Frontend
 - [ ] `cd frontend && npm run build` passes
+- [ ] `npm run lint`, `npm run format:check`, and `npm run knip` pass (see the front-end skill's "Deterministic gates" section)
 - [ ] `npm audit --audit-level=high` reports no vulnerabilities
 - [ ] No hardcoded colors or `rgba()` values
 - [ ] Server-side pagination on data tables

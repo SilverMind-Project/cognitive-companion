@@ -23,31 +23,30 @@
 .v-theme--ccMarauders {
   /* Establish typography at every Vuetify theme boundary. This also covers
      dialogs and menus teleported outside .v-application. */
-  --cc-font:
-    "Kalam", "Segoe Print", "Bradley Hand", cursive;
+  --cc-font: "Kalam", "Segoe Print", "Bradley Hand", cursive;
   font-family: var(--cc-font);
 
   /* Brand / accent: sepia ink */
-  --cc-brand:          #5b3a1a;
-  --cc-brand-strong:   #432a12;
-  --cc-brand-soft:     rgba(91, 58, 26, 0.12);
-  --cc-brand-softer:   rgba(91, 58, 26, 0.06);
+  --cc-brand: #5b3a1a;
+  --cc-brand-strong: #432a12;
+  --cc-brand-soft: rgba(91, 58, 26, 0.12);
+  --cc-brand-softer: rgba(91, 58, 26, 0.06);
   --cc-brand-gradient: linear-gradient(120deg, #5b3a1a 0%, #7a5230 60%, #8a1c1c 100%);
 
   --cc-success: #3f5a36;
   --cc-warning: #9a6a1a;
-  --cc-error:   #8a1c1c;
+  --cc-error: #8a1c1c;
 
   /* Surfaces: translucent so the parchment texture shows through */
-  --cc-bg:          #e9dcc0;
+  --cc-bg: #e9dcc0;
   --cc-bg-elevated: #f2e8d2;
-  --cc-surface:     rgba(240, 230, 207, 0.82);
-  --cc-surface-2:   rgba(232, 220, 192, 0.82);
-  --cc-surface-3:   rgba(224, 210, 180, 0.78);
+  --cc-surface: rgba(240, 230, 207, 0.82);
+  --cc-surface-2: rgba(232, 220, 192, 0.82);
+  --cc-surface-3: rgba(224, 210, 180, 0.78);
 
   /* Glass surfaces: reuse the non-blur variants for parchment coherence */
-  --cc-app-bar-glass: rgba(233, 220, 192, 0.90);
-  --cc-drawer-glass:  rgba(240, 230, 207, 0.97);
+  --cc-app-bar-glass: rgba(233, 220, 192, 0.9);
+  --cc-drawer-glass: rgba(240, 230, 207, 0.97);
 
   /* Text: sepia ink */
   --cc-text-1: #3a2a16;
@@ -55,30 +54,30 @@
   --cc-text-3: #8a7350;
 
   /* Borders: faint ink lines */
-  --cc-divider:             rgba(91, 58, 26, 0.22);
-  --cc-divider-strong:      rgba(91, 58, 26, 0.38);
-  --cc-glass-border:        rgba(91, 58, 26, 0.30);
+  --cc-divider: rgba(91, 58, 26, 0.22);
+  --cc-divider-strong: rgba(91, 58, 26, 0.38);
+  --cc-glass-border: rgba(91, 58, 26, 0.3);
   --cc-glass-border-strong: rgba(91, 58, 26, 0.45);
 
   /* Shadows: warm, muted */
-  --cc-shadow-sm:         0 1px 2px rgba(58, 42, 22, 0.12);
-  --cc-shadow-md:         0 8px 24px -8px rgba(58, 42, 22, 0.18);
-  --cc-shadow-lg:         0 24px 48px -24px rgba(91, 58, 26, 0.25);
-  --cc-shadow-glass:      0 2px 16px -4px rgba(58, 42, 22, 0.14);
-  --cc-shadow-glass-hover:0 6px 28px -6px rgba(58, 42, 22, 0.22);
-  --cc-particle:          #7a5230;
+  --cc-shadow-sm: 0 1px 2px rgba(58, 42, 22, 0.12);
+  --cc-shadow-md: 0 8px 24px -8px rgba(58, 42, 22, 0.18);
+  --cc-shadow-lg: 0 24px 48px -24px rgba(91, 58, 26, 0.25);
+  --cc-shadow-glass: 0 2px 16px -4px rgba(58, 42, 22, 0.14);
+  --cc-shadow-glass-hover: 0 6px 28px -6px rgba(58, 42, 22, 0.22);
+  --cc-particle: #7a5230;
 
   /* Spatial tokens from M1: re-pointed for parchment legibility */
-  --cc-room-fill:             rgba(91, 58, 26, 0.10);
-  --cc-heat-ink-low:          rgba(122, 82, 48, 0.42);
-  --cc-heat-ink-high:         #6f1717;
-  --cc-marker-ring:           #3a2a16;
-  --cc-annotation-ink:        #2a1d0e;
+  --cc-room-fill: rgba(91, 58, 26, 0.1);
+  --cc-heat-ink-low: rgba(122, 82, 48, 0.42);
+  --cc-heat-ink-high: #6f1717;
+  --cc-marker-ring: #3a2a16;
+  --cc-annotation-ink: #2a1d0e;
   --cc-annotation-halo-light: rgba(240, 230, 207, 0.85);
   --cc-posture-standing: #3f5a36;
-  --cc-posture-sitting:  #9a6a1a;
-  --cc-posture-walking:  #3a4a6b;
-  --cc-posture-lying:    #6b2d6b;
+  --cc-posture-sitting: #9a6a1a;
+  --cc-posture-walking: #3a4a6b;
+  --cc-posture-lying: #6b2d6b;
 }
 
 /* Parchment texture on the root background */
@@ -88,7 +87,9 @@
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeBlend in='SourceGraphic' mode='multiply'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E"),
     linear-gradient(160deg, #ede0c4 0%, #e9dcc0 40%, #e0d0aa 100%);
   background-repeat: repeat, no-repeat;
-  background-size: 300px 300px, cover;
+  background-size:
+    300px 300px,
+    cover;
 }
 
 /* Card surfaces: blend-multiply lets the texture read through */

@@ -5,7 +5,13 @@
       <v-icon size="16" class="mr-1 text-medium-emphasis">mdi-vector-rectangle</v-icon>
       <span class="text-subtitle-2 font-weight-medium">Region Properties</span>
       <v-spacer />
-      <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="$emit('delete')" />
+      <v-btn
+        icon="mdi-delete"
+        size="x-small"
+        variant="text"
+        color="error"
+        @click="$emit('delete')"
+      />
     </div>
 
     <!-- Name -->
@@ -22,29 +28,41 @@
     <v-row dense class="mb-2">
       <v-col cols="3">
         <v-text-field
-          :model-value="region.x" label="X" type="number"
-          variant="outlined" density="compact"
+          :model-value="region.x"
+          label="X"
+          type="number"
+          variant="outlined"
+          density="compact"
           @update:model-value="update('x', Number($event))"
         />
       </v-col>
       <v-col cols="3">
         <v-text-field
-          :model-value="region.y" label="Y" type="number"
-          variant="outlined" density="compact"
+          :model-value="region.y"
+          label="Y"
+          type="number"
+          variant="outlined"
+          density="compact"
           @update:model-value="update('y', Number($event))"
         />
       </v-col>
       <v-col cols="3">
         <v-text-field
-          :model-value="region.width" label="W" type="number"
-          variant="outlined" density="compact"
+          :model-value="region.width"
+          label="W"
+          type="number"
+          variant="outlined"
+          density="compact"
           @update:model-value="update('width', Number($event))"
         />
       </v-col>
       <v-col cols="3">
         <v-text-field
-          :model-value="region.height" label="H" type="number"
-          variant="outlined" density="compact"
+          :model-value="region.height"
+          label="H"
+          type="number"
+          variant="outlined"
+          density="compact"
           @update:model-value="update('height', Number($event))"
         />
       </v-col>
@@ -77,8 +95,11 @@
         <v-slider
           :model-value="region.font_size_max"
           label="Max"
-          :min="12" :max="96" :step="2"
-          thumb-label density="compact"
+          :min="12"
+          :max="96"
+          :step="2"
+          thumb-label
+          density="compact"
           @update:model-value="update('font_size_max', $event)"
         />
       </v-col>
@@ -86,8 +107,11 @@
         <v-slider
           :model-value="region.font_size_min"
           label="Min"
-          :min="8" :max="48" :step="2"
-          thumb-label density="compact"
+          :min="8"
+          :max="48"
+          :step="2"
+          thumb-label
+          density="compact"
           @update:model-value="update('font_size_min', $event)"
         />
       </v-col>
@@ -118,7 +142,9 @@
         />
         <v-slider
           :model-value="textAlpha"
-          :min="0" :max="255" :step="1"
+          :min="0"
+          :max="255"
+          :step="1"
           density="compact"
           hide-details
           thumb-label
@@ -156,7 +182,9 @@
         />
         <v-slider
           :model-value="bgAlpha"
-          :min="1" :max="255" :step="1"
+          :min="1"
+          :max="255"
+          :step="1"
           density="compact"
           hide-details
           thumb-label
@@ -192,7 +220,11 @@ function toHex(arr) {
     "#" +
     arr
       .slice(0, 3)
-      .map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0"))
+      .map((v) =>
+        Math.round(Math.max(0, Math.min(255, v)))
+          .toString(16)
+          .padStart(2, "0"),
+      )
       .join("")
   );
 }
@@ -265,7 +297,11 @@ function onBgTransparent(transparent) {
     linear-gradient(45deg, transparent 75%, #bbb 75%),
     linear-gradient(-45deg, transparent 75%, #bbb 75%);
   background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+  background-position:
+    0 0,
+    0 4px,
+    4px -4px,
+    -4px 0;
   background-color: #fff;
   position: relative;
   overflow: hidden;

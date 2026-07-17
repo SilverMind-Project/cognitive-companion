@@ -1,11 +1,6 @@
 <template>
   <div ref="wrapperRef" class="bbox-canvas-wrapper">
-    <img
-      :src="imageUrl"
-      class="keyframe-image"
-      @load="onImageLoad"
-      draggable="false"
-    />
+    <img :src="imageUrl" class="keyframe-image" draggable="false" @load="onImageLoad" />
     <canvas
       ref="canvasRef"
       class="bbox-overlay"
@@ -45,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from "vue";
+import { ref, watch } from "vue";
 import BboxTagPopover from "./BboxTagPopover.vue";
 import MaraudersInkBox from "@/components/marauders/MaraudersInkBox.vue";
 import { hitTestRect } from "@/composables/bboxGeometry.js";
@@ -63,10 +58,10 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-  "bbox-tagged",     // { annotationId, identityId, reason }
+  "bbox-tagged", // { annotationId, identityId, reason }
   "bbox-overridden", // { annotationId, x1, y1, x2, y2 }
-  "bbox-created",    // { x1, y1, x2, y2 }
-  "bbox-deleted",    // { annotationId }
+  "bbox-created", // { x1, y1, x2, y2 }
+  "bbox-deleted", // { annotationId }
 ]);
 
 const canvasRef = ref(null);
@@ -128,8 +123,11 @@ function onImageLoad(event) {
 function syncBoxesFromProps() {
   boxes.value = (props.initialBboxes || []).map((b) => {
     // Use override coords if present, otherwise YOLO coords
-    const hasOverride = b.override_x1 != null && b.override_y1 != null
-      && b.override_x2 != null && b.override_y2 != null;
+    const hasOverride =
+      b.override_x1 != null &&
+      b.override_y1 != null &&
+      b.override_x2 != null &&
+      b.override_y2 != null;
     const identityLabel = lookupIdentityLabel(b.identity_id);
     return {
       annotationId: b.id,
@@ -148,9 +146,9 @@ function syncBoxesFromProps() {
 function lookupIdentityLabel(identityId) {
   if (!identityId) return null;
   const found = props.identities.find(
-    (id) => id.id === identityId || id.identity_id === identityId
+    (id) => id.id === identityId || id.identity_id === identityId,
   );
-  return found ? (found.display_name || found.name || identityId) : identityId;
+  return found ? found.display_name || found.name || identityId : identityId;
 }
 
 // -- Canvas rendering ---------------------------------------------------------
@@ -381,14 +379,8 @@ function onMouseUp(_event) {
     // Minimum 10px box size to prevent accidental clicks
     if (w < 10 || h < 10) return;
 
-    const { x: ox1, y: oy1 } = toOrig(
-      Math.min(startX, currentX),
-      Math.min(startY, currentY)
-    );
-    const { x: ox2, y: oy2 } = toOrig(
-      Math.max(startX, currentX),
-      Math.max(startY, currentY)
-    );
+    const { x: ox1, y: oy1 } = toOrig(Math.min(startX, currentX), Math.min(startY, currentY));
+    const { x: ox2, y: oy2 } = toOrig(Math.max(startX, currentX), Math.max(startY, currentY));
 
     const newBox = {
       annotationId: null,
@@ -448,10 +440,13 @@ function onDeleteBox() {
 
 // -- Watch for prop changes ---------------------------------------------------
 
-watch(() => props.initialBboxes, () => {
-  syncBoxesFromProps();
-  render();
-});
+watch(
+  () => props.initialBboxes,
+  () => {
+    syncBoxesFromProps();
+    render();
+  },
+);
 </script>
 
 <style scoped>

@@ -18,7 +18,14 @@ function roundCoord(value) {
   return Number(value.toFixed(6));
 }
 
-export function calculateContentRect({ naturalWidth, naturalHeight, boxWidth, boxHeight, offsetX = 0, offsetY = 0 }) {
+export function calculateContentRect({
+  naturalWidth,
+  naturalHeight,
+  boxWidth,
+  boxHeight,
+  offsetX = 0,
+  offsetY = 0,
+}) {
   assertFiniteNumber(naturalWidth, "naturalWidth");
   assertFiniteNumber(naturalHeight, "naturalHeight");
   assertFiniteNumber(boxWidth, "boxWidth");
@@ -69,7 +76,12 @@ function requireSpace(space) {
 
 function requireDimensions({ naturalWidth, naturalHeight }, space) {
   if (space === "normalized" || space === "ratio") return;
-  if (!Number.isFinite(naturalWidth) || naturalWidth <= 0 || !Number.isFinite(naturalHeight) || naturalHeight <= 0) {
+  if (
+    !Number.isFinite(naturalWidth) ||
+    naturalWidth <= 0 ||
+    !Number.isFinite(naturalHeight) ||
+    naturalHeight <= 0
+  ) {
     throw new Error(`${space} coordinate conversion requires naturalWidth and naturalHeight`);
   }
 }
@@ -80,13 +92,14 @@ function requireMpp(mpp) {
   }
 }
 
-export function normalizedPointToSpace(point, space, options = {}) {
+function normalizedPointToSpace(point, space, options = {}) {
   requireSpace(space);
   requireDimensions(options, space);
   const [x, y] = point;
 
   if (space === "normalized" || space === "ratio") return [roundCoord(x), roundCoord(y)];
-  if (space === "natural") return [roundCoord(x * options.naturalWidth), roundCoord(y * options.naturalHeight)];
+  if (space === "natural")
+    return [roundCoord(x * options.naturalWidth), roundCoord(y * options.naturalHeight)];
 
   requireMpp(options.mpp);
   return [
@@ -95,13 +108,18 @@ export function normalizedPointToSpace(point, space, options = {}) {
   ];
 }
 
-export function spacePointToNormalized(point, space, options = {}) {
+function spacePointToNormalized(point, space, options = {}) {
   requireSpace(space);
   requireDimensions(options, space);
   const [x, y] = point;
 
-  if (space === "normalized" || space === "ratio") return [roundCoord(clamp01(x)), roundCoord(clamp01(y))];
-  if (space === "natural") return [roundCoord(clamp01(x / options.naturalWidth)), roundCoord(clamp01(y / options.naturalHeight))];
+  if (space === "normalized" || space === "ratio")
+    return [roundCoord(clamp01(x)), roundCoord(clamp01(y))];
+  if (space === "natural")
+    return [
+      roundCoord(clamp01(x / options.naturalWidth)),
+      roundCoord(clamp01(y / options.naturalHeight)),
+    ];
 
   requireMpp(options.mpp);
   return [
@@ -164,7 +182,7 @@ export function useSpatialCanvas(options = {}) {
       boxHeight: state.viewportHeight,
       offsetX: state.viewportOffsetX,
       offsetY: state.viewportOffsetY,
-    })
+    }),
   );
 
   function adapterOptions() {
@@ -175,7 +193,14 @@ export function useSpatialCanvas(options = {}) {
     };
   }
 
-  function setViewport({ width, height, offsetX = 0, offsetY = 0, imageNaturalWidth, imageNaturalHeight }) {
+  function setViewport({
+    width,
+    height,
+    offsetX = 0,
+    offsetY = 0,
+    imageNaturalWidth,
+    imageNaturalHeight,
+  }) {
     assertFiniteNumber(width, "viewport width");
     assertFiniteNumber(height, "viewport height");
     state.viewportWidth = Math.max(0, width);
@@ -204,9 +229,7 @@ export function useSpatialCanvas(options = {}) {
       throw new Error("Cannot map spatial point before contentRect has non-zero dimensions");
     }
 
-    const local = source === "container"
-      ? zoom.containerToLocal(point.x, point.y)
-      : point;
+    const local = source === "container" ? zoom.containerToLocal(point.x, point.y) : point;
 
     return [
       roundCoord(clamp01((local.x - rect.offsetX) / rect.width)),

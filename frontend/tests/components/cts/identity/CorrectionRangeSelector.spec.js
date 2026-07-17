@@ -8,7 +8,11 @@ vi.mock("@/composables/useBlurMode.js", () => ({
   useDisplaySrc: () => ({ displaySrc: (u) => u }),
 }));
 vi.mock("@/components/common/CcSegmentedToggle.vue", () => ({
-  default: { name: "CcSegmentedToggle", template: "<div class='toggle' />", props: ["modelValue", "options"] },
+  default: {
+    name: "CcSegmentedToggle",
+    template: "<div class='toggle' />",
+    props: ["modelValue", "options"],
+  },
 }));
 
 import CorrectionRangeSelector from "@/components/cts/identity/CorrectionRangeSelector.vue";
@@ -22,15 +26,31 @@ const PROPOSAL = {
 };
 
 const OBSERVATIONS = [
-  { observation_id: "o1", captured_at: "2026-06-20T12:00:00Z", camera_id: "kitchen", image_url: "o1.jpg" },
-  { observation_id: "o2", captured_at: "2026-06-20T12:00:05Z", camera_id: "kitchen", image_url: "o2.jpg" },
-  { observation_id: "o3", captured_at: "2026-06-20T12:00:10Z", camera_id: "hall", image_url: "o3.jpg" },
+  {
+    observation_id: "o1",
+    captured_at: "2026-06-20T12:00:00Z",
+    camera_id: "kitchen",
+    image_url: "o1.jpg",
+  },
+  {
+    observation_id: "o2",
+    captured_at: "2026-06-20T12:00:05Z",
+    camera_id: "kitchen",
+    image_url: "o2.jpg",
+  },
+  {
+    observation_id: "o3",
+    captured_at: "2026-06-20T12:00:10Z",
+    camera_id: "hall",
+    image_url: "o3.jpg",
+  },
 ];
 
 const stubs = {
   "v-select": {
     name: "v-select",
-    template: "<select :value='modelValue' @change=\"$emit('update:modelValue', $event.target.value)\"><option v-for='i in items' :key='i.value' :value='i.value'>{{ i.title }}</option></select>",
+    template:
+      "<select :value='modelValue' @change=\"$emit('update:modelValue', $event.target.value)\"><option v-for='i in items' :key='i.value' :value='i.value'>{{ i.title }}</option></select>",
     props: ["modelValue", "items", "itemTitle", "itemValue"],
   },
   "v-img": { template: "<img :src='src' />", props: ["src"] },

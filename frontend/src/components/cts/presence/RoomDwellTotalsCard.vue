@@ -7,7 +7,7 @@
         No dwell data for this period.
       </div>
       <div v-for="d in sortedDwells" :key="d.room_id" class="d-flex align-center ga-2 mb-2">
-        <span class="text-caption text-truncate" style="min-width: 100px; max-width: 120px;">
+        <span class="text-caption text-truncate" style="min-width: 100px; max-width: 120px">
           {{ d.room_name }}
         </span>
         <v-progress-linear
@@ -15,9 +15,9 @@
           color="primary"
           height="8"
           rounded
-          style="flex: 1;"
+          style="flex: 1"
         />
-        <span class="text-caption text-medium-emphasis" style="min-width: 55px; text-align: right;">
+        <span class="text-caption text-medium-emphasis" style="min-width: 55px; text-align: right">
           {{ formatDuration(d.total_seconds) }}
         </span>
       </div>
@@ -32,12 +32,10 @@ const props = defineProps({
   dwells: { type: Array, required: true },
 });
 
-const maxSeconds = computed(() =>
-  Math.max(...props.dwells.map((d) => d.total_seconds), 1)
-);
+const maxSeconds = computed(() => Math.max(...props.dwells.map((d) => d.total_seconds), 1));
 
 const sortedDwells = computed(() =>
-  [...props.dwells].sort((a, b) => b.total_seconds - a.total_seconds)
+  [...props.dwells].sort((a, b) => b.total_seconds - a.total_seconds),
 );
 
 function computedPercent(d) {

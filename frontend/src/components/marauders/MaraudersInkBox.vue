@@ -36,7 +36,5 @@ const boxPts = computed(() => [
 
 const inkPath = computed(() => actions.path(boxPts.value, { seed: seed.value }));
 
-const resolvedColor = computed(
-  () => props.color ?? ccToken("--cc-annotation-ink") ?? "#2a1d0e"
-);
+const resolvedColor = computed(() => props.color ?? ccToken("--cc-annotation-ink") ?? "#2a1d0e");
 </script>

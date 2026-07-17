@@ -1,11 +1,5 @@
 <template>
-  <svg
-    class="marauders-svg-defs"
-    width="0"
-    height="0"
-    aria-hidden="true"
-    focusable="false"
-  >
+  <svg class="marauders-svg-defs" width="0" height="0" aria-hidden="true" focusable="false">
     <defs>
       <!-- Gentle photo treatment: soften, lift saturation, flatten tones,
            introduce a subtle brush displacement, then warm toward parchment. -->
@@ -18,12 +12,7 @@
         color-interpolation-filters="sRGB"
       >
         <feGaussianBlur in="SourceGraphic" stdDeviation="0.35" result="paint-soft" />
-        <feColorMatrix
-          in="paint-soft"
-          type="saturate"
-          values="1.12"
-          result="paint-color"
-        />
+        <feColorMatrix in="paint-soft" type="saturate" values="1.12" result="paint-color" />
         <feComponentTransfer in="paint-color" result="paint-bands">
           <feFuncR type="discrete" tableValues="0 0.16 0.34 0.54 0.74 0.9 1" />
           <feFuncG type="discrete" tableValues="0 0.15 0.33 0.53 0.73 0.89 1" />

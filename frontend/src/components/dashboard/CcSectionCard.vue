@@ -7,10 +7,7 @@
       <v-spacer />
       <slot name="actions" />
     </v-card-title>
-    <div
-      v-if="subtitle"
-      class="text-body-2 text-medium-emphasis px-4 pb-2 pt-0"
-    >
+    <div v-if="subtitle" class="text-body-2 text-medium-emphasis px-4 pb-2 pt-0">
       {{ subtitle }}
     </div>
     <v-card-text>

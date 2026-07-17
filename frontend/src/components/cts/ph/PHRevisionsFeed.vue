@@ -48,7 +48,7 @@ export default {
     const loading = ref(false);
     const error = ref("");
 
-    async function fetch() {
+    async function fetchRevisions() {
       loading.value = true;
       error.value = "";
       try {
@@ -66,11 +66,18 @@ export default {
     }
 
     function kindIcon(kind) {
-      return kind === "auto" ? "mdi-robot-outline" : kind === "manual_merge" ? "mdi-merge" : "mdi-account-edit-outline";
+      return kind === "auto"
+        ? "mdi-robot-outline"
+        : kind === "manual_merge"
+          ? "mdi-merge"
+          : "mdi-account-edit-outline";
     }
 
-    onMounted(() => fetch());
-    watch(() => props.phId, () => fetch());
+    onMounted(() => fetchRevisions());
+    watch(
+      () => props.phId,
+      () => fetchRevisions(),
+    );
 
     return { revisions, loading, error, formatRelative, kindColor, kindIcon };
   },

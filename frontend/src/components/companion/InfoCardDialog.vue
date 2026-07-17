@@ -1,10 +1,5 @@
 <template>
-  <v-dialog
-    :model-value="visible"
-    max-width="520"
-    persistent
-    no-click-animation
-  >
+  <v-dialog :model-value="visible" max-width="520" persistent no-click-animation>
     <v-card class="info-card-dialog">
       <!-- Header: icon, title, countdown -->
       <v-card-item class="pb-0">
@@ -18,11 +13,7 @@
           <div class="ml-1">
             <!-- Calm countdown: neutral most of the way, gentle gold near the
                  end (DS: awareness, not alarm — no red). -->
-            <v-chip
-              :color="countdown <= 5 ? 'warning' : undefined"
-              size="small"
-              variant="tonal"
-            >
+            <v-chip :color="countdown <= 5 ? 'warning' : undefined" size="small" variant="tonal">
               <v-icon start size="13">mdi-timer-outline</v-icon>
               {{ countdown }}s
             </v-chip>
@@ -47,7 +38,10 @@
         </div>
 
         <!-- Layout: side_by_side -->
-        <div v-else-if="layoutId === 'side_by_side' && images.length > 0" class="side-by-side mb-4 mt-2">
+        <div
+          v-else-if="layoutId === 'side_by_side' && images.length > 0"
+          class="side-by-side mb-4 mt-2"
+        >
           <v-img
             :src="images[0].url"
             :width="images[0].width || undefined"
@@ -60,7 +54,10 @@
         </div>
 
         <!-- Layout: gallery_grid_2x2 -->
-        <div v-else-if="layoutId === 'gallery_grid_2x2' && images.length > 0" class="gallery-grid mb-4 mt-2">
+        <div
+          v-else-if="layoutId === 'gallery_grid_2x2' && images.length > 0"
+          class="gallery-grid mb-4 mt-2"
+        >
           <v-img
             v-for="img in images.slice(0, 4)"
             :key="img.slot_id"

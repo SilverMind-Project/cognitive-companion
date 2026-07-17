@@ -82,8 +82,14 @@ export default {
 </script>
 
 <style scoped>
-.ph-marker { cursor: pointer; }
-.ph-marker-label { pointer-events: none; }
+.ph-marker {
+  cursor: pointer;
+}
+.ph-marker-label {
+  pointer-events: none;
+}
 /* Inner dot ring reads the token so parchment mode can switch from white to ink. */
-.ph-marker-inner { stroke: var(--cc-marker-ring); }
+.ph-marker-inner {
+  stroke: var(--cc-marker-ring);
+}
 </style>

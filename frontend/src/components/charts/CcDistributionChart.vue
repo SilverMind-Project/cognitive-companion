@@ -58,9 +58,7 @@ const isEmpty = computed(() => !props.bins?.length);
 
 const chartOption = computed(() => {
   const th = chartTheme.value;
-  const labels = props.bins.map(
-    (b) => `${b.from}${props.unit ? " " + props.unit : ""}`
-  );
+  const labels = props.bins.map((b) => `${b.from}${props.unit ? " " + props.unit : ""}`);
   const counts = props.bins.map((b) => b.count);
 
   return {

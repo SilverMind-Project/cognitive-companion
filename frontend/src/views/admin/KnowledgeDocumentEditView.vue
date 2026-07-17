@@ -2,11 +2,7 @@
   <div>
     <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div class="d-flex align-center ga-2">
-        <v-btn
-          variant="text"
-          icon="mdi-arrow-left"
-          to="/admin/knowledge/documents"
-        />
+        <v-btn variant="text" icon="mdi-arrow-left" to="/admin/knowledge/documents" />
         <div>
           <h2 class="text-h4 font-weight-bold tracking-tight">
             {{ document?.title || "Edit Document" }}
@@ -42,19 +38,8 @@
       >
         Restore
       </v-btn>
-      <v-btn
-        color="error"
-        variant="text"
-        @click="confirmDelete"
-      >
-        Delete
-      </v-btn>
-      <v-btn
-        variant="text"
-        @click="reEmbed"
-      >
-        Re-embed
-      </v-btn>
+      <v-btn color="error" variant="text" @click="confirmDelete"> Delete </v-btn>
+      <v-btn variant="text" @click="reEmbed"> Re-embed </v-btn>
     </div>
 
     <v-card v-if="loading" class="pa-8 text-center">
@@ -71,7 +56,7 @@
               label="Title"
               variant="outlined"
               density="comfortable"
-              :rules="[r => !!r || 'Title is required']"
+              :rules="[(r) => !!r || 'Title is required']"
               class="mb-3"
             />
             <v-textarea
@@ -110,7 +95,9 @@
                 </v-card>
               </v-col>
             </v-row>
-            <v-card-text v-else class="text-medium-emphasis pa-0 pb-3">No images attached.</v-card-text>
+            <v-card-text v-else class="text-medium-emphasis pa-0 pb-3"
+              >No images attached.</v-card-text
+            >
             <v-file-input
               v-model="newImages"
               label="Add images"
@@ -146,9 +133,7 @@
             <div class="text-body-2 mb-2">
               <strong>Created at:</strong> {{ formatDateTime(document.created_at) }}
             </div>
-            <div class="text-body-2">
-              <strong>Chunks:</strong> {{ document.chunk_count ?? 0 }}
-            </div>
+            <div class="text-body-2"><strong>Chunks:</strong> {{ document.chunk_count ?? 0 }}</div>
           </v-card>
         </v-col>
       </v-row>
@@ -183,7 +168,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
@@ -193,7 +178,17 @@ import { formatDateTime } from "@/services/timezone.js";
 const route = useRoute();
 const router = useRouter();
 const { notify } = useNotify();
-const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();
+const {
+  confirmDialog,
+  confirmTitle,
+  confirmText,
+  confirmLabel,
+  cancelLabel,
+  confirmColor,
+  require: confirmRequire,
+  onConfirm,
+  onCancel,
+} = useConfirm();
 
 const document = ref(null);
 const loading = ref(true);

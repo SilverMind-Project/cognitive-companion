@@ -55,8 +55,7 @@ async function req(path, options = {}) {
 
 export const ctsIdentity = {
   /** Active household roster -- the authoritative correction targets. */
-  correctionTargets: () =>
-    req("/identity/correction-targets"),
+  correctionTargets: () => req("/identity/correction-targets"),
 
   /** Advisory observation-bounded segment proposal. */
   propose: ({ ph_id, observation_id = null, at = null } = {}) =>
@@ -81,9 +80,7 @@ export const ctsIdentity = {
     }),
 
   /** Projection-job status for a revision; polled until terminal. */
-  job: (revisionId) =>
-    req(`/identity/corrections/jobs/${encodeURIComponent(revisionId)}`, {
-    }),
+  job: (revisionId) => req(`/identity/corrections/jobs/${encodeURIComponent(revisionId)}`, {}),
 };
 
 /**
@@ -102,23 +99,19 @@ export const ctsReidReview = {
       if (v !== null && v !== undefined && v !== "") params.set(k, v);
     });
     const qs = params.toString();
-    return req(`/identity/reid-review/candidates${qs ? `?${qs}` : ""}`, {
-    });
+    return req(`/identity/reid-review/candidates${qs ? `?${qs}` : ""}`, {});
   },
 
   /** Candidate detail: provenance, review history, and server eligibility. */
   detail: (candidateId) =>
-    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}`, {
-    }),
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}`, {}),
 
   /** Review history for one candidate. */
   events: (candidateId) =>
-    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/events`, {
-    }),
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/events`, {}),
 
   /** Queue counts used by Keyframe/PH indicators. */
-  counts: () =>
-    req("/identity/reid-review/counts"),
+  counts: () => req("/identity/reid-review/counts"),
 
   /** Approve one candidate (individual only). 409 when stale/ineligible. */
   approve: (candidateId, { base_audit_version, note = null }) =>

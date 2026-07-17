@@ -1,13 +1,13 @@
 <template>
-  <div class="bbox-canvas-wrapper" ref="wrapper">
+  <div ref="wrapper" class="bbox-canvas-wrapper">
     <canvas
       ref="canvas"
       :width="canvasWidth"
       :height="canvasHeight"
+      style="border: 1px solid #ccc; cursor: crosshair; display: block; max-width: 100%"
       @mousedown="onMouseDown"
       @mousemove="onMouseMove"
       @mouseup="onMouseUp"
-      style="border: 1px solid #ccc; cursor: crosshair; display: block; max-width: 100%"
     />
   </div>
 </template>

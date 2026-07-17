@@ -1,10 +1,5 @@
 <template>
-  <v-dialog
-    :model-value="visible"
-    max-width="60vw"
-    persistent
-    no-click-animation
-  >
+  <v-dialog :model-value="visible" max-width="60vw" persistent no-click-animation>
     <div class="interactive-prompt-card">
       <!-- Icon -->
       <div class="prompt-icon-wrap">
@@ -70,10 +65,10 @@ function calculateDeadline() {
   const serverTime = new Date(props.serverTimestamp).getTime();
   const clientTime = Date.now();
   const skew = serverTime - clientTime;
-  
+
   // Deadline = server time + countdown seconds
-  timeoutDeadline = serverTime + (props.countdownSeconds * 1000);
-  
+  timeoutDeadline = serverTime + props.countdownSeconds * 1000;
+
   // Adjust for client clock
   return timeoutDeadline - skew;
 }
@@ -92,18 +87,18 @@ const countdownText = computed(() => {
 // Update countdown every second
 function updateCountdown() {
   if (!timeoutDeadline) return;
-  
+
   const now = Date.now();
   const remaining = Math.ceil((timeoutDeadline - now) / 1000);
-  
+
   remainingSeconds.value = Math.max(0, remaining);
-  
+
   if (remaining <= 0) {
     emit("timeout");
     stopCountdown();
     return;
   }
-  
+
   animationFrameId = requestAnimationFrame(updateCountdown);
 }
 
@@ -133,15 +128,19 @@ function handleEscalate() {
 }
 
 // Watch for visibility changes to start/stop countdown
-watch(() => props.visible, (newVal) => {
-  if (newVal) {
-    buttonsDisabled.value = false;
-    remainingSeconds.value = props.countdownSeconds;
-    startCountdown();
-  } else {
-    stopCountdown();
-  }
-}, { immediate: true });
+watch(
+  () => props.visible,
+  (newVal) => {
+    if (newVal) {
+      buttonsDisabled.value = false;
+      remainingSeconds.value = props.countdownSeconds;
+      startCountdown();
+    } else {
+      stopCountdown();
+    }
+  },
+  { immediate: true },
+);
 
 onUnmounted(() => {
   stopCountdown();
@@ -225,8 +224,9 @@ onUnmounted(() => {
   font-size: 22px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--cc-dur-fast) var(--cc-ease-standard),
-              transform var(--cc-dur-fast) var(--cc-ease-standard);
+  transition:
+    background var(--cc-dur-fast) var(--cc-ease-standard),
+    transform var(--cc-dur-fast) var(--cc-ease-standard);
 }
 
 .action-btn:disabled {
@@ -250,7 +250,7 @@ onUnmounted(() => {
 
 .action-btn--escalate {
   background: var(--terra-400);
-  color: #FFF8F3;
+  color: #fff8f3;
   border: 1.5px solid transparent;
   box-shadow: var(--cc-shadow-sm);
 }
@@ -260,6 +260,8 @@ onUnmounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .action-btn { transition: none; }
+  .action-btn {
+    transition: none;
+  }
 }
 </style>

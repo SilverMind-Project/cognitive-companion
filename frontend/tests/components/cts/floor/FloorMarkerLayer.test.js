@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import FloorMarkerLayer from "@/components/cts/floor/FloorMarkerLayer.vue";
 
@@ -40,7 +40,6 @@ describe("FloorMarkerLayer", () => {
   });
 
   it("emits phClick with the ph object when PHMarker fires click", async () => {
-    const ph = { ph_id: "click-me", state: "active" };
     const wrapper = mountLayer({ markers: [makeMarker("click-me")], phCount: 1 });
     await wrapper.find(".ph-marker-stub").trigger("click");
     const emitted = wrapper.emitted("phClick");

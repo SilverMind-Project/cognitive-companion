@@ -19,7 +19,9 @@ vi.mock("@/services/cts.js", () => ({
 }));
 
 vi.mock("@/composables/useNotify.js", () => ({
-  useNotify: () => ({ notify: Object.assign(vi.fn(), { success: notifySuccess, error: notifyError }) }),
+  useNotify: () => ({
+    notify: Object.assign(vi.fn(), { success: notifySuccess, error: notifyError }),
+  }),
 }));
 
 vi.mock("@/composables/useMaraudersMode.js", () => ({
@@ -44,8 +46,26 @@ vi.mock("@/composables/useConfirm.js", () => ({
 }));
 
 const rooms = [
-  { id: 1, name: "Bathroom", floor_polygon: [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4], [0.1, 0.4]] },
-  { id: 2, name: "Hallway", floor_polygon: [[0.5, 0.1], [0.9, 0.1], [0.9, 0.4], [0.5, 0.4]] },
+  {
+    id: 1,
+    name: "Bathroom",
+    floor_polygon: [
+      [0.1, 0.1],
+      [0.4, 0.1],
+      [0.4, 0.4],
+      [0.1, 0.4],
+    ],
+  },
+  {
+    id: 2,
+    name: "Hallway",
+    floor_polygon: [
+      [0.5, 0.1],
+      [0.9, 0.1],
+      [0.9, 0.4],
+      [0.5, 0.4],
+    ],
+  },
 ];
 
 const stubs = {
@@ -67,7 +87,10 @@ const stubs = {
   "v-list-item-subtitle": { template: "<span><slot /></span>" },
   "v-icon": { template: "<i />" },
   "v-dialog": { template: "<div><slot /></div>" },
-  MaraudersInkPolygon: { props: ["points", "canvasW", "canvasH", "seedKey", "label", "fill"], template: "<g data-testid='marauders-ink-polygon' />" },
+  MaraudersInkPolygon: {
+    props: ["points", "canvasW", "canvasH", "seedKey", "label", "fill"],
+    template: "<g data-testid='marauders-ink-polygon' />",
+  },
 };
 
 async function mountEditor(props = {}) {
@@ -150,7 +173,11 @@ describe("DoorZoneEditor", () => {
     expect(createTransitZone).toHaveBeenCalledWith({
       name: "Bathroom door",
       kind: "door",
-      polygon: [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]],
+      polygon: [
+        [0.1, 0.2],
+        [0.3, 0.2],
+        [0.3, 0.4],
+      ],
       inside_room_id: 1,
       outside_room_id: 2,
       direction_vec: [1, 0],
@@ -163,7 +190,11 @@ describe("DoorZoneEditor", () => {
       id: "zone-1",
       name: "Old door",
       kind: "threshold",
-      polygon: [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]],
+      polygon: [
+        [0.1, 0.2],
+        [0.3, 0.2],
+        [0.3, 0.4],
+      ],
       inside_room_id: 1,
       outside_room_id: 2,
       direction_vec: [1, 0],
@@ -175,13 +206,16 @@ describe("DoorZoneEditor", () => {
     await wrapper.vm.saveZone();
     await flushPromises();
 
-    expect(updateTransitZone).toHaveBeenCalledWith("zone-1", expect.objectContaining({
-      name: "Updated door",
-      kind: "threshold",
-      inside_room_id: 1,
-      outside_room_id: 2,
-      direction_vec: [1, 0],
-    }));
+    expect(updateTransitZone).toHaveBeenCalledWith(
+      "zone-1",
+      expect.objectContaining({
+        name: "Updated door",
+        kind: "threshold",
+        inside_room_id: 1,
+        outside_room_id: 2,
+        direction_vec: [1, 0],
+      }),
+    );
   });
 
   it("confirms before deleting a zone", async () => {
@@ -193,7 +227,7 @@ describe("DoorZoneEditor", () => {
 
     expect(showConfirm).toHaveBeenCalledWith(
       "Delete Door Zone",
-      'Delete "Bathroom door"? Transit detection for this doorway will stop.'
+      'Delete "Bathroom door"? Transit detection for this doorway will stop.',
     );
     expect(deleteTransitZone).toHaveBeenCalledWith("zone-1");
     expect(wrapper.emitted("deleted")).toHaveLength(1);
@@ -204,7 +238,11 @@ describe("DoorZoneEditor", () => {
     wrapper.vm.form.name = "Bathroom door";
     wrapper.vm.form.inside_room_id = 1;
     wrapper.vm.form.outside_room_id = 2;
-    wrapper.vm.polygon = [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]];
+    wrapper.vm.polygon = [
+      [0.1, 0.2],
+      [0.3, 0.2],
+      [0.3, 0.4],
+    ];
     wrapper.vm.directionStart = [0.2, 0.3];
     wrapper.vm.directionEnd = [0.4, 0.3];
 

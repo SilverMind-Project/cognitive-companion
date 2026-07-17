@@ -22,12 +22,12 @@ const props = defineProps({
 });
 
 const STATUS_META = {
-  present_room: { label: "In room",  color: "success",          icon: "mdi-map-marker" },
-  present_home: { label: "At home",  color: "info",             icon: "mdi-home" },
-  asleep:       { label: "Asleep",   color: "purple",           icon: "mdi-sleep" },
-  stale:        { label: "Stale",    color: "grey-darken-1",    icon: "mdi-clock-alert-outline" },
-  away:         { label: "Away",     color: "orange",           icon: "mdi-walk" },
-  unknown:      { label: "Unknown",  color: "grey",             icon: "mdi-help-circle" },
+  present_room: { label: "In room", color: "success", icon: "mdi-map-marker" },
+  present_home: { label: "At home", color: "info", icon: "mdi-home" },
+  asleep: { label: "Asleep", color: "purple", icon: "mdi-sleep" },
+  stale: { label: "Stale", color: "grey-darken-1", icon: "mdi-clock-alert-outline" },
+  away: { label: "Away", color: "orange", icon: "mdi-walk" },
+  unknown: { label: "Unknown", color: "grey", icon: "mdi-help-circle" },
 };
 
 const meta = computed(() => STATUS_META[props.status] || STATUS_META.unknown);

@@ -18,10 +18,18 @@ vi.mock("@/services/timezone", () => ({
   formatDateTime: (v) => v || "-",
   formatDateTimeShort: (v) => v || "",
 }));
-vi.mock("@/services/cts_ph", () => ({ ctsPh: { observations: vi.fn().mockResolvedValue({ observations: [] }) } }));
-vi.mock("@/components/cts/BlurToggle.vue", () => ({ default: { template: "<div class='blur-toggle' />" } }));
+vi.mock("@/services/cts_ph", () => ({
+  ctsPh: { observations: vi.fn().mockResolvedValue({ observations: [] }) },
+}));
+vi.mock("@/components/cts/BlurToggle.vue", () => ({
+  default: { template: "<div class='blur-toggle' />" },
+}));
 vi.mock("@/components/cts/identity/IdentityBboxOverlay.vue", () => ({
-  default: { name: "IdentityBboxOverlay", props: ["imageUrl", "bboxes", "selectable"], template: "<div class='ov' />" },
+  default: {
+    name: "IdentityBboxOverlay",
+    props: ["imageUrl", "bboxes", "selectable"],
+    template: "<div class='ov' />",
+  },
 }));
 
 const { store } = vi.hoisted(() => ({ store: {} }));
@@ -54,7 +62,13 @@ function makeStore(overrides = {}) {
       pageCount: computed(() => 1),
       listLoading: ref(false),
       listError: ref(""),
-      filters: ref({ state: "pending_review", identity_id: null, camera_id: null, model_version: null, source_type: null }),
+      filters: ref({
+        state: "pending_review",
+        identity_id: null,
+        camera_id: null,
+        model_version: null,
+        source_type: null,
+      }),
       selected: ref(new Set()),
       selectedIds: computed(() => []),
       detail,
@@ -92,14 +106,23 @@ const stubs = {
   "v-alert": { template: "<div class='v-alert'><slot /></div>" },
   "v-card": { template: "<div><slot /></div>" },
   "v-select": { template: "<select />", props: ["modelValue", "items"] },
-  "v-autocomplete": { template: "<select class='target-select' />", props: ["modelValue", "items", "loading"] },
+  "v-autocomplete": {
+    template: "<select class='target-select' />",
+    props: ["modelValue", "items", "loading"],
+  },
   "v-text-field": { template: "<input />", props: ["modelValue"] },
   "v-textarea": { template: "<textarea />", props: ["modelValue"] },
   "v-table": { template: "<table><slot /></table>" },
-  "v-checkbox": { template: "<input type='checkbox' :disabled='disabled' />", props: ["modelValue", "disabled"] },
+  "v-checkbox": {
+    template: "<input type='checkbox' :disabled='disabled' />",
+    props: ["modelValue", "disabled"],
+  },
   "v-progress-circular": { template: "<div />" },
   "v-pagination": { template: "<div class='pager' />", props: ["modelValue", "length"] },
-  "v-navigation-drawer": { template: "<div v-if='modelValue'><slot /></div>", props: ["modelValue"] },
+  "v-navigation-drawer": {
+    template: "<div v-if='modelValue'><slot /></div>",
+    props: ["modelValue"],
+  },
   "v-divider": { template: "<hr />" },
   "v-timeline": { template: "<div><slot /></div>" },
   "v-timeline-item": { template: "<div><slot /></div>" },
@@ -127,7 +150,9 @@ describe("CTSReIDReviewView", () => {
   });
 
   it("has no bulk-approve control (batch is reject-only)", async () => {
-    store.value = makeStore({ candidates: [{ candidate_id: "c1", state: "pending_review", audit_version: 1 }] });
+    store.value = makeStore({
+      candidates: [{ candidate_id: "c1", state: "pending_review", audit_version: 1 }],
+    });
     const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
     await flushPromises();
     expect(wrapper.text().toLowerCase()).not.toContain("approve selected");
@@ -136,9 +161,18 @@ describe("CTSReIDReviewView", () => {
   it("disables Approve when server eligibility is false", async () => {
     store.value = makeStore({
       detail: {
-        candidate: { candidate_id: "c1", state: "pending_review", audit_version: 1, model_version: "v0" },
+        candidate: {
+          candidate_id: "c1",
+          state: "pending_review",
+          audit_version: 1,
+          model_version: "v0",
+        },
         events: [],
-        eligibility: { eligible: false, model_compatible: false, reasons: ["incompatible_model:v0"] },
+        eligibility: {
+          eligible: false,
+          model_compatible: false,
+          reasons: ["incompatible_model:v0"],
+        },
       },
     });
     const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
@@ -152,7 +186,16 @@ describe("CTSReIDReviewView", () => {
     store.value = makeStore({
       detail: {
         candidate: { candidate_id: "c1", state: "rejected", audit_version: 2, crop_url: null },
-        events: [{ event_id: "e1", previous_state: "pending_review", new_state: "rejected", actor: "a", event_time: "t", audit_version: 2 }],
+        events: [
+          {
+            event_id: "e1",
+            previous_state: "pending_review",
+            new_state: "rejected",
+            actor: "a",
+            event_time: "t",
+            audit_version: 2,
+          },
+        ],
         eligibility: { eligible: false, model_compatible: true, reasons: [] },
       },
     });
@@ -165,7 +208,9 @@ describe("CTSReIDReviewView", () => {
   it("renders a forbidden message when the queue load is forbidden", async () => {
     const s = makeStore();
     const { CorrectionError } = await import("@/services/cts_identity");
-    s.actions.invalidate = vi.fn().mockRejectedValue(new CorrectionError("forbidden", { status: 403 }));
+    s.actions.invalidate = vi
+      .fn()
+      .mockRejectedValue(new CorrectionError("forbidden", { status: 403 }));
     store.value = s;
     const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
     await flushPromises();

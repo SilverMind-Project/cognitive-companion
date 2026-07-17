@@ -51,20 +51,21 @@
             :loading="queriesLoading"
             :items-per-page="15"
           >
-          <template #[`item.query_text`]="{ item }">
-            {{ truncate(item.query_text, 80) }}
-          </template>
+            <template #[`item.query_text`]="{ item }">
+              {{ truncate(item.query_text, 80) }}
+            </template>
 
-          <template #no-data>
-            <div class="pa-6 text-center">
-              <v-card flat>
-                <v-card-text class="text-grey text-h6">No data yet</v-card-text>
-                <v-card-text class="text-grey">
-                  Knowledge queries will appear here once seniors begin interacting with the system (Phase 2-3).
-                </v-card-text>
-              </v-card>
-            </div>
-          </template>
+            <template #no-data>
+              <div class="pa-6 text-center">
+                <v-card flat>
+                  <v-card-text class="text-grey text-h6">No data yet</v-card-text>
+                  <v-card-text class="text-grey">
+                    Knowledge queries will appear here once seniors begin interacting with the
+                    system (Phase 2-3).
+                  </v-card-text>
+                </v-card>
+              </div>
+            </template>
           </v-data-table>
         </v-card>
       </v-window-item>
@@ -107,51 +108,46 @@
             item-value="id"
             @click:row="toggleSessionExpand"
           >
-          <template #expanded-row="{ item }">
-            <td :colspan="sessionHeaders.length" class="pa-4">
-              <v-progress-circular
-                v-if="loadingSessionDetail === item.id"
-                indeterminate
-                size="20"
-              />
-              <div v-else-if="item._details">
-                <div v-for="resp in item._details.responses || []" :key="resp.id" class="mb-3">
-                  <v-card variant="outlined" class="pa-2">
-                    <div><strong>Q:</strong> {{ resp.question_text }}</div>
-                    <div><strong>A:</strong> {{ resp.answer }}</div>
-                    <div>
-                      <v-chip
-                        :color="resp.is_correct ? 'green' : 'red'"
-                        size="x-small"
-                      >
-                        {{ resp.is_correct ? "Correct" : "Incorrect" }}
-                      </v-chip>
-                      <span class="ml-2 text-caption text-grey">
-                        {{ resp.timing_ms ? resp.timing_ms + "ms" : "" }}
-                      </span>
-                    </div>
-                  </v-card>
+            <template #expanded-row="{ item }">
+              <td :colspan="sessionHeaders.length" class="pa-4">
+                <v-progress-circular
+                  v-if="loadingSessionDetail === item.id"
+                  indeterminate
+                  size="20"
+                />
+                <div v-else-if="item._details">
+                  <div v-for="resp in item._details.responses || []" :key="resp.id" class="mb-3">
+                    <v-card variant="outlined" class="pa-2">
+                      <div><strong>Q:</strong> {{ resp.question_text }}</div>
+                      <div><strong>A:</strong> {{ resp.answer }}</div>
+                      <div>
+                        <v-chip :color="resp.is_correct ? 'green' : 'red'" size="x-small">
+                          {{ resp.is_correct ? "Correct" : "Incorrect" }}
+                        </v-chip>
+                        <span class="ml-2 text-caption text-grey">
+                          {{ resp.timing_ms ? resp.timing_ms + "ms" : "" }}
+                        </span>
+                      </div>
+                    </v-card>
+                  </div>
+                  <div v-if="!item._details.responses?.length" class="text-grey">
+                    No responses recorded.
+                  </div>
                 </div>
-                <div v-if="!item._details.responses?.length" class="text-grey">
-                  No responses recorded.
-                </div>
-              </div>
-              <div v-else class="text-grey">
-                No detail loaded.
-              </div>
-            </td>
-          </template>
+                <div v-else class="text-grey">No detail loaded.</div>
+              </td>
+            </template>
 
-          <template #no-data>
-            <div class="pa-6 text-center">
-              <v-card flat>
-                <v-card-text class="text-grey text-h6">No data yet</v-card-text>
-                <v-card-text class="text-grey">
-                  Quiz sessions will appear here once seniors begin taking quizzes (Phase 2-3).
-                </v-card-text>
-              </v-card>
-            </div>
-          </template>
+            <template #no-data>
+              <div class="pa-6 text-center">
+                <v-card flat>
+                  <v-card-text class="text-grey text-h6">No data yet</v-card-text>
+                  <v-card-text class="text-grey">
+                    Quiz sessions will appear here once seniors begin taking quizzes (Phase 2-3).
+                  </v-card-text>
+                </v-card>
+              </div>
+            </template>
           </v-data-table>
         </v-card>
       </v-window-item>
@@ -191,16 +187,17 @@
             :loading="deliveriesLoading"
             :items-per-page="15"
           >
-          <template #no-data>
-            <div class="pa-6 text-center">
-              <v-card flat>
-                <v-card-text class="text-grey text-h6">No data yet</v-card-text>
-                <v-card-text class="text-grey">
-                  Info card deliveries will appear here once the delivery engine is active (Phase 2-3).
-                </v-card-text>
-              </v-card>
-            </div>
-          </template>
+            <template #no-data>
+              <div class="pa-6 text-center">
+                <v-card flat>
+                  <v-card-text class="text-grey text-h6">No data yet</v-card-text>
+                  <v-card-text class="text-grey">
+                    Info card deliveries will appear here once the delivery engine is active (Phase
+                    2-3).
+                  </v-card-text>
+                </v-card>
+              </div>
+            </template>
           </v-data-table>
         </v-card>
       </v-window-item>
@@ -212,7 +209,7 @@
 import { ref, reactive, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
-import { formatDateTime, DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
+import { DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
 
 const { notify } = useNotify();
 

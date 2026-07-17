@@ -146,7 +146,16 @@ describe("MaraudersFloorMarkers — rendering", () => {
     const ph = { ph_id: "ph1" };
     const markers = [{ ph, x: 100, y: 100, color: "#f00" }];
     const footsteps = [
-      { phId: "ph1", x: 80, y: 90, angleDeg: 45, foot: "L", opacity: 0.42, seed: 99, color: "#f00" },
+      {
+        phId: "ph1",
+        x: 80,
+        y: 90,
+        angleDeg: 45,
+        foot: "L",
+        opacity: 0.42,
+        seed: 99,
+        color: "#f00",
+      },
     ];
     mockComputeFootsteps.mockReturnValue(footsteps);
 
@@ -184,7 +193,7 @@ describe("MaraudersFloorMarkers — reduced motion", () => {
       expect.anything(),
       expect.any(Number),
       expect.objectContaining({ fpMpp: 0.1 }),
-      expect.objectContaining({ reducedMotion: true })
+      expect.objectContaining({ reducedMotion: true }),
     );
   });
 });

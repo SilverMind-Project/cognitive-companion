@@ -19,7 +19,7 @@ const mockWs = { onopen: null, onerror: null, onclose: null, close: vi.fn() };
 
 vi.mock("@/services/api.js", () => ({
   api: {
-    getPipelineRuns:   (...a) => mockGetPipelineRuns(...a),
+    getPipelineRuns: (...a) => mockGetPipelineRuns(...a),
     getIngestActivity: (...a) => mockGetIngestActivity(...a),
     getWorkflowDetail: (...a) => mockGetWorkflowDetail(...a),
   },
@@ -46,11 +46,11 @@ vi.mock("@/components/process/CcLiveActivityFeed.vue", () => ({
 }));
 
 vi.mock("@/components/process/CcDagChart.vue", () => ({
-  default: { template: '<div />', props: ["nodes", "edges", "activeNodeId", "loading"] },
+  default: { template: "<div />", props: ["nodes", "edges", "activeNodeId", "loading"] },
 }));
 
 vi.mock("@/components/process/CcStatusTimeline.vue", () => ({
-  default: { template: '<div />', props: ["lanes", "events", "loading"] },
+  default: { template: "<div />", props: ["lanes", "events", "loading"] },
 }));
 
 vi.mock("@/components/dashboard/CcMetricTile.vue", () => ({
@@ -62,11 +62,11 @@ vi.mock("@/components/dashboard/CcMetricTile.vue", () => ({
 }));
 
 vi.mock("@/components/pipeline/ExecutionInspector.vue", () => ({
-  default: { template: '<div />', props: ["executionId", "source", "ruleId", "liveRun"] },
+  default: { template: "<div />", props: ["executionId", "source", "ruleId", "liveRun"] },
 }));
 
 vi.mock("vue-router", () => ({
-  useRoute:  () => ({ query: {}, params: {} }),
+  useRoute: () => ({ query: {}, params: {} }),
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
@@ -90,26 +90,32 @@ const INGEST_ACTIVITY = [
 ];
 
 const stubs = {
-  "v-row":               { template: '<div><slot /></div>' },
-  "v-col":               { template: '<div><slot /></div>', props: ["cols", "sm", "md"] },
-  "v-card":              { template: '<div><slot /></div>' },
-  "v-card-title":        { template: '<div><slot /></div>' },
-  "v-card-text":         { template: '<div><slot /></div>' },
-  "v-alert":             { template: '<div />', props: ["type", "variant", "density"] },
-  "v-btn":               { template: '<button />', props: ["size", "variant", "color", "to", "prepend-icon", "icon"] },
-  "v-chip":              { template: '<span />', props: ["color", "size", "variant", "prepend-icon"] },
-  "v-spacer":            { template: '<div />' },
-  "v-tabs":              { template: '<div><slot /></div>', props: ["modelValue", "color"] },
-  "v-tab":               { template: '<button />', props: ["value"] },
-  "v-window":            { template: '<div><slot /></div>', props: ["modelValue"] },
-  "v-window-item":       { template: '<div><slot /></div>', props: ["value"] },
-  "v-list":              { template: '<ul><slot /></ul>', props: ["density"] },
-  "v-list-item":         { template: '<li />', props: ["title", "subtitle", "active"] },
-  "v-divider":           { template: '<hr />' },
-  "v-icon":              { template: '<i />', props: ["color", "size", "class"] },
-  "v-progress-circular": { template: '<div />', props: ["indeterminate", "size"] },
-  "v-navigation-drawer": { template: '<div />', props: ["modelValue", "location", "temporary", "width", "class"] },
-  "router-link":         { template: '<a />' },
+  "v-row": { template: "<div><slot /></div>" },
+  "v-col": { template: "<div><slot /></div>", props: ["cols", "sm", "md"] },
+  "v-card": { template: "<div><slot /></div>" },
+  "v-card-title": { template: "<div><slot /></div>" },
+  "v-card-text": { template: "<div><slot /></div>" },
+  "v-alert": { template: "<div />", props: ["type", "variant", "density"] },
+  "v-btn": {
+    template: "<button />",
+    props: ["size", "variant", "color", "to", "prepend-icon", "icon"],
+  },
+  "v-chip": { template: "<span />", props: ["color", "size", "variant", "prepend-icon"] },
+  "v-spacer": { template: "<div />" },
+  "v-tabs": { template: "<div><slot /></div>", props: ["modelValue", "color"] },
+  "v-tab": { template: "<button />", props: ["value"] },
+  "v-window": { template: "<div><slot /></div>", props: ["modelValue"] },
+  "v-window-item": { template: "<div><slot /></div>", props: ["value"] },
+  "v-list": { template: "<ul><slot /></ul>", props: ["density"] },
+  "v-list-item": { template: "<li />", props: ["title", "subtitle", "active"] },
+  "v-divider": { template: "<hr />" },
+  "v-icon": { template: "<i />", props: ["color", "size", "class"] },
+  "v-progress-circular": { template: "<div />", props: ["indeterminate", "size"] },
+  "v-navigation-drawer": {
+    template: "<div />",
+    props: ["modelValue", "location", "temporary", "width", "class"],
+  },
+  "router-link": { template: "<a />" },
 };
 
 function mountView() {

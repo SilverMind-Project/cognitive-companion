@@ -3,7 +3,9 @@
     <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Rules</h2>
-        <div class="text-body-2 text-medium-emphasis mt-1">Triggers, contexts, and pipelines that drive the system.</div>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          Triggers, contexts, and pipelines that drive the system.
+        </div>
       </div>
       <v-spacer />
       <div class="d-flex ga-2 mr-2">
@@ -14,20 +16,19 @@
           :variant="executionPeriod === opt.value ? 'flat' : 'outlined'"
           :color="executionPeriod === opt.value ? 'primary' : undefined"
           @click="executionPeriod = opt.value"
-        >{{ opt.label }}</v-btn>
+          >{{ opt.label }}</v-btn
+        >
       </div>
-      <v-btn variant="text" prepend-icon="mdi-import" @click="showImportDialog = true">Import</v-btn>
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="createDialog = true">New Rule</v-btn>
+      <v-btn variant="text" prepend-icon="mdi-import" @click="showImportDialog = true"
+        >Import</v-btn
+      >
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="createDialog = true"
+        >New Rule</v-btn
+      >
     </div>
 
     <v-card class="glass-card">
-      <v-data-table
-        :headers="headers"
-        :items="rules"
-        :loading="loading"
-        item-value="id"
-        hover
-      >
+      <v-data-table :headers="headers" :items="rules" :loading="loading" item-value="id" hover>
         <template #item.enabled="{ item }">
           <v-switch
             :model-value="item.enabled"
@@ -40,12 +41,9 @@
         </template>
         <template #item.trigger_types="{ item }">
           <div class="d-flex flex-wrap ga-1">
-            <v-chip
-              v-for="t in item.trigger_types"
-              :key="t"
-              size="x-small"
-              variant="outlined"
-            >{{ t }}</v-chip>
+            <v-chip v-for="t in item.trigger_types" :key="t" size="x-small" variant="outlined">{{
+              t
+            }}</v-chip>
           </div>
         </template>
         <template #item.execution_counts="{ item }">
@@ -85,7 +83,9 @@
           <div class="pa-6 text-center">
             <v-card flat>
               <v-card-text class="text-grey text-h6">No rules yet</v-card-text>
-              <v-card-text class="text-grey">Create automation rules to detect events and trigger actions.</v-card-text>
+              <v-card-text class="text-grey"
+                >Create automation rules to detect events and trigger actions.</v-card-text
+              >
             </v-card>
           </div>
         </template>
@@ -103,7 +103,12 @@
         />
         <v-card-text>
           <v-text-field v-model="createForm.name" label="Name" variant="outlined" class="mb-3" />
-          <v-textarea v-model="createForm.description" label="Description" variant="outlined" rows="2" />
+          <v-textarea
+            v-model="createForm.description"
+            label="Description"
+            variant="outlined"
+            rows="2"
+          />
         </v-card-text>
         <DialogFooter
           hint="Rules define automated workflows triggered by sensors, schedules, or events."
@@ -113,7 +118,6 @@
         />
       </v-card>
     </v-dialog>
-
 
     <ImportRuleDialog v-model="showImportDialog" @imported="onRuleImported" />
 
@@ -153,7 +157,7 @@ const showImportDialog = ref(false);
 const executionPeriod = ref("last_1h");
 const periodOptions = [
   { value: "last_15m", label: "15m" },
-  { value: "last_1h",  label: "1h"  },
+  { value: "last_1h", label: "1h" },
   { value: "last_24h", label: "24h" },
   { value: "last_30d", label: "30d" },
 ];
@@ -206,7 +210,7 @@ async function toggleEnabled(item) {
 }
 
 async function deleteRule(id) {
-  if (!await showConfirm("Delete Rule", "Delete this rule?")) return;
+  if (!(await showConfirm("Delete Rule", "Delete this rule?"))) return;
   try {
     await api.deleteRule(id);
     await loadRules();

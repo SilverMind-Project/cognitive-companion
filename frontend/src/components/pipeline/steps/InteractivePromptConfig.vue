@@ -11,7 +11,9 @@
     :rows="3"
     hint="Message shown in the PWA popup dialog. Type {{ to autocomplete pipeline variables."
     class="mb-4"
-    @update:model-value="emit('update:modelValue', { ...modelValue, popup_message_template: $event })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, popup_message_template: $event })
+    "
   />
 
   <v-row>
@@ -57,7 +59,9 @@
     :rows="3"
     hint="Conversational prompt for Gemini Live voice channel. When set, the microphone auto-enables so the user can reply. Type {{ to autocomplete."
     class="mb-4"
-    @update:model-value="emit('update:modelValue', { ...modelValue, voice_prompt_template: $event })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, voice_prompt_template: $event })
+    "
   />
 
   <v-divider class="mb-4" />
@@ -69,7 +73,9 @@
         label="Escalate Button Text"
         hint="Default: 'I need help'"
         persistent-hint
-        @update:model-value="emit('update:modelValue', { ...modelValue, escalate_button_text: $event })"
+        @update:model-value="
+          emit('update:modelValue', { ...modelValue, escalate_button_text: $event })
+        "
       />
     </v-col>
     <v-col cols="6">
@@ -78,7 +84,9 @@
         label="Dismiss Button Text"
         hint="Default: 'I'm okay'"
         persistent-hint
-        @update:model-value="emit('update:modelValue', { ...modelValue, dismiss_button_text: $event })"
+        @update:model-value="
+          emit('update:modelValue', { ...modelValue, dismiss_button_text: $event })
+        "
       />
     </v-col>
   </v-row>
@@ -86,7 +94,9 @@
   <v-slider
     :model-value="modelValue.countdown_seconds"
     label="Countdown Duration (seconds)"
-    :min="5" :max="300" :step="5"
+    :min="5"
+    :max="300"
+    :step="5"
     thumb-label="always"
     color="primary"
     class="mb-4"

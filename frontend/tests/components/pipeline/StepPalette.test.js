@@ -10,9 +10,30 @@ vi.mock("@/services/api.js", () => ({ api: mocks.api }));
 import StepPalette from "@/components/pipeline/StepPalette.vue";
 
 const STEP_TYPES = [
-  { type_name: "scene_analysis", display_name: "Scene Analysis", category: "perception", icon: "i", gate_safe: true, gate_only: false },
-  { type_name: "notification", display_name: "Notification", category: "action", icon: "i", gate_safe: false, gate_only: false },
-  { type_name: "gate_verdict", display_name: "Gate Verdict", category: "flow", icon: "i", gate_safe: true, gate_only: true },
+  {
+    type_name: "scene_analysis",
+    display_name: "Scene Analysis",
+    category: "perception",
+    icon: "i",
+    gate_safe: true,
+    gate_only: false,
+  },
+  {
+    type_name: "notification",
+    display_name: "Notification",
+    category: "action",
+    icon: "i",
+    gate_safe: false,
+    gate_only: false,
+  },
+  {
+    type_name: "gate_verdict",
+    display_name: "Gate Verdict",
+    category: "flow",
+    icon: "i",
+    gate_safe: true,
+    gate_only: true,
+  },
 ];
 
 // Render-through stubs so every step card (across all categories) is in the DOM.

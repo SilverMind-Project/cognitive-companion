@@ -11,7 +11,7 @@ import { cts } from "@/services/cts.js";
 export function useGaitTrend() {
   const state = reactive({
     personId: null,
-    envelope: null,   // GaitTrendEnvelope | null
+    envelope: null, // GaitTrendEnvelope | null
     loading: false,
     error: null,
   });

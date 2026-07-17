@@ -13,7 +13,6 @@
 </template>
 
 <script>
-export const stepDefaults = {};
 export const stepTabs = [];
 </script>
 
@@ -32,7 +31,7 @@ watch(
     jsonText.value = JSON.stringify(val, null, 2);
     jsonError.value = "";
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 function onJsonChange(text) {

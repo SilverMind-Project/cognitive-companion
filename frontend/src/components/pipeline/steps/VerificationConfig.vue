@@ -13,15 +13,20 @@
     <v-checkbox
       :model-value="modelValue.re_notify_if_failed"
       label="Re-notify if verification fails"
-      hide-details class="mb-3"
-      @update:model-value="emit('update:modelValue', { ...modelValue, re_notify_if_failed: $event })"
+      hide-details
+      class="mb-3"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, re_notify_if_failed: $event })
+      "
     />
     <v-text-field
       :model-value="modelValue.re_notify_delay_minutes"
       label="Re-notify Delay (minutes)"
       type="number"
       :min="0"
-      @update:model-value="emit('update:modelValue', { ...modelValue, re_notify_delay_minutes: Number($event) || 0 })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, re_notify_delay_minutes: Number($event) || 0 })
+      "
     />
   </div>
 
@@ -29,16 +34,32 @@
     <div class="d-flex align-center mb-3">
       <div class="text-subtitle-2">Activity Conditions</div>
       <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-plus" size="small" @click="addCondition">Add Condition</v-btn>
+      <v-btn variant="tonal" prepend-icon="mdi-plus" size="small" @click="addCondition"
+        >Add Condition</v-btn
+      >
     </div>
-    <div v-if="!modelValue.conditions || !modelValue.conditions.length" class="text-center text-medium-emphasis py-4">
+    <div
+      v-if="!modelValue.conditions || !modelValue.conditions.length"
+      class="text-center text-medium-emphasis py-4"
+    >
       No conditions yet.
     </div>
-    <v-card v-for="(cond, idx) in (modelValue.conditions || [])" :key="idx" variant="outlined" class="mb-3 pa-4">
+    <v-card
+      v-for="(cond, idx) in modelValue.conditions || []"
+      :key="idx"
+      variant="outlined"
+      class="mb-3 pa-4"
+    >
       <div class="d-flex align-center mb-3">
         <span class="text-caption font-weight-bold">Condition {{ idx + 1 }}</span>
         <v-spacer />
-        <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="removeCondition(idx)" />
+        <v-btn
+          icon="mdi-delete"
+          size="x-small"
+          variant="text"
+          color="error"
+          @click="removeCondition(idx)"
+        />
       </div>
       <v-row>
         <v-col cols="12" md="6">
@@ -96,7 +117,8 @@
             <v-text-field
               :model-value="cond._window_start_time"
               label="Start Time (today)"
-              density="compact" type="time"
+              density="compact"
+              type="time"
               @update:model-value="updateCondition(idx, '_window_start_time', $event)"
             />
           </v-col>
@@ -104,7 +126,8 @@
             <v-text-field
               :model-value="cond._window_end_time"
               label="End Time (today)"
-              density="compact" type="time"
+              density="compact"
+              type="time"
               @update:model-value="updateCondition(idx, '_window_end_time', $event)"
             />
           </v-col>
@@ -113,13 +136,17 @@
       <v-checkbox
         :model-value="cond.completed"
         label="Expect completed (uncheck to verify NOT done)"
-        density="compact" hide-details class="mt-2"
+        density="compact"
+        hide-details
+        class="mt-2"
         @update:model-value="updateCondition(idx, 'completed', $event)"
       />
       <v-slider
         :model-value="cond.min_confidence"
         label="Min Confidence"
-        :min="0" :max="1" :step="0.05"
+        :min="0"
+        :max="1"
+        :step="0.05"
         thumb-label="always"
         color="primary"
         class="mt-2"
@@ -154,7 +181,7 @@ export function beforeSave(cfg, { localHHMMToUTCISO }) {
           delete rest.window_end;
         }
         return rest;
-      }
+      },
     );
   }
   return config;
@@ -176,9 +203,18 @@ export function chips(cfg, { chip }) {
   const out = [];
   if (cfg.conditions?.length) {
     const mode = cfg.match_mode || "all";
-    out.push(chip(`${cfg.conditions.length} condition${cfg.conditions.length > 1 ? "s" : ""} (${mode})`, "mdi-check-all", undefined));
+    out.push(
+      chip(
+        `${cfg.conditions.length} condition${cfg.conditions.length > 1 ? "s" : ""} (${mode})`,
+        "mdi-check-all",
+        undefined,
+      ),
+    );
   }
-  if (cfg.re_notify_if_failed) out.push(chip(`re-notify ${cfg.re_notify_delay_minutes || 5}min`, "mdi-bell-ring-outline", "orange"));
+  if (cfg.re_notify_if_failed)
+    out.push(
+      chip(`re-notify ${cfg.re_notify_delay_minutes || 5}min`, "mdi-bell-ring-outline", "orange"),
+    );
   return out;
 }
 </script>
@@ -219,7 +255,7 @@ function removeCondition(idx) {
 
 function updateCondition(idx, key, value) {
   const conditions = (props.modelValue.conditions || []).map((c, i) =>
-    i === idx ? { ...c, [key]: value } : c
+    i === idx ? { ...c, [key]: value } : c,
   );
   emit("update:modelValue", { ...props.modelValue, conditions });
 }

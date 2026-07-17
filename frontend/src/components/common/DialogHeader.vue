@@ -9,12 +9,7 @@
         <div class="text-h6 font-weight-bold tracking-tight">{{ title }}</div>
       </div>
       <slot name="actions" />
-      <v-btn
-        v-if="closable"
-        icon="mdi-close"
-        variant="text"
-        @click="$emit('close')"
-      />
+      <v-btn v-if="closable" icon="mdi-close" variant="text" @click="$emit('close')" />
     </div>
     <v-divider />
   </div>

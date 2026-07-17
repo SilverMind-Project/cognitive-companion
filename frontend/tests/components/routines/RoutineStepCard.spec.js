@@ -8,7 +8,7 @@ vi.mock("@/components/routines/CompletionGateEditor.vue", () => ({
     name: "CompletionGateEditor",
     template: '<div class="completion-gate-editor-stub"></div>',
     props: ["modelValue", "roomId"],
-  }
+  },
 }));
 
 vi.mock("@/components/routines/ZonePicker.vue", () => ({
@@ -16,7 +16,7 @@ vi.mock("@/components/routines/ZonePicker.vue", () => ({
     name: "ZonePicker",
     template: '<div class="zone-picker-stub"></div>',
     props: ["modelValue", "roomId", "label"],
-  }
+  },
 }));
 
 vi.mock("@/components/routines/CameraPicker.vue", () => ({
@@ -24,7 +24,7 @@ vi.mock("@/components/routines/CameraPicker.vue", () => ({
     name: "CameraPicker",
     template: '<div class="camera-picker-stub"></div>',
     props: ["modelValue", "label"],
-  }
+  },
 }));
 
 const AppDialogStub = {
@@ -54,7 +54,8 @@ const vBtn = {
 
 const vTextarea = {
   name: "v-textarea",
-  template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"></textarea>',
+  template:
+    '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"></textarea>',
   props: ["modelValue", "label"],
 };
 
@@ -99,8 +100,8 @@ function mountStepCard(props) {
         "v-expansion-panel": vExpansionPanel,
         "v-expansion-panel-title": vExpansionPanelTitle,
         "v-expansion-panel-text": vExpansionPanelText,
-      }
-    }
+      },
+    },
   });
 }
 

@@ -25,7 +25,10 @@ vi.mock("@/composables/useNotify.js", () => ({
   useNotify: () => ({ notify: mocks.notify }),
 }));
 
-import { POSITION_SAVE_DEBOUNCE_MS, useCanvasPipeline } from "../../src/composables/useCanvasPipeline.js";
+import {
+  POSITION_SAVE_DEBOUNCE_MS,
+  useCanvasPipeline,
+} from "../../src/composables/useCanvasPipeline.js";
 
 const STEP = {
   id: 10,
@@ -253,7 +256,9 @@ describe("useCanvasPipeline", () => {
     });
 
     expect(mocks.api.replaceRuleEdges).not.toHaveBeenCalled();
-    expect(mocks.notify.error).toHaveBeenCalledWith('Output port "maybe" is not valid for this step.');
+    expect(mocks.notify.error).toHaveBeenCalledWith(
+      'Output port "maybe" is not valid for this step.',
+    );
   });
 
   it("addEdge rejects non-main target handles without API call", async () => {
@@ -268,7 +273,9 @@ describe("useCanvasPipeline", () => {
     });
 
     expect(mocks.api.replaceRuleEdges).not.toHaveBeenCalled();
-    expect(mocks.notify.error).toHaveBeenCalledWith("Pipeline steps only accept connections on the main input.");
+    expect(mocks.notify.error).toHaveBeenCalledWith(
+      "Pipeline steps only accept connections on the main input.",
+    );
   });
 
   it("removeEdge calls replaceRuleEdges without the removed edge", async () => {

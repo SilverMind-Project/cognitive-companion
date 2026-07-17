@@ -36,7 +36,11 @@
               size="x-small"
               variant="tonal"
               prepend-icon="mdi-camera-off"
-              :title="item.drift_reason ? `Drift: ${item.drift_reason}` : 'Camera drift detected — recalibration needed'"
+              :title="
+                item.drift_reason
+                  ? `Drift: ${item.drift_reason}`
+                  : 'Camera drift detected — recalibration needed'
+              "
             >
               Drift
             </v-chip>
@@ -49,9 +53,27 @@
           <span v-else class="text-medium-emphasis">0</span>
         </template>
         <template #item.actions="{ item }">
-          <v-btn icon="mdi-image-outline" size="small" variant="text" title="Snapshot" @click="viewSnapshot(item.id)" />
-          <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
-          <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="confirmDelete(item)" />
+          <v-btn
+            icon="mdi-image-outline"
+            size="small"
+            variant="text"
+            title="Snapshot"
+            @click="viewSnapshot(item.id)"
+          />
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            variant="text"
+            color="primary"
+            @click="openEdit(item)"
+          />
+          <v-btn
+            icon="mdi-delete"
+            size="small"
+            variant="text"
+            color="error"
+            @click="confirmDelete(item)"
+          />
         </template>
       </v-data-table>
     </v-card>
@@ -96,8 +118,8 @@
           />
           <div class="d-flex align-center mb-2">
             <v-switch
-              label="Custom name"
               v-model="useCustomName"
+              label="Custom name"
               density="compact"
               hide-details
               color="secondary"
@@ -111,7 +133,13 @@
             class="mb-3"
           />
           <v-switch v-model="form.enabled" label="Enabled" color="primary" class="mb-3" />
-          <v-radio-group v-model="form.role" label="Camera role" class="mb-3" density="compact" inline>
+          <v-radio-group
+            v-model="form.role"
+            label="Camera role"
+            class="mb-3"
+            density="compact"
+            inline
+          >
             <v-radio label="Surveillance" value="surveillance" />
             <v-radio label="Face-capable" value="face_capable" />
             <v-radio label="Mixed" value="mixed" />
@@ -218,7 +246,12 @@
             variant="outlined"
             placeholder="rtsp://192.168.1.10/stream"
           />
-          <v-alert v-if="testResult" :type="testResult.ok ? 'success' : 'error'" class="mt-2" density="compact">
+          <v-alert
+            v-if="testResult"
+            :type="testResult.ok ? 'success' : 'error'"
+            class="mt-2"
+            density="compact"
+          >
             {{ testResult.message }}
           </v-alert>
         </v-card-text>
@@ -268,7 +301,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </div>
 </template>
 
@@ -401,7 +433,7 @@ async function saveCamera() {
       payload.room_name = "";
     }
     if (editing.value) {
-      const { id, ...patch } = payload;
+      const { id: _id, ...patch } = payload;
       await cts.updateCamera(editId.value, patch);
       notify("Camera updated");
     } else {
@@ -420,7 +452,7 @@ async function saveCamera() {
 async function confirmDelete(cam) {
   const ok = await showConfirm(
     `Delete "${cam.name}"?`,
-    "This will permanently remove the camera and its calibration data."
+    "This will permanently remove the camera and its calibration data.",
   );
   if (ok) deleteCamera(cam.id);
 }
@@ -474,7 +506,10 @@ function closeSnapshot() {
   }
 }
 
-onMounted(() => { loadCameras(); loadRooms(); });
+onMounted(() => {
+  loadCameras();
+  loadRooms();
+});
 onBeforeUnmount(() => {
   if (snapshotUrl.value) URL.revokeObjectURL(snapshotUrl.value);
 });

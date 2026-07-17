@@ -26,7 +26,7 @@ const mockWs = {
 
 vi.mock("@/services/api.js", () => ({
   api: {
-    getPipelineRuns:   (...args) => mockGetPipelineRuns(...args),
+    getPipelineRuns: (...args) => mockGetPipelineRuns(...args),
     getIngestActivity: (...args) => mockGetIngestActivity(...args),
   },
   openPipelineSocket: (onMessage) => {
@@ -44,8 +44,8 @@ const ACTIVE_RUN = {
   status: "running",
   started_at: "2026-05-29T10:00:00Z",
   nodes: [
-    { id: "101", label: "Filter",  step_type: "condition",    status: "pending" },
-    { id: "102", label: "Notify",  step_type: "notification", status: "pending" },
+    { id: "101", label: "Filter", step_type: "condition", status: "pending" },
+    { id: "102", label: "Notify", step_type: "notification", status: "pending" },
   ],
   edges: [{ source: "101", source_handle: "true", target: "102" }],
 };
@@ -151,9 +151,7 @@ describe("useLivePipeline — active runs (D1)", () => {
         { id: "201", label: "Condition", step_type: "condition", enabled: true },
         { id: "202", label: "Notify", step_type: "notification", enabled: true },
       ],
-      edges: [
-        { source: "201", source_handle: "false", target: "202", target_handle: "main" },
-      ],
+      edges: [{ source: "201", source_handle: "false", target: "202", target_handle: "main" }],
       sequence: 1,
     });
 

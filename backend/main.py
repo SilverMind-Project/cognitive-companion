@@ -1059,6 +1059,9 @@ def create_app() -> FastAPI:
     app.include_router(routines.router, prefix=api)
     app.include_router(room_zones.router, prefix=api)
     app.include_router(ha_sync.router, prefix=api)
+    # persons_location must precede persons: it owns the static /persons/locations path, which
+    # the /persons/{person_id} route in persons.router would otherwise capture (C17).
+    app.include_router(persons_location.router)  # already has /api/v1 prefix
     app.include_router(persons.router, prefix=api)
     app.include_router(workflows.router, prefix=api)
     app.include_router(activities.router, prefix=api)
@@ -1094,7 +1097,6 @@ def create_app() -> FastAPI:
     app.include_router(cts_diagnostics.router, prefix=api)
     app.include_router(cts_transit_zones.router, prefix=api)
     app.include_router(cts_analytics.router)  # already has /api/v1 prefix
-    app.include_router(persons_location.router)  # already has /api/v1 prefix
 
     # WebSocket routers (no /api/v1 prefix).
     app.include_router(ws.router)

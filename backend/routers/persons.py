@@ -18,7 +18,6 @@ from backend.schemas.person import (
     HouseholdMemberUpdate,
     PersonEnrollmentOut,
     PersonLocationHistoryOut,
-    PersonLocationOut,
     PersonSightingOut,
 )
 
@@ -79,16 +78,9 @@ async def create_member(
 # Static paths must be defined before /{person_id} to avoid being
 # captured by the path parameter.
 
-
-@router.get("/locations", response_model=list[PersonLocationOut])
-async def get_all_locations(
-    request: Request,
-    _auth=Depends(require_permission("caregiver")),
-):
-    """Get current location of all tracked persons."""
-    tracking = request.app.state.person_tracking
-    locations = await tracking.get_person_locations()
-    return locations
+# GET /locations and GET /{person_id}/location live in routers/persons_location.py: they serve
+# PersonLocationEnvelope from PersonLocationService (the U2 SSOT, shared with the MCP tools).
+# Legacy duplicates here shadowed them at runtime, so do not reintroduce them (C17).
 
 
 # DEPRECATED: use GET /api/v1/persons/{id}/location instead.
@@ -266,20 +258,6 @@ async def delete_member(
         raise HTTPException(status_code=404, detail=f"Member '{person_id}' not found")
     db.delete(member)
     db.commit()
-
-
-@router.get("/{person_id}/location", response_model=PersonLocationOut)
-async def get_person_location(
-    person_id: str,
-    request: Request,
-    _auth=Depends(require_permission("caregiver")),
-):
-    """Get current location of a specific person."""
-    tracking = request.app.state.person_tracking
-    location = await tracking.get_person_location(person_id)
-    if not location:
-        raise HTTPException(status_code=404, detail=f"No location data for '{person_id}'")
-    return location
 
 
 @router.get("/{person_id}/history", response_model=list[PersonLocationHistoryOut])

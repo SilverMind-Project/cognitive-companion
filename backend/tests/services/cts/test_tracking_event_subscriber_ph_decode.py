@@ -18,18 +18,18 @@ from backend.services.cts.tracking_event_subscriber import (
     TrackingEventSubscriber,
 )
 
-# Use a recent timestamp so the stale-event check doesn't drop them.
-_NOW_NS = int(time.time() * 1e9)
-
-
 def _build_event(
     camera_id: str = "cam-1",
     detections: list[dict] | None = None,
     identity_snapshots: list[dict] | None = None,
 ) -> tracking_pb2.TrackingEvent:
+    # Stamped per call: the subscriber drops events older than 30s, and a
+    # module-level constant goes stale part-way through a full suite run.
+    now_ns = int(time.time() * 1e9)
+
     event = tracking_pb2.TrackingEvent(
         camera_id=camera_id,
-        event_time_unix_ns=_NOW_NS,
+        event_time_unix_ns=now_ns,
         room_name="living_room",
         event_id="evt-1",
     )
@@ -37,7 +37,7 @@ def _build_event(
     event.frame_ref.frame_index = 1
     event.frame_ref.width = 1920
     event.frame_ref.height = 1080
-    event.frame_ref.capture_time_unix_ns = _NOW_NS
+    event.frame_ref.capture_time_unix_ns = now_ns
 
     for det in detections or []:
         d = event.detections.add(

@@ -15,7 +15,7 @@
           class="d-flex align-center ga-1"
           style="cursor: pointer"
           :data-testid="`calibration-dot-${cam.camera_id}`"
-          @click="$router.push({ name: 'CTSCalibration', query: { camera_id: cam.camera_id } })"
+          @click="emit('test-projection', cam.camera_id)"
         >
           <span
             class="cal-dot"
@@ -33,6 +33,8 @@
 import { ref, onMounted } from "vue";
 import { useNotify } from "@/composables/useNotify";
 import { cts } from "@/services/cts.js";
+
+const emit = defineEmits(["test-projection"]);
 
 const loading = ref(true);
 const cameras = ref([]);

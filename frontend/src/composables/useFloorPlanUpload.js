@@ -38,8 +38,12 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
   const scaleMeasuredM = ref(null); // real-world distance in metres
   const scaleImgEl = ref(null);
   const scaleImgRect = ref(null);
-  let _uploadBlobUrl = null; // blob URL lifecycle managed manually
-  let _originalFile = null; // pre-crop File object, kept for reset
+  // C19 fix: this must be a ref, not a plain variable. scalePickerImageUrl below reads it
+  // inside a computed(); a plain `let` is never tracked, so selecting a new file never
+  // invalidated the computed's cache and the preview kept showing the previously-saved
+  // floor plan. Confirmed via `git stash` that this bug predates the M21 refactor.
+  const _uploadBlobUrl = ref(null); // blob URL lifecycle managed manually
+  let _originalFile = null; // pre-crop File object, kept for reset (never read reactively)
   let _resizeObserver = null; // keeps scaleImgRect current on resize
 
   const scaleOuterRef = ref(null);
@@ -59,7 +63,7 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
   // ── Scale picker computed ─────────────────────────────────────────────────
   // URL shown in the Method C image picker: prefer the newly selected file,
   // fall back to the already-saved floor plan.
-  const scalePickerImageUrl = computed(() => _uploadBlobUrl || floorPlanUrl.value);
+  const scalePickerImageUrl = computed(() => _uploadBlobUrl.value || floorPlanUrl.value);
 
   // Pixel distance between the two scale points, measured in original image pixels.
   const scalePixelDistance = computed(() => {
@@ -83,9 +87,9 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
   function onFileSelected(fileOrArray) {
     const file = Array.isArray(fileOrArray) ? fileOrArray[0] : fileOrArray;
     // Revoke previous blob URL.
-    if (_uploadBlobUrl) {
-      URL.revokeObjectURL(_uploadBlobUrl);
-      _uploadBlobUrl = null;
+    if (_uploadBlobUrl.value) {
+      URL.revokeObjectURL(_uploadBlobUrl.value);
+      _uploadBlobUrl.value = null;
     }
     // Reset state for the new image.
     scalePoints.value = [];
@@ -96,7 +100,7 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
     if (!file) return;
 
     _originalFile = file;
-    _uploadBlobUrl = URL.createObjectURL(file);
+    _uploadBlobUrl.value = URL.createObjectURL(file);
     // Read natural dimensions without a visible img element.
     const probe = new Image();
     probe.onload = () => {
@@ -107,7 +111,7 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
         uploadMpp.value = parseFloat((uploadRealWidth.value / probe.naturalWidth).toFixed(6));
       }
     };
-    probe.src = _uploadBlobUrl;
+    probe.src = _uploadBlobUrl.value;
   }
 
   function onScaleImageLoad() {
@@ -356,7 +360,7 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
       const el = new Image();
       el.onload = () => resolve(el);
       el.onerror = reject;
-      el.src = _uploadBlobUrl;
+      el.src = _uploadBlobUrl.value;
     });
 
     const canvas = document.createElement("canvas");
@@ -371,8 +375,8 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
 
     const croppedFile = new File([croppedBlob], _originalFile.name, { type: _originalFile.type });
     uploadFile.value = croppedFile;
-    if (_uploadBlobUrl) URL.revokeObjectURL(_uploadBlobUrl);
-    _uploadBlobUrl = URL.createObjectURL(croppedBlob);
+    if (_uploadBlobUrl.value) URL.revokeObjectURL(_uploadBlobUrl.value);
+    _uploadBlobUrl.value = URL.createObjectURL(croppedBlob);
     uploadWidth.value = w;
     uploadHeight.value = h;
 
@@ -404,9 +408,9 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
   }
 
   function dispose() {
-    if (_uploadBlobUrl) {
-      URL.revokeObjectURL(_uploadBlobUrl);
-      _uploadBlobUrl = null;
+    if (_uploadBlobUrl.value) {
+      URL.revokeObjectURL(_uploadBlobUrl.value);
+      _uploadBlobUrl.value = null;
     }
     if (_resizeObserver) {
       _resizeObserver.disconnect();

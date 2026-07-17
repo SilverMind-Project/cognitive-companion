@@ -111,7 +111,7 @@
           :world-status-label="worldStatusLabel"
           @ph-click="onPhClick"
           @canvas-mousedown="onLiveZoomMouseDown"
-          @go-calibration="router.push({ name: 'CTSCalibration' })"
+          @go-calibration="router.push({ name: 'cts-calibration' })"
         />
       </v-col>
 

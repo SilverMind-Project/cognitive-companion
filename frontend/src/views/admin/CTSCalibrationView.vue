@@ -309,8 +309,12 @@ async function onCameraChange() {
 }
 
 // M2: handle test-projection from CalibrationHealthPanel
-function onTestProjection(cameraId) {
+async function onTestProjection(cameraId) {
   selectedCameraId.value = cameraId;
+  // Bypasses the v-select's @update:model-value, so drive the same reset+reload
+  // onCameraChange does -- otherwise the dropdown shows the new camera while the
+  // snapshot/calibration panes keep showing the previously selected one.
+  await onCameraChange();
   // Scroll to the calibration area for visual inspection.
   window.scrollTo({ top: 0, behavior: "smooth" });
 }

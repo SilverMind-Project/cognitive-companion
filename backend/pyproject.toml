@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.7.77"
+version = "0.7.78"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -332,4 +332,51 @@ source_modules = [
 ]
 forbidden_modules = [
     "backend.services.person_location_legacy",
+]
+
+# M20: backend.bootstrap is the composition root (backend/bootstrap/README.md).
+# Wiring never reaches into HTTP handlers.
+[[tool.importlinter.contracts]]
+name = "M20: backend.bootstrap may not import backend.routers"
+type = "forbidden"
+source_modules = [
+    "backend.bootstrap",
+]
+forbidden_modules = [
+    "backend.routers",
+]
+
+# M20: wiring is not an API -- only backend.main constructs the app from it.
+# backend.bootstrap is deliberately absent from source_modules so its own
+# internal cross-module imports (e.g. cts.py calling presence.wire_presence)
+# are not flagged.
+[[tool.importlinter.contracts]]
+name = "M20: only backend.main may import backend.bootstrap"
+type = "forbidden"
+source_modules = [
+    "backend.channels",
+    "backend.core",
+    "backend.filters",
+    "backend.integrations",
+    "backend.mcp",
+    "backend.models",
+    "backend.routers",
+    "backend.schemas",
+    "backend.services",
+    "backend.steps",
+    "backend.websocket",
+]
+forbidden_modules = [
+    "backend.bootstrap",
+]
+# backend.tests is deliberately not in source_modules: tests legitimately
+# import backend.main (the composed app) throughout, which transitively
+# imports backend.bootstrap.lifespan -- that is not the "wiring reached
+# from application code" case this contract guards against.
+#
+# backend.routers.activities imports backend.main directly (a pre-existing
+# pattern, e.g. to reach app.state from a router function body); the same
+# transitive reasoning applies.
+ignore_imports = [
+    "backend.routers.activities -> backend.main",
 ]

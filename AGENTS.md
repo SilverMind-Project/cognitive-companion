@@ -57,8 +57,9 @@ cognitive-companion/
 │   ├── routers/              FastAPI routers
 │   ├── mcp/                  MCP server and tool adapters
 │   ├── websocket/            Companion and pipeline WebSocket managers
+│   ├── bootstrap/            Service wiring, by phase (see bootstrap/README.md)
 │   ├── tests/                Mirrors backend packages
-│   └── main.py               Lifespan wiring source of truth
+│   └── main.py               App factory: FastAPI() creation, middleware, router includes
 ├── frontend/
 │   └── src/
 │       ├── views/admin/      Admin surfaces, including rules and executions
@@ -111,7 +112,7 @@ Use `backend/.venv` for one-off Python commands. Do not use system Python.
 - `backend.core` has no upward imports.
 - Models do not import services or routers.
 - Routers stay thin: validate input, require permission, call a service, return a schema.
-- Services are constructed in `backend/main.py` lifespan and accessed through `app.state`.
+- Services are constructed in `backend/bootstrap/` phase modules (orchestrated by `backend/bootstrap/lifespan.py`, called from `backend/main.py`) and accessed through `app.state`. A new service is wired in the phase matching its dependencies and added to `backend/bootstrap/README.md`'s inventory and `backend/tests/test_bootstrap_wiring.py`'s pin.
 - Schema changes go through Alembic.
 - Every endpoint needs `config/auth.yaml` coverage.
 - Datetimes are timezone-aware UTC in storage. Display and scheduling use the configured timezone.

@@ -63,7 +63,10 @@ services/        Business logic. Orchestrates integrations + models.
 steps/channels/filters/  Plugin systems. Import from core/, models/, integrations/.
 routers/         FastAPI route handlers. Thin: validate input, call service, return schema.
 mcp/             MCP tool server. Same constraints as routers.
-main.py          App factory + lifespan. Only place services are constructed.
+bootstrap/       Service wiring, by phase, orchestrated by bootstrap/lifespan.py (M20). The
+                 only place services are constructed. May not import routers/; may not be
+                 imported outside main.py (import-linter enforced). See bootstrap/README.md.
+main.py          App factory only: FastAPI() creation, middleware, router includes, MCP mount.
 ```
 
 **Cut-point rule:** If you find yourself importing from a layer to the right of your current layer, you have a circular dependency risk. Restructure.
@@ -676,8 +679,10 @@ Before opening a PR, verify:
 
 ### The typed dependency pattern
 
-Every service on ``app.state`` is set in `backend/main.py` (to a concrete instance or ``None``).
-Routers MUST use one of two patterns to access them; never ``getattr`` with a string key.
+Every service on ``app.state`` is set in a `backend/bootstrap/` phase module (to a concrete
+instance or ``None``) -- see `backend/bootstrap/README.md` for which phase constructs which
+attribute. Routers MUST use one of two patterns to access them; never ``getattr`` with a string
+key.
 
 **Pattern 1: Required service (503 when unavailable).** Use a typed ``Depends`` from
 `backend/routers/dependencies.py`:
@@ -721,10 +726,20 @@ def _get_client(request: Request) -> Any:
 
 ### Adding a new dependency
 
-1. Ensure the service is set on ``app.state`` in ``backend/main.py`` (set to ``None`` in
-   every branch so the attribute always exists).
-2. Add a typed ``get_<name>`` callable in ``backend/routers/dependencies.py``.
-3. Import and use ``Depends(get_<name>)`` in routers.
+Service wiring lives in `backend/bootstrap/` phase modules, orchestrated by
+`bootstrap/lifespan.py`; `backend/main.py` only creates the app and includes routers.
+
+1. Wire the service in the `backend/bootstrap/` phase matching its dependencies (set to
+   ``None`` in every branch so the attribute always exists on ``app.state``).
+2. Add it to the `backend/bootstrap/README.md` inventory and the
+   `backend/tests/test_bootstrap_wiring.py` attribute-set pin.
+3. If pipeline-consumed, add it to the `ServiceContainer` completeness map
+   (`backend/services/container_wiring.py`).
+4. Add a typed ``get_<name>`` callable in ``backend/routers/dependencies.py``.
+5. Import and use ``Depends(get_<name>)`` in routers.
+
+``import backend.main`` must stay side-effect free (see
+`backend/tests/test_bootstrap_wiring.py::test_import_backend_main_performs_no_io`).
 
 ---
 
@@ -888,7 +903,7 @@ All four CTS subscribers extend `StreamConsumer[T]`. The `decode()` and `handle(
 - `_upstream_base` is imported only by CTS integration clients (`ingress_admin_client`, `tracking_orchestrator_client`).
 - Redis Stream subscriptions (`tracking.events`, `tracking.revisions`, `tracking.signals`, `scene.samples`) are created only inside `CTSRuntime`.
 - All browser and MCP traffic to `rtsp-ingress` or `tracking-orchestrator` goes through CC routers. No direct access.
-- The `CtsEventBucketizer` (in-memory per-camera recent-frame buffer) is built by `CTSRuntime` and fed by `TrackingEventSubscriber.ingest` from the `tracking.events` stream (no new stream, no DB read, so it respects the isolation boundary). It reaches the `media_window_poll` step (CTS source) via `ServiceContainer.bucketizer`, injected **after** CTS bootstrap through the `PipelineExecutor.bucketizer` property (the executor is constructed before `CTSRuntime`; `main.py` sets `pipeline_executor.bucketizer = cts_runtime.bucketizer`). This is the same post-construction injection pattern as `_scheduler`. Steps read it via typed direct access (`services.bucketizer`), never `getattr`.
+- The `CtsEventBucketizer` (in-memory per-camera recent-frame buffer) is built by `CTSRuntime` and fed by `TrackingEventSubscriber.ingest` from the `tracking.events` stream (no new stream, no DB read, so it respects the isolation boundary). It reaches the `media_window_poll` step (CTS source) via `ServiceContainer.bucketizer`, injected **after** CTS bootstrap through the `PipelineExecutor.bucketizer` property (the executor is constructed before `CTSRuntime`; `backend/bootstrap/cts.py` sets `pipeline_executor.bucketizer = cts_runtime.bucketizer`). This is the same post-construction injection pattern as `_scheduler`. Steps read it via typed direct access (`services.bucketizer`), never `getattr`.
 
 ### 16.5 Per-camera image rate limiting
 

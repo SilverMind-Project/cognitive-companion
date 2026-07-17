@@ -627,7 +627,8 @@ Before opening a PR, verify:
 - [ ] No hardcoded colors or `rgba()` values
 - [ ] Server-side pagination on data tables
 - [ ] Filter changes reset page to 1
-- [ ] API methods registered in `contracts.js`
+- [ ] API methods added to a typed module under `services/modules/`, not to `api.js`
+- [ ] Backend contract changes re-exported (`make openapi` + `npm run generate:api`) and committed
 
 ### General
 - [ ] No print/output statements left in

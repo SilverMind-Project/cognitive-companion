@@ -5166,6 +5166,28 @@ export interface components {
             total: number;
         };
         /**
+         * AppInfoOut
+         * @description Public application metadata, read during frontend bootstrap before a key is held.
+         */
+        AppInfoOut: {
+            /** Name */
+            name: string;
+            /**
+             * Services
+             * @default {}
+             */
+            services: {
+                [key: string]: components["schemas"]["ServiceInfo"];
+            };
+            /**
+             * Timezone
+             * @description Operator-configured IANA zone; the UI formats all timestamps in it.
+             */
+            timezone: string;
+            /** Version */
+            version: string;
+        };
+        /**
          * ApplySegmentRequest
          * @description Browser-facing apply payload. ``actor`` is NOT accepted here; the BFF
          *     injects the audited subject from the auth context.
@@ -5677,6 +5699,38 @@ export interface components {
             /** Visibility Polygon */
             visibility_polygon: number[][] | null;
         };
+        /**
+         * ChannelAuditIssue
+         * @description One pipeline step naming a channel the registry does not know.
+         */
+        ChannelAuditIssue: {
+            /** Rule Id */
+            rule_id: number;
+            /** Step Id */
+            step_id: number;
+            /** Step Type */
+            step_type: string;
+            /**
+             * Unknown Channels
+             * @default []
+             */
+            unknown_channels: string[];
+        };
+        /** ChannelAuditOut */
+        ChannelAuditOut: {
+            /** Issue Count */
+            issue_count: number;
+            /**
+             * Issues
+             * @default []
+             */
+            issues: components["schemas"]["ChannelAuditIssue"][];
+            /**
+             * Registered Channels
+             * @default []
+             */
+            registered_channels: string[];
+        };
         /** ChannelTypeOut */
         ChannelTypeOut: {
             /** Channel Name */
@@ -5788,6 +5842,11 @@ export interface components {
             room_id?: number | null;
             /** Surface Type */
             surface_type?: ("fixed" | "movable") | null;
+        };
+        /** ConfigReloadOut */
+        ConfigReloadOut: {
+            /** Status */
+            status: string;
         };
         /** ContextBundle */
         ContextBundle: {
@@ -6704,6 +6763,17 @@ export interface components {
              */
             source: string;
         };
+        /**
+         * FontListOut
+         * @description Font files available to the e-ink renderer.
+         */
+        FontListOut: {
+            /**
+             * Fonts
+             * @default []
+             */
+            fonts: string[];
+        };
         /** FusionConfigOut */
         FusionConfigOut: {
             /** Confidence Floor */
@@ -7150,6 +7220,61 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * HaEntityOut
+         * @description One Home Assistant entity, as the step-config dropdowns consume it.
+         */
+        HaEntityOut: {
+            /** Entity Id */
+            entity_id: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * HaSyncRoomsOut
+         * @description Result of syncing HA areas into rooms.
+         *
+         *     Every field is optional because the endpoint returns one of two disjoint shapes with a 200:
+         *     ``{"error": "Home Assistant not configured"}`` or ``{"created", "updated", "total_areas"}``.
+         *     This models the contract as it is rather than pretending; the union is the underlying
+         *     problem (a missing integration should be a typed 503, and `RoomsView.vue:121` renders
+         *     "Created undefined" today when it hits the error branch), but changing the status code is a
+         *     behavioral change outside M17's scope.
+         */
+        HaSyncRoomsOut: {
+            /** Created */
+            created?: number | null;
+            /** Error */
+            error?: string | null;
+            /** Total Areas */
+            total_areas?: number | null;
+            /** Updated */
+            updated?: number | null;
+        };
+        /**
+         * HaSyncSensorsOut
+         * @description Result of syncing HA entities into sensors. Same two-shape caveat as HaSyncRoomsOut.
+         */
+        HaSyncSensorsOut: {
+            /** Created */
+            created?: number | null;
+            /** Error */
+            error?: string | null;
+            /** Skipped */
+            skipped?: number | null;
+            /** Updated */
+            updated?: number | null;
+        };
+        /**
+         * HealthOut
+         * @description Liveness probe.
+         */
+        HealthOut: {
+            /** Status */
+            status: string;
+            /** Version */
+            version: string;
+        };
         /** HeatmapBin */
         HeatmapBin: {
             /** Weight */
@@ -7292,6 +7417,19 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /**
+         * ImageRenderOut
+         * @description Ack for a render/reset against one or more e-ink devices.
+         */
+        ImageRenderOut: {
+            /**
+             * Sensor Ids
+             * @default []
+             */
+            sensor_ids: string[];
+            /** Status */
+            status: string;
+        };
         /** ImageTemplateOut */
         ImageTemplateOut: {
             /** Created At */
@@ -7423,6 +7561,117 @@ export interface components {
              */
             voice_instruction: string;
         };
+        /** InfoCardDeliveryOut */
+        InfoCardDeliveryOut: {
+            /** Channels */
+            channels: string[];
+            /** Delivered At */
+            delivered_at: string | null;
+            /** Dismissed At */
+            dismissed_at?: string | null;
+            /** Dismissed By */
+            dismissed_by?: string | null;
+            /** Execution Id */
+            execution_id?: number | null;
+            /** Id */
+            id: number;
+            /** Info Card Id */
+            info_card_id: number;
+            /** Rule Id */
+            rule_id?: number | null;
+            /** Viewed At */
+            viewed_at?: string | null;
+        };
+        /** InfoCardListOut */
+        InfoCardListOut: {
+            /** Approved By */
+            approved_by?: string | null;
+            /** Created At */
+            created_at: string | null;
+            /** Document Id */
+            document_id?: number | null;
+            /** Id */
+            id: number;
+            /** Layout Id */
+            layout_id: string;
+            /**
+             * Slot Count
+             * @default 0
+             */
+            slot_count: number;
+            /** Status */
+            status: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
+        /**
+         * InfoCardListResponse
+         * @description Paginated info-card list.
+         */
+        InfoCardListResponse: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["InfoCardListOut"][];
+            /** Total */
+            total: number;
+        };
+        /** InfoCardOut */
+        InfoCardOut: {
+            /** Approved At */
+            approved_at?: string | null;
+            /** Approved By */
+            approved_by?: string | null;
+            /** Body Text */
+            body_text: string;
+            /** Created At */
+            created_at: string | null;
+            /** Document Id */
+            document_id?: number | null;
+            /** Id */
+            id: number;
+            /**
+             * Image Slots
+             * @default []
+             */
+            image_slots: components["schemas"]["InfoCardSlotResponse"][];
+            /** Layout Id */
+            layout_id: string;
+            /** Status */
+            status: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /**
+             * Voice Instruction
+             * @default
+             */
+            voice_instruction: string;
+        };
         /** InfoCardSlotPatch */
         InfoCardSlotPatch: {
             /** Alt Text */
@@ -7431,6 +7680,57 @@ export interface components {
             crop_hints?: {
                 [key: string]: number;
             } | null;
+        };
+        /** InfoCardSlotResponse */
+        InfoCardSlotResponse: {
+            /**
+             * Alt Text
+             * @default
+             */
+            alt_text: string;
+            /** Id */
+            id: number;
+            /** Info Card Id */
+            info_card_id: number;
+            /** Original Object Name */
+            original_object_name: string;
+            /** Slot Index */
+            slot_index: number;
+            /** Source Image Id */
+            source_image_id?: number | null;
+            /**
+             * Variants
+             * @default {}
+             */
+            variants: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * InfoCardStatusOut
+         * @description Acknowledgement of a status transition (archive/restore).
+         */
+        InfoCardStatusOut: {
+            /** Status */
+            status: string;
+        };
+        /**
+         * InfoCardSuggestionOut
+         * @description LLM-suggested card draft. Not persisted: the caregiver edits then creates.
+         */
+        InfoCardSuggestionOut: {
+            /**
+             * Body Text
+             * @default
+             */
+            body_text: string;
+            /** Title */
+            title: string;
+            /**
+             * Voice Instruction
+             * @default
+             */
+            voice_instruction: string;
         };
         /** InfoCardUpdate */
         InfoCardUpdate: {
@@ -7468,12 +7768,137 @@ export interface components {
             /** Trigger Type */
             trigger_type?: string | null;
         };
+        /**
+         * InteractiveResponseOut
+         * @description One recorded interactive response, with latency derived when both stamps exist.
+         */
+        InteractiveResponseOut: {
+            /** Action */
+            action: string;
+            /** Channel */
+            channel: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Execution Id */
+            execution_id?: number | null;
+            /** Id */
+            id: number;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Raw Response Json */
+            raw_response_json?: {
+                [key: string]: unknown;
+            } | null;
+            /** Step Id */
+            step_id?: number | null;
+            /** Timestamp */
+            timestamp?: string | null;
+        };
+        /** KnowledgeDocumentImageOut */
+        KnowledgeDocumentImageOut: {
+            /**
+             * Alt Text
+             * @default
+             */
+            alt_text: string;
+            /** Document Id */
+            document_id: number;
+            /** Height */
+            height?: number | null;
+            /** Id */
+            id: number;
+            /** Mime Type */
+            mime_type: string;
+            /** Minio Object Name */
+            minio_object_name: string;
+            /**
+             * Ord
+             * @default 0
+             */
+            ord: number;
+            /** Presigned Url */
+            presigned_url?: string | null;
+            /** Width */
+            width?: number | null;
+        };
         /** KnowledgeDocumentImageUpdate */
         KnowledgeDocumentImageUpdate: {
             /** Alt Text */
             alt_text?: string | null;
             /** Ord */
             ord?: number | null;
+        };
+        /** KnowledgeDocumentListOut */
+        KnowledgeDocumentListOut: {
+            /** Created At */
+            created_at: string | null;
+            /** Created By */
+            created_by: string;
+            /** Id */
+            id: number;
+            /**
+             * Image Count
+             * @default 0
+             */
+            image_count: number;
+            /** Status */
+            status: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /**
+         * KnowledgeDocumentListResponse
+         * @description Paginated knowledge-document list.
+         */
+        KnowledgeDocumentListResponse: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["KnowledgeDocumentListOut"][];
+            /** Total */
+            total: number;
+        };
+        /** KnowledgeDocumentOut */
+        KnowledgeDocumentOut: {
+            /** Archived At */
+            archived_at?: string | null;
+            /**
+             * Chunk Count
+             * @default 0
+             */
+            chunk_count: number;
+            /** Created At */
+            created_at: string | null;
+            /** Created By */
+            created_by: string;
+            /** Id */
+            id: number;
+            /**
+             * Images
+             * @default []
+             */
+            images: components["schemas"]["KnowledgeDocumentImageOut"][];
+            /** Source Text */
+            source_text: string;
+            /** Status */
+            status: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string | null;
         };
         /** KnowledgeDocumentUpdate */
         KnowledgeDocumentUpdate: {
@@ -7504,6 +7929,80 @@ export interface components {
             name: string;
             /** Supports Thinking */
             supports_thinking: boolean;
+        };
+        /** LayoutListResponse */
+        LayoutListResponse: {
+            /**
+             * Layouts
+             * @default []
+             */
+            layouts: components["schemas"]["LayoutOut"][];
+        };
+        /** LayoutOut */
+        LayoutOut: {
+            /**
+             * Applies To
+             * @default []
+             */
+            applies_to: string[];
+            /** Display Name */
+            display_name: string;
+            /** Id */
+            id: string;
+            /**
+             * Image Slots
+             * @default []
+             */
+            image_slots: components["schemas"]["LayoutSlotOut"][];
+            /** Max Images */
+            max_images: number;
+            /** Min Images */
+            min_images: number;
+            /**
+             * Surfaces
+             * @default []
+             */
+            surfaces: string[];
+        };
+        /** LayoutSlotOut */
+        LayoutSlotOut: {
+            /** Slot Id */
+            slot_id: string;
+            /**
+             * Variants
+             * @default {}
+             */
+            variants: {
+                [key: string]: components["schemas"]["LayoutVariantOut"];
+            };
+        };
+        /**
+         * LayoutVariantOut
+         * @description One rendering target (surface) for an image slot.
+         */
+        LayoutVariantOut: {
+            /** Color Mode */
+            color_mode: string;
+            /** Fit Mode */
+            fit_mode: string;
+            /** Format */
+            format: string;
+            /** Quality */
+            quality?: number | null;
+            /** Target Height */
+            target_height: number;
+            /** Target Width */
+            target_width: number;
+        };
+        /**
+         * LivenessOut
+         * @description Root liveness probe. Must answer before auth config is trusted.
+         */
+        LivenessOut: {
+            /** Status */
+            status: string;
+            /** Version */
+            version: string;
         };
         /** LocationOverrideRequest */
         LocationOverrideRequest: {
@@ -7621,6 +8120,34 @@ export interface components {
              * @default
              */
             observation_id: string;
+        };
+        /**
+         * OccupancyHistoryResponse
+         * @description Smoothed occupancy time-series for one room.
+         *
+         *     ``room`` and ``hours`` are optional because the endpoint drops them when the sensor-polling
+         *     service is unavailable, returning a bare ``{"history": []}``. Modelled as-is; tightening
+         *     that branch is a behavioral change, not a typing one.
+         */
+        OccupancyHistoryResponse: {
+            /** History */
+            history?: {
+                [key: string]: unknown;
+            }[];
+            /** Hours */
+            hours?: number | null;
+            /** Room */
+            room?: string | null;
+        };
+        /**
+         * OccupancyResponse
+         * @description Live occupancy for every occupied room, keyed by room name.
+         */
+        OccupancyResponse: {
+            /** Occupancy */
+            occupancy?: {
+                [key: string]: components["schemas"]["RoomOccupancyStateEnvelope"];
+            };
         };
         /** OverlapGroupIn */
         OverlapGroupIn: {
@@ -8259,6 +8786,99 @@ export interface components {
              */
             voice_instruction: string;
         };
+        /** QuizListOut */
+        QuizListOut: {
+            /** Approved By */
+            approved_by?: string | null;
+            /** Created At */
+            created_at: string | null;
+            /** Document Id */
+            document_id?: number | null;
+            /** Id */
+            id: number;
+            /**
+             * Question Count
+             * @default 0
+             */
+            question_count: number;
+            /** Question Layout Id */
+            question_layout_id: string;
+            /** Status */
+            status: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+        };
+        /**
+         * QuizListResponse
+         * @description Paginated quiz list.
+         */
+        QuizListResponse: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["QuizListOut"][];
+            /** Total */
+            total: number;
+        };
+        /** QuizOut */
+        QuizOut: {
+            /** Approved At */
+            approved_at?: string | null;
+            /** Approved By */
+            approved_by?: string | null;
+            /** Created At */
+            created_at: string | null;
+            /** Document Id */
+            document_id?: number | null;
+            /** Id */
+            id: number;
+            /**
+             * Intro Voice Template
+             * @default
+             */
+            intro_voice_template: string;
+            /** Question Layout Id */
+            question_layout_id: string;
+            /**
+             * Questions
+             * @default []
+             */
+            questions: components["schemas"]["QuizQuestionOut"][];
+            /** Status */
+            status: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /** Updated At */
+            updated_at: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /**
+             * Voice Instruction
+             * @default
+             */
+            voice_instruction: string;
+        };
         /** QuizQuestionCreate */
         QuizQuestionCreate: {
             /**
@@ -8283,12 +8903,76 @@ export interface components {
             /** Question Type */
             question_type: string;
         };
+        /** QuizQuestionOut */
+        QuizQuestionOut: {
+            /**
+             * Choices
+             * @default []
+             */
+            choices: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Expected Answer
+             * @default
+             */
+            expected_answer: string;
+            /**
+             * Explanation
+             * @default
+             */
+            explanation: string;
+            /** Id */
+            id: number;
+            /**
+             * Image Slot
+             * @default {}
+             */
+            image_slot: {
+                [key: string]: unknown;
+            };
+            /** Ord */
+            ord: number;
+            /** Question Text */
+            question_text: string;
+            /** Question Type */
+            question_type: string;
+            /** Quiz Id */
+            quiz_id: number;
+        };
         /** QuizQuestionReorder */
         QuizQuestionReorder: {
             /** Items */
             items: {
                 [key: string]: number;
             }[];
+        };
+        /**
+         * QuizQuestionSuggestionOut
+         * @description One LLM-suggested question. Not persisted: the caregiver edits then creates.
+         */
+        QuizQuestionSuggestionOut: {
+            /**
+             * Choices
+             * @default []
+             */
+            choices: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Expected Answer
+             * @default
+             */
+            expected_answer: string;
+            /**
+             * Explanation
+             * @default
+             */
+            explanation: string;
+            /** Question Text */
+            question_text: string;
+            /** Question Type */
+            question_type: string;
         };
         /** QuizQuestionUpdate */
         QuizQuestionUpdate: {
@@ -8304,6 +8988,126 @@ export interface components {
             question_text?: string | null;
             /** Question Type */
             question_type?: string | null;
+        };
+        /** QuizResponseOut */
+        QuizResponseOut: {
+            /** Answered At */
+            answered_at: string | null;
+            /** Channel */
+            channel: string;
+            /** Chosen Choice Id */
+            chosen_choice_id?: string | null;
+            /** Chosen Choice Text */
+            chosen_choice_text?: string | null;
+            /** Id */
+            id: number;
+            /** Is Correct */
+            is_correct?: boolean | null;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Open Ended Text */
+            open_ended_text?: string | null;
+            /** Question Id */
+            question_id: number;
+            /** Question Ord */
+            question_ord: number;
+            /** Question Text */
+            question_text: string;
+            /** Session Id */
+            session_id: number;
+        };
+        /** QuizSessionDetailOut */
+        QuizSessionDetailOut: {
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Current Question Ord
+             * @default 0
+             */
+            current_question_ord: number;
+            /** Execution Id */
+            execution_id?: number | null;
+            /** Id */
+            id: number;
+            /** Last Activity At */
+            last_activity_at: string | null;
+            /** Quiz Id */
+            quiz_id: number;
+            /**
+             * Responses
+             * @default []
+             */
+            responses: components["schemas"]["QuizResponseOut"][];
+            /** Rule Id */
+            rule_id?: number | null;
+            /** Senior Id */
+            senior_id?: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+        };
+        /** QuizSessionListOut */
+        QuizSessionListOut: {
+            /** Completed At */
+            completed_at?: string | null;
+            /**
+             * Current Question Ord
+             * @default 0
+             */
+            current_question_ord: number;
+            /** Execution Id */
+            execution_id?: number | null;
+            /** Id */
+            id: number;
+            /** Last Activity At */
+            last_activity_at: string | null;
+            /** Quiz Id */
+            quiz_id: number;
+            /**
+             * Response Count
+             * @default 0
+             */
+            response_count: number;
+            /** Rule Id */
+            rule_id?: number | null;
+            /** Senior Id */
+            senior_id?: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+        };
+        /**
+         * QuizStatusOut
+         * @description Acknowledgement of a status transition (archive/restore/reorder).
+         */
+        QuizStatusOut: {
+            /** Status */
+            status: string;
+        };
+        /**
+         * QuizSuggestionOut
+         * @description LLM-suggested quiz draft.
+         */
+        QuizSuggestionOut: {
+            /**
+             * Intro Voice Template
+             * @default
+             */
+            intro_voice_template: string;
+            /**
+             * Questions
+             * @default []
+             */
+            questions: components["schemas"]["QuizQuestionSuggestionOut"][];
+            /** Title */
+            title: string;
+            /**
+             * Voice Instruction
+             * @default
+             */
+            voice_instruction: string;
         };
         /** QuizUpdate */
         QuizUpdate: {
@@ -8366,6 +9170,44 @@ export interface components {
              * @default 0
              */
             type: number;
+        };
+        /**
+         * RecameraUploadOut
+         * @description Ack for a reCamera frame upload.
+         *
+         *     ``object_name`` is absent when the frame was dropped by the label filter, in which case
+         *     ``status`` is "filtered" and ``reason`` explains why.
+         */
+        RecameraUploadOut: {
+            /** Object Name */
+            object_name?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Status
+             * @description "accepted" | "filtered"
+             */
+            status: string;
+        };
+        /**
+         * RecentTurnsOut
+         * @description Recent conversation turns.
+         *
+         *     ``session_id`` and ``message`` are optional: the endpoint omits the former and adds the
+         *     latter when no session is available or supplied.
+         */
+        RecentTurnsOut: {
+            /** Message */
+            message?: string | null;
+            /** Session Id */
+            session_id?: string | null;
+            /**
+             * Turns
+             * @default []
+             */
+            turns: {
+                [key: string]: unknown;
+            }[];
         };
         /** ReferenceBlock */
         ReferenceBlock: {
@@ -8664,6 +9506,47 @@ export interface components {
             room_id: number;
             /** Room Name */
             room_name: string;
+        };
+        /**
+         * RoomOccupancyStateEnvelope
+         * @description Live occupancy of one room from the unified read-model.
+         */
+        RoomOccupancyStateEnvelope: {
+            /**
+             * Last Updated
+             * @description Timestamp of the most recent observation.
+             */
+            last_updated?: string | null;
+            /** Occupied */
+            occupied: boolean;
+            /**
+             * Person Ids
+             * @description Identified household member ids in the room.
+             */
+            person_ids?: string[];
+            /**
+             * Room Id
+             * @description rooms.id, when the source resolves a room id.
+             */
+            room_id?: number | null;
+            /** Room Name */
+            room_name: string;
+            /**
+             * Since
+             * @description When the current occupancy window began.
+             */
+            since?: string | null;
+            /**
+             * Source
+             * @description world_tracker | ha_sensor | pipeline
+             */
+            source: string;
+            /**
+             * Unknown Count
+             * @description Unidentified hypotheses currently in the room.
+             * @default 0
+             */
+            unknown_count: number;
         };
         /** RoomOut */
         RoomOut: {
@@ -9347,6 +10230,27 @@ export interface components {
             /** Valid */
             valid: boolean;
         };
+        /**
+         * SampleImageOut
+         * @description A sample frame for the image-crop step config UI.
+         */
+        SampleImageOut: {
+            /** Height */
+            height?: number | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Object Name */
+            object_name: string;
+            /** Source Id */
+            source_id: string;
+            /**
+             * Source Type
+             * @description "recamera" | "cts"
+             */
+            source_type: string;
+            /** Width */
+            width?: number | null;
+        };
         /** SegmentBoundaryView */
         SegmentBoundaryView: {
             /** Captured At */
@@ -9370,6 +10274,40 @@ export interface components {
             /** Ph Version */
             ph_version: number;
             start: components["schemas"]["SegmentBoundaryView"];
+        };
+        /** SeniorKnowledgeQueryOut */
+        SeniorKnowledgeQueryOut: {
+            /**
+             * Answer Text
+             * @default
+             */
+            answer_text: string;
+            /** Answered Via */
+            answered_via: string;
+            /** Asked At */
+            asked_at: string | null;
+            /** Channel */
+            channel: string;
+            /** Id */
+            id: number;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Query Text */
+            query_text: string;
+            /** Senior Id */
+            senior_id?: string | null;
+            /**
+             * Source Chunk Ids
+             * @default []
+             */
+            source_chunk_ids: number[];
+            /**
+             * Source Document Ids
+             * @default []
+             */
+            source_document_ids: number[];
+            /** Top Similarity */
+            top_similarity?: number | null;
         };
         /** SensorCreate */
         SensorCreate: {
@@ -9462,6 +10400,37 @@ export interface components {
             sensor_type?: string | null;
             /** Source */
             source?: string | null;
+        };
+        /**
+         * ServiceHealthOut
+         * @description Health probe result for one upstream service.
+         *
+         *     ``extra="allow"`` is load-bearing, not laziness: the probes return
+         *     ``{"configured": True, **upstream_health_body}``, and the admin dashboard reads
+         *     service-specific keys straight off it -- TTS's ``default_engine``/``gpu_available``/
+         *     ``gpu_name``, for example (`DashboardView.vue:239-240`). A strict model would silently drop
+         *     every upstream key and the tiles would read "unknown - CPU". The two fields declared here are
+         *     the ones this codebase guarantees; the rest are the upstream service's contract, not ours.
+         *
+         *     ``status`` is absent when a healthy upstream body does not carry one.
+         */
+        ServiceHealthOut: {
+            /** Configured */
+            configured: boolean;
+            /** Status */
+            status?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ServiceInfo
+         * @description Where to probe one upstream service, and whether it is configured at all.
+         */
+        ServiceInfo: {
+            /** Enabled */
+            enabled: boolean;
+            /** Health Url */
+            health_url: string;
         };
         /**
          * SignalEnvelope
@@ -9738,6 +10707,49 @@ export interface components {
             /** Signal Kind */
             signal_kind?: string | null;
         };
+        /**
+         * TagAnalyticsItem
+         * @description Usage of one tag across documents and quizzes.
+         */
+        TagAnalyticsItem: {
+            /** Avg Quiz Score Pct */
+            avg_quiz_score_pct?: number | null;
+            /**
+             * Document Count
+             * @default 0
+             */
+            document_count: number;
+            /**
+             * Quiz Count
+             * @default 0
+             */
+            quiz_count: number;
+            /** Tag */
+            tag: string;
+        };
+        /** TagAnalyticsOut */
+        TagAnalyticsOut: {
+            /**
+             * Tags
+             * @default []
+             */
+            tags: components["schemas"]["TagAnalyticsItem"][];
+        };
+        /** TelegramTriggerDefaultsOut */
+        TelegramTriggerDefaultsOut: {
+            /**
+             * Allowed Chat Ids
+             * @default []
+             */
+            allowed_chat_ids: string[];
+        };
+        /** TemplateImageUpdateOut */
+        TemplateImageUpdateOut: {
+            /** Status */
+            status: string;
+            /** Template Id */
+            template_id: number;
+        };
         /** TextRegion */
         TextRegion: {
             /**
@@ -9927,6 +10939,41 @@ export interface components {
             floor_plan_height_px: number | null;
             /** Floor Plan Width Px */
             floor_plan_width_px: number | null;
+        };
+        /**
+         * VoiceDefaultsOut
+         * @description Default voice instructions per delivery type.
+         */
+        VoiceDefaultsOut: {
+            /** Info Card Default */
+            info_card_default: string;
+            /** Interactive Prompt Default */
+            interactive_prompt_default: string;
+            /** Quiz Default */
+            quiz_default: string;
+        };
+        /** VoiceInstructionSuggestionOut */
+        VoiceInstructionSuggestionOut: {
+            /** Voice Instruction */
+            voice_instruction: string;
+        };
+        /**
+         * WebhookSecretOut
+         * @description A freshly generated per-rule webhook secret. Shown once.
+         */
+        WebhookSecretOut: {
+            /** Secret */
+            secret: string;
+        };
+        /**
+         * WebhookTriggerOut
+         * @description Ack for an inbound webhook that started a rule execution.
+         */
+        WebhookTriggerOut: {
+            /** Execution Id */
+            execution_id: number;
+            /** Status */
+            status: string;
         };
         /** WeeklyReportRequest */
         WeeklyReportRequest: {
@@ -10373,7 +11420,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AppInfoOut"];
                 };
             };
         };
@@ -10393,7 +11440,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -10413,7 +11462,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ConfigReloadOut"];
                 };
             };
         };
@@ -10453,7 +11502,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HealthOut"];
                 };
             };
         };
@@ -10495,7 +11544,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ServiceHealthOut"];
                 };
             };
         };
@@ -10515,7 +11564,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ServiceHealthOut"];
                 };
             };
         };
@@ -10535,7 +11584,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ServiceHealthOut"];
                 };
             };
         };
@@ -10555,7 +11604,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ServiceHealthOut"];
                 };
             };
         };
@@ -10575,7 +11624,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ServiceHealthOut"];
                 };
             };
         };
@@ -10595,7 +11644,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ServiceHealthOut"];
                 };
             };
         };
@@ -10615,7 +11664,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ChannelAuditOut"];
                 };
             };
         };
@@ -10635,7 +11684,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TelegramTriggerDefaultsOut"];
                 };
             };
         };
@@ -10793,7 +11842,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RecentTurnsOut"];
                 };
             };
             /** @description Validation Error */
@@ -13831,7 +14880,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RecameraUploadOut"];
                 };
             };
             /** @description Validation Error */
@@ -14663,7 +15712,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HaEntityOut"][];
                 };
             };
             /** @description Validation Error */
@@ -14692,7 +15741,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HaEntityOut"][];
                 };
             };
         };
@@ -14712,7 +15761,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HaSyncRoomsOut"];
                 };
             };
         };
@@ -14734,7 +15783,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HaSyncSensorsOut"];
                 };
             };
             /** @description Validation Error */
@@ -14763,7 +15812,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["LivenessOut"];
                 };
             };
         };
@@ -14867,7 +15916,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["FontListOut"];
                 };
             };
         };
@@ -14957,7 +16006,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ImageRenderOut"];
                 };
             };
             /** @description Validation Error */
@@ -14990,7 +16039,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ImageRenderOut"];
                 };
             };
             /** @description Validation Error */
@@ -15162,7 +16211,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TemplateImageUpdateOut"];
                 };
             };
             /** @description Validation Error */
@@ -15228,7 +16277,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -15261,7 +16310,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardOut"];
                 };
             };
             /** @description Validation Error */
@@ -15293,7 +16342,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardSuggestionOut"];
                 };
             };
             /** @description Validation Error */
@@ -15324,7 +16373,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardOut"];
                 };
             };
             /** @description Validation Error */
@@ -15388,7 +16437,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardOut"];
                 };
             };
             /** @description Validation Error */
@@ -15419,7 +16468,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardOut"];
                 };
             };
             /** @description Validation Error */
@@ -15450,7 +16499,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardStatusOut"];
                 };
             };
             /** @description Validation Error */
@@ -15481,7 +16530,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardStatusOut"];
                 };
             };
             /** @description Validation Error */
@@ -15517,7 +16566,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardSlotResponse"];
                 };
             };
             /** @description Validation Error */
@@ -15583,7 +16632,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardSlotResponse"];
                 };
             };
             /** @description Validation Error */
@@ -15623,7 +16672,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InteractiveResponseOut"][];
                 };
             };
             /** @description Validation Error */
@@ -15656,7 +16705,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["InfoCardDeliveryOut"][];
                 };
             };
             /** @description Validation Error */
@@ -15691,7 +16740,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SeniorKnowledgeQueryOut"][];
                 };
             };
             /** @description Validation Error */
@@ -15725,7 +16774,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizSessionListOut"][];
                 };
             };
             /** @description Validation Error */
@@ -15756,7 +16805,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizSessionDetailOut"];
                 };
             };
             /** @description Validation Error */
@@ -15785,7 +16834,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TagAnalyticsOut"];
                 };
             };
         };
@@ -15811,7 +16860,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -15844,7 +16893,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -15875,7 +16924,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -15939,7 +16988,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -15970,7 +17019,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -16001,7 +17050,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -16036,7 +17085,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentImageOut"];
                 };
             };
             /** @description Validation Error */
@@ -16102,7 +17151,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentImageOut"];
                 };
             };
             /** @description Validation Error */
@@ -16133,7 +17182,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -16164,7 +17213,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -16195,7 +17244,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["LayoutListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -16226,7 +17275,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["LayoutOut"];
                 };
             };
             /** @description Validation Error */
@@ -16255,7 +17304,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["VoiceDefaultsOut"];
                 };
             };
         };
@@ -16350,7 +17399,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OccupancyResponse"];
                 };
             };
             /** @description Validation Error */
@@ -16384,7 +17433,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OccupancyHistoryResponse"];
                 };
             };
             /** @description Validation Error */
@@ -17026,7 +18075,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SampleImageOut"];
                 };
             };
             /** @description Validation Error */
@@ -17195,7 +18244,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -17228,7 +18277,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizOut"];
                 };
             };
             /** @description Validation Error */
@@ -17262,7 +18311,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizSuggestionOut"];
                 };
             };
             /** @description Validation Error */
@@ -17295,7 +18344,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["VoiceInstructionSuggestionOut"];
                 };
             };
             /** @description Validation Error */
@@ -17326,7 +18375,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizOut"];
                 };
             };
             /** @description Validation Error */
@@ -17390,7 +18439,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizOut"];
                 };
             };
             /** @description Validation Error */
@@ -17421,7 +18470,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizOut"];
                 };
             };
             /** @description Validation Error */
@@ -17452,7 +18501,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizStatusOut"];
                 };
             };
             /** @description Validation Error */
@@ -17487,7 +18536,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizQuestionOut"];
                 };
             };
             /** @description Validation Error */
@@ -17522,7 +18571,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizStatusOut"];
                 };
             };
             /** @description Validation Error */
@@ -17588,7 +18637,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizQuestionOut"];
                 };
             };
             /** @description Validation Error */
@@ -17624,7 +18673,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizQuestionOut"];
                 };
             };
             /** @description Validation Error */
@@ -17688,7 +18737,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizQuestionSuggestionOut"];
                 };
             };
             /** @description Validation Error */
@@ -17719,7 +18768,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["QuizStatusOut"];
                 };
             };
             /** @description Validation Error */
@@ -19412,7 +20461,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["WebhookTriggerOut"];
                 };
             };
             /** @description Validation Error */
@@ -19443,7 +20492,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["WebhookSecretOut"];
                 };
             };
             /** @description Validation Error */

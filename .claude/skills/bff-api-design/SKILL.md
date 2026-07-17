@@ -230,7 +230,7 @@ Gate graphs get a thin gate-scoped router that **reuses the shared rule service*
 - `POST /api/v1/gate-graphs/{id}/test-run` returns a `GateVerdict` envelope `{complete, confidence, reason, node_results, cost, profile}`. It is a **fail-closed preview**: a missing gate service or no cameras returns `complete=False` with a reason, never a 5xx. It delegates to `GuidedTaskService.run_gate_preview`, which reuses the live camera cascade + `GateGraphRunner`.
 - `GET /api/v1/gate-presets` lists the seeded preset library metadata.
 
-Auth: `gate_graphs:read` (GET gate-graphs + gate-presets) and `gate_graphs:write` (all POSTs incl. validate/test-run) in `config/auth.yaml`, granted to `caregiver`. Register every method in `frontend/src/services/contracts.js`.
+Auth: `gate_graphs:read` (GET gate-graphs + gate-presets) and `gate_graphs:write` (all POSTs incl. validate/test-run) in `config/auth.yaml`, granted to `caregiver`. Frontend calls live in `frontend/src/services/modules/gate_graphs.ts`.
 
 ## Verification commands
 

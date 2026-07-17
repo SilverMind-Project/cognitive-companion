@@ -62,6 +62,13 @@ class KnowledgeDocumentListOut(OutSchema):
     image_count: int = 0
 
 
+class KnowledgeDocumentListResponse(OutSchema):
+    """Paginated knowledge-document list."""
+
+    items: list[KnowledgeDocumentListOut] = []
+    total: int
+
+
 # -- Knowledge Document Image -------------------------------------------------
 
 

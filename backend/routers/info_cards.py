@@ -16,7 +16,12 @@ from backend.core.exceptions import NotFoundError, ValidationError
 from backend.models.knowledge import InfoCard, InfoCardImageSlot
 from backend.schemas.info_cards import (
     InfoCardCreate,
+    InfoCardListResponse,
+    InfoCardOut,
     InfoCardSlotPatch,
+    InfoCardSlotResponse,
+    InfoCardStatusOut,
+    InfoCardSuggestionOut,
     InfoCardUpdate,
 )
 
@@ -26,7 +31,7 @@ router = APIRouter(prefix="/info-cards", tags=["info-cards"])
 # -- CRUD --------------------------------------------------------------------
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, response_model=InfoCardOut)
 async def create_info_card(
     body: InfoCardCreate,
     request: Request,
@@ -52,7 +57,7 @@ async def create_info_card(
     return _card_out(card, request.app.state.minio_client, request.app.state.layout_registry)
 
 
-@router.get("")
+@router.get("", response_model=InfoCardListResponse)
 async def list_info_cards(
     request: Request,
     status: str | None = Query(None),
@@ -104,7 +109,7 @@ async def list_info_cards(
     }
 
 
-@router.get("/{card_id}")
+@router.get("/{card_id}", response_model=InfoCardOut)
 async def get_info_card(
     card_id: int,
     request: Request,
@@ -117,7 +122,7 @@ async def get_info_card(
     return _card_out(card, request.app.state.minio_client, request.app.state.layout_registry)
 
 
-@router.patch("/{card_id}")
+@router.patch("/{card_id}", response_model=InfoCardOut)
 async def update_info_card(
     card_id: int,
     body: InfoCardUpdate,
@@ -147,7 +152,7 @@ async def update_info_card(
 # -- state transitions -------------------------------------------------------
 
 
-@router.post("/{card_id}/approve")
+@router.post("/{card_id}/approve", response_model=InfoCardOut)
 async def approve_info_card(
     card_id: int,
     request: Request,
@@ -180,7 +185,7 @@ async def approve_info_card(
     return _card_out(card, request.app.state.minio_client, layout_registry)
 
 
-@router.post("/{card_id}/archive")
+@router.post("/{card_id}/archive", response_model=InfoCardStatusOut)
 async def archive_info_card(
     card_id: int,
     request: Request,
@@ -195,7 +200,7 @@ async def archive_info_card(
     return {"status": "archived"}
 
 
-@router.post("/{card_id}/restore")
+@router.post("/{card_id}/restore", response_model=InfoCardStatusOut)
 async def restore_info_card(
     card_id: int,
     request: Request,
@@ -226,7 +231,7 @@ async def delete_info_card(
     await pipeline.purge_prefix(f"info_cards/{card_id}/")
 
 
-@router.post("/suggest")
+@router.post("/suggest", response_model=InfoCardSuggestionOut)
 async def suggest_info_card(
     request: Request,
     document_id: int | None = None,
@@ -251,7 +256,7 @@ async def suggest_info_card(
 # -- slots -------------------------------------------------------------------
 
 
-@router.put("/{card_id}/slots/{slot_index}")
+@router.put("/{card_id}/slots/{slot_index}", response_model=InfoCardSlotResponse)
 async def set_info_card_slot(
     card_id: int,
     slot_index: int,
@@ -350,7 +355,7 @@ async def set_info_card_slot(
     return _slot_out(slot, minio)
 
 
-@router.patch("/{card_id}/slots/{slot_index}")
+@router.patch("/{card_id}/slots/{slot_index}", response_model=InfoCardSlotResponse)
 async def patch_info_card_slot(
     card_id: int,
     slot_index: int,

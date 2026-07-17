@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from backend.core.auth import AuthContext, require_permission
 from backend.core.logging import get_logger
 from backend.routers.dependencies import get_occupancy_read_model
+from backend.schemas.occupancy import OccupancyHistoryResponse, OccupancyResponse
 from backend.services.occupancy import OccupancyReadModel
 
 logger = get_logger(__name__)
@@ -16,7 +17,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/occupancy", tags=["occupancy"])
 
 
-@router.get("/")
+@router.get("/", response_model=OccupancyResponse)
 async def get_occupancy(
     room_name: str | None = Query(None),
     auth: AuthContext = Depends(require_permission("caregiver")),
@@ -48,7 +49,7 @@ async def get_occupancy(
     return {"occupancy": occupancy}
 
 
-@router.get("/history")
+@router.get("/history", response_model=OccupancyHistoryResponse)
 async def get_occupancy_history(
     request: Request,
     room_name: str = Query(..., description="Room name"),

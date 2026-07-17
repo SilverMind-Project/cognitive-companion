@@ -319,10 +319,12 @@ describe("CTSFloorPlanView — world snapshot handling", () => {
   it("uses useWorldSnapshot composable (not cts_live_frame)", async () => {
     const wrapper = await mountView();
     const state = wrapper.vm.$.setupState;
-    // New N4 composable should be present
+    // New N4 composable should be present. worldIsStale itself is now fully
+    // encapsulated inside useLiveWorldMarkers (M21); the derived status label
+    // it feeds is the orchestrator's real, stable contract.
     expect(state.worldPhs).toBeDefined();
     expect(state.worldInferredRooms).toBeDefined();
-    expect(state.worldIsStale).toBeDefined();
+    expect(state.worldStatusLabel).toBeDefined();
   });
 });
 

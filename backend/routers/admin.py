@@ -40,7 +40,7 @@ def _sanitize(obj: dict) -> dict:
 
 
 @router.get("/health")
-async def health():
+async def admin_health():
     """Health check endpoint (no auth required)."""
     return {"status": "ok", "version": __version__}
 

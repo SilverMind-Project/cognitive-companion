@@ -10,7 +10,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "vue-tsc --noEmit",
+    "generate:api": "openapi-typescript openapi.json -o src/generated/api-types.d.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.2",
@@ -32,6 +34,7 @@
     "@vue-flow/minimap": "1.5.4",
     "cronstrue": "^3.14.0",
     "echarts": "^6.1.0",
+    "openapi-fetch": "^0.17.0",
     "pinia": "^3.0.0",
     "roughjs": "^4.6.6",
     "vue": "^3.5.35",
@@ -43,10 +46,14 @@
     "@vitejs/plugin-vue": "^6.0.7",
     "@vitest/ui": "^4.1.8",
     "@vue/test-utils": "^2.4.6",
+    "@vue/tsconfig": "^0.9.1",
     "happy-dom": "^20.9.0",
     "jsdom": "^29.0.2",
+    "openapi-typescript": "^7.13.0",
     "sass": "^1.101.0",
+    "typescript": "^5.9.3",
     "vite": "^8.0.16",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "vue-tsc": "^3.3.7"
   }
 }

@@ -94,5 +94,20 @@ class ExecutionDetailOut(BaseModel):
     can_rerun: bool
 
 
+class ExecutionCancelledOut(BaseModel):
+    """Acknowledgement of a cancel request."""
+
+    id: int
+    status: str
+
+
+class ExecutionRerunOut(BaseModel):
+    """Acknowledgement of a rerun; identifies the *new* execution, not the original."""
+
+    execution_id: int
+    rule_id: int
+    status: str
+
+
 class RerunRequest(BaseModel):
     from_step_label: str | None = None  # v2 feature; ignored in v1

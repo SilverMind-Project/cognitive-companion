@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
+import { h, provide, inject, ref, watch, computed } from "vue";
 
 const mocks = vi.hoisted(() => ({
   getRule: vi.fn(),
@@ -188,6 +189,32 @@ function mountView() {
   return mount(RuleDetailView, { global: { stubs } });
 }
 
+// Real Vuetify VWindowItem is lazy by default (eager=false): a window-item's slot content is
+// not rendered until its tab is first activated (see node_modules/vuetify/lib/composables/lazy.js).
+// The plain `stubs["v-window-item"]` above always renders every tab eagerly, which would hide a
+// regression class where per-tab state (e.g. a watch on the active tab) is set up inside a
+// component that only mounts once that tab is already selected -- too late for the watch to see
+// the very transition that mounted it. These stubs reproduce the lazy-mount timing instead.
+const LazyWindow = {
+  props: { modelValue: { type: String, default: "" } },
+  setup(props, { slots }) {
+    provide("__activeTab", computed(() => props.modelValue));
+    return () => h("div", slots.default ? slots.default() : []);
+  },
+};
+
+const LazyWindowItem = {
+  props: { value: { type: String, default: "" } },
+  setup(props, { slots }) {
+    const activeTab = inject("__activeTab");
+    const booted = ref(activeTab.value === props.value);
+    watch(activeTab, (val) => {
+      if (val === props.value) booted.value = true;
+    });
+    return () => h("div", booted.value ? (slots.default ? slots.default() : []) : []);
+  },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.route.query = {};
@@ -312,6 +339,20 @@ describe("RuleDetailView", () => {
     await confirmAdd.trigger("click");
     await flushPromises();
     expect(mocks.addRuleDep).toHaveBeenCalled();
+  });
+
+  it("populates executions on the first visit to the tab under real Vuetify lazy-mount timing", async () => {
+    const wrapper = mount(RuleDetailView, {
+      global: { stubs: { ...stubs, "v-window": LazyWindow, "v-window-item": LazyWindowItem } },
+    });
+    await flushPromises();
+    expect(mocks.getWorkflows).not.toHaveBeenCalled();
+    await wrapper.find('[data-testid="tab-executions"]').trigger("click");
+    await flushPromises();
+    expect(mocks.getWorkflows).toHaveBeenCalledWith({ rule_id: 7, limit: 50 });
+    const row = wrapper.find(".exec-row");
+    expect(row.exists()).toBe(true);
+    expect(row.text()).toContain("completed");
   });
 
   it("loads executions when the executions tab is selected and rows navigate", async () => {

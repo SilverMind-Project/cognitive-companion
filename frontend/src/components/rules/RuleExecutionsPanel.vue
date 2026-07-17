@@ -39,20 +39,14 @@
 </template>
 
 <script setup>
-import { toRef } from "vue";
-import { useRouter } from "vue-router";
-import { useRuleExecutions, statusColor, formatDuration } from "@/composables/useRuleExecutions.js";
+import { statusColor, formatDuration } from "@/composables/useRuleExecutions.js";
 
-const props = defineProps({
+defineProps({
   ruleId: { type: Number, required: true },
-  tab: { type: String, required: true },
+  executions: { type: Array, required: true },
+  execLoading: { type: Boolean, required: true },
+  execHeaders: { type: Array, required: true },
+  formatDate: { type: Function, required: true },
+  openExecution: { type: Function, required: true },
 });
-
-const router = useRouter();
-const ruleId = toRef(props, "ruleId");
-const { executions, execLoading, execHeaders, formatDate, openExecution } = useRuleExecutions(
-  ruleId,
-  () => props.tab,
-  router,
-);
 </script>

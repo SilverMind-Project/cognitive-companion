@@ -73,7 +73,14 @@
       </v-window-item>
 
       <v-window-item value="executions">
-        <RuleExecutionsPanel :rule-id="ruleId" :tab="tab" />
+        <RuleExecutionsPanel
+          :rule-id="ruleId"
+          :executions="executions"
+          :exec-loading="execLoading"
+          :exec-headers="execHeaders"
+          :format-date="formatDate"
+          :open-execution="openExecution"
+        />
       </v-window-item>
     </v-window>
   </div>
@@ -91,6 +98,7 @@ import RuleContextsPanel from "../../components/rules/RuleContextsPanel.vue";
 import RuleDependenciesPanel from "../../components/rules/RuleDependenciesPanel.vue";
 import RuleExecutionsPanel from "../../components/rules/RuleExecutionsPanel.vue";
 import { useRuleDetail, TRIGGER_TYPES } from "../../composables/useRuleDetail.js";
+import { useRuleExecutions } from "../../composables/useRuleExecutions.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -115,6 +123,12 @@ const {
   executeRule,
   exportRule,
 } = useRuleDetail(ruleId, router);
+
+const { executions, execLoading, execHeaders, formatDate, openExecution } = useRuleExecutions(
+  ruleId,
+  tab,
+  router,
+);
 
 onMounted(async () => {
   if (route.query.tab === "liverun") {

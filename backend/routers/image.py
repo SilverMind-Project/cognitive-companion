@@ -31,6 +31,11 @@ from backend.schemas.image import (
     RenderPayload,
     RenderPreviewPayload,
 )
+from backend.schemas.misc_responses import (
+    FontListOut,
+    ImageRenderOut,
+    TemplateImageUpdateOut,
+)
 
 logger = get_logger(__name__)
 
@@ -140,7 +145,7 @@ def serve_active_image(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/render")
+@router.post("/render", response_model=ImageRenderOut)
 async def render_image(
     payload: RenderPayload,
     request: Request,
@@ -158,7 +163,7 @@ async def render_image(
     return {"status": "rendered", "sensor_ids": rendered_ids}
 
 
-@router.post("/reset")
+@router.post("/reset", response_model=ImageRenderOut)
 async def reset_image(
     request: Request,
     sensor_ids: list[str] | None = None,
@@ -331,7 +336,7 @@ def update_template(
     return tmpl
 
 
-@router.put("/templates/{template_id}/image")
+@router.put("/templates/{template_id}/image", response_model=TemplateImageUpdateOut)
 async def update_template_image(
     template_id: int,
     image: UploadFile = File(...),
@@ -406,7 +411,7 @@ def preview_template(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/fonts")
+@router.get("/fonts", response_model=FontListOut)
 def list_fonts(
     _auth: AuthContext = Depends(require_permission("admin")),
 ):

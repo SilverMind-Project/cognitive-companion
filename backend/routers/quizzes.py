@@ -16,10 +16,17 @@ from backend.core.exceptions import NotFoundError, ValidationError
 from backend.models.knowledge import Quiz, QuizQuestion
 from backend.schemas.quizzes import (
     QuizCreate,
+    QuizListResponse,
+    QuizOut,
     QuizQuestionCreate,
+    QuizQuestionOut,
     QuizQuestionReorder,
+    QuizQuestionSuggestionOut,
     QuizQuestionUpdate,
+    QuizStatusOut,
+    QuizSuggestionOut,
     QuizUpdate,
+    VoiceInstructionSuggestionOut,
 )
 
 router = APIRouter(prefix="/quizzes", tags=["quizzes"])
@@ -28,7 +35,7 @@ router = APIRouter(prefix="/quizzes", tags=["quizzes"])
 # -- CRUD --------------------------------------------------------------------
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, response_model=QuizOut)
 async def create_quiz(
     body: QuizCreate,
     request: Request,
@@ -57,7 +64,7 @@ async def create_quiz(
     return _quiz_out(quiz, request.app.state.minio_client)
 
 
-@router.get("")
+@router.get("", response_model=QuizListResponse)
 async def list_quizzes(
     request: Request,
     status: str | None = Query(None),
@@ -104,7 +111,7 @@ async def list_quizzes(
     }
 
 
-@router.get("/{quiz_id}")
+@router.get("/{quiz_id}", response_model=QuizOut)
 async def get_quiz(
     quiz_id: int,
     request: Request,
@@ -117,7 +124,7 @@ async def get_quiz(
     return _quiz_out(quiz, request.app.state.minio_client)
 
 
-@router.patch("/{quiz_id}")
+@router.patch("/{quiz_id}", response_model=QuizOut)
 async def update_quiz(
     quiz_id: int,
     body: QuizUpdate,
@@ -148,7 +155,7 @@ async def update_quiz(
 # -- state transitions -------------------------------------------------------
 
 
-@router.post("/{quiz_id}/approve")
+@router.post("/{quiz_id}/approve", response_model=QuizOut)
 async def approve_quiz(
     quiz_id: int,
     request: Request,
@@ -171,7 +178,7 @@ async def approve_quiz(
     return _quiz_out(quiz, request.app.state.minio_client)
 
 
-@router.post("/{quiz_id}/archive")
+@router.post("/{quiz_id}/archive", response_model=QuizStatusOut)
 async def archive_quiz(
     quiz_id: int,
     request: Request,
@@ -186,7 +193,7 @@ async def archive_quiz(
     return {"status": "archived"}
 
 
-@router.post("/{quiz_id}/restore")
+@router.post("/{quiz_id}/restore", response_model=QuizStatusOut)
 async def restore_quiz(
     quiz_id: int,
     request: Request,
@@ -220,7 +227,7 @@ async def delete_quiz(
 # -- questions ---------------------------------------------------------------
 
 
-@router.post("/{quiz_id}/questions", status_code=201)
+@router.post("/{quiz_id}/questions", status_code=201, response_model=QuizQuestionOut)
 async def create_question(
     quiz_id: int,
     body: QuizQuestionCreate,
@@ -259,7 +266,7 @@ async def create_question(
     return _question_out(q)
 
 
-@router.patch("/{quiz_id}/questions/{qid}")
+@router.patch("/{quiz_id}/questions/{qid}", response_model=QuizQuestionOut)
 async def update_question(
     quiz_id: int,
     qid: int,
@@ -302,7 +309,7 @@ async def delete_question(
     db.commit()
 
 
-@router.post("/{quiz_id}/questions/reorder")
+@router.post("/{quiz_id}/questions/reorder", response_model=QuizStatusOut)
 async def reorder_questions(
     quiz_id: int,
     body: QuizQuestionReorder,
@@ -322,7 +329,7 @@ async def reorder_questions(
     return {"status": "reordered"}
 
 
-@router.post("/suggest")
+@router.post("/suggest", response_model=QuizSuggestionOut)
 async def suggest_quiz(
     request: Request,
     document_id: int | None = None,
@@ -361,7 +368,7 @@ async def suggest_quiz(
     }
 
 
-@router.post("/voice-instruction-suggest")
+@router.post("/voice-instruction-suggest", response_model=VoiceInstructionSuggestionOut)
 async def suggest_voice_instruction(
     request: Request,
     document_id: int | None = None,
@@ -382,7 +389,7 @@ async def suggest_voice_instruction(
     return {"voice_instruction": text}
 
 
-@router.post("/{quiz_id}/questions/{qid}/regenerate")
+@router.post("/{quiz_id}/questions/{qid}/regenerate", response_model=QuizQuestionSuggestionOut)
 async def regenerate_question(
     quiz_id: int,
     qid: int,
@@ -421,7 +428,7 @@ async def regenerate_question(
     }
 
 
-@router.put("/{quiz_id}/questions/{qid}/image")
+@router.put("/{quiz_id}/questions/{qid}/image", response_model=QuizQuestionOut)
 async def set_question_image(
     quiz_id: int,
     qid: int,

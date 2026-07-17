@@ -294,29 +294,21 @@ describe("DashboardView — Tracking Orchestrator health", () => {
 // Separate describe block: verify the real api.js implementation
 // ---------------------------------------------------------------------------
 describe("api.js — llmHealth method", () => {
-  it("calls request with /admin/health/llm-models", async () => {
-    // Import the real api module (not the mock) by resetting the mock for this test
-    // We verify the source-level contract: api.llmHealth is defined and calls the right path.
-    // Since we can't easily un-mock in the same file, we verify via the mock call args
-    // by checking what the real implementation does through a fresh import.
-
-    // The real api.js has: llmHealth: () => request("/admin/health/llm-models")
-    // We verify this by mocking fetch and calling the real function.
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => [],
-    });
+  it("requests /api/v1/admin/health/llm-models", async () => {
+    // Asserts the URL the real client requests, not how it calls fetch: since M17 the request
+    // goes through the typed openapi-fetch client, which passes a Request object rather than
+    // (url, init). A real Response is used because the client reads headers/text off it.
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+    );
     vi.stubGlobal("fetch", mockFetch);
 
-    // Dynamically import the real module (bypassing the vi.mock at the top)
+    // Import the real module, bypassing the vi.mock at the top of this file.
     const { api: realApi } = await vi.importActual("@/services/api.js");
     await realApi.llmHealth();
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/v1/admin/health/llm-models",
-      expect.objectContaining({ headers: expect.any(Object) })
-    );
+    const request = mockFetch.mock.calls[0][0];
+    expect(request.url).toContain("/api/v1/admin/health/llm-models");
 
     vi.unstubAllGlobals();
   });

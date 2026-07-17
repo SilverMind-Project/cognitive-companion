@@ -74,6 +74,27 @@ class InfoCardListOut(OutSchema):
     slot_count: int = 0
 
 
+class InfoCardListResponse(OutSchema):
+    """Paginated info-card list."""
+
+    items: list[InfoCardListOut] = []
+    total: int
+
+
+class InfoCardStatusOut(OutSchema):
+    """Acknowledgement of a status transition (archive/restore)."""
+
+    status: str
+
+
+class InfoCardSuggestionOut(OutSchema):
+    """LLM-suggested card draft. Not persisted: the caregiver edits then creates."""
+
+    title: str
+    body_text: str = ""
+    voice_instruction: str = ""
+
+
 # -- Info Card Slot -----------------------------------------------------------
 
 

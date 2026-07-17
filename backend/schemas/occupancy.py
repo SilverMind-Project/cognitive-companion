@@ -9,6 +9,7 @@ carries a ``source`` provenance tag (``world_tracker`` | ``ha_sensor`` |
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -47,3 +48,22 @@ class RoomOccupancyStateEnvelope(BaseModel):
             "since": self.since.isoformat() if self.since else None,
             "last_updated": self.last_updated.isoformat() if self.last_updated else None,
         }
+
+
+class OccupancyResponse(BaseModel):
+    """Live occupancy for every occupied room, keyed by room name."""
+
+    occupancy: dict[str, RoomOccupancyStateEnvelope] = Field(default_factory=dict)
+
+
+class OccupancyHistoryResponse(BaseModel):
+    """Smoothed occupancy time-series for one room.
+
+    ``room`` and ``hours`` are optional because the endpoint drops them when the sensor-polling
+    service is unavailable, returning a bare ``{"history": []}``. Modelled as-is; tightening
+    that branch is a behavioral change, not a typing one.
+    """
+
+    room: str | None = None
+    hours: float | None = None
+    history: list[dict[str, Any]] = Field(default_factory=list)

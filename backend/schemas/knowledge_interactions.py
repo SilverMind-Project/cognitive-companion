@@ -80,3 +80,16 @@ class InfoCardDeliveryOut(OutSchema):
     viewed_at: OptionalUTCDatetime = None
     dismissed_at: OptionalUTCDatetime = None
     dismissed_by: str | None = None
+
+
+class TagAnalyticsItem(OutSchema):
+    """Usage of one tag across documents and quizzes."""
+
+    tag: str
+    document_count: int = 0
+    quiz_count: int = 0
+    avg_quiz_score_pct: float | None = None
+
+
+class TagAnalyticsOut(OutSchema):
+    tags: list[TagAnalyticsItem] = []

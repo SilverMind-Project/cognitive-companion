@@ -53,6 +53,17 @@ export function getApiKey(): string {
   return apiKeyProvider();
 }
 
+/**
+ * Persist the API key.
+ *
+ * Writes localStorage directly, matching the pre-M17 behavior. M18 moves ownership of the key
+ * into the Pinia auth store, at which point this becomes the store's action and the provider
+ * seam above is repointed at it.
+ */
+export function setApiKey(key: string): void {
+  localStorage.setItem(API_KEY_STORAGE_KEY, key);
+}
+
 const authMiddleware: Middleware = {
   onRequest({ request }) {
     const key = apiKeyProvider();
@@ -78,11 +89,34 @@ export class ApiError extends Error {
   readonly detail: unknown;
 
   constructor(status: number, detail: unknown) {
-    super(typeof detail === "string" && detail ? detail : `HTTP ${status}`);
+    super(messageFor(status, detail));
     this.name = "ApiError";
     this.status = status;
     this.detail = detail;
   }
+}
+
+/**
+ * Render a FastAPI `detail` as a human-readable message.
+ *
+ * A string detail is used as-is (what `api.js` did). An *object* detail -- FastAPI's validation
+ * errors and the CTS envelopes both produce these -- is unwrapped to its `message`, falling back
+ * to JSON. This is the behavior `cts.js` had; `api.js` did `body.detail || \`HTTP ${status}\``,
+ * which for an object detail produced the useless "[object Object]". Adopting the better of the
+ * two rather than preserving the worse one.
+ */
+function messageFor(status: number, detail: unknown): string {
+  if (typeof detail === "string" && detail) return detail;
+  if (detail && typeof detail === "object") {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      /* fall through to the status line */
+    }
+  }
+  return `HTTP ${status}`;
 }
 
 /** Extract FastAPI's `{detail: ...}` without assuming the error body is JSON at all. */
@@ -116,6 +150,44 @@ export async function unwrap<T>(
   return data as T;
 }
 
+/**
+ * Untyped JSON request against an absolute API path.
+ *
+ * The escape hatch for domain modules that are not yet keyed to the generated types -- today
+ * the CTS clients (`cts.js`, `cts_identity.js`, `cts_ph.js`, `household.js`), whose ~70 methods
+ * are a separate migration. It exists so those modules stop each carrying their own copy of the
+ * auth/error plumbing (four copies before M17), not as a general-purpose door: everything it
+ * touches is already in `openapi.json`, so prefer `client.GET(...)` and let the types check the
+ * call.
+ *
+ * Throws `ApiError`, so callers get the same error contract as the typed client.
+ */
+export async function requestJson<T = unknown>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const key = getApiKey();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(key ? { "X-API-Key": key } : {}),
+    ...options.headers,
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(path, { ...options, headers });
+  } catch (cause) {
+    // A transport failure is not an HTTP status; surface it as one recognisable message rather
+    // than letting a raw TypeError reach a component (behavior carried over from cts.js).
+    const reason = cause instanceof Error ? cause.message : "Unable to reach server";
+    throw new Error(`Network error: ${reason}`);
+  }
+
+  if (!response.ok) throw new ApiError(response.status, await errorDetail(response));
+  if (response.status === 204) return null as T;
+  return (await response.json()) as T;
+}
+
 // ─── Non-JSON helpers ──────────────────────────────────────────────────────
 //
 // The shapes openapi-fetch does not model: multipart uploads and binary bodies. They still go
@@ -142,6 +214,11 @@ export async function requestForm<T = unknown>(
   return (await response.json()) as T;
 }
 
+async function toBlobUrl(response: Response): Promise<string> {
+  if (!response.ok) throw new ApiError(response.status, await errorDetail(response));
+  return URL.createObjectURL(await response.blob());
+}
+
 /**
  * Fetch a binary resource and return a Blob object URL.
  *
@@ -150,7 +227,32 @@ export async function requestForm<T = unknown>(
  */
 export async function requestBlobUrl(path: string): Promise<string> {
   const key = getApiKey();
-  const response = await fetch(path, { headers: key ? { "X-API-Key": key } : {} });
-  if (!response.ok) throw new ApiError(response.status, await errorDetail(response));
-  return URL.createObjectURL(await response.blob());
+  return toBlobUrl(await fetch(path, { headers: key ? { "X-API-Key": key } : {} }));
+}
+
+/** POST JSON, receive binary, return an object URL. Caller revokes. */
+export async function postJsonForBlobUrl(path: string, body: unknown): Promise<string> {
+  const key = getApiKey();
+  return toBlobUrl(
+    await fetch(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(key ? { "X-API-Key": key } : {}),
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+/** POST FormData, receive binary, return an object URL. Caller revokes. */
+export async function postFormForBlobUrl(path: string, formData: FormData): Promise<string> {
+  const key = getApiKey();
+  return toBlobUrl(
+    await fetch(path, {
+      method: "POST",
+      headers: key ? { "X-API-Key": key } : {},
+      body: formData,
+    }),
+  );
 }

@@ -17,6 +17,7 @@ from backend.core.auth import require_permission
 from backend.core.database import get_session
 from backend.core.logging import get_logger
 from backend.models.media_cache import MediaCache
+from backend.schemas.misc_responses import SampleImageOut
 
 router = APIRouter(prefix="/pipeline/image-sources", tags=["pipeline-images"])
 
@@ -28,6 +29,7 @@ _SAMPLE_EXPIRY_MINUTES = 5
 @router.get(
     "/sample",
     dependencies=[Depends(require_permission("rules:read"))],
+    response_model=SampleImageOut,
 )
 async def get_sample_image(
     request: Request,

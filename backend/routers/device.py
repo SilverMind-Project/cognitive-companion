@@ -34,6 +34,7 @@ from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.integrations.minio_client import MinioClient
 from backend.schemas.device import ReCameraPayload
+from backend.schemas.misc_responses import RecameraUploadOut
 from backend.services.event_aggregator import EventAggregator
 
 logger = get_logger(__name__)
@@ -80,7 +81,7 @@ def _passes_label_filter(detected_labels: list[str], filter_config: dict) -> boo
 # ---------------------------------------------------------------------------
 
 
-@router.post("/recamera")
+@router.post("/recamera", response_model=RecameraUploadOut)
 async def recamera_upload(
     payload: ReCameraPayload,
     request: Request,

@@ -13,6 +13,7 @@ from backend.core.logging import get_logger
 from backend.integrations.homeassistant import HomeAssistantClient
 from backend.models.room import Room
 from backend.models.sensor import Sensor
+from backend.schemas.ha_sync import HaEntityOut, HaSyncRoomsOut, HaSyncSensorsOut
 
 logger = get_logger(__name__)
 
@@ -38,7 +39,7 @@ def _infer_sensor_type(entity_id: str) -> str:
     return _SENSOR_TYPE_MAP.get(domain, "generic")
 
 
-@router.post("/sync/rooms")
+@router.post("/sync/rooms", response_model=HaSyncRoomsOut)
 async def sync_rooms(
     request: Request,
     db: Session = Depends(get_db),
@@ -74,7 +75,7 @@ async def sync_rooms(
     return {"created": created, "updated": updated, "total_areas": len(areas)}
 
 
-@router.post("/sync/sensors")
+@router.post("/sync/sensors", response_model=HaSyncSensorsOut)
 async def sync_sensors(
     request: Request,
     room_name: str | None = None,
@@ -140,7 +141,7 @@ async def sync_sensors(
     return {"created": created, "updated": updated, "skipped": skipped}
 
 
-@router.get("/media-players")
+@router.get("/media-players", response_model=list[HaEntityOut])
 async def list_media_players(
     request: Request,
     auth: AuthContext = Depends(require_permission("admin")),
@@ -164,7 +165,7 @@ async def list_media_players(
     ]
 
 
-@router.get("/entities")
+@router.get("/entities", response_model=list[HaEntityOut])
 async def list_entities(
     request: Request,
     domain: str | None = None,

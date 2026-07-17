@@ -9,11 +9,12 @@ from sqlalchemy.orm import Session
 from backend.core.auth import require_permission
 from backend.core.database import get_db
 from backend.models.interactive_response import InteractiveResponse
+from backend.schemas.misc_responses import InteractiveResponseOut
 
 router = APIRouter(prefix="/interactive-responses", tags=["interactive-responses"])
 
 
-@router.get("")
+@router.get("", response_model=list[InteractiveResponseOut])
 async def get_interactive_responses(
     channel: str | None = Query(None, description="Filter by channel"),
     action: str | None = Query(None, description="Filter by action"),

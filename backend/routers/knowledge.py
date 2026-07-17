@@ -11,8 +11,11 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from backend.core.auth import require_permission
 from backend.core.exceptions import NotFoundError
 from backend.schemas.knowledge import (
+    KnowledgeDocumentImageOut,
     KnowledgeDocumentImageUpdate,
     KnowledgeDocumentListOut,
+    KnowledgeDocumentListResponse,
+    KnowledgeDocumentOut,
     KnowledgeDocumentUpdate,
 )
 from backend.services.knowledge.ingestion_service import KnowledgeIngestionService
@@ -44,7 +47,7 @@ def _add_presigned(img_row, minio_client) -> dict:
     return d
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, response_model=KnowledgeDocumentOut)
 async def create_document(
     request: Request,
     title: str = Form(...),
@@ -69,7 +72,7 @@ async def create_document(
     return _doc_out(doc, minio)
 
 
-@router.get("")
+@router.get("", response_model=KnowledgeDocumentListResponse)
 async def list_documents(
     request: Request,
     status: str | None = Query(None),
@@ -92,7 +95,7 @@ async def list_documents(
     }
 
 
-@router.get("/{doc_id}")
+@router.get("/{doc_id}", response_model=KnowledgeDocumentOut)
 async def get_document(
     doc_id: int,
     request: Request,
@@ -105,7 +108,7 @@ async def get_document(
     return _doc_out(doc, request.app.state.minio_client)
 
 
-@router.patch("/{doc_id}")
+@router.patch("/{doc_id}", response_model=KnowledgeDocumentOut)
 async def update_document(
     doc_id: int,
     body: KnowledgeDocumentUpdate,
@@ -120,7 +123,7 @@ async def update_document(
 # -- state transitions -------------------------------------------------------
 
 
-@router.post("/{doc_id}/approve")
+@router.post("/{doc_id}/approve", response_model=KnowledgeDocumentOut)
 async def approve_document(
     doc_id: int,
     request: Request,
@@ -131,7 +134,7 @@ async def approve_document(
     return _doc_out(doc, request.app.state.minio_client)
 
 
-@router.post("/{doc_id}/archive")
+@router.post("/{doc_id}/archive", response_model=KnowledgeDocumentOut)
 async def archive_document(
     doc_id: int,
     request: Request,
@@ -142,7 +145,7 @@ async def archive_document(
     return _doc_out(doc, request.app.state.minio_client)
 
 
-@router.post("/{doc_id}/restore")
+@router.post("/{doc_id}/restore", response_model=KnowledgeDocumentOut)
 async def restore_document(
     doc_id: int,
     request: Request,
@@ -170,7 +173,7 @@ async def delete_document(
     await pipeline.purge_prefix(f"knowledge/{doc_id}/")
 
 
-@router.post("/{doc_id}/reembed")
+@router.post("/{doc_id}/reembed", response_model=KnowledgeDocumentOut)
 async def reembed_document(
     doc_id: int,
     request: Request,
@@ -190,7 +193,7 @@ async def reembed_document(
 # -- document images ---------------------------------------------------------
 
 
-@router.post("/{doc_id}/images", status_code=201)
+@router.post("/{doc_id}/images", status_code=201, response_model=KnowledgeDocumentImageOut)
 async def add_document_image(
     doc_id: int,
     request: Request,
@@ -204,7 +207,7 @@ async def add_document_image(
     return _add_presigned(img_row, request.app.state.minio_client)
 
 
-@router.patch("/{doc_id}/images/{img_id}")
+@router.patch("/{doc_id}/images/{img_id}", response_model=KnowledgeDocumentImageOut)
 async def update_document_image(
     doc_id: int,
     img_id: int,

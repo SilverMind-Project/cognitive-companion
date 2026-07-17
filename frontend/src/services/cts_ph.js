@@ -5,32 +5,32 @@
  * parsed JSON; errors throw with the server's detail message.
  */
 
+import { ApiError, requestJson } from "./http";
+
 const BASE = "/api/v1/cts";
 
+/**
+ * Requests go through the shared core in `http.ts`; only the error *message* format is local.
+ *
+ * This surface renders "code: message" (e.g. "ph.not_found: No such hypothesis") rather than
+ * the message alone, and the PH inspector shows that string directly, so the format is kept
+ * rather than flattened to the core's default.
+ */
 async function req(path, options = {}) {
-  const apiKey = localStorage.getItem("cc_api_key") || "";
-  const headers = {
-    "Content-Type": "application/json",
-    ...(apiKey ? { "X-API-Key": apiKey } : {}),
-    ...options.headers,
-  };
-  let resp;
   try {
-    resp = await fetch(`${BASE}${path}`, { ...options, headers });
+    return await requestJson(`${BASE}${path}`, options);
   } catch (err) {
-    throw new Error(`Network error: ${err.message || "Unable to reach server"}`);
+    if (err instanceof ApiError) {
+      const detail = err.detail;
+      if (detail && typeof detail === "object") {
+        const msg =
+          [detail.code, detail.message].filter(Boolean).join(": ") || JSON.stringify(detail);
+        throw new Error(msg);
+      }
+      throw new Error(err.message);
+    }
+    throw err;
   }
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}));
-    const detail = body.detail;
-    const msg =
-      typeof detail === "object"
-        ? [detail.code, detail.message].filter(Boolean).join(": ") || JSON.stringify(detail)
-        : detail;
-    throw new Error(msg || `HTTP ${resp.status}`);
-  }
-  if (resp.status === 204) return null;
-  return resp.json();
 }
 
 export const ctsPh = {

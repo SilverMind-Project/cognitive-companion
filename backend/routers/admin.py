@@ -15,6 +15,15 @@ from backend._version import __version__
 from backend.core.auth import AuthContext, require_permission
 from backend.core.config import settings
 from backend.core.logging import get_logger
+from backend.schemas.admin import (
+    AppInfoOut,
+    ChannelAuditOut,
+    ConfigReloadOut,
+    CurrentConfigOut,
+    HealthOut,
+    ServiceHealthOut,
+    TelegramTriggerDefaultsOut,
+)
 
 logger = get_logger(__name__)
 
@@ -39,13 +48,13 @@ def _sanitize(obj: dict) -> dict:
     return result
 
 
-@router.get("/health")
+@router.get("/health", response_model=HealthOut)
 async def admin_health():
     """Health check endpoint (no auth required)."""
     return {"status": "ok", "version": __version__}
 
 
-@router.get("/app-info")
+@router.get("/app-info", response_model=AppInfoOut)
 async def app_info():
     """Return public application metadata consumed by the frontend.
 
@@ -92,6 +101,7 @@ async def app_info():
 @router.get(
     "/health/person-id",
     dependencies=[Depends(require_permission("admin:read"))],
+    response_model=ServiceHealthOut,
 )
 async def person_id_health():
     """Proxy health check to the Person Identification service."""
@@ -109,6 +119,7 @@ async def person_id_health():
 @router.get(
     "/health/tts",
     dependencies=[Depends(require_permission("admin:read"))],
+    response_model=ServiceHealthOut,
 )
 async def tts_health():
     """Proxy health check to the TTS service."""
@@ -147,6 +158,7 @@ async def _proxy_health(url: str, timeout: float = 5.0) -> dict:
 @router.get(
     "/health/tracking-orchestrator",
     dependencies=[Depends(require_permission("admin:read"))],
+    response_model=ServiceHealthOut,
 )
 async def tracking_orchestrator_health():
     """Proxy health check to the Tracking Orchestrator service."""
@@ -158,6 +170,7 @@ async def tracking_orchestrator_health():
 @router.get(
     "/health/scene-analysis",
     dependencies=[Depends(require_permission("admin:read"))],
+    response_model=ServiceHealthOut,
 )
 async def scene_analysis_health():
     """Proxy health check to the Scene Analysis service."""
@@ -169,6 +182,7 @@ async def scene_analysis_health():
 @router.get(
     "/health/semantic-memory",
     dependencies=[Depends(require_permission("admin:read"))],
+    response_model=ServiceHealthOut,
 )
 async def semantic_memory_health():
     """Proxy health check to the Semantic Memory service."""
@@ -180,6 +194,7 @@ async def semantic_memory_health():
 @router.get(
     "/health/triton",
     dependencies=[Depends(require_permission("admin:read"))],
+    response_model=ServiceHealthOut,
 )
 async def triton_health():
     """Health check for Triton Inference Server.
@@ -252,7 +267,7 @@ async def llm_models_health() -> list[dict]:
     return list(results)
 
 
-@router.post("/config/reload")
+@router.post("/config/reload", response_model=ConfigReloadOut)
 def reload_config(
     _auth: AuthContext = Depends(require_permission("admin")),
 ):
@@ -262,7 +277,7 @@ def reload_config(
     return {"status": "reloaded"}
 
 
-@router.get("/config/current")
+@router.get("/config/current", response_model=CurrentConfigOut)
 def current_config(
     _auth: AuthContext = Depends(require_permission("admin")),
 ):
@@ -271,7 +286,7 @@ def current_config(
     return _sanitize(raw)
 
 
-@router.get("/telegram/trigger-defaults")
+@router.get("/telegram/trigger-defaults", response_model=TelegramTriggerDefaultsOut)
 def telegram_trigger_defaults(
     _auth: AuthContext = Depends(require_permission("admin")),
 ):
@@ -288,7 +303,7 @@ def telegram_trigger_defaults(
     }
 
 
-@router.get("/notification-channels/audit")
+@router.get("/notification-channels/audit", response_model=ChannelAuditOut)
 async def channel_audit(
     request: Request,
     _auth: AuthContext = Depends(require_permission("admin")),

@@ -400,6 +400,39 @@
         "title": "AggregatorStateListEnvelope",
         "type": "object"
       },
+      "AppInfoOut": {
+        "description": "Public application metadata, read during frontend bootstrap before a key is held.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "services": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ServiceInfo"
+            },
+            "default": {},
+            "title": "Services",
+            "type": "object"
+          },
+          "timezone": {
+            "description": "Operator-configured IANA zone; the UI formats all timestamps in it.",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "timezone"
+        ],
+        "title": "AppInfoOut",
+        "type": "object"
+      },
       "ApplySegmentRequest": {
         "additionalProperties": false,
         "description": "Browser-facing apply payload. ``actor`` is NOT accepted here; the BFF\ninjects the audited subject from the auth context.",
@@ -1911,6 +1944,67 @@
         "title": "CameraVisibilityPolygon",
         "type": "object"
       },
+      "ChannelAuditIssue": {
+        "description": "One pipeline step naming a channel the registry does not know.",
+        "properties": {
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "integer"
+          },
+          "step_id": {
+            "title": "Step Id",
+            "type": "integer"
+          },
+          "step_type": {
+            "title": "Step Type",
+            "type": "string"
+          },
+          "unknown_channels": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Channels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "step_id",
+          "step_type",
+          "rule_id"
+        ],
+        "title": "ChannelAuditIssue",
+        "type": "object"
+      },
+      "ChannelAuditOut": {
+        "properties": {
+          "issue_count": {
+            "title": "Issue Count",
+            "type": "integer"
+          },
+          "issues": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ChannelAuditIssue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "registered_channels": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Registered Channels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "issue_count"
+        ],
+        "title": "ChannelAuditOut",
+        "type": "object"
+      },
       "ChannelTypeOut": {
         "properties": {
           "channel_name": {
@@ -2221,6 +2315,19 @@
           }
         },
         "title": "CompanionSurfaceUpdate",
+        "type": "object"
+      },
+      "ConfigReloadOut": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ConfigReloadOut",
         "type": "object"
       },
       "ContextBundle": {
@@ -4732,6 +4839,21 @@
         "title": "FloorRegionRequest",
         "type": "object"
       },
+      "FontListOut": {
+        "description": "Font files available to the e-ink renderer.",
+        "properties": {
+          "fonts": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Fonts",
+            "type": "array"
+          }
+        },
+        "title": "FontListOut",
+        "type": "object"
+      },
       "FusionConfigOut": {
         "properties": {
           "confidence_floor": {
@@ -5993,6 +6115,146 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HaEntityOut": {
+        "description": "One Home Assistant entity, as the step-config dropdowns consume it.",
+        "properties": {
+          "entity_id": {
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_id",
+          "name"
+        ],
+        "title": "HaEntityOut",
+        "type": "object"
+      },
+      "HaSyncRoomsOut": {
+        "description": "Result of syncing HA areas into rooms.\n\nEvery field is optional because the endpoint returns one of two disjoint shapes with a 200:\n``{\"error\": \"Home Assistant not configured\"}`` or ``{\"created\", \"updated\", \"total_areas\"}``.\nThis models the contract as it is rather than pretending; the union is the underlying\nproblem (a missing integration should be a typed 503, and `RoomsView.vue:121` renders\n\"Created undefined\" today when it hits the error branch), but changing the status code is a\nbehavioral change outside M17's scope.",
+        "properties": {
+          "created": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "total_areas": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Areas"
+          },
+          "updated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated"
+          }
+        },
+        "title": "HaSyncRoomsOut",
+        "type": "object"
+      },
+      "HaSyncSensorsOut": {
+        "description": "Result of syncing HA entities into sensors. Same two-shape caveat as HaSyncRoomsOut.",
+        "properties": {
+          "created": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "skipped": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped"
+          },
+          "updated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated"
+          }
+        },
+        "title": "HaSyncSensorsOut",
+        "type": "object"
+      },
+      "HealthOut": {
+        "description": "Liveness probe.",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "HealthOut",
+        "type": "object"
+      },
       "HeatmapBin": {
         "additionalProperties": false,
         "properties": {
@@ -6390,6 +6652,28 @@
         "title": "HouseholdMemberUpdate",
         "type": "object"
       },
+      "ImageRenderOut": {
+        "description": "Ack for a render/reset against one or more e-ink devices.",
+        "properties": {
+          "sensor_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Sensor Ids",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ImageRenderOut",
+        "type": "object"
+      },
       "ImageTemplateOut": {
         "properties": {
           "created_at": {
@@ -6779,6 +7063,329 @@
         "title": "InfoCardCreate",
         "type": "object"
       },
+      "InfoCardDeliveryOut": {
+        "properties": {
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          },
+          "dismissed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismissed At"
+          },
+          "dismissed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismissed By"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "info_card_id": {
+            "title": "Info Card Id",
+            "type": "integer"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "viewed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Viewed At"
+          }
+        },
+        "required": [
+          "id",
+          "info_card_id",
+          "channels",
+          "delivered_at"
+        ],
+        "title": "InfoCardDeliveryOut",
+        "type": "object"
+      },
+      "InfoCardListOut": {
+        "properties": {
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "layout_id": {
+            "title": "Layout Id",
+            "type": "string"
+          },
+          "slot_count": {
+            "default": 0,
+            "title": "Slot Count",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "layout_id",
+          "title",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "InfoCardListOut",
+        "type": "object"
+      },
+      "InfoCardListResponse": {
+        "description": "Paginated info-card list.",
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/InfoCardListOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "InfoCardListResponse",
+        "type": "object"
+      },
+      "InfoCardOut": {
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "body_text": {
+            "title": "Body Text",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_slots": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/InfoCardSlotResponse"
+            },
+            "title": "Image Slots",
+            "type": "array"
+          },
+          "layout_id": {
+            "title": "Layout Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "voice_instruction": {
+            "default": "",
+            "title": "Voice Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "layout_id",
+          "title",
+          "body_text",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "InfoCardOut",
+        "type": "object"
+      },
       "InfoCardSlotPatch": {
         "additionalProperties": false,
         "properties": {
@@ -6809,6 +7416,94 @@
           }
         },
         "title": "InfoCardSlotPatch",
+        "type": "object"
+      },
+      "InfoCardSlotResponse": {
+        "properties": {
+          "alt_text": {
+            "default": "",
+            "title": "Alt Text",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "info_card_id": {
+            "title": "Info Card Id",
+            "type": "integer"
+          },
+          "original_object_name": {
+            "title": "Original Object Name",
+            "type": "string"
+          },
+          "slot_index": {
+            "title": "Slot Index",
+            "type": "integer"
+          },
+          "source_image_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Image Id"
+          },
+          "variants": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Variants",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "info_card_id",
+          "slot_index",
+          "original_object_name"
+        ],
+        "title": "InfoCardSlotResponse",
+        "type": "object"
+      },
+      "InfoCardStatusOut": {
+        "description": "Acknowledgement of a status transition (archive/restore).",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "InfoCardStatusOut",
+        "type": "object"
+      },
+      "InfoCardSuggestionOut": {
+        "description": "LLM-suggested card draft. Not persisted: the caregiver edits then creates.",
+        "properties": {
+          "body_text": {
+            "default": "",
+            "title": "Body Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "voice_instruction": {
+            "default": "",
+            "title": "Voice Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "InfoCardSuggestionOut",
         "type": "object"
       },
       "InfoCardUpdate": {
@@ -6955,6 +7650,168 @@
         "title": "IngestActivityEnvelope",
         "type": "object"
       },
+      "InteractiveResponseOut": {
+        "description": "One recorded interactive response, with latency derived when both stamps exist.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "raw_response_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Response Json"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "action"
+        ],
+        "title": "InteractiveResponseOut",
+        "type": "object"
+      },
+      "KnowledgeDocumentImageOut": {
+        "properties": {
+          "alt_text": {
+            "default": "",
+            "title": "Alt Text",
+            "type": "string"
+          },
+          "document_id": {
+            "title": "Document Id",
+            "type": "integer"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "minio_object_name": {
+            "title": "Minio Object Name",
+            "type": "string"
+          },
+          "ord": {
+            "default": 0,
+            "title": "Ord",
+            "type": "integer"
+          },
+          "presigned_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presigned Url"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "minio_object_name",
+          "mime_type"
+        ],
+        "title": "KnowledgeDocumentImageOut",
+        "type": "object"
+      },
       "KnowledgeDocumentImageUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -6982,6 +7839,182 @@
           }
         },
         "title": "KnowledgeDocumentImageUpdate",
+        "type": "object"
+      },
+      "KnowledgeDocumentListOut": {
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_count": {
+            "default": 0,
+            "title": "Image Count",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "KnowledgeDocumentListOut",
+        "type": "object"
+      },
+      "KnowledgeDocumentListResponse": {
+        "description": "Paginated knowledge-document list.",
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeDocumentListOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "KnowledgeDocumentListResponse",
+        "type": "object"
+      },
+      "KnowledgeDocumentOut": {
+        "properties": {
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "chunk_count": {
+            "default": 0,
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "images": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeDocumentImageOut"
+            },
+            "title": "Images",
+            "type": "array"
+          },
+          "source_text": {
+            "title": "Source Text",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "source_text",
+          "status",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "KnowledgeDocumentOut",
         "type": "object"
       },
       "KnowledgeDocumentUpdate": {
@@ -7095,6 +8128,157 @@
           "default_max_tokens"
         ],
         "title": "LLMModelOut",
+        "type": "object"
+      },
+      "LayoutListResponse": {
+        "properties": {
+          "layouts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LayoutOut"
+            },
+            "title": "Layouts",
+            "type": "array"
+          }
+        },
+        "title": "LayoutListResponse",
+        "type": "object"
+      },
+      "LayoutOut": {
+        "properties": {
+          "applies_to": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Applies To",
+            "type": "array"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "image_slots": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LayoutSlotOut"
+            },
+            "title": "Image Slots",
+            "type": "array"
+          },
+          "max_images": {
+            "title": "Max Images",
+            "type": "integer"
+          },
+          "min_images": {
+            "title": "Min Images",
+            "type": "integer"
+          },
+          "surfaces": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Surfaces",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "display_name",
+          "min_images",
+          "max_images"
+        ],
+        "title": "LayoutOut",
+        "type": "object"
+      },
+      "LayoutSlotOut": {
+        "properties": {
+          "slot_id": {
+            "title": "Slot Id",
+            "type": "string"
+          },
+          "variants": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LayoutVariantOut"
+            },
+            "default": {},
+            "title": "Variants",
+            "type": "object"
+          }
+        },
+        "required": [
+          "slot_id"
+        ],
+        "title": "LayoutSlotOut",
+        "type": "object"
+      },
+      "LayoutVariantOut": {
+        "description": "One rendering target (surface) for an image slot.",
+        "properties": {
+          "color_mode": {
+            "title": "Color Mode",
+            "type": "string"
+          },
+          "fit_mode": {
+            "title": "Fit Mode",
+            "type": "string"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "target_height": {
+            "title": "Target Height",
+            "type": "integer"
+          },
+          "target_width": {
+            "title": "Target Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "target_width",
+          "target_height",
+          "fit_mode",
+          "color_mode",
+          "format"
+        ],
+        "title": "LayoutVariantOut",
+        "type": "object"
+      },
+      "LivenessOut": {
+        "description": "Root liveness probe. Must answer before auth config is trusted.",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "LivenessOut",
         "type": "object"
       },
       "LocationOverrideRequest": {
@@ -7368,6 +8552,57 @@
           }
         },
         "title": "ObservationResponse",
+        "type": "object"
+      },
+      "OccupancyHistoryResponse": {
+        "description": "Smoothed occupancy time-series for one room.\n\n``room`` and ``hours`` are optional because the endpoint drops them when the sensor-polling\nservice is unavailable, returning a bare ``{\"history\": []}``. Modelled as-is; tightening\nthat branch is a behavioral change, not a typing one.",
+        "properties": {
+          "history": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "room": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room"
+          }
+        },
+        "title": "OccupancyHistoryResponse",
+        "type": "object"
+      },
+      "OccupancyResponse": {
+        "description": "Live occupancy for every occupied room, keyed by room name.",
+        "properties": {
+          "occupancy": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RoomOccupancyStateEnvelope"
+            },
+            "title": "Occupancy",
+            "type": "object"
+          }
+        },
+        "title": "OccupancyResponse",
         "type": "object"
       },
       "OverlapGroupIn": {
@@ -9233,6 +10468,236 @@
         "title": "QuizCreate",
         "type": "object"
       },
+      "QuizListOut": {
+        "properties": {
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "question_count": {
+            "default": 0,
+            "title": "Question Count",
+            "type": "integer"
+          },
+          "question_layout_id": {
+            "title": "Question Layout Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "question_layout_id",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "QuizListOut",
+        "type": "object"
+      },
+      "QuizListResponse": {
+        "description": "Paginated quiz list.",
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/QuizListOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "QuizListResponse",
+        "type": "object"
+      },
+      "QuizOut": {
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "intro_voice_template": {
+            "default": "",
+            "title": "Intro Voice Template",
+            "type": "string"
+          },
+          "question_layout_id": {
+            "title": "Question Layout Id",
+            "type": "string"
+          },
+          "questions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/QuizQuestionOut"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          },
+          "voice_instruction": {
+            "default": "",
+            "title": "Voice Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "question_layout_id",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "QuizOut",
+        "type": "object"
+      },
       "QuizQuestionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -9282,6 +10747,64 @@
         "title": "QuizQuestionCreate",
         "type": "object"
       },
+      "QuizQuestionOut": {
+        "properties": {
+          "choices": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "expected_answer": {
+            "default": "",
+            "title": "Expected Answer",
+            "type": "string"
+          },
+          "explanation": {
+            "default": "",
+            "title": "Explanation",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_slot": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Image Slot",
+            "type": "object"
+          },
+          "ord": {
+            "title": "Ord",
+            "type": "integer"
+          },
+          "question_text": {
+            "title": "Question Text",
+            "type": "string"
+          },
+          "question_type": {
+            "title": "Question Type",
+            "type": "string"
+          },
+          "quiz_id": {
+            "title": "Quiz Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "quiz_id",
+          "ord",
+          "question_type",
+          "question_text"
+        ],
+        "title": "QuizQuestionOut",
+        "type": "object"
+      },
       "QuizQuestionReorder": {
         "additionalProperties": false,
         "properties": {
@@ -9300,6 +10823,44 @@
           "items"
         ],
         "title": "QuizQuestionReorder",
+        "type": "object"
+      },
+      "QuizQuestionSuggestionOut": {
+        "description": "One LLM-suggested question. Not persisted: the caregiver edits then creates.",
+        "properties": {
+          "choices": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "expected_answer": {
+            "default": "",
+            "title": "Expected Answer",
+            "type": "string"
+          },
+          "explanation": {
+            "default": "",
+            "title": "Explanation",
+            "type": "string"
+          },
+          "question_text": {
+            "title": "Question Text",
+            "type": "string"
+          },
+          "question_type": {
+            "title": "Question Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question_type",
+          "question_text"
+        ],
+        "title": "QuizQuestionSuggestionOut",
         "type": "object"
       },
       "QuizQuestionUpdate": {
@@ -9377,6 +10938,362 @@
           }
         },
         "title": "QuizQuestionUpdate",
+        "type": "object"
+      },
+      "QuizResponseOut": {
+        "properties": {
+          "answered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered At"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "chosen_choice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chosen Choice Id"
+          },
+          "chosen_choice_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chosen Choice Text"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_correct": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Correct"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "open_ended_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Ended Text"
+          },
+          "question_id": {
+            "title": "Question Id",
+            "type": "integer"
+          },
+          "question_ord": {
+            "title": "Question Ord",
+            "type": "integer"
+          },
+          "question_text": {
+            "title": "Question Text",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "question_id",
+          "question_ord",
+          "question_text",
+          "channel",
+          "answered_at"
+        ],
+        "title": "QuizResponseOut",
+        "type": "object"
+      },
+      "QuizSessionDetailOut": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "current_question_ord": {
+            "default": 0,
+            "title": "Current Question Ord",
+            "type": "integer"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_activity_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity At"
+          },
+          "quiz_id": {
+            "title": "Quiz Id",
+            "type": "integer"
+          },
+          "responses": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/QuizResponseOut"
+            },
+            "title": "Responses",
+            "type": "array"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "senior_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Senior Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "quiz_id",
+          "status",
+          "started_at",
+          "last_activity_at"
+        ],
+        "title": "QuizSessionDetailOut",
+        "type": "object"
+      },
+      "QuizSessionListOut": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "current_question_ord": {
+            "default": 0,
+            "title": "Current Question Ord",
+            "type": "integer"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "last_activity_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity At"
+          },
+          "quiz_id": {
+            "title": "Quiz Id",
+            "type": "integer"
+          },
+          "response_count": {
+            "default": 0,
+            "title": "Response Count",
+            "type": "integer"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "senior_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Senior Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "quiz_id",
+          "status",
+          "started_at",
+          "last_activity_at"
+        ],
+        "title": "QuizSessionListOut",
+        "type": "object"
+      },
+      "QuizStatusOut": {
+        "description": "Acknowledgement of a status transition (archive/restore/reorder).",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "QuizStatusOut",
+        "type": "object"
+      },
+      "QuizSuggestionOut": {
+        "description": "LLM-suggested quiz draft.",
+        "properties": {
+          "intro_voice_template": {
+            "default": "",
+            "title": "Intro Voice Template",
+            "type": "string"
+          },
+          "questions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/QuizQuestionSuggestionOut"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "voice_instruction": {
+            "default": "",
+            "title": "Voice Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "QuizSuggestionOut",
         "type": "object"
       },
       "QuizUpdate": {
@@ -9539,6 +11456,81 @@
           "data"
         ],
         "title": "ReCameraPayload",
+        "type": "object"
+      },
+      "RecameraUploadOut": {
+        "description": "Ack for a reCamera frame upload.\n\n``object_name`` is absent when the frame was dropped by the label filter, in which case\n``status`` is \"filtered\" and ``reason`` explains why.",
+        "properties": {
+          "object_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Name"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "description": "\"accepted\" | \"filtered\"",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "RecameraUploadOut",
+        "type": "object"
+      },
+      "RecentTurnsOut": {
+        "description": "Recent conversation turns.\n\n``session_id`` and ``message`` are optional: the endpoint omits the former and adds the\nlatter when no session is available or supplied.",
+        "properties": {
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "turns": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Turns",
+            "type": "array"
+          }
+        },
+        "title": "RecentTurnsOut",
         "type": "object"
       },
       "ReferenceBlock": {
@@ -10493,6 +12485,84 @@
           "as_of"
         ],
         "title": "RoomOccupancyEnvelope",
+        "type": "object"
+      },
+      "RoomOccupancyStateEnvelope": {
+        "description": "Live occupancy of one room from the unified read-model.",
+        "properties": {
+          "last_updated": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Timestamp of the most recent observation.",
+            "title": "Last Updated"
+          },
+          "occupied": {
+            "title": "Occupied",
+            "type": "boolean"
+          },
+          "person_ids": {
+            "description": "Identified household member ids in the room.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Person Ids",
+            "type": "array"
+          },
+          "room_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "rooms.id, when the source resolves a room id.",
+            "title": "Room Id"
+          },
+          "room_name": {
+            "title": "Room Name",
+            "type": "string"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the current occupancy window began.",
+            "title": "Since"
+          },
+          "source": {
+            "description": "world_tracker | ha_sensor | pipeline",
+            "title": "Source",
+            "type": "string"
+          },
+          "unknown_count": {
+            "default": 0,
+            "description": "Unidentified hypotheses currently in the room.",
+            "minimum": 0.0,
+            "title": "Unknown Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "room_name",
+          "occupied",
+          "source"
+        ],
+        "title": "RoomOccupancyStateEnvelope",
         "type": "object"
       },
       "RoomOut": {
@@ -12567,6 +14637,64 @@
         "title": "RuleValidationOut",
         "type": "object"
       },
+      "SampleImageOut": {
+        "description": "A sample frame for the image-crop step config UI.",
+        "properties": {
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "object_name": {
+            "title": "Object Name",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_type": {
+            "description": "\"recamera\" | \"cts\"",
+            "title": "Source Type",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "object_name",
+          "source_type",
+          "source_id"
+        ],
+        "title": "SampleImageOut",
+        "type": "object"
+      },
       "SegmentBoundaryView": {
         "properties": {
           "captured_at": {
@@ -12644,6 +14772,100 @@
           "ph_version"
         ],
         "title": "SegmentProposalResponse",
+        "type": "object"
+      },
+      "SeniorKnowledgeQueryOut": {
+        "properties": {
+          "answer_text": {
+            "default": "",
+            "title": "Answer Text",
+            "type": "string"
+          },
+          "answered_via": {
+            "title": "Answered Via",
+            "type": "string"
+          },
+          "asked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asked At"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "query_text": {
+            "title": "Query Text",
+            "type": "string"
+          },
+          "senior_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Senior Id"
+          },
+          "source_chunk_ids": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Source Chunk Ids",
+            "type": "array"
+          },
+          "source_document_ids": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Source Document Ids",
+            "type": "array"
+          },
+          "top_similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Similarity"
+          }
+        },
+        "required": [
+          "id",
+          "asked_at",
+          "query_text",
+          "answered_via",
+          "channel"
+        ],
+        "title": "SeniorKnowledgeQueryOut",
         "type": "object"
       },
       "SensorCreate": {
@@ -12893,6 +15115,51 @@
           }
         },
         "title": "SensorUpdate",
+        "type": "object"
+      },
+      "ServiceHealthOut": {
+        "additionalProperties": true,
+        "description": "Health probe result for one upstream service.\n\n``extra=\"allow\"`` is load-bearing, not laziness: the probes return\n``{\"configured\": True, **upstream_health_body}``, and the admin dashboard reads\nservice-specific keys straight off it -- TTS's ``default_engine``/``gpu_available``/\n``gpu_name``, for example (`DashboardView.vue:239-240`). A strict model would silently drop\nevery upstream key and the tiles would read \"unknown - CPU\". The two fields declared here are\nthe ones this codebase guarantees; the rest are the upstream service's contract, not ours.\n\n``status`` is absent when a healthy upstream body does not carry one.",
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "title": "ServiceHealthOut",
+        "type": "object"
+      },
+      "ServiceInfo": {
+        "description": "Where to probe one upstream service, and whether it is configured at all.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "health_url": {
+            "title": "Health Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "health_url"
+        ],
+        "title": "ServiceInfo",
         "type": "object"
       },
       "SignalEnvelope": {
@@ -13462,6 +15729,87 @@
         "title": "SuppressionIn",
         "type": "object"
       },
+      "TagAnalyticsItem": {
+        "description": "Usage of one tag across documents and quizzes.",
+        "properties": {
+          "avg_quiz_score_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Quiz Score Pct"
+          },
+          "document_count": {
+            "default": 0,
+            "title": "Document Count",
+            "type": "integer"
+          },
+          "quiz_count": {
+            "default": 0,
+            "title": "Quiz Count",
+            "type": "integer"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag"
+        ],
+        "title": "TagAnalyticsItem",
+        "type": "object"
+      },
+      "TagAnalyticsOut": {
+        "properties": {
+          "tags": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TagAnalyticsItem"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "title": "TagAnalyticsOut",
+        "type": "object"
+      },
+      "TelegramTriggerDefaultsOut": {
+        "properties": {
+          "allowed_chat_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Chat Ids",
+            "type": "array"
+          }
+        },
+        "title": "TelegramTriggerDefaultsOut",
+        "type": "object"
+      },
+      "TemplateImageUpdateOut": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "template_id": {
+            "title": "Template Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "template_id"
+        ],
+        "title": "TemplateImageUpdateOut",
+        "type": "object"
+      },
       "TextRegion": {
         "properties": {
           "align": {
@@ -13951,6 +16299,76 @@
           "floor_plan_height_px"
         ],
         "title": "VisibilityPolygonsResponse",
+        "type": "object"
+      },
+      "VoiceDefaultsOut": {
+        "description": "Default voice instructions per delivery type.",
+        "properties": {
+          "info_card_default": {
+            "title": "Info Card Default",
+            "type": "string"
+          },
+          "interactive_prompt_default": {
+            "title": "Interactive Prompt Default",
+            "type": "string"
+          },
+          "quiz_default": {
+            "title": "Quiz Default",
+            "type": "string"
+          }
+        },
+        "required": [
+          "interactive_prompt_default",
+          "info_card_default",
+          "quiz_default"
+        ],
+        "title": "VoiceDefaultsOut",
+        "type": "object"
+      },
+      "VoiceInstructionSuggestionOut": {
+        "properties": {
+          "voice_instruction": {
+            "title": "Voice Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_instruction"
+        ],
+        "title": "VoiceInstructionSuggestionOut",
+        "type": "object"
+      },
+      "WebhookSecretOut": {
+        "description": "A freshly generated per-rule webhook secret. Shown once.",
+        "properties": {
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret"
+        ],
+        "title": "WebhookSecretOut",
+        "type": "object"
+      },
+      "WebhookTriggerOut": {
+        "description": "Ack for an inbound webhook that started a rule execution.",
+        "properties": {
+          "execution_id": {
+            "title": "Execution Id",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution_id",
+          "status"
+        ],
+        "title": "WebhookTriggerOut",
         "type": "object"
       },
       "WeeklyReportRequest": {
@@ -15093,7 +17511,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AppInfoOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15113,7 +17533,11 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Current Config",
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"
@@ -15138,7 +17562,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigReloadOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15190,7 +17616,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15242,7 +17670,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceHealthOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15267,7 +17697,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceHealthOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15292,7 +17724,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceHealthOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15317,7 +17751,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceHealthOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15342,7 +17778,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceHealthOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15367,7 +17805,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceHealthOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15392,7 +17832,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelAuditOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15417,7 +17859,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramTriggerDefaultsOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -15691,7 +18135,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RecentTurnsOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -21099,7 +23545,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RecameraUploadOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -22956,7 +25404,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HaEntityOut"
+                  },
+                  "title": "Response List Entities",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -22991,7 +25445,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HaEntityOut"
+                  },
+                  "title": "Response List Media Players",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -23016,7 +25476,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HaSyncRoomsOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -23059,7 +25521,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HaSyncSensorsOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -23093,7 +25557,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -23232,7 +25698,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/FontListOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -23357,7 +25825,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ImageRenderOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -23412,7 +25882,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ImageRenderOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -23672,7 +26144,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateImageUpdateOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -23825,7 +26299,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardListResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -23867,7 +26343,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -23936,7 +26414,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardSuggestionOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -24019,7 +26499,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -24072,7 +26554,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -24117,7 +26601,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -24162,7 +26648,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardStatusOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -24207,7 +26695,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardStatusOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -24318,7 +26808,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardSlotResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -24379,7 +26871,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/InfoCardSlotResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -24504,7 +26998,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InteractiveResponseOut"
+                  },
+                  "title": "Response Get Interactive Responses",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -24586,7 +27086,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InfoCardDeliveryOut"
+                  },
+                  "title": "Response List Info Card Deliveries",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -24700,7 +27206,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SeniorKnowledgeQueryOut"
+                  },
+                  "title": "Response List Queries",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -24798,7 +27310,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QuizSessionListOut"
+                  },
+                  "title": "Response List Quiz Sessions",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -24843,7 +27361,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizSessionDetailOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -24878,7 +27398,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TagAnalyticsOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -24975,7 +27497,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentListResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -25017,7 +27541,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25100,7 +27626,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25153,7 +27681,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25198,7 +27728,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25243,7 +27775,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25298,7 +27832,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentImageOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25409,7 +27945,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentImageOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25455,7 +27993,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25500,7 +28040,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeDocumentOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25552,7 +28094,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutListResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -25597,7 +28141,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25632,7 +28178,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceDefaultsOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -25891,7 +28439,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/OccupancyResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -25951,7 +28501,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/OccupancyHistoryResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -27031,7 +29583,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SampleImageOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27360,7 +29914,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizListResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -27402,7 +29958,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27491,7 +30049,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizSuggestionOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27570,7 +30130,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceInstructionSuggestionOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27653,7 +30215,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27706,7 +30270,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27751,7 +30317,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27796,7 +30364,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizStatusOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27851,7 +30421,9 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizQuestionOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -27906,7 +30478,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizStatusOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -28017,7 +30591,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizQuestionOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -28127,7 +30703,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizQuestionOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -28198,7 +30776,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizQuestionSuggestionOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -28243,7 +30823,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/QuizStatusOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -30982,7 +33564,9 @@
           "202": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookTriggerOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -31023,7 +33607,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSecretOut"
+                }
               }
             },
             "description": "Successful Response"

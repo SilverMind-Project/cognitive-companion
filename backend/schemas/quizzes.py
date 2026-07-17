@@ -75,6 +75,42 @@ class QuizListOut(OutSchema):
     question_count: int = 0
 
 
+class QuizListResponse(OutSchema):
+    """Paginated quiz list."""
+
+    items: list[QuizListOut] = []
+    total: int
+
+
+class QuizStatusOut(OutSchema):
+    """Acknowledgement of a status transition (archive/restore/reorder)."""
+
+    status: str
+
+
+class QuizQuestionSuggestionOut(OutSchema):
+    """One LLM-suggested question. Not persisted: the caregiver edits then creates."""
+
+    question_type: str
+    question_text: str
+    choices: list[dict[str, Any]] = []
+    expected_answer: str = ""
+    explanation: str = ""
+
+
+class QuizSuggestionOut(OutSchema):
+    """LLM-suggested quiz draft."""
+
+    title: str
+    intro_voice_template: str = ""
+    voice_instruction: str = ""
+    questions: list[QuizQuestionSuggestionOut] = []
+
+
+class VoiceInstructionSuggestionOut(OutSchema):
+    voice_instruction: str
+
+
 # -- Quiz Question ------------------------------------------------------------
 
 

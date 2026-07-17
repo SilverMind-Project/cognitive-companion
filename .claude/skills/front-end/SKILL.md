@@ -632,15 +632,19 @@ export const getMyResource = (id: string) =>
 - Never interpolate a value into a path or query string. Pass `params`; the client encodes.
 - `npm run typecheck` (`vue-tsc`) is part of `make check-all`.
 
-### Contracts (`frontend/src/services/contracts.js`) -- being retired (M17)
+### There are no hand-written response contracts
 
-The hand-rolled dev-mode checker in `contracts.js` is superseded by the generated types and is
-deleted in M17b. It is a best-effort console warning, not a guarantee: it silently accepts any
-array-of-shape spec, so several contracts never validated anything.
+`contracts.js` -- a dev-only, console-warning shape checker whose validator silently accepted
+any array-of-shape spec, so several of its contracts never validated anything -- was deleted in
+M17. Do not reintroduce it or anything like it. The backend's `response_model` is the contract,
+`openapi.json` is its serialization, and the generated types are how the browser sees it.
 
-Do not register new contracts, and do not add methods to `api.js`. Domains still on the old
-`request()` helper keep working until they are migrated; `api.js` re-exports the migrated
-domains under their original names, so `api.x(...)` call sites are unaffected either way.
+`api.js` is now a barrel: it only re-exports the domain modules so existing `api.x(...)` call
+sites keep working. Do not add methods to it.
+
+`tests/services/one_request_core.spec.js` enforces the above (no `fetch` outside `http.ts`, no
+module reading the API key itself, no `contracts.js`), as does `r4_bypass_guard.spec.js` for
+components. M19 converts both to ESLint rules.
 
 ### One endpoint owns each fact; no cross-contract fallbacks
 
@@ -717,6 +721,7 @@ All frontend tests live under `frontend/tests/`. The directory structure mirrors
 | `src/components/cts/Foo.vue` | `tests/components/cts/Foo.test.js` |
 | `src/router/index.js` | `tests/router/` |
 | `src/services/api.js` (bundle check) | `tests/bundle.test.js` |
+| `src/services/http.ts`, `src/services/modules/` | `tests/services/http.spec.ts`, `tests/services/modules/*.spec.ts`, `tests/services/one_request_core.spec.js`, `tests/services/api_barrel.spec.ts` |
 
 **Never place test files inside `frontend/src/`** (e.g. `src/composables/__tests__/`). Tests are not part of the application bundle and must stay in `frontend/tests/`.
 
@@ -1322,8 +1327,10 @@ If the palette is adjusted in future work, re-verify these ratios. WCAG AA is a 
 frontend/
   src/
     styles/theme.css          -- global design tokens + Vuetify overrides
-    services/api.js           -- all API calls
-    services/contracts.js     -- response shape validation
+    services/http.ts          -- the one request core (typed openapi-fetch client, auth, ApiError)
+    services/modules/         -- typed domain modules; all endpoint calls live here
+    services/api.js           -- barrel re-exporting the modules (legacy call sites only)
+    generated/api-types.d.ts  -- types generated from the backend's openapi.json
     services/timezone.js      -- datetime formatting + constants
     composables/useNotify.js  -- snackbar notifications
     composables/useConfirm.js -- promise-based confirmation dialog
@@ -1349,8 +1356,9 @@ surfaces, also load
 
 1. Create `frontend/src/views/admin/NewResourceView.vue`
 2. Follow the page layout pattern (header row + glass-card + table + dialogs)
-3. Add API methods to `api.js` with contract names
-4. Add contracts to `contracts.js`
+3. Add API methods to the matching module in `services/modules/` (create one if the domain is
+   new); they are typed against the generated `paths`, and `api.js` needs no edit
+4. If the endpoint is new, run `make openapi` and `npm run generate:api`, and commit both
 5. Wire the route in the router config
 6. Add to the admin nav drawer in `AdminView.vue`
 7. Add `auth.yaml` entries for each new endpoint

@@ -5,42 +5,19 @@
  * tracking microservices directly.
  */
 
-import { validateContract } from "./contracts.js";
+import { getApiKey, requestBlobUrl, requestJson } from "./http";
 
 const BASE = "/api/v1/cts";
 
-function getApiKey() {
-  return localStorage.getItem("cc_api_key") || "";
-}
-
-function authHeaders(extra = {}) {
-  const key = getApiKey();
-  return { ...(key ? { "X-API-Key": key } : {}), ...extra };
-}
-
-async function req(path, options = {}) {
-  const { contract, ...fetchOptions } = options;
-  const headers = authHeaders({
-    "Content-Type": "application/json",
-    ...fetchOptions.headers,
-  });
-  let resp;
-  try {
-    resp = await fetch(`${BASE}${path}`, { ...fetchOptions, headers });
-  } catch (err) {
-    throw new Error(`Network error: ${err.message || "Unable to reach server"}`);
-  }
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}));
-    const detail = body.detail;
-    const msg =
-      typeof detail === "object" ? detail.message || JSON.stringify(detail) : detail;
-    throw new Error(msg || `HTTP ${resp.status}`);
-  }
-  if (resp.status === 204) return null;
-  const data = await resp.json();
-  if (contract) validateContract(contract, data);
-  return data;
+/**
+ * Requests go through the shared core in `http.ts` (auth, ApiError, network-error wrapping)
+ * rather than this module's own copy of that plumbing.
+ *
+ * Response shapes are no longer hand-declared: they are backend-owned and described by
+ * `openapi.json`. Keying these calls to the generated `paths` type is follow-up work.
+ */
+function req(path, options = {}) {
+  return requestJson(`${BASE}${path}`, options);
 }
 
 export const cts = {
@@ -56,14 +33,8 @@ export const cts = {
   deleteCamera: (id) => req(`/cameras/${id}`, { method: "DELETE" }),
   testConnect: (rtsp_url) =>
     req("/cameras/test-connect", { method: "POST", body: JSON.stringify({ rtsp_url }) }),
-  getSnapshot: async (id) => {
-    const key = getApiKey();
-    const resp = await fetch(`${BASE}/cameras/${id}/snapshot`, {
-      headers: key ? { "X-API-Key": key } : {},
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return URL.createObjectURL(await resp.blob());
-  },
+  /** Live camera snapshot as an authenticated object URL. The caller must revoke it. */
+  getSnapshot: (id) => requestBlobUrl(`${BASE}/cameras/${encodeURIComponent(id)}/snapshot`),
   getCameraHealth: (id) => req(`/cameras/${id}/health`),
   reloadCamera: (id) => req(`/cameras/${id}/reload`, { method: "POST" }),
 
@@ -120,7 +91,7 @@ export const cts = {
 
   // ── Calibration diagnostics and transit zones ──────────────────────────────
   getCalibrationDiagnostics: () => req("/diagnostics/calibration"),
-  getTransitZones: () => req("/transit-zones", { contract: "cts.transitZones" }),
+  getTransitZones: () => req("/transit-zones"),
   createTransitZone: (body) =>
     req("/transit-zones", { method: "POST", body: JSON.stringify(body) }),
   updateTransitZone: (id, body) =>
@@ -193,14 +164,11 @@ export const cts = {
 
   /** Fetch a keyframe image as an authenticated blob (object URL).
    *  The caller MUST call URL.revokeObjectURL(url) on unmount. */
-  getKeyframeBlob: async (minioKey) => {
+  getKeyframeBlob: (minioKey) => {
+    // The key is a MinIO path: encode each segment but keep the separators, since the route is
+    // declared as {key:path}.
     const encodedKey = minioKey.split("/").map(encodeURIComponent).join("/");
-    const key = getApiKey();
-    const resp = await fetch(`${BASE}/frames/${encodedKey}`, {
-      headers: key ? { "X-API-Key": key } : {},
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return URL.createObjectURL(await resp.blob());
+    return requestBlobUrl(`${BASE}/frames/${encodedKey}`);
   },
 
   // ── Weekly report ──────────────────────────────────────────────────────────
@@ -393,6 +361,6 @@ export const cts = {
   // ── Gait mobility trend ─────────────────────────────────────────────────────
   getGaitTrend(personId, days = 56) {
     const qs = new URLSearchParams({ person_id: personId, days: String(days) });
-    return req(`/gait/trend?${qs}`, { contract: "cts.gait.trend" });
+    return req(`/gait/trend?${qs}`);
   },
 };

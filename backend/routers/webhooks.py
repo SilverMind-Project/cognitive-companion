@@ -20,6 +20,7 @@ from backend.core.auth import require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
 from backend.models.rule import Rule
+from backend.schemas.misc_responses import WebhookSecretOut, WebhookTriggerOut
 from backend.steps.base import TriggerContext
 
 logger = get_logger(__name__)
@@ -37,7 +38,7 @@ def verify_webhook_secret(provided: str, expected: str) -> bool:
     return hmac.compare_digest(provided, expected)
 
 
-@router.post("/{rule_id}", status_code=202)
+@router.post("/{rule_id}", status_code=202, response_model=WebhookTriggerOut)
 async def trigger_webhook(
     rule_id: int,
     request: Request,
@@ -107,6 +108,7 @@ async def trigger_webhook(
 @router.post(
     "/{rule_id}/generate-secret",
     dependencies=[Depends(require_permission("rules:write"))],
+    response_model=WebhookSecretOut,
 )
 async def regenerate_webhook_secret(
     rule_id: int,

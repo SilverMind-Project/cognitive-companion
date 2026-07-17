@@ -105,13 +105,11 @@
           <span v-if="uncalibrated.some((c) => c.has_homography)">
             visibility polygon could not be computed. Check that the floor plan scale (m/pixel)
             is correct in
-            <router-link :to="{ name: 'cts-floor-plan' }" class="text-primary"
-              >Floor Plan settings</router-link
-            >.
+            <a href="#" class="text-primary" @click.prevent="emit('go-upload')">Floor Plan settings</a>.
           </span>
           <span v-else>
             no homography calibration yet.
-            <v-btn variant="text" size="x-small" class="ml-1" :to="{ name: 'CTSCalibration' }">
+            <v-btn variant="text" size="x-small" class="ml-1" :to="{ name: 'cts-calibration' }">
               Calibrate &rarr;
             </v-btn>
           </span>

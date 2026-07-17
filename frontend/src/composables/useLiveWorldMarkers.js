@@ -74,7 +74,10 @@ export function useLiveWorldMarkers(fpWidth, fpHeight, fpMpp, canvasW, canvasH, 
       liveZoom.state.didPan = false;
       return;
     }
-    router.push({ name: "CTSPeople", query: { ph_id: ph.ph_id || "" } });
+    router.push({
+      name: "tracking-workspace",
+      query: { panel: "people", ph_id: ph.ph_id || "" },
+    });
   }
 
   // ── Smooth marker interpolation ───────────────────────────────────────────

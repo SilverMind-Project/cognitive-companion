@@ -436,6 +436,7 @@
 
 <script>
 import { ref, computed, watch, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { formatRelative } from "@/composables/useFormatRelative";
 import { usePHList } from "@/composables/usePHList";
 import { useCtsWebSocket } from "@/composables/useCtsWebSocket";
@@ -470,6 +471,8 @@ export default {
   },
 
   setup() {
+    const route = useRoute();
+    const router = useRouter();
     const phList = usePHList();
     const { notify } = useNotify();
     const {
@@ -522,6 +525,32 @@ export default {
     onMounted(() => {
       phList.actions.fetch();
     });
+
+    // Deep-link: a PH marker click on the live floor plan (CTSFloorPlanView) navigates
+    // here with ?ph_id=... on the "people" panel query. openInspectorById fetches the
+    // PH's full detail itself (PHInspectorDrawer.vue), so this doesn't need to wait for
+    // phList's own fetch to resolve. A watch (not just onMounted) also covers navigating
+    // to a different ph_id while this panel is already mounted and kept alive by
+    // TrackingWorkspace's v-window. Consumed once, then stripped from the URL so a
+    // refresh or returning to this tab later doesn't reopen the same inspector.
+    //
+    // The query strip must happen BEFORE opening the drawer, not after: VNavigationDrawer
+    // has a built-in `watch(router.currentRoute, () => isTemporary.value && (isActive.value
+    // = false))` (vuetify/lib/components/VNavigationDrawer/VNavigationDrawer.js) that force
+    // -closes any temporary drawer on every route change, including a query-only replace.
+    // Opening the drawer and then stripping the query immediately closed it again the
+    // moment it opened -- confirmed live by polling the component's setupState.drawerOpen,
+    // which stayed false at every 150ms tick despite inspectorPh being set correctly.
+    watch(
+      () => route.query.ph_id,
+      async (phId) => {
+        if (!phId) return;
+        const { ph_id: _discard, ...rest } = route.query;
+        await router.replace({ query: rest });
+        openInspectorById(phId);
+      },
+      { immediate: true },
+    );
 
     // Mirror WS status into a local ref for the template
     watch(

@@ -1,3 +1,14 @@
+/**
+ * Kiosk mode — deliberately NOT a Pinia store.
+ *
+ * Audited during M18 and left as a composable. Unlike blur mode and marauders mode, this state
+ * is per-instance, not app-wide: every call builds its own `reactive` from injected
+ * dependencies (route, apiClient, storage, wakeLock, document, heartbeat interval), and it owns
+ * mount-scoped resources -- a wake lock and a heartbeat timer -- that belong to the gate that
+ * mounted it. Two kiosks in one tab would legitimately hold different settings. Hoisting this
+ * into a store would force one instance to win and would leak the timer past unmount.
+ */
+
 import { computed, onMounted, onUnmounted, reactive, watch } from "vue";
 import { api } from "@/services/api.js";
 

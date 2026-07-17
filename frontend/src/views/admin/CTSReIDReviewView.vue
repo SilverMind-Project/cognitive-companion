@@ -438,7 +438,6 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="4000">{{ snackText }}</v-snackbar>
   </div>
 </template>
 
@@ -469,7 +468,7 @@ const REJECT_REASONS = [
 ];
 const ORIENTATIONS = ["back", "left", "front", "right", "unknown"];
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const { state, actions } = useReIDReview(notify);
 const {
   confirmDialog,

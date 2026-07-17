@@ -179,11 +179,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
-    <!-- Re-embed snackbar -->
-    <v-snackbar v-model="reembedSnackbar" timeout="3000">
-      Re-embed triggered (stub — not yet implemented).
-    </v-snackbar>
   </div>
 </template>
 
@@ -205,7 +200,6 @@ const loading = ref(true);
 const saving = ref(false);
 const uploadingImages = ref(false);
 const newImages = ref([]);
-const reembedSnackbar = ref(false);
 const deleteDialog = ref(false);
 
 const editForm = reactive({
@@ -346,7 +340,7 @@ async function doDelete() {
 }
 
 function reEmbed() {
-  reembedSnackbar.value = true;
+  notify.info("Re-embed triggered (stub — not yet implemented).");
 }
 
 onMounted(fetchDocument);

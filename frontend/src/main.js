@@ -2,8 +2,9 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import { router } from "./router/index.js";
-import { initTimezone, getAppTimezone } from "./services/timezone.js";
-import { api } from "./services/api.js";
+import { setApiKeyProvider } from "./services/http";
+import { useAppConfigStore } from "./stores/appConfig";
+import { useAuthStore } from "./stores/auth";
 
 // Vuetify
 import "./styles/vuetify.scss";
@@ -90,24 +91,22 @@ const vuetify = createVuetify({
 });
 
 async function bootstrap() {
-  // Fetch app config from the backend before mounting so that all
-  // timezone-aware formatters use the operator-configured timezone
-  // (app.timezone in settings.yaml) rather than the browser's timezone.
-  try {
-    const info = await api.getAppInfo();
-    initTimezone(info.timezone);
-  } catch (e) {
-    // Backend unreachable at load time; fall back to UTC (or the last value
-    // cached in localStorage).  Timezone will be correct once the backend
-    // comes back and the page is refreshed.
-    console.warn("Failed to fetch app-info; timezone defaults to", getAppTimezone(), e);
-  }
-
+  // Order matters. Pinia must be active before any store is touched, so it is installed first;
+  // the API-key provider is repointed at the auth store before the first request goes out; and
+  // app-info is still awaited before mount, so timezone-aware formatters render the
+  // operator-configured timezone (app.timezone in settings.yaml) on the very first paint rather
+  // than the browser's.
   const pinia = createPinia();
   const app = createApp(App);
   app.use(vuetify);
   app.use(pinia);
   app.use(router);
+
+  setApiKeyProvider(() => useAuthStore().apiKey);
+
+  // Never throws: a backend that is down at load time must not block the mount.
+  await useAppConfigStore().bootstrap();
+
   app.mount("#app");
 }
 

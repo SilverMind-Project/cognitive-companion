@@ -658,6 +658,36 @@ Legitimate composition -- a view fetching two *distinct* facts from two endpoint
 
 ---
 
+## State management
+
+Global and shared state lives in Pinia stores under `src/stores/`. Stores are written in
+TypeScript against the generated API types.
+
+| Store | Owns |
+|---|---|
+| `auth.ts` | The API key. The only file allowed to touch the `cc_api_key` storage key; `http.ts` reads it through `setApiKeyProvider`, wired in `main.js`. |
+| `appConfig.ts` | App-info lifecycle (timezone, name, version). Fetch only: `services/timezone.js` stays the formatting engine, and its localStorage-per-call design is a deliberate HMR fix. Do not route formatters through the store. |
+| `notifications.ts` | The notification queue. |
+| `pipelineEvents.ts` | The one `/ws/pipeline` socket, reference-counted across consumers. |
+| `ui.ts` | Marauders mode, reduced-motion, blur mode. |
+
+The boundary: a composable is the right home for view-local or per-instance state. A `reactive`
+or `ref` declared at module top level and shared across components is a store wearing a
+composable's clothes, and must be migrated when touched. Per-instance state built from injected
+dependencies stays a composable (see `useKioskMode`, which documents why).
+
+A composable may remain the public API over a store when it must run in a setup context:
+`useMaraudersMode` acquires the Vuetify theme via `useTheme()` and hands it to `ui.init(theme)`.
+
+**Notifications**: call `useNotify()` (or `useNotificationsStore()` directly). Never render a
+local `<v-snackbar>` for app feedback -- `CcSnackbarHost` in `App.vue` is the single renderer,
+and a per-view snackbar only ever shows messages raised by that view, which is the bug this
+replaced.
+
+**Testing**: `vitest.setup.js` installs a fresh Pinia before every test, so specs mounting
+store-backed components need no boilerplate. Install `createTestingPinia` in mount options only
+when a spec needs store actions stubbed rather than executed.
+
 ## Composables
 
 ### `useNotify()`
@@ -667,6 +697,7 @@ notify.success("Created.");
 notify.error("Failed: " + err.message);
 notify.warning("Validation message");
 ```
+No template wiring: `CcSnackbarHost` renders it. Do not add a `<v-snackbar>` to the view.
 
 ### `useConfirm()`
 ```js
@@ -1332,7 +1363,8 @@ frontend/
     services/api.js           -- barrel re-exporting the modules (legacy call sites only)
     generated/api-types.d.ts  -- types generated from the backend's openapi.json
     services/timezone.js      -- datetime formatting + constants
-    composables/useNotify.js  -- snackbar notifications
+    stores/                   -- Pinia: global/shared state (auth, appConfig, notifications, pipelineEvents, ui)
+    composables/useNotify.js  -- notifications (delegates to the store; CcSnackbarHost renders)
     composables/useConfirm.js -- promise-based confirmation dialog
     components/common/        -- reusable shared components (LlmModelPicker, etc.)
     components/pipeline/      -- rule pipeline builder components
@@ -1414,6 +1446,7 @@ Before marking frontend work complete:
 - Filter changes reset page to 1
 - No `getHours()`, `getMinutes()`, `getSeconds()`, `toLocaleString()`, `toLocaleDateString()`, `toLocaleTimeString()` anywhere; use `services/timezone.js`
 - Inspector drawers: `useNotify()` imported and used (zero `console.log` / `console.error` stubs)
+- No `<v-snackbar>` outside `CcSnackbarHost.vue`; no module-level `ref`/`reactive` shared across components (that is a store)
 - Inspector drawers: `useConfirm()` called before every destructive action
 - Inspector drawers: `@click:row` wired on data tables (not only the Inspect button)
 - Composables return `{ state, actions }` shape (never flat named refs)

@@ -162,7 +162,6 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3500">{{ snackText }}</v-snackbar>
   </div>
 </template>
 
@@ -176,7 +175,7 @@ import DialogFooter from "../../components/common/DialogFooter.vue";
 import PolygonOnSnapshot from "../../components/cts/PolygonOnSnapshot.vue";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const { blurMode } = useBlurMode();
 const { displaySrc } = useDisplaySrc(blurMode);
 

@@ -269,7 +269,6 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3500">{{ snackText }}</v-snackbar>
   </div>
 </template>
 
@@ -284,7 +283,7 @@ import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
 const { blurMode } = useBlurMode();
 const { displaySrc } = useDisplaySrc(blurMode);

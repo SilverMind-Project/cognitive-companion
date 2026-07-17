@@ -175,7 +175,6 @@
     />
   </div>
 
-  <v-snackbar v-model="snack" :color="snackColor" timeout="4000">{{ snackText }}</v-snackbar>
 </template>
 
 <script>
@@ -222,7 +221,7 @@ import { ref, computed } from "vue";
 import { api } from "../../../services/api.js";
 import { useNotify } from "../../../composables/useNotify.js";
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 
 const props = defineProps({
   modelValue: { type: Object, required: true },

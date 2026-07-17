@@ -50,7 +50,6 @@
         />
       </v-card>
     </v-dialog>
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
       <v-card rounded="xl">
@@ -74,7 +73,7 @@ import { useConfirm } from "../../composables/useConfirm.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
 
 const rooms = ref([]);

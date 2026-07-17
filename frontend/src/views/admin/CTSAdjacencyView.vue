@@ -348,7 +348,6 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3500">{{ snackText }}</v-snackbar>
   </div>
 </template>
 
@@ -360,7 +359,7 @@ import { useNotify } from "../../composables/useNotify.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 
 // ---------------------------------------------------------------------------
 // Types

@@ -74,9 +74,9 @@ describe("one request core", () => {
 
     expect(
       violations,
-      "The API key is owned by services/http.ts (getApiKey/setApiKey/setApiKeyProvider). " +
-        `M18 moves it into the Pinia auth store, and this is the seam that makes that one ` +
-        `line:\n${violations.join("\n")}`,
+      "The API key is owned by the Pinia auth store (M18), which services/http.ts reads through " +
+        `its setApiKeyProvider seam. A direct localStorage read here bypasses the store and goes ` +
+        `stale the moment the key is rotated:\n${violations.join("\n")}`,
     ).toEqual([]);
   });
 

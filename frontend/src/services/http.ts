@@ -41,9 +41,9 @@ let apiKeyProvider: ApiKeyProvider = () => localStorage.getItem(API_KEY_STORAGE_
 /**
  * Swap the source of the API key.
  *
- * The default reads localStorage directly, matching `api.js`'s historical behavior. M18 points
- * this at the Pinia auth store; this seam exists so that is a one-line change rather than a
- * rewrite of the middleware.
+ * `main.js` points this at the Pinia auth store at startup (M18), which is the key's owner. The
+ * localStorage default remains as the pre-wire fallback, so a request issued before bootstrap
+ * completes -- or from a spec that never boots the app -- still authenticates.
  */
 export function setApiKeyProvider(provider: ApiKeyProvider): void {
   apiKeyProvider = provider;
@@ -51,17 +51,6 @@ export function setApiKeyProvider(provider: ApiKeyProvider): void {
 
 export function getApiKey(): string {
   return apiKeyProvider();
-}
-
-/**
- * Persist the API key.
- *
- * Writes localStorage directly, matching the pre-M17 behavior. M18 moves ownership of the key
- * into the Pinia auth store, at which point this becomes the store's action and the provider
- * seam above is repointed at it.
- */
-export function setApiKey(key: string): void {
-  localStorage.setItem(API_KEY_STORAGE_KEY, key);
 }
 
 const authMiddleware: Middleware = {

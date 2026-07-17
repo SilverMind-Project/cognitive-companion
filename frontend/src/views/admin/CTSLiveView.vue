@@ -396,10 +396,6 @@
       </div>
     </v-card>
 
-    <v-snackbar v-model="revisionToast" :timeout="3500" color="info">
-      {{ revisionToastText }}
-    </v-snackbar>
-
     <v-dialog v-model="correctionOpen" max-width="520" persistent>
       <v-card>
         <DialogHeader
@@ -450,6 +446,7 @@ import { useBlurMode, useDisplaySrc } from "@/composables/useBlurMode.js";
 import { identityColor } from "@/composables/useIdentityColor.js";
 import { HALO, postureColor } from "@/composables/useAnnotationStyle.js";
 import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
+import { useNotify } from "@/composables/useNotify.js";
 import MaraudersInkBox from "@/components/marauders/MaraudersInkBox.vue";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
@@ -460,6 +457,7 @@ defineProps({
 });
 
 const { state: maraudersState } = useMaraudersMode();
+const { notify } = useNotify();
 const STALE_THRESHOLD_S = 15;
 const SNAPSHOT_POLL_MS = 5_000;
 
@@ -564,8 +562,6 @@ onUnmounted(() => {
   for (const url of Object.values(snapshotUrls.value)) URL.revokeObjectURL(url);
 });
 
-const revisionToast = ref(false);
-const revisionToastText = ref("");
 const correctionOpen = ref(false);
 const saving = ref(false);
 const correction = reactive({
@@ -880,8 +876,7 @@ function onMessage(msg) {
   } else if (msg.type === "cts_identity_revision") {
     const prev = msg.previous_identity_id || "unknown";
     const next = msg.new_identity_id || "unknown";
-    revisionToastText.value = `Identity corrected: ${prev} → ${next}`;
-    revisionToast.value = true;
+    notify.info(`Identity corrected: ${prev} → ${next}`);
   } else {
     console.debug("[cts_live] WS unknown message type", msg.type, Object.keys(msg));
   }

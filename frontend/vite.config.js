@@ -33,5 +33,10 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     setupFiles: ["./vitest.setup.js"],
+    server: {
+      // Vuetify ships component-level CSS imports. Node cannot load those, so any spec importing
+      // a real Vuetify entry point (main.js) dies on VApp.css unless Vite transforms the package.
+      deps: { inline: [/vuetify/] },
+    },
   },
 });

@@ -180,7 +180,6 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
   </v-card>
 </template>
 
@@ -211,7 +210,7 @@ const busy = ref(false);
 const error = ref(null);
 const polling = ref(false);
 let pollTimer = null;
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const {
   confirmDialog,
   confirmTitle,

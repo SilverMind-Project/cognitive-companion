@@ -1263,7 +1263,6 @@
       </v-row>
     </template>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3500">{{ snackText }}</v-snackbar>
   </div>
 </template>
 
@@ -1300,7 +1299,7 @@ defineProps({
   embedded: { type: Boolean, default: false },
 });
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const { state: maraudersState } = useMaraudersMode();
 const router = useRouter();
 

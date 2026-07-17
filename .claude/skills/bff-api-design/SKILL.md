@@ -95,7 +95,26 @@ async def get_my_resource(
     return await svc.get_my_resource(resource_id)
 ```
 
-### 5. Add the auth.yaml permission entry
+`response_model` is not optional on a JSON endpoint: it is the schema the frontend's TypeScript
+types are generated from, and `backend/tests/routers/test_response_model_coverage.py` fails a
+route that omits it. A route returning 204 has no body and needs none.
+
+Two routes may not share a `(path, method)`: Starlette serves the first registered and the
+second becomes unreachable while its own tests, which mount the router in isolation, stay green
+(C17). `backend/tests/routers/test_route_uniqueness.py` gates this against the composed app.
+
+### 5. Export the contract artifacts
+
+```bash
+make contracts   # openapi.json + vocabularies.json
+```
+
+Commit `frontend/openapi.json` and the regenerated `frontend/src/generated/api-types.d.ts`
+(`cd frontend && npm run generate:api`). CI diff-gates both, so a contract change that skips
+this fails the build. The frontend type diff is part of your change's review surface: read it,
+because it is what the browser will actually be compiled against.
+
+### 6. Add the auth.yaml permission entry
 
 Every new endpoint needs coverage in `config/auth.yaml`. The file has two layers:
 
@@ -111,7 +130,7 @@ permission_map:
 
 Use the permission token in `require_permission("my_resource.read")`. If the route uses a concrete `"METHOD /path"` token instead, add that exact pattern to the intended role. Verify both the token definition and role assignment. Add a focused router test that expects `403` without the permission and success with it. `backend/tests/core/test_auth.py` tests permission expansion mechanics, but there is currently no global test that proves every router token appears in `auth.yaml`.
 
-### 6. Add the MCP tool
+### 7. Add the MCP tool
 
 Add a `@_register` decorated function in `backend/mcp/server.py`. It calls the same service function; it does not import a repository or run a query:
 
@@ -128,7 +147,7 @@ async def get_my_resource(resource_id: str) -> dict:
 
 Add the tool name to `config/settings.yaml` under the `mcp.tools` list.
 
-### 7. Add to the import-linter contract
+### 8. Add to the import-linter contract
 
 `backend/pyproject.toml` contains `[[tool.importlinter.contracts]]` definitions. The current MCP contract forbids direct repository imports from `backend.mcp`. Extend its `forbidden_modules` only when a new repository package would otherwise be reachable:
 
@@ -146,7 +165,7 @@ forbidden_modules = [
 
 Run `make import-lint` to verify.
 
-### 8. Add the parity test
+### 9. Add the parity test
 
 There is no single `backend/tests/mcp/test_parity.py`. Put the test beside the closest existing pattern:
 
@@ -178,7 +197,7 @@ async def test_my_resource_parity():
     assert router_result.confidence == mcp_result["confidence"]
 ```
 
-### 9. Update the docs and CLAUDE.md
+### 10. Update the docs and CLAUDE.md
 
 Add the endpoint to `docs/api/reference.md`. If the surface area is significant, add a feature page.
 

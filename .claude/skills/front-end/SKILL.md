@@ -612,20 +612,35 @@ Sizes: `xs | sm | md | lg | xl`. `status` (optional): `steady` | `notice` | `ale
 
 ### Adding new API methods
 
-Follow the existing pattern in `frontend/src/services/api.js`:
-- JSON requests use the internal `request()` helper
-- FormData/multipart requests use `requestForm()`
-- Query params are built with `URLSearchParams`
-- Every endpoint registers a contract name in `contracts.js` for dev-mode response validation
+All HTTP goes through `src/services/http.ts`, the typed `openapi-fetch` client. Domain modules
+under `src/services/modules/` own endpoint calls; components never call `fetch`.
 
-### Contracts (`frontend/src/services/contracts.js`)
+```ts
+// src/services/modules/my_resource.ts
+import { client, unwrap } from "@/services/http";
 
-Every list/detail endpoint must have a contract. Register it with:
-```js
-def("resource.action", { key: "type", ... });
+export const getMyResource = (id: string) =>
+  unwrap(client.GET("/api/v1/my-resource/{resource_id}", { params: { path: { resource_id: id } } }));
 ```
 
-Supported types: `"array"`, `"object"`, `"number"`, `"string"`, `"boolean"`, `"?"` (optional key).
+- New code is TypeScript (`.ts`, or `<script setup lang="ts">`), and is fully strict.
+- Types come from `src/generated/api-types.d.ts`. Regenerate with `npm run generate:api` after
+  any backend contract change; CI diff-gates both `openapi.json` and the generated types.
+- **Never hand-write a response interface for a backend endpoint.** If the type is missing or
+  comes out `unknown`, the backend route is missing `response_model` -- fix it there, not here.
+- Errors are `ApiError` (`status` + `detail`); `error.message` keeps its historical shape.
+- Never interpolate a value into a path or query string. Pass `params`; the client encodes.
+- `npm run typecheck` (`vue-tsc`) is part of `make check-all`.
+
+### Contracts (`frontend/src/services/contracts.js`) -- being retired (M17)
+
+The hand-rolled dev-mode checker in `contracts.js` is superseded by the generated types and is
+deleted in M17b. It is a best-effort console warning, not a guarantee: it silently accepts any
+array-of-shape spec, so several contracts never validated anything.
+
+Do not register new contracts, and do not add methods to `api.js`. Domains still on the old
+`request()` helper keep working until they are migrated; `api.js` re-exports the migrated
+domains under their original names, so `api.x(...)` call sites are unaffected either way.
 
 ### One endpoint owns each fact; no cross-contract fallbacks
 

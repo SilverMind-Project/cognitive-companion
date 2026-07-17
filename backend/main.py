@@ -14,6 +14,7 @@ from backend.core.config import settings
 from backend.core.database import get_session, init_db
 from backend.core.exceptions import register_exception_handlers
 from backend.core.logging import get_logger, setup_logging
+from backend.schemas.misc_responses import LivenessOut
 
 logger = get_logger(__name__)
 
@@ -1110,7 +1111,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_metrics.router)
 
     # Health check (no auth required)
-    @app.get("/api/v1/health")
+    @app.get("/api/v1/health", response_model=LivenessOut)
     async def health():
         from backend._version import __version__
 

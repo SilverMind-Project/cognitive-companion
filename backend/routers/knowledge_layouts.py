@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request
 
 from backend.core.auth import require_permission
 from backend.core.exceptions import NotFoundError
+from backend.schemas.knowledge_layouts import LayoutListResponse, LayoutOut, VoiceDefaultsOut
 
 router = APIRouter(prefix="/knowledge/layouts", tags=["knowledge-layouts"])
 
@@ -44,7 +45,7 @@ def _layout_out(lo) -> dict[str, Any]:
     }
 
 
-@router.get("")
+@router.get("", response_model=LayoutListResponse)
 async def list_layouts(
     request: Request,
     applies_to: str | None = None,
@@ -55,7 +56,7 @@ async def list_layouts(
     return {"layouts": [_layout_out(lo) for lo in layouts]}
 
 
-@router.get("/{layout_id}")
+@router.get("/{layout_id}", response_model=LayoutOut)
 async def get_layout(
     layout_id: str,
     request: Request,
@@ -68,7 +69,7 @@ async def get_layout(
     return _layout_out(layout)
 
 
-@voice_defaults_router.get("/voice-defaults")
+@voice_defaults_router.get("/voice-defaults", response_model=VoiceDefaultsOut)
 async def get_voice_defaults(
     request: Request,
     _auth: None = Depends(require_permission("GET /api/v1/knowledge/layouts")),

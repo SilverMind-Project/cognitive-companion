@@ -19,11 +19,18 @@ from backend.models.knowledge import (
     QuizSession,
     SeniorKnowledgeQuery,
 )
+from backend.schemas.knowledge_interactions import (
+    InfoCardDeliveryOut,
+    QuizSessionDetailOut,
+    QuizSessionListOut,
+    SeniorKnowledgeQueryOut,
+    TagAnalyticsOut,
+)
 
 router = APIRouter(prefix="/knowledge-interactions", tags=["knowledge-interactions"])
 
 
-@router.get("/queries")
+@router.get("/queries", response_model=list[SeniorKnowledgeQueryOut])
 async def list_queries(
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
@@ -68,7 +75,7 @@ async def list_queries(
     ]
 
 
-@router.get("/quiz-sessions")
+@router.get("/quiz-sessions", response_model=list[QuizSessionListOut])
 async def list_quiz_sessions(
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
@@ -121,7 +128,7 @@ async def list_quiz_sessions(
     ]
 
 
-@router.get("/quiz-sessions/{session_id}")
+@router.get("/quiz-sessions/{session_id}", response_model=QuizSessionDetailOut)
 async def get_quiz_session_detail(
     session_id: int,
     db: Session = Depends(get_db),
@@ -172,7 +179,7 @@ async def get_quiz_session_detail(
     }
 
 
-@router.get("/info-card-deliveries")
+@router.get("/info-card-deliveries", response_model=list[InfoCardDeliveryOut])
 async def list_info_card_deliveries(
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
@@ -214,7 +221,7 @@ async def list_info_card_deliveries(
 analytics_router = APIRouter(prefix="/knowledge/analytics", tags=["knowledge-analytics"])
 
 
-@analytics_router.get("/tags")
+@analytics_router.get("/tags", response_model=TagAnalyticsOut)
 async def get_tag_analytics(
     db: Session = Depends(get_db),
     _auth: None = Depends(require_permission("GET /api/v1/knowledge-interactions")),

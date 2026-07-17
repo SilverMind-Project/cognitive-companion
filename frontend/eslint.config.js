@@ -131,7 +131,14 @@ export default withVueTs(
     // Established live-camera debug tracing convention (all "[cts_live] ..."
     // prefixed) predates this milestone; keep it rather than delete working
     // trace points, but scope the console.debug allowance to just these files.
-    files: ["src/views/admin/CTSLiveView.vue", "src/composables/useCtsWebSocket.js"],
+    // M21 moved the tracing calls out of CTSLiveView.vue into the composables
+    // that now own that state, so the allowance moves with them.
+    files: [
+      "src/views/admin/CTSLiveView.vue",
+      "src/composables/useCtsWebSocket.js",
+      "src/composables/useCtsLiveCameras.js",
+      "src/composables/useLiveIdentityCache.js",
+    ],
     rules: {
       "no-console": ["warn", { allow: ["warn", "error", "debug"] }],
     },

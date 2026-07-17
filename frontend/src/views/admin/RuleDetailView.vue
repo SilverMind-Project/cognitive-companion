@@ -735,7 +735,6 @@
       </v-window-item>
     </v-window>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
   </div>
   <div v-else class="text-center py-8">
     <v-progress-circular indeterminate />
@@ -759,7 +758,7 @@ const rule = ref(null);
 const tab = ref(route.query.tab === "liverun" ? "executions" : route.query.tab || "settings");
 const executing = ref(false);
 const exporting = ref(false);
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 
 // Reference data from API
 const allSensors = ref([]);

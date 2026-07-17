@@ -390,7 +390,6 @@
         </v-window>
       </div>
     </v-navigation-drawer>
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <v-dialog v-model="confirmDialog" max-width="400">
       <v-card rounded="xl">
@@ -423,7 +422,7 @@ const ALERT_PROFILE_OPTIONS = [
   { value: "custom", label: "Custom" },
 ];
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
 
 // -- Signal kind presets (mirrors backend signal_config.py) --

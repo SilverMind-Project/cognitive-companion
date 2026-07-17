@@ -828,7 +828,6 @@
       </v-expansion-panels>
     </template>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="4000">{{ snackText }}</v-snackbar>
 
     <!-- Calibration Health Panel -->
     <v-card class="glass-card mt-6" :border="true">
@@ -862,7 +861,7 @@ import CcSegmentedToggle from "../../components/common/CcSegmentedToggle.vue";
 const haloLg = HALO.attrs(8);
 const haloSm = HALO.attrs(2);
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const { blurMode } = useBlurMode();
 const { displaySrc } = useDisplaySrc(blurMode);
 

@@ -19,7 +19,7 @@
  * missing `response_model` -- fix it there.
  */
 
-import { setApiKey } from "./http";
+import { useAuthStore } from "@/stores/auth";
 import * as activitiesModule from "./modules/activities";
 import * as adminModule from "./modules/admin";
 import * as companionModule from "./modules/companion";
@@ -44,6 +44,17 @@ import * as sensorsModule from "./modules/sensors";
 import * as signalsModule from "./modules/signals";
 import * as webhooksModule from "./modules/webhooks";
 import * as workflowsModule from "./modules/workflows";
+
+/**
+ * @deprecated The auth store owns the API key: call `useAuthStore().setApiKey(key)`.
+ *
+ * Kept so the existing `api.setApiKey(...)` call sites keep working. It delegates rather than
+ * writing localStorage itself: a direct write would update storage while leaving the store's
+ * reactive key stale, so the provider seam would keep sending the old key until a reload.
+ */
+function setApiKey(key) {
+  useAuthStore().setApiKey(key);
+}
 
 export const api = {
   setApiKey,

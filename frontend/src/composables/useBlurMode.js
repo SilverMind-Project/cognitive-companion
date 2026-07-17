@@ -1,6 +1,11 @@
 /**
  * CTS pixelation — single source of truth.
  *
+ * The blur *flag* lives in the `ui` Pinia store (M18): it is one app-wide privacy setting that
+ * eight views and the BlurToggle all share. The pixelation *engine* below stays here — those are
+ * pure functions over a module-level image cache, called from non-component code, and a store
+ * would add indirection without sharing anything.
+ *
  * True square-block pixelation via off-screen canvas downsampling.
  * Each N×N pixel block is averaged to a single colour, then the image is
  * scaled back to original dimensions with nearest-neighbour interpolation.
@@ -11,24 +16,10 @@
  * Call updatePixelateBlockSize(n) to change the block size at runtime.
  */
 
-import { ref, watch, reactive } from "vue";
+import { watch, reactive } from "vue";
+import { storeToRefs } from "pinia";
 
-// ---------------------------------------------------------------------------
-// localStorage persistence
-// ---------------------------------------------------------------------------
-
-const STORAGE_KEY = "cts_blur_mode";
-
-function readStorage() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  return raw === null ? true : raw === "true";
-}
-
-const blurMode = ref(readStorage());
-
-watch(blurMode, (val) => {
-  localStorage.setItem(STORAGE_KEY, String(val));
-});
+import { useUiStore } from "@/stores/ui";
 
 // ---------------------------------------------------------------------------
 // Canvas-based square-block pixelation
@@ -131,6 +122,8 @@ export function pixelateImageUrl(url, blockSize = currentBlockSize) {
 // ---------------------------------------------------------------------------
 
 export function useBlurMode() {
+  // Writable: BlurToggle v-models it. Persistence lives in the store's watcher.
+  const { blurMode } = storeToRefs(useUiStore());
   return { blurMode };
 }
 

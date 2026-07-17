@@ -114,7 +114,6 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
 
     <ImportRuleDialog v-model="showImportDialog" @imported="onRuleImported" />
 
@@ -142,7 +141,7 @@ import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 import ImportRuleDialog from "../../components/pipeline/ImportRuleDialog.vue";
 
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
 
 const router = useRouter();

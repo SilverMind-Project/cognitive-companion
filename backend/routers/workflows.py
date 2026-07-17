@@ -12,8 +12,10 @@ from backend.core.logging import get_logger
 from backend.models.pipeline import WorkflowExecution
 from backend.models.rule import Rule
 from backend.schemas.workflow import (
+    ExecutionCancelledOut,
     ExecutionDetailOut,
     ExecutionGraph,
+    ExecutionRerunOut,
     RerunRequest,
     StepTimelineEntry,
     WorkflowExecutionListOut,
@@ -69,7 +71,7 @@ def get_execution(
     return result
 
 
-@router.post("/{execution_id}/cancel", status_code=200)
+@router.post("/{execution_id}/cancel", status_code=200, response_model=ExecutionCancelledOut)
 async def cancel_execution(
     execution_id: int,
     request: Request,
@@ -162,7 +164,7 @@ def get_execution_detail(
     )
 
 
-@router.post("/{execution_id}/rerun", status_code=202)
+@router.post("/{execution_id}/rerun", status_code=202, response_model=ExecutionRerunOut)
 async def rerun_execution(
     execution_id: int,
     payload: RerunRequest,

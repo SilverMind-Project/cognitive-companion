@@ -31,7 +31,10 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 - `backend.core` has no upward imports.
 - Services live in FastAPI lifespan and are read from `app.state`.
 - Routers are thin and permission-protected.
-- New endpoints need `config/auth.yaml` coverage.
+- New endpoints need `config/auth.yaml` coverage, a `response_model` (unless 204), and a
+  `(path, method)` no other route already registers.
+- Backend contract changes require `make contracts` plus `npm run generate:api`; both artifacts
+  are committed and CI diff-gates them.
 - Browser-visible BFF data should use one service function and MCP parity when applicable.
 - Schema changes go through Alembic.
 - Datetimes are timezone-aware UTC in storage.
@@ -83,6 +86,7 @@ cd frontend && npm run dev
 make check
 make check-all
 make test-integration
+make contracts   # re-export openapi.json + vocabularies.json after any contract change
 make migrate
 make migration
 uv run --project backend pytest backend/tests/<area>/test_<file>.py -v

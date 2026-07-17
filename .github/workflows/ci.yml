@@ -45,10 +45,13 @@ jobs:
       - name: Import-linter (layer boundaries)
         run: make import-lint
 
-      - name: Vocabulary drift gate (generated frontend artifact)
+      # Both backend-owned frontend artifacts: the vocabularies JSON and the OpenAPI
+      # schema the TypeScript API types are generated from. A contract change that
+      # does not re-export fails here rather than reaching the browser untyped.
+      - name: Contract drift gate (generated frontend artifacts)
         run: |
-          make vocabularies
-          git diff --exit-code frontend/src/generated/
+          make contracts
+          git diff --exit-code frontend/src/generated/ frontend/openapi.json
 
       - name: Type-check core (strict)
         run: make typecheck-core
@@ -83,6 +86,17 @@ jobs:
 
       - name: Install dependencies (locked)
         run: npm ci
+
+      # The generated types must match the committed openapi.json. The backend job separately
+      # gates that openapi.json matches the app, so together they chain the contract from the
+      # FastAPI routes all the way to the browser's types.
+      - name: API type drift gate (generated from openapi.json)
+        run: |
+          npm run generate:api
+          git diff --exit-code src/generated/
+
+      - name: Type-check (vue-tsc)
+        run: npm run typecheck
 
       - name: Build
         run: npm run build

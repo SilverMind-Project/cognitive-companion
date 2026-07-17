@@ -146,7 +146,7 @@ async def get_candidate(
     "/identity/reid-review/candidates/{candidate_id}/events",
     response_model=ReviewEventsResponse,
 )
-async def list_events(
+async def list_reid_review_events(
     candidate_id: str,
     svc: ReIDReviewService = Depends(get_reid_review_service),
     _auth=Depends(require_token(_GALLERY_REVIEW)),

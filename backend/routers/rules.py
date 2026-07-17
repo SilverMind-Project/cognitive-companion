@@ -32,9 +32,11 @@ from backend.schemas.rule import (
     RuleCreate,
     RuleDependencyOut,
     RuleExecutionCounts,
+    RuleExecutionStartedOut,
     RuleListOut,
     RuleOut,
     RuleUpdate,
+    RuleValidationOut,
 )
 from backend.schemas.rule_bundle import ImportReport, RuleBundle
 from backend.services import rule_service
@@ -552,7 +554,7 @@ def delete_step(
     db.commit()
 
 
-@router.post("/{rule_id}/validate")
+@router.post("/{rule_id}/validate", response_model=RuleValidationOut)
 def validate_rule(
     rule_id: int,
     db: Session = Depends(get_db),
@@ -606,7 +608,7 @@ def validate_rule(
     }
 
 
-@router.post("/{rule_id}/execute", status_code=202)
+@router.post("/{rule_id}/execute", status_code=202, response_model=RuleExecutionStartedOut)
 async def execute_rule(
     rule_id: int,
     request: Request,
@@ -813,7 +815,7 @@ def delete_cron_trigger(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{rule_id}/export")
+@router.get("/{rule_id}/export", response_model=RuleBundle)
 def export_rule(
     rule_id: int,
     request: Request,

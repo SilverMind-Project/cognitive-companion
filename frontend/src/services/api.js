@@ -3,27 +3,28 @@
  *
  * @module api
  *
- * ## Response shape contracts
+ * ## Migrating to the typed client (M17, in progress)
  *
- * Every endpoint's return shape is registered in {@link contracts.js}.
- * Pass `{ contract: "name" }` in the options to `request()` and the
- * response will be validated against that shape in dev mode.  Mismatches
- * are logged as console warnings so wiring bugs surface immediately
- * rather than silently producing empty tables.
+ * This module is being retired in favour of typed domain modules under `services/modules/`,
+ * built on the one request core in {@link http.ts}. Types are generated from the backend's
+ * OpenAPI schema (`npm run generate:api`), so the contract is checked at compile time.
  *
- *   @example
- *   // With contract validation
- *   request("/quizzes", { contract: "quizzes.list" })
+ * **Migrated** (`rules`, `pipeline`, `workflows`): defined in their modules and re-exported
+ * here under their original names, so `api.getRules(...)` keeps working. New code should import
+ * from the module directly. Do not add methods for these domains to this file.
  *
- *   // Contract names follow the pattern "<resource>.<action>":
- *   //   quizzes.list   info-cards.list   knowledge.documents.list
- *   //   quizzes.single  info-cards.single  knowledge.documents.single
- *   //   knowledge.layouts.list         knowledge.layouts.single
- *   //   knowledge.interactions.queries  knowledge.interactions.sessions
- *   //   knowledge.interactions.session  knowledge.interactions.deliveries
+ * **Not yet migrated** (everything else): still uses the `request()` helpers below and the
+ * dev-only `{ contract: "name" }` shape check from {@link contracts.js}. That checker is a
+ * best-effort console warning, not a guarantee -- it cannot validate array-of-shape specs at
+ * all -- and 17b deletes it along with the rest of these methods.
+ *
+ * When adding an endpoint: put it in a typed module, not here.
  */
 
 import { validateContract } from "./contracts.js";
+import * as pipelineModule from "./modules/pipeline";
+import * as rulesModule from "./modules/rules";
+import * as workflowsModule from "./modules/workflows";
 
 const BASE = "/api/v1";
 
@@ -93,6 +94,13 @@ export const api = {
     localStorage.setItem("cc_api_key", key);
   },
 
+  // Domains migrated to the typed client (M17). Spread under their original names, so callers
+  // keep using `api.getRules(...)` unchanged. New code should import the module directly:
+  //   import { getRules } from "@/services/modules/rules";
+  ...rulesModule,
+  ...pipelineModule,
+  ...workflowsModule,
+
   // Health
   health: () => fetch(`${BASE}/health`).then((r) => r.json()),
   ttsHealth: () => request("/admin/health/tts"),
@@ -126,44 +134,6 @@ export const api = {
   createSensor: (data) => request("/sensors", { method: "POST", body: JSON.stringify(data) }),
   updateSensor: (id, data) => request(`/sensors/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteSensor: (id) => request(`/sensors/${id}`, { method: "DELETE" }),
-
-  // Rules
-  getRules: () => request("/rules", { contract: "rules.list" }),
-  createRule: (data) => request("/rules", { method: "POST", body: JSON.stringify(data) }),
-  getRule: (id) => request(`/rules/${id}`, { contract: "rules.single" }),
-  updateRule: (id, data) => request(`/rules/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  deleteRule: (id) => request(`/rules/${id}`, { method: "DELETE" }),
-
-  // Rule contexts
-  getRuleContexts: (ruleId) => request(`/rules/${ruleId}/contexts`),
-  addRuleContext: (ruleId, data) =>
-    request(`/rules/${ruleId}/contexts`, { method: "POST", body: JSON.stringify(data) }),
-  deleteRuleContext: (ruleId, ctxId) =>
-    request(`/rules/${ruleId}/contexts/${ctxId}`, { method: "DELETE" }),
-
-  // Rule dependencies
-  getRuleDeps: (ruleId) => request(`/rules/${ruleId}/dependencies`),
-  addRuleDep: (ruleId, data) =>
-    request(`/rules/${ruleId}/dependencies`, { method: "POST", body: JSON.stringify(data) }),
-  deleteRuleDep: (ruleId, depId) =>
-    request(`/rules/${ruleId}/dependencies/${depId}`, { method: "DELETE" }),
-
-  // Cron triggers (separate from rules; linked via cron_trigger_ids in RuleUpdate)
-  getCronTriggers: () => request("/rules/cron-triggers"),
-  createCronTrigger: (data) =>
-    request("/rules/cron-triggers", { method: "POST", body: JSON.stringify(data) }),
-  updateCronTrigger: (id, data) =>
-    request(`/rules/cron-triggers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  deleteCronTrigger: (id) =>
-    request(`/rules/cron-triggers/${id}`, { method: "DELETE" }),
-
-  // Rule import/export
-  exportRule: (id) => request(`/rules/${id}/export`, { contract: "rules.export" }),
-  importRulePreview: (bundle) =>
-    request("/rules/import/preview", { method: "POST", body: JSON.stringify(bundle) }),
-  importRule: (bundle) =>
-    request("/rules/import", { method: "POST", body: JSON.stringify(bundle) }),
-  validateRule: (id) => request(`/rules/${id}/validate`, { method: "POST" }),
 
   // Gate graphs (vision-confirm callable rules, VG08)
   getGateGraphs: () => request("/gate-graphs", { contract: "gate-graphs.list" }),
@@ -235,45 +205,6 @@ export const api = {
   getEnrollmentStatus: (id) => request(`/persons/${id}/enrollment`),
   enrollPerson: (id, formData) => requestForm(`/persons/${id}/enroll`, "POST", formData),
   deleteEnrollment: (id) => request(`/persons/${id}/enrollment`, { method: "DELETE" }),
-
-  // Pipeline Steps
-  getRuleSteps: (ruleId) => request(`/rules/${ruleId}/steps`),
-  getRuleEdges: (ruleId) => request(`/rules/${ruleId}/edges`, { contract: "rule.edges.list" }),
-  replaceRuleEdges: (ruleId, edges) =>
-    request(`/rules/${ruleId}/edges`, {
-      method: "PUT",
-      body: JSON.stringify({ edges }),
-      contract: "rule.edges.replace",
-    }),
-  addRuleStep: (ruleId, data) =>
-    request(`/rules/${ruleId}/steps`, { method: "POST", body: JSON.stringify(data) }),
-  updateRuleStep: (ruleId, stepId, data) =>
-    request(`/rules/${ruleId}/steps/${stepId}`, { method: "PUT", body: JSON.stringify(data) }),
-  updateRuleStepPosition: (ruleId, stepId, { position_x, position_y }) =>
-    request(`/rules/${ruleId}/steps/${stepId}`, {
-      method: "PUT",
-      body: JSON.stringify({ position_x, position_y }),
-    }),
-  batchUpdateStepPositions: (ruleId, positions) =>
-    request(`/rules/${ruleId}/steps/positions`, {
-      method: "PUT",
-      body: JSON.stringify({ positions }),
-      contract: "rule.steps.positions.update",
-    }),
-  deleteRuleStep: (ruleId, stepId) =>
-    request(`/rules/${ruleId}/steps/${stepId}`, { method: "DELETE" }),
-  executeRule: (ruleId) =>
-    request(`/rules/${ruleId}/execute`, { method: "POST" }),
-
-  // Workflows
-  getWorkflows: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/workflows${qs ? "?" + qs : ""}`, { contract: "workflows.list" });
-  },
-  getWorkflow: (id) => request(`/workflows/${id}`, { contract: "workflows.single" }),
-  cancelWorkflow: (id) => request(`/workflows/${id}/cancel`, { method: "POST" }),
-  getWorkflowDetail: (id) => request(`/workflows/${id}/detail`, { contract: "workflows.detail" }),
-  rerunWorkflow: (id) => request(`/workflows/${id}/rerun`, { method: "POST", body: JSON.stringify({}) }),
 
   // Activities
   getActivities: (params = {}) => {
@@ -374,27 +305,6 @@ export const api = {
     return URL.createObjectURL(await resp.blob());
   },
 
-  // Pipeline runs
-  getPipelineRuns: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/pipeline/runs${qs ? "?" + qs : ""}`, { contract: "pipeline.runs.list" });
-  },
-  getPipelineRun: (executionId) =>
-    request(`/pipeline/runs/${executionId}`, { contract: "pipeline.runs.single" }),
-  getIngestActivity: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/pipeline/ingest/activity${qs ? "?" + qs : ""}`, { contract: "pipeline.ingest.activity" });
-  },
-
-  // Pipeline metadata (step types, channels, filters, LLM models)
-  getStepTypes: () => request("/pipeline/step-types"),
-  getChannelTypes: () => request("/pipeline/channel-types"),
-  getFilterTypes: () => request("/pipeline/filter-types"),
-  getLLMModels: () => request("/pipeline/llm-models"),
-  getDataKeys: () => request("/pipeline/data-keys"),
-  getCronPreview: (data) =>
-    request("/pipeline/cron/preview", { method: "POST", body: JSON.stringify(data) }),
-
   // Webhooks
   triggerWebhook: (ruleId, payload, secret) =>
     fetch(`${BASE}/webhooks/${ruleId}`, {
@@ -424,12 +334,6 @@ export const api = {
     return request(`/media/aggregators${qs ? "?" + qs : ""}`, {
       contract: "media.aggregators",
     });
-  },
-
-  // Pipeline image sources
-  getSampleImage: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/pipeline/image-sources/sample${qs ? "?" + qs : ""}`);
   },
 
   // Admin

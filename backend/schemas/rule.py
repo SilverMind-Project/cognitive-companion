@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from backend.schemas.common import OptionalUTCDatetime, OutSchema, UTCDatetime
 
@@ -158,6 +158,28 @@ class RuleListOut(OutSchema):
     execution_timeout_minutes: int
     created_at: UTCDatetime
     execution_counts: RuleExecutionCounts = RuleExecutionCounts()
+
+
+# -- Validation / execution --------------------------------------------------
+
+
+class RuleValidationOut(BaseModel):
+    """Result of linting every step's template expressions plus the graph structure."""
+
+    rule_id: int
+    errors: dict[str, list[dict]] = Field(
+        default_factory=dict,
+        description="Serialized TemplateError dicts keyed by step label; empty when clean.",
+    )
+    graph_errors: list[str] = Field(default_factory=list)
+    valid: bool
+
+
+class RuleExecutionStartedOut(BaseModel):
+    """Acknowledgement of a manually triggered rule; execution continues asynchronously."""
+
+    execution_id: int
+    status: str
 
 
 # -- Context -----------------------------------------------------------------

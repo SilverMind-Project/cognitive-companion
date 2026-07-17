@@ -34,13 +34,15 @@ help:
 	@echo "  make coverage-gate     Core+services coverage enforcing pyproject fail_under (CI gate)"
 	@echo "  make deps-check        Dependency hygiene (deptry): unused/missing/misplaced deps"
 	@echo "  make vocabularies      Export backend vocabularies to frontend/src/generated/"
+	@echo "  make openapi           Export the OpenAPI schema to frontend/openapi.json"
+	@echo "  make contracts         All backend-owned frontend artifacts (vocabularies + openapi)"
 	@echo "  make lint              Ruff lint (no fixes)"
 	@echo "  make lint-fix          Ruff lint with --fix"
 	@echo "  make format            Ruff format"
 	@echo "  make typecheck         Mypy over the full backend tree"
 	@echo "  make typecheck-core    Mypy over backend.core only (strict)"
 	@echo "  make check             lint + typecheck-core + test-core (fast gate)"
-	@echo "  make check-all         lint + typecheck-core + test (core + services) + frontend on Node $(FRONTEND_NODE_VERSION)"
+	@echo "  make check-all         lint + typecheck-core + test (core + services) + frontend typecheck/tests on Node $(FRONTEND_NODE_VERSION)"
 	@echo "  make migrate           Run Alembic migrations (upgrade to head)"
 	@echo "  make migration         Generate new Alembic migration (autogenerate)"
 	@echo "  make migration-history Show Alembic migration history"
@@ -105,6 +107,15 @@ deps-check:
 vocabularies:
 	$(PY) backend/scripts/export_vocabularies.py
 
+.PHONY: openapi
+openapi:
+	$(PY) backend/scripts/export_openapi.py
+
+# Every backend-owned artifact the frontend generates from. CI runs this then
+# `git diff --exit-code`, so a contract change that skips it fails the build.
+.PHONY: contracts
+contracts: vocabularies openapi
+
 .PHONY: typecheck
 typecheck:
 	$(MYPY) -p backend
@@ -131,6 +142,10 @@ frontend-build:
 frontend-test:
 	$(call RUN_FRONTEND,npm run test --silent)
 
+.PHONY: frontend-typecheck
+frontend-typecheck:
+	$(call RUN_FRONTEND,npm run typecheck)
+
 .PHONY: test-integration
 test-integration:
 	$(PYTEST) -m integration backend/tests/integration -v
@@ -139,7 +154,7 @@ test-integration:
 check: lint typecheck-core typecheck-ratchet test-core
 
 .PHONY: check-all
-check-all: lint import-lint typecheck-core typecheck-ratchet test-core test-services frontend-test
+check-all: lint import-lint typecheck-core typecheck-ratchet test-core test-services frontend-typecheck frontend-test
 
 .PHONY: migrate
 migrate:

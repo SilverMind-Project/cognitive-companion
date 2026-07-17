@@ -1,0 +1,21 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    // Incremental adoption (M17): the existing .js/.vue tree is visible to the compiler for
+    // module resolution but is not itself type-checked. New and migrated files are .ts or
+    // <script setup lang="ts"> and are fully strict. Do not flip checkJs on without a plan:
+    // it turns ~40 composables and every god view red at once.
+    "allowJs": true,
+    "checkJs": false,
+    // Mirrors the "@" alias in vite.config.js.
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client", "vitest/globals"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue", "tests/**/*.ts", "vite.config.js"],
+  "exclude": ["node_modules", "dist"]
+}

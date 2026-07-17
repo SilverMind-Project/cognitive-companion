@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";
-import { reactive, ref } from "vue";
+import { reactive } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 
 // ── Mock heavy chart and service modules ────────────────────────────────────
@@ -18,12 +18,20 @@ vi.mock("vue-echarts", () => ({
 vi.mock("echarts/core", () => ({ use: vi.fn() }));
 vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
 vi.mock("echarts/charts", () => ({
-  LineChart: {}, BarChart: {}, HeatmapChart: {}, ScatterChart: {},
-  GaugeChart: {}, GraphChart: {},
+  LineChart: {},
+  BarChart: {},
+  HeatmapChart: {},
+  ScatterChart: {},
+  GaugeChart: {},
+  GraphChart: {},
 }));
 vi.mock("echarts/components", () => ({
-  GridComponent: {}, TooltipComponent: {}, LegendComponent: {},
-  MarkLineComponent: {}, VisualMapComponent: {}, DataZoomComponent: {},
+  GridComponent: {},
+  TooltipComponent: {},
+  LegendComponent: {},
+  MarkLineComponent: {},
+  VisualMapComponent: {},
+  DataZoomComponent: {},
   TitleComponent: {},
 }));
 
@@ -62,7 +70,7 @@ vi.mock("@/services/cts.js", () => ({ cts: { getGaitTrend: getGaitTrendSpy } }))
 
 // Mock useGaitTrend so we control state
 const mockGaitState = reactive({ envelope: null, loading: false, error: null, personId: null });
-const mockFetch = vi.fn(async (personId, days) => {
+const mockFetch = vi.fn(async (personId, _days) => {
   mockGaitState.personId = personId;
 });
 vi.mock("@/composables/useGaitTrend.js", () => ({
@@ -72,18 +80,34 @@ vi.mock("@/composables/useGaitTrend.js", () => ({
 import MobilityPanel from "@/views/tracking/panels/MobilityPanel.vue";
 
 const stubs = {
-  "v-select":   { template: '<select @change="$emit(\'update:modelValue\', $event.target.value)"><slot /></select>', props: ["modelValue", "items", "label"] },
-  "v-btn":      { template: '<button @click="$emit(\'click\')"><slot /></button>', props: ["loading", "variant", "color", "size"] },
-  "v-card":     { template: '<div><slot /></div>', props: ["variant", "class"] },
-  "v-row":      { template: '<div><slot /></div>' },
-  "v-col":      { template: '<div><slot /></div>', props: ["cols", "sm"] },
-  "v-chip":     { template: '<span class="chip"><slot /></span>', props: ["color", "variant", "size"] },
-  "v-alert":    { template: '<div role="alert"><slot /></div>', props: ["type", "variant", "density"] },
-  "v-icon":     { template: "<span />" },
+  "v-select": {
+    template:
+      "<select @change=\"$emit('update:modelValue', $event.target.value)\"><slot /></select>",
+    props: ["modelValue", "items", "label"],
+  },
+  "v-btn": {
+    template: "<button @click=\"$emit('click')\"><slot /></button>",
+    props: ["loading", "variant", "color", "size"],
+  },
+  "v-card": { template: "<div><slot /></div>", props: ["variant", "class"] },
+  "v-row": { template: "<div><slot /></div>" },
+  "v-col": { template: "<div><slot /></div>", props: ["cols", "sm"] },
+  "v-chip": { template: '<span class="chip"><slot /></span>', props: ["color", "variant", "size"] },
+  "v-alert": {
+    template: '<div role="alert"><slot /></div>',
+    props: ["type", "variant", "density"],
+  },
+  "v-icon": { template: "<span />" },
   "v-progress-circular": { template: "<div />" },
-  "CcSectionCard":       { template: "<section><slot /></section>" },
-  "CcGaitTrendChart":    { template: '<div data-testid="gait-chart" />', props: ["points", "baselineValue", "signalDates", "loading", "error"] },
-  "TrackingPanelHeader": { template: "<header><slot name='actions' /><slot /></header>", props: ["title", "description"] },
+  CcSectionCard: { template: "<section><slot /></section>" },
+  CcGaitTrendChart: {
+    template: '<div data-testid="gait-chart" />',
+    props: ["points", "baselineValue", "signalDates", "loading", "error"],
+  },
+  TrackingPanelHeader: {
+    template: "<header><slot name='actions' /><slot /></header>",
+    props: ["title", "description"],
+  },
 };
 
 async function mountPanel({ person = null } = {}) {
@@ -116,7 +140,13 @@ describe("MobilityPanel", () => {
     mockGaitState.envelope = {
       person_id: "alice",
       days: [
-        { date: "2026-05-01", median_speed_m_s: null, bout_count: 1, total_walking_s: 30, sufficient: false },
+        {
+          date: "2026-05-01",
+          median_speed_m_s: null,
+          bout_count: 1,
+          total_walking_s: 30,
+          sufficient: false,
+        },
       ],
       baseline_median_m_s: null,
       trend: "insufficient",
@@ -129,8 +159,20 @@ describe("MobilityPanel", () => {
     mockGaitState.envelope = {
       person_id: "alice",
       days: [
-        { date: "2026-05-01", median_speed_m_s: null, bout_count: 1, total_walking_s: 20, sufficient: false },
-        { date: "2026-05-02", median_speed_m_s: 0.9, bout_count: 5, total_walking_s: 120, sufficient: true },
+        {
+          date: "2026-05-01",
+          median_speed_m_s: null,
+          bout_count: 1,
+          total_walking_s: 20,
+          sufficient: false,
+        },
+        {
+          date: "2026-05-02",
+          median_speed_m_s: 0.9,
+          bout_count: 5,
+          total_walking_s: 120,
+          sufficient: true,
+        },
       ],
       baseline_median_m_s: 0.9,
       trend: "stable",

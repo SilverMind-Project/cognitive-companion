@@ -104,12 +104,13 @@ const stubs = {
   "v-alert": { template: '<div data-testid="alert"><slot /></div>' },
   "v-btn": {
     props: ["prependIcon", "variant", "color"],
-    template: '<button data-testid="button" :data-icon="prependIcon" @click="$emit(\'click\', $event)"><slot /></button>',
+    template:
+      '<button data-testid="button" :data-icon="prependIcon" @click="$emit(\'click\', $event)"><slot /></button>',
   },
-  "v-card": { template: '<section><slot /></section>' },
-  "v-card-title": { template: '<h3><slot /></h3>' },
-  "v-card-text": { template: '<div><slot /></div>' },
-  "v-card-actions": { template: '<div><slot /></div>' },
+  "v-card": { template: "<section><slot /></section>" },
+  "v-card-title": { template: "<h3><slot /></h3>" },
+  "v-card-text": { template: "<div><slot /></div>" },
+  "v-card-actions": { template: "<div><slot /></div>" },
   "v-dialog": {
     props: ["modelValue"],
     template: '<div v-if="modelValue" data-testid="confirm-dialog"><slot /></div>',
@@ -118,7 +119,8 @@ const stubs = {
   "v-list": { template: "<div><slot /></div>" },
   "v-list-item": {
     props: ["title", "prependIcon", "color"],
-    template: '<button data-testid="menu-item" @click="$emit(\'click\', $event)">{{ title }}</button>',
+    template:
+      '<button data-testid="menu-item" @click="$emit(\'click\', $event)">{{ title }}</button>',
   },
   "v-progress-circular": { template: '<div data-testid="spinner" />' },
   "v-progress-linear": { template: '<div data-testid="refresh-bar" />' },
@@ -177,9 +179,7 @@ function mountCanvas() {
 }
 
 function buttonWithText(wrapper, text) {
-  return wrapper
-    .findAll('[data-testid="button"]')
-    .find((button) => button.text().includes(text));
+  return wrapper.findAll('[data-testid="button"]').find((button) => button.text().includes(text));
 }
 
 beforeEach(() => {
@@ -248,12 +248,18 @@ describe("PipelineCanvas", () => {
     await wrapper.find('[data-testid="select-step"]').trigger("click");
     await flushPromises();
 
-    expect(mocks.api.addRuleStep).toHaveBeenCalledWith(42, expect.not.objectContaining({ order: expect.anything() }));
-    expect(mocks.api.addRuleStep).toHaveBeenCalledWith(42, expect.objectContaining({
-      step_type: "notification",
-      position_x: expect.any(Number),
-      position_y: expect.any(Number),
-    }));
+    expect(mocks.api.addRuleStep).toHaveBeenCalledWith(
+      42,
+      expect.not.objectContaining({ order: expect.anything() }),
+    );
+    expect(mocks.api.addRuleStep).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        step_type: "notification",
+        position_x: expect.any(Number),
+        position_y: expect.any(Number),
+      }),
+    );
   });
 
   it("saves step config through the existing update endpoint", async () => {
@@ -291,9 +297,9 @@ describe("PipelineCanvas", () => {
   it("fires removeEdge action when edges-change remove emitted", () => {
     const wrapper = mountCanvas();
 
-    wrapper.findComponent({ name: "VueFlow" }).vm.$emit("edges-change", [
-      { type: "remove", id: "edge-1" },
-    ]);
+    wrapper
+      .findComponent({ name: "VueFlow" })
+      .vm.$emit("edges-change", [{ type: "remove", id: "edge-1" }]);
 
     expect(mocks.actions.removeEdge).toHaveBeenCalledWith("edge-1");
   });
@@ -301,9 +307,9 @@ describe("PipelineCanvas", () => {
   it("shows confirm dialog before removeNode", async () => {
     const wrapper = mountCanvas();
 
-    wrapper.findComponent({ name: "VueFlow" }).vm.$emit("nodes-change", [
-      { type: "remove", id: "1" },
-    ]);
+    wrapper
+      .findComponent({ name: "VueFlow" })
+      .vm.$emit("nodes-change", [{ type: "remove", id: "1" }]);
     await flushPromises();
 
     expect(wrapper.find('[data-testid="confirm-dialog"]').text()).toContain("Delete this step?");
@@ -313,9 +319,9 @@ describe("PipelineCanvas", () => {
   it("does not remove node if user cancels confirm", async () => {
     const wrapper = mountCanvas();
 
-    wrapper.findComponent({ name: "VueFlow" }).vm.$emit("nodes-change", [
-      { type: "remove", id: "1" },
-    ]);
+    wrapper
+      .findComponent({ name: "VueFlow" })
+      .vm.$emit("nodes-change", [{ type: "remove", id: "1" }]);
     await flushPromises();
     await buttonWithText(wrapper, "Cancel").trigger("click");
     await flushPromises();
@@ -326,9 +332,9 @@ describe("PipelineCanvas", () => {
   it("removes node after confirmation", async () => {
     const wrapper = mountCanvas();
 
-    wrapper.findComponent({ name: "VueFlow" }).vm.$emit("nodes-change", [
-      { type: "remove", id: "1" },
-    ]);
+    wrapper
+      .findComponent({ name: "VueFlow" })
+      .vm.$emit("nodes-change", [{ type: "remove", id: "1" }]);
     await flushPromises();
     await buttonWithText(wrapper, "Delete").trigger("click");
     await flushPromises();

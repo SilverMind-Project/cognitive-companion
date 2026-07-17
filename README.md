@@ -59,6 +59,10 @@ make check-all          # adds services tests + frontend
 make test-integration   # integration tests (requires Docker)
 ```
 
+The frontend's history includes an isolated, whitespace-only Prettier adoption commit. Run
+`git config blame.ignoreRevsFile .git-blame-ignore-revs` once to keep `git blame` pointing at the
+commit that actually changed a line instead of the reformat.
+
 ## License
 
 AGPL-3.0-or-later

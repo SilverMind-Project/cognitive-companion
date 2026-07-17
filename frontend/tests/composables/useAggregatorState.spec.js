@@ -12,19 +12,18 @@ vi.mock("@/services/api.js", () => ({
   },
 }));
 
-import {
-  AGGREGATOR_HISTORY_LIMIT,
-  useAggregatorState,
-} from "@/composables/useAggregatorState.js";
+import { AGGREGATOR_HISTORY_LIMIT, useAggregatorState } from "@/composables/useAggregatorState.js";
 
 function mountComposable() {
   let result;
-  const wrapper = mount(defineComponent({
-    setup() {
-      result = useAggregatorState();
-      return () => null;
-    },
-  }));
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        result = useAggregatorState();
+        return () => null;
+      },
+    }),
+  );
   return { result, wrapper };
 }
 

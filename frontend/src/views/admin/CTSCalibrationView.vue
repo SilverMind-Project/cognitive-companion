@@ -26,31 +26,46 @@
     <!-- Prerequisites banner -->
     <v-card class="glass-card mb-5">
       <v-card-text class="py-3">
-        <div class="text-caption text-medium-emphasis mb-2 font-weight-medium">SETUP PREREQUISITES</div>
+        <div class="text-caption text-medium-emphasis mb-2 font-weight-medium">
+          SETUP PREREQUISITES
+        </div>
         <div class="d-flex flex-wrap ga-3 align-center">
           <span>Floor plan image</span>
           <div class="prereq-item" :class="floorPlanReady ? 'prereq-ok' : 'prereq-warn'">
             <v-icon size="16" :color="floorPlanReady ? 'success' : 'warning'">
-              {{ floorPlanReady ? 'mdi-check-circle' : 'mdi-alert-circle-outline' }}
+              {{ floorPlanReady ? "mdi-check-circle" : "mdi-alert-circle-outline" }}
             </v-icon>
           </div>
           <div class="prereq-item" :class="scaleReady ? 'prereq-ok' : 'prereq-warn'">
             <v-icon size="16" :color="scaleReady ? 'success' : 'warning'">
-              {{ scaleReady ? 'mdi-check-circle' : 'mdi-alert-circle-outline' }}
+              {{ scaleReady ? "mdi-check-circle" : "mdi-alert-circle-outline" }}
             </v-icon>
-            <span>Scale set ({{ scaleReady ? `${fpMpp} m/px` : 'missing' }})</span>
+            <span>Scale set ({{ scaleReady ? `${fpMpp} m/px` : "missing" }})</span>
           </div>
-          <div class="prereq-item" :class="selectedCameraId ? (existingCalibration ? 'prereq-ok' : 'prereq-none') : 'prereq-none'">
+          <div
+            class="prereq-item"
+            :class="
+              selectedCameraId ? (existingCalibration ? 'prereq-ok' : 'prereq-none') : 'prereq-none'
+            "
+          >
             <v-icon size="16" :color="existingCalibration ? 'success' : 'default'">
-              {{ existingCalibration ? 'mdi-check-circle' : 'mdi-circle-outline' }}
+              {{ existingCalibration ? "mdi-check-circle" : "mdi-circle-outline" }}
             </v-icon>
-            <span>{{ selectedCameraId ? (existingCalibration ? 'Camera calibrated' : 'Camera not yet calibrated') : 'Select a camera' }}</span>
+            <span>{{
+              selectedCameraId
+                ? existingCalibration
+                  ? "Camera calibrated"
+                  : "Camera not yet calibrated"
+                : "Select a camera"
+            }}</span>
           </div>
         </div>
         <div v-if="!floorPlanReady || !scaleReady" class="mt-3 text-body-2">
           <v-icon size="14" class="mr-1" color="warning">mdi-information-outline</v-icon>
           Upload a floor plan with its scale in
-          <router-link to="/admin/cts/floor-plan" class="text-primary">Floor Plan settings</router-link>
+          <router-link to="/admin/cts/floor-plan" class="text-primary"
+            >Floor Plan settings</router-link
+          >
           first. That enables click-to-pick calibration — no manual coordinate entry needed.
         </div>
       </v-card-text>
@@ -117,9 +132,11 @@
         </v-btn>
 
         <span v-if="floorPlanReady && scaleReady" class="text-caption text-medium-emphasis">
-          {{ inputMode === 'pick'
-            ? 'Click a point on the camera image, then click the same spot on the floor plan.'
-            : 'Click the camera image, then type the floor coordinates manually.' }}
+          {{
+            inputMode === "pick"
+              ? "Click a point on the camera image, then click the same spot on the floor plan."
+              : "Click the camera image, then type the floor coordinates manually."
+          }}
         </span>
       </div>
 
@@ -166,7 +183,8 @@
                   <!-- Distribution guide: faint quadrant zones, shown until 4 points are placed -->
                   <g v-if="points.length < 4">
                     <rect
-                      x="0" y="0"
+                      x="0"
+                      y="0"
                       :width="imgContentRect.naturalWidth / 2"
                       :height="imgContentRect.naturalHeight / 2"
                       fill="none"
@@ -175,7 +193,8 @@
                       stroke-dasharray="12 6"
                     />
                     <rect
-                      :x="imgContentRect.naturalWidth / 2" y="0"
+                      :x="imgContentRect.naturalWidth / 2"
+                      y="0"
                       :width="imgContentRect.naturalWidth / 2"
                       :height="imgContentRect.naturalHeight / 2"
                       fill="none"
@@ -184,7 +203,8 @@
                       stroke-dasharray="12 6"
                     />
                     <rect
-                      x="0" :y="imgContentRect.naturalHeight / 2"
+                      x="0"
+                      :y="imgContentRect.naturalHeight / 2"
                       :width="imgContentRect.naturalWidth / 2"
                       :height="imgContentRect.naturalHeight / 2"
                       fill="none"
@@ -205,46 +225,57 @@
                     <text
                       :x="imgContentRect.naturalWidth * 0.25"
                       :y="imgContentRect.naturalHeight * 0.25"
-                      text-anchor="middle" dominant-baseline="middle"
-                      fill="rgba(255,255,255,0.35)" font-size="36"
+                      text-anchor="middle"
+                      dominant-baseline="middle"
+                      fill="rgba(255,255,255,0.35)"
+                      font-size="36"
                       :opacity="pointInQuadrant(0) ? 0 : 1"
-                    >Place point here</text>
+                    >
+                      Place point here
+                    </text>
                     <text
                       :x="imgContentRect.naturalWidth * 0.75"
                       :y="imgContentRect.naturalHeight * 0.25"
-                      text-anchor="middle" dominant-baseline="middle"
-                      fill="rgba(255,255,255,0.35)" font-size="36"
+                      text-anchor="middle"
+                      dominant-baseline="middle"
+                      fill="rgba(255,255,255,0.35)"
+                      font-size="36"
                       :opacity="pointInQuadrant(1) ? 0 : 1"
-                    >Place point here</text>
+                    >
+                      Place point here
+                    </text>
                     <text
                       :x="imgContentRect.naturalWidth * 0.25"
                       :y="imgContentRect.naturalHeight * 0.75"
-                      text-anchor="middle" dominant-baseline="middle"
-                      fill="rgba(255,255,255,0.35)" font-size="36"
+                      text-anchor="middle"
+                      dominant-baseline="middle"
+                      fill="rgba(255,255,255,0.35)"
+                      font-size="36"
                       :opacity="pointInQuadrant(2) ? 0 : 1"
-                    >Place point here</text>
+                    >
+                      Place point here
+                    </text>
                     <text
                       :x="imgContentRect.naturalWidth * 0.75"
                       :y="imgContentRect.naturalHeight * 0.75"
-                      text-anchor="middle" dominant-baseline="middle"
-                      fill="rgba(255,255,255,0.35)" font-size="36"
+                      text-anchor="middle"
+                      dominant-baseline="middle"
+                      fill="rgba(255,255,255,0.35)"
+                      font-size="36"
                       :opacity="pointInQuadrant(3) ? 0 : 1"
-                    >Place point here</text>
+                    >
+                      Place point here
+                    </text>
                   </g>
                   <!-- Completed points — draggable with residual coloring -->
                   <g
                     v-for="(pt, i) in points"
                     :key="i"
-                    style="cursor:grab"
+                    style="cursor: grab"
                     @mousedown.stop="startCameraDrag(i, $event)"
                     @click.stop
                   >
-                    <circle
-                      :cx="pt.pixel[0]"
-                      :cy="pt.pixel[1]"
-                      r="40"
-                      fill="transparent"
-                    />
+                    <circle :cx="pt.pixel[0]" :cy="pt.pixel[1]" r="40" fill="transparent" />
                     <circle
                       :cx="pt.pixel[0]"
                       :cy="pt.pixel[1]"
@@ -253,12 +284,7 @@
                       :stroke="pointColor(i)"
                       stroke-width="3"
                     />
-                    <circle
-                      :cx="pt.pixel[0]"
-                      :cy="pt.pixel[1]"
-                      r="12"
-                      :fill="pointColor(i)"
-                    />
+                    <circle :cx="pt.pixel[0]" :cy="pt.pixel[1]" r="12" :fill="pointColor(i)" />
                     <text
                       v-bind="haloLg"
                       :x="pt.pixel[0] + 18"
@@ -266,8 +292,10 @@
                       :fill="pointColor(i)"
                       font-size="48"
                       font-weight="500"
-                      style="pointer-events:none"
-                    >{{ i + 1 }}</text>
+                      style="pointer-events: none"
+                    >
+                      {{ i + 1 }}
+                    </text>
                   </g>
                   <!-- Auto-calibration suggestions: camera pixels only, not floor-plan coordinates -->
                   <g
@@ -305,7 +333,7 @@
                       v-for="(pt, vi) in floorRegionDraft"
                       :key="`fr-${vi}`"
                       :transform="`translate(${frPtToSvg(pt)?.[0] ?? 0},${frPtToSvg(pt)?.[1] ?? 0})`"
-                      style="cursor:grab"
+                      style="cursor: grab"
                       @mousedown.stop="startFloorRegionDrag(vi, $event)"
                       @click.stop
                     >
@@ -325,12 +353,7 @@
                       stroke-width="2.5"
                       stroke-dasharray="4 3"
                     />
-                    <circle
-                      :cx="pendingPixel[0]"
-                      :cy="pendingPixel[1]"
-                      r="15"
-                      fill="#f59e0b"
-                    />
+                    <circle :cx="pendingPixel[0]" :cy="pendingPixel[1]" r="15" fill="#f59e0b" />
                     <text
                       v-bind="haloLg"
                       :x="pendingPixel[0] + 18"
@@ -338,7 +361,9 @@
                       fill="#f59e0b"
                       font-size="48"
                       font-weight="500"
-                    >{{ points.length + 1 }}?</text>
+                    >
+                      {{ points.length + 1 }}?
+                    </text>
                   </g>
                 </svg>
               </div>
@@ -364,7 +389,6 @@
 
         <!-- Right: floor plan picker OR manual entry -->
         <v-col cols="12" :md="inputMode === 'pick' && floorPlanReady && scaleReady ? 6 : 5">
-
           <!-- ── Click-to-Pick: floor plan image ──────────────────────────── -->
           <template v-if="inputMode === 'pick' && floorPlanReady && scaleReady">
             <v-card class="mb-4">
@@ -400,7 +424,11 @@
                       v-if="previewCoveragePolygon"
                       :points="previewCoveragePolygon"
                       fill="rgba(99,102,241,0.12)"
-                      :stroke="qualityColor(previewStatus === 'ok' ? 0 : previewStatus === 'warning' ? 0.10 : 0.30)"
+                      :stroke="
+                        qualityColor(
+                          previewStatus === 'ok' ? 0 : previewStatus === 'warning' ? 0.1 : 0.3,
+                        )
+                      "
                       stroke-width="2"
                       stroke-dasharray="8 4"
                     />
@@ -408,7 +436,11 @@
                       v-if="previewCoveragePolygon && previewStatus"
                       x="8"
                       y="20"
-                      :fill="qualityColor(previewStatus === 'ok' ? 0 : previewStatus === 'warning' ? 0.10 : 0.30)"
+                      :fill="
+                        qualityColor(
+                          previewStatus === 'ok' ? 0 : previewStatus === 'warning' ? 0.1 : 0.3,
+                        )
+                      "
                       font-size="13"
                       font-weight="700"
                     >
@@ -418,7 +450,7 @@
                     <g
                       v-for="(pt, i) in points"
                       :key="i"
-                      style="cursor:grab"
+                      style="cursor: grab"
                       @mousedown.stop="startFloorDrag(i, $event)"
                       @click.stop
                     >
@@ -449,17 +481,43 @@
                         :fill="pointColor(i)"
                         font-size="12"
                         font-weight="700"
-                        style="pointer-events:none"
-                      >{{ i + 1 }}</text>
+                        style="pointer-events: none"
+                      >
+                        {{ i + 1 }}
+                      </text>
                     </g>
                     <!-- Awaiting-click indicator: pulsing crosshair target -->
                     <g v-if="pendingPixel">
-                      <line x1="0" :y1="fpImgRect.height / 2" :x2="fpImgRect.width" :y2="fpImgRect.height / 2"
-                        stroke="#f59e0b" stroke-width="0.5" stroke-dasharray="6 4" opacity="0.4" />
-                      <line :x1="fpImgRect.width / 2" y1="0" :x2="fpImgRect.width / 2" :y2="fpImgRect.height"
-                        stroke="#f59e0b" stroke-width="0.5" stroke-dasharray="6 4" opacity="0.4" />
-                      <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle"
-                        fill="#f59e0b" font-size="13" font-weight="600" opacity="0.8">
+                      <line
+                        x1="0"
+                        :y1="fpImgRect.height / 2"
+                        :x2="fpImgRect.width"
+                        :y2="fpImgRect.height / 2"
+                        stroke="#f59e0b"
+                        stroke-width="0.5"
+                        stroke-dasharray="6 4"
+                        opacity="0.4"
+                      />
+                      <line
+                        :x1="fpImgRect.width / 2"
+                        y1="0"
+                        :x2="fpImgRect.width / 2"
+                        :y2="fpImgRect.height"
+                        stroke="#f59e0b"
+                        stroke-width="0.5"
+                        stroke-dasharray="6 4"
+                        opacity="0.4"
+                      />
+                      <text
+                        x="50%"
+                        y="50%"
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                        fill="#f59e0b"
+                        font-size="13"
+                        font-weight="600"
+                        opacity="0.8"
+                      >
                         Click here to place point {{ points.length + 1 }}
                       </text>
                     </g>
@@ -468,9 +526,7 @@
                 <div class="d-flex align-center px-3 py-2 text-caption text-medium-emphasis">
                   <v-icon size="13" class="mr-1">mdi-map-marker</v-icon>
                   Points are placed in the floor plan coordinate frame
-                  <template v-if="fpMpp">
-                    &nbsp;({{ fpMpp }} m/px)
-                  </template>
+                  <template v-if="fpMpp"> &nbsp;({{ fpMpp }} m/px) </template>
                 </div>
               </v-card-text>
             </v-card>
@@ -488,47 +544,125 @@
                 <!-- SVG diagram -->
                 <svg viewBox="0 0 320 218" class="coord-diagram">
                   <!-- Floor plan rectangle -->
-                  <rect x="20" y="34" width="280" height="160" rx="4"
-                    fill="rgba(99,102,241,0.07)" stroke="var(--cc-brand)" stroke-width="1.5" stroke-dasharray="6 3" />
-                  <text x="160" y="12" text-anchor="middle" fill="var(--cc-brand)" font-size="10" font-weight="600">
+                  <rect
+                    x="20"
+                    y="34"
+                    width="280"
+                    height="160"
+                    rx="4"
+                    fill="rgba(99,102,241,0.07)"
+                    stroke="var(--cc-brand)"
+                    stroke-width="1.5"
+                    stroke-dasharray="6 3"
+                  />
+                  <text
+                    x="160"
+                    y="12"
+                    text-anchor="middle"
+                    fill="var(--cc-brand)"
+                    font-size="10"
+                    font-weight="600"
+                  >
                     Floor plan image
                   </text>
 
                   <!-- Origin -->
                   <circle cx="20" cy="34" r="5" fill="var(--cc-brand)" />
-                  <text x="26" y="32" fill="var(--cc-brand)" font-size="10" font-weight="700">Origin (0, 0)</text>
-                  <text x="26" y="44" fill="var(--cc-text-3)" font-size="9">
-                    top-left corner
+                  <text x="26" y="32" fill="var(--cc-brand)" font-size="10" font-weight="700">
+                    Origin (0, 0)
                   </text>
+                  <text x="26" y="44" fill="var(--cc-text-3)" font-size="9">top-left corner</text>
 
                   <!-- X axis -->
-                  <line x1="20" y1="34" x2="280" y2="34" stroke="var(--cc-brand)" stroke-width="1.5"
-                    marker-end="url(#arrowX)" />
-                  <text x="290" y="38" fill="var(--cc-brand)" font-size="11" font-weight="700">X</text>
-                  <text x="145" y="30" text-anchor="middle" fill="var(--cc-brand)" font-size="9">→ increases right</text>
+                  <line
+                    x1="20"
+                    y1="34"
+                    x2="280"
+                    y2="34"
+                    stroke="var(--cc-brand)"
+                    stroke-width="1.5"
+                    marker-end="url(#arrowX)"
+                  />
+                  <text x="290" y="38" fill="var(--cc-brand)" font-size="11" font-weight="700">
+                    X
+                  </text>
+                  <text x="145" y="30" text-anchor="middle" fill="var(--cc-brand)" font-size="9">
+                    → increases right
+                  </text>
 
                   <!-- Y axis -->
-                  <line x1="20" y1="34" x2="20" y2="179" stroke="var(--cc-brand)" stroke-width="1.5"
-                    marker-end="url(#arrowY)" />
-                  <text x="6" y="189" fill="var(--cc-brand)" font-size="11" font-weight="700">Y</text>
-                  <text x="12" y="106" text-anchor="middle" fill="var(--cc-brand)" font-size="9"
-                    transform="rotate(-90 12 106)">↓ increases downward</text>
+                  <line
+                    x1="20"
+                    y1="34"
+                    x2="20"
+                    y2="179"
+                    stroke="var(--cc-brand)"
+                    stroke-width="1.5"
+                    marker-end="url(#arrowY)"
+                  />
+                  <text x="6" y="189" fill="var(--cc-brand)" font-size="11" font-weight="700">
+                    Y
+                  </text>
+                  <text
+                    x="12"
+                    y="106"
+                    text-anchor="middle"
+                    fill="var(--cc-brand)"
+                    font-size="9"
+                    transform="rotate(-90 12 106)"
+                  >
+                    ↓ increases downward
+                  </text>
 
                   <!-- Example point -->
                   <circle cx="180" cy="134" r="5" fill="#10b981" />
                   <!-- X dashed measurement line -->
-                  <line x1="20" y1="134" x2="180" y2="134" stroke="#10b981" stroke-width="1" stroke-dasharray="4 3" />
-                  <text x="100" y="129" text-anchor="middle" fill="#10b981" font-size="10">X = 3.2 m</text>
+                  <line
+                    x1="20"
+                    y1="134"
+                    x2="180"
+                    y2="134"
+                    stroke="#10b981"
+                    stroke-width="1"
+                    stroke-dasharray="4 3"
+                  />
+                  <text x="100" y="129" text-anchor="middle" fill="#10b981" font-size="10">
+                    X = 3.2 m
+                  </text>
                   <!-- Y dashed measurement line -->
-                  <line x1="180" y1="34" x2="180" y2="134" stroke="#10b981" stroke-width="1" stroke-dasharray="4 3" />
-                  <text x="215" y="84" text-anchor="middle" fill="#10b981" font-size="10">Y = 2.5 m</text>
+                  <line
+                    x1="180"
+                    y1="34"
+                    x2="180"
+                    y2="134"
+                    stroke="#10b981"
+                    stroke-width="1"
+                    stroke-dasharray="4 3"
+                  />
+                  <text x="215" y="84" text-anchor="middle" fill="#10b981" font-size="10">
+                    Y = 2.5 m
+                  </text>
 
                   <!-- Arrow markers -->
                   <defs>
-                    <marker id="arrowX" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                    <marker
+                      id="arrowX"
+                      markerWidth="6"
+                      markerHeight="6"
+                      refX="3"
+                      refY="3"
+                      orient="auto"
+                    >
                       <path d="M0,0 L6,3 L0,6 Z" fill="var(--cc-brand)" />
                     </marker>
-                    <marker id="arrowY" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                    <marker
+                      id="arrowY"
+                      markerWidth="6"
+                      markerHeight="6"
+                      refX="3"
+                      refY="3"
+                      orient="auto"
+                    >
                       <path d="M0,0 L6,3 L0,6 Z" fill="var(--cc-brand)" />
                     </marker>
                   </defs>
@@ -536,14 +670,14 @@
 
                 <div class="text-body-2 mt-2">
                   <strong>X</strong> and <strong>Y</strong> are straight-line distances measured
-                  <em>on the floor</em> — not from the camera, not slanted distances through the air.
-                  Measure them as if you were standing on the floor with a tape measure, from the
-                  top-left corner of your floor plan image.
+                  <em>on the floor</em> — not from the camera, not slanted distances through the
+                  air. Measure them as if you were standing on the floor with a tape measure, from
+                  the top-left corner of your floor plan image.
                 </div>
                 <v-alert type="warning" variant="tonal" density="compact" class="mt-3 text-caption">
-                  All cameras must use the <strong>same origin</strong>. If camera A calls
-                  the front door "X=0, Y=0" and camera B calls it "X=1, Y=0", tracks will not
-                  align on the shared floor plan.
+                  All cameras must use the <strong>same origin</strong>. If camera A calls the front
+                  door "X=0, Y=0" and camera B calls it "X=1, Y=0", tracks will not align on the
+                  shared floor plan.
                 </v-alert>
               </v-card-text>
             </v-card>
@@ -555,7 +689,7 @@
               <span>Point Correspondences</span>
               <v-spacer />
               <v-chip size="x-small" :color="points.length >= 4 ? 'success' : 'default'">
-                {{ points.length }}/4{{ points.length > 4 ? '+' : '' }}
+                {{ points.length }}/4{{ points.length > 4 ? "+" : "" }}
               </v-chip>
             </v-card-title>
             <v-card-text class="pb-0">
@@ -564,7 +698,9 @@
               </div>
               <div v-for="(pt, i) in points" :key="i" class="point-row mb-2">
                 <div class="d-flex align-center mb-1">
-                  <v-chip size="x-small" color="primary" class="mr-2 font-weight-bold">{{ i + 1 }}</v-chip>
+                  <v-chip size="x-small" color="primary" class="mr-2 font-weight-bold">{{
+                    i + 1
+                  }}</v-chip>
                   <span class="text-caption text-medium-emphasis">
                     Camera: ({{ pt.pixel[0] }}px, {{ pt.pixel[1] }}px)
                   </span>
@@ -575,7 +711,8 @@
                 <template v-if="inputMode === 'pick' && floorPlanReady && scaleReady">
                   <div class="text-caption ml-1" style="color: var(--cc-brand)">
                     <v-icon size="12" class="mr-1">mdi-map-marker</v-icon>
-                    Floor: X = {{ pt.floor_m[0].toFixed(2) }} m, Y = {{ pt.floor_m[1].toFixed(2) }} m
+                    Floor: X = {{ pt.floor_m[0].toFixed(2) }} m, Y =
+                    {{ pt.floor_m[1].toFixed(2) }} m
                   </div>
                 </template>
                 <template v-else>
@@ -607,7 +744,12 @@
               </div>
             </v-card-text>
             <v-card-actions class="px-4 pb-4 pt-2">
-              <v-btn variant="text" :disabled="points.length === 0" size="small" @click="clearPoints">
+              <v-btn
+                variant="text"
+                :disabled="points.length === 0"
+                size="small"
+                @click="clearPoints"
+              >
                 Clear All
               </v-btn>
               <v-spacer />
@@ -629,7 +771,13 @@
               <span>Result</span>
               <v-spacer />
               <v-chip
-                :color="result.status === 'ok' ? 'success' : result.status === 'warning' ? 'warning' : 'error'"
+                :color="
+                  result.status === 'ok'
+                    ? 'success'
+                    : result.status === 'warning'
+                      ? 'warning'
+                      : 'error'
+                "
                 size="small"
               >
                 {{ result.status.toUpperCase() }}
@@ -640,20 +788,27 @@
                 Max reprojection error: <strong>{{ result.max_residual_m.toFixed(3) }} m</strong>
               </div>
               <div class="text-caption text-medium-emphasis mb-3">
-                This is how far off the computed transform is at its worst calibration point.
-                Under 0.1 m is good; over 0.3 m means the points were poorly placed or measured.
+                This is how far off the computed transform is at its worst calibration point. Under
+                0.1 m is good; over 0.3 m means the points were poorly placed or measured.
               </div>
               <v-table density="compact">
                 <thead>
-                  <tr><th>Point</th><th>Error (m)</th><th></th></tr>
+                  <tr>
+                    <th>Point</th>
+                    <th>Error (m)</th>
+                    <th></th>
+                  </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(r, i) in result.residuals_m" :key="i">
                     <td>{{ i + 1 }}</td>
                     <td>{{ r.toFixed(4) }}</td>
                     <td>
-                      <v-chip size="x-small" :color="r < 0.05 ? 'success' : r < 0.15 ? 'warning' : 'error'">
-                        {{ r < 0.05 ? 'excellent' : r < 0.15 ? 'acceptable' : 'poor' }}
+                      <v-chip
+                        size="x-small"
+                        :color="r < 0.05 ? 'success' : r < 0.15 ? 'warning' : 'error'"
+                      >
+                        {{ r < 0.05 ? "excellent" : r < 0.15 ? "acceptable" : "poor" }}
                       </v-chip>
                     </td>
                   </tr>
@@ -668,7 +823,10 @@
               >
                 <div class="text-caption">
                   <strong>Coverage map not updated.</strong>
-                  {{ result.visibility_polygon_warning || 'Visibility polygon could not be computed from this homography.' }}
+                  {{
+                    result.visibility_polygon_warning ||
+                    "Visibility polygon could not be computed from this homography."
+                  }}
                 </div>
               </v-alert>
               <v-alert
@@ -683,8 +841,8 @@
                 </div>
               </v-alert>
               <div v-if="result.status !== 'ok'" class="text-caption mt-3 text-medium-emphasis">
-                Tip: re-calibrate with more spread-out points and re-measure carefully.
-                Points with a "poor" rating are dragging down accuracy — try replacing them.
+                Tip: re-calibrate with more spread-out points and re-measure carefully. Points with
+                a "poor" rating are dragging down accuracy — try replacing them.
               </div>
             </v-card-text>
           </v-card>
@@ -711,12 +869,12 @@
             </v-card-title>
             <v-card-text class="pb-1">
               <div class="text-body-2 mb-2">
-                The green polygon on the camera image shows the detected floor area.
-                Drag vertices to adjust, then save.
+                The green polygon on the camera image shows the detected floor area. Drag vertices
+                to adjust, then save.
               </div>
               <div class="text-caption text-medium-emphasis">
-                Coordinate space: normalised image [0,1] — same as the visibility polygon,
-                NOT floor-plan metres.
+                Coordinate space: normalised image [0,1] — same as the visibility polygon, NOT
+                floor-plan metres.
               </div>
             </v-card-text>
             <v-card-actions class="px-4 pb-4 pt-0">
@@ -742,7 +900,13 @@
               <span>Auto-calibrate Result</span>
               <v-spacer />
               <v-chip
-                :color="autoResult.confidence >= 0.6 ? 'success' : autoResult.confidence >= 0.4 ? 'warning' : 'error'"
+                :color="
+                  autoResult.confidence >= 0.6
+                    ? 'success'
+                    : autoResult.confidence >= 0.4
+                      ? 'warning'
+                      : 'error'
+                "
                 size="small"
               >
                 {{ Math.round(autoResult.confidence * 100) }}% confidence
@@ -751,8 +915,8 @@
             <v-card-text>
               <div class="text-body-2 mb-1">
                 <strong>{{ autoResult.inlier_count }}</strong> of
-                <strong>{{ autoResult.sample_count }}</strong> floor points used &nbsp;·&nbsp;
-                FoV: <strong>{{ autoResult.fov_deg }}°</strong>
+                <strong>{{ autoResult.sample_count }}</strong> floor points used &nbsp;·&nbsp; FoV:
+                <strong>{{ autoResult.fov_deg }}°</strong>
               </div>
               <v-alert
                 v-if="autoResult.warning"
@@ -764,9 +928,9 @@
                 {{ autoResult.warning }}
               </v-alert>
               <div class="text-caption text-medium-emphasis mt-2">
-                This draft found {{ autoResult.suggested_points?.length || 0 }} candidate
-                floor pixels. It has not been saved as calibration. Refine manually by
-                anchoring the suggested camera points to the floor plan.
+                This draft found {{ autoResult.suggested_points?.length || 0 }} candidate floor
+                pixels. It has not been saved as calibration. Refine manually by anchoring the
+                suggested camera points to the floor plan.
               </div>
             </v-card-text>
             <v-card-actions class="px-4 pb-4 pt-0">
@@ -798,7 +962,9 @@
               <v-col cols="12" md="4">
                 <div class="text-subtitle-2 mb-2">Choose good points</div>
                 <ul class="text-body-2 tip-list">
-                  <li>Pick points on the <strong>floor surface</strong>, not walls or elevated objects</li>
+                  <li>
+                    Pick points on the <strong>floor surface</strong>, not walls or elevated objects
+                  </li>
                   <li>Spread points across the full camera view — avoid clustering in one area</li>
                   <li>Use fixed landmarks: doorway corners, tile intersections, rug edges</li>
                   <li>Avoid points that are very close to the camera's edge</li>
@@ -810,7 +976,10 @@
                   <li>Use a tape measure on the actual floor — never estimate by eye</li>
                   <li>Measure from the same reference corner for every camera</li>
                   <li>Measure horizontal and vertical distances separately (not diagonal)</li>
-                  <li>Double-check: if the floor plan shows a wall at X=5.0 m, stand there and measure from your origin</li>
+                  <li>
+                    Double-check: if the floor plan shows a wall at X=5.0 m, stand there and measure
+                    from your origin
+                  </li>
                 </ul>
               </v-col>
               <v-col cols="12" md="4">
@@ -819,7 +988,9 @@
                   <li>Under 0.05 m: excellent — person dots will be accurate to ~5 cm</li>
                   <li>0.05–0.15 m: acceptable for most use cases</li>
                   <li>Over 0.3 m: re-calibrate; check measurements and point placement</li>
-                  <li>One "poor" point usually means a mis-click or measurement error — replace it</li>
+                  <li>
+                    One "poor" point usually means a mis-click or measurement error — replace it
+                  </li>
                 </ul>
               </v-col>
             </v-row>
@@ -827,7 +998,6 @@
         </v-expansion-panel>
       </v-expansion-panels>
     </template>
-
 
     <!-- Calibration Health Panel -->
     <v-card class="glass-card mt-6" :border="true">
@@ -868,7 +1038,9 @@ const { displaySrc } = useDisplaySrc(blurMode);
 // ── Camera state ──────────────────────────────────────────────────────────
 const cameras = ref([]);
 const selectedCameraId = ref(null);
-const selectedCamera = computed(() => cameras.value.find((c) => c.id === selectedCameraId.value) ?? null);
+const selectedCamera = computed(
+  () => cameras.value.find((c) => c.id === selectedCameraId.value) ?? null,
+);
 const snapshotUrl = ref(null);
 const snapshotLoading = ref(false);
 const imgEl = ref(null);
@@ -928,7 +1100,7 @@ const INPUT_MODE_OPTIONS = [
 ];
 
 // ── Computed ──────────────────────────────────────────────────────────────
-const floorPlanReady = computed(() => !!(floorPlanUrl.value));
+const floorPlanReady = computed(() => !!floorPlanUrl.value);
 const scaleReady = computed(() => !!(fpMpp.value && fpWidth.value && fpHeight.value));
 
 // ── Point color helper ─────────────────────────────────────────────────────
@@ -1040,16 +1212,23 @@ function onCameraDragMove(e) {
   if (!imgEl.value || !imgContentRect.value) return;
 
   const r = imgEl.value.getBoundingClientRect();
-  const { offsetX, offsetY, width: cw, height: ch, naturalWidth: nw, naturalHeight: nh } = imgContentRect.value;
+  const {
+    offsetX,
+    offsetY,
+    width: cw,
+    height: ch,
+    naturalWidth: nw,
+    naturalHeight: nh,
+  } = imgContentRect.value;
 
   const relX = Math.max(0, Math.min(cw, e.clientX - r.left - offsetX));
   const relY = Math.max(0, Math.min(ch, e.clientY - r.top - offsetY));
 
-  const px = Math.round(relX / cw * nw);
-  const py = Math.round(relY / ch * nh);
+  const px = Math.round((relX / cw) * nw);
+  const py = Math.round((relY / ch) * nh);
 
   const updated = points.value.map((pt, idx) =>
-    idx === dragState.value.idx ? { ...pt, pixel: [px, py] } : pt
+    idx === dragState.value.idx ? { ...pt, pixel: [px, py] } : pt,
   );
   points.value = updated;
 }
@@ -1081,7 +1260,7 @@ function onFloorDragMove(e) {
   const floorY = parseFloat((yn * fpHeight.value * fpMpp.value).toFixed(3));
 
   const updated = points.value.map((pt, idx) =>
-    idx === dragState.value.idx ? { ...pt, floor_m: [floorX, floorY] } : pt
+    idx === dragState.value.idx ? { ...pt, floor_m: [floorX, floorY] } : pt,
   );
   points.value = updated;
 }
@@ -1177,9 +1356,12 @@ function onImageLoad() {
     offY = 0;
   }
   imgContentRect.value = {
-    width: contentW, height: contentH,
-    offsetX: offX, offsetY: offY,
-    naturalWidth: nw, naturalHeight: nh,
+    width: contentW,
+    height: contentH,
+    offsetX: offX,
+    offsetY: offY,
+    naturalWidth: nw,
+    naturalHeight: nh,
   };
 }
 
@@ -1193,21 +1375,28 @@ function onFpImageLoad() {
 function onCameraClick(e) {
   if (!snapshotUrl.value || !imgEl.value || !imgContentRect.value) return;
   const r = imgEl.value.getBoundingClientRect();
-  const { offsetX, offsetY, width: cw, height: ch, naturalWidth: nw, naturalHeight: nh } = imgContentRect.value;
+  const {
+    offsetX,
+    offsetY,
+    width: cw,
+    height: ch,
+    naturalWidth: nw,
+    naturalHeight: nh,
+  } = imgContentRect.value;
   // Click position relative to the image content area (excluding pillar/letterbox bars).
   const relX = e.clientX - r.left - offsetX;
   const relY = e.clientY - r.top - offsetY;
   if (relX < 0 || relX > cw || relY < 0 || relY > ch) return;
   // Convert to raw pixel coords in the camera's natural resolution.
-  let px = Math.round(relX / cw * nw);
-  let py = Math.round(relY / ch * nh);
+  let px = Math.round((relX / cw) * nw);
+  let py = Math.round((relY / ch) * nh);
   const suggestion = nearestAutoSuggestion(px, py);
   if (suggestion) {
     px = suggestion.pixel[0];
     py = suggestion.pixel[1];
   }
 
-  if (inputMode.value === 'pick' && floorPlanReady.value && scaleReady.value) {
+  if (inputMode.value === "pick" && floorPlanReady.value && scaleReady.value) {
     pendingPixel.value = [px, py];
   } else {
     points.value.push({ pixel: [px, py], floor_m: [0, 0] });
@@ -1348,7 +1537,10 @@ function populateFromAutoResult() {
   inputMode.value = "pick";
   pendingPixel.value = null;
   autoResult.value = null;
-  notify(`${autoSuggestedPoints.value.length} suggested camera points shown — click one, then anchor it on the floor plan.`, "info");
+  notify(
+    `${autoSuggestedPoints.value.length} suggested camera points shown — click one, then anchor it on the floor plan.`,
+    "info",
+  );
 }
 
 function dismissAutoResult() {
@@ -1395,7 +1587,7 @@ function onFloorRegionDragMove(e) {
   const xn = parseFloat((relX / cw).toFixed(4));
   const yn = parseFloat((relY / ch).toFixed(4));
   const updated = floorRegionDraft.value.map((pt, i) =>
-    i === floorRegionDragIdx.value ? [xn, yn] : pt
+    i === floorRegionDragIdx.value ? [xn, yn] : pt,
   );
   floorRegionDraft.value = updated;
 }
@@ -1415,7 +1607,7 @@ async function saveFloorRegion(source) {
       source === "manual"
         ? "Floor region saved (manual)."
         : "Floor region accepted from auto-calibration.",
-      "success"
+      "success",
     );
   } catch (e) {
     notify(`Floor region save failed: ${e.message}`, "error");
@@ -1527,7 +1719,7 @@ onBeforeUnmount(() => {
 }
 
 .point-row {
-  background: var(--cc-surface-2, rgba(0,0,0,0.03));
+  background: var(--cc-surface-2, rgba(0, 0, 0, 0.03));
   border-radius: 8px;
   padding: 8px 10px 10px;
 }

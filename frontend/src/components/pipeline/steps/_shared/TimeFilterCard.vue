@@ -57,12 +57,13 @@ watch(
       local.time_end = val.time_end || "";
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 function emitFilter() {
   const out = {};
-  if (local.since_minutes != null && local.since_minutes !== "") out.since_minutes = Number(local.since_minutes);
+  if (local.since_minutes != null && local.since_minutes !== "")
+    out.since_minutes = Number(local.since_minutes);
   if (local.time_start) out.time_start = local.time_start;
   if (local.time_end) out.time_end = local.time_end;
   emit("update:modelValue", Object.keys(out).length > 0 ? out : {});

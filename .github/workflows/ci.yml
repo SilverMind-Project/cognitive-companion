@@ -2,10 +2,11 @@ name: CI
 
 # Runs the project gates (the `make check-all` equivalent) on every PR and on
 # pushes to main. Split into a backend job (lint, import-lint, mypy core +
-# strict-typing ratchet, backend tests) and a frontend job (build, test, audit)
-# so they run in parallel. The strict-typing ratchet (`typecheck-ratchet`) is the
-# enforcement point that keeps the cleaned packages from regressing; see
-# backend/pyproject.toml and the Makefile.
+# strict-typing ratchet, backend tests) and a frontend job (lint, format check,
+# typecheck, knip, build, test, audit) so they run in parallel. The
+# strict-typing ratchet (`typecheck-ratchet`) is the enforcement point that
+# keeps the cleaned packages from regressing; see backend/pyproject.toml and
+# the Makefile.
 
 on:
   pull_request:
@@ -87,6 +88,12 @@ jobs:
       - name: Install dependencies (locked)
         run: npm ci
 
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Format check (prettier)
+        run: npm run format:check
+
       # The generated types must match the committed openapi.json. The backend job separately
       # gates that openapi.json matches the app, so together they chain the contract from the
       # FastAPI routes all the way to the browser's types.
@@ -97,6 +104,9 @@ jobs:
 
       - name: Type-check (vue-tsc)
         run: npm run typecheck
+
+      - name: Dead code / dependency hygiene (knip)
+        run: npm run knip
 
       - name: Build
         run: npm run build

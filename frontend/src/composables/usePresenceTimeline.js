@@ -26,7 +26,7 @@ export function usePresenceTimeline(notify) {
       const active = segments.value.find((s) => !s.exited_at);
       if (active && active.entered_at) {
         activeDuration.value = Math.floor(
-          (Date.now() - new Date(active.entered_at).getTime()) / 1000
+          (Date.now() - new Date(active.entered_at).getTime()) / 1000,
         );
       }
     }, 1000);

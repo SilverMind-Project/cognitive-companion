@@ -17,7 +17,15 @@
       </template>
     </TrackingPanelHeader>
 
-    <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4" closable @click:close="error = ''">
+    <v-alert
+      v-if="error"
+      type="error"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      closable
+      @click:close="error = ''"
+    >
       {{ error }}
     </v-alert>
 
@@ -137,7 +145,7 @@ const timelineEvents = computed(() =>
     t: seg.entered_at,
     label: seg.room_name || `Room ${seg.room_id}`,
     status: seg.is_inferred ? "pending" : "succeeded",
-  }))
+  })),
 );
 
 const recentTransitions = computed(() => {

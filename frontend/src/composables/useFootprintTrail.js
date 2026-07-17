@@ -36,7 +36,9 @@ function computeFootsteps(trailsByPh, colorsByPh, nowMs, canvas, opts = {}) {
 
   if (!fpMpp || !fpWidth || !fpHeight || !canvasW || !canvasH) return [];
 
-  const { actions: { seedFrom } } = useRoughSketch();
+  const {
+    actions: { seedFrom },
+  } = useRoughSketch();
 
   const totalWidthM = fpWidth * fpMpp;
   const totalHeightM = fpHeight * fpMpp;
@@ -137,9 +139,7 @@ function computeFootsteps(trailsByPh, colorsByPh, nowMs, canvas, opts = {}) {
     }
 
     // Reduced motion: keep the N newest (highest arc length = closest to head).
-    const kept = reducedMotion
-      ? phSteps.slice(-REDUCED_MOTION_N)
-      : phSteps.slice(-PER_PERSON_CAP);
+    const kept = reducedMotion ? phSteps.slice(-REDUCED_MOTION_N) : phSteps.slice(-PER_PERSON_CAP);
     all.push(...kept);
   }
 

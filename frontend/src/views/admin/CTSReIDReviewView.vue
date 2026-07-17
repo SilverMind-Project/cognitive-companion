@@ -75,7 +75,12 @@
 
       <!-- Batch action bar (reject only; bulk approval is disabled by design) -->
       <v-slide-y-transition>
-        <v-card v-if="state.selectedIds.value.length" variant="tonal" color="error" class="mb-3 pa-2">
+        <v-card
+          v-if="state.selectedIds.value.length"
+          variant="tonal"
+          color="error"
+          class="mb-3 pa-2"
+        >
           <div class="d-flex align-center ga-3">
             <span class="text-body-2">{{ state.selectedIds.value.length }} selected</span>
             <v-spacer />
@@ -203,7 +208,13 @@
 
         <!-- Eligibility -->
         <v-alert
-          :type="detailCandidate.state !== 'pending_review' ? 'info' : eligibility.eligible ? 'success' : 'warning'"
+          :type="
+            detailCandidate.state !== 'pending_review'
+              ? 'info'
+              : eligibility.eligible
+                ? 'success'
+                : 'warning'
+          "
           variant="tonal"
           density="compact"
           class="mb-3"
@@ -245,26 +256,70 @@
         <div class="text-overline">Provenance</div>
         <v-table density="compact" class="mb-3 prov-table">
           <tbody>
-            <tr><td>Proposed identity</td><td>{{ detailCandidate.proposed_identity_id || "-" }}</td></tr>
-            <tr><td>Effective identity</td><td>{{ detailCandidate.effective_identity_id || "Unknown" }}</td></tr>
-            <tr><td>Label source</td><td>{{ detailCandidate.label_source || "-" }}</td></tr>
-            <tr><td>Candidate reason</td><td>{{ detailCandidate.candidate_reason || "-" }}</td></tr>
-            <tr><td>Crop quality</td><td>{{ pct(detailCandidate.quality) }}</td></tr>
+            <tr>
+              <td>Proposed identity</td>
+              <td>{{ detailCandidate.proposed_identity_id || "-" }}</td>
+            </tr>
+            <tr>
+              <td>Effective identity</td>
+              <td>{{ detailCandidate.effective_identity_id || "Unknown" }}</td>
+            </tr>
+            <tr>
+              <td>Label source</td>
+              <td>{{ detailCandidate.label_source || "-" }}</td>
+            </tr>
+            <tr>
+              <td>Candidate reason</td>
+              <td>{{ detailCandidate.candidate_reason || "-" }}</td>
+            </tr>
+            <tr>
+              <td>Crop quality</td>
+              <td>{{ pct(detailCandidate.quality) }}</td>
+            </tr>
             <tr>
               <td>Dimensions</td>
-              <td>{{ detailCandidate.crop_width || "?" }} x {{ detailCandidate.crop_height || "?" }}</td>
+              <td>
+                {{ detailCandidate.crop_width || "?" }} x {{ detailCandidate.crop_height || "?" }}
+              </td>
             </tr>
             <tr>
               <td>Truncation / occlusion</td>
-              <td>{{ detailCandidate.is_truncated ? "truncated" : "ok" }} / {{ detailCandidate.is_occluded ? "occluded" : "ok" }}</td>
+              <td>
+                {{ detailCandidate.is_truncated ? "truncated" : "ok" }} /
+                {{ detailCandidate.is_occluded ? "occluded" : "ok" }}
+              </td>
             </tr>
-            <tr><td>Orientation</td><td>{{ orientationLabel(detailCandidate.orientation) }}</td></tr>
-            <tr><td>Model / preprocessing</td><td>{{ detailCandidate.model_version || "-" }} / {{ detailCandidate.preprocessing_version || "-" }}</td></tr>
-            <tr><td>Camera</td><td>{{ detailCandidate.camera_id || "-" }}</td></tr>
-            <tr><td>Captured</td><td>{{ fmt(detailCandidate.capture_time) }}</td></tr>
-            <tr><td>Source PH</td><td class="mono">{{ detailCandidate.ph_id || "-" }}</td></tr>
-            <tr><td>Observation</td><td class="mono">{{ detailCandidate.observation_id || "-" }}</td></tr>
-            <tr><td>Keyframe</td><td class="mono">{{ detailCandidate.keyframe_id || "-" }}</td></tr>
+            <tr>
+              <td>Orientation</td>
+              <td>{{ orientationLabel(detailCandidate.orientation) }}</td>
+            </tr>
+            <tr>
+              <td>Model / preprocessing</td>
+              <td>
+                {{ detailCandidate.model_version || "-" }} /
+                {{ detailCandidate.preprocessing_version || "-" }}
+              </td>
+            </tr>
+            <tr>
+              <td>Camera</td>
+              <td>{{ detailCandidate.camera_id || "-" }}</td>
+            </tr>
+            <tr>
+              <td>Captured</td>
+              <td>{{ fmt(detailCandidate.capture_time) }}</td>
+            </tr>
+            <tr>
+              <td>Source PH</td>
+              <td class="mono">{{ detailCandidate.ph_id || "-" }}</td>
+            </tr>
+            <tr>
+              <td>Observation</td>
+              <td class="mono">{{ detailCandidate.observation_id || "-" }}</td>
+            </tr>
+            <tr>
+              <td>Keyframe</td>
+              <td class="mono">{{ detailCandidate.keyframe_id || "-" }}</td>
+            </tr>
           </tbody>
         </v-table>
 
@@ -290,11 +345,15 @@
             v-for="ev in detailEvents"
             :key="ev.event_id"
             size="x-small"
-            :dot-color="ev.new_state === 'rejected' ? 'error' : ev.new_state === 'operator_verified' ? 'success' : 'grey'"
+            :dot-color="
+              ev.new_state === 'rejected'
+                ? 'error'
+                : ev.new_state === 'operator_verified'
+                  ? 'success'
+                  : 'grey'
+            "
           >
-            <div class="text-body-2">
-              {{ ev.previous_state }} &rarr; {{ ev.new_state }}
-            </div>
+            <div class="text-body-2">{{ ev.previous_state }} &rarr; {{ ev.new_state }}</div>
             <div class="text-caption text-medium-emphasis">
               {{ ev.actor }} - {{ fmt(ev.event_time) }}
               <template v-if="ev.reason"> - {{ ev.reason }}</template>
@@ -312,7 +371,9 @@
               size="small"
               prepend-icon="mdi-check"
               :disabled="!eligibility.eligible || state.acting.value"
-              :title="eligibility.eligible ? 'Verify this candidate' : 'Server eligibility is false'"
+              :title="
+                eligibility.eligible ? 'Verify this candidate' : 'Server eligibility is false'
+              "
               @click="confirmApprove"
             >
               Approve
@@ -418,7 +479,12 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="batchDialog = false">Cancel</v-btn>
-          <v-btn color="error" :disabled="!batchReason" :loading="state.acting.value" @click="doBatchReject">
+          <v-btn
+            color="error"
+            :disabled="!batchReason"
+            :loading="state.acting.value"
+            @click="doBatchReject"
+          >
             Reject
           </v-btn>
         </v-card-actions>
@@ -437,7 +503,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </div>
 </template>
 
@@ -593,7 +658,10 @@ async function confirmRelabel() {
 }
 async function confirmReject() {
   await actions
-    .reject(detailCandidate.value.candidate_id, { reason: rejectReason.value, note: rejectNote.value || null })
+    .reject(detailCandidate.value.candidate_id, {
+      reason: rejectReason.value,
+      note: rejectNote.value || null,
+    })
     .catch(() => {});
 }
 async function confirmCompensate() {

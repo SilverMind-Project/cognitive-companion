@@ -14,20 +14,19 @@
         <v-chip v-if="step.elapsed_seconds != null" size="x-small" variant="tonal">
           {{ formatElapsed(step.elapsed_seconds) }}
         </v-chip>
-        <v-chip v-if="step.output_port" size="x-small" variant="tonal" prepend-icon="mdi-source-branch">
+        <v-chip
+          v-if="step.output_port"
+          size="x-small"
+          variant="tonal"
+          prepend-icon="mdi-source-branch"
+        >
           {{ step.output_port }}
         </v-chip>
         <v-chip v-if="step.cancellation_observed" size="x-small" color="warning" variant="tonal">
           Cancellation observed
         </v-chip>
       </div>
-      <v-alert
-        v-if="step.error"
-        type="error"
-        density="compact"
-        variant="tonal"
-        class="mx-4 mb-2"
-      >
+      <v-alert v-if="step.error" type="error" density="compact" variant="tonal" class="mx-4 mb-2">
         {{ step.error }}
       </v-alert>
 
@@ -41,7 +40,9 @@
       <v-card-text>
         <v-window v-model="detailTab">
           <v-window-item value="inputs">
-            <pre v-if="step.resolved_config" class="json-block">{{ jsonPretty(step.resolved_config) }}</pre>
+            <pre v-if="step.resolved_config" class="json-block">{{
+              jsonPretty(step.resolved_config)
+            }}</pre>
             <p v-else class="text-medium-emphasis text-caption">No resolved config recorded.</p>
           </v-window-item>
           <v-window-item value="outputs">

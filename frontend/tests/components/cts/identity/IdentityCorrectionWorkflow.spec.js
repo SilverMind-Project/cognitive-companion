@@ -24,7 +24,10 @@ const PROPOSAL = {
 
 function makeController(overrides = {}) {
   const state = {
-    targets: ref([{ identity_id: "amma", display_name: "Amma" }, { identity_id: "appa", display_name: "Appa" }]),
+    targets: ref([
+      { identity_id: "amma", display_name: "Amma" },
+      { identity_id: "appa", display_name: "Appa" },
+    ]),
     targetsLoading: ref(false),
     targetsError: ref(""),
     galleryAvailable: ref(true),
@@ -44,7 +47,13 @@ function makeController(overrides = {}) {
     compensate: vi.fn(),
     refreshJob: vi.fn(),
     pollJob: vi.fn().mockImplementation(async () => {
-      state.job.value = { revision_id: "rev-1", status: "completed", required_projections: ["cc"], row_counts: { cc: 2 }, attempts: 1 };
+      state.job.value = {
+        revision_id: "rev-1",
+        status: "completed",
+        required_projections: ["cc"],
+        row_counts: { cc: 2 },
+        attempts: 1,
+      };
       return state.job.value;
     }),
     reset: vi.fn(),
@@ -64,15 +73,25 @@ const stubs = {
     props: ["disabled", "loading", "color", "variant"],
   },
   "v-autocomplete": {
-    template: "<input class='ac' :value='modelValue' @input=\"$emit('update:modelValue', $event.target.value || null)\" />",
+    template:
+      "<input class='ac' :value='modelValue' @input=\"$emit('update:modelValue', $event.target.value || null)\" />",
     props: ["modelValue", "items"],
   },
   "v-select": { template: "<select><slot /></select>", props: ["modelValue", "items"] },
   "v-textarea": { template: "<textarea />", props: ["modelValue"] },
   "v-checkbox": { template: "<input type='checkbox' />", props: ["modelValue"] },
-  IdentityEvidenceBadges: { template: "<div class='badges' />", props: ["bbox", "targets", "detailed"] },
-  CorrectionRangeSelector: { template: "<div class='range' />", props: ["proposal", "observations", "scopeMode", "allowFrameOnly", "startId", "endId"] },
-  CorrectionJobStatus: { template: "<div class='job' :data-status='job.status' />", props: ["job"] },
+  IdentityEvidenceBadges: {
+    template: "<div class='badges' />",
+    props: ["bbox", "targets", "detailed"],
+  },
+  CorrectionRangeSelector: {
+    template: "<div class='range' />",
+    props: ["proposal", "observations", "scopeMode", "allowFrameOnly", "startId", "endId"],
+  },
+  CorrectionJobStatus: {
+    template: "<div class='job' :data-status='job.status' />",
+    props: ["job"],
+  },
 };
 
 function mountWorkflow(props = {}, controller = makeController()) {
@@ -134,7 +153,13 @@ describe("IdentityCorrectionWorkflow", () => {
     const c = makeController({
       actions: {
         pollJob: vi.fn().mockImplementation(async function () {
-          c.state.job.value = { revision_id: "rev-1", status: "applying", required_projections: ["cc"], row_counts: {}, attempts: 0 };
+          c.state.job.value = {
+            revision_id: "rev-1",
+            status: "applying",
+            required_projections: ["cc"],
+            row_counts: {},
+            attempts: 0,
+          };
           return c.state.job.value;
         }),
       },

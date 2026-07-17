@@ -45,7 +45,10 @@ describe("MaraudersAdminBackground", () => {
     vi.clearAllMocks();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(canvasContext);
     vi.spyOn(Math, "random").mockReturnValue(0.5);
-    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 17));
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 17),
+    );
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
   });
 

@@ -62,7 +62,12 @@ describe("useReIDReview", () => {
     expect(state.selectedIds.value).toEqual(["c1"]);
 
     // A reload that no longer contains c1 drops it from the selection.
-    mockSvc.list.mockResolvedValue({ candidates: [candidate("c2")], total: 1, limit: 25, offset: 0 });
+    mockSvc.list.mockResolvedValue({
+      candidates: [candidate("c2")],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    });
     await actions.loadList();
     expect(state.selectedIds.value).toEqual([]);
   });
@@ -91,7 +96,12 @@ describe("useReIDReview", () => {
   });
 
   it("approve passes the base audit version and refreshes via invalidate", async () => {
-    mockSvc.list.mockResolvedValue({ candidates: [candidate("c1", 4)], total: 1, limit: 25, offset: 0 });
+    mockSvc.list.mockResolvedValue({
+      candidates: [candidate("c1", 4)],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    });
     mockSvc.approve.mockResolvedValue(candidate("c1", 5, "operator_verified"));
     const { actions } = useReIDReview(notify);
     await actions.loadList();
@@ -102,8 +112,15 @@ describe("useReIDReview", () => {
   });
 
   it("a 409 on a mutation refreshes state and warns, not a generic error", async () => {
-    mockSvc.list.mockResolvedValue({ candidates: [candidate("c1", 1)], total: 1, limit: 25, offset: 0 });
-    mockSvc.approve.mockRejectedValue(new CorrectionError("stale", { status: 409, code: "reid_review.stale" }));
+    mockSvc.list.mockResolvedValue({
+      candidates: [candidate("c1", 1)],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    });
+    mockSvc.approve.mockRejectedValue(
+      new CorrectionError("stale", { status: 409, code: "reid_review.stale" }),
+    );
     const { actions } = useReIDReview(notify);
     await actions.loadList();
     await expect(actions.approve("c1")).rejects.toBeInstanceOf(CorrectionError);
@@ -119,7 +136,12 @@ describe("useReIDReview", () => {
   });
 
   it("relabel sends the household target identity and base version", async () => {
-    mockSvc.list.mockResolvedValue({ candidates: [candidate("c1", 7)], total: 1, limit: 25, offset: 0 });
+    mockSvc.list.mockResolvedValue({
+      candidates: [candidate("c1", 7)],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    });
     mockSvc.relabel.mockResolvedValue(candidate("c1", 8, "operator_verified"));
     const { actions } = useReIDReview(notify);
     await actions.loadList();

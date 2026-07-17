@@ -45,11 +45,15 @@
           </tr>
           <tr v-if="bbox.ph_id">
             <th>PH</th>
-            <td><span class="cc-code">{{ shortId(bbox.ph_id) }}</span></td>
+            <td>
+              <span class="cc-code">{{ shortId(bbox.ph_id) }}</span>
+            </td>
           </tr>
           <tr v-if="bbox.revision_id">
             <th>Revision</th>
-            <td><span class="cc-code">{{ shortId(bbox.revision_id) }}</span></td>
+            <td>
+              <span class="cc-code">{{ shortId(bbox.revision_id) }}</span>
+            </td>
           </tr>
           <tr v-if="rawSimilarity !== null">
             <!-- Raw ArcFace similarity is NEVER presented as confidence. -->
@@ -76,13 +80,11 @@ const badge = computed(() => sourceBadge(props.bbox));
 const confidence = computed(() => confidenceLabel(props.bbox));
 
 const effectiveLabel = computed(() =>
-  identityLabel(props.bbox.effective_identity_id, props.targets)
+  identityLabel(props.bbox.effective_identity_id, props.targets),
 );
-const inferredLabel = computed(() =>
-  identityLabel(props.bbox.inferred_identity_id, props.targets)
-);
+const inferredLabel = computed(() => identityLabel(props.bbox.inferred_identity_id, props.targets));
 const inferredDiffers = computed(
-  () => props.bbox.inferred_identity_id !== props.bbox.effective_identity_id
+  () => props.bbox.inferred_identity_id !== props.bbox.effective_identity_id,
 );
 
 const rawSimilarity = computed(() => {

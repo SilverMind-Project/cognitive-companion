@@ -22,7 +22,11 @@
         size="small"
         variant="text"
         prepend-icon="mdi-pencil-outline"
-        :to="{ name: 'admin-rule-detail', params: { id: scopedRuleId }, query: { tab: 'executions' } }"
+        :to="{
+          name: 'admin-rule-detail',
+          params: { id: scopedRuleId },
+          query: { tab: 'executions' },
+        }"
       >
         Rule
       </v-btn>
@@ -106,13 +110,15 @@
                   :title="run.rule_name"
                   :subtitle="runSubtitle(run)"
                   data-testid="recent-run-item"
-                  @click="selectRun(run, run.status === 'running' || run.status === 'waiting' ? 'live' : 'historic')"
+                  @click="
+                    selectRun(
+                      run,
+                      run.status === 'running' || run.status === 'waiting' ? 'live' : 'historic',
+                    )
+                  "
                 />
               </v-list>
-              <v-card-text
-                v-if="!loadingRecent && !recentRuns.length"
-                class="text-medium-emphasis"
-              >
+              <v-card-text v-if="!loadingRecent && !recentRuns.length" class="text-medium-emphasis">
                 No recent executions.
               </v-card-text>
             </v-card>
@@ -210,7 +216,11 @@
         <v-card class="glass-card mt-4" data-testid="ingest-feed-card">
           <v-card-title class="text-subtitle-1">Ingest Activity</v-card-title>
           <v-card-text class="pa-0">
-            <CcLiveActivityFeed :events="feedEvents" :max-height="420" data-testid="cc-live-activity-feed">
+            <CcLiveActivityFeed
+              :events="feedEvents"
+              :max-height="420"
+              data-testid="cc-live-activity-feed"
+            >
               <template #empty>
                 No ingest activity yet. Events will appear when ReCameras push frames.
               </template>
@@ -222,7 +232,11 @@
           <v-card-title class="text-subtitle-1">Signal Trends</v-card-title>
           <v-card-text>
             <div style="height: 280px">
-              <CcStatusTimeline :lanes="trendLanes" :events="trendEvents" :loading="loadingIngest" />
+              <CcStatusTimeline
+                :lanes="trendLanes"
+                :events="trendEvents"
+                :loading="loadingIngest"
+              />
             </div>
           </v-card-text>
         </v-card>
@@ -253,7 +267,9 @@ const {
   refresh: refreshSocket,
 } = useLivePipeline();
 
-const activeTab = ref(route.query.tab === "history" ? "history" : route.query.tab === "ingest" ? "ingest" : "live");
+const activeTab = ref(
+  route.query.tab === "history" ? "history" : route.query.tab === "ingest" ? "ingest" : "live",
+);
 const selectedExecutionId = ref(route.query.execution ? Number(route.query.execution) : null);
 const selectedSource = ref(activeTab.value === "live" ? "live" : "historic");
 const selectedRun = ref(null);
@@ -268,19 +284,23 @@ const scopedRuleId = computed(() => {
   const value = Number(route.query.rule_id);
   return Number.isInteger(value) && value > 0 ? value : null;
 });
-const activeRuns = computed(() => scopedRuleId.value
-  ? allActiveRuns.value.filter((run) => Number(run.rule_id) === scopedRuleId.value)
-  : allActiveRuns.value);
-const scopedRuleName = computed(() =>
-  selectedRun.value?.rule_name
-  || activeRuns.value[0]?.rule_name
-  || recentRuns.value[0]?.rule_name
-  || historyItems.value[0]?.rule_name
-  || null,
+const activeRuns = computed(() =>
+  scopedRuleId.value
+    ? allActiveRuns.value.filter((run) => Number(run.rule_id) === scopedRuleId.value)
+    : allActiveRuns.value,
 );
-const pageDescription = computed(() => scopedRuleId.value
-  ? `Live runs and execution history for ${scopedRuleName.value || `rule #${scopedRuleId.value}`}.`
-  : "Live pipeline runs, execution history, and ingest activity.",
+const scopedRuleName = computed(
+  () =>
+    selectedRun.value?.rule_name ||
+    activeRuns.value[0]?.rule_name ||
+    recentRuns.value[0]?.rule_name ||
+    historyItems.value[0]?.rule_name ||
+    null,
+);
+const pageDescription = computed(() =>
+  scopedRuleId.value
+    ? `Live runs and execution history for ${scopedRuleName.value || `rule #${scopedRuleId.value}`}.`
+    : "Live pipeline runs, execution history, and ingest activity.",
 );
 
 const historyHeaders = [
@@ -294,19 +314,26 @@ const historyHeaders = [
 
 const wsColor = computed(() => {
   switch (connectionState.value) {
-    case "open": return "success";
-    case "connecting": return "warning";
+    case "open":
+      return "success";
+    case "connecting":
+      return "warning";
     case "error":
-    case "closed": return "error";
-    default: return "grey";
+    case "closed":
+      return "error";
+    default:
+      return "grey";
   }
 });
 
 const wsIcon = computed(() => {
   switch (connectionState.value) {
-    case "open": return "mdi-wifi";
-    case "connecting": return "mdi-wifi-sync";
-    default: return "mdi-wifi-off";
+    case "open":
+      return "mdi-wifi";
+    case "connecting":
+      return "mdi-wifi-sync";
+    default:
+      return "mdi-wifi-off";
   }
 });
 
@@ -314,9 +341,10 @@ const feedEvents = computed(() => {
   const fromRest = (ingestActivity.value || []).map((ev) => ({
     id: ev.id,
     timestamp: ev.timestamp,
-    title: ev.event_type === "frame_received"
-      ? `Frame from ${ev.sensor_id || "sensor"}`
-      : `Rule triggered: ${ev.rule_name || "unknown"}`,
+    title:
+      ev.event_type === "frame_received"
+        ? `Frame from ${ev.sensor_id || "sensor"}`
+        : `Rule triggered: ${ev.rule_name || "unknown"}`,
     description: ev.sensor_id || undefined,
     icon: ev.event_type === "frame_received" ? "mdi-camera" : "mdi-flash",
     color: ev.event_type === "frame_received" ? "teal" : "primary",
@@ -332,25 +360,26 @@ const feedEvents = computed(() => {
       color: "primary",
     }));
 
-  return [...fromRest, ...fromWs].sort(
-    (a, b) => new Date(b.timestamp) - new Date(a.timestamp),
-  );
+  return [...fromRest, ...fromWs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 });
 
 const framesPerMin = computed(() => {
   const cutoff = Date.now() - 60_000;
   return ingestActivity.value.filter(
-    (event) => event.event_type === "frame_received" && new Date(event.timestamp).getTime() > cutoff,
+    (event) =>
+      event.event_type === "frame_received" && new Date(event.timestamp).getTime() > cutoff,
   ).length;
 });
 
-const rulesTriggered = computed(() =>
-  ingestActivity.value.filter((event) => event.event_type === "rule_triggered").length,
+const rulesTriggered = computed(
+  () => ingestActivity.value.filter((event) => event.event_type === "rule_triggered").length,
 );
 
-const activeSensors = computed(() => new Set(
-  ingestActivity.value.filter((event) => event.sensor_id).map((event) => event.sensor_id),
-).size);
+const activeSensors = computed(
+  () =>
+    new Set(ingestActivity.value.filter((event) => event.sensor_id).map((event) => event.sensor_id))
+      .size,
+);
 
 const lastIngestAge = computed(() => {
   if (!ingestActivity.value.length) return "-";
@@ -395,7 +424,8 @@ function selectHistory(item) {
     status: item.status,
   };
   selectedExecutionId.value = item.id;
-  selectedSource.value = item.status === "running" || item.status === "waiting" ? "live" : "historic";
+  selectedSource.value =
+    item.status === "running" || item.status === "waiting" ? "live" : "historic";
   router.replace({ query: { ...route.query, tab: "history", execution: item.id } });
 }
 
@@ -502,15 +532,21 @@ function refresh() {
 
 function statusColor(status) {
   switch (status) {
-    case "running": return "primary";
+    case "running":
+      return "primary";
     case "completed":
     case "success":
-    case "succeeded": return "success";
-    case "failed": return "error";
+    case "succeeded":
+      return "success";
+    case "failed":
+      return "error";
     case "waiting":
-    case "skipped": return "warning";
-    case "cancelled": return "grey";
-    default: return "grey";
+    case "skipped":
+      return "warning";
+    case "cancelled":
+      return "grey";
+    default:
+      return "grey";
   }
 }
 

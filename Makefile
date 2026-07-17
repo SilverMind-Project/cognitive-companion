@@ -42,7 +42,7 @@ help:
 	@echo "  make typecheck         Mypy over the full backend tree"
 	@echo "  make typecheck-core    Mypy over backend.core only (strict)"
 	@echo "  make check             lint + typecheck-core + test-core (fast gate)"
-	@echo "  make check-all         lint + typecheck-core + test (core + services) + frontend typecheck/tests on Node $(FRONTEND_NODE_VERSION)"
+	@echo "  make check-all         lint + typecheck-core + test (core + services) + frontend lint/typecheck/tests on Node $(FRONTEND_NODE_VERSION)"
 	@echo "  make migrate           Run Alembic migrations (upgrade to head)"
 	@echo "  make migration         Generate new Alembic migration (autogenerate)"
 	@echo "  make migration-history Show Alembic migration history"
@@ -146,6 +146,10 @@ frontend-test:
 frontend-typecheck:
 	$(call RUN_FRONTEND,npm run typecheck)
 
+.PHONY: frontend-lint
+frontend-lint:
+	$(call RUN_FRONTEND,npm run lint && npm run format:check && npm run knip)
+
 .PHONY: test-integration
 test-integration:
 	$(PYTEST) -m integration backend/tests/integration -v
@@ -154,7 +158,7 @@ test-integration:
 check: lint typecheck-core typecheck-ratchet test-core
 
 .PHONY: check-all
-check-all: lint import-lint typecheck-core typecheck-ratchet test-core test-services frontend-typecheck frontend-test
+check-all: lint import-lint typecheck-core typecheck-ratchet test-core test-services frontend-lint frontend-typecheck frontend-test
 
 .PHONY: migrate
 migrate:

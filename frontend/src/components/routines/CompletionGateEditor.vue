@@ -87,8 +87,8 @@
       </div>
 
       <p class="text-caption text-medium-emphasis mb-3">
-        Cameras for the vision check are the step's "Cameras" picker above; when
-        left empty the system auto-selects from where she is (best-effort).
+        Cameras for the vision check are the step's "Cameras" picker above; when left empty the
+        system auto-selects from where she is (best-effort).
       </p>
 
       <!-- Sampling and cool-off (the three knobs, surfaced together so the
@@ -173,8 +173,8 @@
               </v-col>
             </v-row>
             <p class="text-caption text-medium-emphasis mt-2 mb-0">
-              Rate is set per poll node in the canvas; images = max frames;
-              cool-off returns the last verdict within that window.
+              Rate is set per poll node in the canvas; images = max frames; cool-off returns the
+              last verdict within that window.
             </p>
           </v-expansion-panel-text>
         </v-expansion-panel>
@@ -254,18 +254,14 @@
               @update:model-value="updateProfile('watch', 'auto_advance', $event)"
             />
             <p class="text-caption text-medium-emphasis mt-2 mb-0">
-              Watch quietly observes while she works; it never blocks her.
-              Auto-advance is conservative and off by default.
+              Watch quietly observes while she works; it never blocks her. Auto-advance is
+              conservative and off by default.
             </p>
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
 
-      <GateEditorDialog
-        v-model="showGateEditor"
-        :gate="gate"
-        @save="onSaveGate"
-      />
+      <GateEditorDialog v-model="showGateEditor" :gate="gate" @save="onSaveGate" />
     </template>
 
     <!-- Zone presence config -->
@@ -328,7 +324,13 @@ const { notify } = useNotify();
 // Resolved defaults mirrored from config/settings.yaml (VG0 section 3) so empty
 // fields show the inherited value as a placeholder (precedence visible).
 const DEFAULTS = {
-  confirm: { window_s: 20, max_frames: 9, min_confidence: 0.7, min_interval_s: 15, max_disagreements: 2 },
+  confirm: {
+    window_s: 20,
+    max_frames: 9,
+    min_confidence: 0.7,
+    min_interval_s: 15,
+    max_disagreements: 2,
+  },
   watch: { tick_s: 20, window_s: 4, max_frames: 3, auto_advance_k: 3 },
 };
 
@@ -353,9 +355,7 @@ const onMaxItems = [
   { title: "Escalate", value: "escalate" },
 ];
 
-const presetItems = computed(() =>
-  presets.value.map((p) => ({ title: p.name, value: p.key })),
-);
+const presetItems = computed(() => presets.value.map((p) => ({ title: p.name, value: p.key })));
 
 const presetSummary = computed(() => {
   const key = gate.value.vision?.preset_key;

@@ -29,7 +29,6 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-
 /**
  * Await a call expected to fail, and return its ApiError.
  *
@@ -85,7 +84,10 @@ describe("auth middleware", () => {
 
 describe("ApiError", () => {
   it("carries status and detail, which the old client discarded", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(404, { detail: "Rule not found" })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse(404, { detail: "Rule not found" })),
+    );
 
     const error = await captureApiError(getRules());
 

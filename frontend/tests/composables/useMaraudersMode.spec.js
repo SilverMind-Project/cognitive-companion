@@ -89,7 +89,9 @@ describe("useMaraudersMode", () => {
     const listeners = {};
     vi.stubGlobal("matchMedia", (query) => ({
       matches: query.includes("reduce"),
-      addEventListener: (type, fn) => { listeners[type] = fn; },
+      addEventListener: (type, fn) => {
+        listeners[type] = fn;
+      },
       removeEventListener: vi.fn(),
     }));
 

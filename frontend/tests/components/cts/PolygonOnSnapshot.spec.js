@@ -12,7 +12,11 @@ vi.mock("@/composables/useMaraudersMode.js", () => ({
   }),
 }));
 
-const polygon = [[0.1, 0.1], [0.8, 0.1], [0.5, 0.8]];
+const polygon = [
+  [0.1, 0.1],
+  [0.8, 0.1],
+  [0.5, 0.8],
+];
 
 function mountPolygon({ isDragging = false } = {}) {
   return mount(PolygonOnSnapshot, {
@@ -63,7 +67,9 @@ describe("PolygonOnSnapshot", () => {
   it("uses the normal internal polygon outside Marauders mode", () => {
     const wrapper = mountPolygon();
 
-    expect(wrapper.findComponent({ name: "CcSpatialEditor" }).props("hideInternalPolygon")).toBe(false);
+    expect(wrapper.findComponent({ name: "CcSpatialEditor" }).props("hideInternalPolygon")).toBe(
+      false,
+    );
     expect(wrapper.find("[data-testid='plain-polygon']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='marauders-ink-polygon']").exists()).toBe(false);
   });
@@ -72,7 +78,9 @@ describe("PolygonOnSnapshot", () => {
     maraudersState.enabled = true;
     const wrapper = mountPolygon();
 
-    expect(wrapper.findComponent({ name: "CcSpatialEditor" }).props("hideInternalPolygon")).toBe(true);
+    expect(wrapper.findComponent({ name: "CcSpatialEditor" }).props("hideInternalPolygon")).toBe(
+      true,
+    );
     expect(wrapper.find("[data-testid='plain-polygon']").exists()).toBe(false);
     expect(wrapper.find("[data-testid='marauders-ink-polygon']").exists()).toBe(true);
   });

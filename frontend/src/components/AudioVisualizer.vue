@@ -8,33 +8,33 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 
 const props = defineProps({
-  audioState: { type: String,  default: "idle" },
+  audioState: { type: String, default: "idle" },
   // When false, voice-activity state changes are suppressed so the card
   // stays at "idle" until the user explicitly starts recording.
-  recording:  { type: Boolean, default: false },
+  recording: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(["audio-data", "state-change"]);
 
-const canvasRef    = ref(null);
+const canvasRef = ref(null);
 const containerRef = ref(null);
 
-let audioContext   = null;
-let analyser       = null;
-let mediaStream    = null;
-let processor      = null;
+let audioContext = null;
+let analyser = null;
+let mediaStream = null;
+let processor = null;
 let highPassFilter = null;
-let animFrameId    = null;
+let animFrameId = null;
 let resizeObserver = null;
-let phase          = 0;
-let currentRms     = 0;
+let phase = 0;
+let currentRms = 0;
 
 // Tracks the last state we emitted so we only call emit() on actual transitions,
 // preventing redundant parent re-renders and ensuring every state is explicit.
 let _lastEmitted = "idle";
 
-const VAD_THRESHOLD      = ref(0.06);
-const isCalibrating      = ref(false);
+const VAD_THRESHOLD = ref(0.06);
+const isCalibrating = ref(false);
 const calibrationSamples = [];
 
 const CANVAS_HEIGHT = 150;
@@ -54,9 +54,13 @@ function _emitState(state) {
 // The mic always runs for calibration, but the status pill must only change
 // state when the user has tapped the button.
 
-watch(() => props.recording, (active) => {
-  _emitState(active ? "listening" : "idle");
-}, { immediate: true });
+watch(
+  () => props.recording,
+  (active) => {
+    _emitState(active ? "listening" : "idle");
+  },
+  { immediate: true },
+);
 
 // ─── Canvas sizing ──────────────────────────────────────────────────────────
 
@@ -68,9 +72,9 @@ function resizeCanvas() {
   const w = container.getBoundingClientRect().width || 400;
   const dpr = window.devicePixelRatio || 1;
 
-  canvas.width  = Math.floor(w * dpr);
+  canvas.width = Math.floor(w * dpr);
   canvas.height = Math.floor(CANVAS_HEIGHT * dpr);
-  canvas.style.width  = `${w}px`;
+  canvas.style.width = `${w}px`;
   canvas.style.height = `${CANVAS_HEIGHT}px`;
 
   const ctx = canvas.getContext("2d");
@@ -82,21 +86,21 @@ function resizeCanvas() {
 // Warm DS waveform palette (stone idle, sage listening, gold speaking, sage
 // system). Tints match the status-pill pairs in VoiceWidget.
 const COLOR_SETS = {
-  idle:           ["rgba(135,121,96,0.18)", "rgba(135,121,96,0.10)", "rgba(135,121,96,0.05)"],
-  listening:      ["rgba(63,107,82,0.85)",  "rgba(90,137,110,0.55)", "rgba(130,178,146,0.30)"],
-  speaking:       ["rgba(201,138,46,0.85)", "rgba(220,141,107,0.55)","rgba(240,217,168,0.35)"],
-  system_speaking:["rgba(48,83,64,0.85)",   "rgba(63,107,82,0.55)",  "rgba(130,178,146,0.32)"],
+  idle: ["rgba(135,121,96,0.18)", "rgba(135,121,96,0.10)", "rgba(135,121,96,0.05)"],
+  listening: ["rgba(63,107,82,0.85)", "rgba(90,137,110,0.55)", "rgba(130,178,146,0.30)"],
+  speaking: ["rgba(201,138,46,0.85)", "rgba(220,141,107,0.55)", "rgba(240,217,168,0.35)"],
+  system_speaking: ["rgba(48,83,64,0.85)", "rgba(63,107,82,0.55)", "rgba(130,178,146,0.32)"],
 };
 
 function draw() {
   const canvas = canvasRef.value;
-  const ctx    = canvas?.getContext("2d");
+  const ctx = canvas?.getContext("2d");
   if (!ctx) {
     animFrameId = requestAnimationFrame(draw);
     return;
   }
 
-  const width  = canvas.clientWidth || 400;
+  const width = canvas.clientWidth || 400;
   const height = CANVAS_HEIGHT;
   ctx.clearRect(0, 0, width, height);
 
@@ -134,13 +138,11 @@ function draw() {
     ctx.moveTo(0, height / 2);
     for (let x = 0; x < width; x++) {
       const envelope = Math.sin((x / width) * Math.PI);
-      const y = height / 2
-        + envelope * targetAmplitude
-        * Math.sin(x * 0.030 + phase + c * 1.6);
+      const y = height / 2 + envelope * targetAmplitude * Math.sin(x * 0.03 + phase + c * 1.6);
       ctx.lineTo(x, y);
     }
     ctx.strokeStyle = colors[c];
-    ctx.lineWidth   = 2.5 + (colors.length - c) * 0.6;
+    ctx.lineWidth = 2.5 + (colors.length - c) * 0.6;
     ctx.stroke();
   }
 
@@ -181,7 +183,7 @@ async function startMic() {
     // Calibrate ambient noise floor for 2.5 s before evaluating VAD.
     // Sampling runs on the filtered signal so residual low-frequency hum
     // does not inflate the threshold.
-    isCalibrating.value   = true;
+    isCalibrating.value = true;
     calibrationSamples.length = 0;
     setTimeout(() => {
       isCalibrating.value = false;
@@ -209,7 +211,7 @@ async function startMic() {
       }
 
       // Always emit PCM16; the parent guards whether to send it to the backend.
-      const buf  = new ArrayBuffer(input.length * 2);
+      const buf = new ArrayBuffer(input.length * 2);
       const view = new DataView(buf);
       for (let i = 0; i < input.length; i++) {
         const s = Math.max(-1, Math.min(1, input[i]));
@@ -227,11 +229,11 @@ function stopMic() {
   highPassFilter?.disconnect();
   mediaStream?.getTracks().forEach((t) => t.stop());
   audioContext?.close();
-  processor      = null;
+  processor = null;
   highPassFilter = null;
-  analyser       = null;
-  mediaStream    = null;
-  audioContext   = null;
+  analyser = null;
+  mediaStream = null;
+  audioContext = null;
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -260,11 +262,11 @@ onUnmounted(() => {
 }
 
 .state-listening {
-  filter: drop-shadow(0 0 12px rgba(63, 107, 82, 0.30));
+  filter: drop-shadow(0 0 12px rgba(63, 107, 82, 0.3));
 }
 
 .state-speaking {
-  filter: drop-shadow(0 0 12px rgba(201, 138, 46, 0.30));
+  filter: drop-shadow(0 0 12px rgba(201, 138, 46, 0.3));
 }
 
 .state-system_speaking {
@@ -272,7 +274,9 @@ onUnmounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .visualizer-wrap { transition: none; }
+  .visualizer-wrap {
+    transition: none;
+  }
 }
 
 .visualizer-canvas {

@@ -57,10 +57,7 @@ export function useGuidedSessionConsole(sessionId) {
   }
 
   function onWsMessage(data) {
-    if (
-      data.type === "guided_session_update" &&
-      data.session_id === Number(sessionId)
-    ) {
+    if (data.type === "guided_session_update" && data.session_id === Number(sessionId)) {
       if (state.session) {
         state.session = {
           ...state.session,
@@ -81,10 +78,7 @@ export function useGuidedSessionConsole(sessionId) {
       ].slice(0, 50);
       refreshSession();
     }
-    if (
-      data.type === "guided_escalation" &&
-      data.session_id === Number(sessionId)
-    ) {
+    if (data.type === "guided_escalation" && data.session_id === Number(sessionId)) {
       state.escalationBanner = {
         reason: data.reason,
         emergency: data.emergency,

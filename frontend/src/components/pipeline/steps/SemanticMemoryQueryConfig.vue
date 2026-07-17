@@ -28,7 +28,9 @@
     hint="How far back to search. Default: 60"
     persistent-hint
     class="mb-4"
-    @update:model-value="emit('update:modelValue', { ...modelValue, since_minutes: Number($event) || 0 })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, since_minutes: Number($event) || 0 })
+    "
   />
 
   <v-combobox

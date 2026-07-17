@@ -45,7 +45,8 @@ export function useWorldSnapshot() {
 
   function onMessage(raw) {
     try {
-      const event = typeof raw === "string" ? JSON.parse(raw) : (raw.data ? JSON.parse(raw.data) : raw);
+      const event =
+        typeof raw === "string" ? JSON.parse(raw) : raw.data ? JSON.parse(raw.data) : raw;
       if (event.type === "cts_world_snapshot") {
         const newPhs = event.phs || [];
         phs.value = newPhs;

@@ -108,7 +108,10 @@ export function useRoutineBuilder() {
     if (!state.routine) return;
     state.testRunning = true;
     try {
-      const session = await api.testRunRoutine(state.routine.id, surfaceId ? { surface_id: surfaceId } : {});
+      const session = await api.testRunRoutine(
+        state.routine.id,
+        surfaceId ? { surface_id: surfaceId } : {},
+      );
       notify.success(`Test run started (session #${session.id}).`);
       return session;
     } catch (err) {
@@ -129,7 +132,10 @@ export function useRoutineBuilder() {
     const ords = steps.map((s) => s.ord).sort((a, b) => a - b);
     for (let i = 0; i < ords.length; i++) {
       if (ords[i] !== i) {
-        return { ok: false, error: `Step ord values must be contiguous from 0; found gap at ${ords[i]}` };
+        return {
+          ok: false,
+          error: `Step ord values must be contiguous from 0; found gap at ${ords[i]}`,
+        };
       }
     }
     return { ok: true };

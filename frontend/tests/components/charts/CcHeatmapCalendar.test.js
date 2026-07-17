@@ -15,8 +15,23 @@ vi.mock("vue-echarts", () => ({
 }));
 vi.mock("echarts/core", () => ({ use: vi.fn() }));
 vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
-vi.mock("echarts/charts", () => ({ LineChart: {}, BarChart: {}, HeatmapChart: {}, ScatterChart: {}, GaugeChart: {}, GraphChart: {} }));
-vi.mock("echarts/components", () => ({ GridComponent: {}, TooltipComponent: {}, LegendComponent: {}, MarkLineComponent: {}, VisualMapComponent: {}, DataZoomComponent: {}, TitleComponent: {} }));
+vi.mock("echarts/charts", () => ({
+  LineChart: {},
+  BarChart: {},
+  HeatmapChart: {},
+  ScatterChart: {},
+  GaugeChart: {},
+  GraphChart: {},
+}));
+vi.mock("echarts/components", () => ({
+  GridComponent: {},
+  TooltipComponent: {},
+  LegendComponent: {},
+  MarkLineComponent: {},
+  VisualMapComponent: {},
+  DataZoomComponent: {},
+  TitleComponent: {},
+}));
 
 vi.mock("@/composables/useChartTheme.js", () => ({
   useChartTheme: () => ({
@@ -25,8 +40,20 @@ vi.mock("@/composables/useChartTheme.js", () => ({
         color: ["#ff453a", "#0a84ff"],
         backgroundColor: "transparent",
         textStyle: { color: "#fff" },
-        xAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333", type: "dashed" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
-        yAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333", type: "dashed" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
+        xAxis: {
+          axisLabel: { color: "#ccc" },
+          axisLine: { lineStyle: { color: "#333" } },
+          splitLine: { lineStyle: { color: "#333", type: "dashed" } },
+          axisTick: { lineStyle: { color: "#333" } },
+          nameTextStyle: { color: "#ccc" },
+        },
+        yAxis: {
+          axisLabel: { color: "#ccc" },
+          axisLine: { lineStyle: { color: "#333" } },
+          splitLine: { lineStyle: { color: "#333", type: "dashed" } },
+          axisTick: { lineStyle: { color: "#333" } },
+          nameTextStyle: { color: "#ccc" },
+        },
         tooltip: { backgroundColor: "#111", borderColor: "#333", textStyle: { color: "#fff" } },
         _severity: {},
       },
@@ -48,9 +75,7 @@ const FULL_WEEK = [
   { day: "2026-05-26", hour: 3, value: 7 },
 ];
 
-const SPARSE_WEEK = [
-  { day: "2026-05-28", hour: 2, value: 9 },
-];
+const SPARSE_WEEK = [{ day: "2026-05-28", hour: 2, value: 9 }];
 
 describe("CcHeatmapCalendar", () => {
   it("renders chart when cells are provided", () => {

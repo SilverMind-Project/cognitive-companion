@@ -14,48 +14,56 @@
 
 :root {
   /* Stone: warm neutral scale */
-  --stone-50:  #FBF8F3;
-  --stone-100: #F4EDE2;
-  --stone-200: #E8DDCC;
-  --stone-300: #D6C7AF;
-  --stone-400: #B3A286;
+  --stone-50: #fbf8f3;
+  --stone-100: #f4ede2;
+  --stone-200: #e8ddcc;
+  --stone-300: #d6c7af;
+  --stone-400: #b3a286;
   --stone-500: #877960;
-  --stone-600: #5F5544;
-  --stone-700: #433C30;
-  --stone-800: #2C2820;
-  --stone-900: #1D1A14;
+  --stone-600: #5f5544;
+  --stone-700: #433c30;
+  --stone-800: #2c2820;
+  --stone-900: #1d1a14;
 
   /* Sage: primary brand green */
-  --sage-50:  #EDF4EE;
-  --sage-100: #D7E7DB;
-  --sage-200: #B0CFB9;
-  --sage-300: #82B292;
-  --sage-400: #5A896E;
-  --sage-500: #3F6B52;
+  --sage-50: #edf4ee;
+  --sage-100: #d7e7db;
+  --sage-200: #b0cfb9;
+  --sage-300: #82b292;
+  --sage-400: #5a896e;
+  --sage-500: #3f6b52;
   --sage-600: #305340;
-  --sage-700: #243F31;
-  --sage-800: #192C22;
+  --sage-700: #243f31;
+  --sage-800: #192c22;
 
   /* Terra: terracotta accent */
-  --terra-50:  #FBEDE5;
-  --terra-100: #F5D8C9;
-  --terra-200: #EBB59B;
-  --terra-300: #DC8D6B;
-  --terra-400: #C8704F;
-  --terra-500: #AC5A3C;
+  --terra-50: #fbede5;
+  --terra-100: #f5d8c9;
+  --terra-200: #ebb59b;
+  --terra-300: #dc8d6b;
+  --terra-400: #c8704f;
+  --terra-500: #ac5a3c;
   --terra-600: #884630;
 
   /* Semantic hues (muted, calm) */
-  --green-care:  #2F8F5B;
-  --gold-notice: #C98A2E;
-  --brick-alert: #BC5740;
-  --blue-info:   #4E7A8C;
+  --green-care: #2f8f5b;
+  --gold-notice: #c98a2e;
+  --brick-alert: #bc5740;
+  --blue-info: #4e7a8c;
 
   /* Semantic surface + text pairs */
-  --good-fg:   #1F6B41; --good-bg:   #E2F0E7; --good-line: #BFE0CC;
-  --notice-fg: #8A5C12; --notice-bg: #FBEFD7; --notice-line:#F0D9A8;
-  --alert-fg:  #8E3A28; --alert-bg:  #FAE1DA; --alert-line: #F0C2B5;
-  --info-fg:   #2F5663; --info-bg:   #E0EDF1; --info-line:  #BFD9E1;
+  --good-fg: #1f6b41;
+  --good-bg: #e2f0e7;
+  --good-line: #bfe0cc;
+  --notice-fg: #8a5c12;
+  --notice-bg: #fbefd7;
+  --notice-line: #f0d9a8;
+  --alert-fg: #8e3a28;
+  --alert-bg: #fae1da;
+  --alert-line: #f0c2b5;
+  --info-fg: #2f5663;
+  --info-bg: #e0edf1;
+  --info-line: #bfd9e1;
 
   /*
    * Chart palette — DS data-viz tokens in salience order. ECharts series and
@@ -63,13 +71,13 @@
    * neutrals for chart chrome. Defined globally (fixed hexes, theme-independent)
    * so charts resolve under any active Vuetify theme, ccWarm or ccMarauders.
    */
-  --cc-chart-1: #3F6B52; /* sage   — primary series */
-  --cc-chart-2: #C8704F; /* terra  — accent series */
-  --cc-chart-3: #4E7A8C; /* blue   — info series */
-  --cc-chart-4: #C98A2E; /* gold   — notice series */
-  --cc-chart-5: #82B292; /* sage-300 */
-  --cc-chart-6: #B3A286; /* stone-400 */
-  --cc-chart-grid:       #E8DDCC; /* stone-200 */
+  --cc-chart-1: #3f6b52; /* sage   — primary series */
+  --cc-chart-2: #c8704f; /* terra  — accent series */
+  --cc-chart-3: #4e7a8c; /* blue   — info series */
+  --cc-chart-4: #c98a2e; /* gold   — notice series */
+  --cc-chart-5: #82b292; /* sage-300 */
+  --cc-chart-6: #b3a286; /* stone-400 */
+  --cc-chart-grid: #e8ddcc; /* stone-200 */
   --cc-chart-axis-label: #877960; /* stone-500 */
 
   /*
@@ -77,7 +85,7 @@
    * is terracotta, etc.) and nothing reads them any more. Kept as a harmless
    * shim pointing at the DS chart tokens; remove once confirmed unused.
    */
-  --cc-teal:   var(--cc-chart-2);
+  --cc-teal: var(--cc-chart-2);
   --cc-indigo: var(--cc-chart-5);
   --cc-purple: var(--cc-chart-2);
 }
@@ -85,19 +93,19 @@
 /* ── Typography ──────────────────────────────────────────────────────────── */
 
 :root {
-  --cc-font:         "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cc-font: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --cc-font-display: "Newsreader", Georgia, "Times New Roman", serif;
-  --cc-font-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --cc-font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 /* ── Radii ───────────────────────────────────────────────────────────────── */
 
 :root {
-  --cc-radius-xs:   6px;
-  --cc-radius-sm:   10px;
-  --cc-radius-md:   14px;
-  --cc-radius-lg:   20px;
-  --cc-radius-xl:   28px;
+  --cc-radius-xs: 6px;
+  --cc-radius-sm: 10px;
+  --cc-radius-md: 14px;
+  --cc-radius-lg: 20px;
+  --cc-radius-xl: 28px;
   --cc-radius-pill: 999px;
 }
 
@@ -108,13 +116,13 @@
   --cc-dur-base: 220ms;
   --cc-dur-slow: 420ms;
   --cc-ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --cc-ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
+  --cc-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ── Focus + inset (DS: terracotta focus ring, soft inset for inputs) ─────── */
 
 :root {
-  --cc-focus-ring:   var(--terra-300);
+  --cc-focus-ring: var(--terra-300);
   --cc-shadow-focus: 0 0 0 3px var(--cc-focus-ring);
   --cc-shadow-inset: inset 0 1px 2px rgba(45, 38, 26, 0.05);
 
@@ -127,20 +135,20 @@
 /* ── Spatial / canvas invariants (read against photos, never UI surfaces) ── */
 
 :root {
-  --cc-annotation-unknown:    #fb923c;
-  --cc-annotation-pending:    #f59e0b;
-  --cc-annotation-halo:       rgba(0, 0, 0, 0.70);
+  --cc-annotation-unknown: #fb923c;
+  --cc-annotation-pending: #f59e0b;
+  --cc-annotation-halo: rgba(0, 0, 0, 0.7);
   --cc-annotation-halo-light: rgba(251, 248, 243, 0.92);
-  --cc-annotation-ink:        #1D1A14;
-  --cc-room-fill:             rgba(63, 107, 82, 0.10);
-  --cc-marker-ring:           #ffffff;
+  --cc-annotation-ink: #1d1a14;
+  --cc-room-fill: rgba(63, 107, 82, 0.1);
+  --cc-marker-ring: #ffffff;
   --cc-floor-plan-background-opacity: 0.55;
 
   /* Posture: must read against photographic backgrounds */
   --cc-posture-standing: #4ade80;
-  --cc-posture-sitting:  #fbbf24;
-  --cc-posture-walking:  #60a5fa;
-  --cc-posture-lying:    #c084fc;
+  --cc-posture-sitting: #fbbf24;
+  --cc-posture-walking: #60a5fa;
+  --cc-posture-lying: #c084fc;
 }
 
 /* ── Warm theme token block ──────────────────────────────────────────────── */
@@ -149,47 +157,47 @@
 
 .v-theme--ccWarm {
   /* Surfaces */
-  --cc-bg:          #FBF8F3;
-  --cc-bg-elevated: #FFFDF9;
-  --cc-surface:     #FFFDF9;
-  --cc-surface-2:   #F4EDE2;
-  --cc-surface-3:   #F4EDE2;
-  --cc-app-bar-glass: #FFFDF9;
-  --cc-drawer-glass:  #FFFFFF;
+  --cc-bg: #fbf8f3;
+  --cc-bg-elevated: #fffdf9;
+  --cc-surface: #fffdf9;
+  --cc-surface-2: #f4ede2;
+  --cc-surface-3: #f4ede2;
+  --cc-app-bar-glass: #fffdf9;
+  --cc-drawer-glass: #ffffff;
 
   /* Text */
-  --cc-text-1: #1D1A14;
-  --cc-text-2: #5F5544;
+  --cc-text-1: #1d1a14;
+  --cc-text-2: #5f5544;
   --cc-text-3: #877960;
 
   /* Brand */
-  --cc-brand:        #3F6B52;
+  --cc-brand: #3f6b52;
   --cc-brand-strong: #305340;
-  --cc-brand-soft:   rgba(63, 107, 82, 0.12);
+  --cc-brand-soft: rgba(63, 107, 82, 0.12);
   --cc-brand-softer: rgba(63, 107, 82, 0.06);
 
   /* Semantic */
-  --cc-success: #2F8F5B;
-  --cc-warning: #C98A2E;
-  --cc-error:   #BC5740;
-  --cc-info:    #4E7A8C;
+  --cc-success: #2f8f5b;
+  --cc-warning: #c98a2e;
+  --cc-error: #bc5740;
+  --cc-info: #4e7a8c;
 
   /* Borders */
-  --cc-divider:             #E8DDCC;
-  --cc-divider-strong:      #D6C7AF;
-  --cc-glass-border:        #E8DDCC;
-  --cc-glass-border-strong: #D6C7AF;
+  --cc-divider: #e8ddcc;
+  --cc-divider-strong: #d6c7af;
+  --cc-glass-border: #e8ddcc;
+  --cc-glass-border-strong: #d6c7af;
 
   /* Shadows — warm ink, soft daylight */
-  --cc-shadow-xs:         0 1px 2px rgba(45, 38, 26, 0.06);
-  --cc-shadow-sm:         0 1px 2px rgba(45, 38, 26, 0.06), 0 2px 6px rgba(45, 38, 26, 0.05);
-  --cc-shadow-md:         0 2px 4px rgba(45, 38, 26, 0.05), 0 8px 20px rgba(45, 38, 26, 0.08);
-  --cc-shadow-lg:         0 4px 8px rgba(45, 38, 26, 0.06), 0 18px 40px rgba(45, 38, 26, 0.12);
-  --cc-shadow-glass:      0 1px 2px rgba(45, 38, 26, 0.06), 0 2px 6px rgba(45, 38, 26, 0.05);
-  --cc-shadow-glass-hover:0 2px 4px rgba(45, 38, 26, 0.05), 0 8px 20px rgba(45, 38, 26, 0.08);
+  --cc-shadow-xs: 0 1px 2px rgba(45, 38, 26, 0.06);
+  --cc-shadow-sm: 0 1px 2px rgba(45, 38, 26, 0.06), 0 2px 6px rgba(45, 38, 26, 0.05);
+  --cc-shadow-md: 0 2px 4px rgba(45, 38, 26, 0.05), 0 8px 20px rgba(45, 38, 26, 0.08);
+  --cc-shadow-lg: 0 4px 8px rgba(45, 38, 26, 0.06), 0 18px 40px rgba(45, 38, 26, 0.12);
+  --cc-shadow-glass: 0 1px 2px rgba(45, 38, 26, 0.06), 0 2px 6px rgba(45, 38, 26, 0.05);
+  --cc-shadow-glass-hover: 0 2px 4px rgba(45, 38, 26, 0.05), 0 8px 20px rgba(45, 38, 26, 0.08);
 
   /* Particle background: sage green */
-  --cc-particle: #5A896E;
+  --cc-particle: #5a896e;
 }
 
 /* ── Global element resets ───────────────────────────────────────────────── */
@@ -250,27 +258,35 @@ kbd {
 .v-navigation-drawer.cc-drawer-right {
   border-right: none !important;
   border-left: 1px solid var(--cc-divider-strong) !important;
-  box-shadow: -4px 0 24px rgba(45, 38, 26, 0.08), -1px 0 0 rgba(45, 38, 26, 0.04) !important;
+  box-shadow:
+    -4px 0 24px rgba(45, 38, 26, 0.08),
+    -1px 0 0 rgba(45, 38, 26, 0.04) !important;
 }
 
 /*
  * Cards: warm paper surface with hairline border and soft daylight shadow.
  * Elevated, outlined, tonal, flat, text, plain variants each styled below.
  */
-.v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(.v-card--variant-text):not(.v-card--variant-plain) {
+.v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(
+    .v-card--variant-text
+  ):not(.v-card--variant-plain) {
   background-color: var(--cc-surface) !important;
   background-image: none !important;
   border: 1px solid var(--cc-glass-border) !important;
   border-radius: var(--cc-radius-lg);
   box-shadow: var(--cc-shadow-glass);
-  transition: box-shadow var(--cc-dur-base) var(--cc-ease-standard),
-              border-color var(--cc-dur-base) var(--cc-ease-standard),
-              transform var(--cc-dur-base) var(--cc-ease-standard);
+  transition:
+    box-shadow var(--cc-dur-base) var(--cc-ease-standard),
+    border-color var(--cc-dur-base) var(--cc-ease-standard),
+    transform var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 /* Overlay surfaces (menus, select/autocomplete dropdowns) stay tight — a
    20px radius on a dropdown reads wrong. Scope the soft radius to content cards. */
-.v-overlay__content > .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(.v-card--variant-text):not(.v-card--variant-plain),
+.v-overlay__content
+  > .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(
+    .v-card--variant-flat
+  ):not(.v-card--variant-text):not(.v-card--variant-plain),
 .v-menu > .v-overlay__content .v-card {
   border-radius: var(--cc-radius-sm);
 }
@@ -297,9 +313,10 @@ kbd {
   letter-spacing: -0.005em;
   font-weight: 600;
   border-radius: var(--cc-radius-pill);
-  transition: background var(--cc-dur-fast) var(--cc-ease-standard),
-              transform var(--cc-dur-fast) var(--cc-ease-standard),
-              box-shadow var(--cc-dur-fast) var(--cc-ease-standard);
+  transition:
+    background var(--cc-dur-fast) var(--cc-ease-standard),
+    transform var(--cc-dur-fast) var(--cc-ease-standard),
+    box-shadow var(--cc-dur-fast) var(--cc-ease-standard);
 }
 
 .v-btn--icon {
@@ -489,7 +506,11 @@ kbd {
  * Dialogs: solid elevated surface, never translucent.
  * Specificity (0,8,0) beats the global card rule at (0,6,0).
  */
-.v-dialog > .v-overlay__content > .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(.v-card--variant-flat):not(.v-card--variant-text):not(.v-card--variant-plain) {
+.v-dialog
+  > .v-overlay__content
+  > .v-card:not(.v-card--variant-outlined):not(.v-card--variant-tonal):not(
+    .v-card--variant-flat
+  ):not(.v-card--variant-text):not(.v-card--variant-plain) {
   border-radius: var(--cc-radius-xl) !important;
   background-color: var(--cc-bg-elevated) !important;
   box-shadow: var(--cc-shadow-lg);
@@ -539,9 +560,10 @@ kbd {
   border: 1px solid var(--cc-glass-border) !important;
   box-shadow: var(--cc-shadow-glass);
   border-radius: var(--cc-radius-lg);
-  transition: box-shadow var(--cc-dur-base) var(--cc-ease-standard),
-              transform var(--cc-dur-base) var(--cc-ease-standard),
-              border-color var(--cc-dur-base) var(--cc-ease-standard);
+  transition:
+    box-shadow var(--cc-dur-base) var(--cc-ease-standard),
+    transform var(--cc-dur-base) var(--cc-ease-standard),
+    border-color var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 .glass-card:hover {
@@ -596,17 +618,33 @@ kbd {
   flex: none;
 }
 
-.cc-badge--brand  { background: var(--sage-50);   color: var(--sage-600); }
-.cc-badge--good   { background: var(--good-bg);   color: var(--good-fg); }
-.cc-badge--notice { background: var(--notice-bg); color: var(--notice-fg); }
-.cc-badge--alert  { background: var(--alert-bg);  color: var(--alert-fg); }
-.cc-badge--info   { background: var(--info-bg);   color: var(--info-fg); }
+.cc-badge--brand {
+  background: var(--sage-50);
+  color: var(--sage-600);
+}
+.cc-badge--good {
+  background: var(--good-bg);
+  color: var(--good-fg);
+}
+.cc-badge--notice {
+  background: var(--notice-bg);
+  color: var(--notice-fg);
+}
+.cc-badge--alert {
+  background: var(--alert-bg);
+  color: var(--alert-fg);
+}
+.cc-badge--info {
+  background: var(--info-bg);
+  color: var(--info-fg);
+}
 
 /* Stat card: dashboard metric panel */
 .stat-card {
-  transition: transform var(--cc-dur-base) var(--cc-ease-standard),
-              border-color var(--cc-dur-base) var(--cc-ease-standard),
-              box-shadow var(--cc-dur-base) var(--cc-ease-standard);
+  transition:
+    transform var(--cc-dur-base) var(--cc-ease-standard),
+    border-color var(--cc-dur-base) var(--cc-ease-standard),
+    box-shadow var(--cc-dur-base) var(--cc-ease-standard);
   cursor: pointer;
 }
 
@@ -673,8 +711,9 @@ kbd {
 
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: opacity var(--cc-dur-base) var(--cc-ease-standard),
-              transform var(--cc-dur-base) var(--cc-ease-standard);
+  transition:
+    opacity var(--cc-dur-base) var(--cc-ease-standard),
+    transform var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 .fade-slide-enter-from {

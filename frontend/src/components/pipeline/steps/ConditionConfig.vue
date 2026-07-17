@@ -12,12 +12,12 @@
     />
 
     <v-alert type="info" variant="tonal" density="compact" class="mb-4 text-body-2">
-      Write condition expressions inside <code>&#123;&#123; &#125;&#125;</code> curly braces.
-      Use dotted paths (<code>steps.my_step.outputs.field</code>), comparison operators, and
-      <code>and</code> / <code>or</code> / <code>not</code>.
-      Pipe JMESPath for array operations: <code>steps.my_step.outputs.list | length(@)</code>.
-      Use <code>icontains(path, "text")</code> for case-insensitive checks.
-      Type <code>&#123;&#123;</code> in the expression field to see autocomplete suggestions.
+      Write condition expressions inside <code>&#123;&#123; &#125;&#125;</code> curly braces. Use
+      dotted paths (<code>steps.my_step.outputs.field</code>), comparison operators, and
+      <code>and</code> / <code>or</code> / <code>not</code>. Pipe JMESPath for array operations:
+      <code>steps.my_step.outputs.list | length(@)</code>. Use
+      <code>icontains(path, "text")</code> for case-insensitive checks. Type
+      <code>&#123;&#123;</code> in the expression field to see autocomplete suggestions.
     </v-alert>
 
     <v-expansion-panels variant="accordion" class="mb-4">
@@ -91,7 +91,7 @@ const conditionExamples = [
   {
     label: "Any detection with a specific label",
     description: "Pipe JMESPath filter; icontains() handles mixed case.",
-    expr: '{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, \'person\')]) > 0 }}',
+    expr: "{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, 'person')]) > 0 }}",
   },
   {
     label: "Any medium or higher hazard present",
@@ -101,12 +101,12 @@ const conditionExamples = [
   {
     label: "Exact detection count",
     description: "Compare the count of matching detections to a specific number.",
-    expr: '{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, \'person\')]) == 2 }}',
+    expr: "{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, 'person')]) == 2 }}",
   },
   {
     label: "Person detected AND scene keyword match",
     description: "Combine a pipe filter with an icontains() check using and.",
-    expr: '{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, \'person\')]) > 0 and icontains(steps.scene_analysis_1.outputs.scene_description, "kitchen") }}',
+    expr: "{{ steps.scene_analysis_1.outputs.scene_detections | length([?icontains(label, 'person')]) > 0 and icontains(steps.scene_analysis_1.outputs.scene_description, \"kitchen\") }}",
   },
   {
     label: "Interactive prompt escalated",

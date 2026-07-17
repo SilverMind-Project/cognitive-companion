@@ -1429,6 +1429,17 @@ Use the guided-companion skill for the routine/session data model and domain rul
 
 ---
 
+## Deterministic gates
+
+Before marking frontend work complete run: `npm run lint` (ESLint enforces the
+no-raw-fetch / no-localStorage-key / echarts-subpath architecture rules -- never disable
+one inline without a reason comment), `npm run format:check`, `npm run typecheck`
+(vue-tsc), `npx vitest run`, `npm run build`, `npm run knip` (dead exports/files/deps --
+delete findings, don't ignore them). CI runs all six; a rule that must be relaxed is
+relaxed in `eslint.config.js` with a comment, never by sprinkling disables.
+
+---
+
 ## Verification checklist
 
 Before marking frontend work complete:

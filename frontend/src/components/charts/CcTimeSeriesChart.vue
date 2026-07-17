@@ -59,9 +59,7 @@ const props = defineProps({
 
 const { chartTheme } = useChartTheme();
 
-const isEmpty = computed(
-  () => !props.series || props.series.every((s) => !s.points?.length)
-);
+const isEmpty = computed(() => !props.series || props.series.every((s) => !s.points?.length));
 
 // Pre-format time labels via timezone.js so no toLocaleString or new Date methods
 // are used in the chart rendering path. Tests can mock formatDateTimeShort to

@@ -118,19 +118,16 @@
                 @touchstart.prevent.stop="startHandleTouchDrag(handle, $event)"
                 @contextmenu.prevent.stop="deleteHandle(handle)"
               />
-              <circle
-                :cx="handle.x"
-                :cy="handle.y"
-                r="5"
-                class="cc-spatial-editor__handle"
-              />
+              <circle :cx="handle.x" :cy="handle.y" r="5" class="cc-spatial-editor__handle" />
               <text
                 v-if="showHandleLabels && handle.label"
                 v-bind="mapLabelAttrs"
                 :x="handle.x + 9"
                 :y="handle.y - 5"
                 class="cc-spatial-editor__label"
-              >{{ handle.label }}</text>
+              >
+                {{ handle.label }}
+              </text>
             </g>
 
             <slot name="shape-label" :shape="toEmitShape(shape)" :index="shapeIndex" />
@@ -215,7 +212,14 @@ const props = defineProps({
   maxZoom: { type: Number, default: 6 },
 });
 
-const emit = defineEmits(["update:modelValue", "select", "create", "closed", "clear", "delete-vertex"]);
+const emit = defineEmits([
+  "update:modelValue",
+  "select",
+  "create",
+  "closed",
+  "clear",
+  "delete-vertex",
+]);
 
 const containerEl = ref(null);
 const imgEl = ref(null);
@@ -236,15 +240,21 @@ const spatial = useSpatialCanvas({
 // Geometry is normalized internally so every consumer crosses the coordinate
 // boundary once. This is the guardrail for the M2b door-zone coordinate bug.
 const internalShapes = computed(() =>
-  props.modelValue.map((shape, index) => normalizeShape(spatial.fromEmit(shape, props.coordSpace), index))
+  props.modelValue.map((shape, index) =>
+    normalizeShape(spatial.fromEmit(shape, props.coordSpace), index),
+  ),
 );
 
-const contentReady = computed(() => spatial.contentRect.value.width > 0 && spatial.contentRect.value.height > 0);
+const contentReady = computed(
+  () => spatial.contentRect.value.width > 0 && spatial.contentRect.value.height > 0,
+);
 const overlayWidth = computed(() => spatial.contentRect.value.width);
 const overlayHeight = computed(() => spatial.contentRect.value.height);
-const activeShape = computed(() => internalShapes.value[selectedIndex.value] ?? internalShapes.value[0] ?? null);
-const canClose = computed(() =>
-  props.mode === "polygon" && activeShape.value?.points?.length >= props.minPoints
+const activeShape = computed(
+  () => internalShapes.value[selectedIndex.value] ?? internalShapes.value[0] ?? null,
+);
+const canClose = computed(
+  () => props.mode === "polygon" && activeShape.value?.points?.length >= props.minPoints,
 );
 
 const statusText = computed(() => {
@@ -351,7 +361,10 @@ function toEmitShape(shape) {
 }
 
 function emitShapes(shapes) {
-  emit("update:modelValue", shapes.map((shape) => toEmitShape(shape)));
+  emit(
+    "update:modelValue",
+    shapes.map((shape) => toEmitShape(shape)),
+  );
 }
 
 function selectShape(index) {
@@ -432,11 +445,11 @@ function addPoint(point) {
   if (props.mode === "rect") return;
 
   const shapes = internalShapes.value.slice();
-  let index = selectedIndex.value >= 0 ? selectedIndex.value : shapes.length - 1;
+  const index = selectedIndex.value >= 0 ? selectedIndex.value : shapes.length - 1;
   let shape = shapes[index];
 
   if (!shape || shape.type !== props.mode) {
-    shape = createShapeAt(point);
+    createShapeAt(point);
     return;
   }
   if (props.maxPoints != null && shape.points.length >= props.maxPoints) return;
@@ -465,16 +478,19 @@ function onOverlayTouchEnd(e) {
   if (props.readonly || !touchStartPoint) return;
   const endPoint = pointFromTouch(e);
   if (!endPoint) return;
-  const moved = Math.abs(touchStartPoint[0] - endPoint[0]) + Math.abs(touchStartPoint[1] - endPoint[1]);
+  const moved =
+    Math.abs(touchStartPoint[0] - endPoint[0]) + Math.abs(touchStartPoint[1] - endPoint[1]);
   if (moved < 0.01) addPoint(endPoint);
   touchStartPoint = null;
 }
 
 function pointsString(points) {
-  return points.map((point) => {
-    const canvas = toCanvas(point);
-    return `${canvas.x},${canvas.y}`;
-  }).join(" ");
+  return points
+    .map((point) => {
+      const canvas = toCanvas(point);
+      return `${canvas.x},${canvas.y}`;
+    })
+    .join(" ");
 }
 
 function rectCanvas(shape) {
@@ -496,10 +512,23 @@ function handlesForShape(shape, shapeIndex) {
       { key: `${shapeIndex}-se`, corner: "se", point: [shape.x + shape.w, shape.y + shape.h] },
       { key: `${shapeIndex}-sw`, corner: "sw", point: [shape.x, shape.y + shape.h] },
     ];
-    return points.map((handle) => ({ ...handle, ...toCanvas(handle.point), shapeIndex, label: "" }));
+    return points.map((handle) => ({
+      ...handle,
+      ...toCanvas(handle.point),
+      shapeIndex,
+      label: "",
+    }));
   }
   if (shape.type === "point") {
-    return [{ key: `${shapeIndex}-point`, pointIndex: 0, shapeIndex, label: "", ...toCanvas(shape.point) }];
+    return [
+      {
+        key: `${shapeIndex}-point`,
+        pointIndex: 0,
+        shapeIndex,
+        label: "",
+        ...toCanvas(shape.point),
+      },
+    ];
   }
   return (shape.points ?? []).map((point, pointIndex) => ({
     key: `${shapeIndex}-${pointIndex}`,
@@ -585,7 +614,13 @@ function moveHandle(shape, handle, point) {
       sw: [point[0], shape.y, right, point[1]],
     };
     const [x1, y1, x2, y2] = corners[handle.corner];
-    return { ...shape, x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+    return {
+      ...shape,
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      w: Math.abs(x2 - x1),
+      h: Math.abs(y2 - y1),
+    };
   }
   return {
     ...shape,
@@ -594,15 +629,17 @@ function moveHandle(shape, handle, point) {
 }
 
 function translatePoint(point, dx, dy) {
-  return [
-    Math.max(0, Math.min(1, point[0] + dx)),
-    Math.max(0, Math.min(1, point[1] + dy)),
-  ];
+  return [Math.max(0, Math.min(1, point[0] + dx)), Math.max(0, Math.min(1, point[1] + dy))];
 }
 
 function translateShape(shape, dx, dy) {
   if (shape.type === "point") return { ...shape, point: translatePoint(shape.point, dx, dy) };
-  if (shape.type === "rect") return { ...shape, x: translatePoint([shape.x, shape.y], dx, dy)[0], y: translatePoint([shape.x, shape.y], dx, dy)[1] };
+  if (shape.type === "rect")
+    return {
+      ...shape,
+      x: translatePoint([shape.x, shape.y], dx, dy)[0],
+      y: translatePoint([shape.x, shape.y], dx, dy)[1],
+    };
   return { ...shape, points: shape.points.map((point) => translatePoint(point, dx, dy)) };
 }
 
@@ -626,7 +663,11 @@ function deleteHandle(handle) {
   if (shape.type === "rect") return;
   const nextPoints = shape.points.filter((_, index) => index !== handle.pointIndex);
   updateShape(handle.shapeIndex, (existing) => ({ ...existing, points: nextPoints }));
-  emit("delete-vertex", { shape: toEmitShape(shape), shapeIndex: handle.shapeIndex, pointIndex: handle.pointIndex });
+  emit("delete-vertex", {
+    shape: toEmitShape(shape),
+    shapeIndex: handle.shapeIndex,
+    pointIndex: handle.pointIndex,
+  });
 }
 
 function clearAll() {

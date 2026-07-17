@@ -62,7 +62,8 @@
     />
 
     <div class="text-caption text-medium-emphasis mt-2">
-      Drag on the image to draw a region. Drag a region to move it, or drag a corner handle to resize.
+      Drag on the image to draw a region. Drag a region to move it, or drag a corner handle to
+      resize.
     </div>
 
     <div class="d-flex align-center mt-4 mb-2">
@@ -80,7 +81,7 @@
     </div>
 
     <v-card
-      v-for="(region, i) in (modelValue.regions || [])"
+      v-for="(region, i) in modelValue.regions || []"
       :key="i"
       :variant="i === selectedRegionIndex ? 'elevated' : 'outlined'"
       :color="i === selectedRegionIndex ? 'primary' : undefined"
@@ -128,10 +129,7 @@
       </div>
     </v-card>
 
-    <div
-      v-if="!(modelValue.regions || []).length"
-      class="text-center text-medium-emphasis py-6"
-    >
+    <div v-if="!(modelValue.regions || []).length" class="text-center text-medium-emphasis py-6">
       <div class="text-body-1">No regions configured</div>
       <div class="text-caption">Click "Add Region" or draw on the canvas above</div>
     </div>
@@ -161,7 +159,9 @@
       hint="How long to keep cropped images before cleanup"
       persistent-hint
       class="mb-4"
-      @update:model-value="emit('update:modelValue', { ...modelValue, retention_minutes: Number($event) || 60 })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, retention_minutes: Number($event) || 60 })
+      "
     />
 
     <v-select
@@ -174,7 +174,6 @@
       @update:model-value="emit('update:modelValue', { ...modelValue, output_format: $event })"
     />
   </div>
-
 </template>
 
 <script>
@@ -209,7 +208,8 @@ export function chips(cfg, { chip }) {
   const source = cfg.image_source || "trigger";
   out.push(chip(source, "mdi-image-outline", "teal"));
   const regionCount = cfg.regions?.length || 0;
-  if (regionCount > 0) out.push(chip(`${regionCount} region${regionCount > 1 ? "s" : ""}`, "mdi-crop", "green"));
+  if (regionCount > 0)
+    out.push(chip(`${regionCount} region${regionCount > 1 ? "s" : ""}`, "mdi-crop", "green"));
   const maxImgs = cfg.max_images ?? 1;
   if (maxImgs > 0) out.push(chip(`max ${maxImgs}`, "mdi-image-multiple-outline", "teal"));
   return out;

@@ -17,6 +17,6 @@ import { useMaraudersMode } from "@/composables/useMaraudersMode.js";
 const { state, actions } = useMaraudersMode();
 
 const label = computed(() =>
-  state.enabled ? "Disable Marauder's Map mode" : "Enable Marauder's Map mode"
+  state.enabled ? "Disable Marauder's Map mode" : "Enable Marauder's Map mode",
 );
 </script>

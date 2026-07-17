@@ -3,11 +3,22 @@
     <div class="d-flex align-center mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Household Members</h2>
-        <div class="text-body-2 text-medium-emphasis mt-1">People the system recognizes, with their enrollment and live status.</div>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          People the system recognizes, with their enrollment and live status.
+        </div>
       </div>
       <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" class="mr-2" @click="loadLocations" :loading="locLoading">Refresh</v-btn>
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Add Member</v-btn>
+      <v-btn
+        variant="tonal"
+        prepend-icon="mdi-refresh"
+        class="mr-2"
+        :loading="locLoading"
+        @click="loadLocations"
+        >Refresh</v-btn
+      >
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate"
+        >Add Member</v-btn
+      >
     </div>
 
     <v-tabs v-model="activeTab" color="primary" class="mb-4">
@@ -27,7 +38,7 @@
           >
             <template #item.is_active="{ item }">
               <v-chip :color="item.is_active ? 'success' : 'grey'" size="small">
-                {{ item.is_active ? 'Active' : 'Inactive' }}
+                {{ item.is_active ? "Active" : "Inactive" }}
               </v-chip>
             </template>
             <template #item.is_guest="{ item }">
@@ -44,29 +55,58 @@
               >
                 {{ enrollmentMap[item.id].embedding_count }} photos
               </v-chip>
-              <v-chip v-else size="small" variant="tonal">
-                Not enrolled
-              </v-chip>
+              <v-chip v-else size="small" variant="tonal"> Not enrolled </v-chip>
             </template>
             <template #item.created_at="{ item }">
               {{ formatDate(item.created_at) }}
             </template>
             <template #item.actions="{ item }">
-              <v-btn icon="mdi-account-details" size="small" variant="text" color="primary"
-                     title="View Profile" :to="{ name: 'admin-person-profile', params: { id: item.id } }" />
-              <v-btn icon="mdi-face-recognition" size="small" variant="text" color="primary"
-                     title="Enroll Face" @click="openEnroll(item)" />
-              <v-btn icon="mdi-map-marker" size="small" variant="text" color="primary"
-                     title="Location & History" @click="openDetail(item)" />
-              <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
-              <v-btn icon="mdi-delete" size="small" variant="text" color="error"
-                     @click="deleteMember(item.id)" />
+              <v-btn
+                icon="mdi-account-details"
+                size="small"
+                variant="text"
+                color="primary"
+                title="View Profile"
+                :to="{ name: 'admin-person-profile', params: { id: item.id } }"
+              />
+              <v-btn
+                icon="mdi-face-recognition"
+                size="small"
+                variant="text"
+                color="primary"
+                title="Enroll Face"
+                @click="openEnroll(item)"
+              />
+              <v-btn
+                icon="mdi-map-marker"
+                size="small"
+                variant="text"
+                color="primary"
+                title="Location & History"
+                @click="openDetail(item)"
+              />
+              <v-btn
+                icon="mdi-pencil"
+                size="small"
+                variant="text"
+                color="primary"
+                @click="openEdit(item)"
+              />
+              <v-btn
+                icon="mdi-delete"
+                size="small"
+                variant="text"
+                color="error"
+                @click="deleteMember(item.id)"
+              />
             </template>
             <template #no-data>
               <div class="pa-6 text-center">
                 <v-card flat>
                   <v-card-text class="text-grey text-h6">No members yet</v-card-text>
-                  <v-card-text class="text-grey">Add household members to enable person recognition and tracking.</v-card-text>
+                  <v-card-text class="text-grey"
+                    >Add household members to enable person recognition and tracking.</v-card-text
+                  >
                 </v-card>
               </div>
             </template>
@@ -77,7 +117,7 @@
       <!-- Locations Tab -->
       <v-window-item value="locations">
         <v-row>
-          <v-col cols="12" sm="6" md="4" v-for="loc in locations" :key="loc.person_id">
+          <v-col v-for="loc in locations" :key="loc.person_id" cols="12" sm="6" md="4">
             <v-card class="pa-4">
               <div class="d-flex align-center mb-2">
                 <v-icon color="primary" size="28" class="mr-3">mdi-account-circle</v-icon>
@@ -88,22 +128,23 @@
                   </v-chip>
                 </div>
               </div>
-              <div class="text-body-2 d-flex align-center mt-2" v-if="loc.current_room_name">
+              <div v-if="loc.current_room_name" class="text-body-2 d-flex align-center mt-2">
                 <v-icon size="16" class="mr-1">mdi-map-marker</v-icon>
                 {{ loc.current_room_name }}
                 <v-chip size="x-small" class="ml-2">{{ Math.round(loc.confidence * 100) }}%</v-chip>
               </div>
-              <div class="text-body-2 text-medium-emphasis mt-1" v-if="loc.last_seen_at">
+              <div v-if="loc.last_seen_at" class="text-body-2 text-medium-emphasis mt-1">
                 Last seen: {{ formatTime(loc.last_seen_at) }}
               </div>
-              <div class="text-body-2 text-medium-emphasis mt-1" v-if="loc.last_sensor_id">
+              <div v-if="loc.last_sensor_id" class="text-body-2 text-medium-emphasis mt-1">
                 Sensor: {{ loc.last_sensor_id }}
               </div>
             </v-card>
           </v-col>
           <v-col v-if="locations.length === 0" cols="12">
             <v-alert type="info" variant="tonal">
-              No location data available. Locations are tracked when cameras detect enrolled members.
+              No location data available. Locations are tracked when cameras detect enrolled
+              members.
             </v-alert>
           </v-col>
         </v-row>
@@ -130,13 +171,26 @@
             class="mb-3"
           />
           <v-text-field v-model="form.name" label="Display Name" variant="outlined" class="mb-3" />
-          <v-switch v-model="form.is_guest" label="Guest (not a permanent member)" color="info" class="mb-1" @update:model-value="onGuestToggle" />
-          <v-switch v-model="form.is_active" label="Active" color="primary" v-if="editing" class="mb-2" />
+          <v-switch
+            v-model="form.is_guest"
+            label="Guest (not a permanent member)"
+            color="info"
+            class="mb-1"
+            @update:model-value="onGuestToggle"
+          />
+          <v-switch
+            v-if="editing"
+            v-model="form.is_active"
+            label="Active"
+            color="primary"
+            class="mb-2"
+          />
 
           <v-divider class="my-3" />
           <div class="text-subtitle-2 font-weight-semibold mb-2">CTS Alert Profile</div>
           <div class="text-body-2 text-medium-emphasis mb-3">
-            Controls which behavioural signals from the tracking system trigger alerts for this person.
+            Controls which behavioural signals from the tracking system trigger alerts for this
+            person.
           </div>
 
           <CcSegmentedToggle
@@ -147,7 +201,9 @@
           />
 
           <div class="text-body-2 text-medium-emphasis mb-3">
-            <span v-if="alertProfile === 'senior'">All 7 signal types enabled (dementia monitoring).</span>
+            <span v-if="alertProfile === 'senior'"
+              >All 7 signal types enabled (dementia monitoring).</span
+            >
             <span v-else-if="alertProfile === 'adult'">Presence and sleep/rest signals only.</span>
             <span v-else-if="alertProfile === 'guest'">Absence alert only.</span>
             <span v-else>Custom signal selection.</span>
@@ -156,17 +212,70 @@
           <v-expand-transition>
             <div v-if="alertProfile === 'custom'">
               <div class="text-caption font-weight-medium text-medium-emphasis mb-1">PRESENCE</div>
-              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="absence" label="Absence" density="compact" hide-details class="mb-1" />
+              <v-checkbox
+                v-model="form.cts_alert_config.enabled_kinds"
+                value="absence"
+                label="Absence"
+                density="compact"
+                hide-details
+                class="mb-1"
+              />
 
-              <div class="text-caption font-weight-medium text-medium-emphasis mt-2 mb-1">SLEEP / REST</div>
-              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="nighttime_movement" label="Nighttime movement" density="compact" hide-details class="mb-1" />
-              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="stillness_anomaly" label="Stillness anomaly" density="compact" hide-details class="mb-1" />
+              <div class="text-caption font-weight-medium text-medium-emphasis mt-2 mb-1">
+                SLEEP / REST
+              </div>
+              <v-checkbox
+                v-model="form.cts_alert_config.enabled_kinds"
+                value="nighttime_movement"
+                label="Nighttime movement"
+                density="compact"
+                hide-details
+                class="mb-1"
+              />
+              <v-checkbox
+                v-model="form.cts_alert_config.enabled_kinds"
+                value="stillness_anomaly"
+                label="Stillness anomaly"
+                density="compact"
+                hide-details
+                class="mb-1"
+              />
 
-              <div class="text-caption font-weight-medium text-medium-emphasis mt-2 mb-1">DEMENTIA-SPECIFIC</div>
-              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="pacing" label="Pacing" density="compact" hide-details class="mb-1" />
-              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="sundowning_index" label="Sundowning index" density="compact" hide-details class="mb-1" />
-              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="bathroom_dwell_anomaly" label="Bathroom dwell anomaly" density="compact" hide-details class="mb-1" />
-              <v-checkbox v-model="form.cts_alert_config.enabled_kinds" value="room_revisit_rate" label="Room revisit rate" density="compact" hide-details class="mb-2" />
+              <div class="text-caption font-weight-medium text-medium-emphasis mt-2 mb-1">
+                DEMENTIA-SPECIFIC
+              </div>
+              <v-checkbox
+                v-model="form.cts_alert_config.enabled_kinds"
+                value="pacing"
+                label="Pacing"
+                density="compact"
+                hide-details
+                class="mb-1"
+              />
+              <v-checkbox
+                v-model="form.cts_alert_config.enabled_kinds"
+                value="sundowning_index"
+                label="Sundowning index"
+                density="compact"
+                hide-details
+                class="mb-1"
+              />
+              <v-checkbox
+                v-model="form.cts_alert_config.enabled_kinds"
+                value="bathroom_dwell_anomaly"
+                label="Bathroom dwell anomaly"
+                density="compact"
+                hide-details
+                class="mb-1"
+              />
+              <v-checkbox
+                v-model="form.cts_alert_config.enabled_kinds"
+                value="room_revisit_rate"
+                label="Room revisit rate"
+                density="compact"
+                hide-details
+                class="mb-2"
+              />
             </div>
           </v-expand-transition>
 
@@ -206,8 +315,8 @@
             class="mb-4"
             density="compact"
           >
-            Currently enrolled with {{ enrollmentMap[enrollTarget?.id].embedding_count }} reference photos.
-            Uploading more photos will add to the existing enrollment.
+            Currently enrolled with {{ enrollmentMap[enrollTarget?.id].embedding_count }} reference
+            photos. Uploading more photos will add to the existing enrollment.
           </v-alert>
           <v-alert v-else type="info" variant="tonal" class="mb-4" density="compact">
             Not yet enrolled. Upload 5-10 reference photos for reliable recognition.
@@ -218,11 +327,21 @@
             <v-expansion-panel title="Photo tips for best results">
               <v-expansion-panel-text>
                 <v-list density="compact">
-                  <v-list-item prepend-icon="mdi-camera-burst">Capture 5-10 images per person</v-list-item>
-                  <v-list-item prepend-icon="mdi-white-balance-sunny">Vary lighting: daylight, evening lamp, nightlight</v-list-item>
-                  <v-list-item prepend-icon="mdi-rotate-3d-variant">Vary angle: front face, slight left/right turns</v-list-item>
-                  <v-list-item prepend-icon="mdi-glasses">Include accessories: with/without glasses</v-list-item>
-                  <v-list-item prepend-icon="mdi-cctv">Use actual deployment cameras for best domain match</v-list-item>
+                  <v-list-item prepend-icon="mdi-camera-burst"
+                    >Capture 5-10 images per person</v-list-item
+                  >
+                  <v-list-item prepend-icon="mdi-white-balance-sunny"
+                    >Vary lighting: daylight, evening lamp, nightlight</v-list-item
+                  >
+                  <v-list-item prepend-icon="mdi-rotate-3d-variant"
+                    >Vary angle: front face, slight left/right turns</v-list-item
+                  >
+                  <v-list-item prepend-icon="mdi-glasses"
+                    >Include accessories: with/without glasses</v-list-item
+                  >
+                  <v-list-item prepend-icon="mdi-cctv"
+                    >Use actual deployment cameras for best domain match</v-list-item
+                  >
                 </v-list>
               </v-expansion-panel-text>
             </v-expansion-panel>
@@ -292,11 +411,19 @@
     </v-dialog>
 
     <!-- Detail Drawer: Location History + Sightings -->
-    <v-navigation-drawer v-model="detailDrawer" location="right" temporary width="480" class="cc-drawer-right">
+    <v-navigation-drawer
+      v-model="detailDrawer"
+      location="right"
+      temporary
+      width="480"
+      class="cc-drawer-right"
+    >
       <div class="h-100 d-flex flex-column">
         <div class="d-flex align-center px-4 py-3">
           <v-icon class="mr-2">mdi-account-circle</v-icon>
-          <span class="text-subtitle-1 font-weight-semibold">{{ detailMember?.name || 'Details' }}</span>
+          <span class="text-subtitle-1 font-weight-semibold">{{
+            detailMember?.name || "Details"
+          }}</span>
           <v-spacer />
           <v-btn icon="mdi-close" variant="text" size="small" @click="detailDrawer = false" />
         </div>
@@ -304,13 +431,18 @@
 
         <!-- Current Location -->
         <v-card-text v-if="detailLocation" class="pb-0">
-          <v-alert variant="tonal" :color="statusColor(detailLocation.status)" density="compact" class="mb-3">
+          <v-alert
+            variant="tonal"
+            :color="statusColor(detailLocation.status)"
+            density="compact"
+            class="mb-3"
+          >
             <div class="d-flex align-center">
               <v-icon size="20" class="mr-2">mdi-map-marker</v-icon>
-              <strong>{{ detailLocation.current_room_name || 'Unknown' }}</strong>
+              <strong>{{ detailLocation.current_room_name || "Unknown" }}</strong>
               <v-chip size="x-small" class="ml-2">{{ detailLocation.status }}</v-chip>
             </div>
-            <div class="text-body-2 mt-1" v-if="detailLocation.last_seen_at">
+            <div v-if="detailLocation.last_seen_at" class="text-body-2 mt-1">
               Last seen: {{ formatTime(detailLocation.last_seen_at) }}
             </div>
           </v-alert>
@@ -335,17 +467,23 @@
                   hide-details
                   style="max-width: 120px"
                 />
-                <v-btn variant="text" icon="mdi-refresh" size="small" class="ml-2"
-                       @click="loadHistory" :loading="histLoading" />
+                <v-btn
+                  variant="text"
+                  icon="mdi-refresh"
+                  size="small"
+                  class="ml-2"
+                  :loading="histLoading"
+                  @click="loadHistory"
+                />
               </div>
-              <v-timeline density="compact" side="end" v-if="history.length">
+              <v-timeline v-if="history.length" density="compact" side="end">
                 <v-timeline-item
                   v-for="h in history"
                   :key="h.id"
                   :dot-color="h.exited_at ? 'grey' : 'success'"
                   size="small"
                 >
-                  <div class="font-weight-medium">{{ h.room_name || 'Unknown' }}</div>
+                  <div class="font-weight-medium">{{ h.room_name || "Unknown" }}</div>
                   <div class="text-body-2 text-medium-emphasis">
                     {{ formatTime(h.entered_at) }}
                     <span v-if="h.exited_at"> → {{ formatTime(h.exited_at) }}</span>
@@ -363,16 +501,22 @@
           <!-- Sightings -->
           <v-window-item value="sightings" class="h-100 overflow-y-auto">
             <v-card-text>
-              <v-list density="compact" v-if="sightings.length">
+              <v-list v-if="sightings.length" density="compact">
                 <v-list-item v-for="s in sightings" :key="s.id" class="px-0">
                   <template #prepend>
-                    <v-icon size="20" :color="s.source === 'camera' ? 'primary' : 'info'" class="mr-2">
-                      {{ s.source === 'camera' ? 'mdi-cctv' : 'mdi-motion-sensor' }}
+                    <v-icon
+                      size="20"
+                      :color="s.source === 'camera' ? 'primary' : 'info'"
+                      class="mr-2"
+                    >
+                      {{ s.source === "camera" ? "mdi-cctv" : "mdi-motion-sensor" }}
                     </v-icon>
                   </template>
                   <v-list-item-title class="text-body-2">
-                    {{ s.room_name || 'Unknown' }}
-                    <v-chip size="x-small" class="ml-1">{{ Math.round(s.confidence * 100) }}%</v-chip>
+                    {{ s.room_name || "Unknown" }}
+                    <v-chip size="x-small" class="ml-1"
+                      >{{ Math.round(s.confidence * 100) }}%</v-chip
+                    >
                     <v-chip v-if="s.direction" size="x-small" color="info" class="ml-1">
                       {{ directionLabel(s.direction) }}
                     </v-chip>
@@ -382,9 +526,7 @@
                   </v-list-item-subtitle>
                 </v-list-item>
               </v-list>
-              <div v-else class="text-medium-emphasis text-center py-4">
-                No sightings recorded
-              </div>
+              <div v-else class="text-medium-emphasis text-center py-4">No sightings recorded</div>
             </v-card-text>
           </v-window-item>
         </v-window>
@@ -410,7 +552,11 @@ import { ref, computed, onMounted, watch } from "vue";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
-import { formatDateOnly, formatDateTimeShort, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
+import {
+  formatDateOnly,
+  formatDateTimeShort,
+  DATETIME_COLUMN_WIDTH,
+} from "../../services/timezone.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 import CcSegmentedToggle from "../../components/common/CcSegmentedToggle.vue";
@@ -427,7 +573,15 @@ const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCanc
 
 // -- Signal kind presets (mirrors backend signal_config.py) --
 const SIGNAL_PROFILES = {
-  senior: ["pacing", "room_revisit_rate", "bathroom_dwell_anomaly", "sundowning_index", "nighttime_movement", "stillness_anomaly", "absence"],
+  senior: [
+    "pacing",
+    "room_revisit_rate",
+    "bathroom_dwell_anomaly",
+    "sundowning_index",
+    "nighttime_movement",
+    "stillness_anomaly",
+    "absence",
+  ],
   adult: ["absence", "nighttime_movement", "stillness_anomaly"],
   guest: ["absence"],
 };
@@ -471,9 +625,7 @@ const enrollmentMap = ref({});
 const enrollDialog = ref(false);
 const enrollTarget = ref(null);
 const enrollFiles = ref([]);
-const enrollPreviews = computed(() =>
-  enrollFiles.value.map((f) => URL.createObjectURL(f))
-);
+const enrollPreviews = computed(() => enrollFiles.value.map((f) => URL.createObjectURL(f)));
 const enrolling = ref(false);
 const enrollResult = ref(null);
 
@@ -481,7 +633,7 @@ async function loadEnrollment() {
   try {
     const data = await api.getEnrolledPersons();
     const map = {};
-    for (const m of (data.members || data || [])) {
+    for (const m of data.members || data || []) {
       map[m.person_id] = m;
     }
     enrollmentMap.value = map;
@@ -519,7 +671,12 @@ async function submitEnrollment() {
 
 async function unenroll() {
   if (!enrollTarget.value) return;
-  if (!await showConfirm("Remove Enrollment", `Remove face enrollment data for "${enrollTarget.value.name}"? They will no longer be recognized by cameras.`))
+  if (
+    !(await showConfirm(
+      "Remove Enrollment",
+      `Remove face enrollment data for "${enrollTarget.value.name}"? They will no longer be recognized by cameras.`,
+    ))
+  )
     return;
   try {
     await api.deleteEnrollment(enrollTarget.value.id);
@@ -545,15 +702,29 @@ async function loadMembers() {
 function _profileFromConfig(config) {
   if (!config || !config.enabled_kinds) return "senior";
   const kinds = new Set(config.enabled_kinds);
-  if (kinds.size === SIGNAL_PROFILES.senior.length && SIGNAL_PROFILES.senior.every(k => kinds.has(k))) return "senior";
-  if (kinds.size === SIGNAL_PROFILES.adult.length && SIGNAL_PROFILES.adult.every(k => kinds.has(k))) return "adult";
-  if (kinds.size === SIGNAL_PROFILES.guest.length && SIGNAL_PROFILES.guest.every(k => kinds.has(k))) return "guest";
+  if (
+    kinds.size === SIGNAL_PROFILES.senior.length &&
+    SIGNAL_PROFILES.senior.every((k) => kinds.has(k))
+  )
+    return "senior";
+  if (
+    kinds.size === SIGNAL_PROFILES.adult.length &&
+    SIGNAL_PROFILES.adult.every((k) => kinds.has(k))
+  )
+    return "adult";
+  if (
+    kinds.size === SIGNAL_PROFILES.guest.length &&
+    SIGNAL_PROFILES.guest.every((k) => kinds.has(k))
+  )
+    return "guest";
   return "custom";
 }
 
 function onProfileChange(profile) {
   if (profile !== "custom") {
-    form.value.cts_alert_config.enabled_kinds = [...(SIGNAL_PROFILES[profile] || SIGNAL_PROFILES.senior)];
+    form.value.cts_alert_config.enabled_kinds = [
+      ...(SIGNAL_PROFILES[profile] || SIGNAL_PROFILES.senior),
+    ];
   }
 }
 
@@ -591,7 +762,7 @@ function openEdit(item) {
 async function saveMember() {
   try {
     if (editing.value) {
-      const { id, ...update } = form.value;
+      const { id: _id, ...update } = form.value;
       await api.updatePerson(editId.value, update);
     } else {
       await api.createPerson(form.value);
@@ -604,7 +775,12 @@ async function saveMember() {
 }
 
 async function deleteMember(id) {
-  if (!await showConfirm("Delete Member", `Delete member "${id}"? This will remove all their sightings and location data.`))
+  if (
+    !(await showConfirm(
+      "Delete Member",
+      `Delete member "${id}"? This will remove all their sightings and location data.`,
+    ))
+  )
     return;
   try {
     await api.deletePerson(id);
@@ -684,7 +860,7 @@ function directionLabel(dir) {
     "right-to-left": "←",
     "towards-camera": "↙ approaching",
     "away-from-camera": "↗ leaving",
-    "stationary": "● still",
+    stationary: "● still",
   };
   return map[dir] || dir;
 }

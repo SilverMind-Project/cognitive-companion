@@ -277,7 +277,7 @@ export function localDateToUTCISO(dateStr, timeStr = "00:00") {
 function _localWallToUTCISO(dateStr, h, m) {
   const tz = getAppTimezone();
   const approxUTC = new Date(
-    `${dateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`
+    `${dateStr}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`,
   );
   const displayParts = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,

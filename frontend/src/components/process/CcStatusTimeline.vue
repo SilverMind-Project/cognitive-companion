@@ -60,9 +60,7 @@ const isEmpty = computed(() => !props.events?.length || !props.lanes?.length);
 const chartOption = computed(() => {
   const th = chartTheme.value;
   const laneLabels = props.lanes.map((l) => l.label);
-  const laneIndex = Object.fromEntries(
-    props.lanes.map((l, i) => [l.id, i])
-  );
+  const laneIndex = Object.fromEntries(props.lanes.map((l, i) => [l.id, i]));
 
   // Pre-format time labels via timezone.js so no raw Date methods are used.
   const data = props.events.map((e) => ({

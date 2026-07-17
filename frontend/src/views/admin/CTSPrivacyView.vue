@@ -42,11 +42,7 @@
               <v-icon class="mr-2" size="small" color="primary">mdi-eye-off-outline</v-icon>
               {{ zone.name }}
               <v-spacer />
-              <v-chip
-                size="x-small"
-                :color="zone.enabled ? 'success' : 'default'"
-                class="ml-1"
-              >
+              <v-chip size="x-small" :color="zone.enabled ? 'success' : 'default'" class="ml-1">
                 {{ zone.enabled ? "On" : "Off" }}
               </v-chip>
             </v-card-title>
@@ -68,9 +64,18 @@
               </svg>
             </v-card-text>
             <v-card-actions>
-              <v-btn size="small" variant="text" prepend-icon="mdi-pencil" color="primary" @click="openEdit(zone)">Edit</v-btn>
+              <v-btn
+                size="small"
+                variant="text"
+                prepend-icon="mdi-pencil"
+                color="primary"
+                @click="openEdit(zone)"
+                >Edit</v-btn
+              >
               <v-spacer />
-              <v-btn size="small" variant="text" color="error" @click="removeZone(zone.zone_id)">Remove</v-btn>
+              <v-btn size="small" variant="text" color="error" @click="removeZone(zone.zone_id)"
+                >Remove</v-btn
+              >
             </v-card-actions>
           </v-card>
         </v-col>
@@ -104,9 +109,9 @@
         />
         <v-card-text>
           <v-alert type="info" variant="tonal" density="compact" class="mb-3 text-body-2">
-            Privacy zones mask or skip detection in regions of the camera frame. Use this for
-            zones with personal items (bedroom mirror, bathroom doorway, document desk). Click on
-            the snapshot to place polygon vertices; double-click to close. The orchestrator drops
+            Privacy zones mask or skip detection in regions of the camera frame. Use this for zones
+            with personal items (bedroom mirror, bathroom doorway, document desk). Click on the
+            snapshot to place polygon vertices; double-click to close. The orchestrator drops
             detections whose foot-point falls inside the polygon.
           </v-alert>
 
@@ -161,7 +166,6 @@
         />
       </v-card>
     </v-dialog>
-
   </div>
 </template>
 
@@ -193,7 +197,7 @@ const snapshotLoading = ref(false);
 const policies = ["mask_region", "blur_region", "skip_detection"];
 
 const cameraName = computed(
-  () => cameras.value.find((c) => c.id === selectedCameraId.value)?.name ?? selectedCameraId.value
+  () => cameras.value.find((c) => c.id === selectedCameraId.value)?.name ?? selectedCameraId.value,
 );
 
 const emptyForm = () => ({
@@ -304,5 +308,4 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   background: var(--cc-surface-3);
 }
-
 </style>

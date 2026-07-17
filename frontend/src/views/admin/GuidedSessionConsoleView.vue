@@ -12,9 +12,7 @@
       </v-btn>
       <v-divider vertical class="mx-1" />
       <div>
-        <h2 class="text-h4 font-weight-bold tracking-tight">
-          Session #{{ id }}
-        </h2>
+        <h2 class="text-h4 font-weight-bold tracking-tight">Session #{{ id }}</h2>
         <div v-if="state.session" class="text-body-2 text-medium-emphasis mt-1">
           {{ state.session.person_id }} &middot; Routine #{{ state.session.routine_id }}
         </div>
@@ -28,9 +26,7 @@
       >
         {{ state.session.status }}
       </v-chip>
-      <v-chip size="small" :color="wsColor" variant="outlined">
-        WS: {{ state.wsStatus }}
-      </v-chip>
+      <v-chip size="small" :color="wsColor" variant="outlined"> WS: {{ state.wsStatus }} </v-chip>
     </div>
 
     <!-- Escalation banner -->
@@ -80,9 +76,7 @@
               Safety critical
             </v-chip>
           </v-card-text>
-          <v-card-text v-else class="text-medium-emphasis">
-            No active step
-          </v-card-text>
+          <v-card-text v-else class="text-medium-emphasis"> No active step </v-card-text>
         </v-card>
 
         <!-- Caregiver controls (status-gated) -->
@@ -165,10 +159,7 @@
         <v-card class="glass-card mb-4">
           <v-card-title class="text-subtitle-1">Transcript</v-card-title>
           <v-card-text class="pa-0">
-            <div
-              v-if="state.transcript.length === 0"
-              class="pa-4 text-center text-medium-emphasis"
-            >
+            <div v-if="state.transcript.length === 0" class="pa-4 text-center text-medium-emphasis">
               No transcript yet
             </div>
             <div
@@ -178,18 +169,10 @@
               :class="`turn-row--${turn.actor}`"
             >
               <div class="d-flex align-center mb-1">
-                <v-chip
-                  size="x-small"
-                  :color="actorColor(turn.actor)"
-                  variant="tonal"
-                  class="mr-2"
-                >
+                <v-chip size="x-small" :color="actorColor(turn.actor)" variant="tonal" class="mr-2">
                   {{ actorLabel(turn.actor) }}
                 </v-chip>
-                <span
-                  v-if="turn.timestamp"
-                  class="text-caption text-medium-emphasis font-mono"
-                >
+                <span v-if="turn.timestamp" class="text-caption text-medium-emphasis font-mono">
                   {{ formatTimeOnly(turn.timestamp) }}
                 </span>
               </div>
@@ -202,18 +185,11 @@
         <v-card class="glass-card">
           <v-card-title class="text-subtitle-1">Events</v-card-title>
           <v-card-text class="pa-0">
-            <div
-              v-if="state.events.length === 0"
-              class="pa-4 text-center text-medium-emphasis"
-            >
+            <div v-if="state.events.length === 0" class="pa-4 text-center text-medium-emphasis">
               No events yet
             </div>
             <v-list density="compact">
-              <v-list-item
-                v-for="ev in state.events"
-                :key="ev.id"
-                class="event-row"
-              >
+              <v-list-item v-for="ev in state.events" :key="ev.id" class="event-row">
                 <template #prepend>
                   <v-chip size="x-small" variant="tonal" class="mr-2">
                     {{ ev.kind }}
@@ -250,14 +226,11 @@ const { state, actions } = useGuidedSessionConsole(props.id);
 
 const sayText = ref("");
 
-const canTakeover = computed(() =>
-  state.session &&
-  ["escalated", "caregiver_takeover"].includes(state.session.status),
+const canTakeover = computed(
+  () => state.session && ["escalated", "caregiver_takeover"].includes(state.session.status),
 );
 
-const isInTakeover = computed(
-  () => state.session?.status === "caregiver_takeover",
-);
+const isInTakeover = computed(() => state.session?.status === "caregiver_takeover");
 
 const wsColor = computed(() => {
   const map = { open: "success", connecting: "info", closed: undefined, error: "error" };
@@ -266,9 +239,15 @@ const wsColor = computed(() => {
 
 function statusColor(status) {
   const map = {
-    active: "success", waiting: "info", escalated: "warning",
-    caregiver_takeover: "warning", completed: "success",
-    abandoned: undefined, failed: "error", summoning: "info", pending: undefined,
+    active: "success",
+    waiting: "info",
+    escalated: "warning",
+    caregiver_takeover: "warning",
+    completed: "success",
+    abandoned: undefined,
+    failed: "error",
+    summoning: "info",
+    pending: undefined,
   };
   return map[status];
 }

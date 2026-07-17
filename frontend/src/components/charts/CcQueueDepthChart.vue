@@ -70,7 +70,7 @@ const chartOption = computed(() => {
   const th = chartTheme.value;
   const labels = props.cameras.map((camera) => camera.label);
   const capacities = props.cameras.map((camera) =>
-    Math.max(Number(camera.buffer_capacity) || 0, Number(camera.buffer_depth) || 0)
+    Math.max(Number(camera.buffer_capacity) || 0, Number(camera.buffer_depth) || 0),
   );
 
   return {
@@ -84,9 +84,8 @@ const chartOption = computed(() => {
         const camera = props.cameras[params[0]?.dataIndex];
         if (!camera) return "";
         const capacity = camera.buffer_capacity == null ? "unbounded" : camera.buffer_capacity;
-        const tokens = camera.tokens_available == null
-          ? "n/a"
-          : Number(camera.tokens_available).toFixed(1);
+        const tokens =
+          camera.tokens_available == null ? "n/a" : Number(camera.tokens_available).toFixed(1);
         return [
           `<strong>${camera.label}</strong>`,
           `Buffered: ${camera.buffer_depth} / ${capacity}`,

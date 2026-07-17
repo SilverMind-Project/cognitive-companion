@@ -20,12 +20,13 @@
           <template #append>
             <div class="d-flex ga-1 ml-2">
               <v-chip
-                v-for="cap in (item.raw.capabilities || [])"
+                v-for="cap in item.raw.capabilities || []"
                 :key="cap"
                 size="x-small"
                 :color="capabilityColor(cap)"
                 variant="tonal"
-              >{{ cap }}</v-chip>
+                >{{ cap }}</v-chip
+              >
             </div>
           </template>
         </v-list-item>
@@ -39,10 +40,19 @@
         size="x-small"
         :color="capabilityColor(cap)"
         variant="tonal"
-      >{{ cap }}</v-chip>
+        >{{ cap }}</v-chip
+      >
       <v-chip size="x-small" variant="outlined">{{ selectedModel.api_type }}</v-chip>
-      <v-chip v-if="selectedModel.guided_decoding" size="x-small" color="success" variant="tonal">guided decoding</v-chip>
-      <v-chip v-if="selectedModel.supports_thinking" size="x-small" color="secondary" variant="tonal">thinking</v-chip>
+      <v-chip v-if="selectedModel.guided_decoding" size="x-small" color="success" variant="tonal"
+        >guided decoding</v-chip
+      >
+      <v-chip
+        v-if="selectedModel.supports_thinking"
+        size="x-small"
+        color="secondary"
+        variant="tonal"
+        >thinking</v-chip
+      >
     </div>
   </div>
 </template>
@@ -63,8 +73,8 @@ const props = defineProps({
 
 defineEmits(["update:modelValue"]);
 
-const selectedModel = computed(() =>
-  props.modelItems.find((m) => m.id === props.modelValue) || null
+const selectedModel = computed(
+  () => props.modelItems.find((m) => m.id === props.modelValue) || null,
 );
 
 function capabilityColor(cap) {

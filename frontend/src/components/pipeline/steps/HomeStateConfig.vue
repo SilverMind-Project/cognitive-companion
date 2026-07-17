@@ -19,7 +19,11 @@
     <v-text-field
       :model-value="modelValue.output_key"
       label="Output Key"
-      :rules="[v => /^[a-z][a-z0-9_]*$/.test(v) || 'Lowercase letters, digits, underscores only; must start with a letter.']"
+      :rules="[
+        (v) =>
+          /^[a-z][a-z0-9_]*$/.test(v) ||
+          'Lowercase letters, digits, underscores only; must start with a letter.',
+      ]"
       hint="pipeline_data key prefix. Emits <key>_at_home, <key>_asleep, <key>_away, <key>_state_unknown. Default: home."
       persistent-hint
       variant="outlined"

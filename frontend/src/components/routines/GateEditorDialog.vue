@@ -65,8 +65,7 @@
           <div class="text-body-2">{{ verdict.reason }}</div>
           <div class="text-caption text-medium-emphasis mt-1">
             {{ verdict.cost?.model_calls ?? 0 }} model call(s),
-            {{ verdict.cost?.frames ?? 0 }} frame(s),
-            {{ verdict.cost?.latency_ms ?? 0 }} ms,
+            {{ verdict.cost?.frames ?? 0 }} frame(s), {{ verdict.cost?.latency_ms ?? 0 }} ms,
             profile: {{ verdict.profile }}
           </div>
         </v-alert>

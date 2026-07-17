@@ -10,11 +10,13 @@
           <div class="text-subtitle-1 font-weight-semibold text-truncate">
             {{ detail?.rule_name || runTitle }}
           </div>
-          <div class="text-caption text-medium-emphasis">
-            Execution #{{ executionId }}
-          </div>
+          <div class="text-caption text-medium-emphasis">Execution #{{ executionId }}</div>
         </div>
-        <v-chip :color="statusColor(detail?.status || liveRun?.status)" size="small" variant="tonal">
+        <v-chip
+          :color="statusColor(detail?.status || liveRun?.status)"
+          size="small"
+          variant="tonal"
+        >
           {{ detail?.status || liveRun?.status || "loading" }}
         </v-chip>
         <v-spacer />
@@ -72,13 +74,7 @@
         <v-progress-circular indeterminate color="primary" />
       </div>
 
-      <v-alert
-        v-else-if="error"
-        type="error"
-        density="compact"
-        variant="tonal"
-        class="ma-4"
-      >
+      <v-alert v-else-if="error" type="error" density="compact" variant="tonal" class="ma-4">
         {{ error }}
       </v-alert>
 
@@ -102,7 +98,11 @@
               size="x-small"
               variant="text"
               prepend-icon="mdi-pencil-outline"
-              :to="{ name: 'admin-rule-detail', params: { id: resolvedRuleId }, query: { tab: 'executions' } }"
+              :to="{
+                name: 'admin-rule-detail',
+                params: { id: resolvedRuleId },
+                query: { tab: 'executions' },
+              }"
             >
               Rule
             </v-btn>
@@ -179,7 +179,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </v-card>
 </template>
 
@@ -195,7 +194,11 @@ import StepInspectorPanel from "./StepInspectorPanel.vue";
 
 const props = defineProps({
   executionId: { type: Number, default: null },
-  source: { type: String, default: "historic", validator: (value) => ["live", "historic"].includes(value) },
+  source: {
+    type: String,
+    default: "historic",
+    validator: (value) => ["live", "historic"].includes(value),
+  },
   ruleId: { type: Number, default: null },
   liveRun: { type: Object, default: null },
 });
@@ -224,12 +227,18 @@ const {
 } = useConfirm();
 
 const runTitle = computed(() => props.liveRun?.rule_name || "Execution");
-const resolvedRuleId = computed(() => detail.value?.rule_id || props.ruleId || props.liveRun?.rule_id || null);
-const selectedStepKey = computed(() => stepKey(selectedStep.value));
-const isActiveExecution = computed(() =>
-  props.source === "live" && ["running", "waiting"].includes(detail.value?.status || props.liveRun?.status),
+const resolvedRuleId = computed(
+  () => detail.value?.rule_id || props.ruleId || props.liveRun?.rule_id || null,
 );
-const executionDuration = computed(() => formatDuration(detail.value?.started_at, detail.value?.completed_at));
+const selectedStepKey = computed(() => stepKey(selectedStep.value));
+const isActiveExecution = computed(
+  () =>
+    props.source === "live" &&
+    ["running", "waiting"].includes(detail.value?.status || props.liveRun?.status),
+);
+const executionDuration = computed(() =>
+  formatDuration(detail.value?.started_at, detail.value?.completed_at),
+);
 
 watch(
   () => [props.executionId, props.source],
@@ -254,9 +263,10 @@ async function loadDetail() {
   error.value = null;
   try {
     detail.value = await api.getWorkflowDetail(props.executionId);
-    selectedStep.value = detail.value?.timeline?.find((step) => stepKey(step) === previousStepKey)
-      || detail.value?.timeline?.[0]
-      || null;
+    selectedStep.value =
+      detail.value?.timeline?.find((step) => stepKey(step) === previousStepKey) ||
+      detail.value?.timeline?.[0] ||
+      null;
     emit("updated", detail.value);
     if (!["running", "waiting"].includes(detail.value?.status)) {
       stopPolling();

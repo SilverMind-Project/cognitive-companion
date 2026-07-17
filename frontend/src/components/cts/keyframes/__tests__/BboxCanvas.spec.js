@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { ref } from "vue";
 
 // Mock canvas context
 const mockCtx = {
@@ -97,7 +96,10 @@ describe("BboxCanvas", () => {
           keyframe_id: "kf-001",
           ph_id: "ph-1",
           camera_id: "cam-1",
-          x1: 100, y1: 200, x2: 300, y2: 400,
+          x1: 100,
+          y1: 200,
+          x2: 300,
+          y2: 400,
           detection_confidence: 0.9,
           frame_width: 1280,
           frame_height: 720,
@@ -109,9 +111,7 @@ describe("BboxCanvas", () => {
     await simulateImageLoad(wrapper);
 
     // Should draw at least one strokeRect for the bbox
-    const strokeCalls = mockCtx.strokeRect.mock.calls.filter(
-      ([_x, _y, w, _h]) => w > 0
-    );
+    const strokeCalls = mockCtx.strokeRect.mock.calls.filter(([_x, _y, w, _h]) => w > 0);
     expect(strokeCalls.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -150,7 +150,10 @@ describe("BboxCanvas", () => {
           keyframe_id: "kf-001",
           ph_id: "ph-1",
           camera_id: "cam-1",
-          x1: 100, y1: 100, x2: 300, y2: 300,
+          x1: 100,
+          y1: 100,
+          x2: 300,
+          y2: 300,
           detection_confidence: 0.9,
           frame_width: 1280,
           frame_height: 720,
@@ -185,7 +188,6 @@ describe("BboxCanvas", () => {
     canvas.height = 240;
 
     // Test round-trip
-    const orig = { x: 200, y: 150 };
     // toCanvas is not exposed; test through public API
     // Instead verify the component's coordinate logic by checking bbox rendering
     // with known values
@@ -201,7 +203,10 @@ describe("BboxCanvas", () => {
           keyframe_id: "kf-001",
           ph_id: "ph-1",
           camera_id: "cam-1",
-          x1: 100, y1: 100, x2: 200, y2: 200,
+          x1: 100,
+          y1: 100,
+          x2: 200,
+          y2: 200,
           detection_confidence: 0.9,
           frame_width: 1280,
           frame_height: 720,

@@ -17,7 +17,10 @@
         hide-details
         clearable
         style="max-width: 160px"
-        @update:model-value="page = 1; fetchCards()"
+        @update:model-value="
+          page = 1;
+          fetchCards();
+        "
       />
       <v-combobox
         v-model="filters.tags"
@@ -28,7 +31,10 @@
         hide-details
         clearable
         style="max-width: 200px"
-        @update:model-value="page = 1; fetchCards()"
+        @update:model-value="
+          page = 1;
+          fetchCards();
+        "
       />
       <v-text-field
         v-model="filters.document_id"
@@ -40,7 +46,12 @@
         style="max-width: 180px"
         @update:model-value="debouncedFetch"
       />
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="showCreateDialog = true">
+      <v-btn
+        color="primary"
+        variant="flat"
+        prepend-icon="mdi-plus"
+        @click="showCreateDialog = true"
+      >
         New Info Card
       </v-btn>
     </div>
@@ -55,58 +66,57 @@
         :page="page"
         @update:options="onPageOptions"
       >
-      <template #[`item.layout_id`]="{ item }">
-        <v-chip size="x-small" color="primary" variant="outlined">
-          {{ item.layout_id ?? "—" }}
-        </v-chip>
-      </template>
+        <template #[`item.layout_id`]="{ item }">
+          <v-chip size="x-small" color="primary" variant="outlined">
+            {{ item.layout_id ?? "—" }}
+          </v-chip>
+        </template>
 
-      <template #[`item.status`]="{ item }">
-        <v-chip :color="statusColor(item.status)" size="small">
-          {{ item.status }}
-        </v-chip>
-      </template>
+        <template #[`item.status`]="{ item }">
+          <v-chip :color="statusColor(item.status)" size="small">
+            {{ item.status }}
+          </v-chip>
+        </template>
 
-      <template #[`item.actions`]="{ item }">
-        <v-btn
-          icon="mdi-pencil"
-          size="small"
-          variant="text"
-          color="primary"
-          @click="editCard(item)"
-        />
-        <v-btn
-          v-if="item.status !== 'approved'"
-          icon="mdi-check"
-          size="small"
-          variant="text"
-          color="success"
-          @click="approve(item)"
-        />
-        <v-btn
-          v-if="item.status !== 'archived'"
-          icon="mdi-archive"
-          size="small"
-          variant="text"
-          @click="archive(item)"
-        />
-        <v-btn
-          v-if="item.status === 'archived'"
-          icon="mdi-restore"
-          size="small"
-          variant="text"
-          color="warning"
-          @click="restore(item)"
-        />
-        <v-btn
-          icon="mdi-delete"
-          size="small"
-          variant="text"
-          color="error"
-          @click="confirmDelete(item)"
-        />
-      </template>
-
+        <template #[`item.actions`]="{ item }">
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            variant="text"
+            color="primary"
+            @click="editCard(item)"
+          />
+          <v-btn
+            v-if="item.status !== 'approved'"
+            icon="mdi-check"
+            size="small"
+            variant="text"
+            color="success"
+            @click="approve(item)"
+          />
+          <v-btn
+            v-if="item.status !== 'archived'"
+            icon="mdi-archive"
+            size="small"
+            variant="text"
+            @click="archive(item)"
+          />
+          <v-btn
+            v-if="item.status === 'archived'"
+            icon="mdi-restore"
+            size="small"
+            variant="text"
+            color="warning"
+            @click="restore(item)"
+          />
+          <v-btn
+            icon="mdi-delete"
+            size="small"
+            variant="text"
+            color="error"
+            @click="confirmDelete(item)"
+          />
+        </template>
       </v-data-table>
     </v-card>
 
@@ -160,7 +170,11 @@
             </v-row>
           </v-card>
 
-          <v-text-field v-model="createForm.title" label="Title" :rules="[r => !!r || 'Title is required']" />
+          <v-text-field
+            v-model="createForm.title"
+            label="Title"
+            :rules="[(r) => !!r || 'Title is required']"
+          />
           <v-textarea v-model="createForm.body_text" label="Body Text" rows="6" />
           <v-select
             v-model="createForm.layout_id"
@@ -168,15 +182,9 @@
             item-title="display_name"
             item-value="id"
             label="Layout"
-            :rules="[r => !!r || 'Layout is required']"
+            :rules="[(r) => !!r || 'Layout is required']"
           />
-          <v-combobox
-            v-model="createForm.tags"
-            label="Tags"
-            multiple
-            chips
-            deletable-chips
-          />
+          <v-combobox v-model="createForm.tags" label="Tags" multiple chips deletable-chips />
         </v-card-text>
         <DialogFooter
           hint="Generate content from a knowledge document, or fill in fields manually."
@@ -250,7 +258,11 @@
           />
 
           <!-- Image Slots -->
-          <v-card v-if="editingItem && currentEditLayoutSlots.length > 0" variant="tonal" class="mb-3 pa-3">
+          <v-card
+            v-if="editingItem && currentEditLayoutSlots.length > 0"
+            variant="tonal"
+            class="mb-3 pa-3"
+          >
             <div class="text-subtitle-2 mb-3">Image Slots</div>
             <div v-for="(slotDef, idx) in currentEditLayoutSlots" :key="idx" class="mb-3">
               <div class="text-caption mb-1">Slot {{ idx }}: {{ slotDef.slot_id }}</div>
@@ -278,7 +290,7 @@
                   prepend-icon="mdi-image-plus"
                   @click="triggerSlotFilePicker(idx)"
                 >
-                  {{ slotFileNames[idx] || 'Choose' }}
+                  {{ slotFileNames[idx] || "Choose" }}
                 </v-btn>
                 <v-btn
                   v-if="slotUploadFiles[idx]"
@@ -321,19 +333,16 @@
                   cover
                   class="rounded-lg"
                   style="cursor: pointer; border: 2px solid transparent"
-                  @click="pickSlotImage(idx, docImg.id); showDocPickIdx = -1"
+                  @click="
+                    pickSlotImage(idx, docImg.id);
+                    showDocPickIdx = -1;
+                  "
                 />
               </div>
             </div>
           </v-card>
 
-          <v-combobox
-            v-model="editForm.tags"
-            label="Tags"
-            multiple
-            chips
-            deletable-chips
-          />
+          <v-combobox v-model="editForm.tags" label="Tags" multiple chips deletable-chips />
           <!-- Hidden file input for slot image picking -->
           <input
             ref="slotFileInput"
@@ -349,19 +358,6 @@
           @cancel="closeEditDialog"
           @confirm="submitEdit"
         />
-      </v-card>
-    </v-dialog>
-
-    <!-- Confirm Dialog -->
-    <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card rounded="xl">
-        <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
-        <v-card-text>{{ confirmText }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
-          <v-btn :color="confirmColor" @click="onConfirm">{{ confirmLabel }}</v-btn>
-        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -384,14 +380,11 @@
 import { ref, reactive, computed, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
-import { useConfirm } from "@/composables/useConfirm.js";
-import { formatDateTime } from "@/services/timezone.js";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
 
 const { notify } = useNotify();
-const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();
 
 const cards = ref([]);
 const layouts = ref([]);
@@ -538,7 +531,10 @@ async function generateFromDocument() {
   }
   generating.value = true;
   try {
-    const suggestion = await api.suggestInfoCard(createForm.document_id, generateModelId.value || undefined);
+    const suggestion = await api.suggestInfoCard(
+      createForm.document_id,
+      generateModelId.value || undefined,
+    );
     if (suggestion.title) createForm.title = suggestion.title;
     if (suggestion.body_text) createForm.body_text = suggestion.body_text;
     notify.success("Info card draft generated from document.");
@@ -556,7 +552,10 @@ async function generateEditFromDocument() {
   }
   editGenerating.value = true;
   try {
-    const suggestion = await api.suggestInfoCard(editForm.document_id, editGenerateModelId.value || undefined);
+    const suggestion = await api.suggestInfoCard(
+      editForm.document_id,
+      editGenerateModelId.value || undefined,
+    );
     if (suggestion.title) editForm.title = suggestion.title;
     if (suggestion.body_text) editForm.body_text = suggestion.body_text;
     notify.success("Info card content regenerated.");
@@ -620,14 +619,18 @@ async function editCard(item) {
   try {
     const full = await api.getInfoCard(item.id);
     editCardSlots.value = full.image_slots ?? [];
-  } catch (_) { /* best-effort */ }
+  } catch (_) {
+    /* best-effort */
+  }
 
   // Fetch document images for picker
   if (editForm.document_id) {
     try {
       const doc = await api.getKnowledgeDocument(editForm.document_id);
       docImagesForPick.value = doc.images ?? [];
-    } catch (_) { /* best-effort */ }
+    } catch (_) {
+      /* best-effort */
+    }
   }
 
   showEditDialog.value = true;

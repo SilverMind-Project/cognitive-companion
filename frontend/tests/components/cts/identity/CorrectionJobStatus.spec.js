@@ -3,7 +3,9 @@ import { mount } from "@vue/test-utils";
 import CorrectionJobStatus from "@/components/cts/identity/CorrectionJobStatus.vue";
 
 const stubs = {
-  "v-card": { template: "<div class='v-card' :data-status='$attrs[\"data-status\"]'><slot /></div>" },
+  "v-card": {
+    template: "<div class='v-card' :data-status='$attrs[\"data-status\"]'><slot /></div>",
+  },
   "v-progress-circular": { template: "<div class='spinner' />" },
   "v-icon": { template: "<i :data-icon='icon' />", props: ["icon", "color"] },
   "v-btn": { template: "<button @click=\"$emit('click')\"><slot /></button>" },

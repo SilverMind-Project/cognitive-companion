@@ -51,16 +51,15 @@
         <v-card-item class="pb-0">
           <template #prepend>
             <div class="mr-2">
-              <v-chip
-                color="primary"
-                size="small"
-                variant="tonal"
-              >
+              <v-chip color="primary" size="small" variant="tonal">
                 {{ currentOrd + 1 }}&thinsp;/&thinsp;{{ totalQuestions }}
               </v-chip>
             </div>
           </template>
-          <v-card-title class="text-h5 font-weight-bold question-title text-wrap" style="line-height: 1.3">
+          <v-card-title
+            class="text-h5 font-weight-bold question-title text-wrap"
+            style="line-height: 1.3"
+          >
             {{ questionText }}
           </v-card-title>
         </v-card-item>
@@ -102,9 +101,7 @@
             <div class="mic-icon-wrap">
               <v-icon size="48" color="primary">mdi-microphone</v-icon>
             </div>
-            <p class="text-center text-body-1 text-medium-emphasis mt-3">
-              Speak your answer aloud
-            </p>
+            <p class="text-center text-body-1 text-medium-emphasis mt-3">Speak your answer aloud</p>
           </div>
         </v-card-text>
 
@@ -133,23 +130,17 @@
         <v-divider class="mx-4" />
 
         <v-card-text class="pt-6 pb-4 text-center">
-          <p class="text-h3 font-weight-bold text-primary score-text">{{ numCorrect }} / {{ numAnswered }}</p>
-          <p class="text-body-2 text-medium-emphasis mt-1">
-            questions answered correctly
+          <p class="text-h3 font-weight-bold text-primary score-text">
+            {{ numCorrect }} / {{ numAnswered }}
           </p>
+          <p class="text-body-2 text-medium-emphasis mt-1">questions answered correctly</p>
         </v-card-text>
 
         <v-divider class="mx-4" />
 
         <v-card-actions class="pa-4">
           <v-spacer />
-          <v-btn
-            color="primary"
-            variant="flat"
-            size="large"
-            class="px-8 done-btn"
-            @click="close"
-          >
+          <v-btn color="primary" variant="flat" size="large" class="px-8 done-btn" @click="close">
             Done
           </v-btn>
         </v-card-actions>
@@ -187,9 +178,9 @@ const choices = ref([]);
 const questionImage = ref(null);
 
 // Answer state for the current question
-const answered = ref(null);       // selected choice id, or null
+const answered = ref(null); // selected choice id, or null
 const answerRecorded = ref(false); // true once quiz_answer_recorded arrives
-const isCorrect = ref(null);      // true | false | null
+const isCorrect = ref(null); // true | false | null
 
 // Running tally (final numbers from quiz_complete override these)
 const numCorrect = ref(0);
@@ -439,7 +430,9 @@ defineExpose({ show: handleQuizStart });
   letter-spacing: 0.01em;
   text-transform: none;
   white-space: normal;
-  transition: transform 0.12s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.2s ease;
 }
 
 /* Long choices wrap to multiple lines rather than truncating. */
@@ -478,12 +471,19 @@ defineExpose({ show: handleQuizStart });
 }
 
 @keyframes mic-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0.15); }
-  50%      { box-shadow: 0 0 0 12px rgba(var(--v-theme-primary), 0); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--v-theme-primary), 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(var(--v-theme-primary), 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mic-icon-wrap { animation: none; }
+  .mic-icon-wrap {
+    animation: none;
+  }
 }
 
 /* ── Feedback bar ──────────────────────────────────────────────────────── */

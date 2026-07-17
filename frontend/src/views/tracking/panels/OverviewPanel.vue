@@ -20,7 +20,12 @@
           <template #sparkline>
             <div class="d-flex align-center ga-2 mt-1">
               <CcProvenanceBadge :source="loc.source" :quality="loc.quality" />
-              <v-chip v-if="loc.staleness_seconds > 120" size="x-small" color="warning" variant="tonal">
+              <v-chip
+                v-if="loc.staleness_seconds > 120"
+                size="x-small"
+                color="warning"
+                variant="tonal"
+              >
                 {{ Math.round(loc.staleness_seconds / 60) }}m ago
               </v-chip>
             </div>
@@ -49,7 +54,12 @@
           <v-card-text class="text-center pa-3">
             <div class="text-h5 font-weight-bold">{{ s.count }}</div>
             <div class="text-caption">{{ s.kind.replace(/_/g, " ") }}</div>
-            <v-chip :color="severityColor(s.max_severity)" size="x-small" class="mt-1" variant="flat">
+            <v-chip
+              :color="severityColor(s.max_severity)"
+              size="x-small"
+              class="mt-1"
+              variant="flat"
+            >
               {{ s.max_severity }}
             </v-chip>
           </v-card-text>
@@ -71,9 +81,9 @@ import CcMetricTile from "@/components/dashboard/CcMetricTile.vue";
 import CcProvenanceBadge from "@/components/dashboard/CcProvenanceBadge.vue";
 import TrackingPanelHeader from "@/components/tracking/TrackingPanelHeader.vue";
 
-const props = defineProps({
+defineProps({
   locations: { type: Array, default: () => [] },
-  loading:   { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
 });
 
 const signalSummary = ref([]);

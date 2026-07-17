@@ -5,7 +5,9 @@
         <h2 :class="embedded ? 'text-h6' : 'text-h4'" class="font-weight-bold tracking-tight">
           Daily Reports
         </h2>
-        <div class="text-body-2 text-medium-emphasis mt-1">Wellness summaries and activity breakdowns by person and date.</div>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          Wellness summaries and activity breakdowns by person and date.
+        </div>
       </div>
       <v-spacer />
       <v-select

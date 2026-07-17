@@ -82,7 +82,8 @@ vi.mock("@/components/charts/CcQueueDepthChart.vue", () => ({
     name: "CcQueueDepthChart",
     props: ["cameras", "theme", "loading"],
     emits: ["select"],
-    template: '<button data-testid="queue-chart" @click="$emit(\'select\', cameras[0].camera_id)">chart</button>',
+    template:
+      '<button data-testid="queue-chart" @click="$emit(\'select\', cameras[0].camera_id)">chart</button>',
   },
 }));
 
@@ -99,7 +100,8 @@ vi.mock("@/components/common/CcSegmentedToggle.vue", () => ({
     name: "CcSegmentedToggle",
     props: ["modelValue", "options"],
     emits: ["update:modelValue"],
-    template: '<button data-testid="origin-toggle" @click="$emit(\'update:modelValue\', \'cts\')">origin</button>',
+    template:
+      "<button data-testid=\"origin-toggle\" @click=\"$emit('update:modelValue', 'cts')\">origin</button>",
   },
 }));
 
@@ -117,7 +119,10 @@ const stubs = {
   "v-spacer": { template: "<span />" },
   "v-switch": { template: "<div />", props: ["modelValue", "label"] },
   "v-chip": { template: "<span><slot /></span>", props: ["color", "size", "variant"] },
-  "v-btn": { template: '<button @click="$emit(\'click\')"><slot /></button>', props: ["loading", "icon"] },
+  "v-btn": {
+    template: "<button @click=\"$emit('click')\"><slot /></button>",
+    props: ["loading", "icon"],
+  },
   "v-text-field": { template: "<div />", props: ["modelValue", "placeholder"] },
   "v-select": { template: "<div />", props: ["modelValue", "items", "placeholder"] },
   "v-alert": { template: "<div><slot /></div>", props: ["type"] },
@@ -130,7 +135,8 @@ const stubs = {
     name: "VDataTableServer",
     props: ["headers", "items", "itemsLength", "itemsPerPage", "page", "loading"],
     emits: ["click:row", "update:options"],
-    template: '<button data-testid="camera-table" @click="$emit(\'click:row\', $event, { item: items[0] })"><slot name="no-data" /></button>',
+    template:
+      '<button data-testid="camera-table" @click="$emit(\'click:row\', $event, { item: items[0] })"><slot name="no-data" /></button>',
   },
   "v-navigation-drawer": {
     template: "<aside><slot /></aside>",
@@ -138,7 +144,10 @@ const stubs = {
   },
   "v-divider": { template: "<hr />" },
   "v-progress-circular": { template: "<div />" },
-  "v-img": { template: "<div><slot name='placeholder' /><slot name='error' /></div>", props: ["src"] },
+  "v-img": {
+    template: "<div><slot name='placeholder' /><slot name='error' /></div>",
+    props: ["src"],
+  },
   "v-icon": { template: "<i><slot /></i>" },
   "v-dialog": { template: "<div><slot /></div>", props: ["modelValue"] },
   "v-card-actions": { template: "<div><slot /></div>" },

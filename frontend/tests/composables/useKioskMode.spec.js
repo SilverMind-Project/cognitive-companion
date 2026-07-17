@@ -103,7 +103,10 @@ describe("useKioskMode", () => {
   it("acquires and releases wake lock, and degrades when unsupported", async () => {
     const release = vi.fn().mockResolvedValue();
     const wakeLock = { request: vi.fn().mockResolvedValue({ release, addEventListener: vi.fn() }) };
-    const { state, actions, wrapper } = mountComposable({ route: { query: { kiosk: "1" } }, wakeLock });
+    const { state, actions, wrapper } = mountComposable({
+      route: { query: { kiosk: "1" } },
+      wakeLock,
+    });
 
     await actions.begin(vi.fn());
     await actions.releaseWakeLock();

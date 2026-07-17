@@ -18,12 +18,13 @@
           <template #append>
             <div class="d-flex ga-1 ml-2">
               <v-chip
-                v-for="cap in (item.raw.capabilities || [])"
+                v-for="cap in item.raw.capabilities || []"
                 :key="cap"
                 size="x-small"
                 :color="capabilityColor(cap)"
                 variant="tonal"
-              >{{ cap }}</v-chip>
+                >{{ cap }}</v-chip
+              >
             </div>
           </template>
         </v-list-item>
@@ -37,10 +38,15 @@
         size="small"
         :color="capabilityColor(cap)"
         variant="tonal"
-      >{{ cap }}</v-chip>
+        >{{ cap }}</v-chip
+      >
       <v-chip size="small" variant="outlined">{{ selectedModel.api_type }}</v-chip>
-      <v-chip v-if="selectedModel.guided_decoding" size="small" color="success" variant="tonal">guided decoding</v-chip>
-      <v-chip v-if="selectedModel.supports_thinking" size="small" color="secondary" variant="tonal">thinking</v-chip>
+      <v-chip v-if="selectedModel.guided_decoding" size="small" color="success" variant="tonal"
+        >guided decoding</v-chip
+      >
+      <v-chip v-if="selectedModel.supports_thinking" size="small" color="secondary" variant="tonal"
+        >thinking</v-chip
+      >
     </div>
 
     <TemplateInput
@@ -60,7 +66,9 @@
       :rows="3"
       hint="Useful for style guides, translation instructions, etc. Supports {{ }} template syntax."
       class="mb-4"
-      @update:model-value="emit('update:modelValue', { ...modelValue, special_instructions: $event })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, special_instructions: $event })
+      "
     />
 
     <v-combobox
@@ -79,8 +87,17 @@
   <!-- Images tab -->
   <div v-else-if="tab === 'images'">
     <v-alert
-      v-if="!(selectedModel && selectedModel.capabilities && selectedModel.capabilities.includes('vision'))"
-      type="info" variant="tonal" density="compact" class="mb-4"
+      v-if="
+        !(
+          selectedModel &&
+          selectedModel.capabilities &&
+          selectedModel.capabilities.includes('vision')
+        )
+      "
+      type="info"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
     >
       Image inputs are silently skipped when the selected model does not have the vision capability.
     </v-alert>
@@ -102,11 +119,13 @@
             :model-value="modelValue.sort_by_sensor_then_time"
             label="Group by sensor, then chronological within each sensor"
             hide-details
-            @update:model-value="emit('update:modelValue', { ...modelValue, sort_by_sensor_then_time: $event })"
+            @update:model-value="
+              emit('update:modelValue', { ...modelValue, sort_by_sensor_then_time: $event })
+            "
           />
           <div class="text-caption text-medium-emphasis ml-8 mt-1">
-            Enables inter-frame temporal analysis. Images are ordered:
-            all frames from sensor 1 (oldest to newest), then sensor 2, etc.
+            Enables inter-frame temporal analysis. Images are ordered: all frames from sensor 1
+            (oldest to newest), then sensor 2, etc.
           </div>
         </v-card>
 
@@ -115,7 +134,9 @@
           label="Use annotated image (from person identification)"
           hide-details
           class="mb-4"
-          @update:model-value="emit('update:modelValue', { ...modelValue, use_annotated_image: $event })"
+          @update:model-value="
+            emit('update:modelValue', { ...modelValue, use_annotated_image: $event })
+          "
         />
       </template>
     </ImageSourceSelector>
@@ -136,7 +157,11 @@
       class="mb-4"
       @update:model-value="emit('update:modelValue', { ...modelValue, response_format: $event })"
     />
-    <template v-if="modelValue.response_format === 'json_schema' || modelValue.response_format === 'json_free'">
+    <template
+      v-if="
+        modelValue.response_format === 'json_schema' || modelValue.response_format === 'json_free'
+      "
+    >
       <v-textarea
         :model-value="modelValue.response_schema"
         label="Format Instruction (appended to prompt)"
@@ -152,9 +177,11 @@
         :model-value="modelValue.response_json_schema"
         label="JSON Schema"
         rows="10"
-        :hint="selectedModel && selectedModel.guided_decoding
-          ? 'Schema enforced via guided decoding (vLLM). Leave empty to rely on prompt instruction only.'
-          : 'Schema injected as a prompt instruction (this model does not support guided decoding).'"
+        :hint="
+          selectedModel && selectedModel.guided_decoding
+            ? 'Schema enforced via guided decoding (vLLM). Leave empty to rely on prompt instruction only.'
+            : 'Schema injected as a prompt instruction (this model does not support guided decoding).'
+        "
         persistent-hint
         :error-messages="llmJsonSchemaError"
         class="mb-4"
@@ -188,10 +215,10 @@
     <div class="text-caption text-medium-emphasis mb-4">
       Leave blank to use the model default
       <span v-if="selectedModel">
-        (temperature: {{ selectedModel.default_temperature ?? '—' }},
-        top_p: {{ selectedModel.default_top_p ?? '—' }},
-        max_tokens: {{ selectedModel.default_max_tokens ?? '—' }})
-      </span>.
+        (temperature: {{ selectedModel.default_temperature ?? "—" }}, top_p:
+        {{ selectedModel.default_top_p ?? "—" }}, max_tokens:
+        {{ selectedModel.default_max_tokens ?? "—" }}) </span
+      >.
     </div>
 
     <v-row dense>
@@ -200,11 +227,18 @@
           :model-value="modelValue.temperature"
           label="Temperature"
           type="number"
-          :min="0" :max="2" :step="0.05"
+          :min="0"
+          :max="2"
+          :step="0.05"
           clearable
           hint="0 - 2"
           persistent-hint
-          @update:model-value="emit('update:modelValue', { ...modelValue, temperature: $event === '' ? null : Number($event) })"
+          @update:model-value="
+            emit('update:modelValue', {
+              ...modelValue,
+              temperature: $event === '' ? null : Number($event),
+            })
+          "
         />
       </v-col>
       <v-col cols="12" sm="4">
@@ -212,11 +246,18 @@
           :model-value="modelValue.top_p"
           label="Top-p"
           type="number"
-          :min="0" :max="1" :step="0.05"
+          :min="0"
+          :max="1"
+          :step="0.05"
           clearable
           hint="0 - 1"
           persistent-hint
-          @update:model-value="emit('update:modelValue', { ...modelValue, top_p: $event === '' ? null : Number($event) })"
+          @update:model-value="
+            emit('update:modelValue', {
+              ...modelValue,
+              top_p: $event === '' ? null : Number($event),
+            })
+          "
         />
       </v-col>
       <v-col cols="12" sm="4">
@@ -228,7 +269,12 @@
           clearable
           hint="tokens"
           persistent-hint
-          @update:model-value="emit('update:modelValue', { ...modelValue, max_tokens: $event === '' ? null : Number($event) })"
+          @update:model-value="
+            emit('update:modelValue', {
+              ...modelValue,
+              max_tokens: $event === '' ? null : Number($event),
+            })
+          "
         />
       </v-col>
     </v-row>
@@ -240,7 +286,9 @@
       label="Hallucination Marker"
       hint="If this string appears in the response, the call is automatically retried."
       persistent-hint
-      @update:model-value="emit('update:modelValue', { ...modelValue, hallucination_marker: $event })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, hallucination_marker: $event })
+      "
     />
   </div>
 </template>
@@ -291,7 +339,7 @@ export function beforeSave(cfg) {
   return cfg;
 }
 
-export function onStepLoaded(cfg) {
+export function onStepLoaded(_cfg) {
   // Validate JSON schema field if present
   // Handled by the component internally
 }
@@ -307,14 +355,26 @@ export function chips(cfg, { chip, truncate }) {
   const additionalSensors = cfg.additional_sensor_ids?.length || 0;
   const additionalRooms = cfg.additional_room_names?.length || 0;
   if (maxImgs > 0) out.push(chip(`<= ${maxImgs} images`, "mdi-image-multiple-outline", "teal"));
-  if (triggerImgs > 0) out.push(chip(`${triggerImgs} trigger frame${triggerImgs > 1 ? "s" : ""}`, "mdi-camera", "teal"));
-  if (additionalSensors > 0) out.push(chip(`+${additionalSensors} sensor${additionalSensors > 1 ? "s" : ""}`, "mdi-camera-plus-outline", "cyan"));
-  if (additionalRooms > 0) out.push(chip(cfg.additional_room_names.join(", "), "mdi-home-outline", "cyan"));
-  if (cfg.output_key && cfg.output_key !== "llm_response") out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
-  if (cfg.response_format && cfg.response_format !== "default") out.push(chip(cfg.response_format, "mdi-code-json", "blue-grey"));
+  if (triggerImgs > 0)
+    out.push(
+      chip(`${triggerImgs} trigger frame${triggerImgs > 1 ? "s" : ""}`, "mdi-camera", "teal"),
+    );
+  if (additionalSensors > 0)
+    out.push(
+      chip(
+        `+${additionalSensors} sensor${additionalSensors > 1 ? "s" : ""}`,
+        "mdi-camera-plus-outline",
+        "cyan",
+      ),
+    );
+  if (additionalRooms > 0)
+    out.push(chip(cfg.additional_room_names.join(", "), "mdi-home-outline", "cyan"));
+  if (cfg.output_key && cfg.output_key !== "llm_response")
+    out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
+  if (cfg.response_format && cfg.response_format !== "default")
+    out.push(chip(cfg.response_format, "mdi-code-json", "blue-grey"));
   return out;
 }
-
 </script>
 
 <script setup>
@@ -333,8 +393,8 @@ const llmSources = [{ title: "None (text only)", value: "none" }, ...DEFAULT_IMA
 
 const llmJsonSchemaError = ref("");
 
-const selectedModel = computed(() =>
-  props.llmModelItems.find((m) => m.id === props.modelValue.model_id) || null
+const selectedModel = computed(
+  () => props.llmModelItems.find((m) => m.id === props.modelValue.model_id) || null,
 );
 
 function onJsonSchemaChange(val) {

@@ -16,7 +16,12 @@ describe("ctsReidReview service", () => {
 
   it("lists candidates with query params", async () => {
     global.fetch = mockFetch(200, { candidates: [], total: 0, limit: 25, offset: 0 });
-    await ctsReidReview.list({ state: "pending_review", camera_id: "kitchen-1", limit: 25, offset: 0 });
+    await ctsReidReview.list({
+      state: "pending_review",
+      camera_id: "kitchen-1",
+      limit: 25,
+      offset: 0,
+    });
     const [url] = global.fetch.mock.calls[0];
     expect(url).toContain("/identity/reid-review/candidates");
     expect(url).toContain("state=pending_review");
@@ -46,9 +51,10 @@ describe("ctsReidReview service", () => {
     global.fetch = mockFetch(409, {
       detail: { code: "reid_review.ineligible", message: "incompatible_model:v0" },
     });
-    await expect(
-      ctsReidReview.approve("c1", { base_audit_version: 1 }),
-    ).rejects.toMatchObject({ status: 409, code: "reid_review.ineligible" });
+    await expect(ctsReidReview.approve("c1", { base_audit_version: 1 })).rejects.toMatchObject({
+      status: 409,
+      code: "reid_review.ineligible",
+    });
   });
 
   it("batch reject posts items and reason", async () => {

@@ -109,8 +109,7 @@ const chartOption = computed(() => {
     name: n.label ?? n.id,
     x: positions[n.id]?.x ?? 0,
     y: positions[n.id]?.y ?? 0,
-    symbolSize:
-      n.id === props.activeNodeId || n.status === "running" ? 24 : 16,
+    symbolSize: n.id === props.activeNodeId || n.status === "running" ? 24 : 16,
     itemStyle: {
       color: nodeColor(n.status, n.id, th),
       borderColor: th.grid.borderColor,

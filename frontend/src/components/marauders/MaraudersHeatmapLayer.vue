@@ -35,12 +35,7 @@
       data-testid="marauders-heat-legend"
       aria-label="Presence intensity from faint ink to deep ink"
     >
-      <text
-        x="3%"
-        :y="legendLabelY"
-        class="legend-text"
-        :font-size="legendFontSize"
-      >
+      <text x="3%" :y="legendLabelY" class="legend-text" :font-size="legendFontSize">
         Presence
       </text>
       <rect
@@ -51,14 +46,7 @@
         rx="3"
         fill="url(#marauders-heat-ramp)"
       />
-      <text
-        x="3%"
-        :y="legendValueY"
-        class="legend-text"
-        :font-size="legendFontSize"
-      >
-        Faint
-      </text>
+      <text x="3%" :y="legendValueY" class="legend-text" :font-size="legendFontSize"> Faint </text>
       <text
         x="21%"
         :y="legendValueY"
@@ -79,10 +67,10 @@ const MIN_BIN_OPACITY = 0.2;
 const STAIN_RADIUS_SCALE = 0.72;
 
 const props = defineProps({
-  bins:    { type: Array,   required: true },
+  bins: { type: Array, required: true },
   loading: { type: Boolean, default: false },
-  error:   { type: String,  default: null },
-  canvasH: { type: Number,  required: true },
+  error: { type: String, default: null },
+  canvasH: { type: Number, required: true },
 });
 
 function clamp(value, min, max) {
@@ -101,27 +89,29 @@ function rampFill(weight) {
   return `color-mix(in srgb, var(--cc-heat-ink-low) ${lowPercent}%, var(--cc-heat-ink-high) ${highPercent}%)`;
 }
 
-const stains = computed(() => props.bins.map((bin) => {
-  const weight = normalizedWeight(bin.opacity);
-  return {
-    key: bin.key,
-    cx: bin.canvasX + bin.canvasSize / 2,
-    cy: bin.canvasY + bin.canvasSize / 2,
-    radius: bin.canvasSize * STAIN_RADIUS_SCALE,
-    weight,
-    fill: rampFill(weight),
-  };
-}));
+const stains = computed(() =>
+  props.bins.map((bin) => {
+    const weight = normalizedWeight(bin.opacity);
+    return {
+      key: bin.key,
+      cx: bin.canvasX + bin.canvasSize / 2,
+      cy: bin.canvasY + bin.canvasSize / 2,
+      radius: bin.canvasSize * STAIN_RADIUS_SCALE,
+      weight,
+      fill: rampFill(weight),
+    };
+  }),
+);
 
 const emptyFontSize = computed(() => Math.round(props.canvasH * 0.025));
 const legendFontSize = computed(() => Math.max(10, Math.round(props.canvasH * 0.016)));
 const legendRampHeight = computed(() => Math.max(8, Math.round(props.canvasH * 0.012)));
-const legendLabelY = computed(() => (
-  props.canvasH - legendRampHeight.value - legendFontSize.value * 1.8
-));
-const legendRampY = computed(() => (
-  props.canvasH - legendRampHeight.value - legendFontSize.value * 1.35
-));
+const legendLabelY = computed(
+  () => props.canvasH - legendRampHeight.value - legendFontSize.value * 1.8,
+);
+const legendRampY = computed(
+  () => props.canvasH - legendRampHeight.value - legendFontSize.value * 1.35,
+);
 const legendValueY = computed(() => props.canvasH - legendFontSize.value * 0.2);
 </script>
 

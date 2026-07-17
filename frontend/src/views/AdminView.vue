@@ -134,9 +134,6 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3000">
-      {{ snackText }}
-    </v-snackbar>
   </v-app>
 </template>
 
@@ -145,22 +142,23 @@ import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { api } from "../services/api.js";
 import { cts } from "../services/cts.js";
 import { useMaraudersMode } from "../composables/useMaraudersMode.js";
+import { useNotify } from "../composables/useNotify.js";
+import { useAuthStore } from "../stores/auth";
 import AdminParticleBackground from "../components/common/AdminParticleBackground.vue";
 import MaraudersAdminBackground from "../components/marauders/MaraudersAdminBackground.vue";
 import MaraudersImageFilterDefs from "../components/marauders/MaraudersImageFilterDefs.vue";
 import MaraudersToggle from "../components/marauders/MaraudersToggle.vue";
 
 const { state: maraudersState } = useMaraudersMode();
+const { notify } = useNotify();
+const auth = useAuthStore();
 
 const showKeyDialog = ref(false);
 const showKey = ref(false);
-const apiKeyInput = ref(localStorage.getItem("cc_api_key") || "");
-const snack = ref(false);
-const snackText = ref("");
-const snackColor = ref("success");
+const apiKeyInput = ref(auth.apiKey);
 
 function saveApiKey() {
-  api.setApiKey(apiKeyInput.value);
+  auth.setApiKey(apiKeyInput.value);
   showKeyDialog.value = false;
   notify("API key saved");
 }
@@ -326,14 +324,8 @@ onBeforeUnmount(() => {
   if (_navResizeObserver) _navResizeObserver.disconnect();
 });
 
-function notify(text, color = "success") {
-  snackText.value = text;
-  snackColor.value = color;
-  snack.value = true;
-}
-
 onMounted(() => {
-  if (!localStorage.getItem("cc_api_key")) {
+  if (!auth.isConfigured) {
     showKeyDialog.value = true;
   }
 });

@@ -259,7 +259,6 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="3000">{{ snackText }}</v-snackbar>
   </div>
 </template>
 
@@ -272,7 +271,7 @@ import { useNotify } from "../../composables/useNotify.js";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const route = useRoute();
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 
 const loading  = ref(false);
 const deleting = ref(false);

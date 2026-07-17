@@ -187,9 +187,6 @@
       />
     </v-navigation-drawer>
 
-    <v-snackbar v-model="snack" :color="snackColor" timeout="4000">
-      {{ snackText }}
-    </v-snackbar>
   </div>
 </template>
 
@@ -209,7 +206,7 @@ import { formatDateTimeShort } from "@/services/timezone.js";
 
 const aggregators = useAggregatorState();
 const { chartTheme } = useChartTheme();
-const { snack, snackText, snackColor, notify } = useNotify();
+const { notify } = useNotify();
 
 const drawerOpen = ref(false);
 const selectedCameraId = ref(null);

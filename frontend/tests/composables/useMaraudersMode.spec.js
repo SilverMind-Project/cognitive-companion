@@ -104,15 +104,20 @@ describe("useMaraudersMode", () => {
     vi.unstubAllGlobals();
   });
 
-  it("singleton: two useMaraudersMode() calls share the same state object", async () => {
+  it("shared state: two useMaraudersMode() callers observe each other's changes", async () => {
+    // Identity (r1.state === r2.state) is deliberately not asserted: since M18 the state lives in
+    // the `ui` store and each call returns its own reactive view of it, so the objects differ
+    // while the state behind them is shared. Sharing is the guarantee that matters -- it is what
+    // makes two mounted components agree on the theme -- so it is asserted directly, both ways.
     const { useMaraudersMode } = await import("@/composables/useMaraudersMode.js");
     const r1 = useMaraudersMode();
     const r2 = useMaraudersMode();
 
-    expect(r1.state).toBe(r2.state);
-
     r1.actions.enable();
     expect(r2.state.enabled).toBe(true);
+
+    r2.actions.disable();
+    expect(r1.state.enabled).toBe(false);
   });
 
   it("toggle() flips enabled from false to true", async () => {

@@ -22,7 +22,9 @@ export const getWorkflows = (params: ListParams = {}) =>
   unwrap(client.GET("/api/v1/workflows", { params: { query: params } }));
 
 export const getWorkflow = (id: number) =>
-  unwrap(client.GET("/api/v1/workflows/{execution_id}", { params: { path: { execution_id: id } } }));
+  unwrap(
+    client.GET("/api/v1/workflows/{execution_id}", { params: { path: { execution_id: id } } }),
+  );
 
 export const getWorkflowDetail = (id: number) =>
   unwrap(

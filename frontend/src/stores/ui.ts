@@ -52,7 +52,8 @@ export const useUiStore = defineStore("ui", () => {
   /** Capture the theme to return to. Guards against a stale ccMarauders being captured as it. */
   function captureTheme(): void {
     const current = theme!.global.name.value;
-    priorTheme = current === "ccMarauders" ? localStorage.getItem(THEME_KEY) || DEFAULT_THEME : current;
+    priorTheme =
+      current === "ccMarauders" ? localStorage.getItem(THEME_KEY) || DEFAULT_THEME : current;
   }
 
   /**

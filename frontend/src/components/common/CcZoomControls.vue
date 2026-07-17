@@ -40,9 +40,7 @@
       title="Fullscreen"
       @click="$emit('fullscreen')"
     />
-    <v-chip size="small" variant="flat" class="cc-zoom-pct">
-      {{ Math.round(zoom * 100) }}%
-    </v-chip>
+    <v-chip size="small" variant="flat" class="cc-zoom-pct"> {{ Math.round(zoom * 100) }}% </v-chip>
   </div>
 </template>
 
@@ -64,6 +62,6 @@ defineEmits(["zoom-in", "zoom-out", "reset", "fit", "fullscreen"]);
 // Use tolerance rather than exact equality because floating-point drift after
 // multiple zoom operations can otherwise leave reset permanently enabled.
 const isReset = computed(
-  () => Math.abs(props.zoom - 1) < 0.01 && Math.abs(props.panX) < 1 && Math.abs(props.panY) < 1
+  () => Math.abs(props.zoom - 1) < 0.01 && Math.abs(props.panX) < 1 && Math.abs(props.panY) < 1,
 );
 </script>

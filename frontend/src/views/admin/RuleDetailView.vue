@@ -12,12 +12,7 @@
         </div>
       </div>
       <v-spacer />
-      <v-btn
-        variant="text"
-        prepend-icon="mdi-download"
-        :loading="exporting"
-        @click="exportRule"
-      >
+      <v-btn variant="text" prepend-icon="mdi-download" :loading="exporting" @click="exportRule">
         Export
       </v-btn>
       <v-btn
@@ -57,7 +52,12 @@
                 />
               </v-col>
               <v-col cols="12">
-                <v-textarea v-model="form.description" label="Description" variant="outlined" rows="2" />
+                <v-textarea
+                  v-model="form.description"
+                  label="Description"
+                  variant="outlined"
+                  rows="2"
+                />
               </v-col>
               <v-col cols="12" md="6">
                 <v-autocomplete
@@ -74,10 +74,12 @@
                   <template #item="{ props: itemProps, item }">
                     <v-list-item v-bind="itemProps">
                       <template #prepend>
-                        <v-icon size="20" class="mr-2">{{ sensorIcon(item.raw.sensor_type) }}</v-icon>
+                        <v-icon size="20" class="mr-2">{{
+                          sensorIcon(item.raw.sensor_type)
+                        }}</v-icon>
                       </template>
                       <template #subtitle>
-                        {{ item.raw.sensor_type }} · {{ item.raw.room_name || 'No room' }}
+                        {{ item.raw.sensor_type }} · {{ item.raw.room_name || "No room" }}
                       </template>
                     </v-list-item>
                   </template>
@@ -122,7 +124,10 @@
                     "
                     persistent-hint
                     :error="!form.telegram_trigger_config.allowed_chat_ids?.length"
-                    :rules="[v => (Array.isArray(v) && v.length > 0) || 'At least one chat ID is required']"
+                    :rules="[
+                      (v) =>
+                        (Array.isArray(v) && v.length > 0) || 'At least one chat ID is required',
+                    ]"
                   />
                 </v-col>
                 <v-col cols="12" md="6">
@@ -136,10 +141,24 @@
                 </v-col>
               </template>
               <v-col cols="6" md="3">
-                <v-text-field v-model.number="form.cool_off_minutes" label="Cool-off (min)" type="number" variant="outlined" hint="Minimum minutes between executions (0 = no limit)" persistent-hint />
+                <v-text-field
+                  v-model.number="form.cool_off_minutes"
+                  label="Cool-off (min)"
+                  type="number"
+                  variant="outlined"
+                  hint="Minimum minutes between executions (0 = no limit)"
+                  persistent-hint
+                />
               </v-col>
               <v-col cols="6" md="3">
-                <v-text-field v-model.number="form.max_daily_triggers" label="Max Daily" type="number" variant="outlined" hint="Maximum executions per day (0 = no limit)" persistent-hint />
+                <v-text-field
+                  v-model.number="form.max_daily_triggers"
+                  label="Max Daily"
+                  type="number"
+                  variant="outlined"
+                  hint="Maximum executions per day (0 = no limit)"
+                  persistent-hint
+                />
               </v-col>
               <v-col cols="6" md="3">
                 <v-text-field
@@ -189,7 +208,13 @@
             <div class="d-flex align-center mb-3">
               <h4 class="text-subtitle-1">Context Filters</h4>
               <v-spacer />
-              <v-btn size="small" color="primary" variant="tonal" prepend-icon="mdi-plus" @click="openCtxDialog">
+              <v-btn
+                size="small"
+                color="primary"
+                variant="tonal"
+                prepend-icon="mdi-plus"
+                @click="openCtxDialog"
+              >
                 Add Context
               </v-btn>
             </div>
@@ -201,16 +226,33 @@
                   </v-icon>
                 </template>
                 <v-list-item-title>
-                  <v-chip v-if="ctx.negate" size="small" color="warning" variant="tonal" class="mr-1">NOT</v-chip>
-                  <v-chip size="small" color="info" variant="tonal" class="mr-2">{{ ctx.context_type }}</v-chip>
+                  <v-chip
+                    v-if="ctx.negate"
+                    size="small"
+                    color="warning"
+                    variant="tonal"
+                    class="mr-1"
+                    >NOT</v-chip
+                  >
+                  <v-chip size="small" color="info" variant="tonal" class="mr-2">{{
+                    ctx.context_type
+                  }}</v-chip>
                   {{ ctxSummary(ctx) }}
                 </v-list-item-title>
                 <template #append>
-                  <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="deleteContext(ctx.id)" />
+                  <v-btn
+                    icon="mdi-delete"
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    @click="deleteContext(ctx.id)"
+                  />
                 </template>
               </v-list-item>
             </v-list>
-            <div v-else class="text-center text-grey py-4">No context filters. This rule applies everywhere.</div>
+            <div v-else class="text-center text-grey py-4">
+              No context filters. This rule applies everywhere.
+            </div>
           </v-card-text>
         </v-card>
 
@@ -384,7 +426,7 @@
                   item-title="title"
                   item-value="value"
                   label="Required state"
-                  :rules="[v => !!v || 'Choose a state.']"
+                  :rules="[(v) => !!v || 'Choose a state.']"
                   variant="outlined"
                   density="compact"
                   hide-details="auto"
@@ -419,7 +461,7 @@
                   item-title="title"
                   item-value="value"
                   label="Required status"
-                  :rules="[v => !!v || 'Choose a status.']"
+                  :rules="[(v) => !!v || 'Choose a status.']"
                   variant="outlined"
                   density="compact"
                   hide-details="auto"
@@ -475,7 +517,10 @@
                   type="number"
                   :min="1"
                   :max="1440"
-                  :rules="[v => (Number.isInteger(Number(v)) && v >= 1 && v <= 1440) || 'Must be 1..1440.']"
+                  :rules="[
+                    (v) =>
+                      (Number.isInteger(Number(v)) && v >= 1 && v <= 1440) || 'Must be 1..1440.',
+                  ]"
                   variant="outlined"
                   density="compact"
                   hide-details="auto"
@@ -483,7 +528,13 @@
                   hint="Filter triggers only when the person has held the matching status this long."
                   persistent-hint
                 />
-                <v-alert v-if="ctxForm.config.min_minutes >= 30" type="info" variant="tonal" density="compact" class="mt-2">
+                <v-alert
+                  v-if="ctxForm.config.min_minutes >= 30"
+                  type="info"
+                  variant="tonal"
+                  density="compact"
+                  class="mt-2"
+                >
                   Long-running filters require a recent presence_query step in the pipeline.
                 </v-alert>
               </template>
@@ -534,7 +585,14 @@
                 />
                 <v-select
                   v-model="ctxForm.config.semantic"
-                  :items="['entering', 'exiting', 'approaching_exit', 'entering_depth', 'stationary', 'any']"
+                  :items="[
+                    'entering',
+                    'exiting',
+                    'approaching_exit',
+                    'entering_depth',
+                    'stationary',
+                    'any',
+                  ]"
                   label="Movement Type"
                   variant="outlined"
                   hint="Direction semantic to match"
@@ -601,7 +659,11 @@
                 />
                 <v-select
                   v-model="ctxForm.config.min_severity"
-                  :items="[{ title: 'Info (any)', value: 0.0 }, { title: 'Warning', value: 0.66 }, { title: 'Emergency', value: 1.0 }]"
+                  :items="[
+                    { title: 'Info (any)', value: 0.0 },
+                    { title: 'Warning', value: 0.66 },
+                    { title: 'Emergency', value: 1.0 },
+                  ]"
                   label="Minimum Severity"
                   variant="outlined"
                   class="mb-3"
@@ -644,20 +706,37 @@
             <div class="d-flex align-center mb-3">
               <h4 class="text-subtitle-1">Rule Dependencies</h4>
               <v-spacer />
-              <v-btn size="small" color="primary" variant="tonal" prepend-icon="mdi-plus" @click="depDialog = true">
+              <v-btn
+                size="small"
+                color="primary"
+                variant="tonal"
+                prepend-icon="mdi-plus"
+                @click="depDialog = true"
+              >
                 Add Dependency
               </v-btn>
             </div>
             <v-list v-if="rule.dependencies?.length">
               <v-list-item v-for="dep in rule.dependencies" :key="dep.id">
                 <v-list-item-title>
-                  {{ ruleNameById(dep.parent_rule_id) }} (Rule #{{ dep.parent_rule_id }}) &middot; lookback {{ dep.lookback_minutes }}min
-                  <v-chip size="x-small" :color="dep.require_success ? 'success' : 'warning'" class="ml-2">
+                  {{ ruleNameById(dep.parent_rule_id) }} (Rule #{{ dep.parent_rule_id }}) &middot;
+                  lookback {{ dep.lookback_minutes }}min
+                  <v-chip
+                    size="x-small"
+                    :color="dep.require_success ? 'success' : 'warning'"
+                    class="ml-2"
+                  >
                     {{ dep.require_success ? "require success" : "require no success" }}
                   </v-chip>
                 </v-list-item-title>
                 <template #append>
-                  <v-btn icon="mdi-delete" size="x-small" variant="text" color="error" @click="deleteDep(dep.id)" />
+                  <v-btn
+                    icon="mdi-delete"
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    @click="deleteDep(dep.id)"
+                  />
                 </template>
               </v-list-item>
             </v-list>
@@ -678,7 +757,12 @@
                 variant="outlined"
                 class="mb-3"
               />
-              <v-text-field v-model.number="depForm.lookback_minutes" label="Lookback (min)" type="number" variant="outlined" />
+              <v-text-field
+                v-model.number="depForm.lookback_minutes"
+                label="Lookback (min)"
+                type="number"
+                variant="outlined"
+              />
               <v-switch v-model="depForm.require_success" label="Require Success" color="primary" />
             </v-card-text>
             <v-card-actions>
@@ -714,10 +798,7 @@
             @click:row="(_, { item }) => openExecution(item)"
           >
             <template #item.status="{ item }">
-              <v-chip
-                :color="statusColor(item.status)"
-                size="small"
-              >
+              <v-chip :color="statusColor(item.status)" size="small">
                 {{ item.status }}
               </v-chip>
             </template>
@@ -725,7 +806,7 @@
               {{ formatDate(item.started_at) }}
             </template>
             <template #item.completed_at="{ item }">
-              {{ item.completed_at ? formatDate(item.completed_at) : '-' }}
+              {{ item.completed_at ? formatDate(item.completed_at) : "-" }}
             </template>
             <template #item._duration="{ item }">
               {{ formatDuration(item.started_at, item.completed_at) }}
@@ -734,7 +815,6 @@
         </v-card>
       </v-window-item>
     </v-window>
-
   </div>
   <div v-else class="text-center py-8">
     <v-progress-circular indeterminate />
@@ -770,8 +850,8 @@ const telegramDefaultChatIds = ref([]);
 const sensorItems = computed(() =>
   allSensors.value.map((s) => ({
     ...s,
-    _label: `${s.name || s.id} (${s.sensor_type}${s.room_name ? ', ' + s.room_name : ''})`,
-  }))
+    _label: `${s.name || s.id} (${s.sensor_type}${s.room_name ? ", " + s.room_name : ""})`,
+  })),
 );
 
 const roomNames = computed(() => allRooms.value.map((r) => r.name));
@@ -780,7 +860,7 @@ const personIds = computed(() => allPersons.value.map((p) => p.id));
 const otherRuleItems = computed(() =>
   allRules.value
     .filter((r) => r.id !== ruleId.value)
-    .map((r) => ({ ...r, _label: `${r.name} (#${r.id})` }))
+    .map((r) => ({ ...r, _label: `${r.name} (#${r.id})` })),
 );
 
 const triggerTypes = [
@@ -822,8 +902,16 @@ const contextTypeItems = [
 
 const dayItems = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const activityTypeItems = [
-  "eating", "sleeping", "medication", "bathing", "walking",
-  "watching_tv", "reading", "exercising", "cooking", "socializing",
+  "eating",
+  "sleeping",
+  "medication",
+  "bathing",
+  "walking",
+  "watching_tv",
+  "reading",
+  "exercising",
+  "cooking",
+  "socializing",
 ];
 
 // Settings form
@@ -891,15 +979,25 @@ function ctxIcon(type) {
 function ctxSummary(ctx) {
   const c = ctx.config_json || {};
   switch (ctx.context_type) {
-    case "room": return c.room_name || "Any room";
-    case "time_range": return `${c.start_time || '?'} - ${c.end_time || '?'}`;
-    case "day_of_week": return Array.isArray(c.days) ? c.days.join(", ") : JSON.stringify(c);
+    case "room":
+      return c.room_name || "Any room";
+    case "time_range":
+      return `${c.start_time || "?"} - ${c.end_time || "?"}`;
+    case "day_of_week":
+      return Array.isArray(c.days) ? c.days.join(", ") : JSON.stringify(c);
     case "person_presence":
-      return `${c.person_id || 'any person'} is ${c.status || '?'}${c.room_name ? ' in ' + c.room_name : ''}${c.use_semantic_memory ? ' (semantic)' : ''}`;
-    case "person_activity": return `${c.person_id || 'any person'}: ${c.activity_type || '?'}`;
-    case "home_state": return `${c.person_id || 'any person'} state = ${c.state || '?'}`;
-    case "presence_status": return `${c.person_id || 'any person'}: ${c.status || '?'}` + (c.room_name ? ` in ${c.room_name}` : "");
-    case "presence_dwell": return `${c.person_id || 'any person'}: ${c.status || 'any status'} ≥ ${c.min_minutes || '?'} min`;
+      return `${c.person_id || "any person"} is ${c.status || "?"}${c.room_name ? " in " + c.room_name : ""}${c.use_semantic_memory ? " (semantic)" : ""}`;
+    case "person_activity":
+      return `${c.person_id || "any person"}: ${c.activity_type || "?"}`;
+    case "home_state":
+      return `${c.person_id || "any person"} state = ${c.state || "?"}`;
+    case "presence_status":
+      return (
+        `${c.person_id || "any person"}: ${c.status || "?"}` +
+        (c.room_name ? ` in ${c.room_name}` : "")
+      );
+    case "presence_dwell":
+      return `${c.person_id || "any person"}: ${c.status || "any status"} ≥ ${c.min_minutes || "?"} min`;
     case "scene_contains": {
       const parts = [];
       if (c.objects_any?.length) parts.push(`objects: ${c.objects_any.join(", ")}`);
@@ -907,8 +1005,9 @@ function ctxSummary(ctx) {
       return parts.length ? parts.join(" + ") : "Any scene";
     }
     case "person_movement_memory":
-      return `${c.person_id || 'any person'}: ${c.semantic || 'any'}${c.to_room_id ? ' → ' + c.to_room_id : ''}`;
-    default: return JSON.stringify(c);
+      return `${c.person_id || "any person"}: ${c.semantic || "any"}${c.to_room_id ? " → " + c.to_room_id : ""}`;
+    default:
+      return JSON.stringify(c);
   }
 }
 
@@ -925,10 +1024,14 @@ function openCtxDialog() {
 
 function seedCtxConfig(type) {
   switch (type) {
-    case "home_state":      return { state: "at_home" };
-    case "presence_status": return { status: "present_room" };
-    case "presence_dwell":  return { status: "", min_minutes: 5 };
-    default: return {};
+    case "home_state":
+      return { state: "at_home" };
+    case "presence_status":
+      return { status: "present_room" };
+    case "presence_dwell":
+      return { status: "", min_minutes: 5 };
+    default:
+      return {};
   }
 }
 
@@ -1081,7 +1184,17 @@ async function addContext() {
   try {
     let config;
     const t = ctxForm.value.context_type;
-    if (["room", "time_range", "day_of_week", "person_presence", "person_activity", "scene_contains", "person_movement_memory"].includes(t)) {
+    if (
+      [
+        "room",
+        "time_range",
+        "day_of_week",
+        "person_presence",
+        "person_activity",
+        "scene_contains",
+        "person_movement_memory",
+      ].includes(t)
+    ) {
       config = { ...ctxForm.value.config };
     } else {
       config = JSON.parse(ctxConfigStr.value);
@@ -1140,7 +1253,13 @@ async function loadExecutions() {
 }
 
 function statusColor(status) {
-  const map = { completed: "success", failed: "error", running: "info", waiting: "warning", cancelled: "grey" };
+  const map = {
+    completed: "success",
+    failed: "error",
+    running: "info",
+    waiting: "warning",
+    cancelled: "grey",
+  };
   return map[status] || "grey";
 }
 
@@ -1177,16 +1296,19 @@ watch(telegramDefaultChatIds, (defaults) => {
 });
 
 // Seed default config when context_type changes in the filter dialog.
-watch(() => ctxForm.value.context_type, (type) => {
-  const defaults = seedCtxConfig(type);
-  if (Object.keys(defaults).length > 0) {
-    for (const [key, value] of Object.entries(defaults)) {
-      if (ctxForm.value.config[key] === undefined || ctxForm.value.config[key] === null) {
-        ctxForm.value.config[key] = value;
+watch(
+  () => ctxForm.value.context_type,
+  (type) => {
+    const defaults = seedCtxConfig(type);
+    if (Object.keys(defaults).length > 0) {
+      for (const [key, value] of Object.entries(defaults)) {
+        if (ctxForm.value.config[key] === undefined || ctxForm.value.config[key] === null) {
+          ctxForm.value.config[key] = value;
+        }
       }
     }
-  }
-});
+  },
+);
 
 onMounted(async () => {
   if (route.query.tab === "liverun") {
@@ -1194,7 +1316,7 @@ onMounted(async () => {
       query: { ...route.query, tab: "executions" },
     });
   }
-  await loadTelegramDefaults();   // must resolve before loadRule so the IIFE sees the defaults
+  await loadTelegramDefaults(); // must resolve before loadRule so the IIFE sees the defaults
   loadRule();
   loadReferenceData();
 });

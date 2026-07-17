@@ -87,7 +87,7 @@ const bboxKey = ref(0);
 const minConfidence = ref(0.5);
 
 const filteredBboxes = computed(() =>
-  bboxes.value.filter((b) => b.detection_confidence >= minConfidence.value)
+  bboxes.value.filter((b) => b.detection_confidence >= minConfidence.value),
 );
 
 // Pending changes accumulated from BboxCanvas events
@@ -101,7 +101,7 @@ const pendingCount = computed(
     pendingTags.value.length +
     pendingOverrides.value.length +
     pendingDeletes.value.length +
-    pendingCreates.value.length
+    pendingCreates.value.length,
 );
 
 const pendingSummary = computed(() => {
@@ -120,7 +120,7 @@ watch(
     if (!open) return;
     bboxKey.value++;
     await loadBboxes();
-  }
+  },
 );
 
 async function loadBboxes() {
@@ -202,7 +202,10 @@ async function onSave() {
       operations.push({
         op: "create",
         data: {
-          x1: cr.x1, y1: cr.y1, x2: cr.x2, y2: cr.y2,
+          x1: cr.x1,
+          y1: cr.y1,
+          x2: cr.x2,
+          y2: cr.y2,
           identity_id: cr.identityId,
           detection_confidence: minConfidence.value,
         },

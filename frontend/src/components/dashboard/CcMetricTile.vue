@@ -8,17 +8,12 @@
       <div class="text-caption text-medium-emphasis tracking-tight flex-grow-1">
         {{ label }}
       </div>
-      <v-icon
-        v-if="statusIcon"
-        :icon="statusIcon"
-        :color="statusColor"
-        size="16"
-      />
+      <v-icon v-if="statusIcon" :icon="statusIcon" :color="statusColor" size="16" />
     </div>
 
     <div class="d-flex align-end ga-2">
       <div class="text-h5 font-weight-bold tracking-tight" :style="{ color: valueColor }">
-        {{ value ?? '—' }}
+        {{ value ?? "—" }}
       </div>
       <div v-if="delta != null" class="text-caption mb-1" :class="deltaClass">
         {{ deltaFormatted }}
@@ -81,15 +76,11 @@ const valueColor = computed(() =>
     ? "var(--cc-error)"
     : props.status === "warning"
       ? "var(--cc-warning)"
-      : "var(--cc-text-1)"
+      : "var(--cc-text-1)",
 );
 
 const deltaClass = computed(() =>
-  props.delta > 0
-    ? "text-success"
-    : props.delta < 0
-      ? "text-error"
-      : "text-medium-emphasis"
+  props.delta > 0 ? "text-success" : props.delta < 0 ? "text-error" : "text-medium-emphasis",
 );
 const deltaFormatted = computed(() => {
   if (props.delta == null) return "";

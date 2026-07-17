@@ -27,9 +27,9 @@ import { computed } from "vue";
 import PHMarker from "./PHMarker.vue";
 
 const props = defineProps({
-  markers:  { type: Array,  required: true },
-  phCount:  { type: Number, required: true },
-  canvasH:  { type: Number, required: true },
+  markers: { type: Array, required: true },
+  phCount: { type: Number, required: true },
+  canvasH: { type: Number, required: true },
 });
 
 defineEmits(["phClick"]);

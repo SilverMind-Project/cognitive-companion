@@ -25,17 +25,15 @@
       density="compact"
       class="mb-4"
     >
-      Auto resolves to <strong>CTS</strong> when a live tracking buffer is
-      available at runtime, otherwise <strong>reCamera</strong>. Configure both
-      field groups below so the step works whichever path is selected.
+      Auto resolves to <strong>CTS</strong> when a live tracking buffer is available at runtime,
+      otherwise <strong>reCamera</strong>. Configure both field groups below so the step works
+      whichever path is selected.
     </v-alert>
 
     <!-- CTS timing / sampling / enrichment -->
     <template v-if="showCts">
       <v-divider v-if="modelValue.source === 'auto'" class="mb-4" />
-      <div class="text-overline text-medium-emphasis mb-2">
-        CTS Timing
-      </div>
+      <div class="text-overline text-medium-emphasis mb-2">CTS Timing</div>
 
       <v-row dense class="mb-1">
         <v-col cols="12" md="6">
@@ -52,7 +50,9 @@
             hint="Frames collected before the trigger time"
             persistent-hint
             class="mb-4"
-            @update:model-value="emit('update:modelValue', { ...modelValue, lookback_s: clamp(Number($event), 0, 30) })"
+            @update:model-value="
+              emit('update:modelValue', { ...modelValue, lookback_s: clamp(Number($event), 0, 30) })
+            "
           />
         </v-col>
         <v-col cols="12" md="6">
@@ -69,7 +69,12 @@
             hint="Seconds to wait and collect after trigger"
             persistent-hint
             class="mb-4"
-            @update:model-value="emit('update:modelValue', { ...modelValue, lookahead_s: clamp(Number($event), 0, 30) })"
+            @update:model-value="
+              emit('update:modelValue', {
+                ...modelValue,
+                lookahead_s: clamp(Number($event), 0, 30),
+              })
+            "
           />
         </v-col>
       </v-row>
@@ -92,7 +97,12 @@
             hint="Keep one frame per this many seconds (0.2 – 30)"
             persistent-hint
             class="mb-4"
-            @update:model-value="emit('update:modelValue', { ...modelValue, sample_period_s: clamp(Number($event), 0.2, 30) })"
+            @update:model-value="
+              emit('update:modelValue', {
+                ...modelValue,
+                sample_period_s: clamp(Number($event), 0.2, 30),
+              })
+            "
           />
         </v-col>
         <v-col cols="12" md="6">
@@ -109,7 +119,12 @@
             hint="Hard cap on total frames (1 – 200)"
             persistent-hint
             class="mb-4"
-            @update:model-value="emit('update:modelValue', { ...modelValue, max_frames: clamp(Math.round(Number($event)), 1, 200) })"
+            @update:model-value="
+              emit('update:modelValue', {
+                ...modelValue,
+                max_frames: clamp(Math.round(Number($event)), 1, 200),
+              })
+            "
           />
         </v-col>
       </v-row>
@@ -134,9 +149,9 @@
       <div class="text-overline text-medium-emphasis mb-2">reCamera Window</div>
 
       <v-alert type="info" variant="tonal" density="compact" class="mb-4">
-        Snapshot semantics: reads what is currently in the MediaCache and
-        returns immediately. To wait for new reCamera events to accumulate
-        first, place a <strong>Wait</strong> step before this one.
+        Snapshot semantics: reads what is currently in the MediaCache and returns immediately. To
+        wait for new reCamera events to accumulate first, place a <strong>Wait</strong> step before
+        this one.
       </v-alert>
 
       <v-row dense class="mb-1">
@@ -155,7 +170,12 @@
             hint="Return images captured within the last N minutes (0.5 – 60)"
             persistent-hint
             class="mb-4"
-            @update:model-value="emit('update:modelValue', { ...modelValue, since_minutes: clamp(Number($event), 0.5, 60) })"
+            @update:model-value="
+              emit('update:modelValue', {
+                ...modelValue,
+                since_minutes: clamp(Number($event), 0.5, 60),
+              })
+            "
           />
         </v-col>
         <v-col cols="12" md="6">
@@ -172,7 +192,12 @@
             hint="Hard cap across all sensors (1 – 50)"
             persistent-hint
             class="mb-4"
-            @update:model-value="emit('update:modelValue', { ...modelValue, max_images: clamp(Math.round(Number($event)), 1, 50) })"
+            @update:model-value="
+              emit('update:modelValue', {
+                ...modelValue,
+                max_images: clamp(Math.round(Number($event)), 1, 50),
+              })
+            "
           />
         </v-col>
       </v-row>
@@ -194,10 +219,9 @@
     <!-- CTS cameras -->
     <template v-if="showCts">
       <v-alert type="info" variant="tonal" density="compact" class="mb-4">
-        CTS camera IDs are distinct from reCamera sensor IDs. Enter the exact
-        camera IDs configured in the CTS admin UI (e.g. <code>cam1</code>,
-        <code>cam2</code>). Leave both fields empty to include all cameras and
-        rooms.
+        CTS camera IDs are distinct from reCamera sensor IDs. Enter the exact camera IDs configured
+        in the CTS admin UI (e.g. <code>cam1</code>, <code>cam2</code>). Leave both fields empty to
+        include all cameras and rooms.
       </v-alert>
 
       <v-combobox
@@ -277,8 +301,7 @@
       <v-divider class="mb-4" />
       <div class="text-overline text-medium-emphasis mb-2">Per-Sensor Limits</div>
       <div class="text-caption text-medium-emphasis mb-3">
-        Applies when sensor IDs are specified. Ignored when only room names are
-        used.
+        Applies when sensor IDs are specified. Ignored when only room names are used.
       </div>
 
       <v-text-field
@@ -294,19 +317,22 @@
         hint="Default maximum images per sensor (1 – 20)"
         persistent-hint
         class="mb-4"
-        @update:model-value="emit('update:modelValue', { ...modelValue, images_per_sensor: clamp(Math.round(Number($event)), 1, 20) })"
+        @update:model-value="
+          emit('update:modelValue', {
+            ...modelValue,
+            images_per_sensor: clamp(Math.round(Number($event)), 1, 20),
+          })
+        "
       />
 
       <template v-if="modelValue.sensor_ids && modelValue.sensor_ids.length > 0">
         <div class="text-subtitle-2 mb-2">Per-sensor overrides</div>
-        <div
-          v-for="sid in modelValue.sensor_ids"
-          :key="sid"
-          class="d-flex align-center mb-2"
-        >
+        <div v-for="sid in modelValue.sensor_ids" :key="sid" class="d-flex align-center mb-2">
           <div class="text-body-2 flex-grow-1 mr-3">{{ sid }}</div>
           <v-text-field
-            :model-value="(modelValue.sensor_frame_limits || {})[sid] ?? modelValue.images_per_sensor"
+            :model-value="
+              (modelValue.sensor_frame_limits || {})[sid] ?? modelValue.images_per_sensor
+            "
             type="number"
             :min="1"
             :max="20"
@@ -344,9 +370,7 @@ export const stepDefaults = {
   chronological: true,
 };
 
-export const stepTabs = [
-  { key: "cameras", label: "Cameras", icon: "mdi-cctv" },
-];
+export const stepTabs = [{ key: "cameras", label: "Cameras", icon: "mdi-cctv" }];
 </script>
 
 <script setup>

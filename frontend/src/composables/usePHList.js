@@ -73,7 +73,10 @@ export function usePHList() {
         last_seen_at: event.last_observed_at,
       });
     } else if (event.type === "cts_ph_correction") {
-      ctsPh.get(event.ph_id).then((ph) => updateRowInPlace(event.ph_id, ph)).catch(() => {});
+      ctsPh
+        .get(event.ph_id)
+        .then((ph) => updateRowInPlace(event.ph_id, ph))
+        .catch(() => {});
     }
   }
 

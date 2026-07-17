@@ -14,7 +14,7 @@ vi.mock("@/components/common/DialogHeader.vue", () => ({
     </div>`,
     props: ["icon", "label", "title", "closable"],
     emits: ["close"],
-  }
+  },
 }));
 
 vi.mock("@/components/common/DialogFooter.vue", () => ({
@@ -29,7 +29,7 @@ vi.mock("@/components/common/DialogFooter.vue", () => ({
     </div>`,
     props: ["hint", "cancelLabel", "confirmLabel", "confirmLoading", "confirmDisabled"],
     emits: ["cancel", "confirm"],
-  }
+  },
 }));
 
 const vDialog = {
@@ -62,10 +62,10 @@ function mountAppDialog(props, slots = {}) {
         $vuetify: {
           display: {
             smAndDown: false,
-          }
-        }
-      }
-    }
+          },
+        },
+      },
+    },
   });
 }
 

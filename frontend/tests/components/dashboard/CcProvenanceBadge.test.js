@@ -6,7 +6,7 @@
  * - quality value is shown as a percentage
  * - Missing quality renders "unknown", never a fabricated number (D5/rule 15)
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 
 const stubComponents = {

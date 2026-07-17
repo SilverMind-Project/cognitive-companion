@@ -55,13 +55,29 @@ describe("ImageSourceSelector", () => {
   });
 
   it("shows the reCamera selector only for additional/both sources", () => {
-    expect(mountSelector({ modelValue: { image_source: "trigger" } }).find('[data-testid="camera-selector"]').exists()).toBe(false);
-    expect(mountSelector({ modelValue: { image_source: "additional" } }).find('[data-testid="camera-selector"]').exists()).toBe(true);
-    expect(mountSelector({ modelValue: { image_source: "both" } }).find('[data-testid="camera-selector"]').exists()).toBe(true);
+    expect(
+      mountSelector({ modelValue: { image_source: "trigger" } })
+        .find('[data-testid="camera-selector"]')
+        .exists(),
+    ).toBe(false);
+    expect(
+      mountSelector({ modelValue: { image_source: "additional" } })
+        .find('[data-testid="camera-selector"]')
+        .exists(),
+    ).toBe(true);
+    expect(
+      mountSelector({ modelValue: { image_source: "both" } })
+        .find('[data-testid="camera-selector"]')
+        .exists(),
+    ).toBe(true);
   });
 
   it("renders the time filter only when enabled and source is additional/both", () => {
-    expect(mountSelector({ modelValue: { image_source: "additional" } }).find('[data-testid="time-filter"]').exists()).toBe(false);
+    expect(
+      mountSelector({ modelValue: { image_source: "additional" } })
+        .find('[data-testid="time-filter"]')
+        .exists(),
+    ).toBe(false);
     expect(
       mountSelector({ modelValue: { image_source: "additional" }, showTimeFilter: true })
         .find('[data-testid="time-filter"]')
@@ -76,9 +92,17 @@ describe("ImageSourceSelector", () => {
 
   it("hides max images for the none source even when enabled", () => {
     const withMax = mountSelector({ modelValue: { image_source: "trigger" }, showMaxImages: true });
-    expect(withMax.findAll(".v-text-field").some((f) => f.attributes("data-label") === "Max Images (total)")).toBe(true);
+    expect(
+      withMax
+        .findAll(".v-text-field")
+        .some((f) => f.attributes("data-label") === "Max Images (total)"),
+    ).toBe(true);
     const none = mountSelector({ modelValue: { image_source: "none" }, showMaxImages: true });
-    expect(none.findAll(".v-text-field").some((f) => f.attributes("data-label") === "Max Images (total)")).toBe(false);
+    expect(
+      none
+        .findAll(".v-text-field")
+        .some((f) => f.attributes("data-label") === "Max Images (total)"),
+    ).toBe(false);
   });
 
   it("shows the media-window output path field", () => {

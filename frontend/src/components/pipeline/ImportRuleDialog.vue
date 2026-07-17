@@ -1,5 +1,10 @@
 <template>
-  <v-dialog :model-value="modelValue" max-width="700" persistent @update:model-value="$emit('update:modelValue', $event)">
+  <v-dialog
+    :model-value="modelValue"
+    max-width="700"
+    persistent
+    @update:model-value="$emit('update:modelValue', $event)"
+  >
     <v-card>
       <v-card-title class="d-flex align-center">
         <v-icon class="mr-2" color="primary">mdi-package-down</v-icon>
@@ -16,7 +21,9 @@
             @drop.prevent="onDrop"
           >
             <v-icon size="48" color="primary" class="mb-2">mdi-cloud-upload</v-icon>
-            <div class="text-body-1 mb-2">Drop a <code>.cc-rule.yaml</code> or <code>.cc-rule.json</code> file here</div>
+            <div class="text-body-1 mb-2">
+              Drop a <code>.cc-rule.yaml</code> or <code>.cc-rule.json</code> file here
+            </div>
             <div class="text-caption text-medium-emphasis mb-3">or</div>
             <v-btn variant="tonal" prepend-icon="mdi-file" @click="triggerFileInput">
               Choose File
@@ -43,7 +50,13 @@
           <template v-else-if="report">
             <!-- Status banner -->
             <v-alert
-              :type="report.status === 'error' ? 'error' : report.status === 'warning' ? 'warning' : 'success'"
+              :type="
+                report.status === 'error'
+                  ? 'error'
+                  : report.status === 'warning'
+                    ? 'warning'
+                    : 'success'
+              "
               density="compact"
               class="mb-4"
             >
@@ -75,17 +88,15 @@
             <!-- Step import results -->
             <div v-if="report.steps?.length" class="mb-4">
               <div class="text-caption font-weight-bold mb-2">Step Status</div>
-              <div
-                v-for="s in report.steps"
-                :key="s.label"
-                class="d-flex align-center ga-2 py-1"
-              >
+              <div v-for="s in report.steps" :key="s.label" class="d-flex align-center ga-2 py-1">
                 <v-chip size="x-small" :color="stepStatusColor(s.status)">
                   {{ s.status }}
                 </v-chip>
                 <span class="text-body-2">{{ s.label }}</span>
                 <span class="text-caption text-medium-emphasis">{{ s.step_type }}</span>
-                <span v-if="s.description" class="text-caption text-medium-emphasis">— {{ s.description }}</span>
+                <span v-if="s.description" class="text-caption text-medium-emphasis"
+                  >— {{ s.description }}</span
+                >
               </div>
             </div>
 
@@ -118,7 +129,8 @@
               density="compact"
               variant="tonal"
             >
-              This bundle requires Cognitive Companion v{{ report.min_app_version_required }} or newer.
+              This bundle requires Cognitive Companion v{{ report.min_app_version_required }} or
+              newer.
             </v-alert>
           </template>
         </template>
@@ -153,7 +165,7 @@ import { useRouter } from "vue-router";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
 });
 
@@ -177,11 +189,16 @@ function triggerFileInput() {
 
 function stepStatusColor(status) {
   switch (status) {
-    case "ok": return "success";
-    case "migrated": return "info";
-    case "warning": return "warning";
-    case "error": return "error";
-    default: return "grey";
+    case "ok":
+      return "success";
+    case "migrated":
+      return "info";
+    case "warning":
+      return "warning";
+    case "error":
+      return "error";
+    default:
+      return "grey";
   }
 }
 
@@ -195,7 +212,9 @@ async function parseFile(file) {
     // Simple YAML parsing for the basic bundle structure
     // A full YAML parser would be heavy; we accept JSON for now and show
     // a helpful message for YAML files
-    throw new Error("YAML files are not yet supported in the browser. Please use JSON export format.");
+    throw new Error(
+      "YAML files are not yet supported in the browser. Please use JSON export format.",
+    );
   }
   throw new Error(`Unsupported file type: .${ext}. Please use .json files.`);
 }
@@ -276,7 +295,9 @@ function close() {
   border: 2px dashed var(--cc-divider);
   border-radius: var(--cc-radius-lg);
   background: var(--cc-surface-2);
-  transition: border-color 0.2s, background-color 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
   cursor: pointer;
 }
 

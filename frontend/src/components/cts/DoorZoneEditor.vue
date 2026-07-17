@@ -70,7 +70,8 @@
                     :x="toCanvas(centroid(zone.polygon)).x"
                     :y="toCanvas(centroid(zone.polygon)).y"
                     class="door-zone-label"
-                  >{{ zone.name }}</text>
+                    >{{ zone.name }}</text
+                  >
                 </template>
                 <line
                   v-if="zone.direction_vec"
@@ -79,7 +80,6 @@
                   marker-end="url(#door-zone-arrow)"
                 />
               </g>
-
             </g>
             <defs>
               <marker
@@ -134,9 +134,7 @@
           <div class="d-flex align-center mb-3">
             <span class="text-subtitle-2">{{ editingZone ? "Edit Zone" : "New Zone" }}</span>
             <v-spacer />
-            <v-btn v-if="editingZone" size="small" variant="text" @click="resetForm">
-              New
-            </v-btn>
+            <v-btn v-if="editingZone" size="small" variant="text" @click="resetForm"> New </v-btn>
           </div>
 
           <v-text-field
@@ -195,18 +193,14 @@
             >
               Direction
             </v-btn>
-            <v-btn
-              size="small"
-              variant="tonal"
-              :disabled="!scaleReady"
-              @click="useRectangle"
-            >
+            <v-btn size="small" variant="tonal" :disabled="!scaleReady" @click="useRectangle">
               Rectangle
             </v-btn>
           </div>
 
           <div class="text-caption text-medium-emphasis mb-3">
-            {{ polygon.length }} vertices · {{ directionVec ? "direction set" : "direction needed" }}
+            {{ polygon.length }} vertices ·
+            {{ directionVec ? "direction set" : "direction needed" }}
           </div>
 
           <div class="d-flex ga-2">
@@ -327,7 +321,9 @@ const activeTool = ref("polygon");
 const editingZone = ref(null);
 const saving = ref(false);
 
-const scaleReady = computed(() => Boolean(props.floorPlanUrl && props.canvasW > 0 && props.canvasH > 0 && props.fpMpp));
+const scaleReady = computed(() =>
+  Boolean(props.floorPlanUrl && props.canvasW > 0 && props.canvasH > 0 && props.fpMpp),
+);
 const canEditPolygon = computed(() => scaleReady.value && activeTool.value !== "direction");
 const drawableRooms = computed(() => props.rooms.filter((room) => room.floor_polygon?.length >= 3));
 const polygonShapes = computed(() => {
@@ -339,14 +335,15 @@ const directionVec = computed(() => {
   return normalizedDirection(directionStart.value, directionEnd.value);
 });
 const directionLine = computed(() => directionStart.value && directionEnd.value);
-const canSave = computed(() =>
-  scaleReady.value
-  && form.name.trim().length > 0
-  && form.inside_room_id != null
-  && form.outside_room_id != null
-  && form.inside_room_id !== form.outside_room_id
-  && polygon.value.length >= 3
-  && directionVec.value != null
+const canSave = computed(
+  () =>
+    scaleReady.value &&
+    form.name.trim().length > 0 &&
+    form.inside_room_id != null &&
+    form.outside_room_id != null &&
+    form.inside_room_id !== form.outside_room_id &&
+    polygon.value.length >= 3 &&
+    directionVec.value != null,
 );
 
 function round4(value) {
@@ -374,10 +371,12 @@ function centroid(points) {
 }
 
 function pointsString(points, toCanvas) {
-  return points.map((point) => {
-    const canvas = toCanvas(point);
-    return `${canvas.x},${canvas.y}`;
-  }).join(" ");
+  return points
+    .map((point) => {
+      const canvas = toCanvas(point);
+      return `${canvas.x},${canvas.y}`;
+    })
+    .join(" ");
 }
 
 function roomName(roomId) {
@@ -502,7 +501,7 @@ async function saveZone() {
 async function deleteZone(zone) {
   const ok = await showConfirm(
     "Delete Door Zone",
-    `Delete "${zone.name}"? Transit detection for this doorway will stop.`
+    `Delete "${zone.name}"? Transit detection for this doorway will stop.`,
   );
   if (!ok) return;
   try {

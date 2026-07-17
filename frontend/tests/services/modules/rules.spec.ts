@@ -11,7 +11,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import { ApiError, API_KEY_STORAGE_KEY } from "@/services/http";
 import { getSampleImage, getPipelineRuns } from "@/services/modules/pipeline";
-import { getRule, getRules, deleteRule, executeRule, replaceRuleEdges } from "@/services/modules/rules";
+import {
+  getRule,
+  getRules,
+  deleteRule,
+  executeRule,
+  replaceRuleEdges,
+} from "@/services/modules/rules";
 import { getWorkflows } from "@/services/modules/workflows";
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -31,7 +37,6 @@ function stubFetch(status: number, body: unknown) {
 function requestedUrl(fetchMock: ReturnType<typeof vi.fn>): string {
   return (fetchMock.mock.calls[0][0] as Request).url;
 }
-
 
 /**
  * Await a call expected to fail, and return its ApiError.

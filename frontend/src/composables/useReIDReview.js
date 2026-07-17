@@ -164,9 +164,7 @@ export function useReIDReview(notify) {
   function _baseVersion(candidateId) {
     const row =
       candidates.value.find((c) => c.candidate_id === candidateId) ||
-      (detail.value?.candidate?.candidate_id === candidateId
-        ? detail.value.candidate
-        : null);
+      (detail.value?.candidate?.candidate_id === candidateId ? detail.value.candidate : null);
     return row?.audit_version;
   }
 

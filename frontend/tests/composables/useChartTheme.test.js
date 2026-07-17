@@ -66,11 +66,22 @@ function setLightTokens() {
 
 function clearTokens() {
   [
-    "--cc-chart-1", "--cc-chart-2", "--cc-chart-3", "--cc-chart-4",
-    "--cc-chart-5", "--cc-chart-6",
-    "--cc-brand", "--cc-success", "--cc-warning", "--cc-error",
-    "--cc-text-1", "--cc-text-2", "--cc-text-3",
-    "--cc-divider", "--cc-bg-elevated", "--cc-glass-border",
+    "--cc-chart-1",
+    "--cc-chart-2",
+    "--cc-chart-3",
+    "--cc-chart-4",
+    "--cc-chart-5",
+    "--cc-chart-6",
+    "--cc-brand",
+    "--cc-success",
+    "--cc-warning",
+    "--cc-error",
+    "--cc-text-1",
+    "--cc-text-2",
+    "--cc-text-3",
+    "--cc-divider",
+    "--cc-bg-elevated",
+    "--cc-glass-border",
   ].forEach((t) => document.documentElement.style.removeProperty(t));
 }
 
@@ -101,8 +112,12 @@ describe("useChartTheme", () => {
     expect(palette.length).toBeGreaterThan(0);
     // Every color in the palette must match one of the DS chart sentinel values
     const sentinels = new Set([
-      "#SENTINEL-CHART1-DARK", "#SENTINEL-CHART2-DARK", "#SENTINEL-CHART3-DARK",
-      "#SENTINEL-CHART4-DARK", "#SENTINEL-CHART5-DARK", "#SENTINEL-CHART6-DARK",
+      "#SENTINEL-CHART1-DARK",
+      "#SENTINEL-CHART2-DARK",
+      "#SENTINEL-CHART3-DARK",
+      "#SENTINEL-CHART4-DARK",
+      "#SENTINEL-CHART5-DARK",
+      "#SENTINEL-CHART6-DARK",
     ]);
     for (const c of palette) {
       expect(sentinels.has(c), `Expected "${c}" to be a sentinel token value`).toBe(true);

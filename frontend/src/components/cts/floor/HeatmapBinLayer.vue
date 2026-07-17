@@ -18,7 +18,7 @@
       class="layer-empty-text"
       :font-size="emptyFontSize"
     >
-      {{ error || 'Select a person and date range, then click Generate.' }}
+      {{ error || "Select a person and date range, then click Generate." }}
     </text>
   </g>
 </template>
@@ -27,10 +27,10 @@
 import { computed } from "vue";
 
 const props = defineProps({
-  bins:    { type: Array,   required: true },
+  bins: { type: Array, required: true },
   loading: { type: Boolean, default: false },
-  error:   { type: String,  default: null },
-  canvasH: { type: Number,  required: true },
+  error: { type: String, default: null },
+  canvasH: { type: Number, required: true },
 });
 
 const emptyFontSize = computed(() => Math.round(props.canvasH * 0.025));

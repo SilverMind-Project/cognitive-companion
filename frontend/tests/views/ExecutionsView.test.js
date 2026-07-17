@@ -54,15 +54,18 @@ vi.mock("@/components/pipeline/ExecutionInspector.vue", () => ({
 }));
 
 vi.mock("@/components/process/CcLiveActivityFeed.vue", () => ({
-  default: { template: '<div data-testid="cc-live-activity-feed" />', props: ["events", "maxHeight"] },
+  default: {
+    template: '<div data-testid="cc-live-activity-feed" />',
+    props: ["events", "maxHeight"],
+  },
 }));
 
 vi.mock("@/components/process/CcStatusTimeline.vue", () => ({
-  default: { template: '<div />', props: ["lanes", "events", "loading"] },
+  default: { template: "<div />", props: ["lanes", "events", "loading"] },
 }));
 
 vi.mock("@/components/dashboard/CcMetricTile.vue", () => ({
-  default: { template: '<div />', props: ["label", "value", "status"] },
+  default: { template: "<div />", props: ["label", "value", "status"] },
 }));
 
 import ExecutionsView from "../../src/views/admin/ExecutionsView.vue";
@@ -84,24 +87,36 @@ const HISTORY_ROW = {
 };
 
 const stubs = {
-  "v-row": { template: '<div><slot /></div>' },
-  "v-col": { template: '<div><slot /></div>', props: ["cols", "sm", "md"] },
-  "v-card": { template: '<section><slot /></section>' },
-  "v-card-title": { template: '<div><slot /></div>' },
-  "v-card-text": { template: '<div><slot /></div>' },
-  "v-alert": { template: '<div><slot /></div>', props: ["type", "variant", "density"] },
-  "v-btn": { template: '<button @click="$emit(\'click\')"><slot /></button>', props: ["size", "variant", "prependIcon"] },
-  "v-chip": { template: '<span><slot /></span>', props: ["color", "size", "variant", "prependIcon"] },
-  "v-spacer": { template: '<div />' },
-  "v-tabs": { template: '<div><slot /></div>', props: ["modelValue", "color"] },
-  "v-tab": { template: '<button><slot /></button>', props: ["value"] },
-  "v-window": { template: '<div><slot /></div>', props: ["modelValue"] },
-  "v-window-item": { template: '<div><slot /></div>', props: ["value"] },
-  "v-list": { template: '<ul><slot /></ul>', props: ["density"] },
-  "v-list-item": { template: '<li @click="$emit(\'click\')">{{ title }} {{ subtitle }}<slot name="append" /></li>', props: ["title", "subtitle", "active"] },
-  "v-select": { template: '<select />', props: ["modelValue", "items", "label"] },
-  "v-data-table": { template: '<div data-testid="history-table"><slot name="no-data" /></div>', props: ["headers", "items", "loading", "itemValue"] },
-  "v-progress-circular": { template: '<div />' },
+  "v-row": { template: "<div><slot /></div>" },
+  "v-col": { template: "<div><slot /></div>", props: ["cols", "sm", "md"] },
+  "v-card": { template: "<section><slot /></section>" },
+  "v-card-title": { template: "<div><slot /></div>" },
+  "v-card-text": { template: "<div><slot /></div>" },
+  "v-alert": { template: "<div><slot /></div>", props: ["type", "variant", "density"] },
+  "v-btn": {
+    template: "<button @click=\"$emit('click')\"><slot /></button>",
+    props: ["size", "variant", "prependIcon"],
+  },
+  "v-chip": {
+    template: "<span><slot /></span>",
+    props: ["color", "size", "variant", "prependIcon"],
+  },
+  "v-spacer": { template: "<div />" },
+  "v-tabs": { template: "<div><slot /></div>", props: ["modelValue", "color"] },
+  "v-tab": { template: "<button><slot /></button>", props: ["value"] },
+  "v-window": { template: "<div><slot /></div>", props: ["modelValue"] },
+  "v-window-item": { template: "<div><slot /></div>", props: ["value"] },
+  "v-list": { template: "<ul><slot /></ul>", props: ["density"] },
+  "v-list-item": {
+    template: '<li @click="$emit(\'click\')">{{ title }} {{ subtitle }}<slot name="append" /></li>',
+    props: ["title", "subtitle", "active"],
+  },
+  "v-select": { template: "<select />", props: ["modelValue", "items", "label"] },
+  "v-data-table": {
+    template: '<div data-testid="history-table"><slot name="no-data" /></div>',
+    props: ["headers", "items", "loading", "itemValue"],
+  },
+  "v-progress-circular": { template: "<div />" },
 };
 
 function mountView() {

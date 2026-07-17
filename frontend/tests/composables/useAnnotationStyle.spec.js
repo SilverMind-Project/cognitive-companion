@@ -8,21 +8,17 @@
  *     color equals the exact pre-refactor hardcoded hex. This ensures ccDark /
  *     ccLight are visually unchanged after the M1 refactor.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  HALO,
-  MAP_LABEL,
-  postureColor,
-} from "@/composables/useAnnotationStyle.js";
+import { describe, it, expect, afterEach } from "vitest";
+import { HALO, MAP_LABEL, postureColor } from "@/composables/useAnnotationStyle.js";
 
 const PRIOR = {
-  haloCamera:   "rgba(0,0,0,0.70)",
-  haloLight:    "rgba(255,255,255,0.92)",
+  haloCamera: "rgba(0,0,0,0.70)",
+  haloLight: "rgba(255,255,255,0.92)",
   annotationInk: "#1e293b",
   standing: "#4ade80",
-  sitting:  "#fbbf24",
-  walking:  "#60a5fa",
-  lying:    "#c084fc",
+  sitting: "#fbbf24",
+  walking: "#60a5fa",
+  lying: "#c084fc",
 };
 
 function setToken(name, value) {
@@ -106,10 +102,10 @@ describe("postureColor", () => {
   afterEach(clearTokens);
 
   it.each([
-    ["standing", PRIOR.standing,  "--cc-posture-standing"],
-    ["sitting",  PRIOR.sitting,   "--cc-posture-sitting"],
-    ["walking",  PRIOR.walking,   "--cc-posture-walking"],
-    ["lying",    PRIOR.lying,     "--cc-posture-lying"],
+    ["standing", PRIOR.standing, "--cc-posture-standing"],
+    ["sitting", PRIOR.sitting, "--cc-posture-sitting"],
+    ["walking", PRIOR.walking, "--cc-posture-walking"],
+    ["lying", PRIOR.lying, "--cc-posture-lying"],
   ])("%s fallback equals prior hex when token is unset", (posture, expected) => {
     expect(postureColor(posture)).toBe(expected);
   });

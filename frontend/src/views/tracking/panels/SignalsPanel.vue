@@ -5,13 +5,27 @@
       description="Explore generated tracking signals, severity, provenance, and supporting evidence."
     >
       <template #actions>
-        <v-btn variant="tonal" prepend-icon="mdi-refresh" size="small" :loading="loading" @click="loadSignals">
+        <v-btn
+          variant="tonal"
+          prepend-icon="mdi-refresh"
+          size="small"
+          :loading="loading"
+          @click="loadSignals"
+        >
           Refresh
         </v-btn>
       </template>
     </TrackingPanelHeader>
 
-    <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-4" closable @click:close="error = ''">
+    <v-alert
+      v-if="error"
+      type="error"
+      variant="tonal"
+      density="compact"
+      class="mb-4"
+      closable
+      @click:close="error = ''"
+    >
       {{ error }}
     </v-alert>
 
@@ -64,10 +78,18 @@
         <CcSectionCard title="Top rooms">
           <div v-for="(count, room) in topRooms" :key="room" class="d-flex align-center ga-2 mb-1">
             <span class="text-caption" style="min-width: 80px">{{ room }}</span>
-            <v-progress-linear :model-value="(count / maxRoomCount) * 100" height="6" rounded color="primary" />
+            <v-progress-linear
+              :model-value="(count / maxRoomCount) * 100"
+              height="6"
+              rounded
+              color="primary"
+            />
             <span class="text-caption text-medium-emphasis">{{ count }}</span>
           </div>
-          <div v-if="Object.keys(topRooms).length === 0 && !loading" class="text-caption text-medium-emphasis">
+          <div
+            v-if="Object.keys(topRooms).length === 0 && !loading"
+            class="text-caption text-medium-emphasis"
+          >
             No room data.
           </div>
         </CcSectionCard>
@@ -86,14 +108,23 @@
         @click:row="openEvidence"
       >
         <template #item.signal_type="{ item }">
-          <v-chip size="x-small" variant="tonal">{{ (item.signal_type || "").replace(/_/g, " ") }}</v-chip>
+          <v-chip size="x-small" variant="tonal">{{
+            (item.signal_type || "").replace(/_/g, " ")
+          }}</v-chip>
         </template>
         <template #item.severity="{ item }">
           <v-chip
             size="x-small"
-            :color="item.severity === 'emergency' ? 'error' : item.severity === 'warning' ? 'warning' : 'info'"
+            :color="
+              item.severity === 'emergency'
+                ? 'error'
+                : item.severity === 'warning'
+                  ? 'warning'
+                  : 'info'
+            "
             variant="tonal"
-          >{{ item.severity }}</v-chip>
+            >{{ item.severity }}</v-chip
+          >
         </template>
         <template #item.source="{ item }">
           <CcProvenanceBadge
@@ -119,34 +150,47 @@
                   color="success"
                   :loading="feedbackPending[item.id] === 'accurate'"
                   @click.stop="submitFeedback(item, 'accurate')"
-                >Accurate</v-btn>
+                  >Accurate</v-btn
+                >
                 <v-btn
                   size="x-small"
                   variant="tonal"
                   color="error"
                   :loading="feedbackPending[item.id] === 'inaccurate'"
                   @click.stop="submitFeedback(item, 'inaccurate')"
-                >Not agitation</v-btn>
+                  >Not agitation</v-btn
+                >
                 <v-btn
                   size="x-small"
                   variant="tonal"
                   color="warning"
                   :loading="feedbackPending[item.id] === 'unsure'"
                   @click.stop="submitFeedback(item, 'unsure')"
-                >Unsure</v-btn>
+                  >Unsure</v-btn
+                >
               </template>
             </template>
-            <v-btn size="x-small" variant="text" @click.stop="openEvidence(null, { item })">Evidence</v-btn>
+            <v-btn size="x-small" variant="text" @click.stop="openEvidence(null, { item })"
+              >Evidence</v-btn
+            >
           </div>
         </template>
         <template #no-data>
-          <div class="pa-4 text-center text-medium-emphasis">No signals match the current filters.</div>
+          <div class="pa-4 text-center text-medium-emphasis">
+            No signals match the current filters.
+          </div>
         </template>
       </v-data-table>
     </v-card>
 
     <!-- Evidence drawer -->
-    <v-navigation-drawer v-model="drawerOpen" location="right" width="480" temporary class="cc-drawer-right">
+    <v-navigation-drawer
+      v-model="drawerOpen"
+      location="right"
+      width="480"
+      temporary
+      class="cc-drawer-right"
+    >
       <div class="h-100 d-flex flex-column">
         <div class="d-flex align-center px-4 py-3">
           <span class="text-subtitle-1 font-weight-semibold">Evidence</span>
@@ -183,7 +227,8 @@
                   size="x-small"
                   :color="seg.is_inferred ? 'warning' : 'success'"
                   variant="tonal"
-                >{{ seg.room_name || "Room " + seg.room_id }}</v-chip>
+                  >{{ seg.room_name || "Room " + seg.room_id }}</v-chip
+                >
                 <span class="text-medium-emphasis">{{ formatDuration(seg.dwell_seconds) }}</span>
               </div>
             </template>
@@ -218,13 +263,13 @@ const aggregates = ref({ by_kind: {}, by_room: {} });
 const feedbackPending = ref({});
 
 const headers = [
-  { title: "Kind",      key: "signal_type", width: 160 },
-  { title: "Severity",  key: "severity",    width: 100 },
-  { title: "Person",    key: "person_id",   width: 120 },
-  { title: "Room",      key: "room_name",   width: 120 },
-  { title: "Source",    key: "source",      width: 140 },
-  { title: "Fired at",  key: "fired_at",    width: 140 },
-  { title: "",          key: "actions",     width: 260 },
+  { title: "Kind", key: "signal_type", width: 160 },
+  { title: "Severity", key: "severity", width: 100 },
+  { title: "Person", key: "person_id", width: 120 },
+  { title: "Room", key: "room_name", width: 120 },
+  { title: "Source", key: "source", width: 140 },
+  { title: "Fired at", key: "fired_at", width: 140 },
+  { title: "", key: "actions", width: 260 },
 ];
 
 const kindOptions = vocabularies.signal_kinds.map((k) => ({
@@ -236,11 +281,16 @@ const kindBars = computed(() => {
   const byKind = aggregates.value.by_kind || {};
   return Object.entries(byKind)
     .sort((a, b) => b[1] - a[1])
-    .map(([kind, count]) => ({ kind, count: typeof count === "number" ? count : count.count ?? 0 }));
+    .map(([kind, count]) => ({
+      kind,
+      count: typeof count === "number" ? count : (count.count ?? 0),
+    }));
 });
 
 const topRooms = computed(() => {
-  const entries = Object.entries(aggregates.value.by_room || {}).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const entries = Object.entries(aggregates.value.by_room || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
   return Object.fromEntries(entries);
 });
 
@@ -289,7 +339,7 @@ async function submitFeedback(item, verdict) {
   try {
     await cts.acknowledgeSignal(item.id, verdict);
     signals.value = signals.value.map((s) =>
-      s.id === item.id ? { ...s, feedback: verdict, acknowledged_at: new Date().toISOString() } : s
+      s.id === item.id ? { ...s, feedback: verdict, acknowledged_at: new Date().toISOString() } : s,
     );
     notify("Feedback recorded", "success");
   } catch (e) {

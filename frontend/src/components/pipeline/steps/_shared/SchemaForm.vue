@@ -168,7 +168,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed, defineAsyncComponent } from "vue";
+import { reactive, watch, computed, defineAsyncComponent } from "vue";
 import CronBuilder from "../../CronBuilder.vue";
 
 const TemplateInput = defineAsyncComponent(() => import("./TemplateInput.vue"));

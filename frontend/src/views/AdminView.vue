@@ -24,18 +24,36 @@
       </template>
 
       <!-- Scrollable nav body -->
-      <div class="nav-body" ref="navBodyRef" @scroll="updateScrollFade">
-        <div class="nav-fade nav-fade--top" :class="{ 'is-visible': showTopFade }" aria-hidden="true"></div>
+      <div ref="navBodyRef" class="nav-body" @scroll="updateScrollFade">
+        <div
+          class="nav-fade nav-fade--top"
+          :class="{ 'is-visible': showTopFade }"
+          aria-hidden="true"
+        ></div>
 
         <v-list density="comfortable" nav>
-          <v-list-item rounded="lg" prepend-icon="mdi-home-variant-outline" title="Companion" to="/companion" />
+          <v-list-item
+            rounded="lg"
+            prepend-icon="mdi-home-variant-outline"
+            title="Companion"
+            to="/companion"
+          />
           <v-divider class="my-2 mx-3" />
-          <v-list-item rounded="lg" prepend-icon="mdi-view-dashboard-outline" title="Dashboard" to="/admin/dashboard" />
+          <v-list-item
+            rounded="lg"
+            prepend-icon="mdi-view-dashboard-outline"
+            title="Dashboard"
+            to="/admin/dashboard"
+          />
 
           <template v-for="section in navSections" :key="section.key">
             <v-list-subheader
               class="nav-section-header"
-              :title="collapsedSections[section.key] ? 'Expand ' + section.title : 'Collapse ' + section.title"
+              :title="
+                collapsedSections[section.key]
+                  ? 'Expand ' + section.title
+                  : 'Collapse ' + section.title
+              "
               @click="toggleSection(section.key)"
             >
               <span class="nav-section-title">{{ section.title }}</span>
@@ -43,7 +61,8 @@
                 size="16"
                 class="nav-section-chevron"
                 :class="{ 'is-collapsed': collapsedSections[section.key] }"
-              >mdi-chevron-down</v-icon>
+                >mdi-chevron-down</v-icon
+              >
             </v-list-subheader>
 
             <v-list-item
@@ -58,7 +77,11 @@
           </template>
         </v-list>
 
-        <div class="nav-fade nav-fade--bottom" :class="{ 'is-visible': showBottomFade }" aria-hidden="true"></div>
+        <div
+          class="nav-fade nav-fade--bottom"
+          :class="{ 'is-visible': showBottomFade }"
+          aria-hidden="true"
+        ></div>
       </div>
 
       <!-- Fixed footer: pin toggle -->
@@ -92,7 +115,7 @@
         :title="alertTooltip"
         @click="$router.push('/admin/alerts')"
       >
-        {{ alertCount }} alert{{ alertCount !== 1 ? 's' : '' }}
+        {{ alertCount }} alert{{ alertCount !== 1 ? "s" : "" }}
       </v-btn>
       <MaraudersToggle />
       <v-btn icon="mdi-refresh" variant="text" title="Reload config" @click="reloadConfig" />
@@ -133,7 +156,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </v-app>
 </template>
 
@@ -229,9 +251,9 @@ const navSections = [
     key: "automation",
     title: "Automation",
     items: [
-      { to: "/admin/rules",     icon: "mdi-shield-check-outline", title: "Rules"     },
-      { to: "/admin/executions", icon: "mdi-sitemap-outline",      title: "Executions" },
-      { to: "/admin/events",    icon: "mdi-calendar-text-outline", title: "Events"    },
+      { to: "/admin/rules", icon: "mdi-shield-check-outline", title: "Rules" },
+      { to: "/admin/executions", icon: "mdi-sitemap-outline", title: "Executions" },
+      { to: "/admin/events", icon: "mdi-calendar-text-outline", title: "Events" },
     ],
   },
   {
@@ -248,19 +270,23 @@ const navSections = [
     key: "tracking",
     title: "Tracking",
     items: [
-      { to: "/admin/tracking", icon: "mdi-view-dashboard-variant-outline", title: "Tracking Workspace" },
+      {
+        to: "/admin/tracking",
+        icon: "mdi-view-dashboard-variant-outline",
+        title: "Tracking Workspace",
+      },
     ],
   },
   {
     key: "tracking-setup",
     title: "Tracking - Setup",
     items: [
-      { to: "/admin/cts/cameras",     icon: "mdi-cctv",                   title: "Cameras"         },
-      { to: "/admin/cts/calibration", icon: "mdi-crosshairs-gps",         title: "Calibration"     },
-      { to: "/admin/cts/privacy",     icon: "mdi-eye-off-outline",         title: "Privacy Zones"   },
-      { to: "/admin/cts/adjacency",   icon: "mdi-graph-outline",           title: "Camera Adjacency"},
-      { to: "/admin/cts/keyframes",   icon: "mdi-image-search-outline",    title: "Keyframes"       },
-      { to: "/admin/cts/reid-review", icon: "mdi-account-check-outline",   title: "ReID Review"     },
+      { to: "/admin/cts/cameras", icon: "mdi-cctv", title: "Cameras" },
+      { to: "/admin/cts/calibration", icon: "mdi-crosshairs-gps", title: "Calibration" },
+      { to: "/admin/cts/privacy", icon: "mdi-eye-off-outline", title: "Privacy Zones" },
+      { to: "/admin/cts/adjacency", icon: "mdi-graph-outline", title: "Camera Adjacency" },
+      { to: "/admin/cts/keyframes", icon: "mdi-image-search-outline", title: "Keyframes" },
+      { to: "/admin/cts/reid-review", icon: "mdi-account-check-outline", title: "ReID Review" },
     ],
   },
   {
@@ -452,6 +478,4 @@ onMounted(() => {
 .nav-footer {
   padding-bottom: 4px;
 }
-
-
 </style>

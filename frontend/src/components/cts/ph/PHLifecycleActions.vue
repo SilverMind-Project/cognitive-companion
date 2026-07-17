@@ -32,7 +32,8 @@
           </button>
         </div>
         <v-alert v-else type="info" density="compact" variant="tonal" class="mb-2">
-          No nearby or table-visible merge candidates. Filter the table to the likely track and inspect it from there.
+          No nearby or table-visible merge candidates. Filter the table to the likely track and
+          inspect it from there.
         </v-alert>
         <v-text-field
           v-model="mergeReason"
@@ -117,7 +118,7 @@ export default {
         .map((obs) => ({
           title: `${formatRelative(obs.captured_at)} · ${obs.camera_id || "camera"} · ${obs.observation_id}`,
           value: obs.observation_id,
-        }))
+        })),
     );
 
     function shortPhId(phId) {
@@ -129,7 +130,7 @@ export default {
       (id) => {
         if (id) splitObsId.value = id;
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     return {

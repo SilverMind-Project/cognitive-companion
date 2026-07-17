@@ -24,13 +24,7 @@
       :opacity="m.ph.state === 'coasting' ? 0.55 : 1"
       @click="$emit('phClick', m.ph)"
     >
-      <circle
-        :cx="m.x"
-        :cy="m.y"
-        :r="MARKER.innerR"
-        :fill="m.color"
-        fill-opacity="0.5"
-      />
+      <circle :cx="m.x" :cy="m.y" :r="MARKER.innerR" :fill="m.color" fill-opacity="0.5" />
       <path
         :d="headRing(m.ph)"
         :transform="`translate(${m.x},${m.y})`"
@@ -75,22 +69,24 @@ import { MARKER, MAP_LABEL } from "@/composables/useAnnotationStyle.js";
 import MaraudersFootprintGlyph from "@/components/marauders/MaraudersFootprintGlyph.vue";
 
 const props = defineProps({
-  markers:       { type: Array,   required: true },
-  phCount:       { type: Number,  required: true },
-  canvasH:       { type: Number,  required: true },
-  trails:        { type: Object,  required: true },   // reactive Map from trailBuffers
-  nowMs:         { type: Number,  required: true },
-  fpWidth:       { type: Number,  default: null },
-  fpHeight:      { type: Number,  default: null },
-  fpMpp:         { type: Number,  default: null },
-  canvasW:       { type: Number,  default: null },
+  markers: { type: Array, required: true },
+  phCount: { type: Number, required: true },
+  canvasH: { type: Number, required: true },
+  trails: { type: Object, required: true }, // reactive Map from trailBuffers
+  nowMs: { type: Number, required: true },
+  fpWidth: { type: Number, default: null },
+  fpHeight: { type: Number, default: null },
+  fpMpp: { type: Number, default: null },
+  canvasW: { type: Number, default: null },
   reducedMotion: { type: Boolean, default: false },
 });
 
 defineEmits(["phClick"]);
 
 const { actions: ftActions } = useFootprintTrail();
-const { actions: { path: roughPath, seedFrom } } = useRoughSketch();
+const {
+  actions: { path: roughPath, seedFrom },
+} = useRoughSketch();
 
 // Build color map from markers so we only show footsteps for calibrated PHs.
 const colorsByPh = computed(() => {
@@ -110,13 +106,9 @@ const footsteps = computed(() => {
     canvasW: props.canvasW,
     canvasH: props.canvasH,
   };
-  return ftActions.computeFootsteps(
-    props.trails,
-    colorsByPh.value,
-    props.nowMs,
-    canvas,
-    { reducedMotion: props.reducedMotion }
-  );
+  return ftActions.computeFootsteps(props.trails, colorsByPh.value, props.nowMs, canvas, {
+    reducedMotion: props.reducedMotion,
+  });
 });
 
 // Sepia ink for footstep edges and the hand-drawn head ring (parchment theme).
@@ -149,8 +141,12 @@ const emptyFontSize = computed(() => Math.round(props.canvasH * 0.025));
 </script>
 
 <style scoped>
-.mm-head { cursor: pointer; }
-.mm-head-label { pointer-events: none; }
+.mm-head {
+  cursor: pointer;
+}
+.mm-head-label {
+  pointer-events: none;
+}
 .layer-empty-text {
   fill: var(--cc-text-3);
 }

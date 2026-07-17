@@ -3,7 +3,12 @@
     <div v-if="!events.length" class="pa-4 text-center text-medium-emphasis">
       <slot name="empty">No activity yet</slot>
     </div>
-    <div v-else ref="listEl" class="cc-feed-list overflow-y-auto" :style="{ maxHeight: maxHeight + 'px' }">
+    <div
+      v-else
+      ref="listEl"
+      class="cc-feed-list overflow-y-auto"
+      :style="{ maxHeight: maxHeight + 'px' }"
+    >
       <div
         v-for="event in visibleEvents"
         :key="event.id"
@@ -80,7 +85,7 @@ watch(
         listEl.value.scrollTop = listEl.value.scrollHeight;
       }
     });
-  }
+  },
 );
 
 defineExpose({ visibleEvents, formatTimestamp });

@@ -7,7 +7,10 @@
       {{ error }}
     </v-alert>
 
-    <div v-else-if="!ph || (!topLabel && !hasObservations)" class="text-caption text-medium-emphasis">
+    <div
+      v-else-if="!ph || (!topLabel && !hasObservations)"
+      class="text-caption text-medium-emphasis"
+    >
       No identity evidence recorded.
     </div>
 
@@ -34,16 +37,12 @@
           rounded
         />
         <div v-if="confidencePercent !== null" class="posterior-gauge mt-3">
-          <CcGaugeChart
-            :value="confidencePercent"
-            label="Confidence"
-            unit="%"
-          />
+          <CcGaugeChart :value="confidencePercent" label="Confidence" unit="%" />
         </div>
       </div>
 
       <div class="text-caption text-medium-emphasis">
-        {{ observations.length }} observation{{ observations.length !== 1 ? 's' : '' }} recorded.
+        {{ observations.length }} observation{{ observations.length !== 1 ? "s" : "" }} recorded.
       </div>
     </template>
   </div>
@@ -65,9 +64,7 @@ export default {
   },
   setup(props) {
     const hasObservations = computed(() => props.observations.length > 0);
-    const topLabel = computed(() =>
-      props.ph?.posterior_top_label || null
-    );
+    const topLabel = computed(() => props.ph?.posterior_top_label || null);
     const confidencePercent = computed(() => {
       const prob = props.ph?.posterior_top_prob;
       if (prob === null || prob === undefined) return null;
@@ -82,7 +79,12 @@ export default {
 </script>
 
 <style scoped>
-.posterior-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.posterior-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 .posterior-gauge {
   height: 150px;
 }

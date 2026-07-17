@@ -48,8 +48,22 @@ const ROUTINE = {
 };
 
 const STEPS = [
-  { id: 10, routine_id: 1, ord: 0, prompt_template: "Boil water.", completion_gate: { kinds: ["response"] }, is_safety_critical: false },
-  { id: 11, routine_id: 1, ord: 1, prompt_template: "Pour water.", completion_gate: { kinds: ["response"] }, is_safety_critical: false },
+  {
+    id: 10,
+    routine_id: 1,
+    ord: 0,
+    prompt_template: "Boil water.",
+    completion_gate: { kinds: ["response"] },
+    is_safety_critical: false,
+  },
+  {
+    id: 11,
+    routine_id: 1,
+    ord: 1,
+    prompt_template: "Pour water.",
+    completion_gate: { kinds: ["response"] },
+    is_safety_critical: false,
+  },
 ];
 
 describe("useRoutineBuilder", () => {
@@ -110,14 +124,17 @@ describe("useRoutineBuilder", () => {
   });
 
   it("saveSteps calls API with current steps", async () => {
-    const { state, actions } = mountComposable();
+    const { actions } = mountComposable();
     await actions.load(1);
     await flushPromises();
     await actions.saveSteps();
     await flushPromises();
     expect(mockApi.replaceRoutineSteps).toHaveBeenCalledWith(
       1,
-      expect.arrayContaining([expect.objectContaining({ ord: 0 }), expect.objectContaining({ ord: 1 })]),
+      expect.arrayContaining([
+        expect.objectContaining({ ord: 0 }),
+        expect.objectContaining({ ord: 1 }),
+      ]),
     );
   });
 });

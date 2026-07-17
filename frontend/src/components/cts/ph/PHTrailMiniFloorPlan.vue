@@ -10,13 +10,7 @@
     <div v-else-if="trail.length === 1" class="text-caption text-medium-emphasis">
       Single point recorded.
     </div>
-    <svg
-      v-else
-      :width="width"
-      :height="height"
-      class="d-block mx-auto"
-      style="overflow: visible;"
-    >
+    <svg v-else :width="width" :height="height" class="d-block mx-auto" style="overflow: visible">
       <polyline
         :points="polylinePoints"
         fill="none"
@@ -54,10 +48,8 @@ export default {
       const minY = Math.min(...ys);
       const maxY = Math.max(...ys);
       const pad = 10;
-      const scaleX =
-        maxX - minX > 0 ? (props.width - pad * 2) / (maxX - minX) : 1;
-      const scaleY =
-        maxY - minY > 0 ? (props.height - pad * 2) / (maxY - minY) : 1;
+      const scaleX = maxX - minX > 0 ? (props.width - pad * 2) / (maxX - minX) : 1;
+      const scaleY = maxY - minY > 0 ? (props.height - pad * 2) / (maxY - minY) : 1;
       const scale = Math.min(scaleX, scaleY, 100);
       return props.trail
         .map((t) => {

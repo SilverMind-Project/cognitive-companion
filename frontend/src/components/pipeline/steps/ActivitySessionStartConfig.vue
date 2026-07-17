@@ -49,7 +49,7 @@
     :model-value="modelValue.metadata_extra"
     label="Extra Metadata (JSON, optional)"
     rows="3"
-    hint='Optional JSON merged into session metadata. Supports {{template}} syntax.'
+    hint="Optional JSON merged into session metadata. Supports {{template}} syntax."
     persistent-hint
     class="mb-4"
     @update:model-value="emit('update:modelValue', { ...modelValue, metadata_extra: $event })"

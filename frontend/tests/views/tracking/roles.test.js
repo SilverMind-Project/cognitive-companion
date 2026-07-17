@@ -12,29 +12,36 @@ import { mount } from "@vue/test-utils";
 import { ref } from "vue";
 
 vi.mock("@/composables/usePersonPresence.js", () => ({
-  usePersonPresence: () => ({ locations: ref([]), loading: ref(false), error: ref(null), refresh: vi.fn() }),
+  usePersonPresence: () => ({
+    locations: ref([]),
+    loading: ref(false),
+    error: ref(null),
+    refresh: vi.fn(),
+  }),
 }));
 
 vi.mock("vue-router", () => ({
-  useRoute:  () => ({ query: {} }),
+  useRoute: () => ({ query: {} }),
   useRouter: () => ({ replace: vi.fn() }),
 }));
 
-vi.mock("@/views/tracking/panels/OverviewPanel.vue",          () => ({ default: { template: '<div />' } }));
-vi.mock("@/views/tracking/panels/LiveFloorPanel.vue",         () => ({ default: { template: '<div />' } }));
-vi.mock("@/views/tracking/panels/MobilityPanel.vue",          () => ({ default: { template: '<div />' } }));
-vi.mock("@/views/tracking/panels/PeoplePanel.vue",            () => ({ default: { template: '<div />' } }));
-vi.mock("@/views/tracking/panels/PresenceTimelinePanel.vue",  () => ({ default: { template: '<div />' } }));
-vi.mock("@/views/tracking/panels/SignalsPanel.vue",           () => ({ default: { template: '<div />' } }));
-vi.mock("@/views/tracking/panels/ReportsPanel.vue",           () => ({ default: { template: '<div />' } }));
+vi.mock("@/views/tracking/panels/OverviewPanel.vue", () => ({ default: { template: "<div />" } }));
+vi.mock("@/views/tracking/panels/LiveFloorPanel.vue", () => ({ default: { template: "<div />" } }));
+vi.mock("@/views/tracking/panels/MobilityPanel.vue", () => ({ default: { template: "<div />" } }));
+vi.mock("@/views/tracking/panels/PeoplePanel.vue", () => ({ default: { template: "<div />" } }));
+vi.mock("@/views/tracking/panels/PresenceTimelinePanel.vue", () => ({
+  default: { template: "<div />" },
+}));
+vi.mock("@/views/tracking/panels/SignalsPanel.vue", () => ({ default: { template: "<div />" } }));
+vi.mock("@/views/tracking/panels/ReportsPanel.vue", () => ({ default: { template: "<div />" } }));
 
 import TrackingWorkspace from "../../../src/views/tracking/TrackingWorkspace.vue";
 
 const stubs = {
-  "v-tabs":        { template: '<div><slot /></div>' },
-  "v-tab":         { template: '<button><slot /></button>', props: ["value"] },
-  "v-window":      { template: '<div><slot /></div>' },
-  "v-window-item": { template: '<div><slot /></div>', props: ["value"] },
+  "v-tabs": { template: "<div><slot /></div>" },
+  "v-tab": { template: "<button><slot /></button>", props: ["value"] },
+  "v-window": { template: "<div><slot /></div>" },
+  "v-window-item": { template: "<div><slot /></div>", props: ["value"] },
 };
 
 function mountRole(role) {

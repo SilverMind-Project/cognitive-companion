@@ -1,13 +1,7 @@
 <template>
   <v-card variant="tonal" class="pa-3" :data-status="job.status">
     <div class="d-flex align-center ga-2">
-      <v-progress-circular
-        v-if="isActive"
-        indeterminate
-        size="18"
-        width="2"
-        color="primary"
-      />
+      <v-progress-circular v-if="isActive" indeterminate size="18" width="2" color="primary" />
       <v-icon v-else :color="statusColor" :icon="statusIcon" />
       <div class="flex-grow-1">
         <div class="text-body-2 font-weight-medium">{{ statusLabel }}</div>
@@ -61,9 +55,7 @@ const props = defineProps({
 });
 defineEmits(["retry"]);
 
-const isActive = computed(() =>
-  props.job.status === "pending" || props.job.status === "applying"
-);
+const isActive = computed(() => props.job.status === "pending" || props.job.status === "applying");
 
 const STATUS = {
   pending: { label: "Queued…", icon: "mdi-clock-outline", color: "info" },

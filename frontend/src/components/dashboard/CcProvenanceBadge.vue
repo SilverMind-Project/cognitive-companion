@@ -12,12 +12,7 @@
     </v-chip>
 
     <!-- Quality indicator: always shows a value or explicit "unknown" (D5/rule 15) -->
-    <v-chip
-      size="x-small"
-      :color="qualityColor"
-      variant="tonal"
-      :title="qualityTitle"
-    >
+    <v-chip size="x-small" :color="qualityColor" variant="tonal" :title="qualityTitle">
       <v-icon icon="mdi-signal" size="10" class="mr-1" />
       {{ qualityDisplay }}
     </v-chip>
@@ -44,8 +39,7 @@ const props = defineProps({
     type: String,
     default: null,
     validator: (v) =>
-      v === null ||
-      ["observation", "transition", "manual_override", "ph_continuation"].includes(v),
+      v === null || ["observation", "transition", "manual_override", "ph_continuation"].includes(v),
   },
   /**
    * Data quality score in [0, 1]. Pass null / undefined when the score is
@@ -91,9 +85,7 @@ const UNKNOWN_CONFIG = {
   description: "Source unknown",
 };
 
-const sourceConfig = computed(
-  () => SOURCE_CONFIGS[props.source] ?? UNKNOWN_CONFIG
-);
+const sourceConfig = computed(() => SOURCE_CONFIGS[props.source] ?? UNKNOWN_CONFIG);
 
 // Quality is null/undefined → explicit "unknown", never a fabricated number.
 const qualityDisplay = computed(() => {
@@ -104,7 +96,7 @@ const qualityDisplay = computed(() => {
 const qualityTitle = computed(() =>
   props.quality === null || props.quality === undefined
     ? "Quality score not available"
-    : `Quality: ${(props.quality * 100).toFixed(1)}%`
+    : `Quality: ${(props.quality * 100).toFixed(1)}%`,
 );
 
 const qualityColor = computed(() => {

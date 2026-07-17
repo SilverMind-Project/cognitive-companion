@@ -36,10 +36,7 @@ describe("MaraudersHeatmapLayer", () => {
 
   it("maps the minimum and maximum normalized weights to the ramp token endpoints", () => {
     const wrapper = mountLayer({
-      bins: [
-        makeBin("low", { opacity: 0.2 }),
-        makeBin("high", { opacity: 1 }),
-      ],
+      bins: [makeBin("low", { opacity: 0.2 }), makeBin("high", { opacity: 1 })],
     });
     const [low, high] = wrapper.findAll(".marauders-heat-stain");
 

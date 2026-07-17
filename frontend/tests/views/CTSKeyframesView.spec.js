@@ -36,13 +36,25 @@ vi.mock("@/components/cts/identity/IdentityBboxOverlay.vue", () => ({
   },
 }));
 vi.mock("@/components/cts/identity/IdentityEvidenceBadges.vue", () => ({
-  default: { name: "IdentityEvidenceBadges", template: "<div class='mock-badges' />", props: ["bbox", "targets", "detailed"] },
+  default: {
+    name: "IdentityEvidenceBadges",
+    template: "<div class='mock-badges' />",
+    props: ["bbox", "targets", "detailed"],
+  },
 }));
 vi.mock("@/components/cts/identity/IdentityCorrectionWorkflow.vue", () => ({
   default: {
     name: "IdentityCorrectionWorkflow",
     template: "<div class='mock-workflow' />",
-    props: ["phId", "frameCapturedAt", "reviewedFrameId", "reviewedBbox", "bbox", "sourceView", "defaultScope"],
+    props: [
+      "phId",
+      "frameCapturedAt",
+      "reviewedFrameId",
+      "reviewedBbox",
+      "bbox",
+      "sourceView",
+      "defaultScope",
+    ],
     emits: ["applied", "close"],
   },
 }));
@@ -76,13 +88,36 @@ const CARD = {
   conflict_count: 0,
   pending_review_count: 0,
   bboxes: [
-    { bbox_id: "b1", ph_id: "ph-a", effective_identity_id: "amma", x1: 0, y1: 0, x2: 10, y2: 10, frame_width: 1920, frame_height: 1080 },
-    { bbox_id: "b2", ph_id: "ph-b", effective_identity_id: "grandma", x1: 5, y1: 5, x2: 15, y2: 15, frame_width: 1920, frame_height: 1080 },
+    {
+      bbox_id: "b1",
+      ph_id: "ph-a",
+      effective_identity_id: "amma",
+      x1: 0,
+      y1: 0,
+      x2: 10,
+      y2: 10,
+      frame_width: 1920,
+      frame_height: 1080,
+    },
+    {
+      bbox_id: "b2",
+      ph_id: "ph-b",
+      effective_identity_id: "grandma",
+      x1: 5,
+      y1: 5,
+      x2: 15,
+      y2: 15,
+      frame_width: 1920,
+      frame_height: 1080,
+    },
   ],
 };
 
 const stubs = {
-  "v-btn": { template: "<button :disabled='disabled' @click=\"$emit('click')\"><slot /></button>", props: ["disabled", "variant", "color", "size", "prependIcon"] },
+  "v-btn": {
+    template: "<button :disabled='disabled' @click=\"$emit('click')\"><slot /></button>",
+    props: ["disabled", "variant", "color", "size", "prependIcon"],
+  },
   "v-row": { template: "<div><slot /></div>" },
   "v-col": { template: "<div><slot /></div>" },
   "v-card": { template: "<div class='v-card'><slot /></div>" },
@@ -90,7 +125,10 @@ const stubs = {
   "v-card-actions": { template: "<div><slot /></div>" },
   "v-icon": { template: "<span><slot /></span>" },
   "v-spacer": { template: "<span />" },
-  "v-chip": { template: "<span class='v-chip'><slot /></span>", props: ["color", "size", "variant"] },
+  "v-chip": {
+    template: "<span class='v-chip'><slot /></span>",
+    props: ["color", "size", "variant"],
+  },
   "v-tooltip": { template: "<span><slot /></span>" },
   "v-divider": { template: "<hr />" },
   "v-dialog": { template: "<div v-if='modelValue'><slot /></div>", props: ["modelValue"] },

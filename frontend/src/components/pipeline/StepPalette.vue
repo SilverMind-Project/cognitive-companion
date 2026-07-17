@@ -41,11 +41,7 @@
         <!-- Step grid for the active category -->
         <div class="step-palette-content flex-grow-1 pa-5 overflow-y-auto">
           <v-window v-model="activeCategory">
-            <v-window-item
-              v-for="group in groups"
-              :key="group.category"
-              :value="group.category"
-            >
+            <v-window-item v-for="group in groups" :key="group.category" :value="group.category">
               <div class="step-grid">
                 <div v-for="st in group.types" :key="st.type">
                   <v-card
@@ -55,22 +51,25 @@
                     :class="st.deprecated ? 'step-type-card--deprecated' : ''"
                     @click="select(st.type)"
                   >
-                    <v-icon
-                      size="32"
-                      :color="st.deprecated ? undefined : 'primary'"
-                      class="mb-2"
-                    >{{ st.icon }}</v-icon>
+                    <v-icon size="32" :color="st.deprecated ? undefined : 'primary'" class="mb-2">{{
+                      st.icon
+                    }}</v-icon>
                     <div
                       class="text-body-2 font-weight-medium"
-                      :class="st.deprecated ? 'text-decoration-line-through text-medium-emphasis' : ''"
-                    >{{ st.label }}</div>
+                      :class="
+                        st.deprecated ? 'text-decoration-line-through text-medium-emphasis' : ''
+                      "
+                    >
+                      {{ st.label }}
+                    </div>
                     <v-chip
                       v-if="st.deprecated"
                       size="x-small"
                       color="warning"
                       variant="plain"
                       class="mt-1"
-                    >deprecated</v-chip>
+                      >deprecated</v-chip
+                    >
                   </v-card>
                 </div>
               </div>
@@ -81,8 +80,12 @@
 
       <v-divider />
       <v-card-actions class="px-6 py-3">
-        <v-icon size="small" color="medium-emphasis" class="mr-1">mdi-cursor-default-click-outline</v-icon>
-        <span class="text-caption text-medium-emphasis">Click a step type to insert it into the pipeline</span>
+        <v-icon size="small" color="medium-emphasis" class="mr-1"
+          >mdi-cursor-default-click-outline</v-icon
+        >
+        <span class="text-caption text-medium-emphasis"
+          >Click a step type to insert it into the pipeline</span
+        >
         <v-spacer />
         <v-btn variant="text" @click="$emit('update:modelValue', false)">Cancel</v-btn>
       </v-card-actions>
@@ -149,13 +152,11 @@ const groups = computed(() => {
       deprecated: st.deprecated || false,
     });
   }
-  return CATEGORY_ORDER
-    .filter((cat) => byCategory[cat])
-    .map((cat) => ({
-      category: cat,
-      name: CATEGORY_LABELS[cat] || cat,
-      types: byCategory[cat],
-    }));
+  return CATEGORY_ORDER.filter((cat) => byCategory[cat]).map((cat) => ({
+    category: cat,
+    name: CATEGORY_LABELS[cat] || cat,
+    types: byCategory[cat],
+  }));
 });
 
 const activeGroup = computed(() => groups.value.find((g) => g.category === activeCategory.value));
@@ -166,23 +167,125 @@ onMounted(async () => {
     stepTypes.value = await api.getStepTypes();
   } catch {
     stepTypes.value = [
-      { type_name: "person_identification", display_name: "Person ID", category: "perception", icon: "mdi-face-recognition", deprecated: false },
-      { type_name: "scene_analysis", display_name: "Scene Analysis", category: "perception", icon: "mdi-image-search", deprecated: false },
-      { type_name: "object_trend_analysis", display_name: "Room Trend Query", category: "perception", icon: "mdi-chart-line", deprecated: false },
-      { type_name: "semantic_memory_query", display_name: "Semantic Memory Query", category: "perception", icon: "mdi-database-search-outline", deprecated: false },
-      { type_name: "presence_query", display_name: "Presence Query", category: "perception", icon: "mdi-map-marker-radius", deprecated: false },
-      { type_name: "home_state", display_name: "Home State", category: "perception", icon: "mdi-home-variant", deprecated: false },
-      { type_name: "llm_call", display_name: "LLM Call", category: "reasoning", icon: "mdi-brain", deprecated: false },
-      { type_name: "condition", display_name: "Condition", category: "reasoning", icon: "mdi-help-circle", deprecated: false },
-      { type_name: "activity_detection", display_name: "Record Activity", category: "state", icon: "mdi-database-plus", deprecated: false },
-      { type_name: "verification", display_name: "Verify Activity", category: "state", icon: "mdi-check-decagram", deprecated: false },
-      { type_name: "semantic_memory_write", display_name: "Write to Memory", category: "state", icon: "mdi-database-plus-outline", deprecated: false },
-      { type_name: "activity_session_start", display_name: "Start Activity Session", category: "action", icon: "mdi-play", deprecated: false },
-      { type_name: "activity_session_end", display_name: "End Activity Session", category: "action", icon: "mdi-stop", deprecated: false },
-      { type_name: "notification", display_name: "Notification", category: "action", icon: "mdi-bell", deprecated: false },
-      { type_name: "ha_action", display_name: "HA Action", category: "action", icon: "mdi-home-automation", deprecated: false },
-      { type_name: "daily_report", display_name: "Daily Report", category: "action", icon: "mdi-file-chart", deprecated: false },
-      { type_name: "wait", display_name: "Wait", category: "flow", icon: "mdi-timer-sand", deprecated: false },
+      {
+        type_name: "person_identification",
+        display_name: "Person ID",
+        category: "perception",
+        icon: "mdi-face-recognition",
+        deprecated: false,
+      },
+      {
+        type_name: "scene_analysis",
+        display_name: "Scene Analysis",
+        category: "perception",
+        icon: "mdi-image-search",
+        deprecated: false,
+      },
+      {
+        type_name: "object_trend_analysis",
+        display_name: "Room Trend Query",
+        category: "perception",
+        icon: "mdi-chart-line",
+        deprecated: false,
+      },
+      {
+        type_name: "semantic_memory_query",
+        display_name: "Semantic Memory Query",
+        category: "perception",
+        icon: "mdi-database-search-outline",
+        deprecated: false,
+      },
+      {
+        type_name: "presence_query",
+        display_name: "Presence Query",
+        category: "perception",
+        icon: "mdi-map-marker-radius",
+        deprecated: false,
+      },
+      {
+        type_name: "home_state",
+        display_name: "Home State",
+        category: "perception",
+        icon: "mdi-home-variant",
+        deprecated: false,
+      },
+      {
+        type_name: "llm_call",
+        display_name: "LLM Call",
+        category: "reasoning",
+        icon: "mdi-brain",
+        deprecated: false,
+      },
+      {
+        type_name: "condition",
+        display_name: "Condition",
+        category: "reasoning",
+        icon: "mdi-help-circle",
+        deprecated: false,
+      },
+      {
+        type_name: "activity_detection",
+        display_name: "Record Activity",
+        category: "state",
+        icon: "mdi-database-plus",
+        deprecated: false,
+      },
+      {
+        type_name: "verification",
+        display_name: "Verify Activity",
+        category: "state",
+        icon: "mdi-check-decagram",
+        deprecated: false,
+      },
+      {
+        type_name: "semantic_memory_write",
+        display_name: "Write to Memory",
+        category: "state",
+        icon: "mdi-database-plus-outline",
+        deprecated: false,
+      },
+      {
+        type_name: "activity_session_start",
+        display_name: "Start Activity Session",
+        category: "action",
+        icon: "mdi-play",
+        deprecated: false,
+      },
+      {
+        type_name: "activity_session_end",
+        display_name: "End Activity Session",
+        category: "action",
+        icon: "mdi-stop",
+        deprecated: false,
+      },
+      {
+        type_name: "notification",
+        display_name: "Notification",
+        category: "action",
+        icon: "mdi-bell",
+        deprecated: false,
+      },
+      {
+        type_name: "ha_action",
+        display_name: "HA Action",
+        category: "action",
+        icon: "mdi-home-automation",
+        deprecated: false,
+      },
+      {
+        type_name: "daily_report",
+        display_name: "Daily Report",
+        category: "action",
+        icon: "mdi-file-chart",
+        deprecated: false,
+      },
+      {
+        type_name: "wait",
+        display_name: "Wait",
+        category: "flow",
+        icon: "mdi-timer-sand",
+        deprecated: false,
+      },
     ];
   } finally {
     loading.value = false;
@@ -240,7 +343,10 @@ function select(type) {
 .step-type-card {
   height: 100%;
   min-height: 96px;
-  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s !important;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.2s cubic-bezier(0.2, 0, 0, 1),
+    border-color 0.2s !important;
   cursor: pointer;
 }
 

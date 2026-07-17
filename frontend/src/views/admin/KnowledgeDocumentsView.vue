@@ -28,7 +28,10 @@
         hide-details
         clearable
         style="max-width: 160px"
-        @update:model-value="page = 1; fetchDocuments()"
+        @update:model-value="
+          page = 1;
+          fetchDocuments();
+        "
       />
       <v-combobox
         v-model="filters.tags"
@@ -39,9 +42,17 @@
         hide-details
         clearable
         style="max-width: 200px"
-        @update:model-value="page = 1; fetchDocuments()"
+        @update:model-value="
+          page = 1;
+          fetchDocuments();
+        "
       />
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="showCreateDialog = true">
+      <v-btn
+        color="primary"
+        variant="flat"
+        prepend-icon="mdi-plus"
+        @click="showCreateDialog = true"
+      >
         New Document
       </v-btn>
     </div>
@@ -56,76 +67,70 @@
         :page="page"
         @update:options="onPageOptions"
       >
-      <template #[`item.title`]="{ item }">
-        {{ truncate(item.title, 60) }}
-      </template>
+        <template #[`item.title`]="{ item }">
+          {{ truncate(item.title, 60) }}
+        </template>
 
-      <template #[`item.tags`]="{ item }">
-        <v-chip
-          v-for="tag in (item.tags || [])"
-          :key="tag"
-          size="x-small"
-          class="mr-1"
-        >
-          {{ tag }}
-        </v-chip>
-        <span v-if="!item.tags || item.tags.length === 0" class="text-caption text-grey">—</span>
-      </template>
+        <template #[`item.tags`]="{ item }">
+          <v-chip v-for="tag in item.tags || []" :key="tag" size="x-small" class="mr-1">
+            {{ tag }}
+          </v-chip>
+          <span v-if="!item.tags || item.tags.length === 0" class="text-caption text-grey">—</span>
+        </template>
 
-      <template #[`item.image_count`]="{ item }">
-        {{ item.image_count ?? item.images?.length ?? 0 }}
-      </template>
+        <template #[`item.image_count`]="{ item }">
+          {{ item.image_count ?? item.images?.length ?? 0 }}
+        </template>
 
-      <template #[`item.status`]="{ item }">
-        <v-chip :color="statusColor(item.status)" size="small">
-          {{ item.status }}
-        </v-chip>
-      </template>
+        <template #[`item.status`]="{ item }">
+          <v-chip :color="statusColor(item.status)" size="small">
+            {{ item.status }}
+          </v-chip>
+        </template>
 
-      <template #[`item.created_at`]="{ item }">
-        {{ formatDateTime(item.created_at) }}
-      </template>
+        <template #[`item.created_at`]="{ item }">
+          {{ formatDateTime(item.created_at) }}
+        </template>
 
-      <template #[`item.actions`]="{ item }">
-        <v-btn
-          icon="mdi-pencil"
-          size="small"
-          variant="text"
-          color="primary"
-          :to="`/admin/knowledge/documents/${item.id}`"
-        />
-        <v-btn
-          v-if="item.status === 'uploaded' || item.status === 'chunked'"
-          icon="mdi-check"
-          size="small"
-          variant="text"
-          color="success"
-          @click="approve(item)"
-        />
-        <v-btn
-          v-if="item.status !== 'archived'"
-          icon="mdi-archive"
-          size="small"
-          variant="text"
-          @click="archive(item)"
-        />
-        <v-btn
-          v-if="item.status === 'archived'"
-          icon="mdi-restore"
-          size="small"
-          variant="text"
-          color="warning"
-          @click="restore(item)"
-        />
-        <v-btn
-          icon="mdi-delete"
-          size="small"
-          variant="text"
-          color="error"
-          @click="confirmDelete(item)"
-        />
-      </template>
-
+        <template #[`item.actions`]="{ item }">
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            variant="text"
+            color="primary"
+            :to="`/admin/knowledge/documents/${item.id}`"
+          />
+          <v-btn
+            v-if="item.status === 'uploaded' || item.status === 'chunked'"
+            icon="mdi-check"
+            size="small"
+            variant="text"
+            color="success"
+            @click="approve(item)"
+          />
+          <v-btn
+            v-if="item.status !== 'archived'"
+            icon="mdi-archive"
+            size="small"
+            variant="text"
+            @click="archive(item)"
+          />
+          <v-btn
+            v-if="item.status === 'archived'"
+            icon="mdi-restore"
+            size="small"
+            variant="text"
+            color="warning"
+            @click="restore(item)"
+          />
+          <v-btn
+            icon="mdi-delete"
+            size="small"
+            variant="text"
+            color="error"
+            @click="confirmDelete(item)"
+          />
+        </template>
       </v-data-table>
     </v-card>
 
@@ -143,21 +148,11 @@
             <v-text-field
               v-model="createFormData.title"
               label="Title"
-              :rules="[r => !!r || 'Title is required']"
+              :rules="[(r) => !!r || 'Title is required']"
               required
             />
-            <v-textarea
-              v-model="createFormData.source_text"
-              label="Source Text"
-              rows="6"
-            />
-            <v-combobox
-              v-model="createFormData.tags"
-              label="Tags"
-              multiple
-              chips
-              deletable-chips
-            />
+            <v-textarea v-model="createFormData.source_text" label="Source Text" rows="6" />
+            <v-combobox v-model="createFormData.tags" label="Tags" multiple chips deletable-chips />
             <v-file-input
               v-model="createFormData.images"
               label="Images"
@@ -175,19 +170,6 @@
           @cancel="closeCreateDialog"
           @confirm="submitCreate"
         />
-      </v-card>
-    </v-dialog>
-
-    <!-- Confirm Dialog -->
-    <v-dialog v-model="confirmDialog" max-width="400">
-      <v-card rounded="xl">
-        <v-card-title v-if="confirmTitle">{{ confirmTitle }}</v-card-title>
-        <v-card-text>{{ confirmText }}</v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="onCancel">{{ cancelLabel }}</v-btn>
-          <v-btn :color="confirmColor" @click="onConfirm">{{ confirmLabel }}</v-btn>
-        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -210,13 +192,11 @@
 import { ref, reactive, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
-import { useConfirm } from "@/composables/useConfirm.js";
 import { formatDateTime, DATETIME_COLUMN_WIDTH } from "@/services/timezone.js";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
 
 const { notify } = useNotify();
-const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();
 
 const documents = ref([]);
 const loading = ref(false);

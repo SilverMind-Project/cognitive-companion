@@ -35,12 +35,28 @@ describe("useFloorPlanProjection", () => {
 
     it("returns null when floor plan dimensions are zero", () => {
       const det = { floor_calibrated: true, floor_x: 5.0, floor_y: 3.0 };
-      expect(projectDetectionToCanvas(det, { width: 0, height: 0, mpp: 0.01, canvasW: 1200, canvasH: 800 })).toBeNull();
+      expect(
+        projectDetectionToCanvas(det, {
+          width: 0,
+          height: 0,
+          mpp: 0.01,
+          canvasW: 1200,
+          canvasH: 800,
+        }),
+      ).toBeNull();
     });
 
     it("returns null when mpp is zero (produces non-finite coordinates)", () => {
       const det = { floor_calibrated: true, floor_x: 5.0, floor_y: 3.0 };
-      expect(projectDetectionToCanvas(det, { width: 1448, height: 1086, mpp: 0, canvasW: 1200, canvasH: 800 })).toBeNull();
+      expect(
+        projectDetectionToCanvas(det, {
+          width: 1448,
+          height: 1086,
+          mpp: 0,
+          canvasW: 1200,
+          canvasH: 800,
+        }),
+      ).toBeNull();
     });
 
     it("returns correct canvas point for a known calibrated detection (golden case)", () => {
@@ -93,7 +109,12 @@ describe("useFloorPlanProjection", () => {
   // ── pointInPolygon ────────────────────────────────────────────────────────
 
   describe("pointInPolygon", () => {
-    const square = [[0, 0], [0, 10], [10, 10], [10, 0]];
+    const square = [
+      [0, 0],
+      [0, 10],
+      [10, 10],
+      [10, 0],
+    ];
 
     it("returns true for a point inside a square", () => {
       expect(pointInPolygon(5, 5, square)).toBe(true);
@@ -105,13 +126,27 @@ describe("useFloorPlanProjection", () => {
 
     it("returns true for a point inside a concave L-shape", () => {
       // L-shape polygon
-      const l = [[0, 0], [0, 10], [3, 10], [3, 3], [10, 3], [10, 0]];
+      const l = [
+        [0, 0],
+        [0, 10],
+        [3, 10],
+        [3, 3],
+        [10, 3],
+        [10, 0],
+      ];
       expect(pointInPolygon(1, 5, l)).toBe(true);
       expect(pointInPolygon(5, 1, l)).toBe(true);
     });
 
     it("returns false for a point in the notch of a concave L-shape", () => {
-      const l = [[0, 0], [0, 10], [3, 10], [3, 3], [10, 3], [10, 0]];
+      const l = [
+        [0, 0],
+        [0, 10],
+        [3, 10],
+        [3, 3],
+        [10, 3],
+        [10, 0],
+      ];
       expect(pointInPolygon(5, 5, l)).toBe(false);
     });
 
@@ -127,8 +162,24 @@ describe("useFloorPlanProjection", () => {
 
   describe("roomForCanvasPoint", () => {
     const rooms = [
-      { name: "Living Room", floor_polygon: [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]] },
-      { name: "Bedroom", floor_polygon: [[0.6, 0.1], [0.9, 0.1], [0.9, 0.5], [0.6, 0.5]] },
+      {
+        name: "Living Room",
+        floor_polygon: [
+          [0.1, 0.1],
+          [0.5, 0.1],
+          [0.5, 0.5],
+          [0.1, 0.5],
+        ],
+      },
+      {
+        name: "Bedroom",
+        floor_polygon: [
+          [0.6, 0.1],
+          [0.9, 0.1],
+          [0.9, 0.5],
+          [0.6, 0.5],
+        ],
+      },
     ];
 
     it("returns the first matching room name", () => {
@@ -147,7 +198,15 @@ describe("useFloorPlanProjection", () => {
     it("skips rooms without floor_polygon", () => {
       const mixed = [
         { name: "Hallway", floor_polygon: null },
-        { name: "Kitchen", floor_polygon: [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]] },
+        {
+          name: "Kitchen",
+          floor_polygon: [
+            [0.1, 0.1],
+            [0.5, 0.1],
+            [0.5, 0.5],
+            [0.1, 0.5],
+          ],
+        },
       ];
       expect(roomForCanvasPoint(480, 240, 1200, 800, mixed)).toBe("Kitchen");
     });

@@ -3,17 +3,19 @@
     <div class="d-flex align-center mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Dashboard</h2>
-        <div class="text-body-2 text-medium-emphasis mt-1">A live snapshot of the household and the system's health.</div>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          A live snapshot of the household and the system's health.
+        </div>
       </div>
       <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadData" :loading="refreshing">
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="refreshing" @click="loadData">
         Refresh
       </v-btn>
     </div>
 
     <!-- Stats Row -->
     <v-row>
-      <v-col cols="12" sm="6" md="3" v-for="stat in stats" :key="stat.label">
+      <v-col v-for="stat in stats" :key="stat.label" cols="12" sm="6" md="3">
         <v-card class="pa-5 stat-card" :to="stat.to" :ripple="!!stat.to">
           <div class="d-flex align-center">
             <v-avatar :color="stat.color" size="48" variant="tonal" class="mr-4">
@@ -31,11 +33,11 @@
     <!-- System Health -->
     <h3 class="text-h6 mt-6 mb-3">System Health</h3>
     <v-row>
-      <v-col cols="12" sm="6" md="4" v-for="svc in healthServices" :key="svc.name">
+      <v-col v-for="svc in healthServices" :key="svc.name" cols="12" sm="6" md="4">
         <v-card class="pa-4">
           <div class="d-flex align-center">
             <v-icon :color="svc.color ?? (svc.ok ? 'success' : 'error')" size="24" class="mr-3">
-              {{ svc.ok ? 'mdi-check-circle' : 'mdi-alert-circle' }}
+              {{ svc.ok ? "mdi-check-circle" : "mdi-alert-circle" }}
             </v-icon>
             <div>
               <div class="font-weight-medium">{{ svc.name }}</div>
@@ -49,7 +51,7 @@
     <!-- Person Locations -->
     <h3 class="text-h6 mt-6 mb-3">Person Locations</h3>
     <v-row>
-      <v-col cols="12" sm="6" md="4" v-for="loc in personLocations" :key="loc.person_id">
+      <v-col v-for="loc in personLocations" :key="loc.person_id" cols="12" sm="6" md="4">
         <v-card class="pa-4">
           <div class="d-flex align-center">
             <v-avatar color="primary" size="40" variant="tonal" class="mr-3">
@@ -59,10 +61,12 @@
               <div class="font-weight-bold">{{ loc.person_name }}</div>
               <div class="text-body-2 d-flex align-center">
                 <v-icon size="14" class="mr-1">mdi-map-marker</v-icon>
-                {{ loc.current_room_name || 'Unknown' }}
-                <v-chip size="x-small" :color="locStatusColor(loc.status)" class="ml-2">{{ loc.status }}</v-chip>
+                {{ loc.current_room_name || "Unknown" }}
+                <v-chip size="x-small" :color="locStatusColor(loc.status)" class="ml-2">{{
+                  loc.status
+                }}</v-chip>
               </div>
-              <div class="text-caption text-medium-emphasis" v-if="loc.last_seen_at">
+              <div v-if="loc.last_seen_at" class="text-caption text-medium-emphasis">
                 {{ formatTime(loc.last_seen_at) }}
               </div>
             </div>
@@ -77,16 +81,21 @@
     <!-- Room Occupancy -->
     <h3 class="text-h6 mt-6 mb-3">Room Occupancy</h3>
     <v-row>
-      <v-col cols="12" sm="6" md="4" v-for="(occ, roomKey) in occupancy" :key="roomKey">
+      <v-col v-for="(occ, roomKey) in occupancy" :key="roomKey" cols="12" sm="6" md="4">
         <v-card class="pa-4">
           <div class="d-flex align-center">
-            <v-avatar :color="occ.occupied ? 'success' : 'grey'" size="40" variant="tonal" class="mr-3">
-              <v-icon>{{ occ.occupied ? 'mdi-home-account' : 'mdi-home-outline' }}</v-icon>
+            <v-avatar
+              :color="occ.occupied ? 'success' : 'grey'"
+              size="40"
+              variant="tonal"
+              class="mr-3"
+            >
+              <v-icon>{{ occ.occupied ? "mdi-home-account" : "mdi-home-outline" }}</v-icon>
             </v-avatar>
             <div class="flex-grow-1">
               <div class="font-weight-bold">{{ occ.room_name }}</div>
               <div class="text-body-2 text-medium-emphasis">
-                {{ occ.occupied ? `Since ${formatTime(occ.since)}` : 'Unoccupied' }}
+                {{ occ.occupied ? `Since ${formatTime(occ.since)}` : "Unoccupied" }}
               </div>
               <div v-if="occ.person_ids && occ.person_ids.length" class="text-caption mt-1">
                 <v-chip
@@ -96,10 +105,18 @@
                   color="primary"
                   variant="tonal"
                   class="mr-1"
-                >{{ personName(pid) }}</v-chip>
+                  >{{ personName(pid) }}</v-chip
+                >
               </div>
               <div class="text-caption text-disabled mt-1">
-                via {{ occ.source === 'cts' ? 'Camera' : occ.source === 'ha_sensor' ? 'Motion Sensor' : occ.source }}
+                via
+                {{
+                  occ.source === "cts"
+                    ? "Camera"
+                    : occ.source === "ha_sensor"
+                      ? "Motion Sensor"
+                      : occ.source
+                }}
               </div>
             </div>
           </div>
@@ -117,20 +134,20 @@
         <v-list-item v-for="alert in alerts" :key="alert.id" :subtitle="alert.detail">
           <template #prepend>
             <v-icon :color="alert.resolved ? 'grey' : severityColor(alert.severity)">
-              {{ alert.resolved ? 'mdi-check-circle' : 'mdi-alert-circle' }}
+              {{ alert.resolved ? "mdi-check-circle" : "mdi-alert-circle" }}
             </v-icon>
           </template>
           <template #title>
             {{ alert.kind }}<span v-if="alert.room_name"> &middot; {{ alert.room_name }}</span>
           </template>
           <template #append>
-            <span class="text-caption text-medium-emphasis">{{ formatTime(alert.created_at) }}</span>
+            <span class="text-caption text-medium-emphasis">{{
+              formatTime(alert.created_at)
+            }}</span>
           </template>
         </v-list-item>
       </v-list>
-      <v-card-text v-else class="text-center text-medium-emphasis">
-        No recent alerts
-      </v-card-text>
+      <v-card-text v-else class="text-center text-medium-emphasis"> No recent alerts </v-card-text>
     </v-card>
   </div>
 </template>
@@ -144,7 +161,13 @@ const refreshing = ref(false);
 
 const stats = ref([
   { label: "Rooms", value: "-", icon: "mdi-floor-plan", color: "primary", to: "/admin/rooms" },
-  { label: "Sensors", value: "-", icon: "mdi-access-point", color: "secondary", to: "/admin/sensors" },
+  {
+    label: "Sensors",
+    value: "-",
+    icon: "mdi-access-point",
+    color: "secondary",
+    to: "/admin/sensors",
+  },
   { label: "Rules", value: "-", icon: "mdi-shield-check", color: "accent", to: "/admin/rules" },
   { label: "Active Alerts", value: "-", icon: "mdi-alert", color: "error", to: "/admin/alerts" },
 ]);
@@ -187,9 +210,7 @@ async function loadData() {
     stats.value[0].value = Array.isArray(rooms) ? rooms.length : 0;
     stats.value[1].value = Array.isArray(sensors) ? sensors.length : 0;
     stats.value[2].value = Array.isArray(rules) ? rules.length : 0;
-    const activeAlerts = Array.isArray(alertData)
-      ? alertData.filter((a) => !a.resolved)
-      : [];
+    const activeAlerts = Array.isArray(alertData) ? alertData.filter((a) => !a.resolved) : [];
     stats.value[3].value = activeAlerts.length;
     alerts.value = Array.isArray(alertData) ? alertData.slice(0, 5) : [];
     occupancy.value = occData.occupancy || {};
@@ -223,7 +244,11 @@ async function loadData() {
     } else {
       const gpu = pid.gpu_available ? "GPU" : "CPU";
       const model = pid.model || "unknown";
-      services.push({ name: "Person-ID Service", ok: true, detail: `${model} · ${pid.enrolled_members} enrolled · ${gpu}` });
+      services.push({
+        name: "Person-ID Service",
+        ok: true,
+        detail: `${model} · ${pid.enrolled_members} enrolled · ${gpu}`,
+      });
     }
   } catch {
     services.push({ name: "Person-ID Service", ok: false, detail: "Unreachable" });
@@ -237,7 +262,7 @@ async function loadData() {
       services.push({ name: "TTS Service", ok: false, detail: "Unreachable" });
     } else {
       const engine = tts.default_engine || "unknown";
-      const gpu = tts.gpu_available ? (tts.gpu_name || "GPU") : "CPU";
+      const gpu = tts.gpu_available ? tts.gpu_name || "GPU" : "CPU";
       services.push({ name: "TTS Service", ok: true, detail: `${engine} · ${gpu}` });
     }
   } catch {
@@ -270,7 +295,7 @@ async function loadData() {
       if (sa.detector_available) parts.push("detector");
       if (sa.describer_available) parts.push("describer");
       if (sa.embedder_available) parts.push("embedder");
-      const detail = parts.length ? parts.join(" · ") : (sa.status || "ok");
+      const detail = parts.length ? parts.join(" · ") : sa.status || "ok";
       services.push({ name: "Scene Analysis", ok: sa.status === "ok", detail });
     }
   } catch {
@@ -284,7 +309,11 @@ async function loadData() {
     } else if (sm.status === "unreachable") {
       services.push({ name: "Semantic Memory", ok: false, detail: "Unreachable" });
     } else {
-      services.push({ name: "Semantic Memory", ok: sm.status === "healthy", detail: sm.status || "healthy" });
+      services.push({
+        name: "Semantic Memory",
+        ok: sm.status === "healthy",
+        detail: sm.status || "healthy",
+      });
     }
   } catch {
     services.push({ name: "Semantic Memory", ok: false, detail: "Unreachable" });
@@ -329,7 +358,10 @@ onMounted(loadData);
 
 <style scoped>
 .stat-card {
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
   cursor: pointer;
 }
 .stat-card:hover {

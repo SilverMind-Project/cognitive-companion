@@ -47,9 +47,11 @@
           <v-col cols="12">
             <div class="text-caption text-medium-emphasis">Last event</div>
             <div class="text-body-2">
-              {{ camera.last_event_at
-                ? formatDateTimeFull(camera.last_event_at)
-                : "No events recorded" }}
+              {{
+                camera.last_event_at
+                  ? formatDateTimeFull(camera.last_event_at)
+                  : "No events recorded"
+              }}
             </div>
           </v-col>
         </v-row>
@@ -66,13 +68,7 @@
               width="2"
             />
           </div>
-          <v-alert
-            v-if="mediaError"
-            type="error"
-            variant="tonal"
-            density="compact"
-            class="mb-3"
-          >
+          <v-alert v-if="mediaError" type="error" variant="tonal" density="compact" class="mb-3">
             {{ mediaError }}
           </v-alert>
           <div v-if="media?.images?.length" class="image-grid">
@@ -90,7 +86,9 @@
                   </div>
                 </template>
                 <template #error>
-                  <div class="broken-placeholder d-flex flex-column align-center justify-center fill-height">
+                  <div
+                    class="broken-placeholder d-flex flex-column align-center justify-center fill-height"
+                  >
                     <v-icon size="32" color="medium-emphasis">mdi-image-broken-variant</v-icon>
                     <span class="text-caption text-disabled mt-1">Expired</span>
                   </div>
@@ -117,9 +115,8 @@
         </template>
 
         <v-alert v-else type="info" variant="tonal" density="compact">
-          CTS image references remain in the live media window and are not exposed by the
-          retained reCamera media endpoint. Buffer history and rate-limit telemetry remain
-          available here.
+          CTS image references remain in the live media window and are not exposed by the retained
+          reCamera media endpoint. Buffer history and rate-limit telemetry remain available here.
         </v-alert>
       </div>
     </div>
@@ -205,12 +202,14 @@ const mediaError = ref(null);
 const lightbox = ref({ open: false, image: null, images: [], index: 0 });
 
 const cameraName = computed(() => props.camera.display_name || props.camera.camera_id);
-const originLabel = computed(() => props.camera.origin === "recamera" ? "reCamera" : "CTS");
-const originColor = computed(() => props.camera.origin === "recamera" ? "primary" : "info");
-const historySeries = computed(() => [{
-  name: "Buffer depth",
-  points: props.history.map((point) => ({ t: point.t, v: point.depth })),
-}]);
+const originLabel = computed(() => (props.camera.origin === "recamera" ? "reCamera" : "CTS"));
+const originColor = computed(() => (props.camera.origin === "recamera" ? "primary" : "info"));
+const historySeries = computed(() => [
+  {
+    name: "Buffer depth",
+    points: props.history.map((point) => ({ t: point.t, v: point.depth })),
+  },
+]);
 
 function formatRate(value) {
   return value == null ? "n/a" : `${Number(value).toFixed(2)}/s`;
@@ -270,7 +269,9 @@ watch(() => props.camera.camera_id, loadMedia, { immediate: true });
 
 .image-card {
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .image-card:hover {

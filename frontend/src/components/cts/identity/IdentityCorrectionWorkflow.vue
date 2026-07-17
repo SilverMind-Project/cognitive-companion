@@ -56,8 +56,7 @@
           class="mb-2"
           data-testid="stale-conflict"
         >
-          The track changed since you started. Review the updated range below and
-          confirm again.
+          The track changed since you started. Review the updated range below and confirm again.
         </v-alert>
 
         <!-- Identity selector. Clearing it never submits. -->
@@ -225,16 +224,13 @@ const targetItems = computed(() =>
   state.targets.value.map((t) => ({
     title: t.display_name || t.identity_id,
     value: t.identity_id,
-  }))
+  })),
 );
 
 // A correction needs an explicit target (Set to Unknown is a separate action),
 // a fresh proposal, and not be mid-submit. Clearing the selector never submits.
 const canApply = computed(
-  () =>
-    !!selectedTarget.value &&
-    !!state.proposal.value &&
-    !state.applying.value
+  () => !!selectedTarget.value && !!state.proposal.value && !state.applying.value,
 );
 
 onMounted(async () => {
@@ -248,7 +244,7 @@ watch(
     actions.reset();
     scopeMode.value = props.defaultScope;
     await refreshProposal();
-  }
+  },
 );
 
 // When a stale conflict re-proposes, reset the boundaries to the new segment.
@@ -259,7 +255,7 @@ watch(
       startId.value = p.start.observation_id;
       endId.value = p.end.observation_id;
     }
-  }
+  },
 );
 
 async function refreshProposal() {

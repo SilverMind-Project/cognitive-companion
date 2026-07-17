@@ -3,11 +3,11 @@ import vocabularies from "@/generated/vocabularies.json";
 // Derived from the backend-canonical step registry export rather than hand-copied, so a new
 // or renamed step type cannot silently drift out of the palette label/icon maps (C8).
 export const STEP_LABELS = Object.fromEntries(
-  vocabularies.step_types.map((s) => [s.type_name, s.display_name])
+  vocabularies.step_types.map((s) => [s.type_name, s.display_name]),
 );
 
 export const STEP_ICONS = Object.fromEntries(
-  vocabularies.step_types.map((s) => [s.type_name, s.icon])
+  vocabularies.step_types.map((s) => [s.type_name, s.icon]),
 );
 
 export const STEP_DOT_COLORS = {
@@ -35,7 +35,12 @@ export const STEP_DOT_COLORS = {
   wait: "amber",
 };
 
-export const ALERT_COLORS = { emergency: "red", warning: "orange", info: "blue", reminder: "green" };
+export const ALERT_COLORS = {
+  emergency: "red",
+  warning: "orange",
+  info: "blue",
+  reminder: "green",
+};
 
 // Shared factory passed to each step's `chips(cfg, { chip, truncate, ALERT_COLORS })` (see
 // index.js's buildStepDetailChips dispatcher). Returns a plain chip descriptor without a
@@ -67,38 +72,20 @@ export function truncate(value, length) {
   return text.length > length ? text.slice(0, length) + "..." : text;
 }
 
-export function collectTemplateTokens(config) {
-  if (!config || typeof config !== "object") return [];
-  const strings = [];
-  function collect(obj) {
-    if (typeof obj === "string") {
-      strings.push(obj);
-      return;
-    }
-    if (obj && typeof obj === "object") Object.values(obj).forEach(collect);
-  }
-  collect(config);
-  if (!strings.length) return [];
-  const tokens = new Set();
-  const re = /\{\{\s*([\w][\w.]*)\s*\}\}/g;
-  for (const text of strings) {
-    let match;
-    while ((match = re.exec(text)) !== null) tokens.add(match[1]);
-  }
-  return Array.from(tokens);
-}
-
 export function buildTextPreview(step, maxLength = 120) {
   const cfg = step.config_json;
   if (!cfg || typeof cfg !== "object") return "";
   const type = step.step_type;
 
   if (type === "llm_call" && cfg.prompt) return truncate(cfg.prompt, maxLength);
-  if (type === "condition" && cfg.expression) return truncate(cfg.expression, Math.min(maxLength, 100));
+  if (type === "condition" && cfg.expression)
+    return truncate(cfg.expression, Math.min(maxLength, 100));
   if (type === "notification" && (cfg.message_template || cfg.telegram_template)) {
     return truncate(cfg.message_template || cfg.telegram_template, maxLength);
   }
-  if (type === "semantic_memory_query" && cfg.query) return truncate(cfg.query, Math.min(maxLength, 100));
-  if (type === "semantic_memory_write" && cfg.content) return truncate(cfg.content, Math.min(maxLength, 100));
+  if (type === "semantic_memory_query" && cfg.query)
+    return truncate(cfg.query, Math.min(maxLength, 100));
+  if (type === "semantic_memory_write" && cfg.content)
+    return truncate(cfg.content, Math.min(maxLength, 100));
   return "";
 }

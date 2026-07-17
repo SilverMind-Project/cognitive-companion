@@ -22,7 +22,13 @@
       <BlurToggle />
     </div>
 
-    <v-alert v-if="phList.state.error.value" type="error" class="mb-4" closable @click:close="phList.state.error.value = ''">
+    <v-alert
+      v-if="phList.state.error.value"
+      type="error"
+      class="mb-4"
+      closable
+      @click:close="phList.state.error.value = ''"
+    >
       {{ phList.state.error.value }}
     </v-alert>
 
@@ -179,7 +185,9 @@
             class="ph-identity-chip"
           >
             <v-icon start size="14">
-              {{ item.current_identity_id ? "mdi-account-check-outline" : "mdi-account-help-outline" }}
+              {{
+                item.current_identity_id ? "mdi-account-check-outline" : "mdi-account-help-outline"
+              }}
             </v-icon>
             {{ identityLabel(item) }}
           </v-chip>
@@ -199,10 +207,7 @@
         <template #item.room_name="{ item }">
           <div class="d-flex align-center ga-1">
             <v-icon size="14" color="medium-emphasis">mdi-floor-plan</v-icon>
-            <span
-              class="text-body-2"
-              :class="{ 'text-medium-emphasis': !roomLabel(item) }"
-            >
+            <span class="text-body-2" :class="{ 'text-medium-emphasis': !roomLabel(item) }">
               {{ roomLabel(item) || "Unknown" }}
             </span>
           </div>
@@ -211,10 +216,19 @@
         <!-- Cameras -->
         <template #item.active_cameras="{ item }">
           <div class="d-flex flex-wrap ga-1">
-            <v-chip v-for="cid in (item.active_cameras || [])" :key="cid" size="x-small" variant="tonal">
+            <v-chip
+              v-for="cid in item.active_cameras || []"
+              :key="cid"
+              size="x-small"
+              variant="tonal"
+            >
               <v-icon start size="12">mdi-cctv</v-icon> {{ cid }}
             </v-chip>
-            <span v-if="!(item.active_cameras || []).length" class="text-caption text-medium-emphasis">—</span>
+            <span
+              v-if="!(item.active_cameras || []).length"
+              class="text-caption text-medium-emphasis"
+              >—</span
+            >
           </div>
         </template>
 
@@ -247,7 +261,9 @@
 
         <template #no-data>
           <div class="pa-8 text-center">
-            <v-icon size="40" color="medium-emphasis" class="mb-2">mdi-account-search-outline</v-icon>
+            <v-icon size="40" color="medium-emphasis" class="mb-2"
+              >mdi-account-search-outline</v-icon
+            >
             <div class="text-body-1 text-medium-emphasis">No Person Hypotheses found</div>
             <div class="text-caption text-medium-emphasis mt-1">
               Active PHs appear when a person is detected by a camera.
@@ -268,7 +284,9 @@
           <v-chip value="manual_split" filter size="small">Split</v-chip>
         </v-chip-group>
         <v-spacer />
-        <span class="text-caption text-medium-emphasis">{{ revisions.length }} revision{{ revisions.length !== 1 ? 's' : '' }}</span>
+        <span class="text-caption text-medium-emphasis"
+          >{{ revisions.length }} revision{{ revisions.length !== 1 ? "s" : "" }}</span
+        >
       </div>
       <v-divider />
 
@@ -289,7 +307,8 @@
             </template>
             <template #subtitle>
               <span class="text-caption text-medium-emphasis">
-                {{ formatRelative(rev.applied_at) }} · {{ rev.actor }} · {{ rev.rewritten_rows }} rows
+                {{ formatRelative(rev.applied_at) }} · {{ rev.actor }} ·
+                {{ rev.rewritten_rows }} rows
               </span>
             </template>
           </v-list-item>
@@ -310,7 +329,13 @@
     </v-card>
 
     <!-- Inspector drawer -->
-    <v-navigation-drawer v-model="drawerOpen" location="right" width="640" temporary class="cc-drawer-right">
+    <v-navigation-drawer
+      v-model="drawerOpen"
+      location="right"
+      width="640"
+      temporary
+      class="cc-drawer-right"
+    >
       <PHInspectorDrawer
         v-if="inspectorPh"
         :ph-id="inspectorPh.ph_id"
@@ -364,7 +389,9 @@
                       >
                         {{ ph.identity_display_name || ph.current_identity_id || "UNKNOWN" }}
                       </v-chip>
-                      <span class="text-caption text-medium-emphasis">{{ shortPhId(ph.ph_id) }}</span>
+                      <span class="text-caption text-medium-emphasis">{{
+                        shortPhId(ph.ph_id)
+                      }}</span>
                     </div>
                     <div class="text-caption text-medium-emphasis">
                       {{ ph.room_name || ph.last_seen_camera || "location unknown" }} ·
@@ -387,7 +414,8 @@
         <v-divider />
         <v-card-actions class="pa-4">
           <span class="text-caption text-medium-emphasis">
-            {{ bulkMergeSourceCount }} source{{ bulkMergeSourceCount === 1 ? "" : "s" }} will be merged.
+            {{ bulkMergeSourceCount }} source{{ bulkMergeSourceCount === 1 ? "" : "s" }} will be
+            merged.
           </span>
           <v-spacer />
           <v-btn variant="text" @click="closeBulkMergeDialog">Cancel</v-btn>
@@ -484,7 +512,9 @@ export default {
         if (event.type === "cts_ph_update" || event.type === "cts_ph_correction") {
           phList.actions.handleWsEvent(event);
         }
-      } catch { /* ignore malformed */ }
+      } catch {
+        /* ignore malformed */
+      }
     }
 
     const { status, attempted: wsAttempted } = useCtsWebSocket(onWsMessage);
@@ -494,12 +524,16 @@ export default {
     });
 
     // Mirror WS status into a local ref for the template
-    watch(status, (val) => {
-      wsStatus.value = val;
-    }, { immediate: true });
+    watch(
+      status,
+      (val) => {
+        wsStatus.value = val;
+      },
+      { immediate: true },
+    );
 
     const tableMergeCandidates = computed(() =>
-      phList.state.items.value.filter((ph) => ph.ph_id !== inspectorPh.value?.ph_id)
+      phList.state.items.value.filter((ph) => ph.ph_id !== inspectorPh.value?.ph_id),
     );
 
     // ── Table ──
@@ -572,7 +606,7 @@ export default {
     });
 
     const bulkMergeSourceIds = computed(() =>
-      selectedPhRows.value.map((ph) => ph.ph_id).filter((phId) => phId !== bulkMergeTargetId.value)
+      selectedPhRows.value.map((ph) => ph.ph_id).filter((phId) => phId !== bulkMergeTargetId.value),
     );
 
     const bulkMergeSourceCount = computed(() => bulkMergeSourceIds.value.length);
@@ -621,7 +655,7 @@ export default {
       if (!selectedPhIds.value.length) return;
       const ok = await confirm(
         `Delete ${selectedPhIds.value.length} selected Person Hypotheses? This removes their PH records and linked observations.`,
-        { confirmText: "Delete", color: "error" }
+        { confirmText: "Delete", color: "error" },
       );
       if (!ok) return;
       bulkDeleting.value = true;
@@ -659,7 +693,7 @@ export default {
       if (!bulkMergeTargetId.value || bulkMergeSourceIds.value.length < 1) return;
       const ok = await confirm(
         `Merge ${bulkMergeSourceIds.value.length} selected Person Hypotheses into ${bulkMergeTargetId.value}? This cannot be undone.`,
-        { confirmText: "Merge", color: "warning" }
+        { confirmText: "Merge", color: "warning" },
       );
       if (!ok) return;
 
@@ -692,7 +726,7 @@ export default {
       }
       const ok = await confirm(
         `Delete closed UNKNOWN Person Hypotheses last seen more than ${days} day${days === 1 ? "" : "s"} ago?`,
-        { confirmText: "Purge", color: "warning" }
+        { confirmText: "Purge", color: "warning" },
       );
       if (!ok) return;
       purgingUnknown.value = true;
@@ -748,7 +782,11 @@ export default {
     }
 
     function kindIcon(kind) {
-      return kind === "auto" ? "mdi-robot-outline" : kind === "manual_merge" ? "mdi-merge" : "mdi-account-edit-outline";
+      return kind === "auto"
+        ? "mdi-robot-outline"
+        : kind === "manual_merge"
+          ? "mdi-merge"
+          : "mdi-account-edit-outline";
     }
 
     return {
@@ -773,6 +811,7 @@ export default {
       headers,
       identityOptions,
       roomOptions,
+      stateOptions,
       durationOptions,
       revisions,
       revisionsHasMore,

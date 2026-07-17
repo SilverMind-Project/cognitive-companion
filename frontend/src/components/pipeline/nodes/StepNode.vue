@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="step-node"
-    :class="nodeClasses"
-  >
+  <div class="step-node" :class="nodeClasses">
     <Handle
       id="main"
       type="target"
@@ -61,19 +58,16 @@
 import { computed } from "vue";
 import { Handle, Position } from "@vue-flow/core";
 import { buildStepDetailChips } from "../steps/index.js";
-import {
-  buildTextPreview,
-  humanize,
-  stepDotColor,
-  stepIcon,
-} from "../steps/stepMeta.js";
+import { buildTextPreview, humanize, stepDotColor, stepIcon } from "../steps/stepMeta.js";
 
 const props = defineProps({
   data: { type: Object, required: true },
 });
 
 const isReadonly = computed(() => Boolean(props.data.readonly));
-const outputPorts = computed(() => props.data.outputPorts?.length ? props.data.outputPorts : ["main"]);
+const outputPorts = computed(() =>
+  props.data.outputPorts?.length ? props.data.outputPorts : ["main"],
+);
 const displayName = computed(() => humanize(props.data.step.step_type));
 const icon = computed(() => stepIcon(props.data.step.step_type));
 const dotColor = computed(() => stepDotColor(props.data.step.step_type));
@@ -105,7 +99,9 @@ function portStyle(port, index, count) {
   };
 }
 
-function portLabelStyle(port, visibleIndex) {
+function portLabelStyle(port, _visibleIndex) {
+  // Position relative to the full output-port set, not the filtered visiblePortLabels
+  // index the template iterates over -- that would misplace labels when a subset is hidden.
   const actualIndex = outputPorts.value.indexOf(port);
   return {
     top: `${portTop(actualIndex, outputPorts.value.length)}%`,
@@ -137,7 +133,9 @@ function portLabelStyle(port, visibleIndex) {
 
 .step-node--status-running {
   border-color: rgb(var(--v-theme-primary));
-  box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), 0.18), var(--cc-shadow-md);
+  box-shadow:
+    0 0 0 2px rgba(var(--v-theme-primary), 0.18),
+    var(--cc-shadow-md);
 }
 
 .step-node--status-succeeded {
@@ -146,7 +144,9 @@ function portLabelStyle(port, visibleIndex) {
 
 .step-node--status-failed {
   border-color: rgb(var(--v-theme-error));
-  box-shadow: 0 0 0 2px rgba(var(--v-theme-error), 0.16), var(--cc-shadow-md);
+  box-shadow:
+    0 0 0 2px rgba(var(--v-theme-error), 0.16),
+    var(--cc-shadow-md);
 }
 
 .step-node--status-skipped {

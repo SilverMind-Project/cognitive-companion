@@ -106,7 +106,7 @@ export function useAggregatorState() {
     (enabled) => {
       if (enabled) startAutoRefresh();
       else stopAutoRefresh();
-    }
+    },
   );
 
   onUnmounted(stopAutoRefresh);

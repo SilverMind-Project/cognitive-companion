@@ -12,14 +12,16 @@
       :key="obs.observation_id || obs.captured_at"
       class="observation-row d-flex align-center ga-2 py-1"
       :class="{ selected: obs.observation_id && obs.observation_id === selectedObservationId }"
-      style="font-size: 0.75rem;"
+      style="font-size: 0.75rem"
       @click="$emit('select', obs)"
     >
-      <span class="text-caption text-medium-emphasis" style="width: 80px; flex-shrink: 0;">
+      <span class="text-caption text-medium-emphasis" style="width: 80px; flex-shrink: 0">
         {{ formatRelative(obs.captured_at) }}
       </span>
       <v-chip size="x-small" variant="tonal">{{ obs.camera_id }}</v-chip>
-      <span class="text-caption">{{ obs.floor_x_m.toFixed(1) }}, {{ obs.floor_y_m.toFixed(1) }}</span>
+      <span class="text-caption"
+        >{{ obs.floor_x_m.toFixed(1) }}, {{ obs.floor_y_m.toFixed(1) }}</span
+      >
     </div>
   </div>
 </template>

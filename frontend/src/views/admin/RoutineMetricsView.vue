@@ -70,22 +70,14 @@
         <v-col cols="12" lg="6">
           <CcSectionCard title="Attempts by step">
             <div class="chart-box">
-              <CcBarChart
-                :categories="attemptCategories"
-                :series="attemptSeries"
-                unit="retries"
-              />
+              <CcBarChart :categories="attemptCategories" :series="attemptSeries" unit="retries" />
             </div>
           </CcSectionCard>
         </v-col>
         <v-col cols="12" lg="6">
           <CcSectionCard title="Time of day">
             <div class="chart-box">
-              <CcBarChart
-                :categories="hourCategories"
-                :series="hourSeries"
-                unit="sessions"
-              />
+              <CcBarChart :categories="hourCategories" :series="hourSeries" unit="sessions" />
             </div>
           </CcSectionCard>
         </v-col>
@@ -121,21 +113,41 @@
               <tbody>
                 <tr>
                   <td class="text-left">Confirm</td>
-                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.confirm_cost?.model_calls ?? 0 }}</td>
-                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.confirm_cost?.frames ?? 0 }}</td>
-                  <td class="text-right">{{ formatLatency(state.dashboard?.gate_cost_summary?.confirm_cost?.latency_ms) }}</td>
+                  <td class="text-right">
+                    {{ state.dashboard?.gate_cost_summary?.confirm_cost?.model_calls ?? 0 }}
+                  </td>
+                  <td class="text-right">
+                    {{ state.dashboard?.gate_cost_summary?.confirm_cost?.frames ?? 0 }}
+                  </td>
+                  <td class="text-right">
+                    {{
+                      formatLatency(state.dashboard?.gate_cost_summary?.confirm_cost?.latency_ms)
+                    }}
+                  </td>
                 </tr>
                 <tr>
                   <td class="text-left">Watch</td>
-                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.watch_cost?.model_calls ?? 0 }}</td>
-                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.watch_cost?.frames ?? 0 }}</td>
-                  <td class="text-right">{{ formatLatency(state.dashboard?.gate_cost_summary?.watch_cost?.latency_ms) }}</td>
+                  <td class="text-right">
+                    {{ state.dashboard?.gate_cost_summary?.watch_cost?.model_calls ?? 0 }}
+                  </td>
+                  <td class="text-right">
+                    {{ state.dashboard?.gate_cost_summary?.watch_cost?.frames ?? 0 }}
+                  </td>
+                  <td class="text-right">
+                    {{ formatLatency(state.dashboard?.gate_cost_summary?.watch_cost?.latency_ms) }}
+                  </td>
                 </tr>
                 <tr class="font-weight-bold">
                   <td class="text-left">Total</td>
-                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.total_cost?.model_calls ?? 0 }}</td>
-                  <td class="text-right">{{ state.dashboard?.gate_cost_summary?.total_cost?.frames ?? 0 }}</td>
-                  <td class="text-right">{{ formatLatency(state.dashboard?.gate_cost_summary?.total_cost?.latency_ms) }}</td>
+                  <td class="text-right">
+                    {{ state.dashboard?.gate_cost_summary?.total_cost?.model_calls ?? 0 }}
+                  </td>
+                  <td class="text-right">
+                    {{ state.dashboard?.gate_cost_summary?.total_cost?.frames ?? 0 }}
+                  </td>
+                  <td class="text-right">
+                    {{ formatLatency(state.dashboard?.gate_cost_summary?.total_cost?.latency_ms) }}
+                  </td>
                 </tr>
               </tbody>
             </v-table>
@@ -178,9 +190,7 @@ const attemptCategories = computed(() =>
 const attemptSeries = computed(() => [
   {
     name: "Average retries",
-    values: (state.dashboard?.attempts_per_step.items ?? []).map(
-      (item) => item.average_attempts,
-    ),
+    values: (state.dashboard?.attempts_per_step.items ?? []).map((item) => item.average_attempts),
   },
 ]);
 const hourCategories = computed(() =>

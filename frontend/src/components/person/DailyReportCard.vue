@@ -3,16 +3,17 @@
     <!-- Date selector and actions -->
     <div class="d-flex align-center flex-wrap ga-3 mb-4">
       <v-menu v-model="dateMenu" :close-on-content-click="false" location="start">
-        <template #activator="{ props }">
-          <v-btn variant="tonal" prepend-icon="mdi-calendar" v-bind="props" :loading="loading">
+        <template #activator="{ props: activatorProps }">
+          <v-btn
+            variant="tonal"
+            prepend-icon="mdi-calendar"
+            v-bind="activatorProps"
+            :loading="loading"
+          >
             {{ displayDate }}
           </v-btn>
         </template>
-        <v-date-picker
-          v-model="selectedDate"
-          headers=""
-          @update:model-value="onDateSelected"
-        />
+        <v-date-picker v-model="selectedDate" headers="" @update:model-value="onDateSelected" />
       </v-menu>
 
       <v-chip v-if="report" :color="wellnessColor" variant="tonal" class="ml-2">
@@ -39,7 +40,7 @@
 
     <!-- Wellness alerts -->
     <v-alert
-      v-for="(alert, i) in (report?.wellness_alerts || [])"
+      v-for="(alert, i) in report?.wellness_alerts || []"
       :key="i"
       :type="alertSeverityColor(alert.severity)"
       variant="tonal"
@@ -50,7 +51,7 @@
 
     <!-- Report sections grid -->
     <v-row v-if="report" class="mt-2">
-      <v-col cols="12" sm="6" md="4" v-for="section in reportSections" :key="section.key">
+      <v-col v-for="section in reportSections" :key="section.key" cols="12" sm="6" md="4">
         <v-card variant="flat" class="report-section">
           <v-card-text class="pa-4">
             <div class="d-flex align-center mb-2">
@@ -63,7 +64,10 @@
                 <span class="font-weight-medium">{{ formatValue(value) }}</span>
               </div>
             </template>
-            <div v-if="Object.keys(section.data).length === 0" class="text-caption text-medium-emphasis">
+            <div
+              v-if="Object.keys(section.data).length === 0"
+              class="text-caption text-medium-emphasis"
+            >
               No data
             </div>
           </v-card-text>
@@ -85,13 +89,31 @@
         >
           <span class="font-weight-medium">{{ room }}</span>
           <div class="d-flex ga-2 align-center">
-            <v-chip size="x-small" :color="trend.overall_severity === 'warning' || trend.overall_severity === 'critical' ? 'error' : 'success'" variant="tonal">
+            <v-chip
+              size="x-small"
+              :color="
+                trend.overall_severity === 'warning' || trend.overall_severity === 'critical'
+                  ? 'error'
+                  : 'success'
+              "
+              variant="tonal"
+            >
               {{ trend.overall_severity }}
             </v-chip>
-            <v-chip v-if="trend.clutter_score > 0" size="x-small" variant="tonal" color="surface-variant">
+            <v-chip
+              v-if="trend.clutter_score > 0"
+              size="x-small"
+              variant="tonal"
+              color="surface-variant"
+            >
               Clutter: {{ trend.clutter_score.toFixed(1) }}
             </v-chip>
-            <v-chip v-if="trend.trend_direction" size="x-small" variant="tonal" color="surface-variant">
+            <v-chip
+              v-if="trend.trend_direction"
+              size="x-small"
+              variant="tonal"
+              color="surface-variant"
+            >
               {{ trend.trend_direction }}
             </v-chip>
           </div>
@@ -108,7 +130,6 @@
 
 <script setup>
 import { ref, computed } from "vue";
-import { formatDateTime } from "../../services/timezone.js";
 
 const props = defineProps({
   personId: { type: String, required: true },
@@ -128,12 +149,48 @@ const reportSections = computed(() => {
   if (!report.value) return [];
   const sections = [
     { key: "sleep", label: "Sleep", icon: "mdi-bed", color: "purple", data: report.value.sleep },
-    { key: "meals", label: "Meals", icon: "mdi-silverware", color: "orange", data: report.value.meals },
-    { key: "medication", label: "Medication", icon: "mdi-pill", color: "red", data: report.value.medication },
-    { key: "bathroom_visits", label: "Bathroom", icon: "mdi-toilet", color: "blue", data: report.value.bathroom_visits },
-    { key: "door_events", label: "Door Events", icon: "mdi-door", color: "teal", data: report.value.door_events },
-    { key: "exercise", label: "Exercise", icon: "mdi-run", color: "green", data: report.value.exercise },
-    { key: "room_time", label: "Room Time", icon: "mdi-floor-plan", color: "indigo", data: report.value.room_time },
+    {
+      key: "meals",
+      label: "Meals",
+      icon: "mdi-silverware",
+      color: "orange",
+      data: report.value.meals,
+    },
+    {
+      key: "medication",
+      label: "Medication",
+      icon: "mdi-pill",
+      color: "red",
+      data: report.value.medication,
+    },
+    {
+      key: "bathroom_visits",
+      label: "Bathroom",
+      icon: "mdi-toilet",
+      color: "blue",
+      data: report.value.bathroom_visits,
+    },
+    {
+      key: "door_events",
+      label: "Door Events",
+      icon: "mdi-door",
+      color: "teal",
+      data: report.value.door_events,
+    },
+    {
+      key: "exercise",
+      label: "Exercise",
+      icon: "mdi-run",
+      color: "green",
+      data: report.value.exercise,
+    },
+    {
+      key: "room_time",
+      label: "Room Time",
+      icon: "mdi-floor-plan",
+      color: "indigo",
+      data: report.value.room_time,
+    },
   ];
   return sections;
 });

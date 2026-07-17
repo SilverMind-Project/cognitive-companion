@@ -41,11 +41,7 @@
         <div class="d-flex flex-grow-1 overflow-hidden">
           <div class="step-config-content flex-grow-1 px-6 py-5">
             <v-window v-model="activeTab">
-              <v-window-item
-                v-for="tabItem in tabs"
-                :key="tabItem.key"
-                :value="tabItem.key"
-              >
+              <v-window-item v-for="tabItem in tabs" :key="tabItem.key" :value="tabItem.key">
                 <!-- General tab: step label + step-type config -->
                 <template v-if="tabItem.key === 'general'">
                   <v-text-field
@@ -90,13 +86,18 @@
 
           <!-- Pipeline Variables sidebar -->
           <v-divider vertical />
-          <div class="step-config-vars px-4 py-5 d-none d-md-flex flex-column" style="position: relative;">
+          <div
+            class="step-config-vars px-4 py-5 d-none d-md-flex flex-column"
+            style="position: relative"
+          >
             <div class="d-flex align-center mb-3">
               <v-icon size="small" class="mr-2" color="primary">mdi-code-braces</v-icon>
               <div class="text-subtitle-2 font-weight-bold">Pipeline Variables</div>
             </div>
             <div class="text-caption text-medium-emphasis mb-3">
-              Click any variable to copy it as a template token. Use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates from upstream steps.
+              Click any variable to copy it as a template token. Use
+              <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates from
+              upstream steps.
             </div>
             <v-text-field
               v-model="varSearch"
@@ -124,7 +125,9 @@
             <Transition name="copied-fade">
               <div v-if="copiedToken" class="copied-toast">
                 <v-icon size="14" color="success" class="mr-1">mdi-check</v-icon>
-                <span class="text-caption">Copied <code>{{ copiedToken }}</code></span>
+                <span class="text-caption"
+                  >Copied <code>{{ copiedToken }}</code></span
+                >
               </div>
             </Transition>
           </div>
@@ -140,7 +143,9 @@
       >
         <template #hint>
           <span class="text-caption text-medium-emphasis">
-            Use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates to reference pipeline variables. Labeled steps are also accessible as <code class="cc-code">&#123;&#123;step_label.key&#125;&#125;</code>.
+            Use <code class="cc-code">&#123;&#123;key&#125;&#125;</code> in prompts and templates to
+            reference pipeline variables. Labeled steps are also accessible as
+            <code class="cc-code">&#123;&#123;step_label.key&#125;&#125;</code>.
           </span>
         </template>
       </DialogFooter>
@@ -153,6 +158,7 @@ import { ref, watch, reactive, computed, onMounted, provide } from "vue";
 import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
 import { isoToLocalHHMM, localHHMMToUTCISO } from "../../services/timezone.js";
+import { useNotify } from "../../composables/useNotify.js";
 import DialogHeader from "../common/DialogHeader.vue";
 import DialogFooter from "../common/DialogFooter.vue";
 import {
@@ -193,8 +199,13 @@ const stepTypeSchemas = ref({});
 const dataKeys = ref({ trigger: [], system: [], step_outputs: {} });
 const currentStepSchema = computed(() => stepTypeSchemas.value[localStep.step_type] || {});
 const availableChannels = ref([
-  "pwa_popup_text", "telegram", "eink", "ha_speaker_tts",
-  "pwa_tts_announcement", "pwa_realtime_ai", "webhook",
+  "pwa_popup_text",
+  "telegram",
+  "eink",
+  "ha_speaker_tts",
+  "pwa_tts_announcement",
+  "pwa_realtime_ai",
+  "webhook",
 ]);
 const availablePersons = ref([]);
 const availableRooms = ref([]);
@@ -210,7 +221,9 @@ const llmModelItems = ref([]);
 const LABEL_RE = /^[a-z][a-z0-9_]*$/;
 const labelRules = [
   (v) => !!v || "Step label is required",
-  (v) => LABEL_RE.test(v) || "Label must start with a letter and contain only lowercase letters, digits, and underscores",
+  (v) =>
+    LABEL_RE.test(v) ||
+    "Label must start with a letter and contain only lowercase letters, digits, and underscores",
 ];
 const labelUniqueError = computed(() => {
   const label = localStep.label;
@@ -230,7 +243,9 @@ const tabs = computed(() => {
 
 watch(
   () => localStep.step_type,
-  () => { if (tabs.value.length) activeTab.value = tabs.value[0].key; }
+  () => {
+    if (tabs.value.length) activeTab.value = tabs.value[0].key;
+  },
 );
 
 // Compute step icon
@@ -254,7 +269,10 @@ provide("pipelineRuleContext", ruleContext);
 function humanize(type) {
   if (!type) return "Step";
   if (STEP_LABELS[type]) return STEP_LABELS[type];
-  return type.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  return type
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 // --- Pipeline variables reference (computed from API data) ---
@@ -301,7 +319,7 @@ const filteredVariables = computed(() => {
   const q = varSearch.value.trim().toLowerCase();
   if (!q) return pipelineVariableEntries.value;
   return pipelineVariableEntries.value.filter(
-    (v) => v.key.toLowerCase().includes(q) || v.source.toLowerCase().includes(q)
+    (v) => v.key.toLowerCase().includes(q) || v.source.toLowerCase().includes(q),
   );
 });
 
@@ -314,7 +332,9 @@ async function insertTemplateToken(key) {
   try {
     await navigator.clipboard.writeText(token);
     copiedToken.value = token;
-    setTimeout(() => { copiedToken.value = ""; }, 1500);
+    setTimeout(() => {
+      copiedToken.value = "";
+    }, 1500);
   } catch {
     copiedToken.value = "";
   }
@@ -337,7 +357,8 @@ watch(
     localStep.label = step.label || "";
 
     const base = getDefaults(step.step_type);
-    const incoming = step.config_json && typeof step.config_json === "object" ? step.config_json : {};
+    const incoming =
+      step.config_json && typeof step.config_json === "object" ? step.config_json : {};
 
     // Reset cfg
     Object.keys(cfg).forEach((k) => delete cfg[k]);
@@ -352,7 +373,10 @@ watch(
     // Normalize target_persons to array for person_identification
     if (step.step_type === "person_identification") {
       if (typeof cfg.target_persons === "string") {
-        cfg.target_persons = cfg.target_persons.split(",").map((s) => s.trim()).filter(Boolean);
+        cfg.target_persons = cfg.target_persons
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
       } else if (!Array.isArray(cfg.target_persons)) {
         cfg.target_persons = [];
       }
@@ -365,7 +389,7 @@ watch(
 
     // For unknown/plugin types, the GenericPluginConfig handles its own JSON display
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // Load HA entities when the ha_action domain field changes
@@ -381,7 +405,7 @@ watch(
     } catch {
       haEntityItems.value = [];
     }
-  }
+  },
 );
 
 onMounted(async () => {
@@ -391,55 +415,70 @@ onMounted(async () => {
       stepTypeDefaults.value[t.type_name] = t.default_config || {};
       stepTypeSchemas.value[t.type_name] = t;
     }
-  } catch { /* use static defaults */ }
+  } catch {
+    /* use static defaults */
+  }
   try {
     dataKeys.value = await api.getDataKeys();
-  } catch { /* use static reference */ }
+  } catch {
+    /* use static reference */
+  }
   try {
     const channels = await api.getChannelTypes();
     availableChannels.value = channels.map((c) => c.channel_name);
-  } catch { /* use fallback */ }
+  } catch {
+    /* use fallback */
+  }
   try {
     const persons = await api.getPersons();
     availablePersons.value = persons.map((p) => p.id);
-  } catch { /* unavailable */ }
+  } catch {
+    /* unavailable */
+  }
   try {
     const rooms = await api.getRooms();
     availableRooms.value = rooms.map((r) => r.name);
-  } catch { /* unavailable */ }
+  } catch {
+    /* unavailable */
+  }
   try {
     const sensors = await api.getSensors();
     einkSensorItems.value = sensors.filter((s) => s.sensor_type === "eink").map((s) => s.id);
     cameraSensorItems.value = sensors.filter((s) => s.sensor_type === "camera").map((s) => s.id);
-  } catch { /* unavailable */ }
+  } catch {
+    /* unavailable */
+  }
   try {
     // CTS camera roster (distinct from reCamera sensors). Empty when CTS is
     // disabled; the dropdowns degrade to free text entry.
     const ctsCameras = await cts.getCameras();
     ctsCameraItems.value = (ctsCameras || []).map((c) => c.id);
-  } catch { /* CTS disabled or unavailable */ }
+  } catch {
+    /* CTS disabled or unavailable */
+  }
   try {
     haMediaPlayerItems.value = await api.getHAMediaPlayers();
-  } catch { /* unavailable */ }
+  } catch {
+    /* unavailable */
+  }
   try {
     llmModelItems.value = await api.getLLMModels();
-  } catch { /* unavailable */ }
+  } catch {
+    /* unavailable */
+  }
   try {
     imageTemplateItems.value = await api.getImageTemplates();
-  } catch { /* unavailable */ }
+  } catch {
+    /* unavailable */
+  }
 });
 
 // --- Save ---
 
-function notify(msg, type) {
-  // Simple notification — in real app uses useNotify() from a composable
-  console.log(`[${type}] ${msg}`);
-}
+const { notify: notifyUser } = useNotify();
 
-function validateForm() {
-  // Validate forms from step components that expose validate()
-  // Currently handled via expose: presence_query, home_state
-  return true;
+function notify(msg, type) {
+  notifyUser(msg, type);
 }
 
 function save() {
@@ -456,7 +495,7 @@ function save() {
     // GenericPluginConfig handles JSON parsing internally via v-model
     try {
       JSON.parse(JSON.stringify(cfg)); // validate it's serializable
-    } catch (e) {
+    } catch (_e) {
       notify("Invalid JSON config", "error");
       return;
     }
@@ -472,7 +511,10 @@ function save() {
   // Normalize target_persons to array
   if (localStep.step_type === "person_identification") {
     if (typeof config.target_persons === "string") {
-      config.target_persons = config.target_persons.split(",").map((s) => s.trim()).filter(Boolean);
+      config.target_persons = config.target_persons
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
     } else if (!Array.isArray(config.target_persons)) {
       config.target_persons = [];
     }
@@ -482,7 +524,9 @@ function save() {
   if (localStep.step_type === "ha_action" && typeof config.data === "string") {
     try {
       config.data = config.data.trim() ? JSON.parse(config.data) : {};
-    } catch { config.data = {}; }
+    } catch {
+      config.data = {};
+    }
   }
 
   const labelValid = labelRules.every((r) => r(localStep.label) === true);
@@ -553,7 +597,7 @@ function save() {
 }
 
 .var-row:hover {
-  background-color: rgba(10, 132, 255, 0.10);
+  background-color: rgba(10, 132, 255, 0.1);
 }
 
 .var-row + .var-row {
@@ -597,7 +641,9 @@ function save() {
 
 .copied-fade-enter-active,
 .copied-fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .copied-fade-enter-from,

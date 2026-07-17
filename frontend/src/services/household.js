@@ -20,6 +20,5 @@ export const household = {
 
   getRooms: () => req("/rooms"),
 
-  putRoom: (id, data) =>
-    req(`/rooms/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  putRoom: (id, data) => req(`/rooms/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 };

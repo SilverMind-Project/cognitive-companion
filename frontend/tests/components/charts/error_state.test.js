@@ -19,8 +19,23 @@ vi.mock("vue-echarts", () => ({
 }));
 vi.mock("echarts/core", () => ({ use: vi.fn() }));
 vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
-vi.mock("echarts/charts", () => ({ LineChart: {}, BarChart: {}, HeatmapChart: {}, ScatterChart: {}, GaugeChart: {}, GraphChart: {} }));
-vi.mock("echarts/components", () => ({ GridComponent: {}, TooltipComponent: {}, LegendComponent: {}, MarkLineComponent: {}, VisualMapComponent: {}, DataZoomComponent: {}, TitleComponent: {} }));
+vi.mock("echarts/charts", () => ({
+  LineChart: {},
+  BarChart: {},
+  HeatmapChart: {},
+  ScatterChart: {},
+  GaugeChart: {},
+  GraphChart: {},
+}));
+vi.mock("echarts/components", () => ({
+  GridComponent: {},
+  TooltipComponent: {},
+  LegendComponent: {},
+  MarkLineComponent: {},
+  VisualMapComponent: {},
+  DataZoomComponent: {},
+  TitleComponent: {},
+}));
 
 const THEME_STUB = {
   chartTheme: {
@@ -28,12 +43,31 @@ const THEME_STUB = {
       color: ["#0a84ff"],
       backgroundColor: "transparent",
       textStyle: { color: "#fff" },
-      xAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333", type: "dashed" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
-      yAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333", type: "dashed" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
+      xAxis: {
+        axisLabel: { color: "#ccc" },
+        axisLine: { lineStyle: { color: "#333" } },
+        splitLine: { lineStyle: { color: "#333", type: "dashed" } },
+        axisTick: { lineStyle: { color: "#333" } },
+        nameTextStyle: { color: "#ccc" },
+      },
+      yAxis: {
+        axisLabel: { color: "#ccc" },
+        axisLine: { lineStyle: { color: "#333" } },
+        splitLine: { lineStyle: { color: "#333", type: "dashed" } },
+        axisTick: { lineStyle: { color: "#333" } },
+        nameTextStyle: { color: "#ccc" },
+      },
       tooltip: { backgroundColor: "#111", borderColor: "#333", textStyle: { color: "#fff" } },
       legend: { textStyle: { color: "#ccc" } },
       grid: { borderColor: "#333" },
-      _severity: { running: "#0a84ff", succeeded: "#30d158", failed: "#ff453a", skipped: "#6e6e73", pending: "#a1a1a6", warning: "#ff9500" },
+      _severity: {
+        running: "#0a84ff",
+        succeeded: "#30d158",
+        failed: "#ff453a",
+        skipped: "#6e6e73",
+        pending: "#a1a1a6",
+        warning: "#ff9500",
+      },
     },
   },
 };

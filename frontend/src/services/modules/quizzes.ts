@@ -10,9 +10,6 @@ export type QuizListOut = Schemas["QuizListOut"];
 export type QuizQuestionOut = Schemas["QuizQuestionOut"];
 
 type ListParams = operations["list_quizzes"]["parameters"]["query"];
-type SuggestParams = operations["suggest_quiz"]["parameters"]["query"];
-type VoiceSuggestParams = operations["suggest_voice_instruction"]["parameters"]["query"];
-type RegenerateParams = operations["regenerate_question"]["parameters"]["query"];
 
 export const getQuizzes = (params: ListParams = {}) =>
   unwrap(client.GET("/api/v1/quizzes", { params: { query: params } }));
@@ -24,7 +21,9 @@ export const createQuiz = (data: Schemas["QuizCreate"]) =>
   unwrap(client.POST("/api/v1/quizzes", { body: data }));
 
 export const updateQuiz = (id: number, data: Schemas["QuizUpdate"]) =>
-  unwrap(client.PATCH("/api/v1/quizzes/{quiz_id}", { params: { path: { quiz_id: id } }, body: data }));
+  unwrap(
+    client.PATCH("/api/v1/quizzes/{quiz_id}", { params: { path: { quiz_id: id } }, body: data }),
+  );
 
 export const deleteQuiz = (id: number) =>
   unwrap(client.DELETE("/api/v1/quizzes/{quiz_id}", { params: { path: { quiz_id: id } } }));
@@ -67,7 +66,10 @@ export const deleteQuizQuestion = (quizId: number, qid: number) =>
     }),
   );
 
-export const reorderQuizQuestions = (quizId: number, items: Schemas["QuizQuestionReorder"]["items"]) =>
+export const reorderQuizQuestions = (
+  quizId: number,
+  items: Schemas["QuizQuestionReorder"]["items"],
+) =>
   unwrap(
     client.POST("/api/v1/quizzes/{quiz_id}/questions/reorder", {
       params: { path: { quiz_id: quizId } },

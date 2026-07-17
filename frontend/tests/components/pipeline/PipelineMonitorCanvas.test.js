@@ -19,27 +19,29 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/composables/useCanvasPipeline.js", () => ({
   useCanvasPipeline: () => ({ state: mocks.canvasState, actions: {} }),
-  stepsToNodes: (steps, stepMeta = {}, readonly = false) => steps.map((step) => ({
-    id: String(step.id),
-    type: "step",
-    position: { x: step.position_x ?? 0, y: step.position_y ?? 0 },
-    data: {
-      step,
-      outputPorts: stepMeta[step.step_type]?.output_ports ?? ["main"],
-      readonly,
-    },
-  })),
-  edgesToVueFlow: (edges) => edges.map((edge, index) => ({
-    id: String(edge.id ?? index + 1),
-    source: String(edge.source_step_id),
-    sourceHandle: edge.source_port,
-    target: String(edge.target_step_id),
-    targetHandle: edge.target_port,
-    label: edge.source_port !== "main" ? edge.source_port : "",
-    type: "smoothstep",
-    animated: false,
-    style: { stroke: "var(--cc-divider-strong)" },
-  })),
+  stepsToNodes: (steps, stepMeta = {}, readonly = false) =>
+    steps.map((step) => ({
+      id: String(step.id),
+      type: "step",
+      position: { x: step.position_x ?? 0, y: step.position_y ?? 0 },
+      data: {
+        step,
+        outputPorts: stepMeta[step.step_type]?.output_ports ?? ["main"],
+        readonly,
+      },
+    })),
+  edgesToVueFlow: (edges) =>
+    edges.map((edge, index) => ({
+      id: String(edge.id ?? index + 1),
+      source: String(edge.source_step_id),
+      sourceHandle: edge.source_port,
+      target: String(edge.target_step_id),
+      targetHandle: edge.target_port,
+      label: edge.source_port !== "main" ? edge.source_port : "",
+      type: "smoothstep",
+      animated: false,
+      style: { stroke: "var(--cc-divider-strong)" },
+    })),
 }));
 
 vi.mock("@/composables/useLivePipeline.js", () => ({
@@ -232,16 +234,42 @@ describe("PipelineMonitorCanvas", () => {
       id: 10,
       graph: {
         steps: [
-          { id: 201, label: "Snapshot Condition", step_type: "condition", position_x: 40, position_y: 50, output_ports: ["true", "false"] },
-          { id: 202, label: "Snapshot Notify", step_type: "notification", position_x: 340, position_y: 50, output_ports: ["main"] },
+          {
+            id: 201,
+            label: "Snapshot Condition",
+            step_type: "condition",
+            position_x: 40,
+            position_y: 50,
+            output_ports: ["true", "false"],
+          },
+          {
+            id: 202,
+            label: "Snapshot Notify",
+            step_type: "notification",
+            position_x: 340,
+            position_y: 50,
+            output_ports: ["main"],
+          },
         ],
         edges: [
           { source_step_id: 201, source_port: "true", target_step_id: 202, target_port: "main" },
         ],
       },
       timeline: [
-        { step_id: 201, label: "Snapshot Condition", step_type: "condition", status: "success", output_port: "true" },
-        { step_id: 202, label: "Snapshot Notify", step_type: "notification", status: "success", output_port: "main" },
+        {
+          step_id: 201,
+          label: "Snapshot Condition",
+          step_type: "condition",
+          status: "success",
+          output_port: "true",
+        },
+        {
+          step_id: 202,
+          label: "Snapshot Notify",
+          step_type: "notification",
+          status: "success",
+          output_port: "main",
+        },
       ],
     });
 
@@ -269,7 +297,13 @@ describe("PipelineMonitorCanvas", () => {
         ],
       },
       timeline: [
-        { step_id: 201, label: "Condition", step_type: "condition", status: "success", output_port: "true" },
+        {
+          step_id: 201,
+          label: "Condition",
+          step_type: "condition",
+          status: "success",
+          output_port: "true",
+        },
       ],
     });
 
@@ -293,8 +327,20 @@ describe("PipelineMonitorCanvas", () => {
         edges: [],
       },
       timeline: [
-        { step_id: 201, label: "Condition", step_type: "condition", status: "success", output_port: "true" },
-        { step_id: 203, label: "Untaken", step_type: "notification", status: "skipped", output_port: "main" },
+        {
+          step_id: 201,
+          label: "Condition",
+          step_type: "condition",
+          status: "success",
+          output_port: "true",
+        },
+        {
+          step_id: 203,
+          label: "Untaken",
+          step_type: "notification",
+          status: "skipped",
+          output_port: "main",
+        },
       ],
     });
 

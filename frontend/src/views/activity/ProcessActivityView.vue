@@ -66,10 +66,9 @@
                   @click="selectRun(run)"
                 >
                   <template #append>
-                    <v-icon
-                      :color="run.status === 'running' ? 'primary' : 'grey'"
-                      size="12"
-                    >mdi-circle</v-icon>
+                    <v-icon :color="run.status === 'running' ? 'primary' : 'grey'" size="12"
+                      >mdi-circle</v-icon
+                    >
                   </template>
                 </v-list-item>
               </v-list>
@@ -100,7 +99,12 @@
             <v-card v-if="selectedRun" class="glass-card" data-testid="run-detail-card">
               <v-card-title class="d-flex align-center">
                 {{ selectedRun.rule_name }}
-                <v-chip :color="statusColor(selectedRun.status)" size="x-small" variant="tonal" class="ml-2">
+                <v-chip
+                  :color="statusColor(selectedRun.status)"
+                  size="x-small"
+                  variant="tonal"
+                  class="ml-2"
+                >
                   {{ selectedRun.status }}
                 </v-chip>
                 <v-spacer />
@@ -155,32 +159,16 @@
         <v-row>
           <!-- Metric tiles -->
           <v-col cols="6" sm="3">
-            <CcMetricTile
-              label="Frames / min"
-              :value="framesPerMin"
-              status="neutral"
-            />
+            <CcMetricTile label="Frames / min" :value="framesPerMin" status="neutral" />
           </v-col>
           <v-col cols="6" sm="3">
-            <CcMetricTile
-              label="Rules triggered"
-              :value="rulesTriggered"
-              status="neutral"
-            />
+            <CcMetricTile label="Rules triggered" :value="rulesTriggered" status="neutral" />
           </v-col>
           <v-col cols="6" sm="3">
-            <CcMetricTile
-              label="Active sensors"
-              :value="activeSensors"
-              status="neutral"
-            />
+            <CcMetricTile label="Active sensors" :value="activeSensors" status="neutral" />
           </v-col>
           <v-col cols="6" sm="3">
-            <CcMetricTile
-              label="Last ingest"
-              :value="lastIngestAge"
-              status="neutral"
-            />
+            <CcMetricTile label="Last ingest" :value="lastIngestAge" status="neutral" />
           </v-col>
         </v-row>
 
@@ -229,7 +217,12 @@
       <div class="h-100 d-flex flex-column">
         <div class="d-flex align-center px-4 py-3">
           <span class="text-subtitle-1 font-weight-semibold">{{ selectedRun.rule_name }}</span>
-          <v-chip :color="statusColor(selectedRun.status)" size="x-small" variant="tonal" class="ml-2">
+          <v-chip
+            :color="statusColor(selectedRun.status)"
+            size="x-small"
+            variant="tonal"
+            class="ml-2"
+          >
             {{ selectedRun.status }}
           </v-chip>
           <v-spacer />
@@ -241,7 +234,11 @@
             <ExecutionInspector
               v-if="fullExecution"
               :execution-id="fullExecution.id"
-              :source="selectedRun.status === 'running' || selectedRun.status === 'waiting' ? 'live' : 'historic'"
+              :source="
+                selectedRun.status === 'running' || selectedRun.status === 'waiting'
+                  ? 'live'
+                  : 'historic'
+              "
               :rule-id="fullExecution.rule_id"
               :live-run="selectedRun"
             />
@@ -268,7 +265,7 @@ import CcMetricTile from "@/components/dashboard/CcMetricTile.vue";
 import ExecutionInspector from "@/components/pipeline/ExecutionInspector.vue";
 
 const { notify } = useNotify();
-const { connectionState, activeRuns, ingestEvents, error, refresh: refreshSocket } = useLivePipeline();
+const { connectionState, activeRuns, ingestEvents, refresh: refreshSocket } = useLivePipeline();
 
 const activeTab = ref("runs");
 const selectedRunId = ref(null);
@@ -285,28 +282,36 @@ const loadingIngest = ref(false);
 
 const wsColor = computed(() => {
   switch (connectionState.value) {
-    case "open":       return "success";
-    case "connecting": return "warning";
+    case "open":
+      return "success";
+    case "connecting":
+      return "warning";
     case "error":
-    case "closed":     return "error";
-    default:           return "grey";
+    case "closed":
+      return "error";
+    default:
+      return "grey";
   }
 });
 
 const wsIcon = computed(() => {
   switch (connectionState.value) {
-    case "open":       return "mdi-wifi";
-    case "connecting": return "mdi-wifi-sync";
-    default:           return "mdi-wifi-off";
+    case "open":
+      return "mdi-wifi";
+    case "connecting":
+      return "mdi-wifi-sync";
+    default:
+      return "mdi-wifi-off";
   }
 });
 
 // -- Run selection -----------------------------------------------------------
 
 const selectedRun = computed(
-  () => activeRuns.value.find((r) => r.execution_id === selectedRunId.value)
-       || recentRuns.value.find((r) => r.execution_id === selectedRunId.value)
-       || null,
+  () =>
+    activeRuns.value.find((r) => r.execution_id === selectedRunId.value) ||
+    recentRuns.value.find((r) => r.execution_id === selectedRunId.value) ||
+    null,
 );
 
 const activeNodeId = computed(() => {
@@ -370,13 +375,20 @@ const timelineEvents = computed(() => {
 
 function statusColor(status) {
   switch (status) {
-    case "running":   return "primary";
-    case "completed": return "success";
-    case "succeeded": return "success";
-    case "failed":    return "error";
-    case "waiting":   return "warning";
-    case "cancelled": return "grey";
-    default:          return "grey";
+    case "running":
+      return "primary";
+    case "completed":
+      return "success";
+    case "succeeded":
+      return "success";
+    case "failed":
+      return "error";
+    case "waiting":
+      return "warning";
+    case "cancelled":
+      return "grey";
+    default:
+      return "grey";
   }
 }
 
@@ -386,9 +398,10 @@ const feedEvents = computed(() => {
   const fromRest = (ingestActivity.value || []).map((ev) => ({
     id: ev.id,
     timestamp: ev.timestamp,
-    title: ev.event_type === "frame_received"
-      ? `Frame from ${ev.sensor_id || "sensor"}`
-      : `Rule triggered: ${ev.rule_name || "unknown"}`,
+    title:
+      ev.event_type === "frame_received"
+        ? `Frame from ${ev.sensor_id || "sensor"}`
+        : `Rule triggered: ${ev.rule_name || "unknown"}`,
     description: ev.sensor_id || undefined,
     icon: ev.event_type === "frame_received" ? "mdi-camera" : "mdi-flash",
     color: ev.event_type === "frame_received" ? "teal" : "primary",
@@ -404,9 +417,7 @@ const feedEvents = computed(() => {
       color: "primary",
     }));
 
-  return [...fromRest, ...fromWs].sort(
-    (a, b) => new Date(b.timestamp) - new Date(a.timestamp),
-  );
+  return [...fromRest, ...fromWs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 });
 
 const framesPerMin = computed(() => {
@@ -416,16 +427,12 @@ const framesPerMin = computed(() => {
   ).length;
 });
 
-const rulesTriggered = computed(() =>
-  ingestActivity.value.filter((e) => e.event_type === "rule_triggered").length,
+const rulesTriggered = computed(
+  () => ingestActivity.value.filter((e) => e.event_type === "rule_triggered").length,
 );
 
 const activeSensors = computed(() => {
-  const ids = new Set(
-    ingestActivity.value
-      .filter((e) => e.sensor_id)
-      .map((e) => e.sensor_id),
-  );
+  const ids = new Set(ingestActivity.value.filter((e) => e.sensor_id).map((e) => e.sensor_id));
   return ids.size;
 });
 
@@ -495,5 +502,13 @@ watch(
   },
 );
 
-defineExpose({ connectionState, activeRuns, activeTab, selectedRun, feedEvents, ingestEvents, selectRun });
+defineExpose({
+  connectionState,
+  activeRuns,
+  activeTab,
+  selectedRun,
+  feedEvents,
+  ingestEvents,
+  selectRun,
+});
 </script>

@@ -10,7 +10,8 @@
           Floor Plan
         </h2>
         <div class="floor-plan-page-subtitle text-medium-emphasis mt-1">
-          Upload a floor plan image and draw room polygons. Active people appear as dots in real time.
+          Upload a floor plan image and draw room polygons. Active people appear as dots in real
+          time.
         </div>
       </div>
       <v-spacer />
@@ -81,8 +82,8 @@
             <div>
               <div class="text-body-2 font-weight-medium">Prepare the map for tracking</div>
               <div class="text-caption text-medium-emphasis mt-1">
-                Choose a top-down JPEG or PNG up to 10 MB, optionally trim its margins,
-                then set the real-world scale used by tracking and camera calibration.
+                Choose a top-down JPEG or PNG up to 10 MB, optionally trim its margins, then set the
+                real-world scale used by tracking and camera calibration.
               </div>
             </div>
           </div>
@@ -160,16 +161,9 @@
                 </v-btn>
               </div>
               <v-divider />
-              <div
-                ref="cropOuterRef"
-                class="crop-outer"
-                @wheel.prevent="cropZoom.actions.onWheel"
-              >
+              <div ref="cropOuterRef" class="crop-outer" @wheel.prevent="cropZoom.actions.onWheel">
                 <div class="crop-zoom-content" :style="cropZoom.state.transformStyle">
-                  <div
-                    class="crop-container"
-                    @mousedown="onCropMouseDown"
-                  >
+                  <div class="crop-container" @mousedown="onCropMouseDown">
                     <img
                       ref="cropImgRef"
                       :src="scalePickerImageUrl"
@@ -186,7 +180,13 @@
                     >
                       <defs>
                         <mask id="crop-mask">
-                          <rect x="0" y="0" :width="cropImgRect.width" :height="cropImgRect.height" fill="white" />
+                          <rect
+                            x="0"
+                            y="0"
+                            :width="cropImgRect.width"
+                            :height="cropImgRect.height"
+                            fill="white"
+                          />
                           <rect
                             :x="cropRect.x * cropImgRect.width"
                             :y="cropRect.y * cropImgRect.height"
@@ -197,8 +197,10 @@
                         </mask>
                       </defs>
                       <rect
-                        x="0" y="0"
-                        :width="cropImgRect.width" :height="cropImgRect.height"
+                        x="0"
+                        y="0"
+                        :width="cropImgRect.width"
+                        :height="cropImgRect.height"
                         fill="rgba(0,0,0,0.4)"
                         mask="url(#crop-mask)"
                       />
@@ -218,7 +220,8 @@
                         class="crop-handle"
                         :x="handle.x * cropImgRect.width - 5"
                         :y="handle.y * cropImgRect.height - 5"
-                        width="10" height="10"
+                        width="10"
+                        height="10"
                         fill="white"
                         :stroke="_tokWarning"
                         stroke-width="2"
@@ -268,8 +271,8 @@
             <!-- Method A: click two points -->
             <template v-if="scaleMethod === 'pickpoints'">
               <div class="text-caption text-medium-emphasis mt-3 mb-2">
-                Click two points whose real distance you can measure, such as opposite room
-                corners or the sides of a doorway.
+                Click two points whose real distance you can measure, such as opposite room corners
+                or the sides of a doorway.
               </div>
 
               <div
@@ -318,13 +321,15 @@
                       />
                       <text
                         v-if="scalePoints.length === 2"
-                        :x="(scalePoints[0][0] + scalePoints[1][0]) / 2 * scaleImgRect.width"
-                        :y="(scalePoints[0][1] + scalePoints[1][1]) / 2 * scaleImgRect.height - 8"
+                        :x="((scalePoints[0][0] + scalePoints[1][0]) / 2) * scaleImgRect.width"
+                        :y="((scalePoints[0][1] + scalePoints[1][1]) / 2) * scaleImgRect.height - 8"
                         fill="var(--cc-brand)"
                         font-size="11"
                         font-weight="600"
                         text-anchor="middle"
-                      >{{ scalePixelDistance.toFixed(0) }} px</text>
+                      >
+                        {{ scalePixelDistance.toFixed(0) }} px
+                      </text>
                       <g v-for="(pt, i) in scalePoints" :key="i">
                         <circle
                           :cx="pt[0] * scaleImgRect.width"
@@ -346,7 +351,9 @@
                           fill="var(--cc-brand)"
                           font-size="12"
                           font-weight="bold"
-                        >{{ ['A', 'B'][i] }}</text>
+                        >
+                          {{ ["A", "B"][i] }}
+                        </text>
                       </g>
                       <text
                         v-if="scalePoints.length === 0"
@@ -357,7 +364,9 @@
                         fill="var(--cc-brand)"
                         font-size="13"
                         opacity="0.6"
-                      >Click to place point A</text>
+                      >
+                        Click to place point A
+                      </text>
                       <text
                         v-else-if="scalePoints.length === 1"
                         :x="scalePoints[0][0] * scaleImgRect.width + 20"
@@ -365,7 +374,9 @@
                         fill="var(--cc-brand)"
                         font-size="12"
                         opacity="0.8"
-                      >Click to place point B</text>
+                      >
+                        Click to place point B
+                      </text>
                     </svg>
                   </div>
                 </div>
@@ -385,9 +396,7 @@
                   <template v-if="scalePoints.length === 2">
                     {{ scalePixelDistance.toFixed(0) }} pixels selected
                   </template>
-                  <template v-else>
-                    {{ scalePoints.length }}/2 points placed
-                  </template>
+                  <template v-else> {{ scalePoints.length }}/2 points placed </template>
                 </div>
                 <v-spacer />
                 <v-btn
@@ -411,7 +420,11 @@
                     type="number"
                     step="0.01"
                     :disabled="scalePoints.length < 2"
-                    :hint="scaleComputedMpp ? `Calculated scale: ${scaleComputedMpp} m/px` : 'Place both points, then enter the measured distance'"
+                    :hint="
+                      scaleComputedMpp
+                        ? `Calculated scale: ${scaleComputedMpp} m/px`
+                        : 'Place both points, then enter the measured distance'
+                    "
                     persistent-hint
                     @update:model-value="onScaleMeasuredChange"
                   />
@@ -420,7 +433,9 @@
                   <div class="upload-calculation-summary cc-inset-section px-3 py-2">
                     <div class="text-caption text-medium-emphasis">Calculated scale</div>
                     <div class="text-body-2 font-weight-medium mt-1">
-                      {{ scaleComputedMpp ? `${scaleComputedMpp} m/px` : 'Waiting for measurement' }}
+                      {{
+                        scaleComputedMpp ? `${scaleComputedMpp} m/px` : "Waiting for measurement"
+                      }}
                     </div>
                   </div>
                 </v-col>
@@ -438,9 +453,11 @@
                     density="compact"
                     type="number"
                     step="0.1"
-                    :hint="uploadRealWidth && uploadWidth
-                      ? `Calculated scale: ${(uploadRealWidth / uploadWidth).toFixed(5)} m/px`
-                      : 'For example, enter 12.5 for a 12.5 metre wide home'"
+                    :hint="
+                      uploadRealWidth && uploadWidth
+                        ? `Calculated scale: ${(uploadRealWidth / uploadWidth).toFixed(5)} m/px`
+                        : 'For example, enter 12.5 for a 12.5 metre wide home'
+                    "
                     persistent-hint
                     @update:model-value="onRealWidthChange"
                   />
@@ -449,7 +466,7 @@
                   <div class="upload-calculation-summary cc-inset-section px-3 py-2">
                     <div class="text-caption text-medium-emphasis">Image width</div>
                     <div class="text-body-2 font-weight-medium mt-1">
-                      {{ uploadWidth ? `${uploadWidth} px` : 'Select an image first' }}
+                      {{ uploadWidth ? `${uploadWidth} px` : "Select an image first" }}
                     </div>
                   </div>
                 </v-col>
@@ -509,7 +526,7 @@
         <v-card-actions class="upload-save-actions px-4 py-3">
           <div class="upload-save-summary">
             <div class="text-body-2 font-weight-medium">
-              {{ uploadFile ? 'New image ready to save' : 'Update floor plan settings' }}
+              {{ uploadFile ? "New image ready to save" : "Update floor plan settings" }}
             </div>
             <div class="text-caption text-medium-emphasis">
               <template v-if="uploadMpp && uploadWidth && uploadHeight">
@@ -542,16 +559,12 @@
         <v-card-title class="floor-plan-card-title">Current Floor Plan</v-card-title>
         <v-divider />
         <v-card-text class="pa-3">
-          <img
-            :src="floorPlanUrl"
-            class="floor-plan-preview marauders-no-paint"
-            alt="Floor plan"
-          />
+          <img :src="floorPlanUrl" class="floor-plan-preview marauders-no-paint" alt="Floor plan" />
           <div class="text-caption text-medium-emphasis mt-2">
             <template v-if="fpWidth && fpHeight">{{ fpWidth }} × {{ fpHeight }} px</template>
             <template v-if="fpMpp">
-              · {{ fpMpp }} m/px
-              · covers {{ (fpWidth * fpMpp).toFixed(1) }} × {{ (fpHeight * fpMpp).toFixed(1) }} m
+              · {{ fpMpp }} m/px · covers {{ (fpWidth * fpMpp).toFixed(1) }} ×
+              {{ (fpHeight * fpMpp).toFixed(1) }} m
             </template>
           </div>
         </v-card-text>
@@ -561,15 +574,15 @@
     <!-- ── Edit rooms panel ───────────────────────────────────────────────── -->
     <template v-else-if="mode === 'edit'">
       <v-alert type="info" variant="tonal" density="compact" class="mb-4 text-body-2">
-        Select a room, then draw its polygon on the floor plan below. Right-click a vertex to
-        delete it. Drag vertices to adjust. Click "Save polygon" to persist.
+        Select a room, then draw its polygon on the floor plan below. Right-click a vertex to delete
+        it. Drag vertices to adjust. Click "Save polygon" to persist.
       </v-alert>
 
       <v-row class="floor-plan-layout">
         <v-col cols="12" md="9" class="floor-plan-main">
           <v-card class="glass-card floor-plan-visual-card floor-plan-editor-card">
             <v-card-title class="floor-plan-card-title d-flex align-center">
-              <span>{{ editingRoom ? editingRoom.name : 'Select a room' }}</span>
+              <span>{{ editingRoom ? editingRoom.name : "Select a room" }}</span>
               <v-spacer />
               <v-btn
                 v-if="editingRoom && editPolygon.length > 0"
@@ -587,10 +600,17 @@
                 variant="flat"
                 size="small"
                 :loading="savingRoom"
-                :disabled="(editPolygon.length > 0 && editPolygon.length < 3) || (editPolygon.length === 0 && !editingRoom?.floor_polygon)"
+                :disabled="
+                  (editPolygon.length > 0 && editPolygon.length < 3) ||
+                  (editPolygon.length === 0 && !editingRoom?.floor_polygon)
+                "
                 @click="saveRoomPolygon"
               >
-                {{ editPolygon.length === 0 && editingRoom?.floor_polygon ? 'Delete polygon' : 'Save polygon' }}
+                {{
+                  editPolygon.length === 0 && editingRoom?.floor_polygon
+                    ? "Delete polygon"
+                    : "Save polygon"
+                }}
               </v-btn>
             </v-card-title>
             <v-card-text class="pa-0">
@@ -622,7 +642,9 @@
                 @click="selectRoom(room)"
               >
                 <template #append>
-                  <v-icon v-if="room.floor_polygon" color="success" size="small">mdi-check-circle</v-icon>
+                  <v-icon v-if="room.floor_polygon" color="success" size="small"
+                    >mdi-check-circle</v-icon
+                  >
                 </template>
               </v-list-item>
               <v-list-item v-if="rooms.length === 0" class="text-medium-emphasis text-body-2">
@@ -645,8 +667,8 @@
             size="small"
             prepend-icon="mdi-refresh"
             :loading="coverageLoading"
-            @click="loadCoverage"
             class="mr-2"
+            @click="loadCoverage"
           >
             Refresh
           </v-btn>
@@ -655,11 +677,21 @@
 
         <div class="d-flex align-center flex-wrap ga-4 px-4 py-2 text-caption text-medium-emphasis">
           <span class="d-flex align-center ga-1">
-            <span class="coverage-legend-swatch" :style="{ borderColor: _tokBrand, background: _tokBrandSoft }" />
+            <span
+              class="coverage-legend-swatch"
+              :style="{ borderColor: _tokBrand, background: _tokBrandSoft }"
+            />
             Calibrated
           </span>
           <span class="d-flex align-center ga-1">
-            <span class="coverage-legend-swatch" :style="{ borderColor: _tokText3, background: 'rgba(128,128,128,0.1)', borderStyle: 'dotted' }" />
+            <span
+              class="coverage-legend-swatch"
+              :style="{
+                borderColor: _tokText3,
+                background: 'rgba(128,128,128,0.1)',
+                borderStyle: 'dotted',
+              }"
+            />
             Not calibrated
           </span>
         </div>
@@ -669,12 +701,12 @@
           <div class="coverage-canvas-wrap">
             <img
               v-if="floorPlanUrl"
+              ref="coverageImgRef"
               :src="floorPlanUrl"
               class="coverage-fp-img cc-floor-plan-background-image marauders-no-paint"
-              ref="coverageImgRef"
-              @load="onCoverageImgLoad"
               alt="Floor plan"
               draggable="false"
+              @load="onCoverageImgLoad"
             />
 
             <svg
@@ -710,16 +742,19 @@
                   paint-order="stroke"
                   stroke="rgba(0,0,0,0.7)"
                   stroke-width="3"
-                  style="pointer-events:none"
-                >{{ cam.camera_name }}</text>
+                  style="pointer-events: none"
+                >
+                  {{ cam.camera_name }}
+                </text>
               </g>
             </svg>
 
-            <div v-if="!floorPlanUrl" class="coverage-empty d-flex flex-column align-center justify-center">
+            <div
+              v-if="!floorPlanUrl"
+              class="coverage-empty d-flex flex-column align-center justify-center"
+            >
               <v-icon size="48" color="medium-emphasis">mdi-floor-plan</v-icon>
-              <div class="text-body-2 text-medium-emphasis mt-2">
-                Upload a floor plan first.
-              </div>
+              <div class="text-body-2 text-medium-emphasis mt-2">Upload a floor plan first.</div>
               <v-btn variant="tonal" size="small" class="mt-3" @click="mode = 'upload'">
                 Go to Floor Plan
               </v-btn>
@@ -730,19 +765,16 @@
             <v-alert type="warning" density="compact" variant="tonal">
               <strong>{{ uncalibratedCoverage.length }} camera(s) not shown</strong>
               &mdash;
-              <span v-if="uncalibratedCoverage.some(c => c.has_homography)">
-                visibility polygon could not be computed.
-                Check that the floor plan scale (m/pixel) is correct in
-                <router-link :to="{ name: 'cts-floor-plan' }" class="text-primary">Floor Plan settings</router-link>.
+              <span v-if="uncalibratedCoverage.some((c) => c.has_homography)">
+                visibility polygon could not be computed. Check that the floor plan scale (m/pixel)
+                is correct in
+                <router-link :to="{ name: 'cts-floor-plan' }" class="text-primary"
+                  >Floor Plan settings</router-link
+                >.
               </span>
               <span v-else>
                 no homography calibration yet.
-                <v-btn
-                  variant="text"
-                  size="x-small"
-                  class="ml-1"
-                  :to="{ name: 'CTSCalibration' }"
-                >
+                <v-btn variant="text" size="x-small" class="ml-1" :to="{ name: 'CTSCalibration' }">
                   Calibrate &rarr;
                 </v-btn>
               </span>
@@ -755,9 +787,7 @@
     <!-- ── Door Zones panel ─────────────────────────────────────────────────── -->
     <template v-else-if="mode === 'doors'">
       <v-card class="glass-card">
-        <v-card-title class="floor-plan-card-title d-flex align-center">
-          Door Zones
-        </v-card-title>
+        <v-card-title class="floor-plan-card-title d-flex align-center"> Door Zones </v-card-title>
         <v-divider />
         <v-card-text>
           <DoorZoneEditor
@@ -808,10 +838,7 @@
                   :style="heatmapZoom.state.transformStyle"
                   @mousedown="onHeatmapMouseDown"
                 >
-                  <svg
-                    :viewBox="`0 0 ${canvasW} ${canvasH}`"
-                    class="floor-plan-svg"
-                  >
+                  <svg :viewBox="`0 0 ${canvasW} ${canvasH}`" class="floor-plan-svg">
                     <image
                       v-if="floorPlanUrl"
                       :href="floorPlanUrl"
@@ -821,7 +848,11 @@
                     />
                     <g v-for="room in rooms" :key="room.id">
                       <MaraudersInkPolygon
-                        v-if="maraudersState.enabled && room.floor_polygon && room.floor_polygon.length >= 3"
+                        v-if="
+                          maraudersState.enabled &&
+                          room.floor_polygon &&
+                          room.floor_polygon.length >= 3
+                        "
                         :points="room.floor_polygon"
                         :canvas-w="canvasW"
                         :canvas-h="canvasH"
@@ -829,7 +860,11 @@
                       />
                       <polygon
                         v-else-if="room.floor_polygon && room.floor_polygon.length >= 3"
-                        :points="room.floor_polygon.map(([x, y]) => `${x * canvasW},${y * canvasH}`).join(' ')"
+                        :points="
+                          room.floor_polygon
+                            .map(([x, y]) => `${x * canvasW},${y * canvasH}`)
+                            .join(' ')
+                        "
                         class="room-poly"
                       />
                     </g>
@@ -851,7 +886,7 @@
                   <div
                     v-if="heatmapState.loading"
                     class="d-flex justify-center align-center"
-                    style="position: absolute; inset: 0; background: rgba(0,0,0,0.25)"
+                    style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.25)"
                   >
                     <v-progress-circular indeterminate color="primary" />
                   </div>
@@ -1022,11 +1057,7 @@
               >
                 {{ uncalibratedPhCount }} person(s) off-plan
               </v-chip>
-              <v-chip
-                :color="worldStatusColor"
-                size="small"
-                variant="tonal"
-              >
+              <v-chip :color="worldStatusColor" size="small" variant="tonal">
                 <v-icon start size="14">{{ worldStatusIcon }}</v-icon>
                 {{ worldStatusLabel }}
               </v-chip>
@@ -1046,10 +1077,7 @@
                   :style="liveZoom.state.transformStyle"
                   @mousedown="onLiveZoomMouseDown"
                 >
-                  <svg
-                    :viewBox="`0 0 ${canvasW} ${canvasH}`"
-                    class="floor-plan-svg"
-                  >
+                  <svg :viewBox="`0 0 ${canvasW} ${canvasH}`" class="floor-plan-svg">
                     <!-- Background floor plan image -->
                     <image
                       v-if="floorPlanUrl"
@@ -1062,7 +1090,11 @@
                     <!-- Room polygons -->
                     <g v-for="room in rooms" :key="room.id">
                       <MaraudersInkPolygon
-                        v-if="maraudersState.enabled && room.floor_polygon && room.floor_polygon.length >= 3"
+                        v-if="
+                          maraudersState.enabled &&
+                          room.floor_polygon &&
+                          room.floor_polygon.length >= 3
+                        "
                         :points="room.floor_polygon"
                         :canvas-w="canvasW"
                         :canvas-h="canvasH"
@@ -1071,7 +1103,11 @@
                       />
                       <template v-else-if="room.floor_polygon && room.floor_polygon.length >= 3">
                         <polygon
-                          :points="room.floor_polygon.map(([x, y]) => `${x * canvasW},${y * canvasH}`).join(' ')"
+                          :points="
+                            room.floor_polygon
+                              .map(([x, y]) => `${x * canvasW},${y * canvasH}`)
+                              .join(' ')
+                          "
                           class="room-poly"
                         />
                         <text
@@ -1136,15 +1172,47 @@
               <div class="floor-plan-legend d-flex align-center flex-wrap ga-4 px-3 py-2">
                 <div class="d-flex align-center ga-1 text-caption text-medium-emphasis">
                   <svg width="28" height="14">
-                    <line x1="0" y1="7" x2="28" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                    <circle cx="14" cy="7" r="5" fill="currentColor" stroke="#fff" stroke-width="1.5" />
+                    <line
+                      x1="0"
+                      y1="7"
+                      x2="28"
+                      y2="7"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                    <circle
+                      cx="14"
+                      cy="7"
+                      r="5"
+                      fill="currentColor"
+                      stroke="#fff"
+                      stroke-width="1.5"
+                    />
                   </svg>
                   Floor-mapped
                 </div>
                 <div class="d-flex align-center ga-1 text-caption text-medium-emphasis">
                   <svg width="28" height="14">
-                    <line x1="0" y1="7" x2="28" y2="7" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" stroke-linecap="round" />
-                    <circle cx="14" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 2" />
+                    <line
+                      x1="0"
+                      y1="7"
+                      x2="28"
+                      y2="7"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-dasharray="5 3"
+                      stroke-linecap="round"
+                    />
+                    <circle
+                      cx="14"
+                      cy="7"
+                      r="5"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-dasharray="4 2"
+                    />
                   </svg>
                   Estimated (no homography)
                 </div>
@@ -1159,7 +1227,9 @@
             <v-card-title class="floor-plan-card-title d-flex align-center">
               <v-icon start size="16" color="success">mdi-account-multiple</v-icon>
               Active Persons
-              <v-chip class="ml-2" size="x-small" color="primary">{{ activePersons.length }}</v-chip>
+              <v-chip class="ml-2" size="x-small" color="primary">{{
+                activePersons.length
+              }}</v-chip>
             </v-card-title>
             <v-divider />
             <v-list density="compact" class="pa-1">
@@ -1170,10 +1240,7 @@
                 :style="`border-left: 3px solid ${person.color}`"
               >
                 <template #prepend>
-                  <div
-                    class="person-dot mr-3"
-                    :style="`background: ${person.color}`"
-                  />
+                  <div class="person-dot mr-3" :style="`background: ${person.color}`" />
                 </template>
                 <v-list-item-title class="text-body-2 font-weight-medium">
                   {{ person.displayName }}
@@ -1184,9 +1251,7 @@
                   <template v-if="person.confidence > 0">
                     &nbsp;·&nbsp;{{ Math.round(person.confidence * 100) }}%
                   </template>
-                  <template v-if="person.posture">
-                    &nbsp;·&nbsp;{{ person.posture }}
-                  </template>
+                  <template v-if="person.posture"> &nbsp;·&nbsp;{{ person.posture }} </template>
                 </v-list-item-subtitle>
                 <template #append>
                   <div class="d-flex flex-column align-end ga-1">
@@ -1195,7 +1260,7 @@
                       size="x-small"
                       variant="tonal"
                     >
-                      {{ person.calibrated ? 'mapped' : 'est.' }}
+                      {{ person.calibrated ? "mapped" : "est." }}
                     </v-chip>
                     <span class="text-caption text-medium-emphasis">
                       {{ formatAge(person.lastSeen) }}
@@ -1203,14 +1268,20 @@
                   </div>
                 </template>
               </v-list-item>
-              <v-list-item v-if="activePersons.length === 0" class="text-medium-emphasis text-caption">
+              <v-list-item
+                v-if="activePersons.length === 0"
+                class="text-medium-emphasis text-caption"
+              >
                 No active identified people
               </v-list-item>
             </v-list>
           </v-card>
 
           <!-- N4: Inferred presence badges -->
-          <v-card v-if="worldInferredRooms.length > 0" class="glass-card floor-plan-sidebar-card mt-3">
+          <v-card
+            v-if="worldInferredRooms.length > 0"
+            class="glass-card floor-plan-sidebar-card mt-3"
+          >
             <v-card-title class="floor-plan-card-title">Inferred Presence</v-card-title>
             <v-divider />
             <v-card-text class="pa-2">
@@ -1236,14 +1307,20 @@
                 </template>
                 <v-list-item-title class="text-caption">{{ worldStatusLabel }}</v-list-item-title>
                 <v-list-item-subtitle class="text-caption text-medium-emphasis">
-                  {{ worldLastUpdate ? `Updated ${formatAge(worldLastUpdate)}` : 'Waiting for snapshot' }}
+                  {{
+                    worldLastUpdate
+                      ? `Updated ${formatAge(worldLastUpdate)}`
+                      : "Waiting for snapshot"
+                  }}
                 </v-list-item-subtitle>
               </v-list-item>
               <v-list-item class="rounded-lg">
                 <template #prepend>
                   <v-icon color="primary" size="16">mdi-account-group</v-icon>
                 </template>
-                <v-list-item-title class="text-caption">{{ worldPhs.length }} active PH(s)</v-list-item-title>
+                <v-list-item-title class="text-caption"
+                  >{{ worldPhs.length }} active PH(s)</v-list-item-title
+                >
                 <v-list-item-subtitle class="text-caption text-medium-emphasis">
                   {{ worldPhMarkers.length }} on plan · {{ uncalibratedPhCount }} off-plan
                 </v-list-item-subtitle>
@@ -1252,7 +1329,9 @@
                 <template #prepend>
                   <v-icon color="primary" size="16">mdi-door-open</v-icon>
                 </template>
-                <v-list-item-title class="text-caption">{{ worldInferredRooms.length }} inferred-only room(s)</v-list-item-title>
+                <v-list-item-title class="text-caption"
+                  >{{ worldInferredRooms.length }} inferred-only room(s)</v-list-item-title
+                >
                 <v-list-item-subtitle class="text-caption text-medium-emphasis">
                   {{ worldWsStatusLabel }}
                 </v-list-item-subtitle>
@@ -1262,12 +1341,11 @@
         </v-col>
       </v-row>
     </template>
-
   </div>
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount, ref, shallowRef, computed, watch, watchEffect } from "vue";
+import { onMounted, onBeforeUnmount, ref, shallowRef, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { identityColor } from "@/composables/useIdentityColor";
 import { roomForCanvasPoint } from "@/composables/useFloorPlanProjection";
@@ -1290,7 +1368,6 @@ import MaraudersAmbientLayer from "@/components/marauders/MaraudersAmbientLayer.
 import MaraudersHeatmapLayer from "@/components/marauders/MaraudersHeatmapLayer.vue";
 import DoorZoneEditor from "@/components/cts/DoorZoneEditor.vue";
 import PolygonOnSnapshot from "@/components/cts/PolygonOnSnapshot.vue";
-import PHMarker from "@/components/cts/floor/PHMarker.vue";
 import FloorMarkerLayer from "@/components/cts/floor/FloorMarkerLayer.vue";
 import HeatmapBinLayer from "@/components/cts/floor/HeatmapBinLayer.vue";
 import InferredPresenceBadge from "@/components/cts/floor/InferredPresenceBadge.vue";
@@ -1332,13 +1409,13 @@ const SCALE_METHOD_OPTIONS = [
 ];
 const uploadRealWidth = ref(null);
 // Method C: click-on-image scale picker
-const scalePoints = ref([]);      // up to 2 normalized [x, y] points
+const scalePoints = ref([]); // up to 2 normalized [x, y] points
 const scaleMeasuredM = ref(null); // real-world distance in metres
 const scaleImgEl = ref(null);
 const scaleImgRect = ref(null);
-let _uploadBlobUrl = null;        // blob URL lifecycle managed manually
-let _originalFile = null;         // pre-crop File object, kept for reset
-let _resizeObserver = null;       // keeps scaleImgRect current on resize
+let _uploadBlobUrl = null; // blob URL lifecycle managed manually
+let _originalFile = null; // pre-crop File object, kept for reset
+let _resizeObserver = null; // keeps scaleImgRect current on resize
 
 // ── Zoom for scale picker and crop ─────────────────────────────────────────
 const scaleOuterRef = ref(null);
@@ -1353,11 +1430,11 @@ const liveZoom = useCanvasZoom({ maxZoom: 5, minZoom: 0.3 });
 // Crop state — visual draw-to-crop bounding box on the image.
 // cropRect is normalised [0,1] relative to the image content area.
 const cropActive = ref(false);
-const cropRect = ref({ x: 0.05, y: 0.05, w: 0.90, h: 0.90 });
+const cropRect = ref({ x: 0.05, y: 0.05, w: 0.9, h: 0.9 });
 // cropDrag: { type: 'draw'|'nw'|'ne'|'se'|'sw'|'move', startX, startY, startRect }
 const cropDrag = ref(null);
-const cropImgRef = ref(null);          // ref for the crop preview <img>
-const cropImgRect = ref(null);         // { width, height, offsetX, offsetY } like scaleImgRect
+const cropImgRef = ref(null); // ref for the crop preview <img>
+const cropImgRect = ref(null); // { width, height, offsetX, offsetY } like scaleImgRect
 
 // ── Rooms state ────────────────────────────────────────────────────────────
 const rooms = ref([]);
@@ -1386,7 +1463,6 @@ async function loadDoorZones() {
     doorZonesLoading.value = false;
   }
 }
-
 
 // Watch mode to lazy-load door zones (watch is imported at the top of <script setup>)
 watch(mode, (m) => {
@@ -1423,7 +1499,7 @@ const DATE_PRESETS = [
 ];
 const heatmapDatePreset = ref("last_7d");
 const heatmapStartDate = ref(""); // "YYYY-MM-DD", custom range only
-const heatmapEndDate = ref("");   // "YYYY-MM-DD", custom range only
+const heatmapEndDate = ref(""); // "YYYY-MM-DD", custom range only
 
 // ── Time-of-day filter ─────────────────────────────────────────────────────
 // Minutes since LOCAL midnight. When start > end the window wraps past midnight
@@ -1431,16 +1507,16 @@ const heatmapEndDate = ref("");   // "YYYY-MM-DD", custom range only
 // (sundowning agitation late afternoon/evening, overnight wandering).
 const TIME_PRESETS = [
   { key: "all", label: "All Day", start: null, end: null },
-  { key: "morning", label: "Morning", start: 6 * 60, end: 12 * 60 },      // 06:00-12:00
+  { key: "morning", label: "Morning", start: 6 * 60, end: 12 * 60 }, // 06:00-12:00
   { key: "afternoon", label: "Afternoon", start: 12 * 60, end: 17 * 60 }, // 12:00-17:00
   { key: "sundowning", label: "Sundowning", start: 16 * 60, end: 20 * 60 }, // 16:00-20:00
-  { key: "evening", label: "Evening", start: 17 * 60, end: 21 * 60 },     // 17:00-21:00
-  { key: "night", label: "Night", start: 21 * 60, end: 6 * 60 },          // 21:00-06:00 (wraps)
+  { key: "evening", label: "Evening", start: 17 * 60, end: 21 * 60 }, // 17:00-21:00
+  { key: "night", label: "Night", start: 21 * 60, end: 6 * 60 }, // 21:00-06:00 (wraps)
   { key: "custom", label: "Custom", start: null, end: null },
 ];
 const heatmapTimePreset = ref("all");
 const heatmapStartTime = ref("21:00"); // "HH:MM" local, custom only
-const heatmapEndTime = ref("06:00");   // "HH:MM" local, custom only
+const heatmapEndTime = ref("06:00"); // "HH:MM" local, custom only
 
 // Custom date range needs both endpoints; custom time needs both times.
 const heatmapRangeReady = computed(() => {
@@ -1516,9 +1592,7 @@ const worldPhMarkers = computed(() => {
 });
 
 // Uncalibrated PH count for warning chip
-const uncalibratedPhCount = computed(() =>
-  worldPhs.value.filter((ph) => ph.uncalibrated).length
-);
+const uncalibratedPhCount = computed(() => worldPhs.value.filter((ph) => ph.uncalibrated).length);
 
 // ── Live floor plan interaction ────────────────────────────────────────────
 function onLiveZoomMouseDown(e) {
@@ -1527,7 +1601,10 @@ function onLiveZoomMouseDown(e) {
 
 function onPhClick(ph) {
   // Suppress navigation if the mousedown was actually a pan drag.
-  if (liveZoom.state.didPan) { liveZoom.state.didPan = false; return; }
+  if (liveZoom.state.didPan) {
+    liveZoom.state.didPan = false;
+    return;
+  }
   router.push({ name: "CTSPeople", query: { ph_id: ph.ph_id || "" } });
 }
 
@@ -1561,7 +1638,9 @@ let _animTargets = /** @type {typeof worldPhMarkers.value | null} */ (null);
 // the maraudersState watch below; the base interpolation loop is untouched.
 const footprintNow = ref(Date.now());
 
-function _cubicEaseOut(t) { return 1 - (1 - t) ** 3; }
+function _cubicEaseOut(t) {
+  return 1 - (1 - t) ** 3;
+}
 
 function _lerp(now) {
   const t = Math.min(1, (now - _animStart) / LERP_MS);
@@ -1592,35 +1671,43 @@ function _lerp(now) {
   }
 }
 
-watch(worldPhMarkers, (newMarkers) => {
-  if (_rafId !== null) {
-    cancelAnimationFrame(_rafId);
-    _rafId = null;
-  }
+watch(
+  worldPhMarkers,
+  (newMarkers) => {
+    if (_rafId !== null) {
+      cancelAnimationFrame(_rafId);
+      _rafId = null;
+    }
 
-  // Capture current in-flight positions as the new start so we never jump.
-  for (const m of newMarkers) {
-    const id = m.ph.ph_id ?? m.ph.identity_id;
-    const prev = _interpState.get(id);
-    // If no previous: snap (x0 === x1 — no lerp needed, _lerp returns m directly).
-    _interpState.set(id, {
-      x0: prev ? smoothedMarkers.value.find(s => (s.ph.ph_id ?? s.ph.identity_id) === id)?.x ?? m.x : m.x,
-      y0: prev ? smoothedMarkers.value.find(s => (s.ph.ph_id ?? s.ph.identity_id) === id)?.y ?? m.y : m.y,
-      x1: m.x,
-      y1: m.y,
-    });
-  }
+    // Capture current in-flight positions as the new start so we never jump.
+    for (const m of newMarkers) {
+      const id = m.ph.ph_id ?? m.ph.identity_id;
+      const prev = _interpState.get(id);
+      // If no previous: snap (x0 === x1 — no lerp needed, _lerp returns m directly).
+      _interpState.set(id, {
+        x0: prev
+          ? (smoothedMarkers.value.find((s) => (s.ph.ph_id ?? s.ph.identity_id) === id)?.x ?? m.x)
+          : m.x,
+        y0: prev
+          ? (smoothedMarkers.value.find((s) => (s.ph.ph_id ?? s.ph.identity_id) === id)?.y ?? m.y)
+          : m.y,
+        x1: m.x,
+        y1: m.y,
+      });
+    }
 
-  // Remove state for PHs that have left the scene.
-  const activeIds = new Set(newMarkers.map(m => m.ph.ph_id ?? m.ph.identity_id));
-  for (const id of _interpState.keys()) {
-    if (!activeIds.has(id)) _interpState.delete(id);
-  }
+    // Remove state for PHs that have left the scene.
+    const activeIds = new Set(newMarkers.map((m) => m.ph.ph_id ?? m.ph.identity_id));
+    for (const id of _interpState.keys()) {
+      if (!activeIds.has(id)) _interpState.delete(id);
+    }
 
-  _animTargets = newMarkers;
-  _animStart = performance.now();
-  _rafId = requestAnimationFrame(_lerp);
-}, { immediate: true });
+    _animTargets = newMarkers;
+    _animStart = performance.now();
+    _rafId = requestAnimationFrame(_lerp);
+  },
+  { immediate: true },
+);
 
 // MARAUDERS M4 (separable): restart the rAF loop when marauders mode is toggled
 // ON while the tween is idle (no snapshot arrived recently), so footstep fade
@@ -1632,7 +1719,7 @@ watch(
       _animStart = performance.now();
       _rafId = requestAnimationFrame(_lerp);
     }
-  }
+  },
 );
 
 // ── Computed ──────────────────────────────────────────────────────────────
@@ -1655,7 +1742,7 @@ const activePersons = computed(() => {
       confidence: ph.posterior_top_prob ?? 0,
       lastSeen: new Date(ph.last_observed_at).getTime(),
       roomName: ph.room_name || worldMarkerByPhId.value.get(ph.ph_id)?.roomName || null,
-      posture: (ph.posture && ph.posture !== "unknown") ? ph.posture : null,
+      posture: ph.posture && ph.posture !== "unknown" ? ph.posture : null,
     }))
     .sort((a, b) => b.lastSeen - a.lastSeen);
 });
@@ -1694,7 +1781,7 @@ const worldWsStatusLabel = computed(() => {
 });
 
 const uncalibratedCoverage = computed(() =>
-  coverageCameras.value.filter((c) => !c.visibility_polygon)
+  coverageCameras.value.filter((c) => !c.visibility_polygon),
 );
 
 // ── Coverage tab functions ─────────────────────────────────────────────────
@@ -1720,7 +1807,9 @@ async function loadCoverage() {
 function toCoverageSvgPoints(polygon) {
   if (!coverageImgW.value || !coverageImgH.value) return "";
   return polygon
-    .map(([x, y]) => `${(x * coverageImgW.value).toFixed(1)},${(y * coverageImgH.value).toFixed(1)}`)
+    .map(
+      ([x, y]) => `${(x * coverageImgW.value).toFixed(1)},${(y * coverageImgH.value).toFixed(1)}`,
+    )
     .join(" ");
 }
 
@@ -1740,7 +1829,7 @@ watch(
     if (newMode === "coverage" && coverageCameras.value.length === 0) {
       loadCoverage();
     }
-  }
+  },
 );
 
 // ── Heatmap computed + actions ────────────────────────────────────────────
@@ -1907,13 +1996,16 @@ const scaleComputedMpp = computed(() => {
 function onFileSelected(fileOrArray) {
   const file = Array.isArray(fileOrArray) ? fileOrArray[0] : fileOrArray;
   // Revoke previous blob URL.
-  if (_uploadBlobUrl) { URL.revokeObjectURL(_uploadBlobUrl); _uploadBlobUrl = null; }
+  if (_uploadBlobUrl) {
+    URL.revokeObjectURL(_uploadBlobUrl);
+    _uploadBlobUrl = null;
+  }
   // Reset state for the new image.
   scalePoints.value = [];
   scaleMeasuredM.value = null;
   scaleImgRect.value = null;
   cropActive.value = false;
-  cropRect.value = { x: 0.05, y: 0.05, w: 0.90, h: 0.90 };
+  cropRect.value = { x: 0.05, y: 0.05, w: 0.9, h: 0.9 };
   if (!file) return;
 
   _originalFile = file;
@@ -1980,15 +2072,15 @@ function onScaleImageLoad() {
 function onScaleImageClick(e) {
   if (scalePoints.value.length >= 2 || !scaleImgEl.value) return;
   // Ignore when the user was panning (drag exceeded threshold).
-  if (scaleZoom.state.didPan) { scaleZoom.state.didPan = false; return; }
+  if (scaleZoom.state.didPan) {
+    scaleZoom.state.didPan = false;
+    return;
+  }
   if (!scaleImgRect.value || !scaleOuterRef.value) return;
   const cr = scaleImgRect.value;
   const outerRect = scaleOuterRef.value.getBoundingClientRect();
   // Map through zoom/pan to get coordinates in the pre-transform space.
-  const local = scaleZoom.containerToLocal(
-    e.clientX - outerRect.left,
-    e.clientY - outerRect.top,
-  );
+  const local = scaleZoom.containerToLocal(e.clientX - outerRect.left, e.clientY - outerRect.top);
   // Then normalise to [0,1] within the image content area.
   const x = (local.x - cr.offsetX) / cr.width;
   const y = (local.y - cr.offsetY) / cr.height;
@@ -2013,18 +2105,16 @@ function onRealWidthChange() {
   }
 }
 
-
-
 // ── Crop ──────────────────────────────────────────────────────────────────
 
 /** Corner handle positions (normalised) for the crop rectangle. */
 const cropHandles = computed(() => {
   const r = cropRect.value;
   return [
-    { corner: 'nw', x: r.x,       y: r.y,       cursor: 'nwse-resize' },
-    { corner: 'ne', x: r.x + r.w, y: r.y,       cursor: 'nesw-resize' },
-    { corner: 'se', x: r.x + r.w, y: r.y + r.h, cursor: 'nwse-resize' },
-    { corner: 'sw', x: r.x,       y: r.y + r.h, cursor: 'nesw-resize' },
+    { corner: "nw", x: r.x, y: r.y, cursor: "nwse-resize" },
+    { corner: "ne", x: r.x + r.w, y: r.y, cursor: "nesw-resize" },
+    { corner: "se", x: r.x + r.w, y: r.y + r.h, cursor: "nwse-resize" },
+    { corner: "sw", x: r.x, y: r.y + r.h, cursor: "nesw-resize" },
   ];
 });
 
@@ -2043,22 +2133,26 @@ function onCropImgLoad() {
   const elRatio = elW / elH;
   let cw, ch, offX, offY;
   if (naturalRatio > elRatio) {
-    cw = elW; ch = elW / naturalRatio;
-    offX = 0; offY = (elH - ch) / 2;
+    cw = elW;
+    ch = elW / naturalRatio;
+    offX = 0;
+    offY = (elH - ch) / 2;
   } else {
-    ch = elH; cw = elH * naturalRatio;
-    offX = (elW - cw) / 2; offY = 0;
+    ch = elH;
+    cw = elH * naturalRatio;
+    offX = (elW - cw) / 2;
+    offY = 0;
   }
   cropImgRect.value = { width: cw, height: ch, offsetX: elLeft + offX, offsetY: elTop + offY };
 }
 
 function startCropMode() {
-  cropRect.value = { x: 0.05, y: 0.05, w: 0.90, h: 0.90 };
+  cropRect.value = { x: 0.05, y: 0.05, w: 0.9, h: 0.9 };
   cropActive.value = true;
 }
 
 function resetCrop() {
-  cropRect.value = { x: 0.05, y: 0.05, w: 0.90, h: 0.90 };
+  cropRect.value = { x: 0.05, y: 0.05, w: 0.9, h: 0.9 };
 }
 
 /** Convert a mouse event on the crop container to normalised [0,1] coords. */
@@ -2067,10 +2161,7 @@ function cropEventToNorm(e) {
   const cr = cropImgRect.value;
   const outerRect = cropOuterRef.value.getBoundingClientRect();
   // Map through zoom to get coordinates in the pre-transform space.
-  const local = cropZoom.containerToLocal(
-    e.clientX - outerRect.left,
-    e.clientY - outerRect.top,
-  );
+  const local = cropZoom.containerToLocal(e.clientX - outerRect.left, e.clientY - outerRect.top);
   const nx = (local.x - cr.offsetX) / cr.width;
   const ny = (local.y - cr.offsetY) / cr.height;
   if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;
@@ -2086,9 +2177,9 @@ function onCropMouseDown(e) {
     cropZoom.actions.startPan(e);
     return;
   }
-  cropDrag.value = { type: 'draw', startX: pt.x, startY: pt.y, startRect: { ...cropRect.value } };
-  window.addEventListener('mousemove', onCropMouseMove);
-  window.addEventListener('mouseup', onCropMouseUp);
+  cropDrag.value = { type: "draw", startX: pt.x, startY: pt.y, startRect: { ...cropRect.value } };
+  window.addEventListener("mousemove", onCropMouseMove);
+  window.addEventListener("mouseup", onCropMouseUp);
   e.preventDefault();
 }
 
@@ -2097,8 +2188,8 @@ function onCropHandleDown(corner, e) {
   const pt = cropEventToNorm(e);
   if (!pt) return;
   cropDrag.value = { type: corner, startX: pt.x, startY: pt.y, startRect: { ...cropRect.value } };
-  window.addEventListener('mousemove', onCropMouseMove);
-  window.addEventListener('mouseup', onCropMouseUp);
+  window.addEventListener("mousemove", onCropMouseMove);
+  window.addEventListener("mouseup", onCropMouseUp);
 }
 
 function onCropMouseMove(e) {
@@ -2110,26 +2201,41 @@ function onCropMouseMove(e) {
   const dy = pt.y - d.startY;
   const sr = d.startRect;
 
-  let nx = sr.x, ny = sr.y, nw = sr.w, nh = sr.h;
+  let nx = sr.x,
+    ny = sr.y,
+    nw = sr.w,
+    nh = sr.h;
 
-  if (d.type === 'draw') {
+  if (d.type === "draw") {
     // Drag to define a new rectangle.
     nx = Math.min(d.startX, pt.x);
     ny = Math.min(d.startY, pt.y);
     nw = Math.abs(pt.x - d.startX);
     nh = Math.abs(pt.y - d.startY);
-  } else if (d.type === 'move') {
+  } else if (d.type === "move") {
     nx = Math.max(0, Math.min(1 - sr.w, sr.x + dx));
     ny = Math.max(0, Math.min(1 - sr.h, sr.y + dy));
   } else {
     // Corner resize — adjust whichever edges the corner controls.
-    if (d.type.includes('n')) { ny = Math.min(sr.y + sr.h - 0.01, sr.y + dy); nh = sr.y + sr.h - ny; }
-    if (d.type.includes('s')) { nh = Math.max(0.01, sr.h + dy); }
-    if (d.type.includes('w')) { nx = Math.min(sr.x + sr.w - 0.01, sr.x + dx); nw = sr.x + sr.w - nx; }
-    if (d.type.includes('e')) { nw = Math.max(0.01, sr.w + dx); }
+    if (d.type.includes("n")) {
+      ny = Math.min(sr.y + sr.h - 0.01, sr.y + dy);
+      nh = sr.y + sr.h - ny;
+    }
+    if (d.type.includes("s")) {
+      nh = Math.max(0.01, sr.h + dy);
+    }
+    if (d.type.includes("w")) {
+      nx = Math.min(sr.x + sr.w - 0.01, sr.x + dx);
+      nw = sr.x + sr.w - nx;
+    }
+    if (d.type.includes("e")) {
+      nw = Math.max(0.01, sr.w + dx);
+    }
     // Clamp to image bounds.
-    nx = Math.max(0, nx); ny = Math.max(0, ny);
-    nw = Math.min(1 - nx, nw); nh = Math.min(1 - ny, nh);
+    nx = Math.max(0, nx);
+    ny = Math.max(0, ny);
+    nw = Math.min(1 - nx, nw);
+    nh = Math.min(1 - ny, nh);
   }
 
   // Enforce minimum size.
@@ -2144,8 +2250,8 @@ function onCropMouseMove(e) {
 
 function onCropMouseUp() {
   cropDrag.value = null;
-  window.removeEventListener('mousemove', onCropMouseMove);
-  window.removeEventListener('mouseup', onCropMouseUp);
+  window.removeEventListener("mousemove", onCropMouseMove);
+  window.removeEventListener("mouseup", onCropMouseUp);
 }
 
 async function applyCrop() {
@@ -2173,7 +2279,7 @@ async function applyCrop() {
   ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
 
   const croppedBlob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, _originalFile.type, 0.95)
+    canvas.toBlob(resolve, _originalFile.type, 0.95),
   );
 
   const croppedFile = new File([croppedBlob], _originalFile.name, { type: _originalFile.type });
@@ -2252,9 +2358,18 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  if (_uploadBlobUrl) { URL.revokeObjectURL(_uploadBlobUrl); _uploadBlobUrl = null; }
-  if (_resizeObserver) { _resizeObserver.disconnect(); _resizeObserver = null; }
-  if (_rafId !== null) { cancelAnimationFrame(_rafId); _rafId = null; }
+  if (_uploadBlobUrl) {
+    URL.revokeObjectURL(_uploadBlobUrl);
+    _uploadBlobUrl = null;
+  }
+  if (_resizeObserver) {
+    _resizeObserver.disconnect();
+    _resizeObserver = null;
+  }
+  if (_rafId !== null) {
+    cancelAnimationFrame(_rafId);
+    _rafId = null;
+  }
 });
 </script>
 
@@ -2459,7 +2574,7 @@ onBeforeUnmount(() => {
 .scale-picker-outer {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--cc-divider-strong, rgba(0,0,0,0.12));
+  border: 1px solid var(--cc-divider-strong, rgba(0, 0, 0, 0.12));
   border-radius: 6px;
   background: var(--cc-surface-2);
   min-height: 240px;
@@ -2487,7 +2602,7 @@ onBeforeUnmount(() => {
 
 .scale-picker-empty {
   height: 240px;
-  background: var(--cc-surface-2, rgba(0,0,0,0.03));
+  background: var(--cc-surface-2, rgba(0, 0, 0, 0.03));
 }
 
 .scale-picker-overlay {
@@ -2499,7 +2614,7 @@ onBeforeUnmount(() => {
 .crop-outer {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--cc-divider-strong, rgba(0,0,0,0.12));
+  border: 1px solid var(--cc-divider-strong, rgba(0, 0, 0, 0.12));
   border-radius: 6px;
   background: var(--cc-surface-2);
   min-height: 240px;

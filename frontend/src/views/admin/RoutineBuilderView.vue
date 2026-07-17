@@ -67,11 +67,7 @@
         <v-card class="glass-card">
           <v-card-title class="text-subtitle-1">Routine Settings</v-card-title>
           <v-card-text v-if="state.routine">
-            <v-text-field
-              v-model="routineEdit.name"
-              label="Name"
-              density="comfortable"
-            />
+            <v-text-field v-model="routineEdit.name" label="Name" density="comfortable" />
             <v-select
               v-model="routineRoomId"
               :items="rooms"
@@ -224,10 +220,7 @@
             Add Step
           </v-btn>
 
-          <div
-            v-if="state.steps.length === 0"
-            class="pa-6 text-center text-medium-emphasis"
-          >
+          <div v-if="state.steps.length === 0" class="pa-6 text-center text-medium-emphasis">
             No steps yet. Click "Add Step" to begin.
           </div>
         </template>
@@ -322,7 +315,9 @@ async function saveRoutineSettings() {
 }
 
 async function removeStep(idx) {
-  const ok = await confirmRequire(`Remove step ${idx + 1}? This will re-number all following steps.`);
+  const ok = await confirmRequire(
+    `Remove step ${idx + 1}? This will re-number all following steps.`,
+  );
   if (!ok) return;
   actions.removeStep(idx);
 }

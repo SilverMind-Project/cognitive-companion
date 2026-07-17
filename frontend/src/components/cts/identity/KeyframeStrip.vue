@@ -88,7 +88,7 @@ watch(
     }
     urlMap.value = newMap;
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 onUnmounted(() => {

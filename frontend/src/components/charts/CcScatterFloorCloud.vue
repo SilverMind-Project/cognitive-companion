@@ -68,8 +68,7 @@ const chartOption = computed(() => {
     textStyle: th.textStyle,
     tooltip: {
       ...th.tooltip,
-      formatter: (p) =>
-        `x: ${p.value[0].toFixed(2)}, y: ${p.value[1].toFixed(2)}`,
+      formatter: (p) => `x: ${p.value[0].toFixed(2)}, y: ${p.value[1].toFixed(2)}`,
     },
     grid: { left: "3%", right: "4%", bottom: "3%", containLabel: true },
     xAxis: { type: "value", scale: true, ...th.xAxis },

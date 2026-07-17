@@ -17,7 +17,10 @@
         hide-details
         clearable
         style="max-width: 160px"
-        @update:model-value="page = 1; fetchQuizzes()"
+        @update:model-value="
+          page = 1;
+          fetchQuizzes();
+        "
       />
       <v-combobox
         v-model="filters.tags"
@@ -28,9 +31,17 @@
         hide-details
         clearable
         style="max-width: 200px"
-        @update:model-value="page = 1; fetchQuizzes()"
+        @update:model-value="
+          page = 1;
+          fetchQuizzes();
+        "
       />
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="showCreateDialog = true">
+      <v-btn
+        color="primary"
+        variant="flat"
+        prepend-icon="mdi-plus"
+        @click="showCreateDialog = true"
+      >
         New Quiz
       </v-btn>
     </div>
@@ -43,176 +54,188 @@
         :items-length="totalItems"
         :items-per-page="itemsPerPage"
         :page="page"
-        @update:options="onPageOptions"
         :show-expand="true"
         item-value="id"
+        @update:options="onPageOptions"
         @click:row="toggleExpand"
       >
-      <template #[`item.question_count`]="{ item }">
-        {{ item.questions?.length ?? item.question_count ?? 0 }}
-      </template>
+        <template #[`item.question_count`]="{ item }">
+          {{ item.questions?.length ?? item.question_count ?? 0 }}
+        </template>
 
-      <template #[`item.layout_id`]="{ item }">
-        <v-chip size="x-small" color="primary" variant="outlined">
-          {{ item.question_layout_id ?? "—" }}
-        </v-chip>
-      </template>
+        <template #[`item.layout_id`]="{ item }">
+          <v-chip size="x-small" color="primary" variant="outlined">
+            {{ item.question_layout_id ?? "—" }}
+          </v-chip>
+        </template>
 
-      <template #[`item.status`]="{ item }">
-        <v-chip :color="statusColor(item.status)" size="small">
-          {{ item.status }}
-        </v-chip>
-      </template>
+        <template #[`item.status`]="{ item }">
+          <v-chip :color="statusColor(item.status)" size="small">
+            {{ item.status }}
+          </v-chip>
+        </template>
 
-      <template #[`item.actions`]="{ item }">
-        <v-btn
-          icon="mdi-pencil"
-          size="small"
-          variant="text"
-          color="primary"
-          @click.stop="editQuiz(item)"
-        />
-        <v-btn
-          v-if="item.status !== 'approved'"
-          icon="mdi-check"
-          size="small"
-          variant="text"
-          color="success"
-          @click.stop="approve(item)"
-        />
-        <v-btn
-          v-if="item.status !== 'archived'"
-          icon="mdi-archive"
-          size="small"
-          variant="text"
-          @click.stop="archive(item)"
-        />
-        <v-btn
-          v-if="item.status === 'archived'"
-          icon="mdi-restore"
-          size="small"
-          variant="text"
-          color="warning"
-          @click.stop="restore(item)"
-        />
-        <v-btn
-          icon="mdi-delete"
-          size="small"
-          variant="text"
-          color="error"
-          @click.stop="confirmDelete(item)"
-        />
-      </template>
+        <template #[`item.actions`]="{ item }">
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            variant="text"
+            color="primary"
+            @click.stop="editQuiz(item)"
+          />
+          <v-btn
+            v-if="item.status !== 'approved'"
+            icon="mdi-check"
+            size="small"
+            variant="text"
+            color="success"
+            @click.stop="approve(item)"
+          />
+          <v-btn
+            v-if="item.status !== 'archived'"
+            icon="mdi-archive"
+            size="small"
+            variant="text"
+            @click.stop="archive(item)"
+          />
+          <v-btn
+            v-if="item.status === 'archived'"
+            icon="mdi-restore"
+            size="small"
+            variant="text"
+            color="warning"
+            @click.stop="restore(item)"
+          />
+          <v-btn
+            icon="mdi-delete"
+            size="small"
+            variant="text"
+            color="error"
+            @click.stop="confirmDelete(item)"
+          />
+        </template>
 
-      <template #expanded-row="{ item }">
-        <td :colspan="headers.length" class="pa-4">
-          <v-divider class="mb-2" />
-          <div v-for="(q, idx) in (expandedQuizzes[item.id]?.questions || [])" :key="q.id" class="mb-4">
-            <v-row dense>
-              <v-col cols="auto">
-                <v-btn
-                  icon="mdi-chevron-up"
-                  size="x-small"
-                  variant="text"
-                  :disabled="idx === 0"
-                  @click="moveQuestion(item, idx, -1)"
-                />
-                <v-btn
-                  icon="mdi-chevron-down"
-                  size="x-small"
-                  variant="text"
-                  :disabled="idx === (expandedQuizzes[item.id]?.questions?.length || 0) - 1"
-                  @click="moveQuestion(item, idx, 1)"
-                />
-              </v-col>
-              <v-col>
-                <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
-                  <v-radio label="Multiple Choice" value="multiple_choice" />
-                  <v-radio label="Open Ended" value="open_ended" />
-                </v-radio-group>
-                <v-textarea
-                  v-model="q.question_text"
-                  label="Question"
-                  rows="2"
-                  density="compact"
-                  class="mt-1"
-                  hide-details
-                  @change="updateQuestion(item, q)"
-                />
-                <!-- Multiple choice choices -->
-                <div v-if="q.question_type === 'multiple_choice'" class="ml-4 mt-1">
-                  <div v-for="(ch, ci) in q.choices" :key="ci" class="d-flex align-center ga-1 mb-1">
-                    <v-text-field
-                      v-model="ch.text"
-                      label="Choice text"
-                      density="compact"
-                      hide-details
-                      style="min-width: 200px"
-                      @change="updateQuestion(item, q)"
-                    />
-                    <v-checkbox
-                      v-model="ch.is_correct"
-                      label="Correct"
-                      density="compact"
-                      hide-details
-                      @change="updateQuestion(item, q)"
-                    />
+        <template #expanded-row="{ item }">
+          <td :colspan="headers.length" class="pa-4">
+            <v-divider class="mb-2" />
+            <div
+              v-for="(q, idx) in expandedQuizzes[item.id]?.questions || []"
+              :key="q.id"
+              class="mb-4"
+            >
+              <v-row dense>
+                <v-col cols="auto">
+                  <v-btn
+                    icon="mdi-chevron-up"
+                    size="x-small"
+                    variant="text"
+                    :disabled="idx === 0"
+                    @click="moveQuestion(item, idx, -1)"
+                  />
+                  <v-btn
+                    icon="mdi-chevron-down"
+                    size="x-small"
+                    variant="text"
+                    :disabled="idx === (expandedQuizzes[item.id]?.questions?.length || 0) - 1"
+                    @click="moveQuestion(item, idx, 1)"
+                  />
+                </v-col>
+                <v-col>
+                  <v-radio-group v-model="q.question_type" inline density="compact" hide-details>
+                    <v-radio label="Multiple Choice" value="multiple_choice" />
+                    <v-radio label="Open Ended" value="open_ended" />
+                  </v-radio-group>
+                  <v-textarea
+                    v-model="q.question_text"
+                    label="Question"
+                    rows="2"
+                    density="compact"
+                    class="mt-1"
+                    hide-details
+                    @change="updateQuestion(item, q)"
+                  />
+                  <!-- Multiple choice choices -->
+                  <div v-if="q.question_type === 'multiple_choice'" class="ml-4 mt-1">
+                    <div
+                      v-for="(ch, ci) in q.choices"
+                      :key="ci"
+                      class="d-flex align-center ga-1 mb-1"
+                    >
+                      <v-text-field
+                        v-model="ch.text"
+                        label="Choice text"
+                        density="compact"
+                        hide-details
+                        style="min-width: 200px"
+                        @change="updateQuestion(item, q)"
+                      />
+                      <v-checkbox
+                        v-model="ch.is_correct"
+                        label="Correct"
+                        density="compact"
+                        hide-details
+                        @change="updateQuestion(item, q)"
+                      />
+                      <v-btn
+                        icon="mdi-close"
+                        size="x-small"
+                        variant="text"
+                        color="error"
+                        @click="removeChoice(q, ci)"
+                      />
+                    </div>
                     <v-btn
-                      icon="mdi-close"
                       size="x-small"
                       variant="text"
-                      color="error"
-                      @click="removeChoice(q, ci)"
-                    />
+                      prepend-icon="mdi-plus"
+                      @click="addChoice(q)"
+                    >
+                      Choice
+                    </v-btn>
                   </div>
-                  <v-btn size="x-small" variant="text" prepend-icon="mdi-plus" @click="addChoice(q)">
-                    Choice
+                  <v-text-field
+                    v-else
+                    v-model="q.expected_answer"
+                    label="Expected answer"
+                    density="compact"
+                    hide-details
+                    class="mt-1"
+                    @change="updateQuestion(item, q)"
+                  />
+                  <v-textarea
+                    v-model="q.explanation"
+                    label="Explanation"
+                    rows="1"
+                    density="compact"
+                    hide-details
+                    class="mt-1"
+                    @change="updateQuestion(item, q)"
+                  />
+                  <v-btn
+                    color="error"
+                    size="x-small"
+                    variant="text"
+                    class="mt-1"
+                    @click="confirmDeleteQuestion(item, q)"
+                  >
+                    Delete Question
                   </v-btn>
-                </div>
-                <v-text-field
-                  v-else
-                  v-model="q.expected_answer"
-                  label="Expected answer"
-                  density="compact"
-                  hide-details
-                  class="mt-1"
-                  @change="updateQuestion(item, q)"
-                />
-                <v-textarea
-                  v-model="q.explanation"
-                  label="Explanation"
-                  rows="1"
-                  density="compact"
-                  hide-details
-                  class="mt-1"
-                  @change="updateQuestion(item, q)"
-                />
-                <v-btn
-                  color="error"
-                  size="x-small"
-                  variant="text"
-                  class="mt-1"
-                  @click="confirmDeleteQuestion(item, q)"
-                >
-                  Delete Question
-                </v-btn>
-              </v-col>
-            </v-row>
-            <v-divider v-if="idx < (item.questions?.length || 0) - 1" class="mt-2" />
-          </div>
-          <v-btn
-            color="primary"
-            size="small"
-            variant="outlined"
-            prepend-icon="mdi-plus"
-            class="mt-2"
-            @click="addQuestion(item)"
-          >
-            Add Question
-          </v-btn>
-        </td>
-      </template>
-
+                </v-col>
+              </v-row>
+              <v-divider v-if="idx < (item.questions?.length || 0) - 1" class="mt-2" />
+            </div>
+            <v-btn
+              color="primary"
+              size="small"
+              variant="outlined"
+              prepend-icon="mdi-plus"
+              class="mt-2"
+              @click="addQuestion(item)"
+            >
+              Add Question
+            </v-btn>
+          </td>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -303,17 +326,27 @@
           </v-card>
 
           <!-- Quiz Metadata -->
-          <v-text-field v-model="createForm.title" label="Title" :rules="[r => !!r || 'Title is required']" class="mb-3" />
+          <v-text-field
+            v-model="createForm.title"
+            label="Title"
+            :rules="[(r) => !!r || 'Title is required']"
+            class="mb-3"
+          />
           <v-select
             v-model="createForm.question_layout_id"
             :items="layouts"
             item-title="display_name"
             item-value="id"
             label="Question Layout"
-            :rules="[r => !!r || 'Layout is required']"
+            :rules="[(r) => !!r || 'Layout is required']"
             class="mb-3"
           />
-          <v-textarea v-model="createForm.intro_voice_template" label="Intro Voice Template" rows="2" class="mb-3" />
+          <v-textarea
+            v-model="createForm.intro_voice_template"
+            label="Intro Voice Template"
+            rows="2"
+            class="mb-3"
+          />
           <v-combobox
             v-model="createForm.tags"
             label="Tags"
@@ -385,7 +418,12 @@
                     @click="removeCreateChoice(q, ci)"
                   />
                 </div>
-                <v-btn size="x-small" variant="text" prepend-icon="mdi-plus" @click="addCreateChoice(q)">
+                <v-btn
+                  size="x-small"
+                  variant="text"
+                  prepend-icon="mdi-plus"
+                  @click="addCreateChoice(q)"
+                >
                   Choice
                 </v-btn>
               </div>
@@ -462,7 +500,12 @@
             label="Question Layout"
             class="mb-3"
           />
-          <v-textarea v-model="editForm.intro_voice_template" label="Intro Voice Template" rows="2" class="mb-3" />
+          <v-textarea
+            v-model="editForm.intro_voice_template"
+            label="Intro Voice Template"
+            rows="2"
+            class="mb-3"
+          />
           <v-combobox
             v-model="editForm.tags"
             label="Tags"
@@ -541,7 +584,12 @@
                     @click="removeEditChoice(q, ci)"
                   />
                 </div>
-                <v-btn size="x-small" variant="text" prepend-icon="mdi-plus" @click="addEditChoice(q)">
+                <v-btn
+                  size="x-small"
+                  variant="text"
+                  prepend-icon="mdi-plus"
+                  @click="addEditChoice(q)"
+                >
                   Choice
                 </v-btn>
               </div>
@@ -606,13 +654,22 @@ import { ref, reactive, onMounted } from "vue";
 import { api } from "@/services/api.js";
 import { useNotify } from "@/composables/useNotify.js";
 import { useConfirm } from "@/composables/useConfirm.js";
-import { formatDateTime } from "@/services/timezone.js";
 import LlmModelPicker from "@/components/common/LlmModelPicker.vue";
 import DialogHeader from "@/components/common/DialogHeader.vue";
 import DialogFooter from "@/components/common/DialogFooter.vue";
 
 const { notify } = useNotify();
-const { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, require: confirmRequire, onConfirm, onCancel } = useConfirm();
+const {
+  confirmDialog,
+  confirmTitle,
+  confirmText,
+  confirmLabel,
+  cancelLabel,
+  confirmColor,
+  require: confirmRequire,
+  onConfirm,
+  onCancel,
+} = useConfirm();
 
 const quizzes = ref([]);
 const layouts = ref([]);
@@ -747,7 +804,8 @@ async function generateQuiz() {
       generateModelId.value || undefined,
     );
     if (suggestion.title) createForm.title = suggestion.title;
-    if (suggestion.intro_voice_template) createForm.intro_voice_template = suggestion.intro_voice_template;
+    if (suggestion.intro_voice_template)
+      createForm.intro_voice_template = suggestion.intro_voice_template;
     if (suggestion.questions && suggestion.questions.length > 0) {
       createForm.questions = suggestion.questions.map((q) => ({
         id: null,
@@ -1108,4 +1166,3 @@ onMounted(() => {
   fetchLLMModels();
 });
 </script>
-

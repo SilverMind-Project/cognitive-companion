@@ -21,7 +21,9 @@
   <v-combobox
     :model-value="modelValue.entity_id"
     :items="haEntityItems"
-    :item-title="(item) => item.name ? `${item.name} (${item.entity_id})` : (item.entity_id || item)"
+    :item-title="
+      (item) => (item.name ? `${item.name} (${item.entity_id})` : item.entity_id || item)
+    "
     :item-value="(item) => item.entity_id || item"
     label="Entity ID"
     placeholder="e.g. light.living_room"
@@ -57,7 +59,15 @@ export function chips(cfg, { chip, truncate }) {
   const domain = cfg.domain || "";
   const service = cfg.service || "";
   if (domain || service) out.push(chip(`${domain}.${service}`, "mdi-home-automation", "blue"));
-  if (cfg.entity_id) out.push(chip(truncate(cfg.entity_id, 32), "mdi-identifier", undefined, cfg.entity_id.length > 32 ? cfg.entity_id : undefined));
+  if (cfg.entity_id)
+    out.push(
+      chip(
+        truncate(cfg.entity_id, 32),
+        "mdi-identifier",
+        undefined,
+        cfg.entity_id.length > 32 ? cfg.entity_id : undefined,
+      ),
+    );
   return out;
 }
 </script>

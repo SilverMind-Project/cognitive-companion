@@ -83,10 +83,20 @@
     <v-card class="glass-card">
       <!-- Bulk action bar (shown when rows are selected) -->
       <v-expand-transition>
-        <div v-if="selected.length > 0" class="d-flex align-center pa-3 ga-2 bg-error-lighten-5 border-b">
+        <div
+          v-if="selected.length > 0"
+          class="d-flex align-center pa-3 ga-2 bg-error-lighten-5 border-b"
+        >
           <v-icon color="error" size="18">mdi-checkbox-marked</v-icon>
           <span class="text-body-2 font-weight-medium">{{ selected.length }} selected</span>
-          <v-btn size="small" variant="outlined" color="error" prepend-icon="mdi-delete" :loading="deleting" @click="confirmBulkDelete">
+          <v-btn
+            size="small"
+            variant="outlined"
+            color="error"
+            prepend-icon="mdi-delete"
+            :loading="deleting"
+            @click="confirmBulkDelete"
+          >
             Delete selected
           </v-btn>
           <v-btn size="small" variant="text" @click="selected = []">Clear</v-btn>
@@ -109,12 +119,12 @@
             :color="item._source === 'cts' ? 'deep-purple' : 'primary'"
             variant="tonal"
           >
-            {{ item._source === 'cts' ? 'CTS' : 'Rule' }}
+            {{ item._source === "cts" ? "CTS" : "Rule" }}
           </v-chip>
         </template>
 
         <template #item.type="{ item }">
-          {{ item.type.replace(/_/g, ' ') }}
+          {{ item.type.replace(/_/g, " ") }}
         </template>
 
         <template #item.severity="{ item }">
@@ -167,7 +177,9 @@
           <div class="pa-8 text-center">
             <v-icon size="48" color="medium-emphasis" class="mb-2">mdi-bell-off-outline</v-icon>
             <div class="text-h6 text-medium-emphasis">No alerts</div>
-            <div class="text-body-2 text-disabled mt-1">Alerts and signals will appear here when conditions need attention.</div>
+            <div class="text-body-2 text-disabled mt-1">
+              Alerts and signals will appear here when conditions need attention.
+            </div>
           </div>
         </template>
 
@@ -192,14 +204,20 @@
                 size="small"
                 variant="text"
                 :disabled="ctsPage <= 1"
-                @click="ctsPage--; loadCts()"
+                @click="
+                  ctsPage--;
+                  loadCts();
+                "
               />
               <v-btn
                 icon="mdi-chevron-right"
                 size="small"
                 variant="text"
                 :disabled="ctsPage >= ctsTotalPages"
-                @click="ctsPage++; loadCts()"
+                @click="
+                  ctsPage++;
+                  loadCts();
+                "
               />
             </div>
           </div>
@@ -212,7 +230,9 @@
         <v-card-text class="pa-4">
           <div class="d-flex align-center mb-3">
             <v-icon start size="18">mdi-chart-timeline</v-icon>
-            <span class="text-subtitle-2 font-weight-medium">7-Day CTS Signal Trend: {{ personFilter }}</span>
+            <span class="text-subtitle-2 font-weight-medium"
+              >7-Day CTS Signal Trend: {{ personFilter }}</span
+            >
           </div>
           <v-table density="compact">
             <thead>
@@ -243,11 +263,11 @@
       <v-card>
         <v-card-title class="d-flex align-center ga-2">
           <v-icon color="error">mdi-delete-alert</v-icon>
-          Delete {{ deleteTarget.length }} item{{ deleteTarget.length === 1 ? '' : 's' }}?
+          Delete {{ deleteTarget.length }} item{{ deleteTarget.length === 1 ? "" : "s" }}?
         </v-card-title>
         <v-card-text>
-          This action is permanent and cannot be undone. CTS signals may be re-inserted
-          by the orchestrator if it replays the same event.
+          This action is permanent and cannot be undone. CTS signals may be re-inserted by the
+          orchestrator if it replays the same event.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -258,12 +278,11 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
@@ -273,52 +292,53 @@ import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.j
 const route = useRoute();
 const { notify } = useNotify();
 
-const loading  = ref(false);
+const loading = ref(false);
 const deleting = ref(false);
 const ruleRows = ref([]);
-const ctsRows  = ref([]);
-const trend    = ref([]);
+const ctsRows = ref([]);
+const trend = ref([]);
 
-const ctsPage     = ref(1);
+const ctsPage = ref(1);
 const ctsPageSize = ref(50);
-const ctsTotal    = ref(0);
+const ctsTotal = ref(0);
 const ctsTotalPages = computed(() => Math.max(1, Math.ceil(ctsTotal.value / ctsPageSize.value)));
 
-const selected      = ref([]);
-const deleteDialog  = ref(false);
-const deleteTarget  = ref([]);
+const selected = ref([]);
+const deleteDialog = ref(false);
+const deleteTarget = ref([]);
 
-const initialSource = route.query.source === "cts" ? "cts" : route.query.source === "rule" ? "rule" : "all";
-const sourceFilter  = ref(initialSource);
-const personFilter  = ref(null);
-const statusFilter  = ref("");
+const initialSource =
+  route.query.source === "cts" ? "cts" : route.query.source === "rule" ? "rule" : "all";
+const sourceFilter = ref(initialSource);
+const personFilter = ref(null);
+const statusFilter = ref("");
 const severityFilter = ref(null);
-const windowHours   = ref(24);
+const windowHours = ref(24);
 
 const statusOptions = [
-  { title: "All",                      value: "" },
-  { title: "Active / Pending",         value: "active" },
-  { title: "Resolved / Acknowledged",  value: "resolved" },
+  { title: "All", value: "" },
+  { title: "Active / Pending", value: "active" },
+  { title: "Resolved / Acknowledged", value: "resolved" },
 ];
-const severityOptions  = ["critical", "warning", "info"];
-const windowOptions    = [
-  { title: "1 h",  value: 1 },
-  { title: "6 h",  value: 6 },
+const severityOptions = ["critical", "warning", "info"];
+const windowOptions = [
+  { title: "1 h", value: 1 },
+  { title: "6 h", value: 6 },
   { title: "12 h", value: 12 },
   { title: "24 h", value: 24 },
   { title: "48 h", value: 48 },
-  { title: "7 d",  value: 168 },
+  { title: "7 d", value: 168 },
 ];
 
 const headers = [
-  { title: "Time",     key: "time",     width: DATETIME_COLUMN_WIDTH },
-  { title: "Source",   key: "_source",  width: "80px",  sortable: false },
-  { title: "Type",     key: "type" },
-  { title: "Person",   key: "person" },
-  { title: "Room",     key: "room" },
+  { title: "Time", key: "time", width: DATETIME_COLUMN_WIDTH },
+  { title: "Source", key: "_source", width: "80px", sortable: false },
+  { title: "Type", key: "type" },
+  { title: "Person", key: "person" },
+  { title: "Room", key: "room" },
   { title: "Severity", key: "severity", width: "110px" },
-  { title: "Status",   key: "status",   width: "150px" },
-  { title: "",         key: "actions",  sortable: false, width: "120px", align: "end" },
+  { title: "Status", key: "status", width: "150px" },
+  { title: "", key: "actions", sortable: false, width: "120px", align: "end" },
 ];
 
 // ── Row normalizers ────────────────────────────────────────────────────────
@@ -330,62 +350,64 @@ function normalizeSeverity(sev) {
 function toRuleRow(item) {
   // item is a unified-feed SignalEnvelope with source === "pipeline_rule".
   return {
-    _id:     item.id, // already unique: "rule:<event_log_id>"
+    _id: item.id, // already unique: "rule:<event_log_id>"
     _source: "rule",
-    _raw:    item,
-    time:    item.created_at,
-    type:    item.kind || "",
-    person:  item.person_id || null,
-    room:    item.room_name || null,
+    _raw: item,
+    time: item.created_at,
+    type: item.kind || "",
+    person: item.person_id || null,
+    room: item.room_name || null,
     severity: normalizeSeverity(item.severity),
-    status:  item.resolved ? "resolved" : "active",
+    status: item.resolved ? "resolved" : "active",
   };
 }
 
 function toCtsRow(item) {
   return {
-    _id:     `cts-${item.id}`,
+    _id: `cts-${item.id}`,
     _source: "cts",
-    _raw:    item,
-    time:    item.received_at || item.window_start,
-    type:    item.signal_type || "",
-    person:  item.person_id || null,
-    room:    null,
+    _raw: item,
+    time: item.received_at || item.window_start,
+    type: item.signal_type || "",
+    person: item.person_id || null,
+    room: null,
     severity: normalizeSeverity(item.severity),
-    status:  item.acknowledged_at ? "acknowledged" : "pending",
+    status: item.acknowledged_at ? "acknowledged" : "pending",
   };
 }
 
 // ── Computed ────────────────────────────────────────────────────────────────
 
 const allRows = computed(() =>
-  [...ruleRows.value, ...ctsRows.value].sort((a, b) => new Date(b.time) - new Date(a.time))
+  [...ruleRows.value, ...ctsRows.value].sort((a, b) => new Date(b.time) - new Date(a.time)),
 );
 
 const filteredRules = computed(() =>
   ruleRows.value.filter((row) => {
     if (personFilter.value && row.person !== personFilter.value) return false;
     if (severityFilter.value && row.severity !== severityFilter.value) return false;
-    if (statusFilter.value === "active")   return row.status === "active";
+    if (statusFilter.value === "active") return row.status === "active";
     if (statusFilter.value === "resolved") return row.status === "resolved";
     return true;
-  })
+  }),
 );
 
 const filteredCts = computed(() =>
   ctsRows.value.filter((row) => {
     if (severityFilter.value && row.severity !== severityFilter.value) return false;
-    if (statusFilter.value === "active")   return row.status === "pending";
+    if (statusFilter.value === "active") return row.status === "pending";
     if (statusFilter.value === "resolved") return row.status === "acknowledged";
     return true;
-  })
+  }),
 );
 
 const displayRows = computed(() => {
   if (sourceFilter.value === "rule") return filteredRules.value;
-  if (sourceFilter.value === "cts")  return filteredCts.value;
+  if (sourceFilter.value === "cts") return filteredCts.value;
   // Combined: rules + current CTS page (sorted by time)
-  return [...filteredRules.value, ...filteredCts.value].sort((a, b) => new Date(b.time) - new Date(a.time));
+  return [...filteredRules.value, ...filteredCts.value].sort(
+    (a, b) => new Date(b.time) - new Date(a.time),
+  );
 });
 
 const personOptions = computed(() => {
@@ -421,10 +443,10 @@ async function loadRules() {
 
 async function loadCts() {
   const params = {
-    person_id:    personFilter.value || undefined,
+    person_id: personFilter.value || undefined,
     window_hours: windowHours.value,
-    limit:        ctsPageSize.value,
-    offset:       (ctsPage.value - 1) * ctsPageSize.value,
+    limit: ctsPageSize.value,
+    offset: (ctsPage.value - 1) * ctsPageSize.value,
   };
   if (severityFilter.value) {
     params.severity = severityFilter.value === "critical" ? "emergency" : severityFilter.value;
@@ -456,7 +478,7 @@ async function reload() {
   loading.value = true;
   selected.value = [];
   const tasks = [];
-  if (sourceFilter.value !== "cts")  tasks.push(loadRules());
+  if (sourceFilter.value !== "cts") tasks.push(loadRules());
   if (sourceFilter.value !== "rule") tasks.push(loadCts());
   tasks.push(loadTrend());
   await Promise.allSettled(tasks);
@@ -487,7 +509,7 @@ async function acknowledge(raw) {
   try {
     await cts.acknowledgeSignal(raw.id);
     ctsRows.value = ctsRows.value.map((r) =>
-      r._raw.id === raw.id ? { ...r, status: "acknowledged" } : r
+      r._raw.id === raw.id ? { ...r, status: "acknowledged" } : r,
     );
     notify("Signal acknowledged", "success");
     window.dispatchEvent(new CustomEvent("cc:alerts-changed"));
@@ -504,7 +526,7 @@ function deleteSingle(item) {
 function confirmBulkDelete() {
   // Only CTS signals are deletable; pipeline-rule feed rows are read-only.
   const items = displayRows.value.filter(
-    (r) => selected.value.includes(r._id) && r._source === "cts"
+    (r) => selected.value.includes(r._id) && r._source === "cts",
   );
   deleteTarget.value = items;
   deleteDialog.value = true;
@@ -526,7 +548,7 @@ async function executeDelete() {
     }
 
     const deletedIds = new Set(ctsItems.map((r) => r._id));
-    ctsRows.value  = ctsRows.value.filter((r) => !deletedIds.has(r._id));
+    ctsRows.value = ctsRows.value.filter((r) => !deletedIds.has(r._id));
     ctsTotal.value = Math.max(0, ctsTotal.value - ctsItems.length);
     selected.value = selected.value.filter((id) => !deletedIds.has(id));
     notify(`Deleted ${ctsItems.length} signal${ctsItems.length === 1 ? "" : "s"}`, "success");

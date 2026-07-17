@@ -6,14 +6,9 @@
         <span class="text-h5 font-weight-bold cc-gradient-text">Cognitive Companion</span>
       </v-app-bar-title>
       <v-spacer />
-      <v-chip
-        :color="connected ? 'success' : undefined"
-        size="small"
-        variant="tonal"
-        class="mr-2"
-      >
-        <v-icon start size="12">{{ connected ? 'mdi-wifi' : 'mdi-wifi-off' }}</v-icon>
-        {{ connected ? 'Connected' : 'Disconnected' }}
+      <v-chip :color="connected ? 'success' : undefined" size="small" variant="tonal" class="mr-2">
+        <v-icon start size="12">{{ connected ? "mdi-wifi" : "mdi-wifi-off" }}</v-icon>
+        {{ connected ? "Connected" : "Disconnected" }}
       </v-chip>
       <v-btn icon="mdi-cog" variant="text" to="/admin" />
     </v-app-bar>
@@ -24,9 +19,9 @@
           <!-- Main widgets (left/center column) -->
           <v-col cols="12" md="6">
             <component
+              :is="w.component"
               v-for="w in mainWidgets"
               :key="w.id"
-              :is="w.component"
               v-bind="getWidgetProps(w.id)"
               v-on="getWidgetEvents(w.id)"
             />
@@ -35,9 +30,9 @@
           <!-- Sidebar widgets (right column) -->
           <v-col cols="12" md="6">
             <component
+              :is="w.component"
               v-for="w in sidebarWidgets"
               :key="w.id"
-              :is="w.component"
               v-bind="getWidgetProps(w.id)"
               v-on="getWidgetEvents(w.id)"
             />
@@ -48,9 +43,9 @@
 
     <!-- Overlay widgets (dialogs, alerts) -->
     <component
+      :is="w.component"
       v-for="w in overlayWidgets"
       :key="w.id"
-      :is="w.component"
       v-bind="getWidgetProps(w.id)"
       v-on="getWidgetEvents(w.id)"
     />
@@ -144,7 +139,11 @@ function getWidgetProps(widgetId) {
     case "transcript":
       return { transcript: transcript.value };
     case "alert":
-      return { visible: alertDialog.value, message: alertMessage.value, alertType: alertType.value };
+      return {
+        visible: alertDialog.value,
+        message: alertMessage.value,
+        alertType: alertType.value,
+      };
     case "interactive-prompt":
       return {
         visible: interactivePromptVisible.value,
@@ -249,13 +248,13 @@ function onInteractiveResponse(action) {
     console.error("Cannot send interactive response: missing execution_id or step_id");
     return;
   }
-  
+
   wsClient.sendInteractiveResponse(
     interactivePromptData.value.execution_id,
     interactivePromptData.value.step_id,
-    action
+    action,
   );
-  
+
   interactivePromptVisible.value = false;
 }
 
@@ -420,7 +419,7 @@ onMounted(() => {
     }
   });
 
-  wsClient.on("onInteractiveResponse", (data) => {
+  wsClient.on("onInteractiveResponse", (_data) => {
     // Close any open interactive prompt when response is received from another channel
     if (interactivePromptVisible.value) {
       interactivePromptVisible.value = false;

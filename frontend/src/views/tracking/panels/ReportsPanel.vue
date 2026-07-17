@@ -40,7 +40,7 @@ import TrackingPanelHeader from "@/components/tracking/TrackingPanelHeader.vue";
 const route = useRoute();
 
 const periodOptions = [
-  { value: "day",  label: "Daily"  },
+  { value: "day", label: "Daily" },
   { value: "week", label: "Weekly" },
 ];
 

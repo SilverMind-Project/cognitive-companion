@@ -9,7 +9,10 @@ const stubs = {
   "v-card-text": { template: "<div><slot /></div>" },
   "v-icon": { template: "<i />", props: ["icon"] },
   "v-spacer": { template: "<span />" },
-  "v-chip": { template: "<span><slot /></span>", props: ["color", "size", "variant", "prependIcon"] },
+  "v-chip": {
+    template: "<span><slot /></span>",
+    props: ["color", "size", "variant", "prependIcon"],
+  },
   "v-alert": { template: "<div><slot /></div>", props: ["type", "density", "variant"] },
   "v-tabs": { template: "<div><slot /></div>", props: ["modelValue", "density"] },
   "v-tab": { template: "<button><slot /></button>", props: ["value"] },

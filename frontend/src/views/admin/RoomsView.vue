@@ -3,26 +3,44 @@
     <div class="d-flex align-center mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Rooms</h2>
-        <div class="text-body-2 text-medium-emphasis mt-1">Spaces in the home where sensors live and rules apply.</div>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          Spaces in the home where sensors live and rules apply.
+        </div>
       </div>
       <v-spacer />
       <v-btn variant="tonal" class="mr-2" prepend-icon="mdi-home-automation" @click="syncFromHA">
         Sync from HA
       </v-btn>
-      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Add Room</v-btn>
+      <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate"
+        >Add Room</v-btn
+      >
     </div>
 
     <v-card class="glass-card">
       <v-data-table :headers="headers" :items="rooms" :loading="loading" item-value="id">
         <template #item.actions="{ item }">
-          <v-btn icon="mdi-pencil" size="small" variant="text" color="primary" @click="openEdit(item)" />
-          <v-btn icon="mdi-delete" size="small" variant="text" color="error" @click="deleteRoom(item.id)" />
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            variant="text"
+            color="primary"
+            @click="openEdit(item)"
+          />
+          <v-btn
+            icon="mdi-delete"
+            size="small"
+            variant="text"
+            color="error"
+            @click="deleteRoom(item.id)"
+          />
         </template>
         <template #no-data>
           <div class="pa-6 text-center">
             <v-card flat>
               <v-card-text class="text-grey text-h6">No rooms yet</v-card-text>
-              <v-card-text class="text-grey">Add rooms to organize sensors by location.</v-card-text>
+              <v-card-text class="text-grey"
+                >Add rooms to organize sensors by location.</v-card-text
+              >
             </v-card>
           </div>
         </template>
@@ -39,7 +57,12 @@
         />
         <v-card-text>
           <v-text-field v-model="form.name" label="Name" variant="outlined" class="mb-2" />
-          <v-text-field v-model="form.ha_area_id" label="HA Area ID (optional)" variant="outlined" class="mb-2" />
+          <v-text-field
+            v-model="form.ha_area_id"
+            label="HA Area ID (optional)"
+            variant="outlined"
+            class="mb-2"
+          />
           <v-text-field v-model="form.floor" label="Floor (optional)" variant="outlined" />
         </v-card-text>
         <DialogFooter
@@ -94,12 +117,26 @@ const headers = [
 
 async function loadRooms() {
   loading.value = true;
-  try { rooms.value = await api.getRooms(); } catch (e) { console.error("Failed to load rooms:", e); rooms.value = []; }
+  try {
+    rooms.value = await api.getRooms();
+  } catch (e) {
+    console.error("Failed to load rooms:", e);
+    rooms.value = [];
+  }
   loading.value = false;
 }
 
-function openCreate() { form.value = emptyForm(); editing.value = false; dialog.value = true; }
-function openEdit(item) { form.value = { ...item }; editId.value = item.id; editing.value = true; dialog.value = true; }
+function openCreate() {
+  form.value = emptyForm();
+  editing.value = false;
+  dialog.value = true;
+}
+function openEdit(item) {
+  form.value = { ...item };
+  editId.value = item.id;
+  editing.value = true;
+  dialog.value = true;
+}
 
 async function saveRoom() {
   try {
@@ -107,12 +144,19 @@ async function saveRoom() {
     else await api.createRoom(form.value);
     dialog.value = false;
     await loadRooms();
-  } catch (e) { notify(e.message, "error"); }
+  } catch (e) {
+    notify(e.message, "error");
+  }
 }
 
 async function deleteRoom(id) {
-  if (!await showConfirm("Delete Room", "Delete this room?")) return;
-  try { await api.deleteRoom(id); await loadRooms(); } catch (e) { notify(e.message, "error"); }
+  if (!(await showConfirm("Delete Room", "Delete this room?"))) return;
+  try {
+    await api.deleteRoom(id);
+    await loadRooms();
+  } catch (e) {
+    notify(e.message, "error");
+  }
 }
 
 async function syncFromHA() {
@@ -120,7 +164,9 @@ async function syncFromHA() {
     const result = await api.syncRooms();
     notify(`Created ${result.created}, updated ${result.updated} rooms`);
     await loadRooms();
-  } catch (e) { notify(e.message, "error"); }
+  } catch (e) {
+    notify(e.message, "error");
+  }
 }
 
 onMounted(loadRooms);

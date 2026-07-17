@@ -1,6 +1,8 @@
 <template>
   <div class="template-input-wrapper mb-1">
-    <div v-if="label" class="template-input-label text-caption font-weight-medium mb-1">{{ label }}</div>
+    <div v-if="label" class="template-input-label text-caption font-weight-medium mb-1">
+      {{ label }}
+    </div>
     <div
       ref="editorEl"
       class="template-input-editor"
@@ -10,7 +12,9 @@
       }"
       :style="containerStyle"
     />
-    <div v-if="hint" class="template-input-hint text-caption text-medium-emphasis mt-1 px-1">{{ hint }}</div>
+    <div v-if="hint" class="template-input-hint text-caption text-medium-emphasis mt-1 px-1">
+      {{ hint }}
+    </div>
   </div>
 </template>
 
@@ -66,7 +70,7 @@ const emit = defineEmits(["update:modelValue"]);
 // for per-pipeline autocomplete suggestions. No prop drilling required.
 const injectedRuleContext = inject(
   "pipelineRuleContext",
-  computed(() => ({ labels: [], stepOutputs: {} }))
+  computed(() => ({ labels: [], stepOutputs: {} })),
 );
 
 const editorEl = ref(null);
@@ -76,7 +80,7 @@ const view = shallowRef(null);
 // Initial container height is derived from rows. After mount the user can drag
 // to resize (multiline only). CM6 fills the container via height: 100%.
 const ROW_HEIGHT_PX = 24; // matches lineHeight 1.6 × fontSize 14px ≈ 22.4, rounded up
-const PADDING_PX = 16;    // 8px top + 8px bottom from .cm-content
+const PADDING_PX = 16; // 8px top + 8px bottom from .cm-content
 
 const containerStyle = computed(() => {
   if (!props.multiline) return {};
@@ -181,7 +185,7 @@ function autocompleteSource(context) {
 
   return loadDataKeys().then((keys) => {
     const filtered = buildCompletions(keys).filter((c) =>
-      c.label.toLowerCase().includes(partial.toLowerCase())
+      c.label.toLowerCase().includes(partial.toLowerCase()),
     );
     return {
       from: pos - partial.length,
@@ -203,8 +207,12 @@ function createExtensions() {
   });
 
   const focusListener = EditorView.domEventHandlers({
-    focus: () => { focused.value = true; },
-    blur: () => { focused.value = false; },
+    focus: () => {
+      focused.value = true;
+    },
+    blur: () => {
+      focused.value = false;
+    },
   });
 
   return [
@@ -259,7 +267,7 @@ watch(
         changes: { from: 0, to: current.length, insert: newVal || "" },
       });
     }
-  }
+  },
 );
 
 onBeforeUnmount(() => {

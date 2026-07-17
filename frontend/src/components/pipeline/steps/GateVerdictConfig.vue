@@ -12,11 +12,11 @@
     />
 
     <v-alert type="info" variant="tonal" density="compact" class="mb-4 text-body-2">
-      This is the single verdict sink of the gate graph. The expression usually
-      reads a model output, e.g.
-      <code>steps.llm_call_1.outputs.vision_response.complete</code>. If the
-      verdict is never reached, or the expression is unparseable, or confidence
-      is below the threshold, the gate fails closed (complete = false).
+      This is the single verdict sink of the gate graph. The expression usually reads a model
+      output, e.g.
+      <code>steps.llm_call_1.outputs.vision_response.complete</code>. If the verdict is never
+      reached, or the expression is unparseable, or confidence is below the threshold, the gate
+      fails closed (complete = false).
     </v-alert>
 
     <v-text-field
@@ -51,7 +51,9 @@
       hint="If complete is true but confidence is below this, the verdict is forced to false."
       persistent-hint
       style="max-width: 240px"
-      @update:model-value="emit('update:modelValue', { ...modelValue, min_confidence: parseFloat($event) })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, min_confidence: parseFloat($event) })
+      "
     />
   </div>
 </template>

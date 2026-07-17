@@ -10,13 +10,11 @@
     </div>
 
     <template v-if="scopeMode === 'segment'">
-      <div v-if="!proposal" class="text-caption text-medium-emphasis">
-        No segment proposed.
-      </div>
+      <div v-if="!proposal" class="text-caption text-medium-emphasis">No segment proposed.</div>
       <template v-else>
         <div class="text-caption text-medium-emphasis mb-2">
-          Adjust the start and end to observations within the proposed segment. To
-          extend past a boundary, start a new proposal from that observation.
+          Adjust the start and end to observations within the proposed segment. To extend past a
+          boundary, start a new proposal from that observation.
         </div>
 
         <div class="d-flex ga-3 flex-wrap">
@@ -95,9 +93,7 @@
       </template>
     </template>
 
-    <div v-else class="text-caption text-medium-emphasis">
-      Applies to this single frame only.
-    </div>
+    <div v-else class="text-caption text-medium-emphasis">Applies to this single frame only.</div>
   </div>
 </template>
 
@@ -153,12 +149,8 @@ const orderedItems = computed(() => {
   });
 });
 
-const startIndex = computed(() =>
-  orderedItems.value.findIndex((i) => i.value === props.startId)
-);
-const endIndex = computed(() =>
-  orderedItems.value.findIndex((i) => i.value === props.endId)
-);
+const startIndex = computed(() => orderedItems.value.findIndex((i) => i.value === props.startId));
+const endIndex = computed(() => orderedItems.value.findIndex((i) => i.value === props.endId));
 
 // Start may not move past the chosen end, and vice versa (no inverted range).
 const startItems = computed(() => {

@@ -16,7 +16,10 @@
         hide-details
         clearable
         style="max-width: 200px"
-        @update:model-value="page = 1; fetchSessions()"
+        @update:model-value="
+          page = 1;
+          fetchSessions();
+        "
       />
       <v-select
         v-model="filterPersonId"
@@ -28,7 +31,10 @@
         hide-details
         clearable
         style="max-width: 200px"
-        @update:model-value="page = 1; fetchSessions()"
+        @update:model-value="
+          page = 1;
+          fetchSessions();
+        "
       />
     </div>
 
@@ -98,8 +104,15 @@ const headers = [
 ];
 
 const statusOptions = [
-  "pending", "summoning", "active", "waiting",
-  "escalated", "caregiver_takeover", "completed", "abandoned", "failed",
+  "pending",
+  "summoning",
+  "active",
+  "waiting",
+  "escalated",
+  "caregiver_takeover",
+  "completed",
+  "abandoned",
+  "failed",
 ];
 
 const items = ref([]);

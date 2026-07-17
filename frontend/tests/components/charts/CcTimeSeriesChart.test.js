@@ -20,12 +20,20 @@ vi.mock("vue-echarts", () => ({
 vi.mock("echarts/core", () => ({ use: vi.fn() }));
 vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
 vi.mock("echarts/charts", () => ({
-  LineChart: {}, BarChart: {}, HeatmapChart: {}, ScatterChart: {},
-  GaugeChart: {}, GraphChart: {},
+  LineChart: {},
+  BarChart: {},
+  HeatmapChart: {},
+  ScatterChart: {},
+  GaugeChart: {},
+  GraphChart: {},
 }));
 vi.mock("echarts/components", () => ({
-  GridComponent: {}, TooltipComponent: {}, LegendComponent: {},
-  MarkLineComponent: {}, VisualMapComponent: {}, DataZoomComponent: {},
+  GridComponent: {},
+  TooltipComponent: {},
+  LegendComponent: {},
+  MarkLineComponent: {},
+  VisualMapComponent: {},
+  DataZoomComponent: {},
   TitleComponent: {},
 }));
 
@@ -39,8 +47,20 @@ const THEME_MOCK = {
   color: ["#0a84ff"],
   backgroundColor: "transparent",
   textStyle: { color: "#fff" },
-  xAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
-  yAxis: { axisLabel: { color: "#ccc" }, axisLine: { lineStyle: { color: "#333" } }, splitLine: { lineStyle: { color: "#333" } }, axisTick: { lineStyle: { color: "#333" } }, nameTextStyle: { color: "#ccc" } },
+  xAxis: {
+    axisLabel: { color: "#ccc" },
+    axisLine: { lineStyle: { color: "#333" } },
+    splitLine: { lineStyle: { color: "#333" } },
+    axisTick: { lineStyle: { color: "#333" } },
+    nameTextStyle: { color: "#ccc" },
+  },
+  yAxis: {
+    axisLabel: { color: "#ccc" },
+    axisLine: { lineStyle: { color: "#333" } },
+    splitLine: { lineStyle: { color: "#333" } },
+    axisTick: { lineStyle: { color: "#333" } },
+    nameTextStyle: { color: "#ccc" },
+  },
   tooltip: { backgroundColor: "#111", borderColor: "#333", textStyle: { color: "#fff" } },
   legend: { textStyle: { color: "#ccc" } },
   grid: { borderColor: "#333" },

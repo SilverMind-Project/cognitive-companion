@@ -59,9 +59,7 @@ const emit = defineEmits(["select"]);
 
 const { chartTheme } = useChartTheme();
 
-const isEmpty = computed(
-  () => !props.categories?.length || !props.series?.length
-);
+const isEmpty = computed(() => !props.categories?.length || !props.series?.length);
 
 const chartOption = computed(() => {
   const th = chartTheme.value;

@@ -3,7 +3,9 @@
     <div class="d-flex align-center flex-wrap ga-3 mb-6">
       <div>
         <h2 class="text-h4 font-weight-bold tracking-tight">Event Logs</h2>
-        <div class="text-body-2 text-medium-emphasis mt-1">A history of every trigger the system has processed.</div>
+        <div class="text-body-2 text-medium-emphasis mt-1">
+          A history of every trigger the system has processed.
+        </div>
       </div>
       <v-spacer />
       <v-select
@@ -27,7 +29,7 @@
         style="max-width: 200px"
         @keyup.enter="loadEvents"
       />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadEvents" :loading="loading">
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="loadEvents">
         Refresh
       </v-btn>
     </div>
@@ -44,7 +46,10 @@
           <div class="pa-6 text-center">
             <v-card flat>
               <v-card-text class="text-grey text-h6">No events yet</v-card-text>
-              <v-card-text class="text-grey">System events will appear here as rules execute and actions are triggered.</v-card-text>
+              <v-card-text class="text-grey"
+                >System events will appear here as rules execute and actions are
+                triggered.</v-card-text
+              >
             </v-card>
           </div>
         </template>
@@ -71,7 +76,9 @@ const headers = [
 ];
 
 function statusColor(s) {
-  return { completed: "success", failed: "error", ignored: "grey", processing: "info" }[s] || "grey";
+  return (
+    { completed: "success", failed: "error", ignored: "grey", processing: "info" }[s] || "grey"
+  );
 }
 
 async function loadEvents() {
@@ -79,7 +86,12 @@ async function loadEvents() {
   const params = {};
   if (filter.value.status) params.status = filter.value.status;
   if (filter.value.rule_name) params.rule_name = filter.value.rule_name;
-  try { events.value = await api.getEvents(params); } catch (e) { console.error("Failed to load events:", e); events.value = []; }
+  try {
+    events.value = await api.getEvents(params);
+  } catch (e) {
+    console.error("Failed to load events:", e);
+    events.value = [];
+  }
   loading.value = false;
 }
 

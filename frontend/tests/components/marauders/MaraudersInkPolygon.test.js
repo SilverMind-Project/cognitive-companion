@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
-import { defineComponent } from "vue";
 
 // Stub roughjs before component import so happy-dom won't try to use the browser canvas API.
 vi.mock("roughjs", () => {
@@ -24,7 +23,11 @@ vi.mock("@/composables/useChartTheme.js", () => ({
 
 import MaraudersInkPolygon from "@/components/marauders/MaraudersInkPolygon.vue";
 
-const TRI = [[0, 0], [1, 0], [0.5, 1]];
+const TRI = [
+  [0, 0],
+  [1, 0],
+  [0.5, 1],
+];
 
 function mountPolygon(props = {}) {
   return mount(MaraudersInkPolygon, {

@@ -17,12 +17,7 @@
         align-tabs="start"
         show-arrows
       >
-        <v-tab
-          v-for="tab in visibleTabs"
-          :key="tab.id"
-          :value="tab.id"
-          :prepend-icon="tab.icon"
-        >
+        <v-tab v-for="tab in visibleTabs" :key="tab.id" :value="tab.id" :prepend-icon="tab.icon">
           {{ tab.label }}
         </v-tab>
       </v-tabs>
@@ -61,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { usePersonPresence } from "@/composables/usePersonPresence.js";
 import OverviewPanel from "./panels/OverviewPanel.vue";
@@ -78,19 +73,22 @@ const props = defineProps({
 });
 
 const ALL_TABS = [
-  { id: "overview",           label: "Overview",          icon: "mdi-view-dashboard-outline" },
-  { id: "live-floor",         label: "Live & Floor",      icon: "mdi-video-outline"          },
-  { id: "people",             label: "People",            icon: "mdi-account-group-outline"  },
-  { id: "presence-timeline",  label: "Presence Timeline", icon: "mdi-timeline-clock"         },
-  { id: "mobility",           label: "Mobility",          icon: "mdi-walk"                   },
-  { id: "signals",            label: "Signals",           icon: "mdi-chart-bar"              },
-  { id: "reports",            label: "Reports",           icon: "mdi-chart-box"              },
+  { id: "overview", label: "Overview", icon: "mdi-view-dashboard-outline" },
+  { id: "live-floor", label: "Live & Floor", icon: "mdi-video-outline" },
+  { id: "people", label: "People", icon: "mdi-account-group-outline" },
+  { id: "presence-timeline", label: "Presence Timeline", icon: "mdi-timeline-clock" },
+  { id: "mobility", label: "Mobility", icon: "mdi-walk" },
+  { id: "signals", label: "Signals", icon: "mdi-chart-bar" },
+  { id: "reports", label: "Reports", icon: "mdi-chart-box" },
 ];
 
 const ROLE_CONFIG = {
-  admin:    { panels: ALL_TABS.map((t) => t.id), default: "overview" },
-  caregiver: { panels: ["presence-timeline", "people", "mobility", "reports", "live-floor"], default: "presence-timeline" },
-  medical:  { panels: ["signals", "reports", "presence-timeline", "mobility"], default: "signals" },
+  admin: { panels: ALL_TABS.map((t) => t.id), default: "overview" },
+  caregiver: {
+    panels: ["presence-timeline", "people", "mobility", "reports", "live-floor"],
+    default: "presence-timeline",
+  },
+  medical: { panels: ["signals", "reports", "presence-timeline", "mobility"], default: "signals" },
 };
 
 const route = useRoute();
@@ -113,7 +111,7 @@ watch(
   (qp) => {
     const resolved = resolvePanel(qp);
     if (resolved !== activePanel.value) activePanel.value = resolved;
-  }
+  },
 );
 
 // Sync tab → query param when tab changes

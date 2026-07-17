@@ -18,7 +18,10 @@
         hide-details
         clearable
         style="max-width: 220px"
-        @update:model-value="page = 1; fetchRoutines()"
+        @update:model-value="
+          page = 1;
+          fetchRoutines();
+        "
       />
       <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openCreate">
         New Routine
@@ -39,11 +42,7 @@
         @update:options="onPageOptions"
       >
         <template #item.is_enabled="{ item }">
-          <v-chip
-            :color="item.is_enabled ? 'success' : undefined"
-            size="small"
-            variant="tonal"
-          >
+          <v-chip :color="item.is_enabled ? 'success' : undefined" size="small" variant="tonal">
             {{ item.is_enabled ? "Enabled" : "Disabled" }}
           </v-chip>
         </template>
@@ -89,12 +88,12 @@
             item-title="name"
             item-value="id"
             label="Household Member"
-            :rules="[r => !!r || 'Required']"
+            :rules="[(r) => !!r || 'Required']"
           />
           <v-text-field
             v-model="createForm.name"
             label="Routine Name"
-            :rules="[r => !!r || 'Required']"
+            :rules="[(r) => !!r || 'Required']"
             placeholder="e.g. Morning Tea"
           />
         </v-card-text>

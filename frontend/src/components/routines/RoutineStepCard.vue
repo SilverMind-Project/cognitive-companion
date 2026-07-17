@@ -5,12 +5,7 @@
         Step {{ step.ord + 1 }}
       </span>
       <v-spacer />
-      <v-btn
-        icon="mdi-pencil-outline"
-        variant="text"
-        size="small"
-        @click="openEditDialog"
-      />
+      <v-btn icon="mdi-pencil-outline" variant="text" size="small" @click="openEditDialog" />
       <v-btn
         icon="mdi-arrow-up"
         variant="text"
@@ -41,31 +36,31 @@
 
       <div class="d-flex flex-wrap ga-2 text-caption">
         <!-- Completion Gate summary -->
-        <span class="cc-badge cc-badge--brand" v-if="step.completion_gate">
+        <span v-if="step.completion_gate" class="cc-badge cc-badge--brand">
           <span class="cc-badge__dot"></span>
-          Gates: {{ step.completion_gate.kinds.join(', ') }}
+          Gates: {{ step.completion_gate.kinds.join(", ") }}
         </span>
 
         <!-- Room/Zone context -->
-        <span class="cc-badge cc-badge--info" v-if="step.zone_id">
+        <span v-if="step.zone_id" class="cc-badge cc-badge--info">
           <span class="cc-badge__dot"></span>
           Zone: {{ step.zone_id }}
         </span>
 
         <!-- Cameras context -->
-        <span class="cc-badge cc-badge--info" v-if="step.camera_ids && step.camera_ids.length">
+        <span v-if="step.camera_ids && step.camera_ids.length" class="cc-badge cc-badge--info">
           <span class="cc-badge__dot"></span>
-          Cameras: {{ step.camera_ids.join(', ') }}
+          Cameras: {{ step.camera_ids.join(", ") }}
         </span>
 
         <!-- Timeout override -->
-        <span class="cc-badge cc-badge--notice" v-if="step.step_timeout_s_override">
+        <span v-if="step.step_timeout_s_override" class="cc-badge cc-badge--notice">
           <span class="cc-badge__dot"></span>
           Timeout: {{ step.step_timeout_s_override }}s
         </span>
 
         <!-- Safety Critical badge -->
-        <span class="cc-badge cc-badge--alert" v-if="step.is_safety_critical">
+        <span v-if="step.is_safety_critical" class="cc-badge cc-badge--alert">
           <span class="cc-badge__dot"></span>
           Safety Critical
         </span>
@@ -110,7 +105,7 @@
 
         <!-- Completion gate -->
         <CompletionGateEditor
-          v-slot:default
+          v-slot
           v-model="localStep.completion_gate"
           :room-id="roomId"
           class="mt-2"
@@ -119,11 +114,7 @@
         <!-- Zone + Camera pickers -->
         <v-row class="mt-0">
           <v-col cols="6">
-            <ZonePicker
-              v-model="localStep.zone_id"
-              :room-id="roomId"
-              label="Zone"
-            />
+            <ZonePicker v-model="localStep.zone_id" :room-id="roomId" label="Zone" />
           </v-col>
           <v-col cols="6">
             <CameraPicker
@@ -232,7 +223,7 @@ watch(
   (newStep) => {
     localStep.value = JSON.parse(JSON.stringify(newStep));
   },
-  { deep: true }
+  { deep: true },
 );
 
 function openEditDialog() {

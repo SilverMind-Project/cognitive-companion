@@ -13,7 +13,6 @@
  * labels, pose evidence) render natively on top and remain crisp.
  *
  * Block size is controlled via CSS custom property --cts-block-size (default 16).
- * Call updatePixelateBlockSize(n) to change the block size at runtime.
  */
 
 import { watch, reactive } from "vue";
@@ -42,9 +41,11 @@ function evictCacheEntry(key) {
   if (entry.blobUrl !== undefined) {
     URL.revokeObjectURL(entry.blobUrl);
   } else {
-    entry.promise.then((blobUrl) => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    }).catch(() => {});
+    entry.promise
+      .then((blobUrl) => {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+      })
+      .catch(() => {});
   }
 }
 
@@ -56,7 +57,7 @@ function evictCacheEntry(key) {
  * @param {number} blockSize
  * @returns {Promise<string>}  resolved blob URL (caller must revoke)
  */
-export function pixelateImageUrl(url, blockSize = currentBlockSize) {
+function pixelateImageUrl(url, blockSize = currentBlockSize) {
   const key = `${url}::${blockSize}`;
   const cached = cache.get(key);
   if (cached) return cached.promise;
@@ -185,24 +186,6 @@ export function useDisplaySrc(blurModeRef, blockSize = currentBlockSize) {
   }
 
   return { displaySrc };
-}
-
-/**
- * Update the default pixelation block size at runtime.
- * Clears the image cache so pending and future pixelations use the new size.
- * @param {number} blockSize — pixels per block (default 32, clamped to ≥ 4)
- */
-export function updatePixelateBlockSize(blockSize = 32) {
-  currentBlockSize = Math.max(4, blockSize);
-  document.documentElement.style.setProperty(
-    "--cts-block-size",
-    String(currentBlockSize),
-  );
-  for (const [key, entry] of cache.entries()) {
-    if (entry.blobUrl !== undefined) URL.revokeObjectURL(entry.blobUrl);
-    else entry.promise?.then((blobUrl) => { if (blobUrl) URL.revokeObjectURL(blobUrl); }).catch(() => {});
-  }
-  cache.clear();
 }
 
 // Set initial CSS custom property

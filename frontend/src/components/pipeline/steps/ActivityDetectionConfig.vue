@@ -45,7 +45,9 @@
     persistent-hint
     hide-details
     class="mb-3"
-    @update:model-value="emit('update:modelValue', { ...modelValue, capture_scene_description: $event })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, capture_scene_description: $event })
+    "
   />
   <v-combobox
     v-if="modelValue.capture_scene_description"
@@ -55,7 +57,9 @@
     hint="pipeline_data key to read as the scene description (default: vision_response)."
     persistent-hint
     class="mb-4"
-    @update:model-value="emit('update:modelValue', { ...modelValue, scene_description_key: $event })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, scene_description_key: $event })
+    "
   />
   <div class="text-overline text-medium-emphasis mb-2 mt-4">Extra Metadata (JSON, optional)</div>
   <TemplateInput

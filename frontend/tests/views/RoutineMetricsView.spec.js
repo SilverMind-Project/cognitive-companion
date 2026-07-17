@@ -12,7 +12,7 @@ const metricsState = reactive({
   error: null,
 });
 
-const fetchDashboardMock = vi.fn(async (id) => {
+const fetchDashboardMock = vi.fn(async (_id) => {
   metricsState.dashboard = {
     completion: { completion_rate: 0.85 },
     attempts_per_step: { items: [{ step_ord: 0, average_attempts: 1.2 }] },
@@ -73,10 +73,16 @@ const stubs = {
     template: `<div class="cc-gauge-chart" />`,
     props: ["value", "label", "unit"],
   },
-  "v-btn": { template: "<button><slot /></button>", props: ["variant", "prepend-icon", "size", "to", "loading", "icon"] },
+  "v-btn": {
+    template: "<button><slot /></button>",
+    props: ["variant", "prepend-icon", "size", "to", "loading", "icon"],
+  },
   "v-divider": { template: "<hr />", props: ["vertical"] },
   "v-spacer": { template: "<div />" },
-  "v-progress-circular": { template: "<div class='loading-spinner' />", props: ["indeterminate", "color"] },
+  "v-progress-circular": {
+    template: "<div class='loading-spinner' />",
+    props: ["indeterminate", "color"],
+  },
   "v-alert": { template: "<div class='alert'><slot /></div>", props: ["type", "density"] },
   "v-row": { template: "<div class='row'><slot /></div>" },
   "v-col": { template: "<div class='col'><slot /></div>", props: ["cols", "sm", "lg"] },
@@ -106,12 +112,12 @@ describe("RoutineMetricsView.vue", () => {
 
     // Verify Metric Tiles
     const tiles = wrapper.findAll(".cc-metric-tile");
-    
+
     // We expect 8 tiles now (4 original + 4 watch-related)
     expect(tiles).toHaveLength(8);
 
     const tileMap = {};
-    tiles.forEach(tile => {
+    tiles.forEach((tile) => {
       tileMap[tile.attributes("data-label")] = tile.attributes("data-value");
     });
 
@@ -131,7 +137,7 @@ describe("RoutineMetricsView.vue", () => {
     expect(text).toContain("Confirm");
     expect(text).toContain("Watch");
     expect(text).toContain("Total");
-    
+
     // Check row data using regexes on text content
     expect(text).toMatch(/Confirm5158\.00s/);
     expect(text).toMatch(/Watch154524\.00s/);

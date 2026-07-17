@@ -16,8 +16,23 @@ vi.mock("vue-echarts", () => ({
 }));
 vi.mock("echarts/core", () => ({ use: vi.fn() }));
 vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
-vi.mock("echarts/charts", () => ({ LineChart: {}, BarChart: {}, HeatmapChart: {}, ScatterChart: {}, GaugeChart: {}, GraphChart: {} }));
-vi.mock("echarts/components", () => ({ GridComponent: {}, TooltipComponent: {}, LegendComponent: {}, MarkLineComponent: {}, VisualMapComponent: {}, DataZoomComponent: {}, TitleComponent: {} }));
+vi.mock("echarts/charts", () => ({
+  LineChart: {},
+  BarChart: {},
+  HeatmapChart: {},
+  ScatterChart: {},
+  GaugeChart: {},
+  GraphChart: {},
+}));
+vi.mock("echarts/components", () => ({
+  GridComponent: {},
+  TooltipComponent: {},
+  LegendComponent: {},
+  MarkLineComponent: {},
+  VisualMapComponent: {},
+  DataZoomComponent: {},
+  TitleComponent: {},
+}));
 
 const RUNNING_COLOR = "#BRAND-SENTINEL";
 const SUCCEEDED_COLOR = "#SUCCESS-SENTINEL";

@@ -25,7 +25,9 @@
     hint="Records a PersonActivity entry with duration_minutes populated."
     persistent-hint
     class="mb-4"
-    @update:model-value="emit('update:modelValue', { ...modelValue, write_activity_record: $event })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, write_activity_record: $event })
+    "
   />
   <v-text-field
     :model-value="modelValue.output_key"

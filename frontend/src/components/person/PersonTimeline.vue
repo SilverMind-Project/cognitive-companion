@@ -16,7 +16,13 @@
             <div class="flex-grow-1">
               <div class="d-flex align-center mb-1">
                 <span class="text-body-1 font-weight-medium">{{ eventTitle(event) }}</span>
-                <v-chip v-if="event.source" size="x-small" class="ml-2" variant="tonal" color="surface-variant">
+                <v-chip
+                  v-if="event.source"
+                  size="x-small"
+                  class="ml-2"
+                  variant="tonal"
+                  color="surface-variant"
+                >
                   {{ eventSourceLabel(event.source) }}
                 </v-chip>
               </div>
@@ -71,11 +77,8 @@ const events = ref([]);
 const loading = ref(false);
 
 const sortedEvents = computed(() =>
-  [...events.value].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  [...events.value].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
 );
-
-// Show session close events as primary (they mark completion of an activity)
-const isPrimaryEvent = (event) => event.event_type === "session_closed" || event.event_type === "session_opened";
 
 async function load() {
   loading.value = true;
@@ -94,23 +97,35 @@ async function load() {
 
 function eventColor(event) {
   switch (event.source) {
-    case "activity": return "primary";
-    case "session": return "success";
-    case "location": return "info";
-    case "sighting": return "warning";
-    default: return "grey";
+    case "activity":
+      return "primary";
+    case "session":
+      return "success";
+    case "location":
+      return "info";
+    case "sighting":
+      return "warning";
+    default:
+      return "grey";
   }
 }
 
 function eventIcon(event) {
   switch (event.event_type) {
-    case "activity_detected": return "mdi-check-circle";
-    case "session_opened": return "mdi-play-circle";
-    case "session_closed": return "mdi-stop-circle";
-    case "room_entered": return "mdi-door";
-    case "room_transited": return "mdi-walk";
-    case "person_sighted": return "mdi-camera";
-    default: return "mdi-circle";
+    case "activity_detected":
+      return "mdi-check-circle";
+    case "session_opened":
+      return "mdi-play-circle";
+    case "session_closed":
+      return "mdi-stop-circle";
+    case "room_entered":
+      return "mdi-door";
+    case "room_transited":
+      return "mdi-walk";
+    case "person_sighted":
+      return "mdi-camera";
+    default:
+      return "mdi-circle";
   }
 }
 

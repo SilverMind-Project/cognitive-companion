@@ -97,7 +97,9 @@ export function useIdentityCorrection(notify) {
           await propose({ ph_id: payload.ph_id }).catch(() => {});
         }
         if (notify) {
-          notify.warning("The track changed since you started. Review the updated range and confirm again.");
+          notify.warning(
+            "The track changed since you started. Review the updated range and confirm again.",
+          );
         }
       } else if (notify) {
         notify.error(err.message || String(err));

@@ -10,7 +10,11 @@ describe("useRoughSketch", () => {
     ({ useRoughSketch } = await import("@/composables/useRoughSketch.js"));
   });
 
-  const TRI = [[0, 0], [100, 0], [50, 100]];
+  const TRI = [
+    [0, 0],
+    [100, 0],
+    [50, 100],
+  ];
 
   it("seedFrom returns a stable unsigned 32-bit integer for the same input", () => {
     const { actions } = useRoughSketch();
@@ -61,8 +65,22 @@ describe("useRoughSketch", () => {
   it("path changes when points change (different geometry = different d)", () => {
     const { actions } = useRoughSketch();
     const seed = 7;
-    const d1 = actions.path([[0, 0], [100, 0], [50, 100]], { seed });
-    const d2 = actions.path([[0, 0], [200, 0], [100, 200]], { seed });
+    const d1 = actions.path(
+      [
+        [0, 0],
+        [100, 0],
+        [50, 100],
+      ],
+      { seed },
+    );
+    const d2 = actions.path(
+      [
+        [0, 0],
+        [200, 0],
+        [100, 200],
+      ],
+      { seed },
+    );
     expect(d1).not.toBe(d2);
   });
 

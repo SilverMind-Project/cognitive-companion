@@ -1,0 +1,4 @@
+# Commits listed here are ignored by `git blame` (see the README note on
+# `git config blame.ignoreRevsFile .git-blame-ignore-revs`).
+#
+# M19 frontend Prettier adoption: repo-wide format-only commit, no logic changes.

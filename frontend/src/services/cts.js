@@ -29,7 +29,8 @@ export const cts = {
   getCameras: () => req("/cameras"),
   getCamera: (id) => req(`/cameras/${id}`),
   createCamera: (data) => req("/cameras", { method: "POST", body: JSON.stringify(data) }),
-  updateCamera: (id, data) => req(`/cameras/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  updateCamera: (id, data) =>
+    req(`/cameras/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteCamera: (id) => req(`/cameras/${id}`, { method: "DELETE" }),
   testConnect: (rtsp_url) =>
     req("/cameras/test-connect", { method: "POST", body: JSON.stringify({ rtsp_url }) }),
@@ -96,8 +97,7 @@ export const cts = {
     req("/transit-zones", { method: "POST", body: JSON.stringify(body) }),
   updateTransitZone: (id, body) =>
     req(`/transit-zones/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteTransitZone: (id) =>
-    req(`/transit-zones/${id}`, { method: "DELETE" }),
+  deleteTransitZone: (id) => req(`/transit-zones/${id}`, { method: "DELETE" }),
 
   // ── Dementia signals ────────────────────────────────────────────────────────
   getSignals: (params = {}) => {
@@ -116,8 +116,7 @@ export const cts = {
       method: "POST",
       body: feedback !== null ? JSON.stringify({ feedback }) : JSON.stringify({}),
     }),
-  deleteSignal: (signalId) =>
-    req(`/signals/${signalId}`, { method: "DELETE" }),
+  deleteSignal: (signalId) => req(`/signals/${signalId}`, { method: "DELETE" }),
   batchDeleteSignals: (signalIds) =>
     req("/signals/batch", {
       method: "DELETE",
@@ -136,8 +135,7 @@ export const cts = {
     const qs = personId ? `?person_id=${encodeURIComponent(personId)}` : "";
     return req(`/signals/summary${qs}`);
   },
-  getSignalTrend: (personId, days = 7) =>
-    req(`/signals/trend/${personId}?days=${days}`),
+  getSignalTrend: (personId, days = 7) => req(`/signals/trend/${personId}?days=${days}`),
 
   // ── Tagged keyframes ────────────────────────────────────────────────────────
   getKeyframes: (params = {}) => {
@@ -159,8 +157,7 @@ export const cts = {
     return q ? req(`/keyframes?${q}`) : req("/keyframes");
   },
   getKeyframe: (sampleId) => req(`/keyframes/${sampleId}`),
-  retainKeyframe: (sampleId) =>
-    req(`/keyframes/${sampleId}/retain`, { method: "POST" }),
+  retainKeyframe: (sampleId) => req(`/keyframes/${sampleId}/retain`, { method: "POST" }),
 
   /** Fetch a keyframe image as an authenticated blob (object URL).
    *  The caller MUST call URL.revokeObjectURL(url) on unmount. */
@@ -194,8 +191,7 @@ export const cts = {
   getUnacknowledgedCount: () => req("/dashboard/unacknowledged-count"),
   createSuppression: (data) =>
     req("/dashboard/suppressions", { method: "POST", body: JSON.stringify(data) }),
-  deleteSuppression: (id) =>
-    req(`/dashboard/suppressions/${id}`, { method: "DELETE" }),
+  deleteSuppression: (id) => req(`/dashboard/suppressions/${id}`, { method: "DELETE" }),
   getDashboardSignals: (params = {}) => {
     const qs = new URLSearchParams();
     if (params.person_id) qs.set("person_id", params.person_id);

@@ -5,7 +5,9 @@ vi.mock("@/composables/useChartTheme.js", () => ({
   ccToken: vi.fn(() => "#2a1d0e"),
 }));
 
-import MaraudersAmbientLayer, { MARAUDERS_AMBIENT } from "@/components/marauders/MaraudersAmbientLayer.vue";
+import MaraudersAmbientLayer, {
+  MARAUDERS_AMBIENT,
+} from "@/components/marauders/MaraudersAmbientLayer.vue";
 
 // A realistic clock value so several gait beats have already occurred.
 const DEFAULT_PROPS = { canvasW: 1000, canvasH: 800, nowMs: 100000, reducedMotion: false };

@@ -118,7 +118,12 @@ describe("DashboardView — LLM health cards", () => {
     const items = [
       { name: "Model A", status: "success", configured_model: "model-a", detail: null },
       { name: "Model B", status: "error", configured_model: "model-b", detail: "Unreachable" },
-      { name: "Model C", status: "warning", configured_model: "model-c", detail: "configured: model-c, available: [other]" },
+      {
+        name: "Model C",
+        status: "warning",
+        configured_model: "model-c",
+        detail: "configured: model-c, available: [other]",
+      },
     ];
     api.llmHealth.mockResolvedValue(items);
 
@@ -152,7 +157,12 @@ describe("DashboardView — LLM health cards", () => {
   it("maps status=warning to ok:false, color:warning, and detail from response", async () => {
     const warningDetail = "configured: nvidia/Cosmos-8B, available: [other-model]";
     api.llmHealth.mockResolvedValue([
-      { name: "Vision LLM", status: "warning", configured_model: "nvidia/Cosmos-8B", detail: warningDetail },
+      {
+        name: "Vision LLM",
+        status: "warning",
+        configured_model: "nvidia/Cosmos-8B",
+        detail: warningDetail,
+      },
     ]);
 
     const wrapper = await mountDashboard();
@@ -170,7 +180,12 @@ describe("DashboardView — LLM health cards", () => {
   // -------------------------------------------------------------------------
   it("maps status=error to ok:false with no color override", async () => {
     api.llmHealth.mockResolvedValue([
-      { name: "Vision LLM", status: "error", configured_model: "nvidia/Cosmos-8B", detail: "Connection refused" },
+      {
+        name: "Vision LLM",
+        status: "error",
+        configured_model: "nvidia/Cosmos-8B",
+        detail: "Connection refused",
+      },
     ]);
 
     const wrapper = await mountDashboard();
@@ -224,7 +239,7 @@ describe("DashboardView — LLM health cards", () => {
     // We do this by checking the mock was called (it wraps request internally).
     api.llmHealth.mockResolvedValue([]);
 
-    const wrapper = await mountDashboard();
+    await mountDashboard();
 
     // Verify llmHealth was called during loadData
     expect(api.llmHealth).toHaveBeenCalledTimes(1);
@@ -257,7 +272,11 @@ describe("DashboardView — Tracking Orchestrator health", () => {
   });
 
   it("marks Tracking Orchestrator as ok:false when status is 'running' (must be 'healthy')", async () => {
-    api.trackingOrchestratorHealth.mockResolvedValue({ configured: true, status: "running", version: "0.1.0" });
+    api.trackingOrchestratorHealth.mockResolvedValue({
+      configured: true,
+      status: "running",
+      version: "0.1.0",
+    });
     const wrapper = await mountDashboard();
     const hs = getHealthServices(wrapper);
     const services = hs.value ?? hs;
@@ -268,7 +287,11 @@ describe("DashboardView — Tracking Orchestrator health", () => {
   });
 
   it("marks Tracking Orchestrator as ok:true when status is 'healthy'", async () => {
-    api.trackingOrchestratorHealth.mockResolvedValue({ configured: true, status: "healthy", version: "0.1.0" });
+    api.trackingOrchestratorHealth.mockResolvedValue({
+      configured: true,
+      status: "healthy",
+      version: "0.1.0",
+    });
     const wrapper = await mountDashboard();
     const hs = getHealthServices(wrapper);
     const services = hs.value ?? hs;
@@ -298,9 +321,11 @@ describe("api.js — llmHealth method", () => {
     // Asserts the URL the real client requests, not how it calls fetch: since M17 the request
     // goes through the typed openapi-fetch client, which passes a Request object rather than
     // (url, init). A real Response is used because the client reads headers/text off it.
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } }),
+      );
     vi.stubGlobal("fetch", mockFetch);
 
     // Import the real module, bypassing the vi.mock at the top of this file.

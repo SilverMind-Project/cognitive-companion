@@ -40,7 +40,9 @@ export const updateImageTemplateImage = (id: number, formData: FormData) =>
 
 export const deleteImageTemplate = (id: number) =>
   unwrap(
-    client.DELETE("/api/v1/image/templates/{template_id}", { params: { path: { template_id: id } } }),
+    client.DELETE("/api/v1/image/templates/{template_id}", {
+      params: { path: { template_id: id } },
+    }),
   );
 
 export const getImageFonts = () => unwrap(client.GET("/api/v1/image/fonts", {}));

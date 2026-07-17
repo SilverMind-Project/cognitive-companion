@@ -1,11 +1,6 @@
 <template>
   <div ref="backdropRef" class="bbox-tag-popover-backdrop" @click.self="emit('close')">
-    <v-card
-      class="bbox-tag-popover glass-card"
-      :style="popoverStyle"
-      elevation="8"
-      @click.stop
-    >
+    <v-card class="bbox-tag-popover glass-card" :style="popoverStyle" elevation="8" @click.stop>
       <v-card-text class="pb-1">
         <v-autocomplete
           ref="autocompleteRef"
@@ -34,7 +29,14 @@
         <v-btn size="small" color="error" variant="text" @click="emit('delete')">Remove</v-btn>
         <v-spacer />
         <v-btn size="small" variant="text" @click="emit('close')">Cancel</v-btn>
-        <v-btn size="small" color="primary" variant="flat" :disabled="!selectedIdentity" @click="onConfirm">Tag</v-btn>
+        <v-btn
+          size="small"
+          color="primary"
+          variant="flat"
+          :disabled="!selectedIdentity"
+          @click="onConfirm"
+          >Tag</v-btn
+        >
       </v-card-actions>
     </v-card>
   </div>
@@ -58,7 +60,7 @@ const identityItems = computed(() =>
   props.identities.map((id) => ({
     id: id.id || id.identity_id,
     label: id.display_name || id.name || id.id || id.identity_id,
-  }))
+  })),
 );
 
 const popoverStyle = computed(() => {

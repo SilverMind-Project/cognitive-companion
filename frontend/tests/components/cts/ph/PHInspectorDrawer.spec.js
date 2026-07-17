@@ -21,7 +21,9 @@ vi.mock("@/composables/usePHDetail", () => ({
       coPresent: { value: [] },
       loading: { value: false },
       errors: { value: [] },
-      panelErrors: { value: { detail: "", observations: "", keyframes: "", trail: "", coPresent: "" } },
+      panelErrors: {
+        value: { detail: "", observations: "", keyframes: "", trail: "", coPresent: "" },
+      },
     },
     actions: { fetch: vi.fn() },
   }),
@@ -62,7 +64,10 @@ const stubs = {
   "v-card-title": { template: '<div class="v-card-title"><slot /></div>' },
   "v-card-text": { template: '<div class="v-card-text"><slot /></div>' },
   "v-card-actions": { template: '<div class="v-card-actions"><slot /></div>' },
-  "v-btn": { template: '<button @click="$emit(\'click\', $event)"><slot /></button>', props: ["icon", "size", "variant", "color"] },
+  "v-btn": {
+    template: "<button @click=\"$emit('click', $event)\"><slot /></button>",
+    props: ["icon", "size", "variant", "color"],
+  },
   "v-alert": { template: "<div><slot /></div>" },
   "v-chip": { template: "<span><slot /></span>", props: ["color", "size", "variant"] },
   "v-divider": { template: "<hr />" },
@@ -70,7 +75,10 @@ const stubs = {
   "v-progress-linear": { template: "<div />" },
   "v-progress-circular": { template: "<div />", props: ["indeterminate", "size", "color"] },
   "v-spacer": { template: "<span />" },
-  "v-dialog": { template: '<div v-if="modelValue"><slot /></div>', props: ["modelValue", "maxWidth"] },
+  "v-dialog": {
+    template: '<div v-if="modelValue"><slot /></div>',
+    props: ["modelValue", "maxWidth"],
+  },
   "v-img": {
     template: '<img :src="src" />',
     props: ["src", "maxHeight", "contain"],

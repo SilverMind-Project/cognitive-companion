@@ -20,7 +20,7 @@
         hide-details
         style="width: 180px"
         :loading="personsLoading"
-        @update:modelValue="onFilterChange"
+        @update:model-value="onFilterChange"
       />
       <v-select
         v-model="filters.tag_reason"
@@ -31,7 +31,7 @@
         clearable
         hide-details
         style="width: 170px"
-        @update:modelValue="onFilterChange"
+        @update:model-value="onFilterChange"
       />
       <v-select
         v-model="filters.decision_source"
@@ -42,20 +42,22 @@
         clearable
         hide-details
         style="width: 150px"
-        @update:modelValue="onFilterChange"
+        @update:model-value="onFilterChange"
       />
       <v-btn
         :variant="filters.conflict_only ? 'flat' : 'tonal'"
         :color="filters.conflict_only ? 'error' : undefined"
         prepend-icon="mdi-alert"
         @click="toggleFilter('conflict_only')"
-      >Conflicts</v-btn>
+        >Conflicts</v-btn
+      >
       <v-btn
         :variant="filters.pending_review_only ? 'flat' : 'tonal'"
         :color="filters.pending_review_only ? 'info' : undefined"
         prepend-icon="mdi-clock-outline"
         @click="toggleFilter('pending_review_only')"
-      >Pending</v-btn>
+        >Pending</v-btn
+      >
       <v-select
         v-model="filters.limit"
         :items="[20, 50, 100]"
@@ -64,10 +66,12 @@
         density="compact"
         hide-details
         style="width: 100px"
-        @update:modelValue="onFilterChange"
+        @update:model-value="onFilterChange"
       />
       <BlurToggle />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadKeyframes" :loading="loading">Refresh</v-btn>
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="loadKeyframes"
+        >Refresh</v-btn
+      >
     </div>
 
     <v-card class="glass-card">
@@ -88,13 +92,8 @@
           lg="3"
         >
           <v-card class="keyframe-card" elevation="1">
-            <v-img
-              :src="displaySrc(keyframeImage(kf))"
-              height="180"
-              cover
-              class="keyframe-image"
-            >
-              <template v-slot:placeholder>
+            <v-img :src="displaySrc(keyframeImage(kf))" height="180" cover class="keyframe-image">
+              <template #placeholder>
                 <v-row class="fill-height ma-0" align="center" justify="center">
                   <v-progress-circular indeterminate color="primary" />
                 </v-row>
@@ -114,18 +113,18 @@
                     size="x-small"
                     color="error"
                     prepend-icon="mdi-alert"
-                  >{{ kf.conflict_count }} conflict</v-chip>
-                  <v-chip
-                    v-if="kf.unknown_count"
-                    size="x-small"
-                    color="warning"
-                  >{{ kf.unknown_count }} unknown</v-chip>
+                    >{{ kf.conflict_count }} conflict</v-chip
+                  >
+                  <v-chip v-if="kf.unknown_count" size="x-small" color="warning"
+                    >{{ kf.unknown_count }} unknown</v-chip
+                  >
                   <v-chip
                     v-if="kf.pending_review_count"
                     size="x-small"
                     color="info"
                     prepend-icon="mdi-clock-outline"
-                  >{{ kf.pending_review_count }} pending</v-chip>
+                    >{{ kf.pending_review_count }} pending</v-chip
+                  >
                 </div>
               </v-overlay>
             </v-img>
@@ -150,9 +149,12 @@
                   <span
                     v-if="!(kf.identity_summary || []).length"
                     class="text-caption text-medium-emphasis"
-                  >No identities</span>
+                    >No identities</span
+                  >
                 </div>
-                <span class="text-caption text-medium-emphasis">{{ formatTime(kf.captured_at) }}</span>
+                <span class="text-caption text-medium-emphasis">{{
+                  formatTime(kf.captured_at)
+                }}</span>
                 <div class="d-flex ga-1">
                   <v-btn size="x-small" variant="text" color="primary" @click="openDetail(kf)">
                     <v-icon start size="small">mdi-eye</v-icon>Inspect
@@ -171,7 +173,7 @@
           :length="pageCount"
           :total-visible="7"
           density="comfortable"
-          @update:modelValue="loadKeyframes"
+          @update:model-value="loadKeyframes"
         />
       </div>
       <div v-if="truncated" class="text-caption text-medium-emphasis text-center pb-3">
@@ -219,7 +221,12 @@
             <v-col cols="12" md="5">
               <template v-if="selectedBbox">
                 <div class="text-subtitle-2 mb-2">Selected box</div>
-                <IdentityEvidenceBadges :bbox="selectedBbox" :targets="targets" detailed class="mb-3" />
+                <IdentityEvidenceBadges
+                  :bbox="selectedBbox"
+                  :targets="targets"
+                  detailed
+                  class="mb-3"
+                />
                 <v-divider class="mb-3" />
                 <IdentityCorrectionWorkflow
                   :key="selectedBbox.bbox_id || selectedBbox.ph_id"
@@ -330,9 +337,7 @@ const personOptions = ref([{ title: "Unknown", value: UNKNOWN_OPTION }]);
 
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / filters.value.limit)));
 
-const firstTriggerKeyframeId = computed(
-  () => detailCard.value?.triggers?.[0]?.keyframe_id || ""
-);
+const firstTriggerKeyframeId = computed(() => detailCard.value?.triggers?.[0]?.keyframe_id || "");
 
 // reviewed_bbox in normalized ratio coordinates for the audit record.
 const reviewedBbox = computed(() => {
@@ -451,7 +456,9 @@ function formatTime(iso) {
 
 <style scoped>
 .keyframe-card {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .keyframe-card:hover {
   transform: translateY(-2px);

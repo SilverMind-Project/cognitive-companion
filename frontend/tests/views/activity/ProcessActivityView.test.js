@@ -21,7 +21,7 @@ const mockWs = { onopen: null, onerror: null, onclose: null, close: vi.fn() };
 
 vi.mock("@/services/api.js", () => ({
   api: {
-    getPipelineRuns:   (...a) => mockGetPipelineRuns(...a),
+    getPipelineRuns: (...a) => mockGetPipelineRuns(...a),
     getIngestActivity: (...a) => mockGetIngestActivity(...a),
     getWorkflowDetail: (...a) => mockGetWorkflowDetail(...a),
   },
@@ -48,15 +48,21 @@ vi.mock("@/components/process/CcDagChart.vue", () => ({
 }));
 
 vi.mock("@/components/process/CcStatusTimeline.vue", () => ({
-  default: { template: '<div data-testid="cc-status-timeline" />', props: ["lanes", "events", "loading", "error"] },
+  default: {
+    template: '<div data-testid="cc-status-timeline" />',
+    props: ["lanes", "events", "loading", "error"],
+  },
 }));
 
 vi.mock("@/components/process/CcLiveActivityFeed.vue", () => ({
-  default: { template: '<div data-testid="cc-live-activity-feed" />', props: ["events", "maxHeight"] },
+  default: {
+    template: '<div data-testid="cc-live-activity-feed" />',
+    props: ["events", "maxHeight"],
+  },
 }));
 
 vi.mock("@/components/dashboard/CcMetricTile.vue", () => ({
-  default: { template: '<div />', props: ["label", "value", "status"] },
+  default: { template: "<div />", props: ["label", "value", "status"] },
 }));
 
 vi.mock("@/components/pipeline/ExecutionInspector.vue", () => ({
@@ -67,7 +73,7 @@ vi.mock("@/components/pipeline/ExecutionInspector.vue", () => ({
 }));
 
 vi.mock("vue-router", () => ({
-  useRoute:  () => ({ query: {}, params: {} }),
+  useRoute: () => ({ query: {}, params: {} }),
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 
@@ -80,34 +86,46 @@ const ACTIVE_RUN = {
   status: "running",
   started_at: "2026-05-29T10:00:00Z",
   nodes: [
-    { id: "101", label: "Filter",  step_type: "condition",    status: "pending" },
-    { id: "102", label: "Notify",  step_type: "notification", status: "pending" },
+    { id: "101", label: "Filter", step_type: "condition", status: "pending" },
+    { id: "102", label: "Notify", step_type: "notification", status: "pending" },
   ],
   edges: [{ source: "101", target: "102" }],
 };
 
 const stubs = {
-  "v-row":               { template: '<div><slot /></div>' },
-  "v-col":               { template: '<div><slot /></div>', props: ["cols", "sm", "md"] },
-  "v-card":              { template: '<div><slot /></div>' },
-  "v-card-title":        { template: '<div><slot /></div>' },
-  "v-card-text":         { template: '<div><slot /></div>' },
-  "v-card-actions":      { template: '<div><slot /></div>' },
-  "v-alert":             { template: '<div :data-type="type"><slot /></div>', props: ["type", "variant", "density"] },
-  "v-btn":               { template: '<button><slot /></button>', props: ["size", "variant", "color", "to", "prepend-icon", "icon", "title", "loading"] },
-  "v-chip":              { template: '<span><slot /></span>', props: ["color", "size", "variant", "class", "prepend-icon"] },
-  "v-spacer":            { template: '<div />' },
-  "v-tabs":              { template: '<div><slot /></div>', props: ["modelValue", "color"] },
-  "v-tab":               { template: '<button><slot /></button>', props: ["value"] },
-  "v-window":            { template: '<div><slot /></div>', props: ["modelValue"] },
-  "v-window-item":       { template: '<div><slot /></div>', props: ["value"] },
-  "v-list":              { template: '<ul><slot /></ul>', props: ["density"] },
-  "v-list-item":         { template: '<li />', props: ["title", "subtitle", "active"] },
-  "v-divider":           { template: '<hr />' },
-  "v-icon":              { template: '<i />', props: ["color", "size", "class"] },
-  "v-progress-circular": { template: '<div />', props: ["indeterminate", "size"] },
-  "v-navigation-drawer": { template: '<div />', props: ["modelValue", "location", "temporary", "width", "class"] },
-  "router-link":         { template: '<a />' },
+  "v-row": { template: "<div><slot /></div>" },
+  "v-col": { template: "<div><slot /></div>", props: ["cols", "sm", "md"] },
+  "v-card": { template: "<div><slot /></div>" },
+  "v-card-title": { template: "<div><slot /></div>" },
+  "v-card-text": { template: "<div><slot /></div>" },
+  "v-card-actions": { template: "<div><slot /></div>" },
+  "v-alert": {
+    template: '<div :data-type="type"><slot /></div>',
+    props: ["type", "variant", "density"],
+  },
+  "v-btn": {
+    template: "<button><slot /></button>",
+    props: ["size", "variant", "color", "to", "prepend-icon", "icon", "title", "loading"],
+  },
+  "v-chip": {
+    template: "<span><slot /></span>",
+    props: ["color", "size", "variant", "class", "prepend-icon"],
+  },
+  "v-spacer": { template: "<div />" },
+  "v-tabs": { template: "<div><slot /></div>", props: ["modelValue", "color"] },
+  "v-tab": { template: "<button><slot /></button>", props: ["value"] },
+  "v-window": { template: "<div><slot /></div>", props: ["modelValue"] },
+  "v-window-item": { template: "<div><slot /></div>", props: ["value"] },
+  "v-list": { template: "<ul><slot /></ul>", props: ["density"] },
+  "v-list-item": { template: "<li />", props: ["title", "subtitle", "active"] },
+  "v-divider": { template: "<hr />" },
+  "v-icon": { template: "<i />", props: ["color", "size", "class"] },
+  "v-progress-circular": { template: "<div />", props: ["indeterminate", "size"] },
+  "v-navigation-drawer": {
+    template: "<div />",
+    props: ["modelValue", "location", "temporary", "width", "class"],
+  },
+  "router-link": { template: "<a />" },
 };
 
 function mountView() {
@@ -168,7 +186,9 @@ describe("ProcessActivityView — active runs DAG", () => {
     await w.vm.$nextTick();
 
     const updatedRuns = w.vm.activeRuns;
-    const node = updatedRuns?.find?.((r) => r.execution_id === 10)?.nodes?.find((n) => n.id === "101");
+    const node = updatedRuns
+      ?.find?.((r) => r.execution_id === 10)
+      ?.nodes?.find((n) => n.id === "101");
     expect(node?.status).toBe("running");
   });
 

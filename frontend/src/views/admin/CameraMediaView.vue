@@ -161,12 +161,8 @@
         </template>
         <template #no-data>
           <div class="pa-8 text-center">
-            <v-icon size="40" color="medium-emphasis" class="mb-2">
-              mdi-camera-off-outline
-            </v-icon>
-            <div class="text-body-1 text-medium-emphasis">
-              No cameras match these filters.
-            </div>
+            <v-icon size="40" color="medium-emphasis" class="mb-2"> mdi-camera-off-outline </v-icon>
+            <div class="text-body-1 text-medium-emphasis">No cameras match these filters.</div>
           </div>
         </template>
       </v-data-table-server>
@@ -186,7 +182,6 @@
         @close="drawerOpen = false"
       />
     </v-navigation-drawer>
-
   </div>
 </template>
 
@@ -229,26 +224,30 @@ const headers = [
   { title: "Last event", key: "last_event_at", sortable: false },
 ];
 
-const kpis = computed(() => aggregators.state.items.reduce(
-  (totals, item) => ({
-    buffered: totals.buffered + item.buffer_depth,
-    eligible: totals.eligible + item.images_eligible_total,
-    dropped: totals.dropped + item.images_dropped_total,
-  }),
-  { buffered: 0, eligible: 0, dropped: 0 }
-));
+const kpis = computed(() =>
+  aggregators.state.items.reduce(
+    (totals, item) => ({
+      buffered: totals.buffered + item.buffer_depth,
+      eligible: totals.eligible + item.images_eligible_total,
+      dropped: totals.dropped + item.images_dropped_total,
+    }),
+    { buffered: 0, eligible: 0, dropped: 0 },
+  ),
+);
 
-const chartCameras = computed(() => aggregators.state.items.map((item) => ({
-  ...item,
-  label: `${originLabel(item.origin)} - ${cameraName(item)}`,
-})));
+const chartCameras = computed(() =>
+  aggregators.state.items.map((item) => ({
+    ...item,
+    label: `${originLabel(item.origin)} - ${cameraName(item)}`,
+  })),
+);
 
-const selectedCamera = computed(() =>
-  aggregators.state.items.find((item) => item.camera_id === selectedCameraId.value) ?? null
+const selectedCamera = computed(
+  () => aggregators.state.items.find((item) => item.camera_id === selectedCameraId.value) ?? null,
 );
 
 const selectedCameraHistory = computed(
-  () => aggregators.state.history.get(selectedCameraId.value) ?? []
+  () => aggregators.state.history.get(selectedCameraId.value) ?? [],
 );
 
 function setOrigin(value) {
@@ -305,17 +304,20 @@ watch(
   () => aggregators.state.error,
   (error) => {
     if (error) notify.error(error);
-  }
+  },
 );
 
 watch(
   () => aggregators.state.items,
   (items) => {
-    if (selectedCameraId.value && !items.some((item) => item.camera_id === selectedCameraId.value)) {
+    if (
+      selectedCameraId.value &&
+      !items.some((item) => item.camera_id === selectedCameraId.value)
+    ) {
       drawerOpen.value = false;
       selectedCameraId.value = null;
     }
-  }
+  },
 );
 
 onMounted(aggregators.actions.fetch);
@@ -333,5 +335,4 @@ defineExpose({
 .filter-control {
   max-width: 240px;
 }
-
 </style>

@@ -21,13 +21,7 @@
 
       <v-card-actions class="pa-4">
         <v-spacer />
-        <v-btn
-          color="primary"
-          variant="flat"
-          size="large"
-          class="px-8 ka-btn"
-          @click="onClose"
-        >
+        <v-btn color="primary" variant="flat" size="large" class="px-8 ka-btn" @click="onClose">
           Got it
         </v-btn>
       </v-card-actions>

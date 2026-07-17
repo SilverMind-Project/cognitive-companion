@@ -11,7 +11,7 @@
         <v-icon size="20" class="mr-2">mdi-map-marker-radius</v-icon>
         <div class="text-subtitle-1 font-weight-medium">{{ personLabel }}</div>
         <v-spacer />
-        <v-tooltip location="top" v-if="snapshot">
+        <v-tooltip v-if="snapshot" location="top">
           <template #activator="{ props: actProps }">
             <v-btn
               v-bind="actProps"
@@ -28,7 +28,15 @@
       </div>
 
       <v-progress-linear v-if="loading && !snapshot" indeterminate color="primary" class="mb-2" />
-      <v-alert v-if="error" type="error" variant="tonal" density="compact" closable class="mb-3" @click:close="error = null">
+      <v-alert
+        v-if="error"
+        type="error"
+        variant="tonal"
+        density="compact"
+        closable
+        class="mb-3"
+        @click:close="error = null"
+      >
         {{ error }}
       </v-alert>
 
@@ -43,7 +51,12 @@
             <v-icon start size="14">mdi-percent-outline</v-icon>
             {{ Math.round(snapshot.confidence * 100) }}%
           </v-chip>
-          <v-chip v-if="snapshot.dwell_minutes !== null" color="surface-variant" variant="outlined" size="small">
+          <v-chip
+            v-if="snapshot.dwell_minutes !== null"
+            color="surface-variant"
+            variant="outlined"
+            size="small"
+          >
             <v-icon start size="14">mdi-timer-outline</v-icon>
             {{ formatDwell(snapshot.dwell_minutes) }}
           </v-chip>
@@ -52,7 +65,9 @@
 
       <div class="text-caption text-medium-emphasis presence-last-seen">
         <template v-if="snapshot">
-          <span v-if="snapshot.last_seen_at">Last seen {{ formatRelative(snapshot.last_seen_at) }}</span>
+          <span v-if="snapshot.last_seen_at"
+            >Last seen {{ formatRelative(snapshot.last_seen_at) }}</span
+          >
           <span v-else>No prior sighting recorded.</span>
         </template>
         <template v-else-if="!loading && !error">
@@ -63,7 +78,7 @@
       <v-tooltip v-if="snapshot && snapshot.sources?.length" location="bottom">
         <template #activator="{ props: actProps }">
           <div v-bind="actProps" class="text-caption text-medium-emphasis mt-1" tabindex="0">
-            Sources: {{ snapshot.sources.map(s => sourceLabel(s.name)).join(" → ") }}
+            Sources: {{ snapshot.sources.map((s) => sourceLabel(s.name)).join(" → ") }}
           </div>
         </template>
         <div>

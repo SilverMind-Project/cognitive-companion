@@ -11,12 +11,11 @@ vi.mock("@/composables/useChartTheme.js", () => ({
 }));
 
 let computeFootsteps;
-let FOOT_FADE_MS;
 
 const BASE_CANVAS = {
-  fpWidth: 10,     // 10 px floor plan image
+  fpWidth: 10, // 10 px floor plan image
   fpHeight: 8,
-  fpMpp: 0.1,      // 0.1 m/px → 1 m × 0.8 m total floor
+  fpMpp: 0.1, // 0.1 m/px → 1 m × 0.8 m total floor
   canvasW: 1000,
   canvasH: 800,
 };
@@ -26,14 +25,10 @@ const BASE_CANVAS = {
 
 beforeEach(async () => {
   vi.resetModules();
-  ({ computeFootsteps, FOOT_FADE_MS } = await import("@/composables/useFootprintTrail.js")
-    .then(m => ({ computeFootsteps: m.useFootprintTrail().actions.computeFootsteps, FOOT_FADE_MS: m.FOOT_FADE_MS })));
+  ({ computeFootsteps } = await import("@/composables/useFootprintTrail.js").then((m) => ({
+    computeFootsteps: m.useFootprintTrail().actions.computeFootsteps,
+  })));
 });
-
-function makeTrail(pts, nowMs, ageOffsetMs = 0) {
-  // pts: [[x_m, y_m], ...], all assigned time nowMs - ageOffsetMs
-  return pts.map(([x, y]) => ({ x, y, t: nowMs - ageOffsetMs }));
-}
 
 describe("useFootprintTrail — placement", () => {
   it("returns empty array for empty trails map", () => {
@@ -64,9 +59,9 @@ describe("useFootprintTrail — placement", () => {
     const steps = computeFootsteps(trails, colors, now, BASE_CANVAS);
     expect(steps.length).toBeGreaterThan(0);
     // All steps belong to ph1
-    expect(steps.every(s => s.phId === "ph1")).toBe(true);
+    expect(steps.every((s) => s.phId === "ph1")).toBe(true);
     // Alternating L/R
-    const feet = steps.map(s => s.foot);
+    const feet = steps.map((s) => s.foot);
     for (let i = 1; i < feet.length; i++) {
       expect(feet[i]).not.toBe(feet[i - 1]);
     }
@@ -116,7 +111,10 @@ describe("useFootprintTrail — placement", () => {
 
   it("returns no steps when phId is not in colorsByPh", () => {
     const now = Date.now();
-    const trail = [{ x: 0, y: 0, t: now - 1000 }, { x: 2, y: 0, t: now }];
+    const trail = [
+      { x: 0, y: 0, t: now - 1000 },
+      { x: 2, y: 0, t: now },
+    ];
     const trails = new Map([["ph1", trail]]);
     const colors = new Map(); // ph1 not in colors → skip
     expect(computeFootsteps(trails, colors, now, BASE_CANVAS)).toEqual([]);
@@ -124,9 +122,23 @@ describe("useFootprintTrail — placement", () => {
 
   it("returns empty when canvas params are missing", () => {
     const now = Date.now();
-    const trails = new Map([["ph1", [{ x: 0, y: 0, t: now - 1000 }, { x: 1, y: 0, t: now }]]]);
+    const trails = new Map([
+      [
+        "ph1",
+        [
+          { x: 0, y: 0, t: now - 1000 },
+          { x: 1, y: 0, t: now },
+        ],
+      ],
+    ]);
     const colors = new Map([["ph1", "#f00"]]);
-    const result = computeFootsteps(trails, colors, now, { fpWidth: null, fpHeight: null, fpMpp: null, canvasW: 1000, canvasH: 800 });
+    const result = computeFootsteps(trails, colors, now, {
+      fpWidth: null,
+      fpHeight: null,
+      fpMpp: null,
+      canvasW: 1000,
+      canvasH: 800,
+    });
     expect(result).toEqual([]);
   });
 });
@@ -202,8 +214,8 @@ describe("useFootprintTrail — caps", () => {
     for (let i = 0; i < 20; i++) {
       const id = `ph${i}`;
       trails.set(id, [
-        { x: 0, y: (i * 0.04), t: now - 5000 },
-        { x: 7.0, y: (i * 0.04), t: now - 50 },
+        { x: 0, y: i * 0.04, t: now - 5000 },
+        { x: 7.0, y: i * 0.04, t: now - 50 },
       ]);
       colors.set(id, "#f00");
     }

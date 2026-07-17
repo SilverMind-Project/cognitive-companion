@@ -63,12 +63,7 @@
     <!-- Summary chips -->
     <v-row v-if="envelope" class="mb-4" dense>
       <v-col cols="auto">
-        <v-chip
-          :color="trendColor"
-          variant="tonal"
-          size="small"
-          prepend-icon="mdi-walk"
-        >
+        <v-chip :color="trendColor" variant="tonal" size="small" prepend-icon="mdi-walk">
           {{ trendLabel }}
         </v-chip>
       </v-col>
@@ -97,10 +92,7 @@
       </div>
 
       <!-- Collecting baseline empty state (< 10 qualifying days) -->
-      <div
-        v-else-if="isCollecting"
-        class="pa-6 text-center"
-      >
+      <div v-else-if="isCollecting" class="pa-6 text-center">
         <v-icon size="40" color="primary" class="mb-2">mdi-chart-timeline-variant</v-icon>
         <div class="text-subtitle-2 mb-1">Collecting mobility baseline</div>
         <div class="text-body-2 text-medium-emphasis">
@@ -147,11 +139,11 @@ const gait = useGaitTrend();
 const envelope = computed(() => gait.state.envelope);
 
 const sufficientCount = computed(
-  () => (envelope.value?.days ?? []).filter((d) => d.sufficient).length
+  () => (envelope.value?.days ?? []).filter((d) => d.sufficient).length,
 );
 
 const isCollecting = computed(
-  () => envelope.value != null && envelope.value.trend === "insufficient"
+  () => envelope.value != null && envelope.value.trend === "insufficient",
 );
 
 const collectingMessage = computed(() => {
@@ -178,7 +170,7 @@ const chartPoints = computed(() =>
     date: d.date,
     value: d.median_speed_m_s,
     sufficient: d.sufficient,
-  }))
+  })),
 );
 
 /** Dates where gait_slowing signals are present (from the envelope days context). */

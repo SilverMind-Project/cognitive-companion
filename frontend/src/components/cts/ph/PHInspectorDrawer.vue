@@ -14,9 +14,18 @@
           size="small"
           variant="tonal"
         >
-          {{ detail.state.detail.value.identity_display_name || detail.state.detail.value.current_identity_id || "UNKNOWN" }}
+          {{
+            detail.state.detail.value.identity_display_name ||
+            detail.state.detail.value.current_identity_id ||
+            "UNKNOWN"
+          }}
         </v-chip>
-        <v-chip v-if="posteriorTopPercent !== null" size="x-small" variant="text" class="text-caption ml-1">
+        <v-chip
+          v-if="posteriorTopPercent !== null"
+          size="x-small"
+          variant="text"
+          class="text-caption ml-1"
+        >
           {{ posteriorTopLabel }} {{ posteriorTopPercent.toFixed(0) }}%
         </v-chip>
       </template>
@@ -41,7 +50,12 @@
         />
       </div>
       <div class="d-flex flex-wrap ga-1 mb-2">
-        <v-chip v-for="cid in detail.state.detail.value.active_cameras || []" :key="cid" size="x-small" variant="tonal">
+        <v-chip
+          v-for="cid in detail.state.detail.value.active_cameras || []"
+          :key="cid"
+          size="x-small"
+          variant="tonal"
+        >
           <v-icon start size="12">mdi-cctv</v-icon> {{ cid }}
         </v-chip>
       </div>
@@ -264,8 +278,8 @@ export default {
       return lightboxFrame.value.image_url || lightboxFrame.value.latest_keyframe_image_url || "";
     });
 
-    const annotationKeyframeId = computed(() =>
-      lightboxFrame.value?.keyframe_id || lightboxFrame.value?.observation_id || ""
+    const annotationKeyframeId = computed(
+      () => lightboxFrame.value?.keyframe_id || lightboxFrame.value?.observation_id || "",
     );
 
     const posteriorTopLabel = computed(() => {
@@ -294,22 +308,28 @@ export default {
 
     onMounted(() => detail.actions.fetch(props.phId));
 
-    watch(() => props.phId, (newId) => {
-      if (newId) {
-        selectedObservationId.value = "";
-        lightboxOpen.value = false;
-        activeForm.value = props.mode === "correct" ? "correct" : null;
-        detail.actions.fetch(newId);
-      }
-    });
+    watch(
+      () => props.phId,
+      (newId) => {
+        if (newId) {
+          selectedObservationId.value = "";
+          lightboxOpen.value = false;
+          activeForm.value = props.mode === "correct" ? "correct" : null;
+          detail.actions.fetch(newId);
+        }
+      },
+    );
 
-    watch(() => props.mode, (newMode) => {
-      if (newMode === "correct") {
-        activeForm.value = "correct";
-      } else if (activeForm.value === "correct") {
-        activeForm.value = null;
-      }
-    });
+    watch(
+      () => props.mode,
+      (newMode) => {
+        if (newMode === "correct") {
+          activeForm.value = "correct";
+        } else if (activeForm.value === "correct") {
+          activeForm.value = null;
+        }
+      },
+    );
 
     function toggleForm(formName) {
       activeForm.value = activeForm.value === formName ? null : formName;
@@ -351,7 +371,7 @@ export default {
     async function onMergeSubmit({ target_ph_id, reason }) {
       const ok = await confirm(
         `Merge PH ${props.phId} into ${target_ph_id}? This cannot be undone.`,
-        { confirmText: "Merge", color: "warning" }
+        { confirmText: "Merge", color: "warning" },
       );
       if (!ok) return;
       try {
@@ -362,13 +382,15 @@ export default {
         });
         activeForm.value = null;
         emit("apply");
-      } catch { /* error notified */ }
+      } catch {
+        /* error notified */
+      }
     }
 
     async function onSplitSubmit({ at_observation_id, reason }) {
       const ok = await confirm(
         `Split PH ${props.phId} at observation ${at_observation_id}? This will create a new PH.`,
-        { confirmText: "Split", color: "warning" }
+        { confirmText: "Split", color: "warning" },
       );
       if (!ok) return;
       try {
@@ -379,7 +401,9 @@ export default {
         });
         activeForm.value = null;
         emit("apply");
-      } catch { /* error notified */ }
+      } catch {
+        /* error notified */
+      }
     }
 
     return {

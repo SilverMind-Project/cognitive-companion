@@ -66,5 +66,16 @@ export function useConfirm() {
     _resolve = null;
   }
 
-  return { confirmDialog, confirmTitle, confirmText, confirmLabel, cancelLabel, confirmColor, showConfirm, require, onConfirm, onCancel };
+  return {
+    confirmDialog,
+    confirmTitle,
+    confirmText,
+    confirmLabel,
+    cancelLabel,
+    confirmColor,
+    showConfirm,
+    require,
+    onConfirm,
+    onCancel,
+  };
 }

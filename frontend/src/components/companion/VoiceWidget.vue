@@ -25,10 +25,10 @@
         @click="$emit('toggle-recording')"
       >
         <v-icon size="40" color="#FBF8F3">
-          {{ recording ? 'mdi-stop' : 'mdi-microphone' }}
+          {{ recording ? "mdi-stop" : "mdi-microphone" }}
         </v-icon>
       </button>
-      <p class="mic-hint">{{ recording ? 'Tap to stop' : 'Tap to talk' }}</p>
+      <p class="mic-hint">{{ recording ? "Tap to stop" : "Tap to talk" }}</p>
     </div>
   </div>
 </template>
@@ -38,17 +38,17 @@ import { computed } from "vue";
 import AudioVisualizer from "../AudioVisualizer.vue";
 
 const props = defineProps({
-  recording:  { type: Boolean, default: false },
-  audioState: { type: String,  default: "idle" },
+  recording: { type: Boolean, default: false },
+  audioState: { type: String, default: "idle" },
 });
 
 defineEmits(["audio-data", "state-change", "toggle-recording"]);
 
 const STATUS_MAP = {
-  idle:           "Ready",
-  listening:      "Listening...",
-  speaking:       "You're speaking",
-  system_speaking:"System is responding",
+  idle: "Ready",
+  listening: "Listening...",
+  speaking: "You're speaking",
+  system_speaking: "System is responding",
 };
 
 const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
@@ -65,15 +65,22 @@ const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
   display: flex;
   flex-direction: column;
   gap: 16px;
-  transition: border-color var(--cc-dur-base) var(--cc-ease-standard),
-              box-shadow var(--cc-dur-base) var(--cc-ease-standard);
+  transition:
+    border-color var(--cc-dur-base) var(--cc-ease-standard),
+    box-shadow var(--cc-dur-base) var(--cc-ease-standard);
   width: 100%;
   box-sizing: border-box;
 }
 
-.voice-card--listening      { border-color: var(--good-line); }
-.voice-card--speaking       { border-color: var(--notice-line); }
-.voice-card--system_speaking{ border-color: var(--line-brand); }
+.voice-card--listening {
+  border-color: var(--good-line);
+}
+.voice-card--speaking {
+  border-color: var(--notice-line);
+}
+.voice-card--system_speaking {
+  border-color: var(--line-brand);
+}
 
 /* ── Status pill — DS semantic pairs ────────────────────────────────────── */
 .status-pill {
@@ -89,9 +96,10 @@ const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
   background: var(--cc-surface-2);
   border: 1px solid var(--cc-divider);
   color: var(--cc-text-2);
-  transition: background var(--cc-dur-base) var(--cc-ease-standard),
-              border-color var(--cc-dur-base) var(--cc-ease-standard),
-              color var(--cc-dur-base) var(--cc-ease-standard);
+  transition:
+    background var(--cc-dur-base) var(--cc-ease-standard),
+    border-color var(--cc-dur-base) var(--cc-ease-standard),
+    color var(--cc-dur-base) var(--cc-ease-standard);
 }
 
 .pill-dot {
@@ -104,13 +112,34 @@ const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
 }
 
 /* idle → quiet pair (default above); active states map to DS pairs */
-.pill--listening       { background: var(--good-bg);   border-color: var(--good-line);   color: var(--good-fg); }
-.pill--speaking        { background: var(--notice-bg); border-color: var(--notice-line); color: var(--notice-fg); }
-.pill--system_speaking { background: var(--sage-50);   border-color: var(--sage-200);    color: var(--sage-600); }
+.pill--listening {
+  background: var(--good-bg);
+  border-color: var(--good-line);
+  color: var(--good-fg);
+}
+.pill--speaking {
+  background: var(--notice-bg);
+  border-color: var(--notice-line);
+  color: var(--notice-fg);
+}
+.pill--system_speaking {
+  background: var(--sage-50);
+  border-color: var(--sage-200);
+  color: var(--sage-600);
+}
 
-.pill--listening .pill-dot       { background: var(--green-care);  box-shadow: 0 0 0 4px var(--good-bg); }
-.pill--speaking .pill-dot        { background: var(--gold-notice); box-shadow: 0 0 0 4px var(--notice-bg); }
-.pill--system_speaking .pill-dot { background: var(--sage-500);    box-shadow: 0 0 0 4px var(--sage-50); }
+.pill--listening .pill-dot {
+  background: var(--green-care);
+  box-shadow: 0 0 0 4px var(--good-bg);
+}
+.pill--speaking .pill-dot {
+  background: var(--gold-notice);
+  box-shadow: 0 0 0 4px var(--notice-bg);
+}
+.pill--system_speaking .pill-dot {
+  background: var(--sage-500);
+  box-shadow: 0 0 0 4px var(--sage-50);
+}
 
 .pill--listening .pill-dot,
 .pill--speaking .pill-dot,
@@ -141,9 +170,10 @@ const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--cc-dur-base) var(--cc-ease-standard),
-              transform var(--cc-dur-base) var(--cc-ease-standard),
-              box-shadow var(--cc-dur-base) var(--cc-ease-standard);
+  transition:
+    background var(--cc-dur-base) var(--cc-ease-standard),
+    transform var(--cc-dur-base) var(--cc-ease-standard),
+    box-shadow var(--cc-dur-base) var(--cc-ease-standard);
   outline: none;
   position: relative;
 }
@@ -160,7 +190,9 @@ const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
 
 .mic-btn--active {
   background: var(--cc-error);
-  box-shadow: 0 0 0 8px var(--alert-bg), var(--cc-shadow-md);
+  box-shadow:
+    0 0 0 8px var(--alert-bg),
+    var(--cc-shadow-md);
   animation: cc-mic-breathe 2.4s var(--cc-ease-standard) infinite;
 }
 
@@ -173,18 +205,36 @@ const statusText = computed(() => STATUS_MAP[props.audioState] ?? "Ready");
 
 /* ── Keyframes ──────────────────────────────────────────────────────────── */
 @keyframes cc-pill-blink {
-  0%, 100% { opacity: 0.85; }
-  50%      { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Calm breathing ring, 8 → 14px. No fast flashing. */
 @keyframes cc-mic-breathe {
-  0%, 100% { box-shadow: 0 0 0 8px var(--alert-bg), var(--cc-shadow-md); }
-  50%      { box-shadow: 0 0 0 14px var(--alert-bg), var(--cc-shadow-md); }
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 8px var(--alert-bg),
+      var(--cc-shadow-md);
+  }
+  50% {
+    box-shadow:
+      0 0 0 14px var(--alert-bg),
+      var(--cc-shadow-md);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mic-btn--active { animation: none; }
-  .pill-dot { animation: none !important; }
+  .mic-btn--active {
+    animation: none;
+  }
+  .pill-dot {
+    animation: none !important;
+  }
 }
 </style>

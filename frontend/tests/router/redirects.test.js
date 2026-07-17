@@ -26,7 +26,6 @@ describe("Router redirects (U4)", () => {
     expect(router.currentRoute.value.fullPath).toBe("/companion?kiosk=1");
   });
 
-
   it("/admin/activity redirects to executions live tab", async () => {
     const router = makeRouter();
     await router.push("/admin/activity");

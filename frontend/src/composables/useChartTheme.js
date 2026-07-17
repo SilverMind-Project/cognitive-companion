@@ -34,8 +34,7 @@ export function useChartTheme() {
 
   const chartTheme = computed(() => {
     // Access the reactive theme name so this computed re-runs on theme switch.
-    // eslint-disable-next-line no-unused-expressions
-    vuetifyTheme.name.value;
+    void vuetifyTheme.name.value;
 
     // DS data-viz palette, in salience order. See --cc-chart-* in theme.css.
     const palette = [

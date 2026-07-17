@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const maraudersCss = readFileSync(
-  resolve(process.cwd(), "src/styles/marauders.css"),
-  "utf8",
-);
+const maraudersCss = readFileSync(resolve(process.cwd(), "src/styles/marauders.css"), "utf8");
 const floorPlanView = readFileSync(
   resolve(process.cwd(), "src/views/admin/CTSFloorPlanView.vue"),
   "utf8",
@@ -25,7 +22,7 @@ const calibrationView = readFileSync(
 
 describe("Marauders painterly image wiring", () => {
   it("scopes the global filter to the Marauders theme with an opt-out", () => {
-    expect(maraudersCss).toContain('.v-theme--ccMarauders img:not(.marauders-no-paint)');
+    expect(maraudersCss).toContain(".v-theme--ccMarauders img:not(.marauders-no-paint)");
     expect(maraudersCss).toContain('filter: url("#marauders-paint") sepia(0.12)');
     expect(maraudersCss).toContain(".marauders-no-paint img");
   });
@@ -34,10 +31,10 @@ describe("Marauders painterly image wiring", () => {
     expect(floorPlanView.match(/marauders-no-paint/g)?.length).toBeGreaterThanOrEqual(7);
     expect(floorPlanView).toMatch(/floor-plan-preview marauders-no-paint/);
     expect(floorPlanView).toMatch(
-      /coverage-fp-img cc-floor-plan-background-image marauders-no-paint/
+      /coverage-fp-img cc-floor-plan-background-image marauders-no-paint/,
     );
     expect(floorPlanView).toMatch(
-      /<image[\s\S]*?class="cc-floor-plan-background-image marauders-no-paint"/
+      /<image[\s\S]*?class="cc-floor-plan-background-image marauders-no-paint"/,
     );
     expect(adjacencyView).toMatch(/:src="floorPlanUrl"[\s\S]*?class="marauders-no-paint"/);
     expect(calibrationView).toMatch(/:src="floorPlanUrl"[\s\S]*?marauders-no-paint/);

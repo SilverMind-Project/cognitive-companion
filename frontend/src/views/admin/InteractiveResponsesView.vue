@@ -48,7 +48,7 @@
         style="max-width: 160px"
         @update:model-value="loadResponses"
       />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" @click="loadResponses" :loading="loading">
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="loadResponses">
         Refresh
       </v-btn>
     </div>
@@ -88,7 +88,11 @@
           </a>
         </template>
         <template #item.user_statement="{ item }">
-          <span v-if="item.raw_response_json?.user_statement" class="text-truncate" style="max-width: 200px; display: inline-block;">
+          <span
+            v-if="item.raw_response_json?.user_statement"
+            class="text-truncate"
+            style="max-width: 200px; display: inline-block"
+          >
             {{ item.raw_response_json.user_statement }}
           </span>
           <span v-else class="text-medium-emphasis">—</span>
@@ -97,13 +101,15 @@
           <div class="pa-6 text-center">
             <v-card flat>
               <v-card-text class="text-grey text-h6">No responses yet</v-card-text>
-              <v-card-text class="text-grey">Interactive responses will appear here once seniors begin engaging with the companion.</v-card-text>
+              <v-card-text class="text-grey"
+                >Interactive responses will appear here once seniors begin engaging with the
+                companion.</v-card-text
+              >
             </v-card>
           </div>
         </template>
       </v-data-table>
     </v-card>
-
   </div>
 </template>
 
@@ -185,12 +191,12 @@ function navigateToExecution(executionId) {
 async function loadResponses() {
   loading.value = true;
   const params = {};
-  
+
   if (filter.value.channel) params.channel = filter.value.channel;
   if (filter.value.action) params.action = filter.value.action;
   if (filter.value.date_from) params.date_from = filter.value.date_from;
   if (filter.value.date_to) params.date_to = filter.value.date_to;
-  
+
   try {
     responses.value = await api.getInteractiveResponses(params);
   } catch (e) {
@@ -198,7 +204,7 @@ async function loadResponses() {
     notify(e.message, "error");
     responses.value = [];
   }
-  
+
   loading.value = false;
 }
 

@@ -43,24 +43,40 @@ vi.mock("@/views/admin/CTSPersonHypothesesView.vue", () => ({
 }));
 
 import OverviewPanel from "../../../src/views/tracking/panels/OverviewPanel.vue";
-import PeoplePanel  from "../../../src/views/tracking/panels/PeoplePanel.vue";
+import PeoplePanel from "../../../src/views/tracking/panels/PeoplePanel.vue";
 
 const stubs = {
-  "v-row":    { template: '<div><slot /></div>' },
-  "v-col":    { template: '<div><slot /></div>', props: ["cols", "sm", "md"] },
-  "v-skeleton-loader": { template: '<div />' },
-  "v-alert":  { template: '<div><slot /></div>' },
-  "v-card":   { template: '<section><slot /></section>', props: ["color", "variant"] },
-  "v-card-text": { template: '<div><slot /></div>' },
-  "v-chip":   { template: '<span><slot /></span>', props: ["size", "color", "variant"] },
-  "v-divider":{ template: '<hr />' },
-  "v-icon":   { template: '<i />' },
-  "router-link": { template: '<a><slot /></a>' },
+  "v-row": { template: "<div><slot /></div>" },
+  "v-col": { template: "<div><slot /></div>", props: ["cols", "sm", "md"] },
+  "v-skeleton-loader": { template: "<div />" },
+  "v-alert": { template: "<div><slot /></div>" },
+  "v-card": { template: "<section><slot /></section>", props: ["color", "variant"] },
+  "v-card-text": { template: "<div><slot /></div>" },
+  "v-chip": { template: "<span><slot /></span>", props: ["size", "color", "variant"] },
+  "v-divider": { template: "<hr />" },
+  "v-icon": { template: "<i />" },
+  "router-link": { template: "<a><slot /></a>" },
 };
 
 const LOCATIONS = [
-  { person_id: "alice", display_name: "Alice", room_name: "Kitchen",  source: "observation", quality: 0.9, staleness_seconds: 0,  is_inferred: false },
-  { person_id: "bob",   display_name: "Bob",   room_name: "Bathroom", source: "transition",  quality: 0.7, staleness_seconds: 5,  is_inferred: true  },
+  {
+    person_id: "alice",
+    display_name: "Alice",
+    room_name: "Kitchen",
+    source: "observation",
+    quality: 0.9,
+    staleness_seconds: 0,
+    is_inferred: false,
+  },
+  {
+    person_id: "bob",
+    display_name: "Bob",
+    room_name: "Bathroom",
+    source: "transition",
+    quality: 0.7,
+    staleness_seconds: 5,
+    is_inferred: true,
+  },
 ];
 
 describe("Presence consistency: same locations → same rooms across panels", () => {
@@ -73,7 +89,7 @@ describe("Presence consistency: same locations → same rooms across panels", ()
     expect(tiles).toHaveLength(2);
 
     const alice = tiles.find((t) => t.attributes("data-person") === "Alice");
-    const bob   = tiles.find((t) => t.attributes("data-person") === "Bob");
+    const bob = tiles.find((t) => t.attributes("data-person") === "Bob");
     expect(alice.attributes("data-room")).toBe("Kitchen");
     expect(bob.attributes("data-room")).toBe("Bathroom");
   });
@@ -100,11 +116,16 @@ describe("Presence consistency: same locations → same rooms across panels", ()
   });
 
   it("consistency check: alice in Kitchen in both panels simultaneously", () => {
-    const wOverview = mount(OverviewPanel, { props: { locations: LOCATIONS, loading: false }, global: { stubs } });
-    const wPeople   = mount(PeoplePanel,   { props: { locations: LOCATIONS }, global: { stubs } });
+    const wOverview = mount(OverviewPanel, {
+      props: { locations: LOCATIONS, loading: false },
+      global: { stubs },
+    });
+    const wPeople = mount(PeoplePanel, { props: { locations: LOCATIONS }, global: { stubs } });
 
     // OverviewPanel shows Alice → Kitchen
-    const aliceTile = wOverview.findAll("[data-person]").find((t) => t.attributes("data-person") === "Alice");
+    const aliceTile = wOverview
+      .findAll("[data-person]")
+      .find((t) => t.attributes("data-person") === "Alice");
     expect(aliceTile.attributes("data-room")).toBe("Kitchen");
 
     // PeoplePanel holds the same locations reference — alice.room_name unchanged

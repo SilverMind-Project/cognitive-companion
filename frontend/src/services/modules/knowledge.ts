@@ -14,9 +14,7 @@ export const getKnowledgeDocuments = (params: ListParams = {}) =>
   unwrap(client.GET("/api/v1/knowledge/documents", { params: { query: params } }));
 
 export const getKnowledgeDocument = (id: number) =>
-  unwrap(
-    client.GET("/api/v1/knowledge/documents/{doc_id}", { params: { path: { doc_id: id } } }),
-  );
+  unwrap(client.GET("/api/v1/knowledge/documents/{doc_id}", { params: { path: { doc_id: id } } }));
 
 /** Multipart: the document may carry an uploaded source file. */
 export const createKnowledgeDocument = (formData: FormData) =>

@@ -32,7 +32,7 @@ const { actions } = useRoughSketch();
 const seed = computed(() => actions.seedFrom(props.seedKey || "polygon"));
 
 const scaledPts = computed(() =>
-  props.points.map(([x, y]) => [x * props.canvasW, y * props.canvasH])
+  props.points.map(([x, y]) => [x * props.canvasW, y * props.canvasH]),
 );
 
 const inkPath = computed(() => actions.path(scaledPts.value, { seed: seed.value }));
@@ -40,7 +40,7 @@ const inkPath = computed(() => actions.path(scaledPts.value, { seed: seed.value 
 const inkStroke = computed(() => ccToken("--cc-annotation-ink") || "#2a1d0e");
 
 const resolvedFill = computed(
-  () => props.fill ?? ccToken("--cc-room-fill") ?? "rgba(91,58,26,0.10)"
+  () => props.fill ?? ccToken("--cc-room-fill") ?? "rgba(91,58,26,0.10)",
 );
 
 const cx = computed(() => {

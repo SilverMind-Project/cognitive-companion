@@ -1,10 +1,5 @@
 <template>
-  <v-dialog
-    :model-value="visible"
-    max-width="60vw"
-    persistent
-    no-click-animation
-  >
+  <v-dialog :model-value="visible" max-width="60vw" persistent no-click-animation>
     <div class="alert-card" :class="`alert-card--${alertType}`">
       <!-- Icon -->
       <div class="alert-icon-wrap">
@@ -18,10 +13,11 @@
       <p class="alert-message">{{ message }}</p>
 
       <!-- Actions -->
-      <div class="alert-actions" :class="alertType === 'emergency' ? 'alert-actions--two' : 'alert-actions--one'">
-        <button class="action-btn action-btn--dismiss" @click="$emit('dismiss')">
-          OK, got it
-        </button>
+      <div
+        class="alert-actions"
+        :class="alertType === 'emergency' ? 'alert-actions--two' : 'alert-actions--one'"
+      >
+        <button class="action-btn action-btn--dismiss" @click="$emit('dismiss')">OK, got it</button>
         <button
           v-if="alertType === 'emergency'"
           class="action-btn action-btn--assist"
@@ -38,9 +34,9 @@
 import { computed } from "vue";
 
 const props = defineProps({
-  visible:   { type: Boolean, default: false },
-  message:   { type: String,  default: "" },
-  alertType: { type: String,  default: "info" }, // emergency | warning | info | reminder
+  visible: { type: Boolean, default: false },
+  message: { type: String, default: "" },
+  alertType: { type: String, default: "info" }, // emergency | warning | info | reminder
 });
 
 defineEmits(["dismiss", "request-assistance"]);
@@ -49,16 +45,20 @@ defineEmits(["dismiss", "request-assistance"]);
 // info -> info pair, reminder -> brand/sage. Icon colours read the semantic
 // foreground tokens so the icon matches its tinted circle.
 const ALERT_CONFIG = {
-  emergency: { title: "Emergency alert",  icon: "mdi-heart-pulse",         iconColor: "var(--alert-fg)" },
-  warning:   { title: "Important notice", icon: "mdi-information-outline",  iconColor: "var(--notice-fg)" },
-  reminder:  { title: "Reminder",         icon: "mdi-bell-ring-outline",   iconColor: "var(--sage-600)" },
-  info:      { title: "Message for you",  icon: "mdi-message-text-outline", iconColor: "var(--info-fg)" },
+  emergency: { title: "Emergency alert", icon: "mdi-heart-pulse", iconColor: "var(--alert-fg)" },
+  warning: {
+    title: "Important notice",
+    icon: "mdi-information-outline",
+    iconColor: "var(--notice-fg)",
+  },
+  reminder: { title: "Reminder", icon: "mdi-bell-ring-outline", iconColor: "var(--sage-600)" },
+  info: { title: "Message for you", icon: "mdi-message-text-outline", iconColor: "var(--info-fg)" },
 };
 
-const config    = computed(() => ALERT_CONFIG[props.alertType] ?? ALERT_CONFIG.info);
-const alertTitle  = computed(() => config.value.title);
-const alertIcon   = computed(() => config.value.icon);
-const iconColor   = computed(() => config.value.iconColor);
+const config = computed(() => ALERT_CONFIG[props.alertType] ?? ALERT_CONFIG.info);
+const alertTitle = computed(() => config.value.title);
+const alertIcon = computed(() => config.value.icon);
+const iconColor = computed(() => config.value.iconColor);
 </script>
 
 <style scoped>
@@ -81,10 +81,22 @@ const iconColor   = computed(() => config.value.iconColor);
   justify-content: center;
 }
 
-.alert-card--emergency { --tint: var(--alert-bg);  --line: var(--alert-line); }
-.alert-card--warning   { --tint: var(--notice-bg); --line: var(--notice-line); }
-.alert-card--reminder  { --tint: var(--sage-50);   --line: var(--line-brand); }
-.alert-card--info      { --tint: var(--info-bg);   --line: var(--info-line); }
+.alert-card--emergency {
+  --tint: var(--alert-bg);
+  --line: var(--alert-line);
+}
+.alert-card--warning {
+  --tint: var(--notice-bg);
+  --line: var(--notice-line);
+}
+.alert-card--reminder {
+  --tint: var(--sage-50);
+  --line: var(--line-brand);
+}
+.alert-card--info {
+  --tint: var(--info-bg);
+  --line: var(--info-line);
+}
 
 /* ── Icon ───────────────────────────────────────────────────────────────── */
 .alert-icon-wrap {
@@ -126,8 +138,12 @@ const iconColor   = computed(() => config.value.iconColor);
   margin-top: 8px;
 }
 
-.alert-actions--one  { justify-content: center; }
-.alert-actions--two  { justify-content: space-between; }
+.alert-actions--one {
+  justify-content: center;
+}
+.alert-actions--two {
+  justify-content: space-between;
+}
 
 .action-btn {
   flex: 1;
@@ -137,8 +153,9 @@ const iconColor   = computed(() => config.value.iconColor);
   font-size: 22px;
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--cc-dur-fast) var(--cc-ease-standard),
-              transform var(--cc-dur-fast) var(--cc-ease-standard);
+  transition:
+    background var(--cc-dur-fast) var(--cc-ease-standard),
+    transform var(--cc-dur-fast) var(--cc-ease-standard);
 }
 
 .action-btn:active {
@@ -158,7 +175,7 @@ const iconColor   = computed(() => config.value.iconColor);
 
 .action-btn--assist {
   background: var(--terra-400);
-  color: #FFF8F3;
+  color: #fff8f3;
   border: 1.5px solid transparent;
   box-shadow: var(--cc-shadow-sm);
 }
@@ -168,6 +185,8 @@ const iconColor   = computed(() => config.value.iconColor);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .action-btn { transition: none; }
+  .action-btn {
+    transition: none;
+  }
 }
 </style>

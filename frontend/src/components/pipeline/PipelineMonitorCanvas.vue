@@ -4,13 +4,7 @@
       <v-progress-circular indeterminate color="primary" />
     </div>
 
-    <v-alert
-      v-else-if="state.error"
-      type="error"
-      density="compact"
-      variant="tonal"
-      class="ma-4"
-    >
+    <v-alert v-else-if="state.error" type="error" density="compact" variant="tonal" class="ma-4">
       {{ state.error }}
     </v-alert>
 
@@ -54,12 +48,7 @@
         data-testid="pipeline-monitor-flow"
         @node-click="onNodeClick"
       >
-        <Background
-          variant="dots"
-          :gap="20"
-          :size="1.35"
-          color="var(--cc-pipeline-monitor-dot)"
-        />
+        <Background variant="dots" :gap="20" :size="1.35" color="var(--cc-pipeline-monitor-dot)" />
         <Controls />
         <MiniMap
           :node-color="minimapNodeColor"
@@ -86,7 +75,11 @@ import { VueFlow } from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { Controls } from "@vue-flow/controls";
 import { MiniMap } from "@vue-flow/minimap";
-import { edgesToVueFlow, stepsToNodes, useCanvasPipeline } from "@/composables/useCanvasPipeline.js";
+import {
+  edgesToVueFlow,
+  stepsToNodes,
+  useCanvasPipeline,
+} from "@/composables/useCanvasPipeline.js";
 import { useLivePipeline } from "@/composables/useLivePipeline.js";
 import { api } from "@/services/api.js";
 import StepNode from "./nodes/StepNode.vue";
@@ -96,7 +89,11 @@ import "@vue-flow/controls/dist/style.css";
 import "@vue-flow/minimap/dist/style.css";
 
 const props = defineProps({
-  source: { type: String, default: "live", validator: (value) => ["live", "historic"].includes(value) },
+  source: {
+    type: String,
+    default: "live",
+    validator: (value) => ["live", "historic"].includes(value),
+  },
   ruleId: { type: Number, default: null },
   executionId: { type: Number, required: true },
   execution: { type: Object, default: null },
@@ -113,12 +110,12 @@ const historicState = reactive({
 const historicDetail = ref(null);
 const historicGraphAvailable = ref(true);
 
-const liveCanvas = props.source === "live"
-  ? useCanvasPipeline(props.ruleId)
-  : { state: historicState };
-const livePipeline = props.source === "live"
-  ? useLivePipeline()
-  : { connectionState: ref("open"), activeRuns: ref([]) };
+const liveCanvas =
+  props.source === "live" ? useCanvasPipeline(props.ruleId) : { state: historicState };
+const livePipeline =
+  props.source === "live"
+    ? useLivePipeline()
+    : { connectionState: ref("open"), activeRuns: ref([]) };
 
 const state = computed(() => (props.source === "historic" ? historicState : liveCanvas.state));
 const connectionState = livePipeline.connectionState;
@@ -141,7 +138,7 @@ async function loadHistoricExecution() {
   historicState.loading = true;
   historicState.error = null;
   try {
-    const detail = props.execution || await api.getWorkflowDetail(props.executionId);
+    const detail = props.execution || (await api.getWorkflowDetail(props.executionId));
     historicDetail.value = detail;
     const graph = detail?.graph || null;
     historicGraphAvailable.value = Boolean(graph);
@@ -187,8 +184,9 @@ async function loadHistoricExecution() {
   }
 }
 
-const runState = computed(() =>
-  activeRuns.value.find((run) => Number(run.execution_id) === Number(props.executionId)) || null,
+const runState = computed(
+  () =>
+    activeRuns.value.find((run) => Number(run.execution_id) === Number(props.executionId)) || null,
 );
 
 const liveNodeById = computed(() => {
@@ -197,7 +195,8 @@ const liveNodeById = computed(() => {
 });
 
 const timelineStatusByStep = computed(() => {
-  const timeline = (props.source === "historic" ? historicDetail.value : props.execution)?.timeline || [];
+  const timeline =
+    (props.source === "historic" ? historicDetail.value : props.execution)?.timeline || [];
   const byId = {};
   const byLabel = {};
   const byType = {};
@@ -213,9 +212,9 @@ const timelineStatusByStep = computed(() => {
 const activeEdges = computed(() => {
   if (props.source === "historic") {
     return new Set(
-      ((historicDetail.value?.timeline || [])
+      (historicDetail.value?.timeline || [])
         .filter((step) => step.step_id != null && !["skipped", "in_progress"].includes(step.status))
-        .map((step) => `${step.step_id}:${step.output_port || "main"}`)),
+        .map((step) => `${step.step_id}:${step.output_port || "main"}`),
     );
   }
   return runState.value?.active_edges || new Set();
@@ -226,10 +225,10 @@ const monitorNodes = computed(() =>
     const liveNode = liveNodeById.value[node.id];
     const step = node.data?.step || {};
     const fallbackStatus =
-      timelineStatusByStep.value.byId[node.id]
-      || timelineStatusByStep.value.byLabel[step.label]
-      || timelineStatusByStep.value.byType[step.step_type]
-      || "pending";
+      timelineStatusByStep.value.byId[node.id] ||
+      timelineStatusByStep.value.byLabel[step.label] ||
+      timelineStatusByStep.value.byType[step.step_type] ||
+      "pending";
     return {
       ...node,
       draggable: false,
@@ -280,9 +279,10 @@ function minimapNodeColor(node) {
 
 function onNodeClick({ node }) {
   const detail = props.source === "historic" ? historicDetail.value : props.execution;
-  const step = (detail?.timeline || []).find((item) => String(item.step_id) === String(node?.id))
-    || (detail?.timeline || []).find((item) => item.label === node?.data?.step?.label)
-    || null;
+  const step =
+    (detail?.timeline || []).find((item) => String(item.step_id) === String(node?.id)) ||
+    (detail?.timeline || []).find((item) => item.label === node?.data?.step?.label) ||
+    null;
   emit("step-selected", step);
 }
 

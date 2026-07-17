@@ -106,7 +106,10 @@ function onDelete() {
   cursor: pointer;
   opacity: 0.5;
   pointer-events: all;
-  transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .cc-edge-delete:hover,

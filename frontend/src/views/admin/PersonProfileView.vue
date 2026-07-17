@@ -27,7 +27,7 @@
         size="small"
         variant="tonal"
       >
-        {{ person.is_active ? 'Active' : 'Inactive' }}
+        {{ person.is_active ? "Active" : "Inactive" }}
       </v-chip>
     </div>
 
@@ -177,7 +177,7 @@
             >
               <template #item.signal_type="{ value }">
                 <v-chip :color="severityColor(value)" size="small" variant="tonal">
-                  {{ value.replace(/_/g, ' ') }}
+                  {{ value.replace(/_/g, " ") }}
                 </v-chip>
               </template>
               <template #item.severity="{ value }">
@@ -272,14 +272,12 @@
                   </v-btn>
                 </div>
                 <div v-if="dwellRooms.length">
-                  <div
-                    v-for="room in dwellRooms"
-                    :key="room.room_name"
-                    class="mb-3"
-                  >
+                  <div v-for="room in dwellRooms" :key="room.room_name" class="mb-3">
                     <div class="d-flex justify-space-between text-body-2 mb-1">
                       <span>{{ room.room_name }}</span>
-                      <span class="text-medium-emphasis">{{ formatDuration(room.duration_seconds) }}</span>
+                      <span class="text-medium-emphasis">{{
+                        formatDuration(room.duration_seconds)
+                      }}</span>
                     </div>
                     <v-progress-linear
                       :model-value="room.fraction * 100"
@@ -312,13 +310,19 @@
                     <line
                       v-for="x in [100, 200, 300]"
                       :key="`vg-${x}`"
-                      :x1="x" y1="0" :x2="x" y2="300"
+                      :x1="x"
+                      y1="0"
+                      :x2="x"
+                      y2="300"
                       style="stroke: var(--cc-divider); stroke-width: 1"
                     />
                     <line
                       v-for="y in [75, 150, 225]"
                       :key="`hg-${y}`"
-                      x1="0" :y1="y" x2="400" :y2="y"
+                      x1="0"
+                      :y1="y"
+                      x2="400"
+                      :y2="y"
                       style="stroke: var(--cc-divider); stroke-width: 1"
                     />
                     <polyline
@@ -395,9 +399,9 @@
               </v-card-title>
               <v-card-text>
                 <p class="text-body-2 text-medium-emphasis mb-4">
-                  Appearance embeddings let the camera tracking system recognise this person
-                  by their silhouette and clothing, independent of face recognition.
-                  Enroll keyframes from the Keyframes view.
+                  Appearance embeddings let the camera tracking system recognise this person by
+                  their silhouette and clothing, independent of face recognition. Enroll keyframes
+                  from the Keyframes view.
                 </p>
                 <v-btn
                   variant="tonal"
@@ -423,7 +427,7 @@ import PersonTimeline from "../../components/person/PersonTimeline.vue";
 import PresenceWidget from "../../components/cts/PresenceWidget.vue";
 import { severityColor } from "../../composables/useCtsSeverity.js";
 import { useNotify } from "../../composables/useNotify.js";
-import { formatDateTime, DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
+import { DATETIME_COLUMN_WIDTH } from "../../services/timezone.js";
 
 const { notify } = useNotify();
 
@@ -488,8 +492,14 @@ const signalWindowHours = ref(24);
 let signalsLoaded = false;
 
 const signalTypeItems = [
-  "pacing", "room_revisit_rate", "bathroom_dwell_anomaly",
-  "sundowning_index", "nighttime_movement", "stillness_anomaly", "absence", "fall_suspected",
+  "pacing",
+  "room_revisit_rate",
+  "bathroom_dwell_anomaly",
+  "sundowning_index",
+  "nighttime_movement",
+  "stillness_anomaly",
+  "absence",
+  "fall_suspected",
 ];
 
 const signalHeaders = [
@@ -526,7 +536,7 @@ async function acknowledgeSignal(id) {
   try {
     await cts.acknowledgeSignal(id);
     signals.value = signals.value.map((s) =>
-      s.id === id ? { ...s, acknowledged_at: new Date().toISOString() } : s
+      s.id === id ? { ...s, acknowledged_at: new Date().toISOString() } : s,
     );
   } catch (e) {
     notify(e?.message || "Failed to acknowledge signal", "error");
@@ -543,7 +553,7 @@ let dwellLoaded = false;
 const svgPath = computed(() => {
   if (trajectoryPoints.value.length < 2) return null;
   const pts = [...trajectoryPoints.value].sort(
-    (a, b) => new Date(a.observed_at) - new Date(b.observed_at)
+    (a, b) => new Date(a.observed_at) - new Date(b.observed_at),
   );
   const xs = pts.map((p) => p.ground_x ?? 0);
   const ys = pts.map((p) => p.ground_y ?? 0);
@@ -555,7 +565,7 @@ const svgPath = computed(() => {
   const rangeY = maxY - minY || 1;
   return pts
     .map((p) => {
-      const sx = ((( p.ground_x ?? 0) - minX) / rangeX) * 360 + 20;
+      const sx = (((p.ground_x ?? 0) - minX) / rangeX) * 360 + 20;
       const sy = (((p.ground_y ?? 0) - minY) / rangeY) * 260 + 20;
       return `${sx},${sy}`;
     })
@@ -565,7 +575,7 @@ const svgPath = computed(() => {
 const latestPoint = computed(() => {
   if (!trajectoryPoints.value.length) return null;
   const sorted = [...trajectoryPoints.value].sort(
-    (a, b) => new Date(b.observed_at) - new Date(a.observed_at)
+    (a, b) => new Date(b.observed_at) - new Date(a.observed_at),
   );
   const p = sorted[0];
   const xs = trajectoryPoints.value.map((pt) => pt.ground_x ?? 0);
@@ -595,10 +605,8 @@ async function loadDwell() {
     cts.getDashboardDwellSummary(personId.value, dwellDate.value || undefined),
     cts.getDashboardTrajectory(personId.value, { limit: 200 }),
   ]);
-  dwellRooms.value =
-    dwellData.status === "fulfilled" ? dwellData.value.rooms || [] : [];
-  trajectoryPoints.value =
-    trajData.status === "fulfilled" ? trajData.value.points || [] : [];
+  dwellRooms.value = dwellData.status === "fulfilled" ? dwellData.value.rooms || [] : [];
+  trajectoryPoints.value = trajData.status === "fulfilled" ? trajData.value.points || [] : [];
   dwellLoaded = true;
   dwellLoading.value = false;
 }
@@ -619,13 +627,6 @@ async function loadIdentity() {
     identityLoading.value = false;
     identityLoaded = true;
   }
-}
-
-// Lazy-load tabs on first selection.
-function onTabChange(tab) {
-  if (tab === "signals" && !signalsLoaded) loadSignals();
-  if (tab === "where" && !dwellLoaded) loadDwell();
-  if (tab === "identity" && !identityLoaded) loadIdentity();
 }
 
 function ensureTabLoaded(tab) {

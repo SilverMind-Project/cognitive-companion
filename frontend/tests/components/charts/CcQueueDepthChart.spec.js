@@ -6,7 +6,8 @@ vi.mock("vue-echarts", () => ({
     name: "VChart",
     props: ["option", "theme", "autoresize"],
     emits: ["click"],
-    template: '<button data-testid="v-chart" @click="$emit(\'click\', { data: option.series[1].data[0] })" />',
+    template:
+      '<button data-testid="v-chart" @click="$emit(\'click\', { data: option.series[1].data[0] })" />',
   },
 }));
 
@@ -52,17 +53,19 @@ vi.mock("@/composables/useChartTheme.js", () => ({
 
 import CcQueueDepthChart from "@/components/charts/CcQueueDepthChart.vue";
 
-const cameras = [{
-  camera_id: "camera-1",
-  label: "CTS - Hallway",
-  origin: "cts",
-  buffer_depth: 8,
-  buffer_capacity: 20,
-  images_eligible_total: 90,
-  images_dropped_total: 10,
-  tokens_available: 1.5,
-  rate_per_second: 1,
-}];
+const cameras = [
+  {
+    camera_id: "camera-1",
+    label: "CTS - Hallway",
+    origin: "cts",
+    buffer_depth: 8,
+    buffer_capacity: 20,
+    images_eligible_total: 90,
+    images_dropped_total: 10,
+    tokens_available: 1.5,
+    rate_per_second: 1,
+  },
+];
 
 const stubs = {
   "v-progress-circular": { template: "<div data-testid='spinner' />" },

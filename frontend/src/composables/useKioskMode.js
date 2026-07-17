@@ -118,7 +118,7 @@ export function useKioskMode({
     if (!isActive.value) return;
     if (!wakeLock?.request) {
       state.wakeLockStatus = "unsupported";
-      console.info("Screen Wake Lock API is not supported in this browser.");
+      console.warn("Screen Wake Lock API is not supported in this browser.");
       return;
     }
     try {
@@ -129,7 +129,7 @@ export function useKioskMode({
       });
     } catch (err) {
       state.wakeLockStatus = "error";
-      console.info("Screen wake lock request failed.", err);
+      console.warn("Screen wake lock request failed.", err);
     }
   }
 

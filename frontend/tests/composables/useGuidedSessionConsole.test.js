@@ -93,7 +93,12 @@ describe("useGuidedSessionConsole", () => {
     // Update mock so the refresh after WS also returns the new status
     mockApi.getGuidedSessionDetail.mockResolvedValue({
       session: { ...SESSION, status: "active", current_step_ord: 1 },
-      current_step: { ord: 1, prompt_text: "Boil water.", completion_gate: { kinds: ["response"] }, is_safety_critical: false },
+      current_step: {
+        ord: 1,
+        prompt_text: "Boil water.",
+        completion_gate: { kinds: ["response"] },
+        is_safety_critical: false,
+      },
       recent_events: [],
       recent_transcript: [],
     });

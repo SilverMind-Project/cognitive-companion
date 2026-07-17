@@ -169,7 +169,7 @@ export async function requestJson<T = unknown>(
     // A transport failure is not an HTTP status; surface it as one recognisable message rather
     // than letting a raw TypeError reach a component (behavior carried over from cts.js).
     const reason = cause instanceof Error ? cause.message : "Unable to reach server";
-    throw new Error(`Network error: ${reason}`);
+    throw new Error(`Network error: ${reason}`, { cause });
   }
 
   if (!response.ok) throw new ApiError(response.status, await errorDetail(response));

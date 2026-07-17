@@ -104,16 +104,21 @@
             :prepend-icon="item.source === 'cts' ? 'mdi-cctv' : 'mdi-robot'"
             variant="tonal"
           >
-            {{ item.source === 'cts' ? 'CTS' : 'Pipeline' }}
+            {{ item.source === "cts" ? "CTS" : "Pipeline" }}
           </v-chip>
         </template>
         <template #item.activity_type="{ item }">
           <v-chip size="small" :color="item.source === 'cts' ? 'warning' : 'info'" variant="tonal">
-            {{ item.activity_type.replace(/_/g, ' ') }}
+            {{ item.activity_type.replace(/_/g, " ") }}
           </v-chip>
         </template>
         <template #item.severity="{ item }">
-          <v-chip v-if="item.severity" size="x-small" :color="severityChipColor(item.severity)" variant="flat">
+          <v-chip
+            v-if="item.severity"
+            size="x-small"
+            :color="severityChipColor(item.severity)"
+            variant="flat"
+          >
             {{ item.severity }}
           </v-chip>
           <span v-else-if="item.confidence != null" class="text-body-2">
@@ -160,7 +165,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "../../services/api.js";
 import { cts } from "../../services/cts.js";
@@ -181,48 +186,48 @@ const SOURCE_OPTIONS = [
   { value: "cts", label: "CTS", icon: "mdi-cctv" },
 ];
 
-const loading    = ref(false);
-const viewMode   = ref("table");
+const loading = ref(false);
+const viewMode = ref("table");
 const pipelineItems = ref([]);
-const ctsSignals    = ref([]);
-const persons       = ref([]);
-const timelineRef   = ref(null);
+const ctsSignals = ref([]);
+const persons = ref([]);
+const timelineRef = ref(null);
 
 const filter = ref({
-  source:       "all",
-  person_id:    null,
-  signal_type:  null,
+  source: "all",
+  person_id: null,
+  signal_type: null,
   window_hours: 24,
 });
 
 const activeSources = ref(["activity", "session", "location", "sighting"]);
 
 const allTimelineSources = [
-  { value: "activity", label: "Activity", color: "primary",  icon: "mdi-check-circle" },
-  { value: "session",  label: "Session",  color: "success",  icon: "mdi-play-circle" },
-  { value: "location", label: "Location", color: "info",     icon: "mdi-door" },
-  { value: "sighting", label: "Sighting", color: "warning",  icon: "mdi-camera" },
+  { value: "activity", label: "Activity", color: "primary", icon: "mdi-check-circle" },
+  { value: "session", label: "Session", color: "success", icon: "mdi-play-circle" },
+  { value: "location", label: "Location", color: "info", icon: "mdi-door" },
+  { value: "sighting", label: "Sighting", color: "warning", icon: "mdi-camera" },
 ];
 
 const windowOptions = [
-  { title: "6 h",   value: 6 },
-  { title: "12 h",  value: 12 },
-  { title: "24 h",  value: 24 },
-  { title: "48 h",  value: 48 },
-  { title: "7 d",   value: 168 },
+  { title: "6 h", value: 6 },
+  { title: "12 h", value: 12 },
+  { title: "24 h", value: 24 },
+  { title: "48 h", value: 48 },
+  { title: "7 d", value: 168 },
 ];
 
 const headers = [
-  { title: "Source",               key: "source",       width: 110 },
-  { title: "Person",               key: "person_id" },
-  { title: "Activity / Signal",    key: "activity_type" },
-  { title: "Room",                 key: "room_name" },
-  { title: "Severity / Confidence", key: "severity",    width: 160 },
-  { title: "Time",                 key: "detected_at",  width: DATETIME_COLUMN_WIDTH },
+  { title: "Source", key: "source", width: 110 },
+  { title: "Person", key: "person_id" },
+  { title: "Activity / Signal", key: "activity_type" },
+  { title: "Room", key: "room_name" },
+  { title: "Severity / Confidence", key: "severity", width: 160 },
+  { title: "Time", key: "detected_at", width: DATETIME_COLUMN_WIDTH },
 ];
 
 const personOptions = computed(() =>
-  persons.value.map((p) => ({ title: p.display_name || p.name || p.id, value: p.id }))
+  persons.value.map((p) => ({ title: p.display_name || p.name || p.id, value: p.id })),
 );
 
 const activityTypeOptions = computed(() => {
@@ -238,25 +243,25 @@ const activityTypeOptions = computed(() => {
 
 const merged = computed(() => {
   const pipeline = pipelineItems.value.map((item, i) => ({
-    _key:          `pipeline_${item.id ?? i}`,
-    source:        "pipeline",
-    person_id:     item.person_id,
+    _key: `pipeline_${item.id ?? i}`,
+    source: "pipeline",
+    person_id: item.person_id,
     activity_type: item.activity_type,
-    room_name:     item.room_name || "—",
-    confidence:    item.confidence,
-    severity:      null,
-    detected_at:   item.detected_at,
+    room_name: item.room_name || "—",
+    confidence: item.confidence,
+    severity: null,
+    detected_at: item.detected_at,
   }));
 
   const ctsList = ctsSignals.value.map((sig, i) => ({
-    _key:          `cts_${sig.id ?? i}`,
-    source:        "cts",
-    person_id:     sig.person_id,
+    _key: `cts_${sig.id ?? i}`,
+    source: "cts",
+    person_id: sig.person_id,
     activity_type: sig.signal_type,
-    room_name:     sig.context_json?.room_name || "—",
-    confidence:    null,
-    severity:      sig.severity,
-    detected_at:   sig.window_start || sig.received_at,
+    room_name: sig.context_json?.room_name || "—",
+    confidence: null,
+    severity: sig.severity,
+    detected_at: sig.window_start || sig.received_at,
   }));
 
   const src = filter.value.source;
@@ -270,7 +275,7 @@ const merged = computed(() => {
 
 function severityChipColor(severity) {
   if (severity === "emergency") return "error";
-  if (severity === "warning")   return "warning";
+  if (severity === "warning") return "warning";
   return "info";
 }
 
@@ -288,8 +293,8 @@ async function load() {
 
   loading.value = true;
   try {
-    const src   = filter.value.source;
-    const pid   = filter.value.person_id || undefined;
+    const src = filter.value.source;
+    const pid = filter.value.person_id || undefined;
     const hours = filter.value.window_hours;
     const tasks = [];
 
@@ -297,9 +302,14 @@ async function load() {
       const params = {};
       if (pid) params.person_id = pid;
       tasks.push(
-        api.getActivities(params)
-          .then((data) => { pipelineItems.value = Array.isArray(data) ? data : (data?.activities ?? []); })
-          .catch(() => { pipelineItems.value = []; })
+        api
+          .getActivities(params)
+          .then((data) => {
+            pipelineItems.value = Array.isArray(data) ? data : (data?.activities ?? []);
+          })
+          .catch(() => {
+            pipelineItems.value = [];
+          }),
       );
     } else {
       pipelineItems.value = [];
@@ -309,9 +319,14 @@ async function load() {
       const ctsParams = { window_hours: hours, limit: 200 };
       if (pid) ctsParams.person_id = pid;
       tasks.push(
-        cts.getSignals(ctsParams)
-          .then((data) => { ctsSignals.value = data?.signals ?? []; })
-          .catch(() => { ctsSignals.value = []; })
+        cts
+          .getSignals(ctsParams)
+          .then((data) => {
+            ctsSignals.value = data?.signals ?? [];
+          })
+          .catch(() => {
+            ctsSignals.value = [];
+          }),
       );
     } else {
       ctsSignals.value = [];

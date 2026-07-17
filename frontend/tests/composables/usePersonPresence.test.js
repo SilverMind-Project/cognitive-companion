@@ -23,12 +23,24 @@ import { usePersonPresence } from "../../src/composables/usePersonPresence.js";
 
 const LOCATIONS = [
   {
-    person_id: "alice", display_name: "Alice", room_id: 1, room_name: "Kitchen",
-    source: "observation", quality: 0.9, staleness_seconds: 0, is_inferred: false,
+    person_id: "alice",
+    display_name: "Alice",
+    room_id: 1,
+    room_name: "Kitchen",
+    source: "observation",
+    quality: 0.9,
+    staleness_seconds: 0,
+    is_inferred: false,
   },
   {
-    person_id: "bob", display_name: "Bob", room_id: 2, room_name: "Bathroom",
-    source: "transition", quality: 0.7, staleness_seconds: 5, is_inferred: true,
+    person_id: "bob",
+    display_name: "Bob",
+    room_id: 2,
+    room_name: "Bathroom",
+    source: "transition",
+    quality: 0.7,
+    staleness_seconds: 5,
+    is_inferred: true,
   },
 ];
 

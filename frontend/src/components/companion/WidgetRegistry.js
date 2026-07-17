@@ -51,21 +51,3 @@ export function registerWidget(widget) {
 export function getWidgets(position) {
   return state.widgets.filter((w) => w.position === position && w.enabled);
 }
-
-/**
- * Get all registered widgets.
- * @returns {CompanionWidget[]}
- */
-export function getAllWidgets() {
-  return state.widgets;
-}
-
-/**
- * Enable or disable a widget by ID.
- * @param {string} id
- * @param {boolean} enabled
- */
-export function setWidgetEnabled(id, enabled) {
-  const widget = state.widgets.find((w) => w.id === id);
-  if (widget) widget.enabled = enabled;
-}

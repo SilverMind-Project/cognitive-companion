@@ -131,9 +131,7 @@ const chartOption = computed(() => {
         markLine: markLines.length
           ? { data: markLines, silent: true, symbol: ["none", "none"] }
           : undefined,
-        markPoint: markPoints.length
-          ? { data: markPoints, silent: true }
-          : undefined,
+        markPoint: markPoints.length ? { data: markPoints, silent: true } : undefined,
       },
     ],
   };

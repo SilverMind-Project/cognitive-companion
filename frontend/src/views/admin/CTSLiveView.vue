@@ -6,28 +6,17 @@
           Live Tracking
         </h2>
         <div class="text-body-2 text-medium-emphasis mt-1">
-          Per-camera bbox overlay. Click a tracked identity to issue a manual
-          correction. Revisions surface as toasts.
+          Per-camera bbox overlay. Click a tracked identity to issue a manual correction. Revisions
+          surface as toasts.
         </div>
       </div>
       <v-spacer />
-      <v-chip
-        :color="wsStatusColor"
-        prepend-icon="mdi-circle"
-        size="small"
-        variant="tonal"
-      >
+      <v-chip :color="wsStatusColor" prepend-icon="mdi-circle" size="small" variant="tonal">
         {{ wsStatus }}
       </v-chip>
     </div>
 
-    <v-alert
-      v-if="error"
-      type="error"
-      class="mb-4"
-      closable
-      @click:close="error = ''"
-    >
+    <v-alert v-if="error" type="error" class="mb-4" closable @click:close="error = ''">
       {{ error }}
     </v-alert>
 
@@ -65,13 +54,7 @@
           density="compact"
           hide-details
         />
-        <v-switch
-          v-model="showPose"
-          color="primary"
-          label="Pose"
-          density="compact"
-          hide-details
-        />
+        <v-switch v-model="showPose" color="primary" label="Pose" density="compact" hide-details />
         <v-switch
           v-model="showEvidence"
           color="primary"
@@ -96,7 +79,8 @@
           <v-icon size="18" color="primary">mdi-camera-flip-outline</v-icon>
           <span class="text-body-2 font-weight-medium">Cross-camera activity</span>
           <v-chip size="x-small" color="primary" variant="flat" density="compact">
-            {{ multiCameraIdentities.length }} {{ multiCameraIdentities.length > 1 ? 'identities' : 'identity' }}
+            {{ multiCameraIdentities.length }}
+            {{ multiCameraIdentities.length > 1 ? "identities" : "identity" }}
           </v-chip>
         </div>
         <div class="d-flex flex-wrap ga-2">
@@ -118,7 +102,7 @@
               class="ml-1"
               density="compact"
             >
-              {{ entry.cameraCount }} cam{{ entry.cameraCount > 1 ? 's' : '' }}
+              {{ entry.cameraCount }} cam{{ entry.cameraCount > 1 ? "s" : "" }}
             </v-chip>
           </v-chip>
         </div>
@@ -172,10 +156,7 @@
               class="live-tile-img"
               alt=""
             />
-            <div
-              v-else
-              class="live-tile-no-frame"
-            >
+            <div v-else class="live-tile-no-frame">
               <v-icon size="24" color="medium-emphasis">mdi-video-off-outline</v-icon>
             </div>
             <svg
@@ -184,10 +165,7 @@
               class="live-tile-overlay"
               preserveAspectRatio="xMidYMid slice"
             >
-              <g
-                v-for="(det, idx) in cameraForSlot(slot).detections"
-                :key="idx"
-              >
+              <g v-for="(det, idx) in cameraForSlot(slot).detections" :key="idx">
                 <!-- Trail polyline -->
                 <polyline
                   v-if="showTrail && det.trail && det.trail.length > 1"
@@ -251,7 +229,9 @@
                     fill="white"
                     font-weight="bold"
                     dominant-baseline="central"
-                  >{{ multiCameraCount(det) }}</text>
+                  >
+                    {{ multiCameraCount(det) }}
+                  </text>
                 </g>
 
                 <!-- Identity label: white text + dark halo (camera-feed standard) -->
@@ -285,22 +265,23 @@
                     strokeWidth: labelHaloStroke(cameraForSlot(slot)),
                     strokeLinejoin: 'round',
                   }"
-                >{{ det.posture }}</text>
+                >
+                  {{ det.posture }}
+                </text>
 
                 <!-- Pose stick figure -->
                 <g v-if="showPose && det.pose_keypoints && det.pose_keypoints.length === 17">
-                  <template
-                    v-for="([a, b], li) in LIMB_PAIRS"
-                    :key="li"
-                  >
+                  <template v-for="([a, b], li) in LIMB_PAIRS" :key="li">
                     <line
-                      v-if="det.pose_keypoints[a]?.score > 0.2 && det.pose_keypoints[b]?.score > 0.2"
+                      v-if="
+                        det.pose_keypoints[a]?.score > 0.2 && det.pose_keypoints[b]?.score > 0.2
+                      "
                       :x1="poseX(det, a)"
                       :y1="poseY(det, a)"
                       :x2="poseX(det, b)"
                       :y2="poseY(det, b)"
                       stroke="rgba(255,200,50,0.85)"
-                      :stroke-width="overlayStroke(cameraForSlot(slot), .5)"
+                      :stroke-width="overlayStroke(cameraForSlot(slot), 0.5)"
                       stroke-linecap="round"
                     />
                   </template>
@@ -328,7 +309,9 @@
                   />
                   <text
                     :x="evidencePillX(det, cameraForSlot(slot)) + evidencePad(cameraForSlot(slot))"
-                    :y="evidencePillY(det, cameraForSlot(slot)) + evidenceTextY(cameraForSlot(slot))"
+                    :y="
+                      evidencePillY(det, cameraForSlot(slot)) + evidenceTextY(cameraForSlot(slot))
+                    "
                     fill="white"
                     :font-size="evidenceFontSize(cameraForSlot(slot))"
                     font-weight="600"
@@ -340,7 +323,9 @@
                   <!-- Top-1 bar -->
                   <rect
                     :x="evidencePillX(det, cameraForSlot(slot)) + evidencePad(cameraForSlot(slot))"
-                    :y="evidencePillY(det, cameraForSlot(slot)) + evidenceBarY(cameraForSlot(slot), 0)"
+                    :y="
+                      evidencePillY(det, cameraForSlot(slot)) + evidenceBarY(cameraForSlot(slot), 0)
+                    "
                     :width="evidenceBarWidth(det, cameraForSlot(slot), 'top_prob')"
                     :height="evidenceBarHeight(cameraForSlot(slot))"
                     :rx="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.5)"
@@ -349,7 +334,9 @@
                   <!-- Top-2 bar -->
                   <rect
                     :x="evidencePillX(det, cameraForSlot(slot)) + evidencePad(cameraForSlot(slot))"
-                    :y="evidencePillY(det, cameraForSlot(slot)) + evidenceBarY(cameraForSlot(slot), 1)"
+                    :y="
+                      evidencePillY(det, cameraForSlot(slot)) + evidenceBarY(cameraForSlot(slot), 1)
+                    "
                     :width="evidenceBarWidth(det, cameraForSlot(slot), 'top2_prob')"
                     :height="Math.max(1, Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.72))"
                     :rx="Math.round(evidenceBarHeight(cameraForSlot(slot)) * 0.36)"
@@ -364,21 +351,17 @@
                   :y="(det.bbox.y_min || 0) + crownOffsetY(cameraForSlot(slot))"
                   :font-size="labelFontSize(cameraForSlot(slot))"
                   style="user-select: none"
-                >👑</text>
+                >
+                  👑
+                </text>
               </g>
             </svg>
-            <div
-              v-if="isCameraStale(cameraForSlot(slot))"
-              class="live-tile-stale-badge"
-            >
+            <div v-if="isCameraStale(cameraForSlot(slot))" class="live-tile-stale-badge">
               <v-icon size="12" class="mr-1">mdi-clock-alert-outline</v-icon>
               Last seen {{ staleLabel(cameraForSlot(slot)) }}
             </div>
             <!-- Cross-camera link badges: one per linked identity on this tile -->
-            <div
-              v-if="tileLinkEntries(cameraIdForSlot(slot)).length"
-              class="live-tile-link-stack"
-            >
+            <div v-if="tileLinkEntries(cameraIdForSlot(slot)).length" class="live-tile-link-stack">
               <div
                 v-for="entry in tileLinkEntries(cameraIdForSlot(slot))"
                 :key="entry.identity_id"
@@ -388,7 +371,9 @@
               >
                 <v-icon size="11" :color="entry.color">mdi-link-variant</v-icon>
                 <span class="live-tile-link-name">{{ entry.display_name }}</span>
-                <span class="live-tile-link-cams" :style="{ background: entry.color }">+{{ entry.otherCameras.length }}</span>
+                <span class="live-tile-link-cams" :style="{ background: entry.color }"
+                  >+{{ entry.otherCameras.length }}</span
+                >
               </div>
             </div>
           </div>
@@ -408,9 +393,7 @@
           <div class="text-body-2 mb-2">
             PH: <strong>{{ correction.ph_id }}</strong>
           </div>
-          <div class="text-body-2 mb-2">
-            Camera: {{ correction.camera_id }}
-          </div>
+          <div class="text-body-2 mb-2">Camera: {{ correction.camera_id }}</div>
           <div class="text-body-2 mb-4">
             Current identity: {{ correction.previous_identity_id || "unknown" }}
           </div>
@@ -420,11 +403,7 @@
             variant="outlined"
             placeholder="Leave blank to mark as UNKNOWN"
           />
-          <v-text-field
-            v-model="correction.reason"
-            label="Reason"
-            variant="outlined"
-          />
+          <v-text-field v-model="correction.reason" label="Reason" variant="outlined" />
         </v-card-text>
         <DialogFooter
           hint="Correct misidentified persons to improve tracking accuracy."
@@ -481,10 +460,20 @@ const { displaySrc } = useDisplaySrc(blurMode);
 
 // COCO 17-keypoint limb pairs (0-indexed).
 const LIMB_PAIRS = [
-  [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],
-  [5, 11], [6, 12], [11, 12],
-  [11, 13], [13, 15], [12, 14], [14, 16],
-  [0, 5], [0, 6],
+  [5, 6],
+  [5, 7],
+  [7, 9],
+  [6, 8],
+  [8, 10],
+  [5, 11],
+  [6, 12],
+  [11, 12],
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
+  [0, 5],
+  [0, 6],
 ];
 
 const cameras = ref({});
@@ -519,7 +508,7 @@ watch(selectedCameras, persistSelected, { deep: true });
 async function loadKnownCameras() {
   try {
     const data = await cts.getCameras();
-    const list = Array.isArray(data) ? data : (data.cameras || []);
+    const list = Array.isArray(data) ? data : data.cameras || [];
     cameraList.value = list;
     knownCameraIds.value = list.map((c) => c.id);
     console.debug("[cts_live] cameras loaded", {
@@ -532,9 +521,7 @@ async function loadKnownCameras() {
 }
 
 async function pollSnapshots() {
-  const ids = [
-    ...new Set([...knownCameraIds.value, ...Object.keys(cameras.value)]),
-  ];
+  const ids = [...new Set([...knownCameraIds.value, ...Object.keys(cameras.value)])];
   console.debug("[cts_live] polling snapshots", { camera_count: ids.length, ids });
   await Promise.allSettled(
     ids.map(async (id) => {
@@ -546,12 +533,14 @@ async function pollSnapshots() {
       } catch (err) {
         console.warn("[cts_live] snapshot fetch failed", { camera_id: id, error: String(err) });
       }
-    })
+    }),
   );
 }
 
 onMounted(async () => {
-  _freshnessTimer = setInterval(() => { now.value = Date.now(); }, 5000);
+  _freshnessTimer = setInterval(() => {
+    now.value = Date.now();
+  }, 5000);
   await loadKnownCameras();
   pollSnapshots();
   _snapshotTimer = setInterval(pollSnapshots, SNAPSHOT_POLL_MS);
@@ -708,21 +697,28 @@ function tileLinkEntries(cameraId) {
 // ---------------------------------------------------------------------------
 
 const PH_IDENTITY_TTL_MS = 300_000;
-const DETECTION_IDENTITY_TTL_MS     =  30_000;
-const POSITION_IDENTITY_TTL_MS     =   5_000;
-const POSITION_IOU_MIN             =    0.25;  // require ≥25% bbox overlap
+const DETECTION_IDENTITY_TTL_MS = 30_000;
+const POSITION_IDENTITY_TTL_MS = 5_000;
+const POSITION_IOU_MIN = 0.25; // require ≥25% bbox overlap
 
-const phIdentityCache = {};  // ph_id → {identity_id, display_name, identity_confidence, lastSeenMs}
-const detectionIdentityCache    = {};  // detection_id      → {identity_id, display_name, identity_confidence, lastSeenMs}
-const positionIdentityCache    = {};  // camera_id        → [{bbox, identity_id, display_name, identity_confidence, lastSeenMs}]
+const phIdentityCache = {}; // ph_id → {identity_id, display_name, identity_confidence, lastSeenMs}
+const detectionIdentityCache = {}; // detection_id      → {identity_id, display_name, identity_confidence, lastSeenMs}
+const positionIdentityCache = {}; // camera_id        → [{bbox, identity_id, display_name, identity_confidence, lastSeenMs}]
 
 function _cacheEntry(d, nowMs) {
-  return { identity_id: d.identity_id, display_name: d.display_name, identity_confidence: d.identity_confidence, lastSeenMs: nowMs };
+  return {
+    identity_id: d.identity_id,
+    display_name: d.display_name,
+    identity_confidence: d.identity_confidence,
+    lastSeenMs: nowMs,
+  };
 }
 
 function _bboxIoU(a, b) {
-  const ix1 = Math.max(a.x_min, b.x_min), iy1 = Math.max(a.y_min, b.y_min);
-  const ix2 = Math.min(a.x_max, b.x_max), iy2 = Math.min(a.y_max, b.y_max);
+  const ix1 = Math.max(a.x_min, b.x_min),
+    iy1 = Math.max(a.y_min, b.y_min);
+  const ix2 = Math.min(a.x_max, b.x_max),
+    iy2 = Math.min(a.y_max, b.y_max);
   if (ix2 <= ix1 || iy2 <= iy1) return 0;
   const inter = (ix2 - ix1) * (iy2 - iy1);
   const aA = (a.x_max - a.x_min) * (a.y_max - a.y_min);
@@ -731,8 +727,19 @@ function _bboxIoU(a, b) {
 }
 
 function _applyIdentity(d, entry, action, cameraId) {
-  console.debug("[cts_live] identity_cache", { action, camera_id: cameraId, ph_id: d.ph_id || "", detection_id: d.detection_id || "", identity_id: entry.identity_id });
-  return { ...d, identity_id: entry.identity_id, display_name: entry.display_name, identity_confidence: entry.identity_confidence };
+  console.debug("[cts_live] identity_cache", {
+    action,
+    camera_id: cameraId,
+    ph_id: d.ph_id || "",
+    detection_id: d.detection_id || "",
+    identity_id: entry.identity_id,
+  });
+  return {
+    ...d,
+    identity_id: entry.identity_id,
+    display_name: entry.display_name,
+    identity_confidence: entry.identity_confidence,
+  };
 }
 
 function mergeIdentityCache(detections, cameraId = "unknown") {
@@ -745,8 +752,8 @@ function mergeIdentityCache(detections, cameraId = "unknown") {
     if (!d.identity_id) continue;
     const entry = _cacheEntry(d, nowMs);
     if (d.ph_id) phIdentityCache[d.ph_id] = entry;
-    if (d.detection_id)     detectionIdentityCache[d.detection_id]         = entry;
-    if (d.bbox)            freshPositions.push({ bbox: d.bbox, ...entry });
+    if (d.detection_id) detectionIdentityCache[d.detection_id] = entry;
+    if (d.bbox) freshPositions.push({ bbox: d.bbox, ...entry });
   }
   if (freshPositions.length) positionIdentityCache[cameraId] = freshPositions;
 
@@ -771,30 +778,46 @@ function mergeIdentityCache(detections, cameraId = "unknown") {
     // 3. Position cache — fires when both IDs are empty (new unconfirmed track).
     //    Pick the cached bbox with the highest IoU to this detection's bbox.
     if (d.bbox) {
-      const recent = (positionIdentityCache[cameraId] || [])
-        .filter(e => nowMs - e.lastSeenMs <= POSITION_IDENTITY_TTL_MS);
-      let bestIoU = POSITION_IOU_MIN, bestEntry = null;
+      const recent = (positionIdentityCache[cameraId] || []).filter(
+        (e) => nowMs - e.lastSeenMs <= POSITION_IDENTITY_TTL_MS,
+      );
+      let bestIoU = POSITION_IOU_MIN,
+        bestEntry = null;
       for (const e of recent) {
         const iou = _bboxIoU(d.bbox, e.bbox);
-        if (iou > bestIoU) { bestIoU = iou; bestEntry = e; }
+        if (iou > bestIoU) {
+          bestIoU = iou;
+          bestEntry = e;
+        }
       }
-      if (bestEntry)
-        return _applyIdentity(d, bestEntry, "position_cache_hit", cameraId);
+      if (bestEntry) return _applyIdentity(d, bestEntry, "position_cache_hit", cameraId);
     }
 
-    console.debug("[cts_live] identity_cache", { action: "cache_miss", camera_id: cameraId, ph_id: d.ph_id || "", detection_id: d.detection_id || "" });
+    console.debug("[cts_live] identity_cache", {
+      action: "cache_miss",
+      camera_id: cameraId,
+      ph_id: d.ph_id || "",
+      detection_id: d.detection_id || "",
+    });
     return d;
   });
 }
 
 setInterval(() => {
   const gtCutoff = Date.now() - PH_IDENTITY_TTL_MS;
-  const tCutoff  = Date.now() - DETECTION_IDENTITY_TTL_MS;
-  for (const [k, v] of Object.entries(phIdentityCache)) { if (v.lastSeenMs < gtCutoff) delete phIdentityCache[k]; }
-  for (const [k, v] of Object.entries(detectionIdentityCache))    { if (v.lastSeenMs < tCutoff)  delete detectionIdentityCache[k]; }
+  const tCutoff = Date.now() - DETECTION_IDENTITY_TTL_MS;
+  for (const [k, v] of Object.entries(phIdentityCache)) {
+    if (v.lastSeenMs < gtCutoff) delete phIdentityCache[k];
+  }
+  for (const [k, v] of Object.entries(detectionIdentityCache)) {
+    if (v.lastSeenMs < tCutoff) delete detectionIdentityCache[k];
+  }
   // Position cache entries are rebuilt fresh each frame — just clear stale cameras.
   for (const [k, v] of Object.entries(positionIdentityCache)) {
-    if (!v.length || Date.now() - Math.max(...v.map(e => e.lastSeenMs)) > POSITION_IDENTITY_TTL_MS * 2)
+    if (
+      !v.length ||
+      Date.now() - Math.max(...v.map((e) => e.lastSeenMs)) > POSITION_IDENTITY_TTL_MS * 2
+    )
       delete positionIdentityCache[k];
   }
 }, DETECTION_IDENTITY_TTL_MS);
@@ -803,7 +826,7 @@ setInterval(() => {
 // Each detection's 17 keypoints (x, y only) are blended with the previous
 // frame's values at alpha=0.35 so the skeleton overlay moves smoothly.
 const KEYPOINT_SMOOTH_ALPHA = 0.65;
-const keypointSmoothState = {};  // { detection_id: [{x, y} x 17] }
+const keypointSmoothState = {}; // { detection_id: [{x, y} x 17] }
 
 function smoothKeypoints(detections) {
   if (!detections) return detections;
@@ -812,7 +835,7 @@ function smoothKeypoints(detections) {
     const tid = d.detection_id;
     if (!tid || !d.pose_keypoints || d.pose_keypoints.length !== 17) continue;
     const prev = keypointSmoothState[tid];
-    if (!prev || (now - prev._ts) > 2000) {
+    if (!prev || now - prev._ts > 2000) {
       // First sighting or >2s gap: initialise with current values.
       keypointSmoothState[tid] = {
         _ts: now,
@@ -885,7 +908,7 @@ function onMessage(msg) {
 const { status: wsStatus } = useCtsWebSocket(onMessage);
 
 const availableCameras = computed(() =>
-  cameraList.value.map((c) => ({ id: c.id, name: c.name || c.id }))
+  cameraList.value.map((c) => ({ id: c.id, name: c.name || c.id })),
 );
 
 function cameraIdForSlot(slot) {
@@ -912,7 +935,7 @@ function onSlotCameraChange(slot, cameraId) {
 
 function cameraForSlot(slot) {
   const id = cameraIdForSlot(slot);
-  return id ? cameras.value[id] ?? null : null;
+  return id ? (cameras.value[id] ?? null) : null;
 }
 
 function onFrameError(_event, cam) {
@@ -1037,10 +1060,7 @@ function evidenceTextY(cam) {
 }
 function evidencePillX(det, cam) {
   const pad = overlayUnits(cam, 4);
-  return Math.max(
-    pad,
-    (det.bbox.x_max || 0) - evidencePillWidth(cam) - pad
-  );
+  return Math.max(pad, (det.bbox.x_max || 0) - evidencePillWidth(cam) - pad);
 }
 function evidencePillY(det, cam) {
   const outsideY = (det.bbox.y_min || 0) - evidencePillHeight(cam) - overlayUnits(cam, 3);
@@ -1073,7 +1093,6 @@ function labelOffsetX(cam) {
 function crownOffsetY(cam) {
   return Math.round(labelFontSize(cam) * 1.0);
 }
-
 
 function postureLabelY(det, cam) {
   const fs = labelFontSize(cam);
@@ -1249,5 +1268,4 @@ async function submitCorrection() {
     width: 100%;
   }
 }
-
 </style>

@@ -30,8 +30,8 @@
            local -y, i.e. the direction of travel after the +90 rotation). -->
       <ellipse cx="0" cy="1" rx="2.8" ry="2" :fill="inkColor" />
       <circle cx="-2.5" cy="-2.2" r="1.1" :fill="inkColor" />
-      <circle cx="0"    cy="-3.2" r="1.1" :fill="inkColor" />
-      <circle cx="2.5"  cy="-2.2" r="1.1" :fill="inkColor" />
+      <circle cx="0" cy="-3.2" r="1.1" :fill="inkColor" />
+      <circle cx="2.5" cy="-2.2" r="1.1" :fill="inkColor" />
     </g>
   </g>
 </template>
@@ -46,16 +46,16 @@ import { computed } from "vue";
 import { ccToken } from "@/composables/useChartTheme.js";
 import { MARAUDERS_AMBIENT } from "@/constants/maraudersConfig.js";
 
-const PERIOD_MS = 48000;        // slow loop of the wandering body path
-const STEP_INTERVAL_MS = 750;   // time between individual paw stamps (gait beat)
-const VISIBLE = 4;              // prints kept on the floor — "four at a time"
+const PERIOD_MS = 48000; // slow loop of the wandering body path
+const STEP_INTERVAL_MS = 750; // time between individual paw stamps (gait beat)
+const VISIBLE = 4; // prints kept on the floor — "four at a time"
 const FADE_MS = STEP_INTERVAL_MS * VISIBLE; // oldest fades as the newest lands
-const MAX_OPACITY = 0.22;       // faint — clearly decorative, never a "presence"
-const PAW_SCALE = 1.8;          // small paw glyph
-const BODY_LEN = 15;            // half front-to-back foot spread (canvas px)
-const BODY_WID = 9;             // half left-to-right foot spread (canvas px)
-const MARGIN = 0.16;            // keep the body path inside this canvas inset
-const STATIC_NOW_MS = 100000;   // fixed clock value used under reduced motion
+const MAX_OPACITY = 0.22; // faint — clearly decorative, never a "presence"
+const PAW_SCALE = 1.8; // small paw glyph
+const BODY_LEN = 15; // half front-to-back foot spread (canvas px)
+const BODY_WID = 9; // half left-to-right foot spread (canvas px)
+const MARGIN = 0.16; // keep the body path inside this canvas inset
+const STATIC_NOW_MS = 100000; // fixed clock value used under reduced motion
 
 // Diagonal walking gait order: front-left, back-right, front-right, back-left.
 // Each entry is [forward sign (+front/-back), side sign (-left/+right)].
@@ -67,9 +67,9 @@ const GAIT = [
 ];
 
 const props = defineProps({
-  canvasW:       { type: Number, required: true },
-  canvasH:       { type: Number, required: true },
-  nowMs:         { type: Number, default: 0 },
+  canvasW: { type: Number, required: true },
+  canvasH: { type: Number, required: true },
+  nowMs: { type: Number, default: 0 },
   reducedMotion: { type: Boolean, default: false },
 });
 
@@ -84,7 +84,7 @@ function pathPoint(phi, w, h) {
   return {
     x: 0.5 * w + ax * Math.sin(a),
     y: 0.5 * h + ay * Math.sin(2 * a),
-    dx: ax * Math.cos(a),          // d/dphi — used only for the heading angle
+    dx: ax * Math.cos(a), // d/dphi — used only for the heading angle
     dy: ay * 2 * Math.cos(2 * a),
   };
 }
@@ -132,5 +132,7 @@ const paws = computed(() => {
 </script>
 
 <style scoped>
-.ambient-layer { pointer-events: none; }
+.ambient-layer {
+  pointer-events: none;
+}
 </style>

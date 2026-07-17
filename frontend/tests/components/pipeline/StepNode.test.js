@@ -22,7 +22,10 @@ import StepNode from "../../../src/components/pipeline/nodes/StepNode.vue";
 
 const stubs = {
   "v-icon": { props: ["color"], template: '<span data-testid="icon"><slot /></span>' },
-  "v-chip": { props: ["color", "variant", "prependIcon"], template: '<span class="mock-chip"><slot /></span>' },
+  "v-chip": {
+    props: ["color", "variant", "prependIcon"],
+    template: '<span class="mock-chip"><slot /></span>',
+  },
 };
 
 function makeStep(overrides = {}) {

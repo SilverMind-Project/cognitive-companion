@@ -19,14 +19,18 @@
     hint="0 = today, -1 = yesterday."
     persistent-hint
     class="mb-4"
-    @update:model-value="emit('update:modelValue', { ...modelValue, report_date_offset_days: Number($event) || 0 })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, report_date_offset_days: Number($event) || 0 })
+    "
   />
   <v-checkbox
     :model-value="modelValue.generate_summary_text"
     label="Generate LLM prose summary"
     hide-details
     class="mb-3"
-    @update:model-value="emit('update:modelValue', { ...modelValue, generate_summary_text: $event })"
+    @update:model-value="
+      emit('update:modelValue', { ...modelValue, generate_summary_text: $event })
+    "
   />
   <v-text-field
     v-if="modelValue.generate_summary_text"

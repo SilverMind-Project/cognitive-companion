@@ -54,7 +54,7 @@ describe("useIdentityCorrection", () => {
 
   it("re-proposes and flags staleConflict on a 409", async () => {
     mockSvc.apply.mockRejectedValue(
-      new CorrectionError("stale", { status: 409, code: "correction.stale_version" })
+      new CorrectionError("stale", { status: 409, code: "correction.stale_version" }),
     );
     mockSvc.propose.mockResolvedValue({
       ph_id: "ph-1",
@@ -73,8 +73,20 @@ describe("useIdentityCorrection", () => {
 
   it("polls the job until a terminal state", async () => {
     mockSvc.job
-      .mockResolvedValueOnce({ revision_id: "r1", status: "applying", required_projections: ["cc"], row_counts: {}, attempts: 0 })
-      .mockResolvedValueOnce({ revision_id: "r1", status: "completed", required_projections: ["cc"], row_counts: { cc: 3 }, attempts: 1 });
+      .mockResolvedValueOnce({
+        revision_id: "r1",
+        status: "applying",
+        required_projections: ["cc"],
+        row_counts: {},
+        attempts: 0,
+      })
+      .mockResolvedValueOnce({
+        revision_id: "r1",
+        status: "completed",
+        required_projections: ["cc"],
+        row_counts: { cc: 3 },
+        attempts: 1,
+      });
     const { state, actions } = useIdentityCorrection(notify);
     const job = await actions.pollJob("r1", { intervalMs: 0, maxAttempts: 5 });
     expect(job.status).toBe("completed");

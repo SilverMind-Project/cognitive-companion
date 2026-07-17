@@ -66,7 +66,9 @@
       :rows="2"
       hint="Natural language for spoken announcements. Falls back to the default template if empty."
       class="mb-3"
-      @update:model-value="emit('update:modelValue', { ...modelValue, ha_speaker_tts_template: $event })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, ha_speaker_tts_template: $event })
+      "
     />
     <TemplateInput
       :model-value="modelValue.pwa_popup_text_template"
@@ -75,7 +77,9 @@
       :rows="2"
       hint="Notification text shown in the companion UI overlay. Falls back to the default template if empty."
       class="mb-3"
-      @update:model-value="emit('update:modelValue', { ...modelValue, pwa_popup_text_template: $event })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, pwa_popup_text_template: $event })
+      "
     />
     <TemplateInput
       :model-value="modelValue.pwa_realtime_ai_template"
@@ -84,7 +88,9 @@
       :rows="2"
       hint="Conversational voice prompt for Gemini Live delivery. Falls back to the default template if empty."
       class="mb-3"
-      @update:model-value="emit('update:modelValue', { ...modelValue, pwa_realtime_ai_template: $event })"
+      @update:model-value="
+        emit('update:modelValue', { ...modelValue, pwa_realtime_ai_template: $event })
+      "
     />
   </div>
 
@@ -107,35 +113,55 @@
         hint="Which image to attach to the Telegram message."
         persistent-hint
         class="mb-4"
-        @update:model-value="emit('update:modelValue', { ...modelValue, telegram_image_source: $event })"
+        @update:model-value="
+          emit('update:modelValue', { ...modelValue, telegram_image_source: $event })
+        "
       />
-      <template v-if="modelValue.telegram_image_source === 'additional' || modelValue.telegram_image_source === 'both'">
+      <template
+        v-if="
+          modelValue.telegram_image_source === 'additional' ||
+          modelValue.telegram_image_source === 'both'
+        "
+      >
         <v-combobox
           :model-value="modelValue.telegram_additional_sensor_ids"
           :items="cameraSensorItems"
           label="Camera Sensors (in order)"
-          multiple chips closable-chips
+          multiple
+          chips
+          closable-chips
           hint="Pull images from these camera sensors."
           persistent-hint
           class="mb-4"
-          @update:model-value="emit('update:modelValue', { ...modelValue, telegram_additional_sensor_ids: $event })"
+          @update:model-value="
+            emit('update:modelValue', { ...modelValue, telegram_additional_sensor_ids: $event })
+          "
         />
         <v-combobox
           :model-value="modelValue.telegram_additional_room_names"
           :items="availableRooms"
           label="Additional Rooms"
-          multiple chips closable-chips
+          multiple
+          chips
+          closable-chips
           hint="Pull images from all cameras in these rooms."
           persistent-hint
           class="mb-4"
-          @update:model-value="emit('update:modelValue', { ...modelValue, telegram_additional_room_names: $event })"
+          @update:model-value="
+            emit('update:modelValue', { ...modelValue, telegram_additional_room_names: $event })
+          "
         />
         <v-card variant="tonal" class="mb-4 pa-4">
           <v-checkbox
             :model-value="modelValue.telegram_sort_by_sensor_then_time"
             label="Group by sensor, then chronological within each sensor"
             hide-details
-            @update:model-value="emit('update:modelValue', { ...modelValue, telegram_sort_by_sensor_then_time: $event })"
+            @update:model-value="
+              emit('update:modelValue', {
+                ...modelValue,
+                telegram_sort_by_sensor_then_time: $event,
+              })
+            "
           />
           <div class="text-caption text-medium-emphasis ml-8 mt-2">
             Enables inter-frame temporal analysis per camera.
@@ -148,12 +174,19 @@
             type="number"
             :min="1"
             class="mt-3"
-            @update:model-value="emit('update:modelValue', { ...modelValue, telegram_images_per_sensor: Number($event) || 1 })"
+            @update:model-value="
+              emit('update:modelValue', {
+                ...modelValue,
+                telegram_images_per_sensor: Number($event) || 1,
+              })
+            "
           />
         </v-card>
         <TimeFilterCard
           :model-value="modelValue.telegram_image_time_filter || {}"
-          @update:model-value="emit('update:modelValue', { ...modelValue, telegram_image_time_filter: $event })"
+          @update:model-value="
+            emit('update:modelValue', { ...modelValue, telegram_image_time_filter: $event })
+          "
         />
       </template>
       <v-divider class="mb-4" />
@@ -166,7 +199,9 @@
         :model-value="modelValue.eink_targets"
         :items="einkSensorItems"
         label="E-Ink Target Devices"
-        multiple chips closable-chips
+        multiple
+        chips
+        closable-chips
         hint="Select e-ink displays. Leave empty to dispatch to all e-ink devices."
         persistent-hint
         class="mb-4"
@@ -192,7 +227,9 @@
         hint="Number of minutes before the display reverts to the default template. Default: 30."
         persistent-hint
         class="mb-5"
-        @update:model-value="emit('update:modelValue', { ...modelValue, eink_expiry_minutes: Number($event) || 30 })"
+        @update:model-value="
+          emit('update:modelValue', { ...modelValue, eink_expiry_minutes: Number($event) || 30 })
+        "
       />
     </div>
 
@@ -223,7 +260,24 @@
       />
       <v-select
         :model-value="modelValue.tts_style"
-        :items="['', 'neutral', 'clear', 'formal', 'chat', 'happy', 'surprise', 'sad', 'fear', 'anger', 'disgust', 'narrative', 'enthusiastic', 'laugh', 'yawn', 'angry']"
+        :items="[
+          '',
+          'neutral',
+          'clear',
+          'formal',
+          'chat',
+          'happy',
+          'surprise',
+          'sad',
+          'fear',
+          'anger',
+          'disgust',
+          'narrative',
+          'enthusiastic',
+          'laugh',
+          'yawn',
+          'angry',
+        ]"
         label="TTS Style"
         clearable
         hint="Svara speaking style. Leave blank to use the server default."
@@ -255,10 +309,20 @@
     </div>
 
     <v-alert
-      v-if="(!modelValue.channels || (!modelValue.channels.includes('telegram') && !modelValue.channels.includes('ha_speaker_tts') && !modelValue.channels.includes('webhook') && !modelValue.channels.includes('eink')))"
-      type="info" variant="tonal" density="compact" class="mt-3"
+      v-if="
+        !modelValue.channels ||
+        (!modelValue.channels.includes('telegram') &&
+          !modelValue.channels.includes('ha_speaker_tts') &&
+          !modelValue.channels.includes('webhook') &&
+          !modelValue.channels.includes('eink'))
+      "
+      type="info"
+      variant="tonal"
+      density="compact"
+      class="mt-3"
     >
-      Add <code>telegram</code>, <code>ha_speaker_tts</code>, <code>eink</code>, or <code>webhook</code> on the General tab to configure their per-channel options here.
+      Add <code>telegram</code>, <code>ha_speaker_tts</code>, <code>eink</code>, or
+      <code>webhook</code> on the General tab to configure their per-channel options here.
     </v-alert>
   </div>
 </template>
@@ -300,7 +364,7 @@ export function beforeSave(cfg) {
   return cfg;
 }
 
-export function onStepLoaded(cfg) {
+export function onStepLoaded(_cfg) {
   // Time filter normalization handled by TimeFilterCard internally
 }
 
@@ -310,8 +374,10 @@ export function chips(cfg, { chip, ALERT_COLORS }) {
   out.push(chip(level, "mdi-bell-outline", ALERT_COLORS[level] || "orange"));
   if (cfg.channels?.length) out.push(chip(cfg.channels.join(", "), "mdi-send-outline", undefined));
   const telegramSrc = cfg.telegram_image_source;
-  if (telegramSrc && telegramSrc !== "trigger") out.push(chip(`telegram: ${telegramSrc}`, "mdi-send", "blue"));
-  if (cfg.trigger_cooloff === false) out.push(chip("no cooloff", "mdi-timer-off-outline", "warning"));
+  if (telegramSrc && telegramSrc !== "trigger")
+    out.push(chip(`telegram: ${telegramSrc}`, "mdi-send", "blue"));
+  if (cfg.trigger_cooloff === false)
+    out.push(chip("no cooloff", "mdi-timer-off-outline", "warning"));
   return out;
 }
 </script>

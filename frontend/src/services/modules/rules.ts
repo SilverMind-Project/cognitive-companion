@@ -126,7 +126,10 @@ export const getRuleSteps = (ruleId: number) =>
 export const getRuleEdges = (ruleId: number) =>
   unwrap(client.GET("/api/v1/rules/{rule_id}/edges", { params: { path: { rule_id: ruleId } } }));
 
-export const replaceRuleEdges = (ruleId: number, edges: Schemas["PipelineEdgeBulkUpdate"]["edges"]) =>
+export const replaceRuleEdges = (
+  ruleId: number,
+  edges: Schemas["PipelineEdgeBulkUpdate"]["edges"],
+) =>
   unwrap(
     client.PUT("/api/v1/rules/{rule_id}/edges", {
       params: { path: { rule_id: ruleId } },
@@ -142,7 +145,11 @@ export const addRuleStep = (ruleId: number, data: Schemas["PipelineStepCreate"])
     }),
   );
 
-export const updateRuleStep = (ruleId: number, stepId: number, data: Schemas["PipelineStepUpdate"]) =>
+export const updateRuleStep = (
+  ruleId: number,
+  stepId: number,
+  data: Schemas["PipelineStepUpdate"],
+) =>
   unwrap(
     client.PUT("/api/v1/rules/{rule_id}/steps/{step_id}", {
       params: { path: { rule_id: ruleId, step_id: stepId } },

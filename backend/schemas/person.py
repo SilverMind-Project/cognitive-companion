@@ -100,14 +100,8 @@ class PersonSightingOut(OutSchema):
 # -- Person Location ---------------------------------------------------------
 
 
-class PersonLocationOut(OutSchema):
-    person_id: str
-    person_name: str
-    current_room_name: str | None = None
-    last_seen_at: OptionalUTCDatetime = None
-    last_sensor_id: str | None = None
-    status: str
-    confidence: float
+# PersonLocationOut was the response model of the two legacy person-location routes removed in
+# C17; current-location responses use PersonLocationEnvelope (schemas/cts_envelopes.py).
 
 
 class PersonLocationHistoryOut(OutSchema):

@@ -1,0 +1,109 @@
+/*
+ * Shared layout/canvas classes used by more than one CTSFloorPlanView mode
+ * panel (edit rooms, coverage, heatmap, live, and the upload panel's "current
+ * floor plan" preview card). Scoped <style> in a single-owner panel component
+ * cannot reach markup rendered by a sibling component, so these live here
+ * instead of being duplicated per panel. Imported once from
+ * CTSFloorPlanView.vue.
+ */
+
+.floor-plan-layout {
+  align-items: flex-start;
+}
+
+.floor-plan-main,
+.floor-plan-sidebar {
+  min-width: 0;
+}
+
+.floor-plan-visual-card {
+  overflow: hidden;
+}
+
+.floor-plan-card-title {
+  min-height: 40px;
+  padding: 8px 16px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.floor-plan-sidebar-card {
+  overflow: hidden;
+}
+
+.floor-plan-canvas {
+  position: relative;
+  width: 100%;
+  max-height: 58vh;
+  min-height: 260px;
+  overflow: hidden;
+  background: var(--cc-surface-2);
+  border: 0;
+  border-radius: 0;
+}
+
+/* Receives the useCanvasZoom CSS transform. fill parent fully so the
+   transform scales from the correct origin. */
+.floor-plan-zoom-content {
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.floor-plan-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.floor-plan-preview {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  border-radius: 4px;
+  object-fit: contain;
+  object-position: center;
+  background: var(--cc-surface-2);
+}
+
+.floor-plan-legend {
+  min-height: 34px;
+  border-top: 1px solid var(--cc-divider);
+  background: var(--cc-surface-2);
+}
+
+.room-poly {
+  fill: var(--cc-room-fill);
+  stroke: var(--cc-brand);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+
+.room-label {
+  fill: var(--cc-brand);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.identity-label {
+  pointer-events: none;
+}
+
+@media (min-width: 960px) {
+  .floor-plan-sidebar {
+    position: sticky;
+    top: 12px;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 959px) {
+  .floor-plan-canvas {
+    max-height: 62vh;
+  }
+}

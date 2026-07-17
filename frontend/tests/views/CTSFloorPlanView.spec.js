@@ -189,6 +189,26 @@ async function mountView() {
   return wrapper;
 }
 
+// Mode is switched via the real mode-nav buttons (not by writing to the mode
+// ref directly) so these specs prove the nav's click -> mode wiring survives
+// extraction into its own component, not just that the ref exists.
+const MODE_LABELS = {
+  live: "Live",
+  heatmap: "Heatmap",
+  edit: "Edit Rooms",
+  upload: "Floor Plan",
+  coverage: "Coverage",
+  doors: "Door Zones",
+};
+
+async function clickMode(wrapper, mode) {
+  const label = MODE_LABELS[mode];
+  const btn = wrapper.findAll("button").find((b) => b.text().trim() === label);
+  if (!btn) throw new Error(`No mode-nav button found for "${mode}" (label "${label}")`);
+  await btn.trigger("click");
+  await flushPromises();
+}
+
 describe("CTSFloorPlanView — layout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -207,8 +227,7 @@ describe("CTSFloorPlanView — layout", () => {
     "keeps the main canvas before the right sidebar in %s mode",
     async (mode) => {
       const wrapper = await mountView();
-      wrapper.vm.$.setupState.mode = mode;
-      await wrapper.vm.$nextTick();
+      await clickMode(wrapper, mode);
 
       const layout = wrapper.find(".floor-plan-layout");
       const columns = layout.element.children;
@@ -223,8 +242,7 @@ describe("CTSFloorPlanView — layout", () => {
 
     expect(wrapper.find(".floor-plan-visual-card .floor-plan-canvas").exists()).toBe(true);
 
-    wrapper.vm.$.setupState.mode = "heatmap";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "heatmap");
 
     expect(wrapper.find(".floor-plan-visual-card .floor-plan-canvas").exists()).toBe(true);
     expect(wrapper.find(".floor-plan-visual-card .pa-0").exists()).toBe(true);
@@ -232,8 +250,7 @@ describe("CTSFloorPlanView — layout", () => {
 
   it("organizes floor plan upload as a three-step workflow with a summary footer", async () => {
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.mode = "upload";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "upload");
 
     const steps = wrapper.findAll(".upload-step");
     expect(steps).toHaveLength(3);
@@ -251,10 +268,8 @@ describe("CTSFloorPlanView — layout", () => {
     "uses the shared floor-plan background image treatment in %s mode",
     async (mode) => {
       const wrapper = await mountView();
-      const state = wrapper.vm.$.setupState;
-      state.floorPlanUrl = "/floor.png";
-      state.mode = mode;
-      await wrapper.vm.$nextTick();
+      wrapper.vm.$.setupState.floorPlanUrl = "/floor.png";
+      await clickMode(wrapper, mode);
 
       expect(wrapper.find(".cc-floor-plan-background-image").exists()).toBe(true);
     },
@@ -262,8 +277,7 @@ describe("CTSFloorPlanView — layout", () => {
 
   it("passes the shared floor-plan treatment into the room editor", async () => {
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.mode = "edit";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "edit");
 
     const editor = wrapper.findComponent({ name: "PolygonOnSnapshot" });
     expect(editor.props("imageClass")).toContain("cc-floor-plan-background-image");
@@ -325,9 +339,7 @@ describe("CTSFloorPlanView — heatmap mode", () => {
 
   it("shows heatmap controls panel when mode is heatmap", async () => {
     const wrapper = await mountView();
-    // Use the proxy setter so the ref is correctly updated
-    wrapper.vm.$.setupState.mode = "heatmap";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "heatmap");
     expect(wrapper.html()).toContain("Filters");
     expect(wrapper.html()).toContain("Generate");
   });
@@ -337,8 +349,7 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     // HeatmapBinLayer. The view mounts the layer and passes bins; the stub proves
     // delegation.
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.mode = "heatmap";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "heatmap");
     expect(wrapper.find("[data-testid='heatmap-bin-layer']").exists()).toBe(true);
   });
 
@@ -415,7 +426,7 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     const state = wrapper.vm.$.setupState;
 
     // Defaults: date preset last_7d, time preset all. Only a person is required.
-    state.mode = "heatmap";
+    await clickMode(wrapper, "heatmap");
     state.heatmapPersonId = "p1";
     await wrapper.vm.$nextTick();
 
@@ -440,7 +451,7 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     const wrapper = await mountView();
     const state = wrapper.vm.$.setupState;
 
-    state.mode = "heatmap";
+    await clickMode(wrapper, "heatmap");
     state.heatmapTimePreset = "morning";
     await wrapper.vm.$nextTick();
     expect(state.heatmapTimeWindowLabel).toBe("6:00 AM – 12:00 PM");
@@ -460,7 +471,7 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     const wrapper = await mountView();
     const state = wrapper.vm.$.setupState;
 
-    state.mode = "heatmap";
+    await clickMode(wrapper, "heatmap");
     state.heatmapPersonId = "p1";
     state.heatmapTimePreset = "night";
     await wrapper.vm.$nextTick();
@@ -483,8 +494,7 @@ describe("CTSFloorPlanView — heatmap mode", () => {
     const { api } = await import("@/services/api");
     const wrapper = await mountView();
 
-    wrapper.vm.$.setupState.mode = "heatmap";
-    await flushPromises();
+    await clickMode(wrapper, "heatmap");
 
     expect(api.getPersons).toHaveBeenCalled();
   });
@@ -513,16 +523,14 @@ describe("CTSFloorPlanView — M1 seam: layer delegation", () => {
 
   it("passes mappedHeatmapBins to HeatmapBinLayer in heatmap mode", async () => {
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.mode = "heatmap";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "heatmap");
     const layer = wrapper.find("[data-testid='heatmap-bin-layer']");
     expect(layer.exists()).toBe(true);
   });
 
   it("HeatmapBinLayer receives loading state from heatmapState", async () => {
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.mode = "heatmap";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "heatmap");
     // loading defaults to false (no active request)
     expect(wrapper.vm.$.setupState.heatmapState.loading).toBe(false);
   });
@@ -536,8 +544,7 @@ describe("CTSFloorPlanView — M5 seam: themed heatmap", () => {
 
   it("renders HeatmapBinLayer when marauders mode is OFF", async () => {
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.mode = "heatmap";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "heatmap");
 
     expect(wrapper.find("[data-testid='heatmap-bin-layer']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='marauders-heatmap-layer']").exists()).toBe(false);
@@ -546,8 +553,7 @@ describe("CTSFloorPlanView — M5 seam: themed heatmap", () => {
   it("renders MaraudersHeatmapLayer when marauders mode is ON", async () => {
     maraudersState.enabled = true;
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.mode = "heatmap";
-    await wrapper.vm.$nextTick();
+    await clickMode(wrapper, "heatmap");
 
     expect(wrapper.find("[data-testid='marauders-heatmap-layer']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='heatmap-bin-layer']").exists()).toBe(false);
@@ -556,7 +562,7 @@ describe("CTSFloorPlanView — M5 seam: themed heatmap", () => {
   it("passes the same mapped bins contract to both heatmap renderers", async () => {
     const wrapper = await mountView();
     const state = wrapper.vm.$.setupState;
-    state.mode = "heatmap";
+    await clickMode(wrapper, "heatmap");
     state.fpWidth = 10;
     state.fpHeight = 8;
     state.fpMpp = 0.01;
@@ -599,7 +605,6 @@ describe("CTSFloorPlanView — M3 seam: ink rendering", () => {
       },
     ]);
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.canvasReady = true;
     wrapper.vm.$.setupState.rooms = [
       {
         id: 1,
@@ -703,8 +708,7 @@ describe("CTSFloorPlanView — door zones mode", () => {
     ]);
 
     const wrapper = await mountView();
-    wrapper.vm.$.setupState.mode = "doors";
-    await flushPromises();
+    await clickMode(wrapper, "doors");
 
     expect(cts.getTransitZones).toHaveBeenCalled();
     expect(wrapper.find("[data-testid='door-zone-editor']").exists()).toBe(true);

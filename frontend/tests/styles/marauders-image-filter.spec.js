@@ -15,8 +15,9 @@ const adjacencyView = readFileSync(
   resolve(process.cwd(), "src/views/admin/CTSAdjacencyView.vue"),
   "utf8",
 );
-const calibrationView = readFileSync(
-  resolve(process.cwd(), "src/views/admin/CTSCalibrationView.vue"),
+// M21 moved the floor-plan <img> out of CTSCalibrationView.vue into its own pane component.
+const calibrationFloorPlanPane = readFileSync(
+  resolve(process.cwd(), "src/components/cts/calibration/FloorPlanPickerPane.vue"),
   "utf8",
 );
 
@@ -37,7 +38,7 @@ describe("Marauders painterly image wiring", () => {
       /<image[\s\S]*?class="cc-floor-plan-background-image marauders-no-paint"/,
     );
     expect(adjacencyView).toMatch(/:src="floorPlanUrl"[\s\S]*?class="marauders-no-paint"/);
-    expect(calibrationView).toMatch(/:src="floorPlanUrl"[\s\S]*?marauders-no-paint/);
+    expect(calibrationFloorPlanPane).toMatch(/:src="floorPlanUrl"[\s\S]*?marauders-no-paint/);
   });
 
   it("keeps representative content images eligible for the global filter", () => {

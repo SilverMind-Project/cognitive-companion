@@ -55,7 +55,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.9.2",
     "globals": "^17.7.0",
-    "happy-dom": "^20.9.0",
+    "happy-dom": "^20.10.6",
     "jsdom": "^29.0.2",
     "knip": "^6.27.0",
     "openapi-typescript": "^7.13.0",

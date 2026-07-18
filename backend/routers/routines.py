@@ -10,6 +10,7 @@ from backend.schemas.guided_task import (
     GuidedSessionOut,
     RoutineCreate,
     RoutineDetailOut,
+    RoutineLanguageOptionsOut,
     RoutineListOut,
     RoutineOut,
     RoutineStepsReplaceIn,
@@ -30,6 +31,18 @@ def list_routines(
     _auth: AuthContext = Depends(require_permission("routines:read")),
 ) -> RoutineListOut:
     return svc.list_routines(person_id=person_id, limit=limit, offset=offset)
+
+
+@router.get("/language-options", response_model=RoutineLanguageOptionsOut)
+def get_language_options(
+    svc: GuidedTaskService = Depends(get_guided_task_service),
+    _auth: AuthContext = Depends(require_permission("routines:read")),
+) -> RoutineLanguageOptionsOut:
+    """Configured language codes for the Routine Builder's language select (M27/D15).
+
+    Registered ahead of ``/{routine_id}`` so the literal path wins the match.
+    """
+    return svc.get_language_options()
 
 
 @router.get("/{routine_id}", response_model=RoutineDetailOut)

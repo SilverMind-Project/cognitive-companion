@@ -11,6 +11,11 @@ from backend.models.guided_task import Routine, RoutineStep
 from backend.models.person import HouseholdMember
 from backend.services.guided_task.gate_runner import GateVerdict
 from backend.services.guided_task.service import GuidedTaskService
+from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
+
+_AUTO_ADVANCE_PREFIX = (
+    "Acknowledge warmly that you can see the step is done, then give the next instruction."
+)
 
 
 class _Clock:
@@ -172,6 +177,7 @@ async def test_k_consecutive_completes_advances(db_session, monkeypatch) -> None
         settings=_settings(),
         time_fn=clock,
         gate_runner=gate_runner,
+        voice_instructions=VoiceInstructionConfig(guided_task_auto_advance_prefix=_AUTO_ADVANCE_PREFIX),
     )
     session = await svc.start(routine_id, "resident-1")
 
@@ -199,7 +205,7 @@ async def test_k_consecutive_completes_advances(db_session, monkeypatch) -> None
     assert (
         len(voice.calls) == 2
     )  # first call was step 0 start, second was step 1 enter (with prefix)
-    assert "I can see you've done that, lovely, now" in voice.calls[1]
+    assert _AUTO_ADVANCE_PREFIX in voice.calls[1]
 
 
 @pytest.mark.asyncio

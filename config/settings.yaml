@@ -9,6 +9,14 @@ app:
   # External origin for links in outbound notifications, e.g. https://home.example.net.
   # Empty keeps relative links for in-app surfaces.
   public_base_url: ""
+  # Display names for resident-facing language codes (M27/D15/G5). Used to
+  # resolve Routine.language_override into the agent's language directive
+  # and to constrain the Routine Builder's language select. An unmapped
+  # code degrades loudly (backend/services/guided_task/language.py) rather
+  # than silently mistranslating.
+  language_names:
+    ta: "Chennai Tamil"
+    en: "simple English"
 
 server:
   host: "0.0.0.0"
@@ -163,6 +171,13 @@ guided_task:
   escalation_channels: ["telegram", "pwa_popup_text"]
   summon_channels: ["ha_speaker_tts", "pwa_popup_text"]
   rephrase_via: "agent"
+  # Literal-TTS summon announcement, per resident language (M27/D15/G5).
+  # Resolution order: Routine.language_override, then tts.default_language,
+  # then "en". A resolved language missing here falls back to "en" and logs
+  # guided_summon_language_missing (backend/services/guided_task/service.py).
+  summon_messages:
+    en: "Please come to the companion screen when you are ready for your routine."
+    ta: "நீங்க ரெடி ஆன உடனே, கொஞ்சம் அந்த கம்பேனியன் ஸ்க்ரீனுக்கு (companion screen) வாங்க."
   vision:
     confirm:
       window_s: 20

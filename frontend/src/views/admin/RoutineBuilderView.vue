@@ -93,12 +93,18 @@
                   Language &amp; Voice overrides
                 </v-expansion-panel-title>
                 <v-expansion-panel-text class="pa-0">
-                  <v-text-field
+                  <v-select
                     v-model="routineEdit.language_override"
+                    :items="languageItems"
+                    item-title="title"
+                    item-value="value"
                     label="Language"
                     density="compact"
-                    hide-details
-                    :placeholder="'inherit (ta-IN)'"
+                    hide-details="auto"
+                    hint="Overrides the household default language for this routine"
+                    persistent-hint
+                    clearable
+                    placeholder="inherit"
                     class="mb-2"
                   />
                   <v-text-field
@@ -252,7 +258,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from "vue";
+import { ref, reactive, computed, watch, onMounted } from "vue";
 import { useRoutineBuilder } from "@/composables/useRoutineBuilder.js";
 import { useConfirm } from "@/composables/useConfirm.js";
 import { api } from "@/services/api.js";
@@ -276,6 +282,26 @@ async function fetchRooms() {
     rooms.value = [];
   }
 }
+
+const languageNames = ref({});
+
+async function fetchLanguageOptions() {
+  try {
+    const res = await api.getLanguageOptions();
+    languageNames.value = res.language_names ?? {};
+  } catch {
+    languageNames.value = {};
+  }
+}
+
+// Free-text language codes silently did nothing before M27; the select
+// constrains authoring to codes the backend actually resolves.
+const languageItems = computed(() =>
+  Object.entries(languageNames.value).map(([code, name]) => ({
+    title: `${name} (${code})`,
+    value: code,
+  })),
+);
 
 const routineEdit = reactive({
   name: "",
@@ -332,5 +358,6 @@ async function runTest() {
 onMounted(() => {
   actions.load(props.id);
   fetchRooms();
+  fetchLanguageOptions();
 });
 </script>

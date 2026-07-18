@@ -24,6 +24,8 @@ class VoiceInstructionConfig:
     info_card_default: str = ""
     quiz_default: str = ""
     guided_task_default: str = ""
+    guided_task_language_directive: str = ""
+    guided_task_auto_advance_prefix: str = ""
 
     @classmethod
     def load(cls, path: str | Path) -> VoiceInstructionConfig:
@@ -43,6 +45,8 @@ class VoiceInstructionConfig:
             info_card_default=raw.get("info_card_default", "").strip(),
             quiz_default=raw.get("quiz_default", "").strip(),
             guided_task_default=raw.get("guided_task_default", "").strip(),
+            guided_task_language_directive=raw.get("guided_task_language_directive", "").strip(),
+            guided_task_auto_advance_prefix=raw.get("guided_task_auto_advance_prefix", "").strip(),
         )
         logger.info("voice_instructions_loaded", path=str(path))
         return config

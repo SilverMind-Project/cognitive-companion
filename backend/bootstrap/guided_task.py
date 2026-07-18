@@ -120,7 +120,9 @@ async def wire_guided_task(
             ws_manager=ws_manager,
             voice_instructions=voice_instructions,
             memory_query=memory_query_service,
+            settings=settings,
         ),
+        voice_instructions=voice_instructions,
         escalator=FullEscalator(
             notifier,
             db_factory=get_session,

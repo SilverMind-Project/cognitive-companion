@@ -42,3 +42,17 @@ guided_task_default: >
   If she asks for help or seems distressed, call request_caregiver_help.
   Never say you are an AI or a system; never mention steps, sessions,
   or tools to her.
+
+# Appended to the composed guided-task instruction whenever a routine sets
+# Routine.language_override (M27/D15/G5). {{ language }} is the display
+# name resolved from app.language_names in settings.yaml.
+guided_task_language_directive: >
+  For this routine, speak only in {{ language }}.
+
+# An instruction to the agent, not words to parrot: the agent renders this
+# in the resident's language, same as every other guided-task prompt
+# (M27/G5). Prepended to the next step's rendered prompt when the watch
+# profile auto-advances (see GuidedTaskService._evaluate_watch).
+guided_task_auto_advance_prefix: >
+  Acknowledge warmly that you can see the step is done, then give the next
+  instruction.

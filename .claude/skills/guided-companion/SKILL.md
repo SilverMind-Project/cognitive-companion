@@ -189,14 +189,48 @@ G2/F3 bug). Every consumer (`caregiver_say`, `get_detail`, `FullEscalator._recen
 `prune_retained_data`) reads or writes through `session.conversation_session_id`, and
 linking always emits a `conversation_linked` `GuidedSessionEvent`.
 
-## 12. Language and voice (D15)
+## 12. Language and voice (D15, M27)
 
 Resolve the agent's system instruction with
 `VoiceInstructionConfig.compose(step_type, base_instruction, step_override,
-resource_override)`. The routine carries the language/voice override; the resident
-profile is the next fallback; `config/settings.yaml` (Tamil/Tanglish/English) is the
-default. The VLM reasons in English; the agent speaks her language. Do not translate
-in code; let the agent handle language.
+resource_override)`. The routine carries the language/voice override
+(`Routine.language_override`, `Routine.voice_override`); `config/settings.yaml`
+(Tamil/Tanglish/English) is the default. The VLM reasons in English; the agent
+speaks her language. Do not translate in code; let the agent handle language.
+
+**The directive seam (`AgentSessionVoice`).** When `Routine.language_override` is
+set, `backend/services/guided_task/language.py::compose_language_directive`
+renders the `guided_task_language_directive` template from
+`config/knowledge_voice.yaml` (default: `"For this routine, speak only in
+{{ language }}."`) with the display name resolved from `app.language_names`
+(`config/settings.yaml`), and appends it to the composed instruction. This runs
+at every seam that speaks to her or relays a caregiver message:
+`AgentSessionVoice.speak_step` (every step and retry) and
+`GuidedTaskService._inject_caregiver_message` (caregiver relays). An unmapped
+language code degrades loudly (passes through verbatim, logs
+`guided_language_name_unknown`) rather than mistranslating silently.
+`Routine.voice_override` has no runtime effect on the realtime provider yet
+(Gemini Live cannot switch voice mid-session); it is still passed through
+`inject_session_prompt`'s `extra_metadata["voice"]` for forward compatibility,
+and `AgentSessionVoice` logs `guided_voice_override_unsupported` once per
+session so the gap is visible, not silent.
+
+**The literal-TTS seam (`_announce_summon`).** The summon announcement bypasses
+the agent (it plays before a companion session exists), so it cannot rely on
+"the agent translates." Its text is a per-language map,
+`guided_task.summon_messages` in `config/settings.yaml`, resolved in order:
+`Routine.language_override`, then `tts.default_language`, then `"en"`. A
+resolved language missing from the map falls back to `"en"` (text and
+`tts_language` together, never one without the other) and logs
+`guided_summon_language_missing`.
+
+**Anti-pattern.** Resident-facing strings must never be hardcoded English in
+service code. Agent-path strings are instruction templates in
+`config/knowledge_voice.yaml` (the agent renders them in her language, e.g.
+`guided_task_auto_advance_prefix`, an instruction to acknowledge warmly, not
+words to parrot). Literal-TTS strings (anything dispatched straight to a
+speaker channel, bypassing the agent) are per-language maps in
+`config/settings.yaml`.
 
 ## 13. Privacy and retention (D13)
 

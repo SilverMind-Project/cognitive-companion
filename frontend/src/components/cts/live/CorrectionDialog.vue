@@ -1,7 +1,12 @@
 <template>
   <v-dialog v-model="open" max-width="520" persistent>
     <v-card>
-      <DialogHeader icon="mdi-account-convert" label="Correct" title="Identity" @close="open = false" />
+      <DialogHeader
+        icon="mdi-account-convert"
+        label="Correct"
+        title="Identity"
+        @close="open = false"
+      />
       <v-card-text>
         <div class="text-body-2 mb-2">
           PH: <strong>{{ correction.ph_id }}</strong>

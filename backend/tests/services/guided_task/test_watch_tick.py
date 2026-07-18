@@ -221,7 +221,7 @@ async def test_watch_throttled_by_tick_s(db_session, monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_watch_emits_event_and_warms_cache(db_session, monkeypatch) -> None:
+async def test_watch_emits_event_and_warms_watch_cache(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
 
     monkeypatch.setattr(
@@ -247,15 +247,9 @@ async def test_watch_emits_event_and_warms_cache(db_session, monkeypatch) -> Non
 
     await svc.tick(clock.now)
 
-    # Check cache has both keys warmed
+    # The watch cool-off slot is always warmed (the watch throttle needs it).
     assert (
         gate_runner.cache.get_fresh((str(session.id), 0, "watch"), min_interval_s=15, now=clock.now)
-        is not None
-    )
-    assert (
-        gate_runner.cache.get_fresh(
-            (str(session.id), 0, "confirm"), min_interval_s=15, now=clock.now
-        )
         is not None
     )
 
@@ -265,6 +259,93 @@ async def test_watch_emits_event_and_warms_cache(db_session, monkeypatch) -> Non
     assert watch_event is not None
     assert watch_event.detail["profile"] == "watch"
     assert watch_event.detail["complete"] is False
+
+
+@pytest.mark.asyncio
+async def test_watch_negative_does_not_warm_confirm_cache(db_session, monkeypatch) -> None:
+    """G3: a negative watch verdict must never answer her "done" from a stale
+    pre-completion snapshot, so it must not warm the confirm cool-off slot."""
+    from backend.services.guided_task.camera_selection import ResolvedCamera
+
+    monkeypatch.setattr(
+        "backend.services.guided_task.camera_selection.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+
+    clock = _Clock()
+    gate_runner = FakeGateGraphRunner()  # default verdict: complete=False, confidence=0.3
+    safety = FakeSafetyWatch()
+
+    routine_id = _seed_routine_with_watch(db_session, watch_enabled=True)
+    svc = GuidedTaskService(
+        db_factory=lambda: db_session,
+        voice=_RecordingVoice(),
+        escalator=_RecordingEscalator(),
+        settings=_settings(),
+        time_fn=clock,
+        gate_runner=gate_runner,
+        safety_watch=safety,
+    )
+    session = await svc.start(routine_id, "resident-1")
+
+    await svc.tick(clock.now)
+
+    assert (
+        gate_runner.cache.get_fresh((str(session.id), 0, "watch"), min_interval_s=15, now=clock.now)
+        is not None
+    )
+    assert (
+        gate_runner.cache.get_fresh(
+            (str(session.id), 0, "confirm"), min_interval_s=15, now=clock.now
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_watch_positive_warms_confirm_cache(db_session, monkeypatch) -> None:
+    """A high-confidence positive watch verdict is a valid "done" observation
+    and must be visible to a subsequent confirm check within the cool-off
+    window."""
+    from backend.services.guided_task.camera_selection import ResolvedCamera
+
+    monkeypatch.setattr(
+        "backend.services.guided_task.camera_selection.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+
+    clock = _Clock()
+    gate_runner = FakeGateGraphRunner()
+    gate_runner.verdict_to_return = GateVerdict(
+        complete=True,
+        confidence=0.9,
+        reason="done",
+        node_results={},
+        cost={"model_calls": 1, "frames": 2, "latency_ms": 100},
+        profile="watch",
+    )
+    safety = FakeSafetyWatch()
+
+    routine_id = _seed_routine_with_watch(db_session, watch_enabled=True)
+    svc = GuidedTaskService(
+        db_factory=lambda: db_session,
+        voice=_RecordingVoice(),
+        escalator=_RecordingEscalator(),
+        settings=_settings(),
+        time_fn=clock,
+        gate_runner=gate_runner,
+        safety_watch=safety,
+    )
+    session = await svc.start(routine_id, "resident-1")
+
+    await svc.tick(clock.now)
+
+    assert (
+        gate_runner.cache.get_fresh(
+            (str(session.id), 0, "confirm"), min_interval_s=15, now=clock.now
+        )
+        is not None
+    )
 
 
 @pytest.mark.asyncio

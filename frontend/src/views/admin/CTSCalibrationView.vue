@@ -254,8 +254,13 @@ const pickModeActive = computed(
   () => inputMode.value === "pick" && floorPlanReady.value && scaleReady.value,
 );
 
-const { floorRegionDraft, floorRegionDragIdx, floorRegionSaving, saveFloorRegion, discardFloorRegion } =
-  useFloorRegion(notify, selectedCameraId);
+const {
+  floorRegionDraft,
+  floorRegionDragIdx,
+  floorRegionSaving,
+  saveFloorRegion,
+  discardFloorRegion,
+} = useFloorRegion(notify, selectedCameraId);
 
 const {
   latestMinioKey,

@@ -47,30 +47,46 @@ describe("main.js bootstrap", () => {
     });
   });
 
-  it("mounts, applies the operator timezone, and points the key provider at the auth store", async () => {
-    await import("@/main.js");
-    // bootstrap() is async and self-invoking; let its awaits settle.
-    await vi.waitFor(() => expect(mocks.setApiKeyProvider).toHaveBeenCalled());
+  // `import("@/main.js")` cold-loads the whole app entry (router, Pinia, Vuetify,
+  // ECharts, vue-flow, ...); `deps.server.inline` for Vuetify (see vite.config.js)
+  // means that graph is transformed on the fly rather than pre-bundled. That is
+  // fast in isolation but can exceed the 5s default test timeout under full-suite
+  // parallel CPU contention. The generous timeout here is a concession to that
+  // cold-import cost, not a tolerance for a slow assertion.
+  const BOOTSTRAP_TIMEOUT_MS = 20000;
 
-    expect(mocks.initTimezone).toHaveBeenCalledWith("America/New_York");
-    expect(document.querySelector("#app").innerHTML).not.toBe("");
+  it(
+    "mounts, applies the operator timezone, and points the key provider at the auth store",
+    async () => {
+      await import("@/main.js");
+      // bootstrap() is async and self-invoking; let its awaits settle.
+      await vi.waitFor(() => expect(mocks.setApiKeyProvider).toHaveBeenCalled());
 
-    // The provider must resolve the key from the auth store, not from a stale localStorage read.
-    const { setActivePinia, createPinia } = await import("pinia");
-    const { useAuthStore } = await import("@/stores/auth");
-    const provider = mocks.setApiKeyProvider.mock.calls[0][0];
-    setActivePinia(createPinia());
-    useAuthStore().setApiKey("from-store");
-    expect(provider()).toBe("from-store");
-  });
+      expect(mocks.initTimezone).toHaveBeenCalledWith("America/New_York");
+      expect(document.querySelector("#app").innerHTML).not.toBe("");
 
-  it("still mounts when the backend is unreachable at load", async () => {
-    mocks.getAppInfo.mockRejectedValue(new Error("ECONNREFUSED"));
+      // The provider must resolve the key from the auth store, not from a stale localStorage read.
+      const { setActivePinia, createPinia } = await import("pinia");
+      const { useAuthStore } = await import("@/stores/auth");
+      const provider = mocks.setApiKeyProvider.mock.calls[0][0];
+      setActivePinia(createPinia());
+      useAuthStore().setApiKey("from-store");
+      expect(provider()).toBe("from-store");
+    },
+    BOOTSTRAP_TIMEOUT_MS,
+  );
 
-    await import("@/main.js");
-    await vi.waitFor(() => expect(mocks.setApiKeyProvider).toHaveBeenCalled());
+  it(
+    "still mounts when the backend is unreachable at load",
+    async () => {
+      mocks.getAppInfo.mockRejectedValue(new Error("ECONNREFUSED"));
 
-    // A backend that is down must not leave the caregiver looking at a white screen.
-    await vi.waitFor(() => expect(document.querySelector("#app").innerHTML).not.toBe(""));
-  });
+      await import("@/main.js");
+      await vi.waitFor(() => expect(mocks.setApiKeyProvider).toHaveBeenCalled());
+
+      // A backend that is down must not leave the caregiver looking at a white screen.
+      await vi.waitFor(() => expect(document.querySelector("#app").innerHTML).not.toBe(""));
+    },
+    BOOTSTRAP_TIMEOUT_MS,
+  );
 });

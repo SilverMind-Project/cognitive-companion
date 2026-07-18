@@ -19,7 +19,11 @@
           <v-list-item-title>
             {{ ruleNameById(dep.parent_rule_id) }} (Rule #{{ dep.parent_rule_id }}) &middot;
             lookback {{ dep.lookback_minutes }}min
-            <v-chip size="x-small" :color="dep.require_success ? 'success' : 'warning'" class="ml-2">
+            <v-chip
+              size="x-small"
+              :color="dep.require_success ? 'success' : 'warning'"
+              class="ml-2"
+            >
               {{ dep.require_success ? "require success" : "require no success" }}
             </v-chip>
           </v-list-item-title>

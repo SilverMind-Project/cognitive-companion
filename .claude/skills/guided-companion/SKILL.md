@@ -68,6 +68,18 @@ evaluators are added in M7 behind this same protocol. A step's `completion_gate`
 config selects evaluators; the response gate is always implicitly present so a step
 can always advance on her confirmation. Never make vision the sole gate.
 
+**Trigger / verifier / assist model (M23).** `evaluate_completion` partitions
+evaluators into three roles, not one ordered list: the `response` evaluator is the
+**trigger** (it must complete before anything else runs; if she has not confirmed,
+no verifier or assist runs, and the step waits on "not_confirmed"); a configured
+`vision_confirm` evaluator is a **verifier** that always runs once triggered,
+regardless of `mode` (a negative or fail-closed verdict holds the step and feeds
+the bounded-disagreement logic); `activity_signal`/`zone_presence` are **assists**
+governed by `mode`: `"any"` treats them as advisory (their failure never blocks
+advancement), `"all"` requires every configured assist to also complete. A
+configured `vision_confirm` gate always runs on the done path; `mode` applies only
+to assist gates. Never reintroduce first-complete-wins across the response gate.
+
 ## 5. Configuration precedence (resolve_policy)
 
 Every `guided_task.*` value resolves: per-step override, then per-routine override,
@@ -191,7 +203,7 @@ A vision-confirmation gate is a callable pipeline graph, represented as a `Rule`
   - Poll parameters (`window_s`, `max_frames`) are inherited by `media_window_poll` when set to `"inherit"` or `None` in step configuration.
   - VLM models are overridden in `llm_call` if `use_profile_model: true` and the profile specifies `model_id`.
   - Heavy pruning: steps configured with `heavy == True` are skipped as dead branches when `profile.prune_heavy` is True (typical for watch checks to save cost/latency).
-- **Cool-off cache:** An in-memory cache keyed by `(session_id, step_ord, profile_name)` holding the last `GateVerdict` and timestamps. Callers check this cache first; if a verdict is younger than the configured `min_interval_s`, the cached verdict is reused without invoking the graph runner.
+- **Cool-off cache:** An in-memory cache keyed by `(session_id, step_ord, profile_name)` holding the last `GateVerdict` and timestamps. Callers check this cache first; if a verdict is younger than the configured `min_interval_s`, the cached verdict is reused without invoking the graph runner. **Cache polarity (M23, G3):** only positive watch verdicts (`complete=True` and `confidence >= min_confidence`) may warm the confirm cool-off slot; the watch slot itself is always warmed so its own throttle keeps working. Cached negative confirm verdicts are recorded as disagreement events (`reason="cached:<original_reason>"`) so the bounded-disagreement bound still accumulates while the confirm slot is fresh; a cached positive is never re-recorded.
 - **Confirm Path & Profile Integration:** The linear routine spine completion path (`VisionEvaluator`) executes the gate graph in `confirm` mode via the `GateGraphRunner`.
 - **Bounded Disagreement Rule (D24):** When a resident asserts "done" but the vision gate graph returns `complete=False` (disagreement), the session policy records the disagreement. After `max_disagreements` consecutive disagreements (counted durably via `GuidedSessionEvent` database records), the system defers to the resident and advances (using `actor="resident"`, emitting `vision_deferred` kind) or escalates (if configured with `on_max_disagreements: "escalate"`), avoiding trapping the resident.
 - **Removed Camera Override:** The dead `camera_ids` override under `completion_gate.vision` is deleted; only step-level `camera_ids` are resolved. Any legacy keys like `camera_ids` or `description` are automatically stripped during schema ingestion.

@@ -18,6 +18,7 @@ from backend.services.cts.tracking_event_subscriber import (
     TrackingEventSubscriber,
 )
 
+
 def _build_event(
     camera_id: str = "cam-1",
     detections: list[dict] | None = None,

@@ -127,8 +127,15 @@ const {
   staleLabel,
 } = useCtsLiveCameras(layout);
 
-const { multiCameraIdentities, isMultiCamera, multiCameraCount, multiCameraTooltip, bboxColor, tileLinkStyle, tileLinkEntries } =
-  useMultiCameraLinks(cameras);
+const {
+  multiCameraIdentities,
+  isMultiCamera,
+  multiCameraCount,
+  multiCameraTooltip,
+  bboxColor,
+  tileLinkStyle,
+  tileLinkEntries,
+} = useMultiCameraLinks(cameras);
 
 const correctionOpen = ref(false);
 const saving = ref(false);

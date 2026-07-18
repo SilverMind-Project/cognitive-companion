@@ -43,7 +43,11 @@
                 @update:model-value="onFileSelected"
               />
             </v-col>
-            <v-col cols="12" md="4" class="upload-file-actions d-flex align-center justify-end flex-wrap ga-2">
+            <v-col
+              cols="12"
+              md="4"
+              class="upload-file-actions d-flex align-center justify-end flex-wrap ga-2"
+            >
               <v-chip
                 v-if="uploadWidth && uploadHeight"
                 size="small"
@@ -76,7 +80,13 @@
               </div>
               <v-spacer />
               <v-btn variant="text" size="small" @click="resetCrop">Reset</v-btn>
-              <v-btn color="primary" variant="tonal" size="small" prepend-icon="mdi-check" @click="applyCrop">
+              <v-btn
+                color="primary"
+                variant="tonal"
+                size="small"
+                prepend-icon="mdi-check"
+                @click="applyCrop"
+              >
                 Apply crop
               </v-btn>
             </div>
@@ -100,7 +110,13 @@
                   >
                     <defs>
                       <mask id="crop-mask">
-                        <rect x="0" y="0" :width="cropImgRect.width" :height="cropImgRect.height" fill="white" />
+                        <rect
+                          x="0"
+                          y="0"
+                          :width="cropImgRect.width"
+                          :height="cropImgRect.height"
+                          fill="white"
+                        />
                         <rect
                           :x="cropRect.x * cropImgRect.width"
                           :y="cropRect.y * cropImgRect.height"
@@ -175,17 +191,25 @@
                 Measure two known points for best accuracy, or enter the map's total width.
               </div>
             </div>
-            <CcSegmentedToggle v-model="scaleMethod" :options="SCALE_METHOD_OPTIONS" class="upload-scale-method" />
+            <CcSegmentedToggle
+              v-model="scaleMethod"
+              :options="SCALE_METHOD_OPTIONS"
+              class="upload-scale-method"
+            />
           </div>
 
           <!-- Method A: click two points -->
           <template v-if="scaleMethod === 'pickpoints'">
             <div class="text-caption text-medium-emphasis mt-3 mb-2">
-              Click two points whose real distance you can measure, such as opposite room corners
-              or the sides of a doorway.
+              Click two points whose real distance you can measure, such as opposite room corners or
+              the sides of a doorway.
             </div>
 
-            <div ref="scaleOuterRef" class="scale-picker-outer" @wheel.prevent="scaleZoom.actions.onWheel">
+            <div
+              ref="scaleOuterRef"
+              class="scale-picker-outer"
+              @wheel.prevent="scaleZoom.actions.onWheel"
+            >
               <div class="scale-picker-zoom-content" :style="scaleZoom.state.transformStyle">
                 <div
                   class="scale-picker-inner"
@@ -245,7 +269,12 @@
                         stroke="var(--cc-brand)"
                         stroke-width="2.5"
                       />
-                      <circle :cx="pt[0] * scaleImgRect.width" :cy="pt[1] * scaleImgRect.height" r="3" fill="var(--cc-brand)" />
+                      <circle
+                        :cx="pt[0] * scaleImgRect.width"
+                        :cy="pt[1] * scaleImgRect.height"
+                        r="3"
+                        fill="var(--cc-brand)"
+                      />
                       <text
                         :x="pt[0] * scaleImgRect.width + 12"
                         :y="pt[1] * scaleImgRect.height - 6"
@@ -294,7 +323,9 @@
 
             <div class="upload-scale-controls d-flex align-center flex-wrap ga-2 mt-3">
               <div class="text-caption text-medium-emphasis">
-                <template v-if="scalePoints.length === 2"> {{ scalePixelDistance.toFixed(0) }} pixels selected </template>
+                <template v-if="scalePoints.length === 2">
+                  {{ scalePixelDistance.toFixed(0) }} pixels selected
+                </template>
                 <template v-else> {{ scalePoints.length }}/2 points placed </template>
               </div>
               <v-spacer />
@@ -320,7 +351,9 @@
                   step="0.01"
                   :disabled="scalePoints.length < 2"
                   :hint="
-                    scaleComputedMpp ? `Calculated scale: ${scaleComputedMpp} m/px` : 'Place both points, then enter the measured distance'
+                    scaleComputedMpp
+                      ? `Calculated scale: ${scaleComputedMpp} m/px`
+                      : 'Place both points, then enter the measured distance'
                   "
                   persistent-hint
                   @update:model-value="onScaleMeasuredChange"
@@ -395,10 +428,24 @@
               />
             </v-col>
             <v-col cols="12" md="4">
-              <v-text-field v-model.number="uploadWidth" label="Width (px)" variant="outlined" density="compact" type="number" hide-details />
+              <v-text-field
+                v-model.number="uploadWidth"
+                label="Width (px)"
+                variant="outlined"
+                density="compact"
+                type="number"
+                hide-details
+              />
             </v-col>
             <v-col cols="12" md="4">
-              <v-text-field v-model.number="uploadHeight" label="Height (px)" variant="outlined" density="compact" type="number" hide-details />
+              <v-text-field
+                v-model.number="uploadHeight"
+                label="Height (px)"
+                variant="outlined"
+                density="compact"
+                type="number"
+                hide-details
+              />
             </v-col>
           </v-row>
         </section>
@@ -412,9 +459,12 @@
           <div class="text-caption text-medium-emphasis">
             <template v-if="uploadMpp && uploadWidth && uploadHeight">
               {{ uploadWidth }} × {{ uploadHeight }} px ·
-              {{ (uploadWidth * uploadMpp).toFixed(1) }} × {{ (uploadHeight * uploadMpp).toFixed(1) }} metres
+              {{ (uploadWidth * uploadMpp).toFixed(1) }} ×
+              {{ (uploadHeight * uploadMpp).toFixed(1) }} metres
             </template>
-            <template v-else> Image dimensions and scale are required for accurate mapping. </template>
+            <template v-else>
+              Image dimensions and scale are required for accurate mapping.
+            </template>
           </div>
         </div>
         <v-spacer />
@@ -441,7 +491,8 @@
         <div class="text-caption text-medium-emphasis mt-2">
           <template v-if="fpWidth && fpHeight">{{ fpWidth }} × {{ fpHeight }} px</template>
           <template v-if="fpMpp">
-            · {{ fpMpp }} m/px · covers {{ (fpWidth * fpMpp).toFixed(1) }} × {{ (fpHeight * fpMpp).toFixed(1) }} m
+            · {{ fpMpp }} m/px · covers {{ (fpWidth * fpMpp).toFixed(1) }} ×
+            {{ (fpHeight * fpMpp).toFixed(1) }} m
           </template>
         </div>
       </v-card-text>

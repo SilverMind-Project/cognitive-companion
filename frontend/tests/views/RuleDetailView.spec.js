@@ -99,20 +99,18 @@ const RULE = {
     { id: 1, context_type: "room", negate: false, config_json: { room_name: "Kitchen" } },
     { id: 2, context_type: "room_transition", negate: false, config_json: { foo: "bar" } },
   ],
-  dependencies: [
-    { id: 5, parent_rule_id: 3, lookback_minutes: 20, require_success: true },
-  ],
+  dependencies: [{ id: 5, parent_rule_id: 3, lookback_minutes: 20, require_success: true }],
 };
 
 const stubs = {
   "v-btn": {
-    template: '<button @click="$emit(\'click\')"><slot /></button>',
+    template: "<button @click=\"$emit('click')\"><slot /></button>",
     props: ["icon", "variant", "color", "prependIcon", "loading", "to", "size"],
   },
   "v-chip": { template: "<span><slot /></span>", props: ["color", "size", "variant"] },
   "v-tabs": {
     template:
-      '<div><button v-for="t in [\'settings\',\'pipeline\',\'contexts\',\'dependencies\',\'executions\']" :key="t" :data-testid="\'tab-\'+t" @click="$emit(\'update:modelValue\', t)">{{t}}</button></div>',
+      "<div><button v-for=\"t in ['settings','pipeline','contexts','dependencies','executions']\" :key=\"t\" :data-testid=\"'tab-'+t\" @click=\"$emit('update:modelValue', t)\">{{t}}</button></div>",
     props: ["modelValue", "color"],
   },
   "v-tab": { template: "<span />" },
@@ -154,7 +152,7 @@ const stubs = {
     props: ["modelValue", "items", "label", "itemTitle", "itemValue", "clearable"],
   },
   "v-combobox": {
-    template: '<input @input="$emit(\'update:modelValue\', [$event.target.value])" />',
+    template: "<input @input=\"$emit('update:modelValue', [$event.target.value])\" />",
     props: ["modelValue", "items", "label", "multiple", "chips"],
   },
   "v-switch": {
@@ -198,7 +196,10 @@ function mountView() {
 const LazyWindow = {
   props: { modelValue: { type: String, default: "" } },
   setup(props, { slots }) {
-    provide("__activeTab", computed(() => props.modelValue));
+    provide(
+      "__activeTab",
+      computed(() => props.modelValue),
+    );
     return () => h("div", slots.default ? slots.default() : []);
   },
 };
@@ -222,7 +223,10 @@ beforeEach(() => {
   mocks.getSensors.mockResolvedValue([
     { id: "sensor-1", name: "Front door", sensor_type: "presence", room_name: "Hallway" },
   ]);
-  mocks.getRooms.mockResolvedValue([{ id: 1, name: "Kitchen" }, { id: 2, name: "Bedroom" }]);
+  mocks.getRooms.mockResolvedValue([
+    { id: 1, name: "Kitchen" },
+    { id: 2, name: "Bedroom" },
+  ]);
   mocks.getRules.mockResolvedValue([
     { id: 7, name: "Pacing alert" },
     { id: 3, name: "Night watch" },
@@ -230,7 +234,12 @@ beforeEach(() => {
   mocks.getPersons.mockResolvedValue([{ id: "p1" }]);
   mocks.getTelegramTriggerDefaults.mockResolvedValue({ allowed_chat_ids: [] });
   mocks.getWorkflows.mockResolvedValue([
-    { id: 20, status: "completed", started_at: "2026-07-01T10:00:00Z", completed_at: "2026-07-01T10:00:05Z" },
+    {
+      id: 20,
+      status: "completed",
+      started_at: "2026-07-01T10:00:00Z",
+      completed_at: "2026-07-01T10:00:05Z",
+    },
   ]);
   mocks.updateRule.mockResolvedValue({});
   mocks.executeRule.mockResolvedValue({ execution_id: 99 });

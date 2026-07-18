@@ -57,6 +57,13 @@ class VisionEvaluator:
         step: Any,
         evidence: dict,
     ) -> CompletionResult:
+        """Evaluate the gate graph, or reuse a fresh cached verdict.
+
+        A cached negative verdict is still recorded as a disagreement event
+        (see below): the cool-off window (``min_interval_s``) bounds how often
+        the gate graph actually runs, not whether her assertion is visible to
+        the bounded-disagreement count.
+        """
         # 1. Resolve the gate rule
         vision_cfg = (
             self._gate_config.get("vision") or self._gate_config.get("vision_confirm") or {}
@@ -172,6 +179,18 @@ class VisionEvaluator:
                     complete=cached.complete,
                     confidence=cached.confidence,
                 )
+                if not cached.complete:
+                    await self._record(
+                        session=session,
+                        step=step,
+                        cameras=cameras,
+                        complete=False,
+                        confidence=cached.confidence,
+                        reason=f"cached:{cached.reason}",
+                        gate_graph_rule_id=gate_graph_rule_id,
+                        node_results={},
+                        cost={"model_calls": 0, "frames": 0, "latency_ms": 0},
+                    )
                 return CompletionResult(cached.complete, cached.confidence, cached.reason)
 
         # 5. Run GateGraphRunner

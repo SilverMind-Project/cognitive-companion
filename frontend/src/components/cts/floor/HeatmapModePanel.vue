@@ -187,7 +187,13 @@
             {{ heatmapTimeWindowLabel }}
           </div>
 
-          <v-alert v-if="heatmapState.error" type="error" density="compact" variant="tonal" class="mb-3">
+          <v-alert
+            v-if="heatmapState.error"
+            type="error"
+            density="compact"
+            variant="tonal"
+            class="mb-3"
+          >
             {{ heatmapState.error }}
           </v-alert>
           <v-btn

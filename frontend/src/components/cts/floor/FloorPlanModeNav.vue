@@ -8,8 +8,7 @@
         Floor Plan
       </h2>
       <div class="floor-plan-page-subtitle text-medium-emphasis mt-1">
-        Upload a floor plan image and draw room polygons. Active people appear as dots in real
-        time.
+        Upload a floor plan image and draw room polygons. Active people appear as dots in real time.
       </div>
     </div>
     <v-spacer />

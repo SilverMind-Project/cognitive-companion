@@ -176,7 +176,10 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
     const x = (local.x - cr.offsetX) / cr.width;
     const y = (local.y - cr.offsetY) / cr.height;
     if (x < 0 || x > 1 || y < 0 || y > 1) return;
-    scalePoints.value = [...scalePoints.value, [parseFloat(x.toFixed(4)), parseFloat(y.toFixed(4))]];
+    scalePoints.value = [
+      ...scalePoints.value,
+      [parseFloat(x.toFixed(4)), parseFloat(y.toFixed(4))],
+    ];
   }
 
   /** Start a potential pan on mousedown of the scale picker inner area. */

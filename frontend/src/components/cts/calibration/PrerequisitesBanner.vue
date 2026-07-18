@@ -19,7 +19,9 @@
         </div>
         <div
           class="prereq-item"
-          :class="selectedCameraId ? (existingCalibration ? 'prereq-ok' : 'prereq-none') : 'prereq-none'"
+          :class="
+            selectedCameraId ? (existingCalibration ? 'prereq-ok' : 'prereq-none') : 'prereq-none'
+          "
         >
           <v-icon size="16" :color="existingCalibration ? 'success' : 'default'">
             {{ existingCalibration ? "mdi-check-circle" : "mdi-circle-outline" }}
@@ -36,7 +38,9 @@
       <div v-if="!floorPlanReady || !scaleReady" class="mt-3 text-body-2">
         <v-icon size="14" class="mr-1" color="warning">mdi-information-outline</v-icon>
         Upload a floor plan with its scale in
-        <router-link to="/admin/cts/floor-plan" class="text-primary">Floor Plan settings</router-link>
+        <router-link to="/admin/cts/floor-plan" class="text-primary"
+          >Floor Plan settings</router-link
+        >
         first. That enables click-to-pick calibration — no manual coordinate entry needed.
       </div>
     </v-card-text>

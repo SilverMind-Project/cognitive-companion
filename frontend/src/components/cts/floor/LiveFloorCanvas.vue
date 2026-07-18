@@ -57,7 +57,9 @@
             <!-- Room polygons -->
             <g v-for="room in rooms" :key="room.id">
               <MaraudersInkPolygon
-                v-if="maraudersState.enabled && room.floor_polygon && room.floor_polygon.length >= 3"
+                v-if="
+                  maraudersState.enabled && room.floor_polygon && room.floor_polygon.length >= 3
+                "
                 :points="room.floor_polygon"
                 :canvas-w="canvasW"
                 :canvas-h="canvasH"
@@ -133,7 +135,15 @@
       <div class="floor-plan-legend d-flex align-center flex-wrap ga-4 px-3 py-2">
         <div class="d-flex align-center ga-1 text-caption text-medium-emphasis">
           <svg width="28" height="14">
-            <line x1="0" y1="7" x2="28" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <line
+              x1="0"
+              y1="7"
+              x2="28"
+              y2="7"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
             <circle cx="14" cy="7" r="5" fill="currentColor" stroke="#fff" stroke-width="1.5" />
           </svg>
           Floor-mapped

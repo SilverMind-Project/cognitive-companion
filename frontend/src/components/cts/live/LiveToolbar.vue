@@ -11,13 +11,7 @@
       hide-details
       style="max-width: 200px"
     />
-    <v-switch
-      v-model="showBboxes"
-      color="primary"
-      label="Bboxes"
-      density="compact"
-      hide-details
-    />
+    <v-switch v-model="showBboxes" color="primary" label="Bboxes" density="compact" hide-details />
     <v-switch
       v-model="showIdLabels"
       color="primary"

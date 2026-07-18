@@ -173,8 +173,16 @@ const tokText3 = computed(() => ccToken("--cc-text-3"));
 const mode = ref("live");
 
 // ── Shared floor-plan/rooms state ──────────────────────────────────────────
-const { floorPlanUrl, fpWidth, fpHeight, fpMpp, canvasW, canvasH, loadFloorPlan, applyUploadedFloorPlan } =
-  useFloorPlanCanvas();
+const {
+  floorPlanUrl,
+  fpWidth,
+  fpHeight,
+  fpMpp,
+  canvasW,
+  canvasH,
+  loadFloorPlan,
+  applyUploadedFloorPlan,
+} = useFloorPlanCanvas();
 const { rooms, loadRooms, replaceRoom } = useFloorPlanRooms(notify);
 const { editingRoom, editPolygon, savingRoom, selectRoom, saveRoomPolygon } = useRoomPolygonEditor(
   notify,

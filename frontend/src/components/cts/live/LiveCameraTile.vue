@@ -29,12 +29,7 @@
         alt=""
         @error="$emit('frame-error', $event, camera)"
       />
-      <img
-        v-else-if="snapshotUrl"
-        :src="displaySrc(snapshotUrl)"
-        class="live-tile-img"
-        alt=""
-      />
+      <img v-else-if="snapshotUrl" :src="displaySrc(snapshotUrl)" class="live-tile-img" alt="" />
       <div v-else class="live-tile-no-frame">
         <v-icon size="24" color="medium-emphasis">mdi-video-off-outline</v-icon>
       </div>

@@ -109,30 +109,65 @@ async def evaluate_completion(
     step: Any,
     evidence: dict,
 ) -> GateEvaluation:
+    """Evaluate a step's completion gate.
+
+    The response gate is a trigger, not a competitor: it must complete before
+    anything else runs. A configured ``vision_confirm`` evaluator is a
+    verifier that always runs once triggered, regardless of ``mode``, and its
+    failure holds the step (feeding the bounded-disagreement logic in
+    ``GuidedTaskService.handle_completion``). ``mode`` governs only the assist
+    evaluators (``activity_signal``, ``zone_presence``): ``"any"`` treats them
+    as advisory (never block advancement); ``"all"`` requires every
+    configured assist to also complete.
+    """
+    trigger = [e for e in evaluators if e.kind == "response"]
+    verifiers = [e for e in evaluators if e.kind == "vision_confirm"]
+    assists = [e for e in evaluators if e.kind not in ("response", "vision_confirm")]
+
     results: list[tuple[str, CompletionResult]] = []
-    for evaluator in evaluators:
+    mandatory_results: list[tuple[str, CompletionResult]] = []
+
+    for evaluator in trigger:
         result = await evaluator.is_complete(session=session, step=step, evidence=evidence)
         results.append((evaluator.kind, result))
-        if mode != "all" and result.complete:
+        mandatory_results.append((evaluator.kind, result))
+        if not result.complete:
             return GateEvaluation(result=result, details=_details(results))
 
-    if mode == "all" and results and all(result.complete for _kind, result in results):
-        weakest = min(results, key=lambda item: item[1].confidence)[1]
+    for evaluator in verifiers:
+        result = await evaluator.is_complete(session=session, step=step, evidence=evidence)
+        results.append((evaluator.kind, result))
+        mandatory_results.append((evaluator.kind, result))
+        if not result.complete:
+            return GateEvaluation(result=result, details=_details(results))
+
+    assist_results: list[tuple[str, CompletionResult]] = []
+    for evaluator in assists:
+        result = await evaluator.is_complete(session=session, step=step, evidence=evidence)
+        results.append((evaluator.kind, result))
+        assist_results.append((evaluator.kind, result))
+
+    if not mandatory_results:
         return GateEvaluation(
-            result=CompletionResult(True, weakest.confidence, "all_gates_complete"),
+            result=CompletionResult(False, 0.0, "no_completion_evaluators"),
             details=_details(results),
         )
-    if mode == "all":
+
+    if mode == "all" and assist_results:
+        if all(result.complete for _kind, result in assist_results):
+            weakest = min(
+                (*mandatory_results, *assist_results), key=lambda item: item[1].confidence
+            )[1]
+            return GateEvaluation(
+                result=CompletionResult(True, weakest.confidence, "all_gates_complete"),
+                details=_details(results),
+            )
         return GateEvaluation(
             result=CompletionResult(False, 0.0, "not_all_gates_complete"),
             details=_details(results),
         )
 
-    best = max(
-        (result for _kind, result in results), key=lambda item: item.confidence, default=None
-    )
-    if best is None:
-        best = CompletionResult(False, 0.0, "no_completion_evaluators")
+    best = max(mandatory_results, key=lambda item: item[1].confidence)[1]
     return GateEvaluation(result=best, details=_details(results))
 
 

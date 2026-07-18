@@ -4,7 +4,9 @@
       <span>Result</span>
       <v-spacer />
       <v-chip
-        :color="result.status === 'ok' ? 'success' : result.status === 'warning' ? 'warning' : 'error'"
+        :color="
+          result.status === 'ok' ? 'success' : result.status === 'warning' ? 'warning' : 'error'
+        "
         size="small"
       >
         {{ result.status.toUpperCase() }}
@@ -15,8 +17,8 @@
         Max reprojection error: <strong>{{ result.max_residual_m.toFixed(3) }} m</strong>
       </div>
       <div class="text-caption text-medium-emphasis mb-3">
-        This is how far off the computed transform is at its worst calibration point. Under 0.1 m
-        is good; over 0.3 m means the points were poorly placed or measured.
+        This is how far off the computed transform is at its worst calibration point. Under 0.1 m is
+        good; over 0.3 m means the points were poorly placed or measured.
       </div>
       <v-table density="compact">
         <thead>
@@ -65,8 +67,8 @@
         </div>
       </v-alert>
       <div v-if="result.status !== 'ok'" class="text-caption mt-3 text-medium-emphasis">
-        Tip: re-calibrate with more spread-out points and re-measure carefully. Points with a
-        "poor" rating are dragging down accuracy — try replacing them.
+        Tip: re-calibrate with more spread-out points and re-measure carefully. Points with a "poor"
+        rating are dragging down accuracy — try replacing them.
       </div>
     </v-card-text>
   </v-card>

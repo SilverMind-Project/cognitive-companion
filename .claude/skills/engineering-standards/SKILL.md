@@ -329,6 +329,18 @@ finally:
 - **CTS (tracking-orchestrator)** uses a custom `MigrationRunner` with raw `.up.sql`/`.down.sql`
   files; Alembic is not used there. The same pre-release/post-release lifecycle applies.
 
+### Enforcing invariants
+
+An invariant enforced only by a read-then-write check (read "does one already
+exist", then write) is not enforced: two concurrent callers can both pass the
+read and both write, because nothing serializes them against each other. Use
+a database constraint, unique index, or (partial) unique index instead, and
+map the resulting `IntegrityError` onto the appropriate domain `AppError`
+subclass (typically `ConflictError`) at the same call site that already does
+the read-check, so the calling contract does not change. See
+`GuidedTaskStore.create_session` and the partial unique index
+`uq_guided_sessions_one_live_per_person` (M25, G19) for the pattern.
+
 ### Query conventions
 
 - Use SQLAlchemy 2.0-style queries: `db.query(Model).filter(...)`.

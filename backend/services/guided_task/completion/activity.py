@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Any
 
 from backend.core.logging import get_logger
-from backend.services.guided_task.completion.base import CompletionResult
+from backend.services.guided_task.completion.base import CompletionEvaluator, CompletionResult
 
 logger = get_logger(__name__)
 
@@ -91,3 +91,34 @@ class ZonePresenceEvaluator:
         configured = zone_presence.get("zone_id") or self._gate_config.get("zone_id")
         zone_id = configured if configured is not None else getattr(step, "zone_id", None)
         return int(zone_id) if zone_id is not None else None
+
+
+def build_skip_evaluator(
+    skip_condition: dict[str, Any] | None,
+    *,
+    activity_service: Any | None,
+    zone_service: Any | None,
+) -> CompletionEvaluator | None:
+    """Build the entry-time skip evaluator a step's ``skip_condition`` names (G4).
+
+    Reuses :class:`ActivitySignalEvaluator` / :class:`ZonePresenceEvaluator` by
+    narrowing ``skip_condition`` (``{"kind": ..., ...}``) into the same nested
+    ``gate_config`` shape those evaluators already read from a completion
+    gate. Returns ``None`` for a step with no skip condition, or one whose
+    kind is not evaluated on entry (``response_says_done`` fires only via the
+    ``already_done`` evidence path in ``handle_completion``).
+    """
+    if not skip_condition:
+        return None
+    kind = skip_condition.get("kind")
+    if kind == "activity_signal":
+        return ActivitySignalEvaluator(
+            activity_service=activity_service,
+            gate_config={"activity_signal": skip_condition},
+        )
+    if kind == "zone_presence":
+        return ZonePresenceEvaluator(
+            zone_service=zone_service,
+            gate_config={"zone_presence": skip_condition},
+        )
+    return None

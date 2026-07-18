@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -352,3 +352,45 @@ async def test_on_session_opened_begins_summoning_session(db_factory, db_session
 
     db_session.expire_all()
     assert db_session.get(GuidedSession, session.id).status == "active"
+
+
+class _MutableClock:
+    def __init__(self, start: datetime) -> None:
+        self.now = start
+
+    def advance(self, seconds: int) -> None:
+        self.now += timedelta(seconds=seconds)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+@pytest.mark.asyncio
+async def test_on_session_opened_uses_original_summon_budget(db_factory, db_session):
+    """G9: the recheck must use the session's real summon budget, not step_timeout_s."""
+    routine = _add_routine(db_session)
+    clock = _MutableClock(datetime(2026, 6, 17, 12, 0, tzinfo=UTC))
+    svc = GuidedTaskService(
+        db_factory=db_factory,
+        scheduler=_Scheduler(),
+        person_location_service=_PersonLocation(None),
+        companion_surface_service=_Surfaces([]),
+        ws_manager=_Ws(False),
+        notification_dispatcher=_Dispatcher(),
+        settings=_settings(),
+        time_fn=clock,
+    )
+
+    session = await svc.request_start(routine.id, "person-1", summon_timeout_s=45)
+    assert session.status == "summoning"
+
+    # Past the session's real 45s summon budget, well below the global
+    # step_timeout_s=300 the old (wrong) budget would have used.
+    clock.advance(50)
+
+    await svc.on_session_opened(conversation_session_id=None)
+
+    db_session.expire_all()
+    stored = db_session.get(GuidedSession, session.id)
+    assert stored.status == "abandoned"
+    assert stored.outcome == "summon_timeout"

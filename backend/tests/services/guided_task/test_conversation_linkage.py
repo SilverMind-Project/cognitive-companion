@@ -160,8 +160,8 @@ async def test_on_session_opened_does_not_relink_already_linked_session(db_sessi
 
 @pytest.mark.asyncio
 async def test_caregiver_say_uses_linked_conversation(db_session, db_factory):
-    routine1_id = _seed_routine(db_session)
-    _seed_session(db_session, routine1_id, status="active")
+    routine1_id = _seed_routine(db_session, person_id="resident-2")
+    _seed_session(db_session, routine1_id, status="active", person_id="resident-2")
     routine2_id = _seed_routine(db_session)
     session2 = _seed_session(db_session, routine2_id, status="escalated")
     conversation_manager = ConversationManager(db_factory)
@@ -189,8 +189,8 @@ async def test_caregiver_say_uses_linked_conversation(db_session, db_factory):
 
 @pytest.mark.asyncio
 async def test_caregiver_say_without_realtime_creates_via_sequence(db_session, db_factory):
-    routine1_id = _seed_routine(db_session)
-    session1 = _seed_session(db_session, routine1_id, status="escalated")
+    routine1_id = _seed_routine(db_session, person_id="resident-2")
+    session1 = _seed_session(db_session, routine1_id, status="escalated", person_id="resident-2")
     routine2_id = _seed_routine(db_session)
     session2 = _seed_session(db_session, routine2_id, status="caregiver_takeover")
     conversation_manager = ConversationManager(db_factory)

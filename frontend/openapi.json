@@ -16859,7 +16859,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.89"
+    "version": "0.7.90"
   },
   "openapi": "3.1.0",
   "paths": {

@@ -7,6 +7,11 @@ from datetime import datetime
 
 TERMINAL_STATUSES = frozenset({"completed", "abandoned", "failed"})
 LIVE_STATUSES = frozenset({"active", "waiting", "summoning", "escalated", "caregiver_takeover"})
+# Predicate for the one-live-session-per-person unique index (M25/G19):
+# LIVE_STATUSES plus "pending", for a session state that precedes "active"/
+# "summoning" but should still count as live. Keep in sync with the partial
+# unique index predicate in models/guided_task.py and its migration.
+UNIQUE_SESSION_STATUSES = LIVE_STATUSES | {"pending"}
 
 
 @dataclass(frozen=True)

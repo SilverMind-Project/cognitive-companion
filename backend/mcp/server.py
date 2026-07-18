@@ -1385,7 +1385,7 @@ async def get_active_guided_step(session_id: int) -> dict:
 
 @_register
 async def mark_guided_step_complete(
-    session_id: int, step_ord: int, note: str | None = None
+    session_id: int, step_ord: int, note: str | None = None, already_done: bool = False
 ) -> dict:
     """Agent-facing: propose that the resident completed the current guided step.
 
@@ -1393,12 +1393,20 @@ async def mark_guided_step_complete(
     received from ``get_active_guided_step`` or the previous advance). It is required
     so a repeated call for a step that already advanced is ignored instead of
     skipping the next step. Always call this only after the resident confirms.
+
+    Pass ``already_done=True`` when she tells you she had already done this step
+    before you asked (not in response to your instruction). Steps whose skip
+    condition is configured for this case skip immediately instead of running
+    the normal completion gate; on any other step her word still advances it
+    normally.
     """
     if _svc.guided_task_service is None:
         return {"error": "Guided task service not available"}
     evidence: dict = {"confirmed": True, "source": "agent", "step_ord": step_ord}
     if note:
         evidence["note"] = note
+    if already_done:
+        evidence["already_done"] = True
     return await _svc.guided_task_service.handle_completion(session_id, evidence=evidence)
 
 

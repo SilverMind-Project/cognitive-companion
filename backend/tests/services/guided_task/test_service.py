@@ -259,10 +259,16 @@ async def test_on_step_timeout_retries_then_escalates_at_cap(db_session, db_fact
 
 @pytest.mark.asyncio
 async def test_resume_after_grace_abandons(db_session, db_factory):
+    """M25/G6 addendum: a clean resume-grace abandon resumes the owning
+    pipeline immediately, the same as any other terminal transition, rather
+    than waiting out the park-ceiling backstop meant for a wedged session."""
     routine_id = _seed_routine(db_session)
     clock = _Clock()
-    service = _service(db_factory, clock, settings=_settings(resume_grace_s=60))
-    session = await service.start(routine_id, "resident-1")
+    executor = _FakePipelineExecutor()
+    service = _service(
+        db_factory, clock, settings=_settings(resume_grace_s=60), pipeline_executor=executor
+    )
+    session = await service.start(routine_id, "resident-1", execution_id=42)
     clock.advance(61)
 
     decision = await service.resume(session.id)
@@ -272,6 +278,7 @@ async def test_resume_after_grace_abandons(db_session, db_factory):
     stored = db_session.get(GuidedSession, session.id)
     assert stored.status == "abandoned"
     assert stored.outcome == "abandoned"
+    assert executor.resumed == [42]
 
 
 @pytest.mark.asyncio

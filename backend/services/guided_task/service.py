@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from cachetools import TTLCache
 from sqlalchemy.orm import Session
 
 from backend.core.config import SettingNotFoundError, Settings
@@ -35,6 +36,7 @@ from backend.schemas.guided_task import (
 )
 from backend.schemas.guided_task_ws import GuidedSessionUpdateEvent
 from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
+from backend.services.guided_task.completion.activity import build_skip_evaluator
 from backend.services.guided_task.completion.response import build_evaluators, evaluate_completion
 from backend.services.guided_task.domain import Decision, SessionView, StepView
 from backend.services.guided_task.policy import resolve_policy, resolve_vision_override
@@ -184,8 +186,20 @@ class GuidedTaskService:
         self._gate_runner = gate_runner
         self._camera_source_resolver = camera_source_resolver
         self._event_aggregator = event_aggregator
-        self._last_watch_at: dict[tuple[int, int], datetime] = {}
-        self._progress_seen_at: dict[tuple[int, int], datetime] = {}
+        try:
+            resume_grace_s = self._settings.as_int("guided_task.resume_grace_s")
+        except SettingNotFoundError:
+            resume_grace_s = 600
+        # TTL is a memory bound only (M25/G10); correctness relies on the
+        # explicit elapsed-time comparisons at each read site, not on cache
+        # eviction. Eagerly evicted per-session on terminal transitions too
+        # (see _evict_runtime_state).
+        self._last_watch_at: TTLCache[tuple[int, int], datetime] = TTLCache(
+            maxsize=4096, ttl=resume_grace_s, timer=lambda: self._time_fn().timestamp()
+        )
+        self._progress_seen_at: TTLCache[tuple[int, int], datetime] = TTLCache(
+            maxsize=4096, ttl=resume_grace_s, timer=lambda: self._time_fn().timestamp()
+        )
 
     def set_person_location_service(self, person_location_service: Any) -> None:
         self._person_location_service = person_location_service
@@ -198,6 +212,9 @@ class GuidedTaskService:
 
     def set_safety_watch(self, safety_watch: SafetyWatch | None) -> None:
         self._safety_watch = safety_watch or NoopSafetyWatch()
+
+    def get_live_session_for_person(self, person_id: str) -> GuidedSession | None:
+        return self._store.get_live_session_for_person(person_id)
 
     async def run_gate_preview(
         self,
@@ -400,9 +417,15 @@ class GuidedTaskService:
 
         for session in self._store.list_summoning_sessions():
             try:
-                await self._summon_recheck(
-                    session.id, self._settings.as_int("guided_task.step_timeout_s")
-                )
+                summon_timeout_s = self._store.summon_timeout_for(session.id)
+                if summon_timeout_s is None:
+                    summon_timeout_s = self._settings.as_int("guided_task.step_timeout_s")
+                    logger.warning(
+                        "guided_summon_budget_fallback",
+                        session_id=session.id,
+                        fallback_summon_timeout_s=summon_timeout_s,
+                    )
+                await self._summon_recheck(session.id, summon_timeout_s)
             except Exception:
                 logger.exception("guided_on_session_opened_recheck_failed", session_id=session.id)
 
@@ -471,6 +494,16 @@ class GuidedTaskService:
             step_ord=step.ord,
             actor="system",
         )
+        skipped_further = await self._maybe_skip_step(
+            session=updated,
+            routine=routine,
+            steps=steps,
+            step=step,
+            now=begin_at,
+            speak_on_advance=True,
+        )
+        if skipped_further:
+            return self._require_session(session_id)
         await self._speak(updated, step, is_retry=False)
         self._schedule_timeout(updated, routine, step, begin_at)
         return updated
@@ -482,13 +515,7 @@ class GuidedTaskService:
             return
         routine, steps = self._load_routine_and_steps(session.routine_id)
         if (now - session.started_at).total_seconds() > summon_timeout_s:
-            updated = self._store.update_session(
-                session.id,
-                status="abandoned",
-                completed_at=now,
-                outcome="summon_timeout",
-                last_activity_at=now,
-            )
+            self._mark_abandoned(session.id, now=now, outcome="summon_timeout")
             self._store.add_event(
                 session_id=session.id,
                 at=now,
@@ -497,13 +524,7 @@ class GuidedTaskService:
                 actor="system",
                 detail={"outcome": "summon_timeout"},
             )
-            guided_metrics.guided_sessions_total.labels(outcome="summon_timeout").inc()
             logger.info("guided_summon_timeout", session_id=session.id, person_id=session.person_id)
-            resume_owning_pipeline(
-                self._pipeline_executor,
-                self._db_factory,
-                updated.execution_id if updated is not None else session.execution_id,
-            )
             return
 
         location = await self._current_location(session.person_id)
@@ -552,6 +573,29 @@ class GuidedTaskService:
                 reason="stale_step_completion",
             )
             return self._decision_descriptor(decision)
+
+        if evidence.get("already_done") and (step.skip_condition or {}).get(
+            "kind"
+        ) == "response_says_done":
+            decision = GuidedTaskStateMachine.decide(
+                self._session_view(session, steps),
+                self._step_view(step),
+                "skip_condition_met",
+                resolve_policy(routine, step, self._settings),
+                now,
+            )
+            await self._apply_decision(
+                session=session,
+                routine=routine,
+                steps=steps,
+                decision=decision,
+                now=now,
+                event_kind="skip_condition_met",
+                actor="resident",
+                detail={"reason": "response_says_done", "source": "agent"},
+                speak_on_advance=False,
+            )
+            return await self._advance_descriptor(session.id, routine, steps, decision)
 
         evidence_with_now = {**evidence, "now": now, "routine": routine}
         evaluators = build_evaluators(
@@ -1242,6 +1286,7 @@ class GuidedTaskService:
         )
         if updated is None:
             raise NotFoundError("Guided session", session_id)
+        self._evict_runtime_state(session_id)
         self._store.add_event(
             session_id=session_id,
             at=now,
@@ -1315,15 +1360,7 @@ class GuidedTaskService:
         session: GuidedSession,
         at: datetime,
     ) -> None:
-        updated = self._store.update_session(
-            session.id,
-            status="abandoned",
-            completed_at=at,
-            outcome="escalated_unanswered",
-            last_activity_at=at,
-        )
-        if updated is None:
-            raise NotFoundError("Guided session", session.id)
+        updated = self._mark_abandoned(session.id, now=at, outcome="escalated_unanswered")
         self._store.add_event(
             session_id=session.id,
             at=at,
@@ -1332,7 +1369,6 @@ class GuidedTaskService:
             actor="system",
             detail={"outcome": "escalated_unanswered"},
         )
-        guided_metrics.guided_sessions_total.labels(outcome="escalated_unanswered").inc()
         await self._broadcast_session_update(
             updated,
             event_kind="session_abandoned",
@@ -1340,7 +1376,6 @@ class GuidedTaskService:
             detail={"outcome": "escalated_unanswered"},
             at=at,
         )
-        resume_owning_pipeline(self._pipeline_executor, self._db_factory, updated.execution_id)
 
     def _escalation_grace_s(self) -> int:
         try:
@@ -1353,6 +1388,45 @@ class GuidedTaskService:
         if session is None:
             raise NotFoundError("Guided session", session_id)
         return session
+
+    def _mark_abandoned(self, session_id: int, *, now: datetime, outcome: str) -> GuidedSession:
+        """Single write path for ``status='abandoned'`` (terminal-transition seam).
+
+        Every abandon route (attempts/resume-grace via ``_apply_decision``,
+        summon timeout, unanswered escalation) funnels through here so
+        runtime caches are evicted exactly once, the owning pipeline resumes
+        exactly once (mirroring ``complete()``; the M25/G6 park ceiling is a
+        backstop for a wedged session, not the normal path for a clean
+        abandon), and so a future terminal-transition hook (the Daily Living
+        guided-memory bridge) has one place to attach rather than three.
+        """
+        updated = self._store.update_session(
+            session_id,
+            status="abandoned",
+            completed_at=now,
+            outcome=outcome,
+            last_activity_at=now,
+        )
+        if updated is None:
+            raise NotFoundError("Guided session", session_id)
+        resume_owning_pipeline(self._pipeline_executor, self._db_factory, updated.execution_id)
+        self._evict_runtime_state(session_id)
+        guided_metrics.guided_sessions_total.labels(outcome=outcome).inc()
+        return updated
+
+    def _evict_runtime_state(self, session_id: int) -> None:
+        """Drop a terminated session's keys from all three runtime caches (G10).
+
+        Cheap and avoids stale nag-suppression/cool-off reuse if a session id
+        is ever reused across a restart-free process lifetime.
+        """
+        for cache in (self._last_watch_at, self._progress_seen_at):
+            stale_keys = [key for key in list(cache.keys()) if key[0] == session_id]
+            for key in stale_keys:
+                cache.pop(key, None)
+        gate_cache = getattr(self._gate_runner, "cache", None) if self._gate_runner else None
+        if gate_cache is not None:
+            gate_cache.evict_session(str(session_id))
 
     def _session_out(self, session: GuidedSession) -> GuidedSessionOut:
         return GuidedSessionOut.model_validate(session, from_attributes=True)
@@ -1503,9 +1577,18 @@ class GuidedTaskService:
                 step_ord=next_step.ord,
                 actor="system",
             )
-            if speak_on_advance:
-                await self._speak(updated, next_step, is_retry=False, prefix=speak_prefix)
-            self._schedule_timeout(updated, routine, next_step, now)
+            skipped_further = await self._maybe_skip_step(
+                session=updated,
+                routine=routine,
+                steps=steps,
+                step=next_step,
+                now=now,
+                speak_on_advance=speak_on_advance,
+            )
+            if not skipped_further:
+                if speak_on_advance:
+                    await self._speak(updated, next_step, is_retry=False, prefix=speak_prefix)
+                self._schedule_timeout(updated, routine, next_step, now)
             return
 
         if decision.kind == "retry":
@@ -1551,19 +1634,69 @@ class GuidedTaskService:
             return
 
         if decision.kind == "abandon":
-            self._store.update_session(
-                session.id,
-                status=decision.next_status,
-                completed_at=now,
-                outcome="abandoned",
-                last_activity_at=now,
-            )
-            guided_metrics.guided_sessions_total.labels(outcome="abandoned").inc()
+            self._mark_abandoned(session.id, now=now, outcome="abandoned")
             return
 
         if decision.kind == "complete":
             guided_metrics.guided_steps_total.labels(result="completed").inc()
             await self.complete(session.id, "completed")
+
+    async def _maybe_skip_step(
+        self,
+        *,
+        session: GuidedSession,
+        routine: Routine,
+        steps: list[RoutineStep],
+        step: RoutineStep,
+        now: datetime,
+        speak_on_advance: bool,
+    ) -> bool:
+        """Evaluate ``step``'s skip_condition on entry (D8, G4).
+
+        Only ``activity_signal`` and ``zone_presence`` are evaluated here;
+        ``response_says_done`` fires solely via the ``already_done`` evidence
+        path in ``handle_completion``. When satisfied, dispatches
+        ``skip_condition_met`` through :meth:`_apply_decision`, which
+        recurses back into this method for the newly-entered step -- bounded
+        automatically because each skip strictly advances
+        ``current_step_ord``. ``speak_on_advance`` is forwarded unchanged
+        through the whole cascade, so the caller's original intent (speak the
+        step actually landed on, or stay silent because the agent's own turn
+        owns the announcement) survives any number of skips. Returns ``True``
+        when the step was skipped (the caller must not speak or schedule a
+        timeout for it itself; a landed, non-skipped step deeper in the
+        cascade was already spoken/scheduled here if ``speak_on_advance`` was
+        set), ``False`` otherwise.
+        """
+        evaluator = build_skip_evaluator(
+            step.skip_condition,
+            activity_service=self._activity_service,
+            zone_service=self._zone_service,
+        )
+        if evaluator is None:
+            return False
+        result = await evaluator.is_complete(session=session, step=step, evidence={"now": now})
+        if not result.complete:
+            return False
+        decision = GuidedTaskStateMachine.decide(
+            self._session_view(session, steps),
+            self._step_view(step),
+            "skip_condition_met",
+            resolve_policy(routine, step, self._settings),
+            now,
+        )
+        await self._apply_decision(
+            session=session,
+            routine=routine,
+            steps=steps,
+            decision=decision,
+            now=now,
+            event_kind="skip_condition_met",
+            actor="system",
+            detail={"reason": result.reason, "skip_kind": (step.skip_condition or {}).get("kind")},
+            speak_on_advance=speak_on_advance,
+        )
+        return True
 
     async def _speak(
         self,
@@ -1619,16 +1752,24 @@ class GuidedTaskService:
         steps: list[RoutineStep],
         decision: Decision,
     ) -> dict:
+        """Build the caller-facing advance/done/next_step descriptor.
+
+        Re-reads the session rather than trusting ``decision.next_step_ord``
+        directly: an entry-time skip_condition (G4) can cascade past the step
+        ``decision`` names, including all the way to completion, after
+        ``_apply_decision`` already dispatched further skips for the landed
+        step.
+        """
         base = self._decision_descriptor(decision)
-        if decision.kind == "complete":
-            base.update({"advanced": True, "done": True, "next_step": None})
-            return base
-        if decision.kind not in {"advance", "skip"}:
+        if decision.kind not in {"advance", "skip", "complete"}:
             return base
         updated = self._store.get_session(session_id)
         if updated is None:
             raise NotFoundError("Guided session", session_id)
-        next_step = self._step_by_ord(steps, decision.next_step_ord)
+        if updated.status == "completed":
+            base.update({"advanced": True, "done": True, "next_step": None})
+            return base
+        next_step = self._step_by_ord(steps, updated.current_step_ord)
         base.update(
             {
                 "advanced": True,

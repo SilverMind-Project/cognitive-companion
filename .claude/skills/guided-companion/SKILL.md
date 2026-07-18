@@ -106,6 +106,17 @@ them; do not re-implement prompt injection or pipeline park/resume in
 `waiting` means parked on a response or a timed step. `summoning` means presence-
 gated and waiting for her to arrive. Every transition writes a `GuidedSessionEvent`.
 
+**Skip conditions (M25, D8, G4).** A step's `skip_condition` (`{"kind": ...}`) is
+dispatched from two places only: `activity_signal` / `zone_presence` are
+evaluated on step entry (`_begin_session`, and the advance/skip branch of
+`_apply_decision`, via `_maybe_skip_step`); `response_says_done` fires only
+when the agent passes `already_done=True` into `mark_guided_step_complete`
+and the current step names that kind. Either path dispatches the
+`skip_condition_met` event into the state machine exactly like any other
+event; the state machine still owns the transition (advance, skip, or
+complete). Never evaluate a skip condition from inside an evaluator or a
+router; `_maybe_skip_step` is the single dispatcher.
+
 ## 8. MCP tools mirror the quiz tools (D3, single-service-layer)
 
 Guided-task tools (`get_active_guided_step`, `mark_guided_step_complete`,
@@ -209,6 +220,8 @@ a transcript still in active use.
 | Telling her an answer came from a human | Same voice, no attribution to her; audit internally only |
 | Building a graph/branching routine | Linear with optional skip-ahead only |
 | `time.sleep` / wall-clock in the state machine | Injected `now`; schedule via APScheduler |
+| Parking an owning pipeline execution on a single step's timeout | The park ceiling (`guided_task_start`) is routine-scale: summon budget plus every step's `step_timeout_s * max_step_attempts`, capped by `guided_task.max_pipeline_park_s` (M25, G6) |
+| An unbounded per-session in-memory dict (`{}`) on a service that runs forever | `cachetools.TTLCache`, sized and evicted on terminal transitions (`_evict_runtime_state`); TTL is a memory bound only, never the correctness gate (M25, G10) |
 
 ## 16. Gate graphs (vision-gate graphs)
 

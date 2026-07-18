@@ -94,6 +94,7 @@ def sanitize_completion_gate(gate: dict[str, Any]) -> dict[str, Any]:
             new_vision["confirm"] = {
                 "window_s": confirm.get("window_s"),
                 "max_frames": confirm.get("max_frames"),
+                "max_cameras": confirm.get("max_cameras"),
                 "min_confidence": confirm.get("min_confidence"),
                 "min_interval_s": confirm.get("min_interval_s"),
                 "model_id": confirm.get("model_id"),
@@ -109,6 +110,7 @@ def sanitize_completion_gate(gate: dict[str, Any]) -> dict[str, Any]:
                 "tick_s": watch.get("tick_s"),
                 "window_s": watch.get("window_s"),
                 "max_frames": watch.get("max_frames"),
+                "max_cameras": watch.get("max_cameras"),
                 "model_id": watch.get("model_id"),
                 "auto_advance": watch.get("auto_advance"),
                 "auto_advance_k": watch.get("auto_advance_k"),
@@ -249,6 +251,10 @@ class GuidedTaskService:
 
         name = "watch" if profile_name == "watch" else "confirm"
         profile = build_default_profile(self._settings, name)
+        try:
+            max_cameras = self._settings.as_int("guided_task.vision.max_cameras") or 3
+        except Exception:  # noqa: BLE001
+            max_cameras = 3
 
         if self._gate_runner is None:
             logger.warning("gate_preview_runner_unavailable", gate_rule_id=gate_rule_id)
@@ -272,7 +278,7 @@ class GuidedTaskService:
             camera_topology=self._camera_topology,
             identity_resolver=self._identity_ids_for_person,
             camera_source_resolver=self._camera_source_resolver,
-            max_cameras=profile.max_frames,
+            max_cameras=max_cameras,
         )
         if not cameras:
             return GateVerdict(
@@ -2171,6 +2177,7 @@ class GuidedTaskService:
         # Resolve other profile keys
         window_s = resolve_val("window_s", "guided_task.vision.watch.window_s", float, 4.0)
         max_frames = resolve_val("max_frames", "guided_task.vision.watch.max_frames", int, 3)
+        max_cameras = resolve_val("max_cameras", "guided_task.vision.max_cameras", int, 3)
         model_id = resolve_val("model_id", "guided_task.vision.watch.model_id", str)
         prune_heavy = resolve_val("prune_heavy", "guided_task.vision.watch.prune_heavy", bool, True)
 
@@ -2214,7 +2221,7 @@ class GuidedTaskService:
             camera_topology=self._camera_topology,
             identity_resolver=self._identity_ids_for_person,
             camera_source_resolver=self._camera_source_resolver,
-            max_cameras=max_frames,
+            max_cameras=max_cameras,
         )
         if not cameras:
             return False

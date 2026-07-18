@@ -82,9 +82,16 @@ class RecameraObservationSubscriber:
         camera_id = str(event.get("camera_id", ""))
         room_id = event.get("room_id")
 
-        floor_x = event.get("floor_x_m", 0.0)
-        floor_y = event.get("floor_y_m", 0.0)
-        floor_point = FloorPoint(x_m=float(floor_x), y_m=float(floor_y))
+        # Absence of floor data is None, never (0, 0): a synthetic origin point
+        # must not masquerade as a real floor position (mirrors the gating rule
+        # in world_observation_subscriber.py).
+        floor_x = event.get("floor_x_m")
+        floor_y = event.get("floor_y_m")
+        floor_point = (
+            FloorPoint(x_m=float(floor_x), y_m=float(floor_y))
+            if floor_x is not None and floor_y is not None
+            else None
+        )
 
         # 1. Write to PersonLocationService.
         await self._location.ingest_observation(
@@ -101,12 +108,17 @@ class RecameraObservationSubscriber:
             },
         )
 
-        # 2. Publish to cc.identity_assertions for the orchestrator.
+        # 2. Publish to cc.identity_assertions for the orchestrator. Only
+        # forward real coordinates; never invent a (0, 0) assertion location.
+        publish_kwargs: dict[str, Any] = {}
+        if floor_point is not None:
+            publish_kwargs["floor_x_m"] = floor_point.x_m
+            publish_kwargs["floor_y_m"] = floor_point.y_m
+
         await self._assertion_publisher.publish(
             person_id=str(person_id),
             confidence=confidence,
             camera_id=camera_id,
             captured_at=observed_at,
-            floor_x_m=float(floor_x),
-            floor_y_m=float(floor_y),
+            **publish_kwargs,
         )

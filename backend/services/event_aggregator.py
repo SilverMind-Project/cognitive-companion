@@ -6,6 +6,7 @@ cooldowns, and orchestrates media lifecycle (upload -> cache -> expire -> delete
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import time
 from collections import defaultdict
@@ -500,6 +501,40 @@ class EventAggregator:
             db.close()
 
         return urls
+
+    async def recent_sensor_ids(
+        self,
+        room_names: list[str] | None = None,
+        limit: int = 10,
+        since_minutes: float = 5.0,
+    ) -> list[str]:
+        """Map recent media in ``MediaCache`` back to their sensor ids.
+
+        Lets callers (the guided-task camera cascade) find reCamera sensors
+        that recently observed a room without reaching into this
+        aggregator's MinIO client or DB session factory.
+        """
+        images = await self.query_recent_media(
+            room_names=room_names,
+            limit=limit,
+            since_minutes=since_minutes,
+        )
+
+        object_names: list[str] = []
+        for img in images:
+            with contextlib.suppress(Exception):
+                object_names.append(self._minio.extract_object_name(img))
+
+        if not object_names:
+            return []
+
+        db: Session = self._db_session_factory()
+        try:
+            rows = db.query(MediaCache).filter(MediaCache.object_name.in_(object_names)).all()
+            name_to_sensor = {r.object_name: r.sensor_id for r in rows if r.sensor_id}
+            return [name_to_sensor[name] for name in object_names if name in name_to_sensor]
+        finally:
+            db.close()
 
     # -- internal helpers -----------------------------------------------------
 

@@ -262,6 +262,44 @@ class TestEventAggregatorWindowTimer:
         )
 
 
+class TestEventAggregatorRecentSensorIds:
+    """G12: recent_sensor_ids() is the public seam the guided-task camera
+    cascade uses instead of reaching into _minio / _db_session_factory."""
+
+    async def test_recent_sensor_ids_maps_media_to_sensors(self, db_factory):
+        from datetime import UTC, datetime, timedelta
+
+        from backend.models.media_cache import MediaCache
+
+        agg, _minio, _ = _make_aggregator(db_factory)
+
+        now = datetime.now(UTC)
+        db = db_factory()
+        db.add(
+            MediaCache(
+                object_name="recamera_image.jpg",
+                presigned_url="https://minio/recamera_image.jpg",
+                sensor_id="sensor-recamera",
+                captured_at=now,
+                expires_at=now + timedelta(minutes=30),
+                deleted=False,
+            )
+        )
+        db.commit()
+        db.close()
+
+        sensor_ids = await agg.recent_sensor_ids(limit=10, since_minutes=5.0)
+
+        assert sensor_ids == ["sensor-recamera"]
+
+    async def test_recent_sensor_ids_empty_when_no_media(self, db_factory):
+        agg, _, _ = _make_aggregator(db_factory)
+
+        sensor_ids = await agg.recent_sensor_ids(limit=10, since_minutes=5.0)
+
+        assert sensor_ids == []
+
+
 def test_event_aggregator_config_accepts_image_rate_fields() -> None:
     config = EventAggregatorConfig.model_validate(
         {

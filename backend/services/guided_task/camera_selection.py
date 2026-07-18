@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import inspect
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
@@ -257,37 +256,11 @@ async def _detection_driven(
 
     tagged_recamera: list[ResolvedCamera] = []
     if event_aggregator is not None:
-        images = await event_aggregator.query_recent_media(
+        recamera_ids = await event_aggregator.recent_sensor_ids(
             room_names=[target_room_name] if target_room_name else None,
             limit=10,
             since_minutes=5.0,
         )
-
-        recamera_ids = []
-        minio_client = getattr(event_aggregator, "_minio", None)
-        object_names = []
-        for img in images:
-            if minio_client is not None:
-                with contextlib.suppress(Exception):
-                    object_names.append(minio_client.extract_object_name(img))
-
-        if object_names:
-            db_factory = getattr(event_aggregator, "_db_session_factory", None)
-            if db_factory is not None:
-                db = db_factory()
-                try:
-                    from backend.models.media_cache import MediaCache
-
-                    rows = (
-                        db.query(MediaCache).filter(MediaCache.object_name.in_(object_names)).all()
-                    )
-                    name_to_sensor = {r.object_name: r.sensor_id for r in rows if r.sensor_id}
-                    for name in object_names:
-                        if name in name_to_sensor:
-                            recamera_ids.append(name_to_sensor[name])
-                finally:
-                    db.close()
-
         tagged_recamera = _tag_cameras(
             _dedupe(recamera_ids), camera_source_resolver, default_source="recamera"
         )

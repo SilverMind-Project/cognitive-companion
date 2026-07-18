@@ -83,8 +83,6 @@ class TestBathroomInferredDwellE2E:
             direction="enter",
             inside_room_id=bathroom_room_id,
             outside_room_id=hallway_room_id,
-            floor_x_m=5.0,
-            floor_y_m=2.0,
             event_time=T_ENTER,
         )
 
@@ -158,8 +156,6 @@ class TestBathroomInferredDwellE2E:
             direction="enter",
             inside_room_id=bathroom_room_id,
             outside_room_id=hallway_room_id,
-            floor_x_m=5.0,
-            floor_y_m=2.0,
             event_time=T_ENTER,
         )
 
@@ -189,8 +185,6 @@ class TestBathroomSegmentInMemory:
             direction="enter",
             inside_room_id=99,
             outside_room_id=1,
-            floor_x_m=1.0,
-            floor_y_m=1.0,
             event_time=T_ENTER,
         )
 

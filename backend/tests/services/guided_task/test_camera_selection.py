@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from backend.services.guided_task.camera_selection import (
     ResolvedCamera,
@@ -217,17 +217,7 @@ async def test_tagged_explicit_cameras_carry_source() -> None:
 
 async def test_tagged_detection_tier_includes_recamera_when_aggregator_present() -> None:
     aggregator = AsyncMock()
-    aggregator.query_recent_media.return_value = ["https://minio/recamera_image.jpg"]
-    aggregator._minio = MagicMock()
-    aggregator._minio.extract_object_name.side_effect = lambda url: url.split("/")[-1]
-
-    mock_row = MagicMock()
-    mock_row.object_name = "recamera_image.jpg"
-    mock_row.sensor_id = "sensor-recamera"
-
-    mock_db = MagicMock()
-    mock_db.query.return_value.filter.return_value.all.return_value = [mock_row]
-    aggregator._db_session_factory = lambda: mock_db
+    aggregator.recent_sensor_ids.return_value = ["sensor-recamera"]
 
     cameras = await select_cameras_tagged(
         person_id="resident-1",

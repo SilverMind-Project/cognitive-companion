@@ -15,12 +15,14 @@ from backend.services.cts.identity_assertion_publisher import IdentityAssertionP
 from backend.services.cts.recamera_observation_subscriber import (
     RecameraObservationSubscriber,
 )
+from backend.services.cts.world_observation_subscriber import WorldObservationSubscriber
 from backend.services.person_location.config import PersonLocationConfig
 from backend.services.person_location.repositories import (
     InMemoryObservationRepository,
     InMemorySegmentRepository,
 )
 from backend.services.person_location.service import PersonLocationService
+from backend.services.person_location.types import FloorPoint
 
 
 def _make_service() -> PersonLocationService:
@@ -140,3 +142,167 @@ async def test_publishes_identity_assertion_with_required_fields():
     assert math.isclose(msg.floor_x_m, 2.0, abs_tol=1e-5)
     assert math.isclose(msg.floor_y_m, 4.0, abs_tol=1e-5)
     assert msg.captured_at_unix_ns > 0
+
+
+@pytest.mark.asyncio
+async def test_event_without_floor_data_ingests_none():
+    """G15: an event with no floor coordinates must never fabricate (0, 0).
+
+    Absence of floor data must produce floor_point=None, matching the
+    NOT NULL gating that latest_floor_point / zone lookup rely on.
+    """
+    svc = _make_service()
+    redis_mock = AsyncMock()
+    redis_mock.xadd = AsyncMock()
+    publisher = IdentityAssertionPublisher(redis_mock)
+
+    subscriber = RecameraObservationSubscriber(svc, publisher)
+
+    event = {
+        "person_id": "carol",
+        "observed_at": datetime.now(UTC).isoformat(),
+        "confidence": 0.8,
+        "camera_id": "cam-3",
+        "room_id": 2,
+        "frame_id": "frame-no-floor",
+        # No floor_x_m / floor_y_m: this must not default to 0.0.
+    }
+
+    await subscriber._handle(event)
+
+    assert await svc.latest_floor_point("carol") is None
+
+    redis_mock.xadd.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_event_with_floor_data_ingests_point():
+    """A legitimate (0.0, 0.0) coordinate pair, when actually present in the
+    event, must still be ingested: the absence check must not drop zeros."""
+    svc = _make_service()
+    redis_mock = AsyncMock()
+    redis_mock.xadd = AsyncMock()
+    publisher = IdentityAssertionPublisher(redis_mock)
+
+    subscriber = RecameraObservationSubscriber(svc, publisher)
+
+    event = {
+        "person_id": "dave",
+        "observed_at": datetime.now(UTC).isoformat(),
+        "confidence": 0.8,
+        "camera_id": "cam-4",
+        "room_id": 2,
+        "floor_x_m": 0.0,
+        "floor_y_m": 0.0,
+        "frame_id": "frame-zero-floor",
+    }
+
+    await subscriber._handle(event)
+
+    fp = await svc.latest_floor_point("dave")
+    assert fp is not None
+    assert fp.x_m == 0.0
+    assert fp.y_m == 0.0
+
+
+@pytest.mark.asyncio
+async def test_zone_lookup_unaffected_by_recamera_identification():
+    """A calibrated world-tracker floor point must remain the freshest floor
+    point (what ZoneService.current_zone reads) even after a subsequent,
+    floorless reCamera identification for the same person."""
+    svc = _make_service()
+
+    # Seed a calibrated world-tracker observation with a real floor point.
+    await svc.ingest_observation(
+        person_id="erin",
+        observed_at=datetime.now(UTC),
+        source="world_tracker",
+        source_ref="ph-erin-1",
+        floor_point=FloorPoint(x_m=1.2, y_m=3.4),
+        room_id=1,
+        confidence=0.9,
+    )
+
+    # A floorless reCamera identification for the same person follows.
+    redis_mock = AsyncMock()
+    redis_mock.xadd = AsyncMock()
+    publisher = IdentityAssertionPublisher(redis_mock)
+    subscriber = RecameraObservationSubscriber(svc, publisher)
+
+    await subscriber._handle(
+        {
+            "person_id": "erin",
+            "observed_at": datetime.now(UTC).isoformat(),
+            "confidence": 0.7,
+            "camera_id": "cam-5",
+            "room_id": 1,
+            "frame_id": "frame-erin-recamera",
+        }
+    )
+
+    # latest_floor_point (what current_zone reads) still returns the
+    # calibrated world-tracker point: the floorless observation is excluded
+    # by the NOT NULL floor-point filter, never masquerading as (0, 0).
+    fp = await svc.latest_floor_point("erin")
+    assert fp is not None
+    assert fp.x_m == 1.2
+    assert fp.y_m == 3.4
+
+
+@pytest.mark.asyncio
+async def test_floor_gating_parity_with_world_observation_subscriber():
+    """Parity guard: both ingestion paths gate floor points on real-data
+    presence, never on a fabricated default, so the next ingest path added
+    has a template to copy."""
+    recamera_svc = _make_service()
+    redis_mock = AsyncMock()
+    redis_mock.xadd = AsyncMock()
+    recamera_subscriber = RecameraObservationSubscriber(
+        recamera_svc, IdentityAssertionPublisher(redis_mock)
+    )
+
+    world_svc = _make_service()
+    world_subscriber = WorldObservationSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=world_svc,
+        camera_room_id_map={"cam-1": 1},
+    )
+
+    # Recamera: no floor data in the event.
+    await recamera_subscriber._handle(
+        {
+            "person_id": "frank",
+            "observed_at": datetime.now(UTC).isoformat(),
+            "confidence": 0.7,
+            "camera_id": "cam-6",
+            "room_id": 1,
+            "frame_id": "frame-frank",
+        }
+    )
+
+    # World tracker: uncalibrated detection (the equivalent of "no real floor
+    # data" in that pipeline).
+    await world_subscriber.handle(
+        {
+            "event_time": datetime.now(UTC),
+            "room_name": "living_room",
+            "camera_id": "cam-1",
+            "detections": [
+                {
+                    "camera_id": "cam-1",
+                    "detection_id": "d-1",
+                    "ph_id": "ph-frank",
+                    "identity_id": "frank",
+                    "confidence": 0.9,
+                    "mean_quality": 0.8,
+                    "floor_x_mm": 1000,
+                    "floor_y_mm": 2000,
+                    "room_name": "living_room",
+                    "calibrated": False,
+                }
+            ],
+        }
+    )
+
+    assert await recamera_svc.latest_floor_point("frank") is None
+    assert await world_svc.latest_floor_point("frank") is None

@@ -71,6 +71,8 @@ main.py          App factory only: FastAPI() creation, middleware, router includ
 
 **Cut-point rule:** If you find yourself importing from a layer to the right of your current layer, you have a circular dependency risk. Restructure.
 
+**Never read another service's underscore attributes.** Reaching into `some_service._private_field` (e.g. `event_aggregator._minio`, `event_aggregator._db_session_factory`, or the wave-1-banned `repo._pool`) couples your module to that service's storage layout and bypasses its own invariants. Add a public method on the owning service instead (see `EventAggregator.recent_sensor_ids()` in `backend/services/event_aggregator.py`, added in M28/G12 to replace `camera_selection.py`'s direct reach into aggregator internals) and call that from the consumer.
+
 ### Module size
 
 - Keep modules under 500 lines. When a module exceeds this, split by concern.

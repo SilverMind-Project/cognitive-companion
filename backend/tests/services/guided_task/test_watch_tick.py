@@ -221,6 +221,101 @@ async def test_watch_throttled_by_tick_s(db_session, monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_watch_camera_cap_independent_of_frames(db_session, monkeypatch) -> None:
+    """G11: the watch tick caps cameras via max_cameras, not max_frames.
+
+    A cascade returning five cameras must be capped to max_cameras (3) even
+    though the step's watch max_frames is 9.
+    """
+    from backend.services.guided_task.camera_selection import ResolvedCamera
+
+    select_cameras_mock = AsyncMock(
+        return_value=[ResolvedCamera(id=f"cam-{i}", source="cts") for i in range(1, 6)]
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.camera_selection.select_cameras_tagged",
+        select_cameras_mock,
+    )
+
+    clock = _Clock()
+    gate_runner = FakeGateGraphRunner()
+    safety = FakeSafetyWatch()
+
+    member = db_session.get(HouseholdMember, "resident-1")
+    if not member:
+        db_session.add(HouseholdMember(id="resident-1", name="Resident"))
+        db_session.flush()
+
+    routine = Routine(name="Make tea", person_id="resident-1", is_enabled=True)
+    db_session.add(routine)
+    db_session.flush()
+    db_session.add(
+        RoutineStep(
+            routine_id=routine.id,
+            ord=0,
+            prompt_template="Step 0 with watch check",
+            completion_gate={
+                "kinds": ["response", "vision_confirm"],
+                "vision": {
+                    "gate_graph_rule_id": 42,
+                    "watch": {
+                        "enabled": True,
+                        "tick_s": 20,
+                        "window_s": 4,
+                        "max_frames": 9,
+                    },
+                },
+                "mode": "all",
+            },
+            is_safety_critical=False,
+        )
+    )
+    db_session.commit()
+
+    settings_dict = {
+        "app": {"timezone": "America/New_York"},
+        "guided_task": {
+            "step_timeout_s": 300,
+            "max_step_attempts": 3,
+            "resume_grace_s": 600,
+            "transcript_retention_days": 30,
+            "summon_channels": ["ha_speaker_tts", "pwa_popup_text"],
+            "vision": {
+                "max_cameras": 3,
+                "confirm": {
+                    "max_disagreements": 2,
+                    "window_s": 20,
+                    "max_frames": 9,
+                    "min_confidence": 0.7,
+                    "min_interval_s": 15,
+                },
+                "watch": {
+                    "enabled": False,
+                    "tick_s": 20,
+                    "window_s": 4,
+                    "max_frames": 9,
+                },
+            },
+        },
+    }
+
+    svc = GuidedTaskService(
+        db_factory=lambda: db_session,
+        voice=_RecordingVoice(),
+        escalator=_RecordingEscalator(),
+        settings=Settings.from_dict(settings_dict),
+        time_fn=clock,
+        gate_runner=gate_runner,
+        safety_watch=safety,
+    )
+    await svc.start(routine.id, "resident-1")
+
+    await svc.tick(clock.now)
+
+    assert select_cameras_mock.call_args.kwargs["max_cameras"] == 3
+
+
+@pytest.mark.asyncio
 async def test_watch_emits_event_and_warms_watch_cache(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
 

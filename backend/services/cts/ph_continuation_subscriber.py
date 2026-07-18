@@ -82,8 +82,6 @@ class PHContinuationSubscriber(StreamConsumer[PHContinuationMessage]):
                 direction="enter",
                 inside_room_id=dwell.room_id,
                 outside_room_id=dwell.room_id,
-                floor_x_m=0.0,
-                floor_y_m=0.0,
                 event_time=datetime.now(UTC),
             )
         return True

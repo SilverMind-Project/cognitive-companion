@@ -159,6 +159,17 @@ confusion/distress. Normal stalls go through the graduated ladder (retry, notify
 takeover). Emergencies (hazard, fall) skip the ladder and alert immediately. Safety
 events enter the state machine as `safety_event`; the watch never advances steps.
 
+**Ownership rule (M26/G8):** the state machine owns attempts/timeout escalation
+exclusively, through `timeout_tick`. The safety watch owns perception conditions
+only (room, hazard, no-motion, blocked reports) and must be once-per-threshold,
+never per-tick re-fire; a condition that keeps being true on every tick (e.g.
+repeated blocked-step reports) is checked against the session's own event history
+(`GuidedTaskStore.has_event`) before it is re-emitted, so a fixable perception
+condition escalates once, not on a timer. When consuming CTS signal kinds (e.g.
+the no-motion condition's kind set), guard the local subset against the canonical
+`ALL_SIGNAL_KINDS` with a `subset <= set(ALL_SIGNAL_KINDS)`-style test so a future
+kind rename cannot silently orphan the subscription.
+
 ## 11. Seamless to her, auditable for the caregiver (D18)
 
 Caregiver interventions are spoken in the same agent voice and are never surfaced to

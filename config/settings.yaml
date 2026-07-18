@@ -6,6 +6,9 @@ app:
   version: "2.0.0"
   timezone: "America/New_York"
   debug: false
+  # External origin for links in outbound notifications, e.g. https://home.example.net.
+  # Empty keeps relative links for in-app surfaces.
+  public_base_url: ""
 
 server:
   host: "0.0.0.0"

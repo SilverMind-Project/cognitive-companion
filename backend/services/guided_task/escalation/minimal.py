@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -27,11 +28,19 @@ class NotifyOnlyEscalator:
         db_factory: Callable[[], Session],
         settings: Settings | None = None,
         conversation_manager: Any = None,
+        time_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self._dispatcher = notification_dispatcher
         self._store = GuidedTaskStore(db_factory)
         self._settings = settings or default_settings
         self._conversation_manager = conversation_manager
+        self._time_fn = time_fn or (lambda: datetime.now(UTC))
+
+    def _now(self) -> datetime:
+        now = self._time_fn()
+        if now.tzinfo is None:
+            raise ValueError("NotifyOnlyEscalator time_fn must return timezone-aware datetimes")
+        return now
 
     async def escalate(self, *, session: GuidedSession, reason: str, emergency: bool) -> None:
         routine = self._store.get_routine(session.routine_id)
@@ -40,16 +49,16 @@ class NotifyOnlyEscalator:
         steps = self._store.list_steps(session.routine_id)
         step = _current_step(steps, session.current_step_ord)
 
+        now = self._now()
         updated = self._store.update_session(
             session.id,
             status="escalated",
-            last_activity_at=session.last_activity_at,
         )
         if updated is None:
             raise NotFoundError("Guided session", session.id)
         self._store.add_event(
             session_id=session.id,
-            at=session.last_activity_at,
+            at=now,
             kind="escalation",
             step_ord=session.current_step_ord,
             actor="system",

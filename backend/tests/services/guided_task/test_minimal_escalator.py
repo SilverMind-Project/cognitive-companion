@@ -107,3 +107,30 @@ async def test_missing_dispatcher_is_graceful(db_session, db_factory) -> None:
 
     db_session.expire_all()
     assert db_session.get(GuidedSession, session.id).status == "escalated"
+
+
+@pytest.mark.asyncio
+async def test_escalation_event_stamped_with_now(db_session, db_factory) -> None:
+    """G16 (second instance): the escalation event records when the escalation
+    happened, not the resident's last activity."""
+    session = _seed(db_session)
+    now = datetime(2026, 6, 17, 13, 0, tzinfo=UTC)
+    escalator = NotifyOnlyEscalator(
+        _Dispatcher(),
+        db_factory=db_factory,
+        settings=_settings(),
+        time_fn=lambda: now,
+    )
+
+    await escalator.escalate(session=session, reason="stuck", emergency=False)
+
+    db_session.expire_all()
+    event = (
+        db_session.query(GuidedSessionEvent)
+        .filter(GuidedSessionEvent.session_id == session.id)
+        .filter(GuidedSessionEvent.kind == "escalation")
+        .one()
+    )
+    assert event.at == now
+    assert event.at != session.last_activity_at
+    assert db_session.get(GuidedSession, session.id).last_activity_at == session.last_activity_at

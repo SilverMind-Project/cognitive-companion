@@ -191,3 +191,64 @@ async def test_missing_dispatcher_graceful(db_session, db_factory) -> None:
     assert db_session.get(GuidedSession, session.id).status == "escalated"
     event = db_session.query(GuidedSessionEvent).filter_by(session_id=session.id).one()
     assert event.kind == "escalation"
+
+
+@pytest.mark.asyncio
+async def test_escalation_event_stamped_with_now(db_session, db_factory) -> None:
+    """G16: the escalation timeline must record when the escalation happened,
+    not the resident's last activity."""
+    session = _seed(db_session)
+    clock = _Clock()
+    clock.advance(3600)
+    ws = _WsManager()
+    escalator = FullEscalator(
+        _Dispatcher(),
+        db_factory=db_factory,
+        ws_manager=ws,
+        settings=_settings(),
+        time_fn=clock,
+    )
+
+    await escalator.escalate(session=session, reason="stuck", emergency=False)
+
+    db_session.expire_all()
+    event = db_session.query(GuidedSessionEvent).filter_by(session_id=session.id).one()
+    assert event.at == clock.now
+    assert event.at != session.last_activity_at
+    assert datetime.fromisoformat(ws.broadcasts[0]["at"]) == clock.now
+    assert db_session.get(GuidedSession, session.id).last_activity_at == session.last_activity_at
+
+
+@pytest.mark.asyncio
+async def test_takeover_url_relative_without_base(db_session, db_factory) -> None:
+    session = _seed(db_session)
+    dispatcher = _Dispatcher()
+    escalator = FullEscalator(dispatcher, db_factory=db_factory, settings=_settings())
+
+    await escalator.escalate(session=session, reason="stuck", emergency=False)
+
+    assert f"Take over: /admin/guided-sessions/{session.id}" in dispatcher.calls[0]["message"]
+
+
+@pytest.mark.asyncio
+async def test_takeover_url_uses_public_base(db_session, db_factory) -> None:
+    session = _seed(db_session)
+    dispatcher = _Dispatcher()
+    settings = Settings.from_dict(
+        {
+            "app": {"public_base_url": "https://home.example.net/"},
+            "guided_task": {
+                "step_timeout_s": 300,
+                "max_step_attempts": 3,
+                "resume_grace_s": 600,
+                "escalation_grace_s": 1800,
+                "escalation_channels": ["telegram", "pwa_popup_text"],
+            },
+        }
+    )
+    escalator = FullEscalator(dispatcher, db_factory=db_factory, settings=settings)
+
+    await escalator.escalate(session=session, reason="stuck", emergency=False)
+
+    expected = f"https://home.example.net/admin/guided-sessions/{session.id}"
+    assert f"Take over: {expected}" in dispatcher.calls[0]["message"]

@@ -324,6 +324,30 @@ class GuidedTaskStore:
         finally:
             db.close()
 
+    def has_event(
+        self, *, session_id: int, kind: str, step_ord: int | None, detail_condition: str
+    ) -> bool:
+        db = self._db_factory()
+        try:
+            step_filter = (
+                GuidedSessionEvent.step_ord.is_(None)
+                if step_ord is None
+                else GuidedSessionEvent.step_ord == step_ord
+            )
+            stmt = (
+                select(GuidedSessionEvent.id)
+                .where(
+                    GuidedSessionEvent.session_id == session_id,
+                    GuidedSessionEvent.kind == kind,
+                    step_filter,
+                    GuidedSessionEvent.detail["condition"].astext == detail_condition,
+                )
+                .limit(1)
+            )
+            return db.execute(stmt).scalars().first() is not None
+        finally:
+            db.close()
+
     def list_events(self, *, session_id: int, limit: int = 20) -> list[GuidedSessionEvent]:
         db = self._db_factory()
         try:

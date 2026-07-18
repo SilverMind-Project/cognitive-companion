@@ -23,23 +23,46 @@ Never let the agent own advancement, escalation, or safety. Those are code.
 
 ## 2. Module layout
 
+`service.py` was a 2100+ line monolith (AUDIT-M01-M05 F4, closed by hardening M29
+as G18). It is now a thin façade; the actual concerns live in single-purpose
+collaborator modules the façade builds once and delegates to:
+
 ```
 backend/services/interactive_session/   shared session primitives (quiz + guided task)
 backend/services/guided_task/
   state_machine.py     pure, deterministic, no I/O, injectable clock
-  service.py           lifecycle: start / resume / tick / complete (owns I/O)
+  context.py           RuntimeContext: shared deps + cross-cutting helpers (leaf)
+  service.py           GuidedTaskService façade: builds context + collaborators,
+                        delegates every public method (composition root)
+  routine_admin.py     routine CRUD, sanitize_completion_gate, gate-preview/test-run
+  presentation.py      descriptors, voice dispatch, session reads, WS broadcast (leaf)
+  retention.py         transcript/event pruning, episodic session-summary write (leaf)
+  runtime.py           handle_completion, apply_decision, on_step_timeout, maybe_skip_step
+  resident_actions.py  repeat_step / report_blocked / request_help / resume
+  summon.py            presence-gated start, summon announce/recheck
+  watch.py             live tick: vision watch, resume-grace abandon, safety events
+  caregiver.py         takeover surface: say / advance / complete / release
+  completion/          CompletionEvaluator protocol + evaluators, disagreement.py
+                        (bounded vision/response disagreement resolution, G1/D24)
   store.py             routine/session/event persistence
   policy.py            resolve_policy(): global -> routine -> step precedence
-  completion/          CompletionEvaluator protocol + ResponseEvaluator (+ M7 impls)
   safety/              SafetyWatch + the four conditions (M7)
   escalation/          minimal notify (M5), full ladder + takeover (M8)
   camera_selection.py  the D5 cascade (M7)
 ```
 
 Layering (from engineering-standards): `state_machine.py` is pure and imports only
-from `core/` and domain dataclasses. `service.py` orchestrates store, evaluators,
-the interactive-session primitives, and the scheduler. Routers and MCP tools are
-thin and call `service.py`; they never touch the store directly.
+from `core/` and domain dataclasses. `presentation.py` and `retention.py` are leaves
+depending only on `context.py`; `runtime.py` depends on both of those; `summon.py`,
+`watch.py`, and `caregiver.py` depend on `runtime.py` and `presentation.py`.
+`RuntimeContext` is held by reference everywhere (bootstrap setters like
+`set_zone_service` write through it, so already-built collaborators see the
+update). No collaborator reaches into another's private (`_`-prefixed) attributes;
+cross-cutting calls go through a constructor-injected public method or callable.
+Routers and MCP tools are thin and call `service.py`; they never touch the store,
+or any collaborator module, directly. A structural test
+(`test_guided_task_module_sizes.py`) keeps every module in this list under 500
+lines.
 
 ## 3. The state machine is pure and clock-injectable
 

@@ -312,8 +312,13 @@ async def test_auto_advance_prefix_is_agent_instruction(db_factory, db_session) 
 def test_no_hardcoded_english_summon_or_prefix_literal_in_service() -> None:
     import inspect
 
-    from backend.services.guided_task import service as service_module
+    # M29 moved the summon announcement into summon.py and the watch
+    # auto-advance prefix into watch.py; guard the modules that actually
+    # own this logic now; otherwise this regression guard goes vacuous.
+    from backend.services.guided_task import summon as summon_module
+    from backend.services.guided_task import watch as watch_module
 
-    source = inspect.getsource(service_module)
-    assert "Please come to the companion screen" not in source
-    assert "lovely, now" not in source
+    for module in (summon_module, watch_module):
+        source = inspect.getsource(module)
+        assert "Please come to the companion screen" not in source
+        assert "lovely, now" not in source

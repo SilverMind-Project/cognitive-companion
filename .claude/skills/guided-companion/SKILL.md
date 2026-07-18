@@ -51,18 +51,7 @@ backend/services/guided_task/
   camera_selection.py  the D5 cascade (M7)
 ```
 
-Layering (from engineering-standards): `state_machine.py` is pure and imports only
-from `core/` and domain dataclasses. `presentation.py` and `retention.py` are leaves
-depending only on `context.py`; `runtime.py` depends on both of those; `summon.py`,
-`watch.py`, and `caregiver.py` depend on `runtime.py` and `presentation.py`.
-`RuntimeContext` is held by reference everywhere (bootstrap setters like
-`set_zone_service` write through it, so already-built collaborators see the
-update). No collaborator reaches into another's private (`_`-prefixed) attributes;
-cross-cutting calls go through a constructor-injected public method or callable.
-Routers and MCP tools are thin and call `service.py`; they never touch the store,
-or any collaborator module, directly. A structural test
-(`test_guided_task_module_sizes.py`) keeps every module in this list under 500
-lines.
+Layering (from engineering-standards): `state_machine.py` is pure and imports only from `core/` and domain dataclasses. `presentation.py` and `retention.py` are leaves depending only on `context.py`; `runtime.py` depends on both of those; `summon.py`, `watch.py`, and `caregiver.py` depend on `runtime.py` and `presentation.py`. `RuntimeContext` is held by reference everywhere (bootstrap setters like `set_zone_service` write through it, so already-built collaborators see the update). No collaborator reaches into another's private (`_`-prefixed) attributes; cross-cutting calls go through a constructor-injected public method or callable. Routers and MCP tools are thin and call `service.py`; they never touch the store, or any collaborator module, directly. A structural test (`test_guided_task_module_sizes.py`) keeps every module in this list under 500 lines.
 
 ## 3. The state machine is pure and clock-injectable
 
@@ -124,21 +113,9 @@ them; do not re-implement prompt injection or pipeline park/resume in
 
 ## 7. Session status and transitions
 
-`GuidedSession.status`: `pending` -> `summoning` -> `active` -> `waiting` ->
-(`escalated` | `caregiver_takeover`) -> (`completed` | `abandoned` | `failed`).
-`waiting` means parked on a response or a timed step. `summoning` means presence-
-gated and waiting for her to arrive. Every transition writes a `GuidedSessionEvent`.
+`GuidedSession.status`: `pending` -> `summoning` -> `active` -> `waiting` -> (`escalated` | `caregiver_takeover`) -> (`completed` | `abandoned` | `failed`). `waiting` means parked on a response or a timed step. `summoning` means presence-gated and waiting for her to arrive. Every transition writes a `GuidedSessionEvent`.
 
-**Skip conditions (M25, D8, G4).** A step's `skip_condition` (`{"kind": ...}`) is
-dispatched from two places only: `activity_signal` / `zone_presence` are
-evaluated on step entry (`_begin_session`, and the advance/skip branch of
-`_apply_decision`, via `_maybe_skip_step`); `response_says_done` fires only
-when the agent passes `already_done=True` into `mark_guided_step_complete`
-and the current step names that kind. Either path dispatches the
-`skip_condition_met` event into the state machine exactly like any other
-event; the state machine still owns the transition (advance, skip, or
-complete). Never evaluate a skip condition from inside an evaluator or a
-router; `_maybe_skip_step` is the single dispatcher.
+**Skip conditions (M25, D8, G4).** A step's `skip_condition` (`{"kind": ...}`) is dispatched from two places only: `activity_signal` / `zone_presence` are evaluated on step entry (`_begin_session`, and the advance/skip branch of `_apply_decision`, via `maybe_skip_step`); `response_says_done` fires only when the agent passes `already_done=True` into `mark_guided_step_complete` and the current step names that kind. Either path dispatches the `skip_condition_met` event into the state machine exactly like any other event; the state machine still owns the transition (advance, skip, or complete). Never evaluate a skip condition from inside an evaluator or a router; `maybe_skip_step` (`runtime.py`) is the single dispatcher.
 
 ## 8. MCP tools mirror the quiz tools (D3, single-service-layer)
 
@@ -151,50 +128,13 @@ smoke test must still resolve every tool.
 
 ## 9. Camera selection and the coordinate convention (D5, D19, D25)
 
-Select cameras for a vision check in this order: explicit `RoutineStep.camera_ids`
-or `RoomZone.camera_ids`, then cameras with live identity detections of her in the
-CTS buffer or event aggregator (reCamera), then zone-covering cameras, then all cameras in her room.
+Select cameras for a vision check in this order: explicit `RoutineStep.camera_ids` or `RoomZone.camera_ids`, then cameras with live identity detections of her in the CTS buffer or event aggregator (reCamera), then zone-covering cameras, then all cameras in her room. The cascade is source-tagged: `select_cameras_tagged` returns `ResolvedCamera(id, source)` where `source` is `"cts"` or `"recamera"` (resolved via `CameraSourceResolverService`, built in `main.py`); the legacy `select_cameras` is a backward-compatible, id-only wrapper. `media_window_poll` partitions tagged cameras, fetches CTS frames via `collect_recent_cts_frames` and reCamera images via `query_media_by_sensor`, merges them chronologically, and outputs `"source": "mixed"` when both are present.
 
-- **Source-tagged cameras (`ResolvedCamera`):** The cascade supports both CTS and reCamera.
-  Callers query `select_cameras_tagged`, which returns a list of `ResolvedCamera(id, source)`
-  objects, where `source` is `"cts"` or `"recamera"`. The legacy `select_cameras` remains
-  as a backward-compatible, id-only wrapper that defaults to `"cts"` if no resolver or
-  aggregator is provided.
-- **Camera source resolver:** Constructed as `CameraSourceResolverService` in `main.py`,
-  this resolver maps a camera/sensor ID to its source (`"cts"` if it exists in the `cts_cameras` table,
-  or `"recamera"` if it exists in the `sensors` table).
-- **Multi-source media polling:** `media_window_poll` partitions the tagged cameras,
-  fetches CTS frames via `collect_recent_cts_frames` and reCamera images via `query_media_by_sensor`,
-  then merges and sorts them chronologically before applying downsampling.
-  The step outputs `"source": "mixed"` when both sources are present.
+**Never use `cts_camera.visibility_polygon` as a runtime correctness input**: it is normalised [0,1] image space and is wall-contaminated until Track G lands. Zone polygons are floor meters, the same space as `location_observation.floor_x_m/floor_y_m`; never compare a meter polygon against a normalised one without converting through the camera `homography_matrix`.
 
-**Never use `cts_camera.visibility_polygon` as a runtime correctness input**: it is normalised
-[0,1] image space and is wall-contaminated until Track G lands. Zone polygons are
-floor meters, the same space as `location_observation.floor_x_m/floor_y_m`. Never
-compare a meter polygon against a normalised polygon; convert through the camera
-`homography_matrix`.
+**A floor point is written only when the source event carries real coordinates (M28, G15).** Absence of floor data is `None`, never `(0, 0)`: a synthetic origin point must not masquerade as a real floor position and silently poison zone lookup, zone-based camera selection, `zone_presence` completion, or the safety watch's expected-room check. Every ingestion path that can write a `FloorPoint` (`recamera_observation_subscriber.py`, `world_observation_subscriber.py`, and any future source) gates construction on an explicit `is not None` check of the real coordinate fields, never a `.get(key, 0.0)` default. `PersonLocationService.ingest_room_transition` has no floor-point parameters; a transition event's floor coordinates are dead data until a milestone actually persists them.
 
-**A floor point is written only when the source event carries real coordinates
-(M28, G15).** Absence of floor data is `None`, never `(0, 0)`: a synthetic
-origin point must not masquerade as a real floor position and silently poison
-zone lookup, zone-based camera selection, `zone_presence` completion, or the
-safety watch's expected-room check. Every ingestion path that can write a
-`FloorPoint` (`recamera_observation_subscriber.py`,
-`world_observation_subscriber.py`, and any future source) gates construction
-on an explicit `is not None` check of the real coordinate fields, never a
-`.get(key, 0.0)` default. `PersonLocationService.ingest_room_transition` has
-no floor-point parameters; a transition event's floor coordinates are dead
-data until a milestone actually persists them, so they must not be threaded
-through as unused parameters.
-
-**`max_cameras` and `max_frames` are independent budgets (M28, G11).** The
-camera-cascade cap comes from `guided_task.vision.max_cameras` (default 3,
-overridable per profile via `vision.confirm.max_cameras` /
-`vision.watch.max_cameras`, resolved through `resolve_vision_override` like
-the sibling knobs). `max_frames` is the per-camera frame budget passed to the
-`GateProfile` for the poll nodes. Never pass one where the other belongs:
-many frames from few good cameras beats one frame from many cameras for VLM
-reasoning.
+**`max_cameras` and `max_frames` are independent budgets (M28, G11).** The camera-cascade cap comes from `guided_task.vision.max_cameras` (default 3, overridable per profile via `vision.confirm.max_cameras` / `vision.watch.max_cameras`, resolved through `resolve_vision_override`). `max_frames` is the per-camera frame budget passed to the `GateProfile` for the poll nodes. Never pass one where the other belongs: many frames from few good cameras beats one frame from many cameras for VLM reasoning.
 
 ## 10. Safety watch (D14) and emergencies
 
@@ -227,7 +167,7 @@ from her UI exactly as `audio_handler` already hides orchestrator prompts.
 via `guided_sessions.conversation_session_id`, a nullable FK set once a realtime
 companion session is open (`on_session_opened`, `_begin_session`) or, for a caregiver
 message with no live realtime session, created on demand
-(`GuidedTaskService._link_conversation`). Guided session ids and conversation session
+(`RuntimeContext.link_conversation`). Guided session ids and conversation session
 ids are independent autoincrement sequences; never key a `conversation_manager` read
 or write by a guided session id (`ensure_session(guided_session.id)` was the closed
 G2/F3 bug). Every consumer (`caregiver_say`, `get_detail`, `FullEscalator._recent_transcript`,
@@ -236,46 +176,13 @@ linking always emits a `conversation_linked` `GuidedSessionEvent`.
 
 ## 12. Language and voice (D15, M27)
 
-Resolve the agent's system instruction with
-`VoiceInstructionConfig.compose(step_type, base_instruction, step_override,
-resource_override)`. The routine carries the language/voice override
-(`Routine.language_override`, `Routine.voice_override`); `config/settings.yaml`
-(Tamil/Tanglish/English) is the default. The VLM reasons in English; the agent
-speaks her language. Do not translate in code; let the agent handle language.
+Resolve the agent's system instruction with `VoiceInstructionConfig.compose(step_type, base_instruction, step_override, resource_override)`. The routine carries the language/voice override (`Routine.language_override`, `Routine.voice_override`); `config/settings.yaml` (Tamil/Tanglish/English) is the default. The VLM reasons in English; translation is otherwise left to the agent, not code.
 
-**The directive seam (`AgentSessionVoice`).** When `Routine.language_override` is
-set, `backend/services/guided_task/language.py::compose_language_directive`
-renders the `guided_task_language_directive` template from
-`config/knowledge_voice.yaml` (default: `"For this routine, speak only in
-{{ language }}."`) with the display name resolved from `app.language_names`
-(`config/settings.yaml`), and appends it to the composed instruction. This runs
-at every seam that speaks to her or relays a caregiver message:
-`AgentSessionVoice.speak_step` (every step and retry) and
-`GuidedTaskService._inject_caregiver_message` (caregiver relays). An unmapped
-language code degrades loudly (passes through verbatim, logs
-`guided_language_name_unknown`) rather than mistranslating silently.
-`Routine.voice_override` has no runtime effect on the realtime provider yet
-(Gemini Live cannot switch voice mid-session); it is still passed through
-`inject_session_prompt`'s `extra_metadata["voice"]` for forward compatibility,
-and `AgentSessionVoice` logs `guided_voice_override_unsupported` once per
-session so the gap is visible, not silent.
+**The directive seam (`AgentSessionVoice`).** When `Routine.language_override` is set, `backend/services/guided_task/language.py::compose_language_directive` renders the `guided_task_language_directive` template from `config/knowledge_voice.yaml` with the display name resolved from `app.language_names`, and appends it to the composed instruction. This runs at every seam that speaks to her: `AgentSessionVoice.speak_step` (every step and retry) and `GuidedTaskService._inject_caregiver_message` (caregiver relays). An unmapped language code degrades loudly (passes through verbatim, logs `guided_language_name_unknown`) rather than mistranslating silently. `Routine.voice_override` has no runtime effect yet (Gemini Live cannot switch voice mid-session); it is passed through for forward compatibility and logs `guided_voice_override_unsupported` once per session so the gap stays visible.
 
-**The literal-TTS seam (`_announce_summon`).** The summon announcement bypasses
-the agent (it plays before a companion session exists), so it cannot rely on
-"the agent translates." Its text is a per-language map,
-`guided_task.summon_messages` in `config/settings.yaml`, resolved in order:
-`Routine.language_override`, then `tts.default_language`, then `"en"`. A
-resolved language missing from the map falls back to `"en"` (text and
-`tts_language` together, never one without the other) and logs
-`guided_summon_language_missing`.
+**The literal-TTS seam (`_announce_summon`).** The summon announcement plays before a companion session exists, so it cannot rely on the agent. Its text is a per-language map, `guided_task.summon_messages` in `config/settings.yaml`, resolved in order: `Routine.language_override`, then `tts.default_language`, then `"en"`. A resolved language missing from the map falls back to `"en"` (text and `tts_language` together) and logs `guided_summon_language_missing`.
 
-**Anti-pattern.** Resident-facing strings must never be hardcoded English in
-service code. Agent-path strings are instruction templates in
-`config/knowledge_voice.yaml` (the agent renders them in her language, e.g.
-`guided_task_auto_advance_prefix`, an instruction to acknowledge warmly, not
-words to parrot). Literal-TTS strings (anything dispatched straight to a
-speaker channel, bypassing the agent) are per-language maps in
-`config/settings.yaml`.
+**Anti-pattern.** Resident-facing strings must never be hardcoded English in service code. Agent-path strings are instruction templates in `config/knowledge_voice.yaml` (the agent renders them in her language); literal-TTS strings (dispatched straight to a speaker channel, bypassing the agent) are per-language maps in `config/settings.yaml`.
 
 ## 13. Privacy and retention (D13)
 
@@ -311,43 +218,22 @@ a transcript still in active use.
 | Building a graph/branching routine | Linear with optional skip-ahead only |
 | `time.sleep` / wall-clock in the state machine | Injected `now`; schedule via APScheduler |
 | Parking an owning pipeline execution on a single step's timeout | The park ceiling (`guided_task_start`) is routine-scale: summon budget plus every step's `step_timeout_s * max_step_attempts`, capped by `guided_task.max_pipeline_park_s` (M25, G6) |
-| An unbounded per-session in-memory dict (`{}`) on a service that runs forever | `cachetools.TTLCache`, sized and evicted on terminal transitions (`_evict_runtime_state`); TTL is a memory bound only, never the correctness gate (M25, G10) |
+| An unbounded per-session in-memory dict (`{}`) on a service that runs forever | `cachetools.TTLCache`, sized and evicted on terminal transitions (`RuntimeContext.evict_runtime_state`); TTL is a memory bound only, never the correctness gate (M25, G10) |
 
 ## 16. Gate graphs (vision-gate graphs)
 
-A vision-confirmation gate is a callable pipeline graph, represented as a `Rule` with `trigger_types == []`.
-- **`gate_safe` and `gate_only` flags:** Step metadata declares `gate_safe: bool = True` for read-only perception/reasoning steps (e.g. `media_window_poll`, `scene_analysis`, `condition`, `gate_verdict`). The `gate_only` flag (True for `gate_verdict`) filters steps so they only appear in vision-gate graph palettes.
-- **`gate_verdict` step:** The single required sink step of a gate graph. It evaluates a `complete_if` Lark-based expression, resolves JMESPath confidence and reason, and writes a standard `{complete, confidence, reason}` verdict block to `pipeline_data["gate_verdict"]`.
-- **`validate_gate_graph`:** Validates gate safety constraints (no side-effects, single reachable `gate_verdict` step). Run-time/attach-time validation enforces the full check, while save-time incremental edits use `gate_safe_only=True` to allow temporary missing/unwired steps.
-- **`GateGraphRunner`:** Executes a gate graph non-durably and without database persistence (no `WorkflowExecution` or `EventLog` writes). It constructs a transient in-memory `_SyntheticExecution` and `_SyntheticRule`, and a minimal `TriggerContext` to satisfy the `StepHandler.execute()` contract. Traversal is driven by the pure `traverse_dag` core function over a read-only DB snapshot of steps and edges.
-- **Profiles:** Predefined parameter sets (`confirm`, `watch`) resolved before calling the runner:
-  - Poll parameters (`window_s`, `max_frames`) are inherited by `media_window_poll` when set to `"inherit"` or `None` in step configuration.
-  - VLM models are overridden in `llm_call` if `use_profile_model: true` and the profile specifies `model_id`.
-  - Heavy pruning: steps configured with `heavy == True` are skipped as dead branches when `profile.prune_heavy` is True (typical for watch checks to save cost/latency).
-- **Cool-off cache:** An in-memory cache keyed by `(session_id, step_ord, profile_name)` holding the last `GateVerdict` and timestamps. Callers check this cache first; if a verdict is younger than the configured `min_interval_s`, the cached verdict is reused without invoking the graph runner. **Cache polarity (M23, G3):** only positive watch verdicts (`complete=True` and `confidence >= min_confidence`) may warm the confirm cool-off slot; the watch slot itself is always warmed so its own throttle keeps working. Cached negative confirm verdicts are recorded as disagreement events (`reason="cached:<original_reason>"`) so the bounded-disagreement bound still accumulates while the confirm slot is fresh; a cached positive is never re-recorded.
-- **Confirm Path & Profile Integration:** The linear routine spine completion path (`VisionEvaluator`) executes the gate graph in `confirm` mode via the `GateGraphRunner`.
-- **Bounded Disagreement Rule (D24):** When a resident asserts "done" but the vision gate graph returns `complete=False` (disagreement), the session policy records the disagreement. After `max_disagreements` consecutive disagreements (counted durably via `GuidedSessionEvent` database records), the system defers to the resident and advances (using `actor="resident"`, emitting `vision_deferred` kind) or escalates (if configured with `on_max_disagreements: "escalate"`), avoiding trapping the resident.
-- **Removed Camera Override:** The dead `camera_ids` override under `completion_gate.vision` is deleted; only step-level `camera_ids` are resolved. Any legacy keys like `camera_ids` or `description` are automatically stripped during schema ingestion.
-- **Config Shape:** Under `completion_gate.vision`, the new config structure is structured under `gate_graph_rule_id`, `confirm`, and `watch` dictionaries.
-- **Rich Audits:** Disagreements and successful gate runs emit `vision_confirm` events with detailed metadata (`profile`, `gate_graph_rule_id`, `cameras`, `complete`, `confidence`, `reason`, `node_results`, `cost`).
-- **Watch Path & Profile Integration:** The watch profile runs the same gate graph in the `watch` profile on a background tick (cadence aligned with `safety_tick_s`). It runs advisorily and is isolated/fail-soft; any watch error is logged and caught so it never blocks the safety watch or tick loop.
-- **Per-Session Watch Throttle:** Tracks `last_watch_at` in-memory per `(session, step_ord)`. Checks are skipped if run within the resolved `watch.tick_s` interval to control VLM execution costs.
-- **Nag-Suppression:** When a recent watch verdict yields `complete == True` (or expected activity in node results) with `confidence >= watch.min_confidence`, `progress_seen_at` is set to `now`. When evaluating step timeouts/re-prompts, the system defers (extends) the deadline if progress was recently observed, suppressing unnecessary nags without blocking safety/abandonment checks.
-- **Opt-in Auto-Advance:** When `watch.auto_advance` is enabled, the system count-checks the streak of consecutive successful watch verdicts durably from database events. If `watch.auto_advance_k` (default 3) consecutive high-confidence complete verdicts are seen, the session auto-advances under `actor="orchestrator"`, speaking a brief, warm encouragement transition. This is strictly forbidden on `is_safety_critical` steps.
-- **Metrics (Confirm vs Watch):**
-  - `vision_agreement` evaluates resident-asserted confirm vs vision verdict using the updated event detail shape.
-  - `watch_summary` reports watch run counts, auto-advances, confirmation matching rate, and average cost (calls, frames, latency).
-  - `gate_cost_summary` aggregates gate execution costs (model calls, frames, latency) for Confirm + Watch combined to analyze overall compute spend.
+A vision-confirmation gate is a callable pipeline graph: a `Rule` with `trigger_types == []`, built from `gate_safe` steps (`media_window_poll`, `scene_analysis`, `condition`, `gate_verdict`) and ending on exactly one `gate_verdict` sink (`gate_only=True`), which writes `{complete, confidence, reason}` to `pipeline_data["gate_verdict"]`. `GateGraphRunner` (`gate_runner.py`) executes it non-durably (no `WorkflowExecution` row). Two profiles resolve before the run: `confirm` (authoritative, on "done") and `watch` (advisory, background tick, fail-soft, forbidden on `is_safety_critical` steps). Mechanism detail beyond the two rules below (profile parameter inheritance, nag-suppression, auto-advance streak counting, the `vision_agreement`/`watch_summary`/`gate_cost_summary` metrics) lives in `gate_runner.py`, `metrics_service.py`, and the VG00-VG08 ledger, not here.
 
-### Authoring a vision gate (preset-first, scoped canvas) (D26, D25, VG08)
+**Cool-off cache polarity (M23, G3).** Keyed by `(session_id, step_ord, profile_name)`. Only a positive watch verdict (`complete=True` and `confidence >= min_confidence`) may warm the confirm slot; the watch slot is always warmed so its own throttle works. A cached *negative* confirm verdict is still recorded as a disagreement event (`reason="cached:<original_reason>"`) so the bounded-disagreement bound keeps accumulating; a cached positive is never re-recorded.
 
-The routine spine stays a linear step list (D16); only a gate's internals are a graph (D26). A caregiver authors a gate in two tiers:
+**Bounded disagreement (D24).** When she says "done" but the gate returns `complete=False`, the disagreement is recorded. After `max_disagreements` consecutive disagreements (counted durably via `GuidedSessionEvent` rows), the system defers to her (`actor="resident"`, `vision_deferred`) or escalates if `on_max_disagreements: "escalate"` is configured. Never trap her behind a camera that will not agree.
 
-- **Preset-first.** `CompletionGateEditor` shows a preset selector backed by `GET /api/v1/gate-presets`. Choosing a preset calls `POST /api/v1/gate-graphs {from_preset}` (the shared `gate_presets` factory) and stores the new `gate_graph_rule_id` in `completion_gate.vision`. Seeded presets: `generic_vlm_confirm` (poll -> VLM -> verdict), `kettle_on_hob` (the canonical cheap-first cascade: poll -> scene_analysis -> condition --true--> heavy VLM --> verdict; --false--> verdict, one sink via join), `person_at_sink`.
-- **Power user.** "Edit vision logic" opens `GateEditorDialog` (`AppDialog size="xl"`) hosting `PipelineCanvas mode="gate"` (gate-safe palette) plus a test-run preview. Casual caregivers never open it.
+**Config shape.** `completion_gate.vision: {gate_graph_rule_id, confirm: {window_s, max_frames, min_confidence, min_interval_s, max_disagreements, on_max_disagreements, model_id}, watch: {enabled, tick_s, window_s, max_frames, model_id, auto_advance, auto_advance_k}}`; empty = inherit the `config/settings.yaml` default through `resolve_policy`.
 
-The `completion_gate.vision` shape (VG0 section 4): `{ gate_graph_rule_id, confirm: {window_s, max_frames, min_confidence, min_interval_s, max_disagreements, on_max_disagreements, model_id}, watch: {enabled, tick_s, window_s, max_frames, model_id, auto_advance, auto_advance_k} }`. Empty override = inherit the `config/settings.yaml` default through `resolve_policy`; the editor shows the resolved default as a placeholder (precedence visible).
+### Authoring a vision gate (D25, D26, VG08)
 
-**One camera control (D25).** The dead `completion_gate.vision.camera_ids` override is gone. The step-level `CameraPicker` (`step.camera_ids`, labeled "Cameras for vision + selection") is the single picker, backed by the source-tagged cascade; empty = auto-select. Never surface visibility polygons as truth (D19); camera suggestions are labeled best-effort.
+The routine spine stays linear (D16); only a gate's internals are a graph. A caregiver picks a preset (`CompletionGateEditor` -> `GET /api/v1/gate-presets` -> `POST /api/v1/gate-graphs {from_preset}`, the shared `gate_presets` factory; seeded: `generic_vlm_confirm`, `kettle_on_hob`, `person_at_sink`) or, as a power user, opens `GateEditorDialog` (`PipelineCanvas mode="gate"`) to edit and test-run the graph directly. Casual caregivers never open the canvas.
 
-**The three sampling knobs** map to three layers: rate = `sample_period_s` (per `media_window_poll` node, set in the canvas), count = `max_frames` (per profile), cool-off = `min_interval_s` (gate-level throttle returning the cached verdict). The editor groups them under "Sampling and cool-off" so the caregiver's mental model matches the backend.
+**One camera control (D25).** The dead `completion_gate.vision.camera_ids` override is gone; the step-level `CameraPicker` (`step.camera_ids`) is the single picker, backed by the source-tagged cascade; empty = auto-select. Never surface `visibility_polygon` as truth (D19).
+
+**Three sampling knobs, three layers.** Rate = `sample_period_s` (per `media_window_poll` node), count = `max_frames` (per profile), cool-off = `min_interval_s` (gate-level throttle). The editor groups them under "Sampling and cool-off" so the caregiver's mental model matches the backend.

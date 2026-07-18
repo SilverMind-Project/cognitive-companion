@@ -310,14 +310,32 @@ class GuidedTaskStore:
         finally:
             db.close()
 
-    def list_completed_session_ids_before(self, cutoff: datetime) -> list[int]:
+    def list_prunable_conversation_session_ids(self, cutoff: datetime) -> list[int]:
+        """Conversation ids linked to completed sessions before ``cutoff``.
+
+        Excludes any conversation still linked to a live guided session, so
+        retention pruning never deletes a conversation a resident or caregiver
+        is actively using.
+        """
         db = self._db_factory()
         try:
-            stmt = select(GuidedSession.id).where(
-                GuidedSession.completed_at.isnot(None),
-                GuidedSession.completed_at < cutoff,
+            live_conversation_ids = select(GuidedSession.conversation_session_id).where(
+                GuidedSession.status.in_(LIVE_STATUSES),
+                GuidedSession.conversation_session_id.isnot(None),
             )
-            return [int(row) for row in db.execute(stmt).scalars().all()]
+            stmt = (
+                select(GuidedSession.conversation_session_id)
+                .where(
+                    GuidedSession.completed_at.isnot(None),
+                    GuidedSession.completed_at < cutoff,
+                    GuidedSession.conversation_session_id.isnot(None),
+                    GuidedSession.conversation_session_id.not_in(live_conversation_ids),
+                )
+                .distinct()
+            )
+            return [
+                int(row) for row in db.execute(stmt).scalars().all() if row is not None
+            ]
         finally:
             db.close()
 

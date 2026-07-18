@@ -242,6 +242,7 @@ class GuidedSessionOut(BaseModel):
     person_id: str
     execution_id: int | None = None
     surface_id: str | None = None
+    conversation_session_id: int | None = None
     status: str
     current_step_ord: int
     attempts: int

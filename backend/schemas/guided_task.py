@@ -176,6 +176,14 @@ class RoutineListOut(BaseModel):
     total: int
 
 
+class RoutineLanguageOptionsOut(BaseModel):
+    """Configured language codes for the Routine Builder's language select (M27/D15)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    language_names: dict[str, str]
+
+
 class RoutineStepsReplaceIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

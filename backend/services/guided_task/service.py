@@ -29,6 +29,7 @@ from backend.schemas.guided_task import (
     GuidedSessionTurnOut,
     RoutineCreate,
     RoutineDetailOut,
+    RoutineLanguageOptionsOut,
     RoutineListOut,
     RoutineOut,
     RoutineStepOut,
@@ -39,6 +40,7 @@ from backend.services.guided_task.agent_voice import GUIDED_TASK_DELIVERY_TYPE
 from backend.services.guided_task.completion.activity import build_skip_evaluator
 from backend.services.guided_task.completion.response import build_evaluators, evaluate_completion
 from backend.services.guided_task.domain import Decision, SessionView, StepView
+from backend.services.guided_task.language import compose_language_directive
 from backend.services.guided_task.policy import resolve_policy, resolve_vision_override
 from backend.services.guided_task.ports import (
     Escalator,
@@ -55,6 +57,7 @@ from backend.services.interactive_session.pipeline_link import (
     schedule_session_timeout,
 )
 from backend.services.interactive_session.prompt_injection import inject_session_prompt
+from backend.services.knowledge.voice_instructions import VoiceInstructionConfig
 
 logger = get_logger(__name__)
 
@@ -150,6 +153,7 @@ class GuidedTaskService:
         semantic_memory_client: Any = None,
         memory_query: Any = None,
         voice: SessionVoice | None = None,
+        voice_instructions: VoiceInstructionConfig | None = None,
         safety_watch: SafetyWatch | None = None,
         escalator: Escalator | None = None,
         settings: Settings | None = None,
@@ -178,6 +182,7 @@ class GuidedTaskService:
         self._semantic_memory_client = semantic_memory_client
         self._memory_query = memory_query
         self._voice = voice or NoopSessionVoice()
+        self._voice_instructions = voice_instructions or VoiceInstructionConfig()
         self._safety_watch = safety_watch or NoopSafetyWatch()
         self._escalator = escalator or NoopEscalator()
         self._settings = settings or default_settings
@@ -1034,6 +1039,11 @@ class GuidedTaskService:
     # Routine CRUD (Part A)
     # ------------------------------------------------------------------
 
+    def get_language_options(self) -> RoutineLanguageOptionsOut:
+        """Configured language codes for the Routine Builder's language select (M27/D15)."""
+        names = self._settings.get("app.language_names", {}) or {}
+        return RoutineLanguageOptionsOut(language_names=names)
+
     def list_routines(
         self, *, person_id: str | None = None, limit: int = 20, offset: int = 0
     ) -> RoutineListOut:
@@ -1319,13 +1329,19 @@ class GuidedTaskService:
             f"Tell {resident_name} the following, in her language and in your own warm voice, "
             f"as if it is your idea: {text}"
         )
+        voice_instruction = routine.system_instruction_override or None
+        directive = compose_language_directive(
+            self._settings, self._voice_instructions, routine.language_override
+        )
+        if directive:
+            voice_instruction = f"{voice_instruction}\n\n{directive}" if voice_instruction else directive
         await inject_session_prompt(
             ws_manager,
             prompt=prompt,
             delivery_type=GUIDED_TASK_DELIVERY_TYPE,
             session_id=session.id,
             execution_id=session.execution_id,
-            voice_instruction=routine.system_instruction_override or None,
+            voice_instruction=voice_instruction,
             extra_metadata={"actor": "caregiver", "caregiver_text_hidden": True},
         )
 
@@ -1723,6 +1739,8 @@ class GuidedTaskService:
             attempts=session.attempts,
             routine_system_instruction_override=routine.system_instruction_override,
             resident_name=self._resident_name(session.person_id),
+            language_override=routine.language_override,
+            voice_override=routine.voice_override,
         )
         await self._voice.speak_step(
             session=voice_session,
@@ -1998,7 +2016,22 @@ class GuidedTaskService:
         channels = routine.summon_channels_override or self._settings.as_list(
             "guided_task.summon_channels"
         )
-        message = "Please come to the companion screen when you are ready for your routine."
+        resolved_language = (
+            routine.language_override or self._settings.get("tts.default_language") or "en"
+        )
+        summon_messages = self._settings.get("guided_task.summon_messages", {}) or {}
+        message = summon_messages.get(resolved_language)
+        if message is None:
+            logger.warning(
+                "guided_summon_language_missing",
+                session_id=session.id,
+                language=resolved_language,
+            )
+            resolved_language = "en"
+            message = summon_messages.get(resolved_language)
+        if message is None:
+            logger.error("guided_summon_message_config_missing", session_id=session.id)
+            return
         dispatcher = self._notification_dispatcher
         if dispatcher is None:
             logger.warning(
@@ -2012,7 +2045,7 @@ class GuidedTaskService:
                     alert_level="reminder",
                     message=message,
                     room_name=room_name,
-                    rule_config={"channels": channels},
+                    rule_config={"channels": channels, "tts_language": resolved_language},
                 )
             except Exception:
                 logger.exception("guided_summon_announce_failed", session_id=session.id)
@@ -2022,7 +2055,12 @@ class GuidedTaskService:
             kind="summon_announced",
             step_ord=None,
             actor="system",
-            detail={"channels": channels, "room_name": room_name, "broad": broad},
+            detail={
+                "channels": channels,
+                "room_name": room_name,
+                "broad": broad,
+                "language": resolved_language,
+            },
         )
         logger.info(
             "guided_summon_announced",
@@ -2030,6 +2068,7 @@ class GuidedTaskService:
             room_name=room_name,
             channels=channels,
             broad=broad,
+            language=resolved_language,
         )
 
     async def _cross_check_surface(self, surface_id: str, person_id: str) -> None:
@@ -2293,7 +2332,9 @@ class GuidedTaskService:
                         resolve_policy(routine, step, self._settings),
                         now,
                     )
-                    speak_prefix = "I can see you've done that, lovely, now"
+                    speak_prefix = render_template(
+                        self._voice_instructions.guided_task_auto_advance_prefix, {}
+                    )
                     await self._apply_decision(
                         session=session,
                         routine=routine,

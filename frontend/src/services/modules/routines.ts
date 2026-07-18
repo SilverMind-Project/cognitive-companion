@@ -12,6 +12,8 @@ type ListParams = operations["list_routines"]["parameters"]["query"];
 export const listRoutines = (params: ListParams = {}) =>
   unwrap(client.GET("/api/v1/routines", { params: { query: params } }));
 
+export const getLanguageOptions = () => unwrap(client.GET("/api/v1/routines/language-options", {}));
+
 export const getRoutine = (id: number) =>
   unwrap(client.GET("/api/v1/routines/{routine_id}", { params: { path: { routine_id: id } } }));
 

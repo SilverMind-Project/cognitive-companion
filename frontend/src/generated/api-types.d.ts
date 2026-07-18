@@ -4389,6 +4389,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/routines/language-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Language Options
+         * @description Configured language codes for the Routine Builder's language select (M27/D15).
+         *
+         *     Registered ahead of ``/{routine_id}`` so the literal path wins the match.
+         */
+        get: operations["get_language_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/routines/{routine_id}": {
         parameters: {
             query?: never;
@@ -9707,6 +9729,16 @@ export interface components {
             routine: components["schemas"]["RoutineOut"];
             /** Steps */
             steps: components["schemas"]["RoutineStepOut"][];
+        };
+        /**
+         * RoutineLanguageOptionsOut
+         * @description Configured language codes for the Routine Builder's language select (M27/D15).
+         */
+        RoutineLanguageOptionsOut: {
+            /** Language Names */
+            language_names: {
+                [key: string]: string;
+            };
         };
         /** RoutineListOut */
         RoutineListOut: {
@@ -19091,6 +19123,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_language_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutineLanguageOptionsOut"];
                 };
             };
         };

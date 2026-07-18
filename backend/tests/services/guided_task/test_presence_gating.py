@@ -89,6 +89,9 @@ def _settings() -> Settings:
                 "step_timeout_s": 300,
                 "resume_grace_s": 600,
                 "summon_channels": ["pwa_popup_text"],
+                "summon_messages": {
+                    "en": "Please come to the companion screen when you are ready for your routine."
+                },
             }
         }
     )

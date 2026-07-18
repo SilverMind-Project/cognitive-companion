@@ -8,7 +8,11 @@ from backend.models.guided_task import GuidedSession, Routine, RoutineStep
 from backend.models.person import HouseholdMember
 from backend.models.room import Room
 from backend.models.room_zone import RoomZone
+from backend.services.cts.signal_config import ALL_SIGNAL_KINDS
 from backend.services.guided_task.safety import GuidedTaskSafetyWatch
+from backend.services.guided_task.safety.watch import _NO_MOTION_SIGNAL_KINDS
+from backend.services.guided_task.service import GuidedTaskService
+from backend.services.guided_task.store import GuidedTaskStore
 
 
 @dataclass
@@ -221,17 +225,123 @@ async def test_no_motion_signal_emits_emergency(db_session, db_factory) -> None:
     )
 
 
-async def test_repeated_failures_emit_confusion_high(db_session, db_factory) -> None:
+async def test_attempts_do_not_trigger_safety_escalation(db_session, db_factory) -> None:
+    """G8: the attempts ladder belongs exclusively to the state machine's
+    timeout_tick; the safety watch must not preempt it from attempts alone."""
     session_id = _seed(db_session, attempts=2)
     session = db_session.get(GuidedSession, session_id)
     watch = _watch(db_factory, _Clock(), settings=_settings(max_attempts=3))
 
     events = await watch.evaluate(session=session)
 
+    assert not any(event["condition"] == "confusion_distress" for event in events)
+
+
+async def test_blocked_reports_escalate_once(db_session, db_factory) -> None:
+    session_id = _seed(db_session)
+    session = db_session.get(GuidedSession, session_id)
+    store = GuidedTaskStore(db_factory)
+    now = datetime(2026, 6, 17, 12, 0, tzinfo=UTC)
+    for _ in range(2):
+        store.add_event(
+            session_id=session_id, at=now, kind="step_blocked", step_ord=0, actor="system"
+        )
+    watch = _watch(db_factory, _Clock())
+
+    first = await watch.evaluate(session=session)
     assert any(
         event["condition"] == "confusion_distress" and event["severity"] == "high"
-        for event in events
+        for event in first
     )
+
+    # Persist the safety_event the same way GuidedTaskService._apply_decision
+    # would after the first tick, then re-evaluate: the second tick must not
+    # re-emit for the same (session, step_ord).
+    store.add_event(
+        session_id=session_id,
+        at=now,
+        kind="safety_event",
+        step_ord=0,
+        actor="system",
+        detail={"condition": "confusion_distress", "severity": "high"},
+    )
+    second = await watch.evaluate(session=session)
+    assert not any(event["condition"] == "confusion_distress" for event in second)
+
+
+def test_no_motion_signal_kinds_are_canonical() -> None:
+    """G14: guard against a future CTS signal-kind rename silently orphaning
+    the watch's no-motion subscription."""
+    assert set(ALL_SIGNAL_KINDS) >= _NO_MOTION_SIGNAL_KINDS
+
+
+class _RecordingEscalator:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, str, bool]] = []
+
+    async def escalate(self, *, session, reason: str, emergency: bool) -> None:
+        self.calls.append((session.id, reason, emergency))
+
+
+def _seed_service_routine(db_session) -> int:
+    db_session.add(HouseholdMember(id="resident-1", name="Resident"))
+    db_session.flush()
+    routine = Routine(name="Make tea", person_id="resident-1", is_enabled=True)
+    db_session.add(routine)
+    db_session.flush()
+    db_session.add(
+        RoutineStep(
+            routine_id=routine.id,
+            ord=0,
+            prompt_template="Pour water.",
+            completion_gate={"kinds": ["response"]},
+        )
+    )
+    db_session.commit()
+    return routine.id
+
+
+async def test_third_attempt_window_runs_to_completion(db_session, db_factory) -> None:
+    """G8 regression: with max_step_attempts=3, the full third attempt window
+    elapses before any escalation, and the timeout ladder and the safety
+    watch cannot double-escalate for the same cause."""
+    routine_id = _seed_service_routine(db_session)
+    clock = _Clock()
+    escalator = _RecordingEscalator()
+    settings = _settings(max_attempts=3, step_timeout_s=300)
+    safety_watch = GuidedTaskSafetyWatch(db_factory=db_factory, settings=settings, time_fn=clock)
+    service = GuidedTaskService(
+        db_factory=db_factory,
+        escalator=escalator,
+        safety_watch=safety_watch,
+        settings=settings,
+        time_fn=clock,
+    )
+    session = await service.start(routine_id, "resident-1")
+
+    clock.now += timedelta(seconds=300)
+    first = await service.on_step_timeout(session.id)
+    assert first.kind == "retry"
+
+    clock.now += timedelta(seconds=300)
+    second = await service.on_step_timeout(session.id)
+    assert second.kind == "retry"
+
+    # 20 seconds into the third (final) attempt window: a safety tick must
+    # not preempt the state machine's timeout ladder.
+    clock.now += timedelta(seconds=20)
+    await service.tick(clock.now)
+    db_session.expire_all()
+    assert db_session.get(GuidedSession, session.id).status == "active"
+    assert escalator.calls == []
+
+    # Let the rest of the third window elapse; only the timeout ladder
+    # escalates, and it does so exactly once.
+    clock.now += timedelta(seconds=280)
+    third = await service.on_step_timeout(session.id)
+
+    assert third.kind == "escalate"
+    assert escalator.calls == [(session.id, "attempts_exhausted", False)]
 
 
 async def test_hazard_vlm_not_run_when_no_risk_signals(db_session, db_factory) -> None:

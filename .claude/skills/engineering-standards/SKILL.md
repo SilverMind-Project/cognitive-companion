@@ -414,6 +414,15 @@ Three rules apply to all plugin types:
 2. **Metadata is mandatory.** `StepMetadata`, `ChannelMetadata`, or `FilterMetadata` must be complete: display name, description, icon (for steps), config schema, default config.
 3. **Zero-config by default.** `default_config` must produce a working handler without any user overrides.
 
+Channel and notification-dispatch code that emits links in outbound messages
+(Telegram, email, any channel a remote caregiver reads on a phone) resolves them
+against `app.public_base_url` in `config/settings.yaml` (empty by default, which
+keeps relative links for in-app surfaces that do not need an absolute origin).
+`FullEscalator._takeover_url` in
+`backend/services/guided_task/escalation/full.py` is the reference implementation:
+prefix when the base is configured, strip its trailing slash, keep the relative
+form when empty. No base configured is a degrade, not an error.
+
 When consolidating duplicate handlers into one, prefer a single canonical step
 type. `media_window_poll` is the canonical example: it serves both the CTS and
 reCamera sources through one handler, selected by its `source` config (`auto`,

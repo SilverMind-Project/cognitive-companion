@@ -24,9 +24,14 @@ _NO_MOTION_SIGNAL_KINDS = frozenset(
         "stillness_anomaly",
         "fall_suspected",
         "inferred_dwell_exceeded",
-        "prolonged_stillness",
     }
 )
+
+# D14 "repeated confusion/distress": the number of step_blocked reports that
+# trigger a caregiver-visible confusion_distress signal. Attempts-exhausted
+# escalation belongs exclusively to the state machine's timeout_tick ladder;
+# this threshold governs only the blocked-report signal.
+_CONFUSION_DISTRESS_BLOCKED_THRESHOLD = 2
 
 
 class GuidedTaskSafetyWatch:
@@ -102,9 +107,12 @@ class GuidedTaskSafetyWatch:
                 }
             )
 
-        if (
-            session.attempts >= max(0, policy.max_step_attempts - 1)
-            or self._blocked_count(session) >= 2
+        blocked_count = self._blocked_count(session)
+        if blocked_count >= _CONFUSION_DISTRESS_BLOCKED_THRESHOLD and not self._store.has_event(
+            session_id=session.id,
+            kind="safety_event",
+            step_ord=step.ord,
+            detail_condition="confusion_distress",
         ):
             events.append(
                 {
@@ -112,7 +120,7 @@ class GuidedTaskSafetyWatch:
                     "severity": "high",
                     "detail": {
                         "attempts": session.attempts,
-                        "blocked_count": self._blocked_count(session),
+                        "blocked_count": blocked_count,
                     },
                 }
             )

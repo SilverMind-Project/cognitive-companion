@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -30,6 +31,7 @@ class FullEscalator:
         admin_ws_broadcaster: Any = None,
         conversation_manager: Any = None,
         settings: Settings | None = None,
+        time_fn: Callable[[], datetime] | None = None,
     ) -> None:
         self._dispatcher = notification_dispatcher
         self._store = GuidedTaskStore(db_factory)
@@ -37,6 +39,13 @@ class FullEscalator:
         self._admin_ws_broadcaster = admin_ws_broadcaster
         self._conversation_manager = conversation_manager
         self._settings = settings or default_settings
+        self._time_fn = time_fn or (lambda: datetime.now(UTC))
+
+    def _now(self) -> datetime:
+        now = self._time_fn()
+        if now.tzinfo is None:
+            raise ValueError("FullEscalator time_fn must return timezone-aware datetimes")
+        return now
 
     async def escalate(self, *, session: GuidedSession, reason: str, emergency: bool) -> None:
         routine = self._store.get_routine(session.routine_id)
@@ -44,11 +53,11 @@ class FullEscalator:
             raise NotFoundError("Routine", session.routine_id)
         steps = self._store.list_steps(session.routine_id)
         step = _current_step(steps, session.current_step_ord)
+        now = self._now()
 
         updated = self._store.update_session(
             session.id,
             status="escalated",
-            last_activity_at=session.last_activity_at,
         )
         if updated is None:
             raise NotFoundError("Guided session", session.id)
@@ -60,7 +69,7 @@ class FullEscalator:
         }
         self._store.add_event(
             session_id=session.id,
-            at=session.last_activity_at,
+            at=now,
             kind="escalation",
             step_ord=session.current_step_ord,
             actor="system",
@@ -77,7 +86,9 @@ class FullEscalator:
             transcript=self._recent_transcript(session.conversation_session_id),
         )
 
-        await self._broadcast_escalation(updated, reason=reason, emergency=emergency, detail=detail)
+        await self._broadcast_escalation(
+            updated, reason=reason, emergency=emergency, detail=detail, at=now
+        )
 
         dispatcher = self._dispatcher
         if dispatcher is None:
@@ -144,6 +155,7 @@ class FullEscalator:
         reason: str,
         emergency: bool,
         detail: dict[str, Any],
+        at: datetime,
     ) -> None:
         event = GuidedEscalationEvent(
             session_id=session.id,
@@ -156,7 +168,7 @@ class FullEscalator:
             urgent=emergency,
             takeover_url=self._takeover_url(session.id),
             detail=detail,
-            at=session.last_activity_at,
+            at=at,
         )
         payload = event.model_dump(mode="json")
         if self._ws_manager is not None:
@@ -165,7 +177,11 @@ class FullEscalator:
             await self._admin_ws_broadcaster(payload)
 
     def _takeover_url(self, session_id: int) -> str:
-        return f"/admin/guided-sessions/{session_id}"
+        relative = f"/admin/guided-sessions/{session_id}"
+        base = str(self._settings.get("app.public_base_url", "") or "")
+        if not base:
+            return relative
+        return f"{base.rstrip('/')}{relative}"
 
 
 def _current_step(steps: list[RoutineStep], ord_: int) -> RoutineStep | None:

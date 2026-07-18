@@ -110,6 +110,7 @@ WebSocket events use `type: "pipeline_event"` and include:
 | Field | Type | Description |
 | --- | --- | --- |
 | `name` | string | Rule name |
+| `description` | string or null | Optional description |
 | `enabled` | boolean | Whether the rule can run |
 | `trigger_types` | list[string] | Trigger types. Current values include `sensor_event`, `cron`, `manual`, `webhook`, `telegram`, `occupancy_duration`, `cts_window`, and `dementia_signal` |
 | `cron_trigger_ids` | list[integer] | Shared cron trigger IDs |
@@ -235,6 +236,7 @@ eligible and dropped image counters, and the latest event timestamp.
 | `GET` | `/rooms/{room_id}/occupants` | Current room occupants |
 | `GET` | `/persons/{person_id}/dwell` | Dwell summary |
 | `GET` | `/occupancy` | Live room occupancy from the unified read-model (world tracker plus HA sensors); each room carries `person_ids`, `unknown_count`, and a `source` tag |
+| `GET` | `/occupancy/history` | Smoothed occupancy time series for one room from Home Assistant. Query: `room_name` (required), `hours` (default `2.0`) |
 | `GET` | `/signals/feed` | Unified caregiver signals feed: CTS dementia signals plus pipeline-rule notifications, each as a `SignalEnvelope` with `source`, `severity`, `room_name`, `created_at`, and `resolved` |
 
 The occupancy read-model and the signals feed each use one service function exposed through both the router and the matching MCP tool (`get_room_occupancy`, `get_signals_feed`). Room occupancy is keyed on PersonHypothesis with a short TTL, so unknown people are counted without a household identity. The legacy `emergency_alerts` table and `/alerts` endpoints were removed; caregiver alerts now flow through the signals feed.

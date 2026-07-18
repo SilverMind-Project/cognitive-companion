@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
+from backend.core.exceptions import ConflictError
 from backend.core.logging import get_logger
 from backend.models.guided_task import GuidedSession, Routine, RoutineStep
 from backend.models.pipeline import PipelineStep, WorkflowExecution
@@ -69,6 +70,8 @@ class GuidedTaskStartStep(StepHandler):
                     "status": {"type": "string"},
                     "skipped": {"type": "boolean"},
                     "reason": {"type": "string"},
+                    "prior_session_id": {"type": "integer"},
+                    "parked_until": {"type": "string"},
                 },
             },
         )
@@ -104,13 +107,20 @@ class GuidedTaskStartStep(StepHandler):
 
             if dedupe_hours > 0:
                 cutoff = datetime.now(UTC) - timedelta(hours=dedupe_hours)
-                recent = db.execute(
-                    select(GuidedSession).where(
-                        GuidedSession.routine_id == routine_id,
-                        GuidedSession.status == "completed",
-                        GuidedSession.completed_at >= cutoff,
+                recent = (
+                    db.execute(
+                        select(GuidedSession)
+                        .where(
+                            GuidedSession.routine_id == routine_id,
+                            GuidedSession.status == "completed",
+                            GuidedSession.completed_at >= cutoff,
+                        )
+                        .order_by(GuidedSession.completed_at.desc())
+                        .limit(1)
                     )
-                ).scalar_one_or_none()
+                    .scalars()
+                    .first()
+                )
                 if recent is not None:
                     logger.info(
                         "guided_task_dedupe_skipped",
@@ -125,37 +135,62 @@ class GuidedTaskStartStep(StepHandler):
                         }
                     )
 
-            first_step = (
+            routine_steps = (
                 db.execute(
                     select(RoutineStep)
                     .where(RoutineStep.routine_id == routine_id)
                     .order_by(RoutineStep.ord)
                 )
                 .scalars()
-                .first()
+                .all()
             )
-            session_timeout_s = (
-                resolve_policy(routine, first_step, settings).step_timeout_s
-                if first_step is not None
-                else settings.as_int("guided_task.step_timeout_s")
-            )
+            routine_budget_s = 0
+            for routine_step in routine_steps:
+                step_policy = resolve_policy(routine, routine_step, settings)
+                routine_budget_s += step_policy.step_timeout_s * step_policy.max_step_attempts
             person_id = routine.person_id
         finally:
             db.close()
 
-        session = await services.guided_task.request_start(
-            routine_id,
-            person_id,
-            execution_id=execution.id,
-            require_presence=require_presence,
-            summon_timeout_s=summon_timeout_s,
+        summon_budget_s = summon_timeout_s if require_presence else 0
+        resume_grace_s = settings.as_int("guided_task.resume_grace_s")
+        max_pipeline_park_s = settings.as_int("guided_task.max_pipeline_park_s")
+        park_s = min(
+            summon_budget_s + routine_budget_s + resume_grace_s,
+            max_pipeline_park_s,
         )
-        wait_until = datetime.now(UTC) + timedelta(seconds=max(summon_timeout_s, session_timeout_s))
+
+        try:
+            session = await services.guided_task.request_start(
+                routine_id,
+                person_id,
+                execution_id=execution.id,
+                require_presence=require_presence,
+                summon_timeout_s=summon_timeout_s,
+            )
+        except ConflictError:
+            live_session = services.guided_task.get_live_session_for_person(person_id)
+            logger.info(
+                "guided_task_live_session_skipped",
+                routine_id=routine_id,
+                person_id=person_id,
+                live_session_id=live_session.id if live_session is not None else None,
+            )
+            return StepResult(
+                data={
+                    "skipped": True,
+                    "reason": "live_session",
+                    "prior_session_id": live_session.id if live_session is not None else None,
+                }
+            )
+
+        parked_until = datetime.now(UTC) + timedelta(seconds=park_s)
         return StepResult(
             data={
                 "routine_id": routine_id,
                 "guided_session_id": session.id,
                 "status": session.status,
+                "parked_until": parked_until.isoformat(),
             },
-            wait_until=wait_until,
+            wait_until=parked_until,
         )

@@ -833,3 +833,44 @@ def test_cool_off_cache_operations() -> None:
     # Key includes profile, confirm shouldn't fetch watch
     watch_key = ("sess1", 1, "watch")
     assert cache.get_fresh(watch_key, min_interval_s=15, now=now + timedelta(seconds=10)) is None
+
+
+def test_cool_off_cache_bounded() -> None:
+    """M25/G10: the cache is a TTLCache with a maxsize bound, not an unbounded dict."""
+    fixed_now = datetime(2026, 6, 19, 12, 0, 0, tzinfo=UTC)
+    cache = _CoolOffCache(ttl_s=3600.0, time_fn=lambda: fixed_now)
+    verdict = GateVerdict(
+        complete=True,
+        confidence=0.9,
+        reason="test",
+        node_results={},
+        cost={},
+        profile="confirm",
+    )
+
+    for i in range(5000):
+        cache.put((f"sess{i}", 0, "confirm"), verdict, now=fixed_now)
+
+    assert len(cache._cache) <= 4096
+
+
+def test_cool_off_cache_evict_session() -> None:
+    cache = _CoolOffCache()
+    verdict = GateVerdict(
+        complete=True,
+        confidence=0.9,
+        reason="test",
+        node_results={},
+        cost={},
+        profile="confirm",
+    )
+    now = datetime(2026, 6, 19, 12, 0, 0, tzinfo=UTC)
+    cache.put(("sess1", 0, "confirm"), verdict, now=now)
+    cache.put(("sess1", 1, "watch"), verdict, now=now)
+    cache.put(("sess2", 0, "confirm"), verdict, now=now)
+
+    cache.evict_session("sess1")
+
+    assert cache.get_fresh(("sess1", 0, "confirm"), min_interval_s=15, now=now) is None
+    assert cache.get_fresh(("sess1", 1, "watch"), min_interval_s=15, now=now) is None
+    assert cache.get_fresh(("sess2", 0, "confirm"), min_interval_s=15, now=now) == verdict

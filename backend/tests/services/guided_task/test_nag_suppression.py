@@ -180,6 +180,49 @@ async def test_progress_verdict_defers_reprompt(db_session, monkeypatch) -> None
 
 
 @pytest.mark.asyncio
+async def test_watch_state_evicted_on_completion(db_session, monkeypatch) -> None:
+    """M25/G10: terminal transitions evict per-session runtime cache entries."""
+    from backend.services.guided_task.camera_selection import ResolvedCamera
+
+    monkeypatch.setattr(
+        "backend.services.guided_task.camera_selection.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+
+    clock = _Clock()
+    gate_runner = FakeGateGraphRunner()
+    gate_runner.verdict_to_return = GateVerdict(
+        complete=True,
+        confidence=0.8,
+        reason="in_progress",
+        node_results={},
+        cost={},
+        profile="watch",
+    )
+    voice = _RecordingVoice()
+
+    routine_id = _seed_routine_with_watch(db_session, watch_enabled=True, step_timeout_s=100)
+    svc = GuidedTaskService(
+        db_factory=lambda: db_session,
+        voice=voice,
+        escalator=_RecordingEscalator(),
+        settings=_settings(step_timeout_s=100),
+        time_fn=clock,
+        gate_runner=gate_runner,
+    )
+    session = await svc.start(routine_id, "resident-1")
+
+    await svc.tick(clock.now)
+    assert (session.id, 0) in svc._progress_seen_at
+    assert (session.id, 0) in svc._last_watch_at
+
+    await svc.complete(session.id, "completed")
+
+    assert (session.id, 0) not in svc._progress_seen_at
+    assert (session.id, 0) not in svc._last_watch_at
+
+
+@pytest.mark.asyncio
 async def test_no_progress_does_not_suppress(db_session, monkeypatch) -> None:
     from backend.services.guided_task.camera_selection import ResolvedCamera
 

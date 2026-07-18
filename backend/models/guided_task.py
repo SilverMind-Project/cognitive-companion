@@ -103,6 +103,19 @@ class GuidedSession(Base):
                 "status IN ('active', 'waiting', 'summoning', 'escalated', 'caregiver_takeover')"
             ),
         ),
+        # One live (or about-to-be-live) session per person, enforced by the
+        # database rather than a read-then-write check (M25/G19). The status
+        # list mirrors LIVE_STATUSES in services/guided_task/domain.py plus
+        # "pending"; keep both in sync (see test_store.py's pg_indexes check).
+        Index(
+            "uq_guided_sessions_one_live_per_person",
+            "person_id",
+            unique=True,
+            postgresql_where=text(
+                "status IN ('pending', 'active', 'waiting', 'summoning', 'escalated',"
+                " 'caregiver_takeover')"
+            ),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

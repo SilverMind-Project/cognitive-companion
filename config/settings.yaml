@@ -153,6 +153,10 @@ guided_task:
   safety_tick_s: 20
   escalation_grace_s: 1800
   transcript_retention_days: 30
+  # Ceiling on how long guided_task_start parks its owning pipeline execution,
+  # regardless of the computed summon + routine-scale budget. A safety net for
+  # a wedged session, not the normal resume path (M25/G6).
+  max_pipeline_park_s: 7200
   escalation_channels: ["telegram", "pwa_popup_text"]
   summon_channels: ["ha_speaker_tts", "pwa_popup_text"]
   rephrase_via: "agent"

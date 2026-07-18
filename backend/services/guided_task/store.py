@@ -7,8 +7,10 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from backend.core.exceptions import ConflictError
 from backend.models.guided_task import GuidedSession, GuidedSessionEvent, Routine, RoutineStep
 from backend.services.guided_task.domain import LIVE_STATUSES
 
@@ -146,6 +148,14 @@ class GuidedTaskStore:
         surface_id: str | None,
         now: datetime,
     ) -> GuidedSession:
+        """Create a session row.
+
+        Raises ``ConflictError`` on a concurrent-start race the read-check in
+        ``request_start`` missed: the partial unique index
+        ``uq_guided_sessions_one_live_per_person`` (M25/G19) is the actual
+        enforcement, and this is the single place its violation is mapped
+        onto the same error the read-check already raises.
+        """
         db = self._db_factory()
         try:
             session = GuidedSession(
@@ -160,7 +170,13 @@ class GuidedTaskStore:
                 last_activity_at=now,
             )
             db.add(session)
-            db.commit()
+            try:
+                db.commit()
+            except IntegrityError as exc:
+                db.rollback()
+                raise ConflictError(
+                    f"Live guided session already exists for person '{person_id}'"
+                ) from exc
             db.refresh(session)
             return session
         finally:
@@ -265,6 +281,32 @@ class GuidedTaskStore:
                 .order_by(GuidedSessionEvent.at.desc())
             )
             return db.execute(stmt).scalars().first()
+        finally:
+            db.close()
+
+    def summon_timeout_for(self, session_id: int) -> int | None:
+        """The session's original summon budget, from its ``summon_started`` event.
+
+        Returns ``None`` when the event is missing (e.g. a session started
+        without presence gating); callers fall back to a global default and
+        log the fallback (G9).
+        """
+        db = self._db_factory()
+        try:
+            stmt = (
+                select(GuidedSessionEvent.detail)
+                .where(
+                    GuidedSessionEvent.session_id == session_id,
+                    GuidedSessionEvent.kind == "summon_started",
+                )
+                .order_by(GuidedSessionEvent.at.desc())
+                .limit(1)
+            )
+            detail = db.execute(stmt).scalars().first()
+            if not detail:
+                return None
+            value = detail.get("summon_timeout_s")
+            return int(value) if value is not None else None
         finally:
             db.close()
 

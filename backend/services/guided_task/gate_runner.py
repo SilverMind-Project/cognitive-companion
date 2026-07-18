@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal, TypedDict, cast
 from zoneinfo import ZoneInfo
 
+from cachetools import TTLCache
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
@@ -176,9 +177,18 @@ class _CachedVerdict:
 
 
 class _CoolOffCache:
-    def __init__(self) -> None:
-        # Key is (session_id, step_ord, profile_name)
-        self._cache: dict[tuple[str, int, str], _CachedVerdict] = {}
+    def __init__(
+        self,
+        *,
+        ttl_s: float = 60.0,
+        time_fn: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
+        # Key is (session_id, step_ord, profile_name). TTL here is a memory
+        # bound only (M25/G10): the freshness gate below keeps its own
+        # explicit min_interval_s comparison as the correctness check.
+        self._cache: TTLCache[tuple[str, int, str], _CachedVerdict] = TTLCache(
+            maxsize=4096, ttl=ttl_s, timer=lambda: time_fn().timestamp()
+        )
 
     def get_fresh(
         self,
@@ -203,6 +213,11 @@ class _CoolOffCache:
         now: datetime,
     ) -> None:
         self._cache[key] = _CachedVerdict(verdict=verdict, at=now)
+
+    def evict_session(self, session_id: str) -> None:
+        stale = [key for key in list(self._cache.keys()) if key[0] == session_id]
+        for key in stale:
+            self._cache.pop(key, None)
 
 
 @dataclass
@@ -287,7 +302,16 @@ class GateGraphRunner:
         else:
             self._node_timeout_s = node_timeout_s
 
-        self.cache = _CoolOffCache()
+        try:
+            confirm_min_interval_s = settings.as_float("guided_task.vision.confirm.min_interval_s")
+        except Exception:  # noqa: BLE001
+            confirm_min_interval_s = 15.0
+        # Slack ceiling: the largest configured confirm min_interval_s, times
+        # 4, so the TTL memory bound never evicts a verdict the freshness
+        # check would still consider fresh.
+        self.cache = _CoolOffCache(
+            ttl_s=max(confirm_min_interval_s or 15.0, 1.0) * 4, time_fn=self._time_fn
+        )
 
     async def run(
         self,

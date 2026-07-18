@@ -61,6 +61,35 @@ async def test_mark_complete_calls_handle_completion_with_confirmed_evidence(
 
 
 @pytest.mark.asyncio
+async def test_mark_complete_forwards_already_done(guided_service) -> None:
+    from backend.mcp.server import mark_guided_step_complete
+
+    guided_service.handle_completion.return_value = {"advanced": True}
+
+    result = await mark_guided_step_complete(7, 2, already_done=True)
+
+    assert result == {"advanced": True}
+    guided_service.handle_completion.assert_awaited_once_with(
+        7,
+        evidence={"confirmed": True, "source": "agent", "step_ord": 2, "already_done": True},
+    )
+
+
+@pytest.mark.asyncio
+async def test_mark_complete_omits_already_done_by_default(guided_service) -> None:
+    from backend.mcp.server import mark_guided_step_complete
+
+    guided_service.handle_completion.return_value = {"advanced": True}
+
+    await mark_guided_step_complete(7, 2)
+
+    guided_service.handle_completion.assert_awaited_once_with(
+        7,
+        evidence={"confirmed": True, "source": "agent", "step_ord": 2},
+    )
+
+
+@pytest.mark.asyncio
 async def test_get_active_step_returns_descriptor(guided_service) -> None:
     from backend.mcp.server import get_active_guided_step
 

@@ -156,6 +156,17 @@ actor roles (`user`, `assistant`, `orchestrator`, `system`, and a caregiver role
 so the caregiver trail is fully auditable. Orchestrator/caregiver prompts are hidden
 from her UI exactly as `audio_handler` already hides orchestrator prompts.
 
+**Conversation linkage (M24, D18).** Guided sessions reference `conversation_sessions`
+via `guided_sessions.conversation_session_id`, a nullable FK set once a realtime
+companion session is open (`on_session_opened`, `_begin_session`) or, for a caregiver
+message with no live realtime session, created on demand
+(`GuidedTaskService._link_conversation`). Guided session ids and conversation session
+ids are independent autoincrement sequences; never key a `conversation_manager` read
+or write by a guided session id (`ensure_session(guided_session.id)` was the closed
+G2/F3 bug). Every consumer (`caregiver_say`, `get_detail`, `FullEscalator._recent_transcript`,
+`prune_retained_data`) reads or writes through `session.conversation_session_id`, and
+linking always emits a `conversation_linked` `GuidedSessionEvent`.
+
 ## 12. Language and voice (D15)
 
 Resolve the agent's system instruction with
@@ -171,6 +182,13 @@ Store transcripts (via `conversation_manager`), step events, and outcomes. Do no
 store raw audio. Prune transcripts and events past
 `guided_task.transcript_retention_days` (default 30) with a scheduled job, the same
 way `prune_observations` works for semantic memory.
+
+**Retention prunes via the linkage (M24).** `prune_retained_data` collects the
+`conversation_session_id` of completed sessions older than the retention window and
+passes only those ids to `conversation_manager.prune_sessions`; it never passes a raw
+guided session id. A conversation still linked to a *live* guided session is excluded
+even if another guided session that shares it has aged out, so retention never deletes
+a transcript still in active use.
 
 ## 14. Testing
 

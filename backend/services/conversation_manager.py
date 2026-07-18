@@ -41,14 +41,6 @@ class ConversationManager:
             if session:
                 session.ended_at = datetime.now(UTC)
 
-    def ensure_session(self, session_id: int) -> int:
-        """Ensure a conversation session row exists for an externally-owned id."""
-        with transaction(self.db_session_factory) as db:
-            session = db.get(ConversationSession, session_id)
-            if session is None:
-                db.add(ConversationSession(id=session_id))
-            return session_id
-
     def add_turn(
         self,
         session_id: int,

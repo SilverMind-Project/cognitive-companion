@@ -5744,6 +5744,17 @@
             ],
             "title": "Completed At"
           },
+          "conversation_session_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Session Id"
+          },
           "current_step_ord": {
             "title": "Current Step Ord",
             "type": "integer"
@@ -16848,7 +16859,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.76"
+    "version": "0.7.89"
   },
   "openapi": "3.1.0",
   "paths": {

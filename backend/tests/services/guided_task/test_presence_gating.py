@@ -42,8 +42,9 @@ class _Surfaces:
 
 
 class _Ws:
-    def __init__(self, live: bool) -> None:
+    def __init__(self, live: bool, conversation_session_id: int | None = None) -> None:
         self.has_connections = live
+        self.current_conversation_session_id = conversation_session_id
 
 
 class _Dispatcher:

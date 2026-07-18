@@ -112,6 +112,12 @@ class GuidedSession(Base):
     person_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     execution_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     surface_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    conversation_session_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("conversation_sessions.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     status: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     current_step_ord: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

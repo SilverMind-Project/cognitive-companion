@@ -67,21 +67,6 @@ def test_end_missing_session_is_noop(db_factory) -> None:
     manager.end_session(99999)  # must not raise
 
 
-def test_ensure_session_creates_external_session(db_factory) -> None:
-    manager = ConversationManager(db_factory)
-
-    session_id = manager.ensure_session(42)
-    manager.add_turn(session_id, "caregiver", "please try again")
-
-    db = db_factory()
-    try:
-        turn = db.query(ConversationTurn).one()
-        assert turn.session_id == 42
-        assert turn.actor == "caregiver"
-    finally:
-        db.close()
-
-
 # ---------------------------------------------------------------------------
 # add_turn
 # ---------------------------------------------------------------------------

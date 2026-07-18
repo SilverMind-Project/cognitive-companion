@@ -373,13 +373,31 @@ class GuidedTaskService:
             await self._cross_check_surface(selected_surface_id, person_id)
         return session
 
-    async def on_session_opened(self) -> None:
+    async def on_session_opened(self, conversation_session_id: int | None = None) -> None:
         """Best-effort hook called when a realtime companion session opens.
 
         Invoked fire-and-forget from the websocket connect path, so it must never
         raise into the audio loop: a failure to re-check one summoning session is
-        logged and the rest are still attempted.
+        logged and the rest are still attempted. ``conversation_session_id`` is the
+        ``conversation_sessions`` row the just-opened realtime session created; it
+        links any live guided session that does not yet have a linked conversation
+        so escalation and detail reads see her actual turns (M24).
         """
+        if conversation_session_id is not None:
+            for session in self._store.list_live_sessions():
+                if session.status not in {"summoning", "active", "waiting"}:
+                    continue
+                if session.conversation_session_id is not None:
+                    continue
+                try:
+                    self._link_conversation(
+                        session, conversation_session_id, now=self._now(), actor="system"
+                    )
+                except Exception:
+                    logger.exception(
+                        "guided_on_session_opened_link_failed", session_id=session.id
+                    )
+
         for session in self._store.list_summoning_sessions():
             try:
                 await self._summon_recheck(
@@ -387,6 +405,34 @@ class GuidedTaskService:
                 )
             except Exception:
                 logger.exception("guided_on_session_opened_recheck_failed", session_id=session.id)
+
+    def _link_conversation(
+        self,
+        session: GuidedSession,
+        conversation_session_id: int,
+        *,
+        now: datetime,
+        actor: str,
+    ) -> GuidedSession:
+        """Attach a conversation_sessions row to a guided session (M24, G2).
+
+        Never key conversation reads or writes by a guided session id; this is
+        the only place a guided session acquires its conversation linkage.
+        """
+        updated = self._store.update_session(
+            session.id, conversation_session_id=conversation_session_id
+        )
+        if updated is None:
+            raise NotFoundError("Guided session", session.id)
+        self._store.add_event(
+            session_id=session.id,
+            at=now,
+            kind="conversation_linked",
+            step_ord=session.current_step_ord,
+            actor=actor,
+            detail={"conversation_session_id": conversation_session_id},
+        )
+        return updated
 
     async def _begin_session(
         self,
@@ -411,6 +457,12 @@ class GuidedTaskService:
         )
         if updated is None:
             raise NotFoundError("Guided session", session_id)
+        if updated.conversation_session_id is None and self._has_live_realtime_session():
+            live_conversation_id = self._ws_manager.current_conversation_session_id
+            if live_conversation_id is not None:
+                updated = self._link_conversation(
+                    updated, live_conversation_id, now=begin_at, actor="system"
+                )
         step = steps[0]
         self._store.add_event(
             session_id=session_id,
@@ -773,9 +825,14 @@ class GuidedTaskService:
 
         conversation_manager = self._conversation_manager
         if conversation_manager is not None:
-            conversation_manager.ensure_session(session.id)
+            conversation_session_id = session.conversation_session_id
+            if conversation_session_id is None:
+                conversation_session_id = conversation_manager.create_session()
+                session = self._link_conversation(
+                    session, conversation_session_id, now=now, actor="system"
+                )
             conversation_manager.add_turn(
-                session.id,
+                conversation_session_id,
                 "caregiver",
                 clean_text,
                 metadata={"guided_session_id": session.id, "routine_id": session.routine_id},
@@ -913,11 +970,15 @@ class GuidedTaskService:
         ]
         recent_transcript: list[GuidedSessionTurnOut] = []
         conversation_manager = self._conversation_manager
-        if conversation_manager is not None:
+        if conversation_manager is not None and session.conversation_session_id is not None:
             recent_transcript = [
                 GuidedSessionTurnOut(**turn)
-                for turn in conversation_manager.get_recent_turns(session.id, limit=10)
+                for turn in conversation_manager.get_recent_turns(
+                    session.conversation_session_id, limit=10
+                )
             ]
+        elif conversation_manager is not None:
+            logger.warning("guided_detail_transcript_unlinked", session_id=session.id)
         return GuidedSessionDetailOut(
             session=self._session_out(session),
             current_step=current_step,
@@ -1673,11 +1734,15 @@ class GuidedTaskService:
     async def prune_retained_data(self) -> dict[str, int]:
         days = self._settings.as_int("guided_task.transcript_retention_days")
         cutoff = self._now() - timedelta(days=days)
-        session_ids = self._store.list_completed_session_ids_before(cutoff)
         transcript_sessions = 0
         conversation_manager = self._conversation_manager
         if conversation_manager is not None:
-            transcript_sessions = conversation_manager.prune_sessions(session_ids)
+            conversation_session_ids = self._store.list_prunable_conversation_session_ids(cutoff)
+            # A conversation shared with the realtime companion may carry non-guided
+            # turns too; pruning it once its linked guided session is 30+ days old
+            # matches the existing global conversation TTL policy already bounding
+            # reads (ConversationManager.ttl_minutes), so this is acceptable.
+            transcript_sessions = conversation_manager.prune_sessions(conversation_session_ids)
         events = self._store.prune_events_before(cutoff)
         sessions = self._store.prune_sessions_before(cutoff)
         logger.info(

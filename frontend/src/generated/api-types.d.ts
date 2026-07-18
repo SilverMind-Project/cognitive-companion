@@ -7093,6 +7093,8 @@ export interface components {
             attempts: number;
             /** Completed At */
             completed_at?: string | null;
+            /** Conversation Session Id */
+            conversation_session_id?: number | null;
             /** Current Step Ord */
             current_step_ord: number;
             /** Execution Id */

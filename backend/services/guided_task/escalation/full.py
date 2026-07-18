@@ -74,7 +74,7 @@ class FullEscalator:
             reason=reason,
             emergency=emergency,
             takeover_url=self._takeover_url(session.id),
-            transcript=self._recent_transcript(session.id),
+            transcript=self._recent_transcript(session.conversation_session_id),
         )
 
         await self._broadcast_escalation(updated, reason=reason, emergency=emergency, detail=detail)
@@ -130,11 +130,11 @@ class FullEscalator:
             parts.append("Recent transcript: " + " | ".join(transcript[-5:]))
         return " ".join(parts)
 
-    def _recent_transcript(self, session_id: int) -> list[str]:
+    def _recent_transcript(self, conversation_session_id: int | None) -> list[str]:
         conversation_manager = self._conversation_manager
-        if conversation_manager is None:
+        if conversation_manager is None or conversation_session_id is None:
             return []
-        turns = conversation_manager.get_recent_turns(session_id, limit=5)
+        turns = conversation_manager.get_recent_turns(conversation_session_id, limit=5)
         return [f"{turn['actor']}: {turn['content']}" for turn in turns]
 
     async def _broadcast_escalation(

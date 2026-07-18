@@ -115,6 +115,7 @@ class VisionEvaluator:
 
         window_s = resolve_val("window_s", "guided_task.vision.confirm.window_s", float, 20.0)
         max_frames = resolve_val("max_frames", "guided_task.vision.confirm.max_frames", int, 9)
+        max_cameras = resolve_val("max_cameras", "guided_task.vision.max_cameras", int, 3)
         min_confidence = resolve_val(
             "min_confidence", "guided_task.vision.confirm.min_confidence", float, 0.7
         )
@@ -143,7 +144,7 @@ class VisionEvaluator:
             camera_topology=self._camera_topology,
             identity_resolver=self._identity_resolver,
             camera_source_resolver=self._camera_source_resolver,
-            max_cameras=max_frames,
+            max_cameras=max_cameras,
         )
         if not cameras:
             await self._record(

@@ -103,8 +103,6 @@ class PersonLocationService:
         direction: str,
         inside_room_id: int,
         outside_room_id: int,
-        floor_x_m: float,
-        floor_y_m: float,
         event_time: datetime,
     ) -> None:
         """Handle a room transition event from tracking.room_transitions."""

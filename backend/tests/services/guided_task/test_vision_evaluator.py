@@ -256,6 +256,47 @@ async def test_confirm_profile_resolved_via_precedence(monkeypatch) -> None:
     assert profile.model_id == "step-model"
 
 
+async def test_confirm_camera_cap_independent_of_frames(monkeypatch) -> None:
+    """G11: max_cameras and max_frames are independent budgets.
+
+    A cascade that returns five cameras must be capped to max_cameras (3),
+    not max_frames (9): frames and cameras are different knobs.
+    """
+    select_cameras_mock = AsyncMock(
+        return_value=[
+            ResolvedCamera(id="cam-1", source="cts"),
+            ResolvedCamera(id="cam-2", source="cts"),
+            ResolvedCamera(id="cam-3", source="cts"),
+            ResolvedCamera(id="cam-4", source="cts"),
+            ResolvedCamera(id="cam-5", source="cts"),
+        ]
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        select_cameras_mock,
+    )
+
+    runner = FakeGateGraphRunner()
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict(
+            {
+                "guided_task": {
+                    "vision": {
+                        "max_cameras": 3,
+                        "confirm": {"max_frames": 9},
+                    }
+                }
+            }
+        ),
+    )
+
+    await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+
+    assert select_cameras_mock.call_args.kwargs["max_cameras"] == 3
+
+
 async def test_cooloff_reuses_cached_verdict(monkeypatch) -> None:
     runner = FakeGateGraphRunner()
     evaluator = VisionEvaluator(

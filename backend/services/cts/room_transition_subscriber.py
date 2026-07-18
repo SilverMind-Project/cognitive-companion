@@ -28,8 +28,6 @@ class RoomTransitionMessage(TypedDict):
     direction: str
     inside_room_id: int
     outside_room_id: int
-    floor_x_m: float
-    floor_y_m: float
     event_time: datetime
 
 
@@ -62,8 +60,6 @@ class RoomTransitionSubscriber(StreamConsumer[RoomTransitionMessage]):
                 "direction": _get_text_field(fields, b"direction"),
                 "inside_room_id": int(_get_text_field(fields, b"inside_room_id")),
                 "outside_room_id": int(_get_text_field(fields, b"outside_room_id")),
-                "floor_x_m": float(_get_text_field(fields, b"floor_x_m")),
-                "floor_y_m": float(_get_text_field(fields, b"floor_y_m")),
                 "event_time": datetime.fromisoformat(_get_text_field(fields, b"event_time")),
             }
         except Exception:  # noqa: BLE001
@@ -89,8 +85,6 @@ class RoomTransitionSubscriber(StreamConsumer[RoomTransitionMessage]):
             direction=msg["direction"],
             inside_room_id=msg["inside_room_id"],
             outside_room_id=msg["outside_room_id"],
-            floor_x_m=msg["floor_x_m"],
-            floor_y_m=msg["floor_y_m"],
             event_time=msg["event_time"],
         )
         return True

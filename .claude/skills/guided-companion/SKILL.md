@@ -151,6 +151,28 @@ floor meters, the same space as `location_observation.floor_x_m/floor_y_m`. Neve
 compare a meter polygon against a normalised polygon; convert through the camera
 `homography_matrix`.
 
+**A floor point is written only when the source event carries real coordinates
+(M28, G15).** Absence of floor data is `None`, never `(0, 0)`: a synthetic
+origin point must not masquerade as a real floor position and silently poison
+zone lookup, zone-based camera selection, `zone_presence` completion, or the
+safety watch's expected-room check. Every ingestion path that can write a
+`FloorPoint` (`recamera_observation_subscriber.py`,
+`world_observation_subscriber.py`, and any future source) gates construction
+on an explicit `is not None` check of the real coordinate fields, never a
+`.get(key, 0.0)` default. `PersonLocationService.ingest_room_transition` has
+no floor-point parameters; a transition event's floor coordinates are dead
+data until a milestone actually persists them, so they must not be threaded
+through as unused parameters.
+
+**`max_cameras` and `max_frames` are independent budgets (M28, G11).** The
+camera-cascade cap comes from `guided_task.vision.max_cameras` (default 3,
+overridable per profile via `vision.confirm.max_cameras` /
+`vision.watch.max_cameras`, resolved through `resolve_vision_override` like
+the sibling knobs). `max_frames` is the per-camera frame budget passed to the
+`GateProfile` for the poll nodes. Never pass one where the other belongs:
+many frames from few good cameras beats one frame from many cameras for VLM
+reasoning.
+
 ## 10. Safety watch (D14) and emergencies
 
 A continuous watch runs for every active session and covers: abandonment/wandered-

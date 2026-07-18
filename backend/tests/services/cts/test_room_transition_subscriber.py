@@ -42,8 +42,6 @@ def test_decode_returns_message_not_coroutine():
             b"direction": b"enter",
             b"inside_room_id": b"3",
             b"outside_room_id": b"5",
-            b"floor_x_m": b"1.5",
-            b"floor_y_m": b"3.2",
             b"event_time": b"2026-05-30T15:00:00+00:00",
         },
     )
@@ -70,14 +68,13 @@ def test_decode_accepts_string_field_keys_and_values():
             "direction": "enter",
             "inside_room_id": "3",
             "outside_room_id": "5",
-            "floor_x_m": "1.5",
-            "floor_y_m": "3.2",
             "event_time": "2026-05-30T15:00:00+00:00",
         },
     )
 
     assert decoded is not None
-    assert decoded["floor_x_m"] == 1.5
+    assert decoded["identity_id"] == "alice"
+    assert decoded["outside_room_id"] == 5
 
 
 @pytest.mark.asyncio
@@ -97,8 +94,6 @@ async def test_known_identity_transition_updates_segment():
         "direction": "enter",
         "inside_room_id": 3,
         "outside_room_id": 5,
-        "floor_x_m": 1.5,
-        "floor_y_m": 3.2,
         "event_time": now,
     }
 
@@ -126,8 +121,6 @@ async def test_exit_transition_updates_segment_to_outside_room():
         "direction": "enter",
         "inside_room_id": 3,
         "outside_room_id": 5,
-        "floor_x_m": 1.5,
-        "floor_y_m": 3.2,
         "event_time": datetime.now(UTC),
     }
     assert await subscriber.handle(enter_msg) is True
@@ -161,8 +154,6 @@ async def test_unknown_ph_transition_is_skipped():
         "direction": "enter",
         "inside_room_id": 3,
         "outside_room_id": 5,
-        "floor_x_m": 1.5,
-        "floor_y_m": 3.2,
         "event_time": datetime.now(UTC),
     }
 

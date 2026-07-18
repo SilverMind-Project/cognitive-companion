@@ -179,6 +179,10 @@ guided_task:
     en: "Please come to the companion screen when you are ready for your routine."
     ta: "நீங்க ரெடி ஆன உடனே, கொஞ்சம் அந்த கம்பேனியன் ஸ்க்ரீனுக்கு (companion screen) வாங்க."
   vision:
+    # Camera count cap for the D5 cascade, independent of max_frames (the
+    # per-camera frame budget below). Overridable per profile via
+    # vision.confirm.max_cameras / vision.watch.max_cameras (M28/G11).
+    max_cameras: 3
     confirm:
       window_s: 20
       max_frames: 9

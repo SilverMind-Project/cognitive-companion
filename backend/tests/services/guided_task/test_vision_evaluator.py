@@ -279,6 +279,81 @@ async def test_cooloff_reuses_cached_verdict(monkeypatch) -> None:
     assert res2.complete is True
 
 
+async def test_cached_negative_verdict_is_recorded(monkeypatch) -> None:
+    """G3: a cached negative confirm verdict still counts as a disagreement
+    event, so the bounded-disagreement escape hatch can accumulate even
+    within the cool-off window."""
+    events = []
+
+    def record(session_id, step_ord, detail):
+        events.append(detail)
+
+    runner = FakeGateGraphRunner()
+    runner.verdict_to_return = GateVerdict(
+        complete=False,
+        confidence=0.3,
+        reason="not_done",
+        node_results={},
+        cost={},
+        profile="confirm",
+    )
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict({}),
+        event_recorder=record,
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+
+    res1 = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert len(runner.run_calls) == 1
+    assert res1.complete is False
+    assert len(events) == 1  # the first (non-cached) run records once
+
+    # Second call within the cool-off window reuses the cache but must still
+    # record a disagreement event.
+    res2 = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert len(runner.run_calls) == 1
+    assert res2.complete is False
+    assert len(events) == 2
+    assert events[1]["complete"] is False
+    assert events[1]["reason"] == "cached:not_done"
+
+
+async def test_cached_positive_verdict_not_recorded(monkeypatch) -> None:
+    """A cached positive advances immediately; recording it again would
+    double-count metrics."""
+    events = []
+
+    def record(session_id, step_ord, detail):
+        events.append(detail)
+
+    runner = FakeGateGraphRunner()
+    evaluator = VisionEvaluator(
+        gate_config={"vision": {"gate_graph_rule_id": 42}},
+        gate_runner=runner,
+        settings=Settings.from_dict({}),
+        event_recorder=record,
+    )
+    monkeypatch.setattr(
+        "backend.services.guided_task.completion.vision.select_cameras_tagged",
+        AsyncMock(return_value=[ResolvedCamera(id="cam-1", source="cts")]),
+    )
+
+    res1 = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert len(runner.run_calls) == 1
+    assert res1.complete is True
+    assert len(events) == 1  # the first (non-cached) run records once
+
+    res2 = await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
+    assert len(runner.run_calls) == 1
+    assert res2.complete is True
+    assert len(events) == 1  # cached positive: no additional record
+
+
 async def test_emits_new_audit_event_shape(monkeypatch) -> None:
     events = []
 

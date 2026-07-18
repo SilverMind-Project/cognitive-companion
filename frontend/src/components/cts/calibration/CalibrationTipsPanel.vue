@@ -11,7 +11,9 @@
           <v-col cols="12" md="4">
             <div class="text-subtitle-2 mb-2">Choose good points</div>
             <ul class="text-body-2 tip-list">
-              <li>Pick points on the <strong>floor surface</strong>, not walls or elevated objects</li>
+              <li>
+                Pick points on the <strong>floor surface</strong>, not walls or elevated objects
+              </li>
               <li>Spread points across the full camera view — avoid clustering in one area</li>
               <li>Use fixed landmarks: doorway corners, tile intersections, rug edges</li>
               <li>Avoid points that are very close to the camera's edge</li>

@@ -2003,11 +2003,16 @@ class GuidedTaskService:
             context=context,
         )
 
-        # Warm/put in cool-off cache for confirm & watch
+        # Warm the watch cool-off slot unconditionally (the watch throttle needs
+        # it); warm the confirm slot only on a positive verdict. A negative
+        # watch verdict answering her actual "done" is the exact inversion of
+        # D28's cache rationale (avoid dropping a valid "done"), so it must
+        # never be reused as a confirm answer (G3).
         cache_key_watch = (str(session.id), int(step.ord), "watch")
         cache_key_confirm = (str(session.id), int(step.ord), "confirm")
         self._gate_runner.cache.put(cache_key_watch, verdict, now=now)
-        self._gate_runner.cache.put(cache_key_confirm, verdict, now=now)
+        if verdict.complete and verdict.confidence >= min_confidence:
+            self._gate_runner.cache.put(cache_key_confirm, verdict, now=now)
 
         # Emit GuidedSessionEvent(kind="watch")
         formatted_cameras = [{"id": c.id, "source": c.source} for c in cameras]

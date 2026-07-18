@@ -14,7 +14,16 @@ import { useWorldSnapshot } from "@/composables/useWorldSnapshot";
  * `fpWidth`/`fpHeight`/`fpMpp`/`canvasW`/`canvasH` (useFloorPlanCanvas) and
  * `rooms` (useFloorPlanRooms) are read-only refs owned by the orchestrator.
  */
-export function useLiveWorldMarkers(fpWidth, fpHeight, fpMpp, canvasW, canvasH, rooms, router, maraudersState) {
+export function useLiveWorldMarkers(
+  fpWidth,
+  fpHeight,
+  fpMpp,
+  canvasW,
+  canvasH,
+  rooms,
+  router,
+  maraudersState,
+) {
   // liveZoom.state/actions are passed down to LiveFloorCanvas.vue, which owns
   // the actual container template ref locally (DOM refs must live in the SFC
   // that renders the ref="..." markup).

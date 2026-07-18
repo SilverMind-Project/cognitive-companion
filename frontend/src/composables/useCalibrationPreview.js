@@ -17,7 +17,15 @@ function _projectPoint(H, px, py) {
  * panes. Reads `imgContentRect` (camera pane) and `fpImgRect`/`fpWidth`/`fpHeight`/`fpMpp`
  * (floor-plan pane + useFloorPlan) -- the one place this view's two panes' geometry meet.
  */
-export function useCalibrationPreview(points, imgContentRect, fpImgRect, fpWidth, fpHeight, fpMpp, result) {
+export function useCalibrationPreview(
+  points,
+  imgContentRect,
+  fpImgRect,
+  fpWidth,
+  fpHeight,
+  fpMpp,
+  result,
+) {
   const previewMatrix = ref(null);
   const previewResiduals = ref([]);
   const previewStatus = ref(null);

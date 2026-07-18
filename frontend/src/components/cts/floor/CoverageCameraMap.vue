@@ -89,7 +89,10 @@
           </g>
         </svg>
 
-        <div v-if="!floorPlanUrl" class="coverage-empty d-flex flex-column align-center justify-center">
+        <div
+          v-if="!floorPlanUrl"
+          class="coverage-empty d-flex flex-column align-center justify-center"
+        >
           <v-icon size="48" color="medium-emphasis">mdi-floor-plan</v-icon>
           <div class="text-body-2 text-medium-emphasis mt-2">Upload a floor plan first.</div>
           <v-btn variant="tonal" size="small" class="mt-3" @click="emit('go-upload')">
@@ -103,9 +106,11 @@
           <strong>{{ uncalibrated.length }} camera(s) not shown</strong>
           &mdash;
           <span v-if="uncalibrated.some((c) => c.has_homography)">
-            visibility polygon could not be computed. Check that the floor plan scale (m/pixel)
-            is correct in
-            <a href="#" class="text-primary" @click.prevent="emit('go-upload')">Floor Plan settings</a>.
+            visibility polygon could not be computed. Check that the floor plan scale (m/pixel) is
+            correct in
+            <a href="#" class="text-primary" @click.prevent="emit('go-upload')"
+              >Floor Plan settings</a
+            >.
           </span>
           <span v-else>
             no homography calibration yet.

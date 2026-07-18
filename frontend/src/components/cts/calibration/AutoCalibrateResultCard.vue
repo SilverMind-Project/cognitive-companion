@@ -6,7 +6,11 @@
       <v-spacer />
       <v-chip
         :color="
-          autoResult.confidence >= 0.6 ? 'success' : autoResult.confidence >= 0.4 ? 'warning' : 'error'
+          autoResult.confidence >= 0.6
+            ? 'success'
+            : autoResult.confidence >= 0.4
+              ? 'warning'
+              : 'error'
         "
         size="small"
       >
@@ -30,14 +34,20 @@
       </v-alert>
       <div class="text-caption text-medium-emphasis mt-2">
         This draft found {{ autoResult.suggested_points?.length || 0 }} candidate floor pixels. It
-        has not been saved as calibration. Refine manually by anchoring the suggested camera
-        points to the floor plan.
+        has not been saved as calibration. Refine manually by anchoring the suggested camera points
+        to the floor plan.
       </div>
     </v-card-text>
     <v-card-actions class="px-4 pb-4 pt-0">
       <v-btn variant="text" size="small" @click="$emit('dismiss')">Dismiss</v-btn>
       <v-spacer />
-      <v-btn color="primary" variant="tonal" size="small" prepend-icon="mdi-pencil" @click="$emit('refine')">
+      <v-btn
+        color="primary"
+        variant="tonal"
+        size="small"
+        prepend-icon="mdi-pencil"
+        @click="$emit('refine')"
+      >
         Refine manually
       </v-btn>
     </v-card-actions>

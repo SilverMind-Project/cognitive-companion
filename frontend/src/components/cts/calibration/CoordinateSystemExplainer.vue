@@ -20,7 +20,14 @@
           stroke-width="1.5"
           stroke-dasharray="6 3"
         />
-        <text x="160" y="12" text-anchor="middle" fill="var(--cc-brand)" font-size="10" font-weight="600">
+        <text
+          x="160"
+          y="12"
+          text-anchor="middle"
+          fill="var(--cc-brand)"
+          font-size="10"
+          font-weight="600"
+        >
           Floor plan image
         </text>
 
@@ -106,14 +113,13 @@
 
       <div class="text-body-2 mt-2">
         <strong>X</strong> and <strong>Y</strong> are straight-line distances measured
-        <em>on the floor</em> — not from the camera, not slanted distances through the air.
-        Measure them as if you were standing on the floor with a tape measure, from the top-left
-        corner of your floor plan image.
+        <em>on the floor</em> — not from the camera, not slanted distances through the air. Measure
+        them as if you were standing on the floor with a tape measure, from the top-left corner of
+        your floor plan image.
       </div>
       <v-alert type="warning" variant="tonal" density="compact" class="mt-3 text-caption">
         All cameras must use the <strong>same origin</strong>. If camera A calls the front door
-        "X=0, Y=0" and camera B calls it "X=1, Y=0", tracks will not align on the shared floor
-        plan.
+        "X=0, Y=0" and camera B calls it "X=1, Y=0", tracks will not align on the shared floor plan.
       </v-alert>
     </v-card-text>
   </v-card>

@@ -31,7 +31,24 @@ def test_response_always_included() -> None:
     assert [evaluator.kind for evaluator in evaluators][:2] == ["response", "vision_confirm"]
 
 
-async def test_any_mode_completes_on_first_gate() -> None:
+async def test_verifier_runs_even_when_response_completes() -> None:
+    """G1: a configured vision_confirm evaluator always runs once the response
+    gate (the trigger) completes; it is not skipped just because mode is
+    "any". A negative verdict from the verifier holds the step."""
+    evaluation = await evaluate_completion(
+        evaluators=[_Evaluator("response", True), _Evaluator("vision_confirm", False)],
+        mode="any",
+        session=_Session(),
+        step=_Step(),
+        evidence={},
+    )
+
+    assert evaluation.result.complete is False
+    assert evaluation.result.reason == "vision_confirm"
+
+
+async def test_unconfirmed_response_short_circuits_before_verifier() -> None:
+    """The response gate is a trigger: if it fails, no verifier runs."""
     evaluation = await evaluate_completion(
         evaluators=[_Evaluator("response", False), _Evaluator("vision_confirm", True)],
         mode="any",
@@ -40,8 +57,8 @@ async def test_any_mode_completes_on_first_gate() -> None:
         evidence={},
     )
 
-    assert evaluation.result.complete is True
-    assert evaluation.result.reason == "vision_confirm"
+    assert evaluation.result.complete is False
+    assert evaluation.result.reason == "response"
 
 
 async def test_all_mode_requires_all_gates() -> None:

@@ -98,7 +98,7 @@ const stubs = {
   "v-avatar": { template: "<div><slot /></div>", props: ["size"] },
   "v-card-actions": { template: "<div><slot /></div>" },
   "v-btn": {
-    template: '<button @click="$emit(\'click\')"><slot /></button>',
+    template: "<button @click=\"$emit('click')\"><slot /></button>",
     props: ["icon", "variant", "color", "loading", "disabled"],
   },
 };

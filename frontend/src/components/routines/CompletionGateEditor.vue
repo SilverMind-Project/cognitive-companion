@@ -46,10 +46,17 @@
       label="Completion mode"
       density="compact"
       hide-details
-      class="mb-3"
-      style="max-width: 240px"
+      class="mb-1"
+      style="max-width: 320px"
       @update:model-value="emit('update:modelValue', { ...gate, mode: $event })"
     />
+    <div
+      v-if="gate.kinds.includes('vision_confirm')"
+      class="text-caption text-medium-emphasis mb-3"
+    >
+      Vision check always verifies her confirmation, in any mode. "Any"/"All" only applies to the
+      activity and zone assists below.
+    </div>
 
     <!-- Vision confirm config -->
     <template v-if="gate.kinds.includes('vision_confirm')">
@@ -346,8 +353,8 @@ const gate = computed(() => ({
 }));
 
 const modeOptions = [
-  { title: "Any gate (advance when any passes)", value: "any" },
-  { title: "All gates (advance when all pass)", value: "all" },
+  { title: "Any assist (advisory, never blocks)", value: "any" },
+  { title: "All assists (every configured assist required)", value: "all" },
 ];
 
 const onMaxItems = [

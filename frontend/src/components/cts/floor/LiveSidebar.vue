@@ -30,7 +30,11 @@
           </v-list-item-subtitle>
           <template #append>
             <div class="d-flex flex-column align-end ga-1">
-              <v-chip :color="person.calibrated ? 'success' : 'warning'" size="x-small" variant="tonal">
+              <v-chip
+                :color="person.calibrated ? 'success' : 'warning'"
+                size="x-small"
+                variant="tonal"
+              >
                 {{ person.calibrated ? "mapped" : "est." }}
               </v-chip>
               <span class="text-caption text-medium-emphasis">
@@ -79,7 +83,9 @@
           <template #prepend>
             <v-icon color="primary" size="16">mdi-account-group</v-icon>
           </template>
-          <v-list-item-title class="text-caption">{{ worldPhCount }} active PH(s)</v-list-item-title>
+          <v-list-item-title class="text-caption"
+            >{{ worldPhCount }} active PH(s)</v-list-item-title
+          >
           <v-list-item-subtitle class="text-caption text-medium-emphasis">
             {{ worldPhMarkerCount }} on plan · {{ uncalibratedPhCount }} off-plan
           </v-list-item-subtitle>

@@ -7,6 +7,12 @@ from unittest.mock import MagicMock
 
 from backend.models.person import ActivitySession, ActivityTypeEnum, DailyReport
 from backend.services.daily_report import DailyReportService
+from backend.services.person_location.config import PersonLocationConfig
+from backend.services.person_location.repositories import (
+    SqlAlchemyObservationRepository,
+    SqlAlchemySegmentRepository,
+)
+from backend.services.person_location.service import PersonLocationService
 
 
 def _get_or_create_room(db, name: str) -> int:
@@ -70,35 +76,48 @@ def _make_activity_session(
     return session
 
 
-def _make_location_history(
+def _make_location_service(db_factory) -> PersonLocationService:
+    return PersonLocationService(
+        SqlAlchemyObservationRepository(db_factory),
+        SqlAlchemySegmentRepository(db_factory),
+        PersonLocationConfig(),
+    )
+
+
+async def _seed_room_entry(
     db,
+    location_service: PersonLocationService,
+    *,
     person_id="person123",
     room_name="bedroom",
     entered_at=None,
-    exited_at=None,
-):
-    """Helper to create a PersonLocationHistory with prerequisite records."""
-    from backend.models.person import PersonLocationHistory
-
+) -> None:
+    """Ingest one room observation through PersonLocationService's real
+    state machine (M32: room_segments is the room-time source, not the
+    legacy PersonLocationHistory table). A later call with a different
+    room_name closes the prior segment and opens the new one, exactly as
+    production ingestion does; the last segment stays open (clamped by
+    ``effective_exited_at`` at aggregation time)."""
     if entered_at is None:
         entered_at = datetime.now(UTC) - timedelta(hours=3)
-    if exited_at is None:
-        exited_at = entered_at + timedelta(hours=1)
 
-    # Ensure prerequisite records exist
+    # Ensure prerequisite records exist, and commit before the location
+    # service opens its own session: an uncommitted Room/HouseholdMember row
+    # would make that session's FK-referencing insert block indefinitely
+    # waiting on this transaction (a same-process deadlock, not a real
+    # contention case).
     _get_or_create_person(db, person_id)
     room_id = _get_or_create_room(db, room_name)
-
-    history = PersonLocationHistory(
-        person_id=person_id,
-        room_id=room_id,
-        room_name=room_name,
-        entered_at=entered_at,
-        exited_at=exited_at,
-    )
-    db.add(history)
     db.commit()
-    return history
+
+    await location_service.ingest_observation(
+        person_id=person_id,
+        observed_at=entered_at,
+        source="world_tracker",
+        room_id=room_id,
+        confidence=0.9,
+        metadata={"room_name": room_name},
+    )
 
 
 def _make_person_activity(
@@ -134,12 +153,12 @@ def _make_person_activity(
 class TestDailyReportGeneration:
     """Tests for generate_daily_report method."""
 
-    def test_generate_report_basic(self, db_factory):
+    async def test_generate_report_basic(self, db_factory):
         """Should generate a basic report with default values."""
         service = DailyReportService(db_factory)
         today = datetime.now(UTC).date().isoformat()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -160,7 +179,7 @@ class TestDailyReportGeneration:
         assert report["wellness_score"] is not None
         assert isinstance(report["wellness_alerts"], list)
 
-    def test_generate_report_with_sleep_data(self, db_factory):
+    async def test_generate_report_with_sleep_data(self, db_factory):
         """Should aggregate sleep sessions correctly."""
         service = DailyReportService(db_factory)
 
@@ -185,7 +204,7 @@ class TestDailyReportGeneration:
             status="closed",
         )
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -197,7 +216,7 @@ class TestDailyReportGeneration:
         assert sleep["quality_score"] > 0
         assert sleep["disruptions"] == 0
 
-    def test_generate_report_multiple_sleep_sessions(self, db_factory):
+    async def test_generate_report_multiple_sleep_sessions(self, db_factory):
         """Should handle multiple sleep sessions (potential disruptions)."""
         service = DailyReportService(db_factory)
 
@@ -232,7 +251,7 @@ class TestDailyReportGeneration:
         )
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -243,7 +262,7 @@ class TestDailyReportGeneration:
         assert sleep["total_minutes"] == 240
         assert sleep["disruptions"] == 1  # sessions - 1
 
-    def test_generate_report_with_meal_data(self, db_factory):
+    async def test_generate_report_with_meal_data(self, db_factory):
         """Should aggregate meal prep and eating sessions."""
         service = DailyReportService(db_factory)
 
@@ -276,7 +295,7 @@ class TestDailyReportGeneration:
         )
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -287,7 +306,7 @@ class TestDailyReportGeneration:
         assert meals["eating_count"] == 1
         assert meals["avg_duration_minutes"] == 30.0
 
-    def test_generate_report_with_medication_data(self, db_factory):
+    async def test_generate_report_with_medication_data(self, db_factory):
         """Should track medication doses taken."""
         service = DailyReportService(db_factory)
         now = datetime.now(UTC)
@@ -310,7 +329,7 @@ class TestDailyReportGeneration:
         db.commit()
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -321,7 +340,7 @@ class TestDailyReportGeneration:
         assert medication["doses_due"] == 3
         assert medication["adherence_pct"] == 100.0
 
-    def test_generate_report_with_partial_medication_adherence(self, db_factory):
+    async def test_generate_report_with_partial_medication_adherence(self, db_factory):
         """Should calculate adherence percentage correctly."""
         service = DailyReportService(db_factory)
         now = datetime.now(UTC)
@@ -343,7 +362,7 @@ class TestDailyReportGeneration:
         db.commit()
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -353,7 +372,7 @@ class TestDailyReportGeneration:
         assert medication["doses_taken"] == 1
         assert medication["adherence_pct"] == 33.3  # 1/3 = 33.3%
 
-    def test_generate_report_with_bathroom_visits(self, db_factory):
+    async def test_generate_report_with_bathroom_visits(self, db_factory):
         """Should aggregate bathroom visit data."""
         service = DailyReportService(db_factory)
 
@@ -386,7 +405,7 @@ class TestDailyReportGeneration:
         )
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -397,7 +416,7 @@ class TestDailyReportGeneration:
         assert bathroom["total_minutes"] == 30
         assert bathroom["avg_duration_minutes"] == 15.0
 
-    def test_generate_report_with_door_events(self, db_factory):
+    async def test_generate_report_with_door_events(self, db_factory):
         """Should count door open/close events."""
         service = DailyReportService(db_factory)
 
@@ -430,7 +449,7 @@ class TestDailyReportGeneration:
         )
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -440,7 +459,7 @@ class TestDailyReportGeneration:
         assert door["open_count"] == 2
         assert door["close_count"] == 1
 
-    def test_generate_report_with_exercise_data(self, db_factory):
+    async def test_generate_report_with_exercise_data(self, db_factory):
         """Should aggregate exercise sessions."""
         service = DailyReportService(db_factory)
 
@@ -473,7 +492,7 @@ class TestDailyReportGeneration:
         )
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -483,9 +502,10 @@ class TestDailyReportGeneration:
         assert exercise["session_count"] == 2
         assert exercise["total_minutes"] == 75
 
-    def test_generate_report_with_room_time(self, db_factory):
+    async def test_generate_report_with_room_time(self, db_factory):
         """Should calculate time spent in each room."""
-        service = DailyReportService(db_factory)
+        location_service = _make_location_service(db_factory)
+        service = DailyReportService(db_factory, person_location_service=location_service)
 
         # Use a fixed time to avoid midnight boundary issues
         now = datetime.now(UTC)
@@ -494,23 +514,24 @@ class TestDailyReportGeneration:
             test_time = test_time - timedelta(days=1)
         today = test_time.date().isoformat()
 
-        # Create location history
-        _make_location_history(
-            db_factory(),
-            person_id="person123",
+        # Bedroom entry, then a kitchen transition closes it and opens the
+        # kitchen segment (sequential, matching production ingestion).
+        db = db_factory()
+        await _seed_room_entry(
+            db,
+            location_service,
             room_name="bedroom",
             entered_at=test_time - timedelta(hours=8),
-            exited_at=test_time - timedelta(hours=2),
         )
-        _make_location_history(
-            db_factory(),
-            person_id="person123",
+        await _seed_room_entry(
+            db,
+            location_service,
             room_name="kitchen",
             entered_at=test_time - timedelta(hours=2),
-            exited_at=test_time,
         )
+        db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -521,7 +542,7 @@ class TestDailyReportGeneration:
         assert "kitchen" in room_time["distribution"]
         assert room_time["total_minutes"] > 0
 
-    def test_generate_report_yesterday_date(self, db_factory):
+    async def test_generate_report_yesterday_date(self, db_factory):
         """Should work for previous dates."""
         service = DailyReportService(db_factory)
         yesterday = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()
@@ -541,7 +562,7 @@ class TestDailyReportGeneration:
             status="closed",
         )
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=yesterday,
             tz_name="UTC",
@@ -554,7 +575,7 @@ class TestDailyReportGeneration:
 class TestWellnessScoring:
     """Tests for wellness score and alerts computation."""
 
-    def test_wellness_score_full_adherence(self, db_factory):
+    async def test_wellness_score_full_adherence(self, db_factory):
         """Should give high score with full medication adherence and good sleep."""
         service = DailyReportService(db_factory)
 
@@ -616,7 +637,7 @@ class TestWellnessScoring:
             status="closed",
         )
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -625,12 +646,12 @@ class TestWellnessScoring:
         assert report["wellness_score"] is not None
         assert report["wellness_score"] >= 70  # High score expected
 
-    def test_wellness_score_sleep_deprivation_alert(self, db_factory):
+    async def test_wellness_score_sleep_deprivation_alert(self, db_factory):
         """Should generate sleep deprivation alert when no sleep data."""
         service = DailyReportService(db_factory)
         today = datetime.now(UTC).date().isoformat()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -643,7 +664,7 @@ class TestWellnessScoring:
         assert sleep_alerts[0]["severity"] == "warning"
         assert "No sleep data" in sleep_alerts[0]["message"]
 
-    def test_wellness_score_medication_missed_alert(self, db_factory):
+    async def test_wellness_score_medication_missed_alert(self, db_factory):
         """Should generate medication missed alert for low adherence."""
         service = DailyReportService(db_factory)
         today = datetime.now(UTC).date().isoformat()
@@ -659,7 +680,7 @@ class TestWellnessScoring:
             status="closed",
         )
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -671,7 +692,7 @@ class TestWellnessScoring:
         assert len(med_alerts) >= 1
         assert med_alerts[0]["severity"] == "critical"
 
-    def test_wellness_score_bathroom_frequency_alert(self, db_factory):
+    async def test_wellness_score_bathroom_frequency_alert(self, db_factory):
         """Should generate bathroom frequency alert for excessive visits."""
         service = DailyReportService(db_factory)
         today = datetime.now(UTC).date().isoformat()
@@ -692,7 +713,7 @@ class TestWellnessScoring:
                 status="closed",
             )
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -708,13 +729,13 @@ class TestWellnessScoring:
 class TestReportRetrieval:
     """Tests for get_report method."""
 
-    def test_get_existing_report(self, db_factory):
+    async def test_get_existing_report(self, db_factory):
         """Should retrieve an existing report from database."""
         service = DailyReportService(db_factory)
         today = datetime.now(UTC).date().isoformat()
 
         # Generate a report first
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -728,7 +749,7 @@ class TestReportRetrieval:
         assert retrieved["report_date"] == today
         assert retrieved["wellness_score"] == report["wellness_score"]
 
-    def test_get_nonexistent_report(self, db_factory):
+    async def test_get_nonexistent_report(self, db_factory):
         """Should return None for non-existent report."""
         service = DailyReportService(db_factory)
 
@@ -740,12 +761,12 @@ class TestReportRetrieval:
 class TestReportUpsert:
     """Tests for report upsertion to database."""
 
-    def test_upsert_creates_new_report(self, db_factory):
+    async def test_upsert_creates_new_report(self, db_factory):
         """Should create a new report record."""
         service = DailyReportService(db_factory)
         today = datetime.now(UTC).date().isoformat()
 
-        service.generate_daily_report(
+        await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -760,20 +781,20 @@ class TestReportUpsert:
         finally:
             db.close()
 
-    def test_upsert_updates_existing_report(self, db_factory):
+    async def test_upsert_updates_existing_report(self, db_factory):
         """Should update existing report when regenerated."""
         service = DailyReportService(db_factory)
         today = datetime.now(UTC).date().isoformat()
 
         # Generate first report
-        service.generate_daily_report(
+        await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
         )
 
         # Generate again (should update)
-        service.generate_daily_report(
+        await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -792,14 +813,14 @@ class TestReportUpsert:
 class TestDailyReportServiceInit:
     """Tests for service initialization."""
 
-    def test_service_with_scene_analysis_client(self, db_factory):
+    async def test_service_with_scene_analysis_client(self, db_factory):
         """Should accept optional scene analysis client."""
         mock_client = MagicMock()
         service = DailyReportService(db_factory, scene_analysis_client=mock_client)
 
         assert service._scene_analysis_client == mock_client
 
-    def test_service_without_scene_analysis_client(self, db_factory):
+    async def test_service_without_scene_analysis_client(self, db_factory):
         """Should work without scene analysis client."""
         service = DailyReportService(db_factory)
 
@@ -809,9 +830,10 @@ class TestDailyReportServiceInit:
 class TestRoomTimeAggregation:
     """Tests for room time aggregation edge cases."""
 
-    def test_room_time_with_no_exited_at(self, db_factory):
-        """Should handle location history with no exit time."""
-        service = DailyReportService(db_factory)
+    async def test_room_time_with_no_exited_at(self, db_factory):
+        """Should handle a still-open segment (no exit yet)."""
+        location_service = _make_location_service(db_factory)
+        service = DailyReportService(db_factory, person_location_service=location_service)
 
         # Use a fixed time to avoid midnight boundary issues
         now = datetime.now(UTC)
@@ -820,18 +842,17 @@ class TestRoomTimeAggregation:
             test_time = test_time - timedelta(days=1)
         today = test_time.date().isoformat()
 
-        # Create location history that started 5 hours ago and is still ongoing
+        # Bedroom entered 5 hours ago, never left -> still an open segment.
         db = db_factory()
-        _make_location_history(
+        await _seed_room_entry(
             db,
-            person_id="person123",
+            location_service,
             room_name="bedroom",
             entered_at=test_time - timedelta(hours=5),
-            exited_at=None,  # Still in room
         )
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -839,9 +860,17 @@ class TestRoomTimeAggregation:
 
         assert "bedroom" in report["room_time"]["distribution"]
 
-    def test_room_time_overlapping_periods(self, db_factory):
-        """Should handle overlapping location history periods."""
-        service = DailyReportService(db_factory)
+    async def test_room_time_sequential_transitions(self, db_factory):
+        """Should record time for each room across sequential transitions.
+
+        The legacy PersonLocationHistory table allowed independently-written,
+        overlapping rows for the same person; PersonLocationService's one-
+        open-segment-per-person invariant makes that physically impossible
+        (a person cannot be in two rooms at once), so this seeds the
+        realistic sequential-transition equivalent instead.
+        """
+        location_service = _make_location_service(db_factory)
+        service = DailyReportService(db_factory, person_location_service=location_service)
 
         # Use a fixed time to avoid midnight boundary issues
         now = datetime.now(UTC)
@@ -850,25 +879,22 @@ class TestRoomTimeAggregation:
             test_time = test_time - timedelta(days=1)
         today = test_time.date().isoformat()
 
-        # Create overlapping periods using the same db instance
         db = db_factory()
-        _make_location_history(
+        await _seed_room_entry(
             db,
-            person_id="person123",
+            location_service,
             room_name="bedroom",
             entered_at=test_time - timedelta(hours=5),
-            exited_at=test_time - timedelta(hours=3),
         )
-        _make_location_history(
+        await _seed_room_entry(
             db,
-            person_id="person123",
+            location_service,
             room_name="kitchen",
-            entered_at=test_time - timedelta(hours=4),
-            exited_at=test_time - timedelta(hours=2),
+            entered_at=test_time - timedelta(hours=3),
         )
         db.close()
 
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -882,7 +908,7 @@ class TestRoomTimeAggregation:
 class TestDailyReportTimezoneHandling:
     """Tests for timezone-aware date handling."""
 
-    def test_report_with_different_timezone(self, db_factory):
+    async def test_report_with_different_timezone(self, db_factory):
         """Should handle reports with different timezone."""
         service = DailyReportService(db_factory)
 
@@ -913,7 +939,7 @@ class TestDailyReportTimezoneHandling:
         db.close()
 
         # Generate with America/New_York timezone
-        report = service.generate_daily_report(
+        report = await service.generate_daily_report(
             person_id="person123",
             date=test_date_str,
             tz_name="America/New_York",
@@ -922,7 +948,7 @@ class TestDailyReportTimezoneHandling:
         assert report["tz_name"] == "America/New_York"
         assert report["sleep"]["total_minutes"] == 450
 
-    def test_report_midnight_boundary(self, db_factory):
+    async def test_report_midnight_boundary(self, db_factory):
         """Should correctly handle sessions near midnight boundary."""
         service = DailyReportService(db_factory)
         today = datetime.now(UTC).date().isoformat()
@@ -946,7 +972,7 @@ class TestDailyReportTimezoneHandling:
         )
 
         # Should appear in today's report (closed today)
-        today_report = service.generate_daily_report(
+        today_report = await service.generate_daily_report(
             person_id="person123",
             date=today,
             tz_name="UTC",
@@ -954,7 +980,7 @@ class TestDailyReportTimezoneHandling:
         assert today_report["sleep"]["total_minutes"] == 480
 
         # Should not appear in yesterday's report
-        yesterday_report = service.generate_daily_report(
+        yesterday_report = await service.generate_daily_report(
             person_id="person123",
             date=yesterday,
             tz_name="UTC",

@@ -194,7 +194,7 @@ async def test_reload_with_valid_yaml(presence_service: PresenceService, tmp_pat
         app.include_router(router, prefix="/api/v1")
         app.state.presence = presence_service
         app.state.ha_state_cache = MagicMock()  # needed by reload endpoint
-        app.state.cts_runtime = MagicMock(_db_factory=MagicMock(return_value=MagicMock()))
+        app.state.person_location_service = MagicMock()  # needed by reload endpoint (M32)
 
         with patch("backend.routers.cts_deps.settings", mock_settings):
             transport = ASGITransport(app=app)

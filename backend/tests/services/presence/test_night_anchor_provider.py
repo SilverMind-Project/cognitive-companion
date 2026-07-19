@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 import pytest
 
 from backend.integrations.ha_state_cache import HaState
-from backend.models.person import PersonLocationHistory, PersonLocationState
+from backend.services.person_location.config import PersonLocationConfig
+from backend.services.person_location.repositories import (
+    InMemoryObservationRepository,
+    InMemorySegmentRepository,
+)
+from backend.services.person_location.service import PersonLocationService
 from backend.services.presence import PresenceStatus
 from backend.services.presence.anchor_rules import compile_predicate
 from backend.services.presence.providers.night_anchor import (
@@ -34,64 +38,36 @@ class _StubCache:
         self._registered.add(entity_id)
 
 
-class _StubRepository:
-    """Minimal stub implementing the LocationRepository protocol."""
+def _make_location_service() -> PersonLocationService:
+    return PersonLocationService(
+        InMemoryObservationRepository(room_names={1: "bedroom", 2: "kitchen"}),
+        InMemorySegmentRepository(),
+        PersonLocationConfig(),
+    )
 
-    def __init__(self, state: PersonLocationState | None = None) -> None:
-        self._state = state
 
-    def get_state(self, person_id: str) -> PersonLocationState | None:
-        return self._state
-
-    def get_open_history_row(self, person_id, room_name=None):
-        return None
-
-    def upsert_state(self, **kwargs: Any) -> PersonLocationState:  # type: ignore[override]
-        raise NotImplementedError
-
-    def close_open_history(self, **kwargs: Any) -> int:  # type: ignore[override]
-        raise NotImplementedError
-
-    def append_history(self, **kwargs: Any) -> PersonLocationHistory:  # type: ignore[override]
-        raise NotImplementedError
-
-    def current_room_for(self, person_id: str) -> str | None:  # type: ignore[override]
-        if self._state is None:
-            return None
-        return self._state.current_room_name
-
-    def commit(self) -> None:
-        pass
-
-    def rollback(self) -> None:
-        pass
-
-    def close(self) -> None:
-        pass
+async def _seed(
+    service: PersonLocationService,
+    *,
+    person_id: str = "mom",
+    room_id: int = 1,
+    room_name: str = "bedroom",
+    confidence: float = 0.85,
+    observed_at: datetime,
+) -> None:
+    await service.ingest_observation(
+        person_id=person_id,
+        observed_at=observed_at,
+        source="world_tracker",
+        room_id=room_id,
+        confidence=confidence,
+        metadata={"room_name": room_name},
+    )
 
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-def _make_state(
-    *,
-    person_id: str = "mom",
-    room_name: str = "bedroom",
-    room_id: int = 1,
-    last_seen_at: datetime | None = None,
-    confidence: float = 0.85,
-) -> PersonLocationState:
-    if last_seen_at is None:
-        last_seen_at = datetime.now(UTC)
-    return PersonLocationState(
-        person_id=person_id,
-        current_room_id=room_id,
-        current_room_name=room_name,
-        last_seen_at=last_seen_at,
-        confidence=confidence,
-    )
 
 
 @pytest.fixture
@@ -101,13 +77,13 @@ def now():
 
 def _make_provider(
     cache: _StubCache,
-    repo: _StubRepository,
+    location_service: PersonLocationService,
     release_predicates: list | None = None,
     confidence: float | None = None,
 ) -> NightAnchorProvider:
     return NightAnchorProvider(
         cache=cache,
-        location_repository_factory=lambda: repo,
+        location_service=location_service,
         light_entities=["light.bedroom"],
         bed_sensor_entity="binary_sensor.master_bedroom_bed_occupancy",
         anchor_room_id="bedroom",
@@ -136,7 +112,7 @@ async def test_lights_on_returns_none(now):
             ),
         }
     )
-    provider = _make_provider(_StubCache(), cache)
+    provider = _make_provider(cache, _make_location_service())
     result = await provider.probe("mom", now)
     assert result is None
 
@@ -160,7 +136,7 @@ async def test_bed_sensor_off_returns_none(now):
             ),
         }
     )
-    provider = _make_provider(_StubCache(), cache)
+    provider = _make_provider(cache, _make_location_service())
     result = await provider.probe("mom", now)
     assert result is None
 
@@ -168,8 +144,22 @@ async def test_bed_sensor_off_returns_none(now):
 @pytest.mark.asyncio
 async def test_wrong_room_returns_none(now):
     """Lights off, bed sensor on, last room kitchen -> None."""
-    repo = _StubRepository(_make_state(room_name="kitchen"))
-    provider = _make_provider(_StubCache(), repo)
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom", state="off", attributes={}, last_changed=now
+            ),
+            "binary_sensor.master_bedroom_bed_occupancy": HaState(
+                entity_id="binary_sensor.master_bedroom_bed_occupancy",
+                state="on",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
+    service = _make_location_service()
+    await _seed(service, room_id=2, room_name="kitchen", observed_at=now)
+    provider = _make_provider(cache, service)
     result = await provider.probe("mom", now)
     assert result is None
 
@@ -194,8 +184,9 @@ async def test_anchor_activates(now):
             ),
         }
     )
-    repo = _StubRepository(_make_state(last_seen_at=last_seen))
-    provider = _make_provider(cache, repo)
+    service = _make_location_service()
+    await _seed(service, observed_at=last_seen)
+    provider = _make_provider(cache, service)
     result = await provider.probe("mom", now)
 
     assert result is not None
@@ -210,13 +201,14 @@ async def test_anchor_activates(now):
 @pytest.mark.asyncio
 async def test_release_predicate_motion(now):
     """Release predicate motion outside bedroom -> None."""
-    repo = _StubRepository(_make_state())
+    service = _make_location_service()
+    await _seed(service, observed_at=now)
     release_predicates = [
         compile_predicate("motion outside bedroom in last 5m"),
     ]
     provider = _make_provider(
         _StubCache(),
-        repo,
+        service,
         release_predicates=release_predicates,
     )
     result = await provider.probe("mom", now)
@@ -225,8 +217,21 @@ async def test_release_predicate_motion(now):
 
 @pytest.mark.asyncio
 async def test_no_state_returns_none(now):
-    """Lights off, bed sensor on, no PersonLocationState -> None."""
-    provider = _make_provider(_StubCache(), _StubRepository(None))
+    """Lights off, bed sensor on, no observation ever -> None."""
+    cache = _StubCache(
+        {
+            "light.bedroom": HaState(
+                entity_id="light.bedroom", state="off", attributes={}, last_changed=now
+            ),
+            "binary_sensor.master_bedroom_bed_occupancy": HaState(
+                entity_id="binary_sensor.master_bedroom_bed_occupancy",
+                state="on",
+                attributes={},
+                last_changed=now,
+            ),
+        }
+    )
+    provider = _make_provider(cache, _make_location_service())
     result = await provider.probe("mom", now)
     assert result is None
 
@@ -250,10 +255,11 @@ async def test_no_release_predicates_anchors(now):
             ),
         }
     )
-    repo = _StubRepository(_make_state())
+    service = _make_location_service()
+    await _seed(service, observed_at=now)
     provider = _make_provider(
         cache,
-        repo,
+        service,
         release_predicates=[],
     )
     result = await provider.probe("mom", now)
@@ -280,10 +286,11 @@ async def test_confidence_propagated(now):
             ),
         }
     )
-    repo = _StubRepository(_make_state())
+    service = _make_location_service()
+    await _seed(service, observed_at=now)
     provider = _make_provider(
         cache,
-        repo,
+        service,
         confidence=0.88,
     )
     result = await provider.probe("mom", now)

@@ -368,6 +368,196 @@ async def test_heatmap_local_tz_wrap_window_excludes_daytime(db_engine, db_facto
 
 
 # ---------------------------------------------------------------------------
+# latest_observation() / list_for_person() room-name join (M32)
+# ---------------------------------------------------------------------------
+
+
+def _seed_room(db_factory, name: str) -> int:
+    from backend.models.room import Room
+
+    db = db_factory()
+    try:
+        room = db.query(Room).filter(Room.name == name).first()
+        if room is not None:
+            return room.id
+        room = Room(name=name)
+        db.add(room)
+        db.commit()
+        return room.id
+    finally:
+        db.close()
+
+
+def _obs_with_room(
+    person_id: str, room_id: int | None, t: datetime, source: str = "world_tracker"
+) -> LocationObservation:
+    return LocationObservation(
+        id=uuid.uuid4(),
+        person_id=person_id,
+        observed_at=t,
+        source=source,
+        room_id=room_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_latest_observation_resolves_room_name_via_join(db_factory) -> None:
+    """Success path: the newest observation's room_id resolves to a name
+    via the rooms table, mirroring InMemoryObservationRepository's map."""
+    person_id = "kim"
+    _seed_member(db_factory, person_id)
+    room_id = _seed_room(db_factory, "bedroom")
+    repo = _make_repo(db_factory)
+
+    older = _BASE_TIME
+    newer = _BASE_TIME + timedelta(minutes=5)
+    await repo.insert(_obs_with_room(person_id, room_id, older))
+    await repo.insert(_obs_with_room(person_id, room_id, newer))
+
+    latest = await repo.latest_observation(person_id, since=_BASE_TIME - timedelta(hours=1))
+
+    assert latest is not None
+    assert latest.observed_at == newer
+    assert latest.room_name == "bedroom"
+
+
+@pytest.mark.asyncio
+async def test_latest_observation_no_room_id_leaves_room_name_none(db_factory) -> None:
+    """Edge case: an observation with no room_id resolves to no room_name."""
+    person_id = "liam2"
+    _seed_member(db_factory, person_id)
+    repo = _make_repo(db_factory)
+
+    await repo.insert(_obs_with_room(person_id, None, _BASE_TIME))
+
+    latest = await repo.latest_observation(person_id, since=_BASE_TIME - timedelta(hours=1))
+
+    assert latest is not None
+    assert latest.room_id is None
+    assert latest.room_name is None
+
+
+@pytest.mark.asyncio
+async def test_latest_observation_missing_data_returns_none(db_factory) -> None:
+    """Missing-data path: a person with no observations at all returns None."""
+    _seed_member(db_factory, "nobody2")
+    repo = _make_repo(db_factory)
+
+    latest = await repo.latest_observation("nobody2", since=_BASE_TIME - timedelta(hours=1))
+
+    assert latest is None
+
+
+@pytest.mark.asyncio
+async def test_list_for_person_resolves_room_name_for_every_row(db_factory) -> None:
+    """Success path: list_for_person batch-resolves room_name per row, not
+    just for the single-row latest_observation() path."""
+    person_id = "noah"
+    _seed_member(db_factory, person_id)
+    bedroom_id = _seed_room(db_factory, "bedroom2")
+    kitchen_id = _seed_room(db_factory, "kitchen2")
+    repo = _make_repo(db_factory)
+
+    t0 = _BASE_TIME
+    t1 = _BASE_TIME + timedelta(minutes=5)
+    await repo.insert(_obs_with_room(person_id, bedroom_id, t0))
+    await repo.insert(_obs_with_room(person_id, kitchen_id, t1))
+
+    rows = await repo.list_for_person(
+        person_id, since=_BASE_TIME - timedelta(hours=1), until=_BASE_TIME + timedelta(hours=1)
+    )
+
+    by_time = {r.observed_at: r.room_name for r in rows}
+    assert by_time[t0] == "bedroom2"
+    assert by_time[t1] == "kitchen2"
+
+
+# ---------------------------------------------------------------------------
+# bucketed_observations (M32 sighting-event downsample)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bucketed_observations_downsamples_dense_cluster_to_one_row(db_factory) -> None:
+    """A dense cluster inside one bucket collapses to a single row: the
+    most recent observation in that (room, bucket), room_name resolved via
+    the same rooms-table join as the other read paths."""
+    person_id = "olivia"
+    _seed_member(db_factory, person_id)
+    room_id = _seed_room(db_factory, "bedroom3")
+    repo = _make_repo(db_factory)
+
+    anchor_epoch = (_BASE_TIME.timestamp() // 120) * 120 + 5
+    base = datetime.fromtimestamp(anchor_epoch, tz=UTC)
+    times = [base + timedelta(seconds=3 * i) for i in range(10)]
+    for t in times:
+        await repo.insert(_obs_with_room(person_id, room_id, t))
+
+    rows = await repo.bucketed_observations(
+        person_id, since=base - timedelta(hours=1), until=base + timedelta(hours=1)
+    )
+
+    assert len(rows) == 1
+    assert rows[0].observed_at == times[-1]
+    assert rows[0].room_name == "bedroom3"
+
+
+@pytest.mark.asyncio
+async def test_bucketed_observations_partitions_by_room_within_same_bucket(db_factory) -> None:
+    """Two rooms observed within the same time bucket each keep their own
+    representative row: the partition is (room_id, bucket), not bucket alone."""
+    person_id = "peter"
+    _seed_member(db_factory, person_id)
+    bedroom_id = _seed_room(db_factory, "bedroom4")
+    kitchen_id = _seed_room(db_factory, "kitchen4")
+    repo = _make_repo(db_factory)
+
+    anchor_epoch = (_BASE_TIME.timestamp() // 120) * 120 + 5
+    base = datetime.fromtimestamp(anchor_epoch, tz=UTC)
+    await repo.insert(_obs_with_room(person_id, bedroom_id, base))
+    await repo.insert(_obs_with_room(person_id, kitchen_id, base + timedelta(seconds=10)))
+
+    rows = await repo.bucketed_observations(
+        person_id, since=base - timedelta(hours=1), until=base + timedelta(hours=1)
+    )
+
+    room_names = {r.room_name for r in rows}
+    assert room_names == {"bedroom4", "kitchen4"}
+
+
+@pytest.mark.asyncio
+async def test_bucketed_observations_not_clipped_by_limit_across_wide_window(db_factory) -> None:
+    """The bug an earlier attempt at this had: a plain query LIMIT applied
+    before deduping drops old history once raw row count exceeds it. Here
+    a dense recent cluster (50 rows, one bucket) coexists with a single
+    isolated old row (a separate bucket, 3 hours earlier); even with a
+    limit far smaller than the raw row count, the old bucket must survive
+    because bucketing runs before LIMIT, not after."""
+    person_id = "quinn"
+    _seed_member(db_factory, person_id)
+    room_id = _seed_room(db_factory, "bedroom5")
+    repo = _make_repo(db_factory)
+
+    anchor_epoch = (_BASE_TIME.timestamp() // 120) * 120 + 5
+    recent_base = datetime.fromtimestamp(anchor_epoch, tz=UTC)
+    old_time = recent_base - timedelta(hours=3)
+
+    await repo.insert(_obs_with_room(person_id, room_id, old_time))
+    for i in range(50):
+        await repo.insert(_obs_with_room(person_id, room_id, recent_base + timedelta(seconds=i)))
+
+    rows = await repo.bucketed_observations(
+        person_id,
+        since=old_time - timedelta(hours=1),
+        until=recent_base + timedelta(hours=1),
+        limit=2,
+    )
+
+    observed_times = {r.observed_at for r in rows}
+    assert old_time in observed_times
+
+
+# ---------------------------------------------------------------------------
 # Migration round-trip test -- runs last so functional tests above are not
 # affected by the temporary teardown.
 # ---------------------------------------------------------------------------

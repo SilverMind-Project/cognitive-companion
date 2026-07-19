@@ -1,56 +1,32 @@
-"""CtsLocationProvider: reads person location from CTS location repository.
+"""CtsLocationProvider: reads person location from PersonLocationService.
 
 This provider is the first provider in the fusion chain for Block 1.
-It reads ``PersonLocationState`` from the ``LocationRepository`` and
-returns a ``PresenceSnapshot`` with ``PRESENT_ROOM`` or ``STALE`` status
-depending on the TTL.
+It reads the current open segment (room) and the latest observation
+(freshness) from ``PersonLocationService`` and returns a
+``PresenceSnapshot`` with ``PRESENT_ROOM`` or ``STALE`` status depending
+on the TTL.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from backend.core.logging import get_logger
-from backend.services.cts.location_repository import LocationRepository
+from backend.services.person_location.service import PersonLocationService
 from backend.services.presence import PresenceSnapshot, PresenceSource, PresenceStatus
 
 logger = get_logger(__name__)
 
 
-def _compute_dwell(
-    repo: LocationRepository,
-    person_id: str,
-    room_name: str,
-    at: datetime,
-) -> float | None:
-    """Compute dwell minutes in the current room.
-
-    Returns the number of minutes since the person entered the current
-    room, or ``None`` if no open history row exists.
-    """
-    row = repo.get_open_history_row(person_id, room_name)
-    if row is None or row.entered_at is None:
-        return None
-
-    entered = row.entered_at
-    if entered.tzinfo is None:
-        entered = entered.replace(tzinfo=UTC)
-    delta = at - entered
-    return round(delta.total_seconds() / 60.0, 2)
-
-
 class CtsLocationProvider:
-    """Reads location state from the CTS location repository.
+    """Reads location state from ``PersonLocationService``.
 
     Parameters
     ----------
-    location_repository_factory:
-        Callable returning a fresh ``LocationRepository`` for each probe.
-        The provider creates and closes a repo per call so long-lived
-        SQLAlchemy sessions are never held across requests.
+    location_service:
+        The shared ``PersonLocationService`` instance.
     ttl_seconds:
-        Seconds after which ``last_seen_at`` is considered stale.
+        Seconds after which the latest observation is considered stale.
     name:
         Provider name (used in ``PresenceSource``).
     priority:
@@ -60,12 +36,12 @@ class CtsLocationProvider:
     def __init__(
         self,
         *,
-        location_repository_factory: Callable[[], LocationRepository],
+        location_service: PersonLocationService,
         ttl_seconds: int = 120,
         name: str = "cts_location",
         priority: int = 50,
     ) -> None:
-        self._repo_factory = location_repository_factory
+        self._location = location_service
         self._ttl_seconds = ttl_seconds
         self._name = name
         self._priority = priority
@@ -83,72 +59,56 @@ class CtsLocationProvider:
         person_id: str,
         at: datetime,
     ) -> PresenceSnapshot | None:
-        """Probe the location repository for *person_id*."""
-        repo = self._repo_factory()
-        try:
-            return self._probe_with_repo(repo, person_id, at)
-        finally:
-            repo.close()
-
-    def _probe_with_repo(
-        self,
-        repo: LocationRepository,
-        person_id: str,
-        at: datetime,
-    ) -> PresenceSnapshot | None:
-        state = repo.get_state(person_id)
-        if state is None:
+        """Probe ``PersonLocationService`` for *person_id*."""
+        loc = await self._location.where_is(person_id, at)
+        if loc is None:
+            # No open segment; yield to next provider.
             return None
 
-        if state.current_room_name is None:
-            # No room known; yield to next provider.
-            return None
+        room_id = str(loc.room_id)
 
-        if state.last_seen_at is None:
-            # last_seen_at is None → treat as stale.
+        obs = await self._location.latest_observation(person_id)
+        last_seen_at = obs.observed_at if obs is not None else None
+
+        if last_seen_at is None:
             return PresenceSnapshot(
                 person_id=person_id,
                 status=PresenceStatus.STALE,
-                room_id=str(state.current_room_id) if state.current_room_id is not None else None,
-                room_name=state.current_room_name,
-                confidence=state.confidence,
+                room_id=room_id,
+                room_name=loc.room_name,
+                confidence=loc.confidence,
                 last_seen_at=None,
                 dwell_minutes=None,
-                sources=(PresenceSource(name=self._name, confidence=state.confidence),),
+                sources=(PresenceSource(name=self._name, confidence=loc.confidence),),
                 inferred_at=at,
                 notes="last_seen_at is None",
             )
 
-        elapsed = at - state.last_seen_at
+        elapsed = at - last_seen_at
         if elapsed > timedelta(seconds=self._ttl_seconds):
             return PresenceSnapshot(
                 person_id=person_id,
                 status=PresenceStatus.STALE,
-                room_id=str(state.current_room_id) if state.current_room_id is not None else None,
-                room_name=state.current_room_name,
-                confidence=state.confidence,
-                last_seen_at=state.last_seen_at,
+                room_id=room_id,
+                room_name=loc.room_name,
+                confidence=loc.confidence,
+                last_seen_at=last_seen_at,
                 dwell_minutes=None,
-                sources=(PresenceSource(name=self._name, confidence=state.confidence),),
+                sources=(PresenceSource(name=self._name, confidence=loc.confidence),),
                 inferred_at=at,
                 notes=f"last_seen {elapsed.total_seconds():.0f}s ago (TTL={self._ttl_seconds}s)",
             )
 
-        dwell_minutes = _compute_dwell(
-            repo,
-            person_id,
-            state.current_room_name,
-            at,
-        )
+        dwell_minutes = round((at - loc.since).total_seconds() / 60.0, 2)
 
         return PresenceSnapshot(
             person_id=person_id,
             status=PresenceStatus.PRESENT_ROOM,
-            room_id=str(state.current_room_id) if state.current_room_id is not None else None,
-            room_name=state.current_room_name,
-            confidence=state.confidence,
-            last_seen_at=state.last_seen_at,
+            room_id=room_id,
+            room_name=loc.room_name,
+            confidence=loc.confidence,
+            last_seen_at=last_seen_at,
             dwell_minutes=dwell_minutes,
-            sources=(PresenceSource(name=self._name, confidence=state.confidence),),
+            sources=(PresenceSource(name=self._name, confidence=loc.confidence),),
             inferred_at=at,
         )

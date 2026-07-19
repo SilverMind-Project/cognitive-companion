@@ -29,6 +29,7 @@ from .types import (
     FloorPoint,
     LocationObservation,
     PresenceSegment,
+    RoomSegment,
     SourceTag,
 )
 
@@ -355,6 +356,119 @@ class PersonLocationService:
                 last_observed_at=seg.last_observed_at,
             )
         return result
+
+    async def room_segments(
+        self,
+        person_id: str,
+        start: datetime,
+        end: datetime,
+        *,
+        now: datetime | None = None,
+    ) -> tuple[RoomSegment, ...]:
+        """Contiguous per-room presence segments overlapping ``[start, end]``.
+
+        The one primitive the activity timeline, the daily room-time
+        aggregator, and future dwell logic share. Superseded segments
+        (rewritten by an identity revision) are excluded so callers never
+        double-count a room-presence period under both the old and new
+        identity. A still-open segment keeps ``exited_at=None`` (its truth);
+        ``effective_exited_at`` gives minute-aggregation callers a clamped
+        ``min(now, end)`` boundary without each reimplementing clock logic.
+        """
+        now = now or datetime.now(UTC)
+        segs = await self._seg.list_overlapping(person_id, start, end)
+        effective = sorted(
+            (s for s in segs if s.superseded_by is None),
+            key=lambda s: s.entered_at,
+        )
+        result: list[RoomSegment] = []
+        for s in effective:
+            effective_exited_at = s.exited_at if s.exited_at is not None else min(now, end)
+            result.append(
+                RoomSegment(
+                    id=s.id,
+                    person_id=s.person_id,
+                    room_id=s.room_id,
+                    room_name=str(s.metadata.get("room_name", "")),
+                    entered_at=s.entered_at,
+                    exited_at=s.exited_at,
+                    effective_exited_at=effective_exited_at,
+                    entry_source=s.entry_source,
+                    exit_source=s.exit_source,
+                    confidence=s.confidence,
+                    quality=s.quality,
+                    last_observed_at=s.last_observed_at,
+                    metadata=dict(s.metadata),
+                )
+            )
+        return tuple(result)
+
+    async def observations(
+        self,
+        person_id: str,
+        start: datetime,
+        end: datetime,
+        *,
+        sources: tuple[SourceTag, ...] | None = None,
+        limit: int = 500,
+    ) -> tuple[LocationObservation, ...]:
+        """Raw observation events for ``person_id`` in ``[start, end]``.
+
+        Newest-first, source-tagged, one row per ingested observation --
+        this is the full-fidelity feed (world_tracker can ingest several
+        rows a second), not an event-grade stream. Use
+        ``bucketed_observations`` for a UI/timeline-appropriate downsample.
+        ``sources`` restricts to the given source vocabulary
+        (``world_tracker``, ``recamera_vlm``, ``sensor``, ``manual``); omit
+        to return every source.
+        """
+        obs = await self._obs.list_for_person(person_id, start, end, limit=limit)
+        if sources is not None:
+            obs = [o for o in obs if o.source in sources]
+        return tuple(obs)
+
+    async def bucketed_observations(
+        self,
+        person_id: str,
+        start: datetime,
+        end: datetime,
+        *,
+        sources: tuple[SourceTag, ...] | None = None,
+        bucket_seconds: int = 120,
+        limit: int = 500,
+    ) -> tuple[LocationObservation, ...]:
+        """Downsampled observation events for ``person_id`` in ``[start, end]``.
+
+        One representative (most recent) observation per room per
+        ``bucket_seconds`` window, newest-first. Backs the timeline's
+        "sighting"-style entries: raw observations are per-frame, far
+        denser than the legacy ``PersonSighting`` table this replaces, so
+        a per-row event stream would drown out every other timeline source
+        once merged. Bucketing happens before ``limit`` is applied, so
+        (unlike ``observations``'s plain query LIMIT) coverage doesn't
+        collapse to the newest slice of a wide window.
+        """
+        obs = await self._obs.bucketed_observations(
+            person_id, start, end, bucket_seconds=bucket_seconds, limit=limit
+        )
+        if sources is not None:
+            obs = [o for o in obs if o.source in sources]
+        return tuple(obs)
+
+    async def latest_observation(self, person_id: str) -> LocationObservation | None:
+        """Most recent observation for a person, regardless of room or floor point.
+
+        Unlike ``where_is()``'s open segment -- frozen at entry time because
+        the state machine no-ops a same-room repeat observation
+        (``segment_state_machine.decide``) -- this reflects the freshest raw
+        observation timestamp and its resolved room name. Use this for
+        presence-provider staleness and "last known room" queries, which
+        must keep updating even while a person sits still in one room, and
+        must still answer after their segment has closed or timed out.
+        """
+        return await self._obs.latest_observation(
+            person_id, since=datetime.min.replace(tzinfo=UTC)
+        )
 
     # ------------------------------------------------------------------
     # Inferred-dwell timeout evaluation

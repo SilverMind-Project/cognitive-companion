@@ -110,6 +110,8 @@ async def wire_cts(
     companion_surface_service.set_person_location_service(person_location_service)
     zone_service.set_person_location_service(person_location_service)
     guided_task_service.set_person_location_service(person_location_service)
+    app.state.activity_timeline_service.set_person_location_service(person_location_service)
+    app.state.daily_report_service.set_person_location_service(person_location_service)
 
     # M4 subscribers (world-observation, room-transition, ph-continuation)
     # are constructed and owned by CTSRuntime, which wires the camera→room
@@ -173,7 +175,7 @@ async def wire_cts(
     # -- PresenceService (Block 2: HaStateCache + HA providers) --------
     from backend.bootstrap.presence import wire_presence
 
-    await wire_presence(app, settings, container, cts_runtime)
+    await wire_presence(app, settings, container)
 
     # Now that the runtime exists, surface it to the MCP tool set.
     from backend.mcp.server import _svc as _mcp_svc

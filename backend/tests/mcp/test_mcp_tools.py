@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -31,18 +31,20 @@ class TestGetPersonTimeline:
     async def test_returns_timeline_events(self, svc):
         """Should return timeline events from ActivityTimelineService."""
         mock_service = MagicMock()
-        mock_service.get_timeline.return_value = [
-            {
-                "timestamp": "2026-04-17T10:00:00",
-                "event_type": "activity_detected",
-                "person_id": "person123",
-                "person_name": "Test Person",
-                "activity_type": "sleep",
-                "room_name": "bedroom",
-                "metadata": {"confidence": 0.95},
-                "source": "activity",
-            }
-        ]
+        mock_service.get_timeline = AsyncMock(
+            return_value=[
+                {
+                    "timestamp": "2026-04-17T10:00:00",
+                    "event_type": "activity_detected",
+                    "person_id": "person123",
+                    "person_name": "Test Person",
+                    "activity_type": "sleep",
+                    "room_name": "bedroom",
+                    "metadata": {"confidence": 0.95},
+                    "source": "activity",
+                }
+            ]
+        )
         svc.activity_timeline = mock_service
 
         from backend.mcp.server import get_person_timeline
@@ -98,12 +100,14 @@ class TestGetDailyReport:
         """Should generate report when none exists for the date."""
         mock_service = MagicMock()
         mock_service.get_report.return_value = None
-        mock_service.generate_daily_report.return_value = {
-            "person_id": "person123",
-            "report_date": "2026-04-17",
-            "status": "complete",
-            "sleep_total_minutes": 420,
-        }
+        mock_service.generate_daily_report = AsyncMock(
+            return_value={
+                "person_id": "person123",
+                "report_date": "2026-04-17",
+                "status": "complete",
+                "sleep_total_minutes": 420,
+            }
+        )
         svc.daily_report = mock_service
 
         with patch(

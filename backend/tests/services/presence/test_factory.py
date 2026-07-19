@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from backend.services.person_location.config import PersonLocationConfig
+from backend.services.person_location.repositories import (
+    InMemoryObservationRepository,
+    InMemorySegmentRepository,
+)
+from backend.services.person_location.service import PersonLocationService
 from backend.services.presence.config import PresenceConfig
 from backend.services.presence.factory import (
     build_providers,
@@ -9,23 +15,12 @@ from backend.services.presence.factory import (
 )
 
 
-class _StubLocationRepository:
-    """Minimal stub for LocationRepository."""
-
-    def get_state(self, person_id):
-        return None
-
-    def get_open_history_row(self, person_id, room_name=None):
-        return None
-
-    def commit(self):
-        pass
-
-    def rollback(self):
-        pass
-
-    def close(self):
-        pass
+def _make_location_service() -> PersonLocationService:
+    return PersonLocationService(
+        InMemoryObservationRepository(),
+        InMemorySegmentRepository(),
+        PersonLocationConfig(),
+    )
 
 
 class _StubHaStateCache:
@@ -87,9 +82,9 @@ def test_build_providers_returns_sorted_list():
     """Providers are sorted by priority descending."""
     config = _make_config()
     cache = _StubHaStateCache()
-    repo = _StubLocationRepository()
+    location_service = _make_location_service()
 
-    providers = build_providers(config, cache=cache, location_repository_factory=lambda: repo)
+    providers = build_providers(config, cache=cache, location_service=location_service)
 
     assert len(providers) == 3
     priorities = [p.priority for p in providers]
@@ -102,9 +97,9 @@ def test_build_providers_registers_ha_entities():
     """HaBedSensorProvider.register() is called during build."""
     config = _make_config()
     cache = _StubHaStateCache()
-    repo = _StubLocationRepository()
+    location_service = _make_location_service()
 
-    build_providers(config, cache=cache, location_repository_factory=lambda: repo)
+    build_providers(config, cache=cache, location_service=location_service)
 
     assert "binary_sensor.bed" in cache._registered
 
@@ -135,7 +130,7 @@ def test_build_providers_with_unknown_provider():
             build_providers(
                 config,
                 cache=_StubHaStateCache(),
-                location_repository_factory=lambda: _StubLocationRepository(),
+                location_service=_make_location_service(),
             )
     finally:
         factory._PROVIDER_BUILDERS.clear()
@@ -176,9 +171,9 @@ def test_build_all_provider_types():
         fusion={"rule": "highest_priority_above_floor", "confidence_floor": 0.4},
     )
     cache = _StubHaStateCache()
-    repo = _StubLocationRepository()
+    location_service = _make_location_service()
 
-    providers = build_providers(config, cache=cache, location_repository_factory=lambda: repo)
+    providers = build_providers(config, cache=cache, location_service=location_service)
 
     assert len(providers) == 6
     names = [p.name for p in providers]

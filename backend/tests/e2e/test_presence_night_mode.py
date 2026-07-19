@@ -11,8 +11,8 @@ simulates the canonical night-mode flow from the design document:
    to ``PresenceStatus.PRESENT_ROOM bathroom``.
 
 No real Redis, HA, or WebSocket is required.  A fake ``HaStateCache``
-drives all HA entity state, and an in-memory ``LocationRepository``
-provides the CTS location data.
+drives all HA entity state, and an in-memory ``PersonLocationService``
+(M32: the sole person-location read API) provides the CTS location data.
 
 Verification: ``make check`` (runs all tests including this module).
 """
@@ -27,9 +27,12 @@ from typing import Any
 import pytest
 
 from backend.integrations.ha_state_cache import HaState
-from backend.services.cts.location_repository import (
-    InMemoryLocationRepository,
+from backend.services.person_location.config import PersonLocationConfig
+from backend.services.person_location.repositories import (
+    InMemoryObservationRepository,
+    InMemorySegmentRepository,
 )
+from backend.services.person_location.service import PersonLocationService
 from backend.services.presence import (
     PresenceService,
     PresenceStatus,
@@ -127,31 +130,14 @@ class FakeHaStateCache:
 
 def _build_chain(
     cache: FakeHaStateCache,
-    location_repo: InMemoryLocationRepository,
-    *,
-    at: datetime | None = None,
+    location_service: PersonLocationService,
 ) -> PresenceService:
-    """Build the full provider chain from the test fixture config.
-
-    Parameters
-    ----------
-    cache:
-        The fake HA state cache.
-    location_repo:
-        The in-memory location repository.
-    at:
-        Deterministic point-in-time for provider probes.
-
-    Returns
-    -------
-    PresenceService
-        A fully wired service ready for ``get()`` calls.
-    """
+    """Build the full provider chain from the test fixture config."""
     config = load_presence_config("backend/tests/fixtures/presence_test.yaml")
     providers = build_providers(
         config,
         cache=cache,  # type: ignore[arg-type]  # fake is structurally compatible
-        location_repository_factory=lambda: location_repo,
+        location_service=location_service,
     )
     return PresenceService(
         providers=providers,
@@ -159,23 +145,36 @@ def _build_chain(
     )
 
 
-def _seed_bedroom_state(
-    repo: InMemoryLocationRepository,
+def _make_location_service() -> PersonLocationService:
+    return PersonLocationService(
+        InMemoryObservationRepository(room_names={1: "bedroom", 2: "bathroom"}),
+        InMemorySegmentRepository(),
+        PersonLocationConfig(),
+    )
+
+
+async def _seed_location(
+    service: PersonLocationService,
     *,
     person_id: str = "mom",
+    room_id: int = 1,
     room_name: str = "bedroom",
-    minutes_ago: int = 60,
-    at: datetime | None = None,
+    confidence: float = 0.85,
+    observed_at: datetime,
 ) -> None:
-    """Insert a ``PersonLocationState`` row via the in-memory repo."""
-    now = at or datetime.now(UTC)
-    repo.upsert_state(
+    """Ingest a room observation through the real state machine.
+
+    Using ``ingest_observation`` (rather than a raw repo insert) keeps the
+    one-open-segment-per-person invariant intact when a test seeds a room
+    change after an initial seed.
+    """
+    await service.ingest_observation(
         person_id=person_id,
-        room_name=room_name,
-        room_id=1,
-        sensor_id="recamera_bedroom",
-        confidence=0.85,
-        event_time=now - timedelta(minutes=minutes_ago),
+        observed_at=observed_at,
+        source="world_tracker",
+        room_id=room_id,
+        confidence=confidence,
+        metadata={"room_name": room_name},
     )
 
 
@@ -194,7 +193,7 @@ async def test_night_mode_asleep():
     """Scenario 1: lights off + bed sensor on → ASLEEP in bedroom.
 
     Seed conditions:
-    - ``PersonLocationState``: mom in bedroom at 21:55 (65 min ago).
+    - Location: mom in bedroom at 21:55 (65 min ago).
     - ``light.master_bedroom``: off.
     - ``light.hallway``: off.
     - ``binary_sensor.master_bedroom_bed_occupancy``: on.
@@ -203,12 +202,12 @@ async def test_night_mode_asleep():
     sources include ``night_anchor``.
     """
     cache = FakeHaStateCache()
-    repo = InMemoryLocationRepository()
+    location_service = _make_location_service()
 
     at = _now_at(22, 0)  # 22:00 — probe time
 
-    # Seed location state (mom last seen in bedroom 65 min ago).
-    _seed_bedroom_state(repo, minutes_ago=65, at=at)
+    # Seed location (mom last seen in bedroom 65 min ago).
+    await _seed_location(location_service, observed_at=at - timedelta(minutes=65))
 
     # Seed HA cache: lights off, bed sensor on.
     cache.set_state("light.master_bedroom", "off")
@@ -219,7 +218,7 @@ async def test_night_mode_asleep():
         last_changed=at - timedelta(minutes=30),
     )
 
-    service = _build_chain(cache, repo)
+    service = _build_chain(cache, location_service)
 
     snapshot = await service.get("mom", at=at)
 
@@ -245,7 +244,7 @@ async def test_night_mode_release():
     bed sensor yields (off), CTS (priority 50) returns PRESENT_ROOM bathroom.
 
     Seed conditions:
-    - ``PersonLocationState``: mom in bathroom (CTS processed event).
+    - Location: mom in bathroom (CTS processed event).
     - ``light.master_bedroom``: off (still dark).
     - ``light.hallway``: off.
     - ``binary_sensor.master_bedroom_bed_occupancy``: off (person got up).
@@ -253,19 +252,24 @@ async def test_night_mode_release():
     Expected: ``PresenceStatus.PRESENT_ROOM``, room=bathroom.
     """
     cache = FakeHaStateCache()
-    repo = InMemoryLocationRepository()
+    location_service = _make_location_service()
 
     at = _now_at(22, 5)  # 22:05 — 5 min after asleep scenario
 
-    # Seed location state: mom now in bathroom, 1 min ago (fresh, within 120s TTL).
-    _seed_bedroom_state(repo, person_id="mom", room_name="bathroom", minutes_ago=1, at=at)
+    # Seed location: mom now in bathroom, 1 min ago (fresh, within 120s TTL).
+    await _seed_location(
+        location_service,
+        room_id=2,
+        room_name="bathroom",
+        observed_at=at - timedelta(minutes=1),
+    )
 
     # Seed HA cache: lights still off, bed sensor OFF (person got out of bed).
     cache.set_state("light.master_bedroom", "off")
     cache.set_state("light.hallway", "off")
     cache.set_state("binary_sensor.master_bedroom_bed_occupancy", "off")
 
-    service = _build_chain(cache, repo)
+    service = _build_chain(cache, location_service)
 
     snapshot = await service.get("mom", at=at)
 
@@ -290,19 +294,19 @@ async def test_night_mode_stale_cts_anchors():
     provides strong corroboration.
     """
     cache = FakeHaStateCache()
-    repo = InMemoryLocationRepository()
+    location_service = _make_location_service()
 
     at = _now_at(22, 0)
 
-    # Seed location state: mom in bedroom 3 hours ago (well past 120s TTL).
-    _seed_bedroom_state(repo, minutes_ago=180, at=at)
+    # Seed location: mom in bedroom 3 hours ago (well past 120s TTL).
+    await _seed_location(location_service, observed_at=at - timedelta(minutes=180))
 
     # Seed HA cache: lights off, bed sensor on.
     cache.set_state("light.master_bedroom", "off")
     cache.set_state("light.hallway", "off")
     cache.set_state("binary_sensor.master_bedroom_bed_occupancy", "on")
 
-    service = _build_chain(cache, repo)
+    service = _build_chain(cache, location_service)
 
     snapshot = await service.get("mom", at=at)
 
@@ -320,19 +324,19 @@ async def test_night_mode_stale_cts_anchors():
 async def test_night_mode_lights_on_falls_through():
     """When bedroom light is on, night anchor yields → CTS or stale provider answers."""
     cache = FakeHaStateCache()
-    repo = InMemoryLocationRepository()
+    location_service = _make_location_service()
 
     at = _now_at(14, 0)  # 14:00 — afternoon, lights on
 
-    # Seed location state: mom in bedroom 1 min ago (fresh, within 120s TTL).
-    _seed_bedroom_state(repo, minutes_ago=1, at=at)
+    # Seed location: mom in bedroom 1 min ago (fresh, within 120s TTL).
+    await _seed_location(location_service, observed_at=at - timedelta(minutes=1))
 
     # Bedroom light is ON → night anchor yields.
     cache.set_state("light.master_bedroom", "on")
     cache.set_state("light.hallway", "off")
     cache.set_state("binary_sensor.master_bedroom_bed_occupancy", "off")
 
-    service = _build_chain(cache, repo)
+    service = _build_chain(cache, location_service)
 
     snapshot = await service.get("mom", at=at)
 
@@ -351,12 +355,12 @@ async def test_night_mode_lights_on_falls_through():
 async def test_night_mode_unknown_sentinel():
     """When no provider returns a candidate, the unknown sentinel answers."""
     cache = FakeHaStateCache()
-    repo = InMemoryLocationRepository()
+    location_service = _make_location_service()
 
-    # No location state at all.
+    # No location data at all.
     # HA cache empty.
 
-    service = _build_chain(cache, repo)
+    service = _build_chain(cache, location_service)
 
     snapshot = await service.get("mom")
 

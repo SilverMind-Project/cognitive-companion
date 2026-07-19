@@ -163,7 +163,7 @@ def list_open_sessions(
 
 
 @router.get("/timeline", response_model=list[dict])
-def get_activity_timeline(
+async def get_activity_timeline(
     person_id: str = Query(..., description="Household member ID"),
     start_time: datetime | None = Query(default=None, description="Start time (UTC)"),
     end_time: datetime | None = Query(default=None, description="End time (UTC)"),
@@ -187,7 +187,7 @@ def get_activity_timeline(
 
     service = app.state.activity_timeline_service
 
-    events = service.get_timeline(
+    events = await service.get_timeline(
         person_id=person_id,
         start_time=start_time,
         end_time=end_time,
@@ -202,7 +202,7 @@ def get_activity_timeline(
 
 
 @router.get("/reports/{person_id}/{date}", response_model=DailyReportOut)
-def get_daily_report(
+async def get_daily_report(
     person_id: str,
     date: str,
     params: DailyReportQueryParams = Depends(),
@@ -220,7 +220,7 @@ def get_daily_report(
 
     service = app.state.daily_report_service
 
-    report = service.generate_daily_report(
+    report = await service.generate_daily_report(
         person_id=person_id,
         date=date,
         tz_name=params.tz_name,
@@ -232,7 +232,7 @@ def get_daily_report(
 
 
 @router.get("/reports/{person_id}/{date}/regenerate", response_model=DailyReportOut)
-def regenerate_daily_report(
+async def regenerate_daily_report(
     person_id: str,
     date: str,
     params: DailyReportQueryParams = Depends(),
@@ -248,7 +248,7 @@ def regenerate_daily_report(
     service = app.state.daily_report_service
 
     # Note: The service handles upserting, so we just call generate
-    report = service.generate_daily_report(
+    report = await service.generate_daily_report(
         person_id=person_id,
         date=date,
         tz_name=params.tz_name,

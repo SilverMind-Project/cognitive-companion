@@ -234,7 +234,6 @@ async def reload_presence_config(request: Request) -> PresenceConfigOut:
 
     try:
         from backend.integrations.ha_state_cache import HaStateCache
-        from backend.services.cts.location_repository import SqlAlchemyLocationRepository
         from backend.services.presence.factory import build_providers
 
         ha_cache: HaStateCache | None = request.app.state.ha_state_cache
@@ -244,27 +243,21 @@ async def reload_presence_config(request: Request) -> PresenceConfigOut:
                 detail={"code": "ha_cache.unavailable", "message": "HaStateCache not initialized."},
             )
 
-        cts_runtime = getattr(request.app.state, "cts_runtime", None)
-        db_factory = getattr(cts_runtime, "_db_factory", None) or getattr(
-            request.app.state, "db_factory", None
-        )
-        if db_factory is None:
+        location_service = request.app.state.person_location_service
+        if location_service is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={
-                    "code": "db_factory.unavailable",
-                    "message": "Database session factory not initialized.",
+                    "code": "person_location_service.unavailable",
+                    "message": "PersonLocationService not initialized.",
                 },
             )
-
-        def _location_repo_factory() -> SqlAlchemyLocationRepository:
-            return SqlAlchemyLocationRepository(db_factory())
 
         # Build new provider chain.
         new_providers = build_providers(
             new_config,
             cache=ha_cache,
-            location_repository_factory=_location_repo_factory,
+            location_service=location_service,
         )
 
         # Swap atomically.

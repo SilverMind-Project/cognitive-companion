@@ -36,6 +36,10 @@ class LocationObservation:
     confidence: float = 0.5
     quality: float = 0.0  # PH mean_quality from CTS snapshot
     metadata: dict[str, object] = field(default_factory=dict)
+    # Resolved from the rooms table by ObservationRepository.latest_observation()
+    # only; every other read path leaves this None (room_id is the durable
+    # identity, this is a display-name convenience for that one query).
+    room_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,34 @@ class PresenceSegment:
         if self.exited_at is None:
             return None
         return self.exited_at - self.entered_at
+
+
+@dataclass(frozen=True)
+class RoomSegment:
+    """A contiguous per-room presence segment, resolved for read consumers.
+
+    Wraps a ``PresenceSegment`` with its room name and, for a still-open
+    segment, an ``effective_exited_at`` clamped to ``min(now, query_end)`` so
+    minute-aggregation callers never need their own clock logic.
+    """
+
+    id: UUID
+    person_id: str
+    room_id: int
+    room_name: str
+    entered_at: datetime
+    exited_at: datetime | None  # None means still open
+    effective_exited_at: datetime
+    entry_source: EntrySource
+    exit_source: ExitSource | None
+    confidence: float
+    quality: float
+    last_observed_at: datetime | None
+    metadata: dict[str, object] = field(default_factory=dict)
+
+    @property
+    def is_open(self) -> bool:
+        return self.exited_at is None
 
 
 @dataclass(frozen=True)

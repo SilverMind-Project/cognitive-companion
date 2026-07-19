@@ -152,7 +152,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     # -- Daily report service ----------------------------------------------
     from backend.services.daily_report import DailyReportService
 
-    daily_report_service = DailyReportService(get_session)
+    daily_report_service = DailyReportService(get_session, person_location_service=None)
     app.state.daily_report_service = daily_report_service
     container.daily_report_service = daily_report_service
 

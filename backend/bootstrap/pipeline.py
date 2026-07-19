@@ -135,7 +135,7 @@ def wire_executor_and_workflow(
     # -- Activity timeline service -----------------------------------------
     from backend.services.activity_timeline import ActivityTimelineService
 
-    activity_timeline_service = ActivityTimelineService(get_session)
+    activity_timeline_service = ActivityTimelineService(get_session, person_location_service=None)
     app.state.activity_timeline_service = activity_timeline_service
 
 

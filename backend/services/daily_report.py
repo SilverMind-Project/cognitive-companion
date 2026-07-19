@@ -15,7 +15,7 @@ Generates end-of-day structured summary reports aggregating:
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, or_, select
@@ -23,8 +23,15 @@ from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.core.time import UTC
+from backend.services.person_location.types import RoomSegment
 
 logger = get_logger(__name__)
+
+
+class PersonLocationReader(Protocol):
+    async def room_segments(
+        self, person_id: str, start: datetime, end: datetime
+    ) -> tuple[RoomSegment, ...]: ...
 
 
 def _serialize_datetime(obj: Any) -> Any:
@@ -46,17 +53,32 @@ class DailyReportService:
     are unavailable.
     """
 
-    def __init__(self, db_session_factory, scene_analysis_client=None):
+    def __init__(
+        self,
+        db_session_factory,
+        scene_analysis_client=None,
+        person_location_service: PersonLocationReader | None = None,
+    ):
         """Initialize the service.
 
         Args:
             db_session_factory: Callable that returns a new DB Session.
             scene_analysis_client: Optional SceneAnalysisClient for room trends.
+            person_location_service: Backs the room-time aggregation. ``None``
+                when CTS is disabled (bootstrap sets it later via
+                ``set_person_location_service`` once the CTS phase runs);
+                room-time degrades to an empty distribution rather than erroring.
         """
         self._db_session_factory = db_session_factory
         self._scene_analysis_client = scene_analysis_client
+        self._person_location = person_location_service
 
-    def generate_daily_report(
+    def set_person_location_service(
+        self, person_location_service: PersonLocationReader | None
+    ) -> None:
+        self._person_location = person_location_service
+
+    async def generate_daily_report(
         self,
         person_id: str,
         date: str,
@@ -102,7 +124,9 @@ class DailyReportService:
                     db, person_id, day_start_utc, day_end_utc
                 ),
                 "exercise": self._aggregate_exercise(db, person_id, day_start_utc, day_end_utc),
-                "room_time": self._aggregate_room_time(db, person_id, day_start_utc, day_end_utc),
+                "room_time": await self._aggregate_room_time(
+                    person_id, day_start_utc, day_end_utc
+                ),
                 "summary_text": None,
                 "wellness_score": None,
                 "wellness_alerts": [],
@@ -351,39 +375,33 @@ class DailyReportService:
             "total_minutes": total_minutes,
         }
 
-    def _aggregate_room_time(
-        self, db: Session, person_id: str, start: datetime, end: datetime
-    ) -> dict:
-        """Aggregate time spent in each room from location history."""
-        from backend.models.person import PersonLocationHistory
+    async def _aggregate_room_time(self, person_id: str, start: datetime, end: datetime) -> dict:
+        """Aggregate time spent in each room from PersonLocationService.
 
-        stmt = select(PersonLocationHistory).where(
-            and_(
-                PersonLocationHistory.person_id == person_id,
-                PersonLocationHistory.entered_at < end,
-                or_(
-                    PersonLocationHistory.exited_at >= start,
-                    PersonLocationHistory.exited_at.is_(None),
-                ),
-            )
-        )
+        Backed by ``room_segments`` (M32), not the legacy
+        ``PersonLocationHistory`` table. Degrades to an empty distribution
+        when CTS is disabled (``person_location_service`` is ``None``).
+        """
+        if self._person_location is None:
+            return {"distribution": {}, "total_minutes": 0}
 
-        histories = db.execute(stmt).scalars().all()
+        segments = await self._person_location.room_segments(person_id, start, end)
 
         room_minutes: dict[str, int] = {}
-        for h in histories:
-            if h.room_name is None:
+        for seg in segments:
+            if not seg.room_name:
                 continue
 
-            # Compute overlap with the day range
-            entry = max(h.entered_at, start)
-            exit_time = h.exited_at if h.exited_at else end
-            exit_time = min(exit_time, end)
+            # Compute overlap with the day range. effective_exited_at clamps
+            # a still-open segment to min(now, end), same semantics as the
+            # legacy exited_at-or-end clamp below for a closed segment.
+            entry = max(seg.entered_at, start)
+            exit_time = min(seg.effective_exited_at, end)
 
             overlap_seconds = (exit_time - entry).total_seconds()
             if overlap_seconds > 0:
                 minutes = max(1, int(overlap_seconds / 60))
-                room_minutes[h.room_name] = room_minutes.get(h.room_name, 0) + minutes
+                room_minutes[seg.room_name] = room_minutes.get(seg.room_name, 0) + minutes
 
         return {
             "distribution": room_minutes,

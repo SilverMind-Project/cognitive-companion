@@ -3,22 +3,34 @@
 Provides a chronological event feed combining:
 - PersonActivity events
 - ActivitySession open/close events
-- PersonLocationHistory room transitions
-- PersonSighting detections
+- PersonLocationService room-presence segments (M32: the sole
+  person-location read API; replaces PersonLocationHistory)
+- PersonLocationService raw observations (M32; replaces PersonSighting)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from backend.core.logging import get_logger
 from backend.core.time import UTC
+from backend.services.person_location.types import LocationObservation, RoomSegment
 
 logger = get_logger(__name__)
+
+
+class PersonLocationReader(Protocol):
+    async def room_segments(
+        self, person_id: str, start: datetime, end: datetime
+    ) -> tuple[RoomSegment, ...]: ...
+    async def bucketed_observations(
+        self, person_id: str, start: datetime, end: datetime, *, bucket_seconds: int = 120
+    ) -> tuple[LocationObservation, ...]: ...
 
 
 @dataclass
@@ -42,21 +54,35 @@ class ActivityTimelineService:
     This service combines multiple data sources into a single timeline:
     - PersonActivity: detected activities (sleep, meals, etc.)
     - ActivitySession: session open/close events
-    - PersonLocationHistory: room transitions
-    - PersonSighting: person detection events
+    - PersonLocationService.room_segments: room transitions
+    - PersonLocationService.observations: person detection events
 
     Events are sorted by timestamp descending (newest first).
     """
 
-    def __init__(self, db_session_factory):
+    def __init__(
+        self,
+        db_session_factory,
+        person_location_service: PersonLocationReader | None = None,
+    ):
         """Initialize the service.
 
         Args:
             db_session_factory: Callable that returns a new DB Session.
+            person_location_service: Backs the location/sighting sources.
+                ``None`` when CTS is disabled (bootstrap sets it later via
+                ``set_person_location_service`` once the CTS phase runs);
+                those two sources degrade to empty lists rather than erroring.
         """
         self._db_session_factory = db_session_factory
+        self._person_location = person_location_service
 
-    def get_timeline(
+    def set_person_location_service(
+        self, person_location_service: PersonLocationReader | None
+    ) -> None:
+        self._person_location = person_location_service
+
+    async def get_timeline(
         self,
         person_id: str,
         start_time: datetime | None = None,
@@ -76,35 +102,35 @@ class ActivityTimelineService:
         Returns:
             List of timeline event dicts sorted by timestamp descending.
         """
+        events: list[TimelineEvent] = []
+
         db = self._db_session_factory()
         try:
-            events: list[TimelineEvent] = []
-
             # Collect events from each source
             if not event_types or "activity" in event_types:
                 events.extend(self._get_activity_events(db, person_id, start_time, end_time))
 
             if not event_types or "session" in event_types:
                 events.extend(self._get_session_events(db, person_id, start_time, end_time))
-
-            if not event_types or "location" in event_types:
-                events.extend(self._get_location_events(db, person_id, start_time, end_time))
-
-            if not event_types or "sighting" in event_types:
-                events.extend(self._get_sighting_events(db, person_id, start_time, end_time))
-
-            # Sort by timestamp descending
-            events.sort(key=lambda e: e.timestamp, reverse=True)
-
-            # Apply limit
-            events = events[:limit]
-
-            # Convert to dicts
-            return [self._event_to_dict(e) for e in events]
         finally:
             db.close()
 
-    def get_timeline_range(
+        if not event_types or "location" in event_types:
+            events.extend(await self._get_location_events(person_id, start_time, end_time))
+
+        if not event_types or "sighting" in event_types:
+            events.extend(await self._get_sighting_events(person_id, start_time, end_time))
+
+        # Sort by timestamp descending
+        events.sort(key=lambda e: e.timestamp, reverse=True)
+
+        # Apply limit
+        events = events[:limit]
+
+        # Convert to dicts
+        return [self._event_to_dict(e) for e in events]
+
+    async def get_timeline_range(
         self,
         person_id: str,
         start_time: datetime,
@@ -124,7 +150,7 @@ class ActivityTimelineService:
         Returns:
             List of timeline event dicts.
         """
-        return self.get_timeline(
+        return await self.get_timeline(
             person_id=person_id,
             start_time=start_time,
             end_time=end_time,
@@ -239,96 +265,93 @@ class ActivityTimelineService:
 
         return events
 
-    def _get_location_events(
+    async def _get_location_events(
         self,
-        db: Session,
         person_id: str,
         start_time: datetime | None,
         end_time: datetime | None,
     ) -> list[TimelineEvent]:
-        """Get PersonLocationHistory room transition events."""
-        from backend.models.person import PersonLocationHistory
+        """Get room-presence segment events from PersonLocationService.
 
-        stmt = (
-            select(PersonLocationHistory)
-            .where(
-                and_(
-                    PersonLocationHistory.person_id == person_id,
-                    PersonLocationHistory.entered_at
-                    >= (start_time or datetime.min.replace(tzinfo=UTC)),
-                    or_(
-                        PersonLocationHistory.exited_at
-                        >= (start_time or datetime.min.replace(tzinfo=UTC)),
-                        PersonLocationHistory.exited_at.is_(None),
-                    ),
-                )
-            )
-            .order_by(PersonLocationHistory.entered_at.desc())
-        )
+        Backed by ``room_segments`` (M32), not the legacy
+        ``PersonLocationHistory`` table. Room transitions the CTS
+        world-tracker records but the legacy table never fed are new
+        entries here -- an enumerated correctness delta, not breakage.
+        """
+        if self._person_location is None:
+            return []
 
-        histories = db.execute(stmt).scalars().all()
+        start = start_time or datetime.min.replace(tzinfo=UTC)
+        end = end_time or datetime.max.replace(tzinfo=UTC)
+        segments = await self._person_location.room_segments(person_id, start, end)
 
         return [
             TimelineEvent(
-                timestamp=h.entered_at,
-                event_type="room_entered" if h.exited_at is None else "room_transited",
-                person_id=h.person_id,
+                timestamp=seg.entered_at,
+                event_type="room_entered" if seg.exited_at is None else "room_transited",
+                person_id=seg.person_id,
                 person_name=None,
                 activity_type=None,
-                room_name=h.room_name,
+                room_name=seg.room_name,
                 metadata={
-                    "from_room": h.from_room_name,
-                    "direction": h.direction_semantic,
-                    "exited_at": h.exited_at,
-                    "source": h.source,
+                    "from_room": seg.metadata.get("from_room"),
+                    "direction": seg.metadata.get("direction"),
+                    "exited_at": seg.exited_at,
+                    "source": seg.entry_source,
                 },
                 source="location",
             )
-            for h in histories
+            for seg in segments
         ]
 
-    def _get_sighting_events(
+    # world_tracker can ingest several raw observations a second (see
+    # tracking-orchestrator's live_publish_max_hz, 3Hz per camera by
+    # default) -- far denser than the legacy PersonSighting table this
+    # source replaces (written once per identification run). Sighting
+    # events are downsampled to one per room per this bucket width so a
+    # dense stream can't drown out every other timeline source once merged.
+    _SIGHTING_BUCKET_SECONDS = 120
+
+    async def _get_sighting_events(
         self,
-        db: Session,
         person_id: str,
         start_time: datetime | None,
         end_time: datetime | None,
     ) -> list[TimelineEvent]:
-        """Get PersonSighting detection events."""
-        from backend.models.person import PersonSighting
+        """Get downsampled observation events from PersonLocationService.
 
-        stmt = (
-            select(PersonSighting)
-            .where(
-                and_(
-                    PersonSighting.person_id == person_id,
-                    PersonSighting.timestamp >= (start_time or datetime.min.replace(tzinfo=UTC)),
-                    PersonSighting.timestamp <= (end_time or datetime.max.replace(tzinfo=UTC)),
-                )
-            )
-            .order_by(PersonSighting.timestamp.desc())
+        Backed by ``bucketed_observations`` (M32), not the legacy
+        ``PersonSighting`` table. Covers every SSOT observation source
+        (``world_tracker``, ``recamera_vlm``, ...), not just the legacy
+        step-driven path -- an enumerated correctness delta, not breakage.
+        """
+        if self._person_location is None:
+            return []
+
+        start = start_time or datetime.min.replace(tzinfo=UTC)
+        end = end_time or datetime.max.replace(tzinfo=UTC)
+        obs = await self._person_location.bucketed_observations(
+            person_id, start, end, bucket_seconds=self._SIGHTING_BUCKET_SECONDS
         )
-
-        sightings = db.execute(stmt).scalars().all()
 
         return [
             TimelineEvent(
-                timestamp=s.timestamp,
+                timestamp=o.observed_at,
                 event_type="person_sighted",
-                person_id=s.person_id,
+                person_id=o.person_id,
                 person_name=None,
                 activity_type=None,
-                room_name=s.room_name,
+                room_name=o.room_name,
                 metadata={
-                    "confidence": s.confidence,
-                    "sensor_id": s.sensor_id,
-                    "direction": s.direction,
-                    "bbox": s.bbox_json,
-                    "source": s.source,
+                    "confidence": o.confidence,
+                    "sensor_id": o.metadata.get("camera_id"),
+                    "direction": None,
+                    "bbox": None,
+                    "source": o.source,
                 },
                 source="sighting",
             )
-            for s in sightings
+            for o in obs
         ]
 
     def _event_to_dict(self, event: TimelineEvent) -> dict:

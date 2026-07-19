@@ -20,12 +20,11 @@ as a follow-up.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import datetime
 
 from backend.core.logging import get_logger
 from backend.integrations.ha_state_cache import HaStateCache
-from backend.services.cts.location_repository import LocationRepository
+from backend.services.person_location.service import PersonLocationService
 from backend.services.presence import (
     PresenceSnapshot,
     PresenceSource,
@@ -43,8 +42,9 @@ class NightAnchorProvider:
     ----------
     cache:
         The shared ``HaStateCache`` instance.
-    location_repository:
-        Repository for reading the last known ``PersonLocationState``.
+    location_service:
+        The shared ``PersonLocationService`` instance, used to read the
+        last known room from the latest observation.
     light_entities:
         List of HA light entity IDs that must all be ``off`` for the
         anchor to activate.
@@ -80,7 +80,7 @@ class NightAnchorProvider:
         self,
         *,
         cache: HaStateCache,
-        location_repository_factory: Callable[[], LocationRepository],
+        location_service: PersonLocationService,
         light_entities: list[str],
         bed_sensor_entity: str | None,
         anchor_room_id: str,
@@ -93,7 +93,7 @@ class NightAnchorProvider:
         priority: int = 90,
     ) -> None:
         self._cache = cache
-        self._repo_factory = location_repository_factory
+        self._location = location_service
         self._light_entities = light_entities
         self._bed_sensor_entity = bed_sensor_entity
         self._anchor_room_id = anchor_room_id
@@ -164,19 +164,18 @@ class NightAnchorProvider:
                 )
                 return None
 
-        # Step 3: Last known room must be in the require list.
-        repo = self._repo_factory()
-        try:
-            location_state = repo.get_state(person_id)
-        finally:
-            repo.close()
-        if location_state is None or location_state.current_room_name is None:
+        # Step 3: Last known room must be in the require list. Sourced from
+        # the latest observation, not where_is()'s open segment: a full
+        # night's sleep can exceed inferred_dwell_max_s with no new camera
+        # evidence, closing the segment exactly when the anchor needs it.
+        obs = await self._location.latest_observation(person_id)
+        if obs is None or not obs.room_name:
             return None
-        if location_state.current_room_name.lower() not in self._require_last_room_in:
+        if obs.room_name.lower() not in self._require_last_room_in:
             logger.debug(
                 "night_anchor_wrong_room",
                 person_id=person_id,
-                last_room=location_state.current_room_name,
+                last_room=obs.room_name,
             )
             return None
 
@@ -192,9 +191,7 @@ class NightAnchorProvider:
                 return None
 
         # All conditions met → ASLEEP.
-        dwell_minutes: float | None = None
-        if location_state.last_seen_at is not None:
-            dwell_minutes = (at - location_state.last_seen_at).total_seconds() / 60.0
+        dwell_minutes = (at - obs.observed_at).total_seconds() / 60.0
 
         sources_parts = [
             PresenceSource(name=self._name, confidence=self._confidence),
@@ -213,7 +210,7 @@ class NightAnchorProvider:
             room_id=self._anchor_room_id,
             room_name=self._anchor_room_name,
             confidence=self._confidence,
-            last_seen_at=location_state.last_seen_at,
+            last_seen_at=obs.observed_at,
             dwell_minutes=dwell_minutes,
             sources=tuple(sources_parts),
             inferred_at=at,

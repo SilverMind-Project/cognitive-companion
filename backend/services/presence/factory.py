@@ -10,7 +10,7 @@ from typing import Any
 
 from backend.core.logging import get_logger
 from backend.integrations.ha_state_cache import HaStateCache
-from backend.services.cts.location_repository import LocationRepository
+from backend.services.person_location.service import PersonLocationService
 from backend.services.presence.anchor_rules import compile_predicate
 from backend.services.presence.config import PresenceConfig
 from backend.services.presence.providers.cts_location import (
@@ -32,14 +32,12 @@ from backend.services.presence.providers.unknown import (
     UnknownProvider,
 )
 
-LocationRepositoryFactory = Callable[[], LocationRepository]
-
 logger = get_logger(__name__)
 
 # Mapping from config discriminator to provider class + builder.
 _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
     "cts_location": lambda cfg, **kw: CtsLocationProvider(
-        location_repository_factory=kw["location_repository_factory"],
+        location_service=kw["location_service"],
         ttl_seconds=cfg.ttl_seconds,
         priority=cfg.priority,
     ),
@@ -61,7 +59,7 @@ _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
     ),
     "night_anchor": lambda cfg, **kw: NightAnchorProvider(
         cache=kw["cache"],
-        location_repository_factory=kw["location_repository_factory"],
+        location_service=kw["location_service"],
         light_entities=cfg.light_entities,
         bed_sensor_entity=cfg.bed_sensor_entity,
         anchor_room_id=cfg.anchor_room_id,
@@ -73,7 +71,7 @@ _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
         priority=cfg.priority,
     ),
     "stale_fallback": lambda cfg, **kw: StaleFallbackProvider(
-        location_repository_factory=kw["location_repository_factory"],
+        location_service=kw["location_service"],
         ttl_seconds=cfg.ttl_seconds,
         priority=cfg.priority,
     ),
@@ -85,7 +83,7 @@ def build_providers(
     config: PresenceConfig,
     *,
     cache: HaStateCache,
-    location_repository_factory: LocationRepositoryFactory,
+    location_service: PersonLocationService,
 ) -> list:  # list[PresenceProvider]
     """Build provider instances from *config*.
 
@@ -95,11 +93,10 @@ def build_providers(
         Validated ``PresenceConfig`` from :func:`load_presence_config`.
     cache:
         The ``HaStateCache`` for HA-backed providers.
-    location_repository_factory:
-        Callable returning a fresh ``LocationRepository`` per probe call.
-        CTS-backed providers (``cts_location``, ``night_anchor``,
-        ``stale_fallback``) use this to avoid holding a long-lived
-        SQLAlchemy session.
+    location_service:
+        The shared ``PersonLocationService`` instance. CTS-backed providers
+        (``cts_location``, ``night_anchor``, ``stale_fallback``) read
+        through it instead of holding their own repository session.
 
     Returns
     -------
@@ -119,7 +116,7 @@ def build_providers(
         provider = builder(
             provider_cfg,
             cache=cache,
-            location_repository_factory=location_repository_factory,
+            location_service=location_service,
         )
         providers.append(provider)
 

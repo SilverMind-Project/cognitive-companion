@@ -913,7 +913,7 @@ async def get_person_timeline(
 
     end_time = datetime.now(UTC)
     start_time = end_time - timedelta(minutes=minutes)
-    events = _svc.activity_timeline.get_timeline(
+    events = await _svc.activity_timeline.get_timeline(
         person_id=person_id,
         start_time=start_time,
         end_time=end_time,
@@ -948,7 +948,7 @@ async def get_daily_report(
     from backend.core.config import settings
 
     tz_name = settings.as_str("app.timezone")
-    report = _svc.daily_report.generate_daily_report(
+    report = await _svc.daily_report.generate_daily_report(
         person_id=person_id,
         date=date,
         tz_name=tz_name,

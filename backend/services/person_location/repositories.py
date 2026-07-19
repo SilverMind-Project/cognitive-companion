@@ -6,18 +6,20 @@ Protocol + InMemory triplet following project pattern.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from math import floor
 from typing import Protocol, cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from backend.core.database import transaction
 from backend.models.location_observation import LocationObservation as LOObs
 from backend.models.presence_segment import PresenceSegment as PSeg
+from backend.models.room import Room
 
 from .types import (
     EntrySource,
@@ -53,8 +55,19 @@ class ObservationRepository(Protocol):
     async def latest_floor_point(
         self, person_id: str, since: datetime
     ) -> LocationObservation | None: ...
+    async def latest_observation(
+        self, person_id: str, since: datetime
+    ) -> LocationObservation | None: ...
     async def list_for_person(
         self, person_id: str, since: datetime, until: datetime, limit: int = 500
+    ) -> list[LocationObservation]: ...
+    async def bucketed_observations(
+        self,
+        person_id: str,
+        since: datetime,
+        until: datetime,
+        bucket_seconds: int = 120,
+        limit: int = 500,
     ) -> list[LocationObservation]: ...
     async def list_for_source_ref(
         self, source_ref: str, since: datetime, until: datetime
@@ -100,8 +113,11 @@ class SegmentRepository(Protocol):
 
 
 class InMemoryObservationRepository:
-    def __init__(self) -> None:
+    def __init__(self, room_names: dict[int, str] | None = None) -> None:
         self._rows: dict[UUID, LocationObservation] = {}
+        # Mirrors the SQL repo's rooms-table join in latest_observation();
+        # tests inject the room_id -> name mapping they care about.
+        self._room_names: dict[int, str] = room_names or {}
 
     async def insert(self, obs: LocationObservation) -> None:
         self._rows[obs.id] = obs
@@ -117,6 +133,22 @@ class InMemoryObservationRepository:
         matching.sort(key=lambda o: o.observed_at, reverse=True)
         return matching[0] if matching else None
 
+    async def latest_observation(
+        self, person_id: str, since: datetime
+    ) -> LocationObservation | None:
+        matching = [
+            o for o in self._rows.values() if o.person_id == person_id and o.observed_at >= since
+        ]
+        matching.sort(key=lambda o: o.observed_at, reverse=True)
+        if not matching:
+            return None
+        latest = matching[0]
+        # Re-resolve room_name from the injected map, mirroring the SQL
+        # repo's rooms-table join: room_id is the source of truth, not
+        # whatever a caller happened to set on the stored dataclass.
+        room_name = self._room_names.get(latest.room_id) if latest.room_id is not None else None
+        return replace(latest, room_name=room_name)
+
     async def list_for_person(
         self, person_id: str, since: datetime, until: datetime, limit: int = 500
     ) -> list[LocationObservation]:
@@ -126,7 +158,42 @@ class InMemoryObservationRepository:
             if o.person_id == person_id and since <= o.observed_at <= until
         ]
         result.sort(key=lambda o: o.observed_at, reverse=True)
-        return result[:limit]
+        result = result[:limit]
+        # Mirrors the SQL repo's rooms-table join (see below): resolve
+        # room_name from the injected map for every row, not just the
+        # single-row latest_observation() path.
+        return [
+            replace(o, room_name=self._room_names.get(o.room_id) if o.room_id is not None else None)
+            for o in result
+        ]
+
+    async def bucketed_observations(
+        self,
+        person_id: str,
+        since: datetime,
+        until: datetime,
+        bucket_seconds: int = 120,
+        limit: int = 500,
+    ) -> list[LocationObservation]:
+        matching = [
+            o
+            for o in self._rows.values()
+            if o.person_id == person_id and since <= o.observed_at <= until
+        ]
+        # One representative (most recent) row per (room, time bucket),
+        # mirroring the SQL repo's ROW_NUMBER()-over-partition window.
+        best: dict[tuple[int | None, int], LocationObservation] = {}
+        for o in matching:
+            bucket_index = int(o.observed_at.timestamp() // bucket_seconds)
+            key = (o.room_id, bucket_index)
+            current = best.get(key)
+            if current is None or o.observed_at > current.observed_at:
+                best[key] = o
+        result = sorted(best.values(), key=lambda o: o.observed_at, reverse=True)[:limit]
+        return [
+            replace(o, room_name=self._room_names.get(o.room_id) if o.room_id is not None else None)
+            for o in result
+        ]
 
     async def list_for_source_ref(
         self, source_ref: str, since: datetime, until: datetime
@@ -312,25 +379,105 @@ class SqlAlchemyObservationRepository:
             )
         return _obs_to_domain(row) if row else None
 
-    async def list_for_person(
-        self, person_id: str, since: datetime, until: datetime, limit: int = 500
-    ) -> list[LocationObservation]:
+    async def latest_observation(
+        self, person_id: str, since: datetime
+    ) -> LocationObservation | None:
         with transaction(self._db_factory) as db:
-            rows = (
+            row = (
                 db.execute(
                     select(LOObs)
                     .where(
                         LOObs.person_id == person_id,
                         LOObs.observed_at >= since,
-                        LOObs.observed_at <= until,
                     )
                     .order_by(LOObs.observed_at.desc())
-                    .limit(limit)
+                    .limit(1)
                 )
                 .scalars()
-                .all()
+                .first()
             )
-        return [_obs_to_domain(r) for r in rows]
+            room_name = None
+            if row is not None and row.room_id is not None:
+                room = db.get(Room, row.room_id)
+                room_name = room.name if room is not None else None
+        return _obs_to_domain(row, room_name=room_name) if row is not None else None
+
+    async def list_for_person(
+        self, person_id: str, since: datetime, until: datetime, limit: int = 500
+    ) -> list[LocationObservation]:
+        with transaction(self._db_factory) as db:
+            rows = db.execute(
+                select(LOObs, Room.name)
+                .outerjoin(Room, LOObs.room_id == Room.id)
+                .where(
+                    LOObs.person_id == person_id,
+                    LOObs.observed_at >= since,
+                    LOObs.observed_at <= until,
+                )
+                .order_by(LOObs.observed_at.desc())
+                .limit(limit)
+            ).all()
+        return [_obs_to_domain(r[0], room_name=r[1]) for r in rows]
+
+    async def bucketed_observations(
+        self,
+        person_id: str,
+        since: datetime,
+        until: datetime,
+        bucket_seconds: int = 120,
+        limit: int = 500,
+    ) -> list[LocationObservation]:
+        """One representative (most recent) observation per room per
+        ``bucket_seconds`` window, newest-first.
+
+        world_tracker can call ``ingest_observation`` several times a
+        second; a per-row event stream would be far denser than the legacy
+        PersonSighting table this backs. The ROW_NUMBER() partition runs
+        over every matching row before ``limit`` is applied, so (unlike a
+        plain query LIMIT) a wide window's early history isn't silently
+        dropped in favor of its newest slice.
+        """
+        with transaction(self._db_factory) as db:
+            bucket_expr = (
+                func.floor(func.extract("epoch", LOObs.observed_at) / bucket_seconds)
+                * bucket_seconds
+            )
+            ranked = (
+                select(
+                    LOObs.id,
+                    LOObs.person_id,
+                    LOObs.observed_at,
+                    LOObs.source,
+                    LOObs.source_ref,
+                    LOObs.floor_x_m,
+                    LOObs.floor_y_m,
+                    LOObs.room_id,
+                    LOObs.confidence,
+                    LOObs.metadata_json,
+                    Room.name.label("room_name"),
+                    func.row_number()
+                    .over(
+                        partition_by=(LOObs.room_id, bucket_expr),
+                        order_by=LOObs.observed_at.desc(),
+                    )
+                    .label("rn"),
+                )
+                .outerjoin(Room, LOObs.room_id == Room.id)
+                .where(
+                    LOObs.person_id == person_id,
+                    LOObs.observed_at >= since,
+                    LOObs.observed_at <= until,
+                )
+                .subquery()
+            )
+            stmt = (
+                select(ranked)
+                .where(ranked.c.rn == 1)
+                .order_by(ranked.c.observed_at.desc())
+                .limit(limit)
+            )
+            rows = db.execute(stmt).all()
+        return [_bucketed_row_to_domain(r) for r in rows]
 
     async def list_for_source_ref(
         self, source_ref: str, since: datetime, until: datetime
@@ -532,7 +679,7 @@ class SqlAlchemySegmentRepository:
 # ---------------------------------------------------------------------------
 
 
-def _obs_to_domain(row: LOObs) -> LocationObservation:
+def _obs_to_domain(row: LOObs, room_name: str | None = None) -> LocationObservation:
     from .types import FloorPoint
 
     fp = None
@@ -551,6 +698,27 @@ def _obs_to_domain(row: LOObs) -> LocationObservation:
         room_id=int(row.room_id) if row.room_id is not None else None,
         confidence=row.confidence,
         metadata=row.metadata_json or {},
+        room_name=room_name,
+    )
+
+
+def _bucketed_row_to_domain(row) -> LocationObservation:
+    from .types import FloorPoint
+
+    fp = None
+    if row.floor_x_m is not None and row.floor_y_m is not None:
+        fp = FloorPoint(x_m=row.floor_x_m, y_m=row.floor_y_m)
+    return LocationObservation(
+        id=UUID(str(row.id)),
+        person_id=str(row.person_id),
+        observed_at=row.observed_at,
+        source=cast(SourceTag, row.source),
+        source_ref=row.source_ref,
+        floor_point=fp,
+        room_id=int(row.room_id) if row.room_id is not None else None,
+        confidence=row.confidence,
+        metadata=row.metadata_json or {},
+        room_name=row.room_name,
     )
 
 

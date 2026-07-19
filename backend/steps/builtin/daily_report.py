@@ -149,7 +149,7 @@ class DailyReportHandler(StepHandler):
             results = []
             for pid in person_ids:
                 try:
-                    report = services.daily_report_service.generate_daily_report(
+                    report = await services.daily_report_service.generate_daily_report(
                         person_id=pid,
                         date=report_date,
                         tz_name=tz_name,

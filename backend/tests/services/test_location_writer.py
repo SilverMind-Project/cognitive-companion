@@ -67,7 +67,9 @@ def _make_repo_factory(db_factory):
 @pytest.fixture
 def writer(db_factory):
     _register_member(db_factory, "grandma")
-    return LocationWriter(repo_factory=_make_repo_factory(db_factory))
+    return LocationWriter(
+        repo_factory=_make_repo_factory(db_factory), authority=SourceAuthority()
+    )
 
 
 class TestFirstSighting:
@@ -167,7 +169,9 @@ class TestMultipleDetections:
         state and history for both."""
         _register_member(db_factory, "grandma")
         _register_member(db_factory, "grandpa")
-        writer = LocationWriter(repo_factory=_make_repo_factory(db_factory))
+        writer = LocationWriter(
+            repo_factory=_make_repo_factory(db_factory), authority=SourceAuthority()
+        )
 
         event = {
             "event_id": "evt-multi",
@@ -209,7 +213,9 @@ class TestNoRoomName:
         """Event with no room_name should still upsert state but not
         create history rows."""
         _register_member(db_factory, "grandma")
-        writer = LocationWriter(repo_factory=_make_repo_factory(db_factory))
+        writer = LocationWriter(
+            repo_factory=_make_repo_factory(db_factory), authority=SourceAuthority()
+        )
 
         await writer.apply(_event("grandma", None))
 

@@ -144,7 +144,7 @@ is a plain return value consumed later in this same module (`setup_scheduler`).
 Also assigns `container.scene_analysis_client`, `.semantic_memory_client`,
 `.memory_query`, `.scene_intel`, `.person_tracking`, `.event_aggregator`,
 `.activity`, `.daily_report_service`, `.interactive_response_service`,
-`.signals`.
+`.signals`, `.person_location` (M38 Part A).
 
 | Attribute | Depends on |
 | --- | --- |
@@ -154,15 +154,17 @@ Also assigns `container.scene_analysis_client`, `.semantic_memory_client`,
 | `memory_query` | `semantic_memory_client` |
 | `scene_intel` | `scene_analysis_client`, `semantic_memory_client` |
 | `source_authority` | -- |
-| `person_tracking` | `person_id_client`, `ha_client`, `ws_manager`, `source_authority` |
+| `person_location_service` | -- (`get_session` only; M38 Part A un-gated this from `cts.enabled` -- previously constructed in `cts.wire_cts`) |
+| `recamera_location_ingest` | `person_location_service`; its `IdentityAssertionPublisher` half is real only when `redis.url` is configured (M38 Part D) |
+| `person_tracking` | `person_id_client`, `ha_client`, `ws_manager`, `source_authority`, `recamera_location_ingest`, `person_location_service` (M38 Part E: HA correlation reads/writes the SSOT) |
 | `event_aggregator` | `minio_client` |
 | `activity_session_service` | -- |
 | `activity_service` | `person_tracking`, `activity_session_service` |
-| `daily_report_service` | -- |
+| `daily_report_service` | `person_location_service` |
 | `interactive_response_service` | -- (`scheduler` injected later by `pipeline.wire_scheduler`) |
 | `signals` | -- |
-| `companion_surface_service` | -- (`person_location` injected later by `cts.wire_cts`) |
-| `zone_service` | -- (`person_location` injected later by `cts.wire_cts`) |
+| `companion_surface_service` | `person_location_service` |
+| `zone_service` | `person_location_service` |
 | `signals_feed` | -- |
 | `occupancy_read_model` | -- |
 
@@ -178,7 +180,7 @@ Also assigns `container.camera_source_resolver`.
 | `media_observability` | `event_aggregator`, `pipeline_executor`, `minio_client` |
 | `workflow` | `rules_engine`, `pipeline_executor` |
 | `sensor_polling` | `ha_client`, `workflow` |
-| `activity_timeline_service` | -- |
+| `activity_timeline_service` | `person_location_service` (constructed by `perception.wire_perception`, which runs before this phase) |
 
 ### `mcp.wire_mcp`
 
@@ -206,16 +208,24 @@ original source.
 | Attribute | Depends on |
 | --- | --- |
 | `gate_runner` | `container` |
-| `guided_task_service` | `scheduler_bridge`, `pipeline_executor`, `zone_service`, `llm_model_registry`, `activity_service`, `signals`, `scene_analysis_client`, `companion_surface_service`, `ws_manager`, `pipeline_ws_manager`, `notification_dispatcher`, `conversation_manager`, `semantic_memory_client`, `memory_query`, `voice_instructions`, `gate_runner`, `camera_source_resolver`, `event_aggregator` |
+| `guided_task_service` | `scheduler_bridge`, `pipeline_executor`, `person_location_service`, `zone_service`, `llm_model_registry`, `activity_service`, `signals`, `scene_analysis_client`, `companion_surface_service`, `ws_manager`, `pipeline_ws_manager`, `notification_dispatcher`, `conversation_manager`, `semantic_memory_client`, `memory_query`, `voice_instructions`, `gate_runner`, `camera_source_resolver`, `event_aggregator` |
 | `guided_metrics_service` | -- |
 | `telegram_trigger` (conditional) | `telegram_client`, `pipeline_executor` |
+
+This phase also registers the `person_location_tick` scheduler job (M38 Part
+A: inferred-dwell timeout + per-source quiet-gap segment closure), moved
+here from an asyncio task that `CTSRuntime` used to own only when
+`cts.enabled` -- this module already owns every unconditional
+`scheduler.add_job` call.
 
 Returns `guided_camera_topology` for `cts.wire_cts`.
 
 ### `cts.wire_cts` (only when `cts.enabled`) / `cts.wire_cts_disabled`
 
-Also assigns `container.person_location` (enabled branch only) and
-`container.presence` (via `presence.wire_presence`).
+Also assigns `container.presence` (via `presence.wire_presence`).
+`container.person_location` is assigned unconditionally by
+`perception.wire_perception` instead (M38 Part A); this phase only reads
+`app.state.person_location_service` to wire it into the CTS subscribers.
 
 | Attribute | Enabled | Disabled |
 | --- | --- | --- |
@@ -226,7 +236,6 @@ Also assigns `container.person_location` (enabled branch only) and
 | `identity_correction_service` | constructed | `None` |
 | `reid_review_service` | constructed | `None` |
 | `gait_trend_service` | constructed | `None` |
-| `person_location_service` | constructed | `None` |
 | `cts_runtime` | constructed | `None` |
 | `dementia_signal_subscriber` | constructed | `None` |
 | `tracking_event_subscriber` | constructed | `None` |
@@ -234,6 +243,10 @@ Also assigns `container.person_location` (enabled branch only) and
 | `scene_sample_subscriber` | constructed | **absent** (see gap below) |
 | `ha_state_cache` (via `presence.wire_presence`) | constructed | **absent** (see gap below) |
 | `presence` (via `presence.wire_presence`) | constructed | **absent** (see gap below) |
+
+`person_location_service` is **not** in this table any more: it is
+constructed once by `perception.wire_perception`, unconditionally, and
+neither `wire_cts` nor `wire_cts_disabled` touches it.
 
 ### `presence.wire_presence` (called from inside `cts.wire_cts`)
 

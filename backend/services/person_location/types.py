@@ -16,6 +16,20 @@ EntrySource = Literal["observed", "inferred_transit", "manual"]
 ExitSource = Literal["observed", "inferred_transit", "contradicted", "manual", "timeout"]
 
 
+def is_unknown_bucket(person_id: str) -> bool:
+    """The literal unidentified bucket: a merged pseudo-person, not an identity.
+
+    Named guests enrolled via the visitor admin surface (identity-continuity
+    M07) arrive as real member ids and are not affected by this check. Every
+    SSOT consumer that treats a person_id as a real, correlatable identity
+    (segment writes, HA-sensor correlation, identity assertions) must skip
+    this bucket: it is a merged pseudo-person shared by every unidentified
+    visitor, so any segment/correlation opened for it would churn across
+    all of them at once (W7).
+    """
+    return person_id == "unknown" or person_id.startswith("unknown_")
+
+
 @dataclass(frozen=True)
 class FloorPoint:
     x_m: float

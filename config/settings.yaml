@@ -285,6 +285,21 @@ person_tracking:
   location_stale_minutes: 30
   ha_propagation: true
 
+# Unified person-location SSOT (PersonLocationService). M38: un-gated from
+# cts.enabled and source-arbitrated across world_tracker/recamera_vlm/sensor.
+person_location:
+  inferred_dwell_max_s: 14400.0  # 4 hours; camera-blind bathroom dwell timeout
+  revision_horizon_s: 600.0      # 10 minutes; mirrors cts.revision_horizon_s
+  # Staleness handoff: seconds of quiet on the open segment's current source
+  # before a lower-priority source may take over.
+  arbitration_staleness_s: 30.0
+  # Per-source quiet gaps for *observed* segments (an inferred segment keeps
+  # using inferred_dwell_max_s above). A dense source ages out fast; a
+  # sparse, rule-driven source stays credible far longer by design.
+  quiet_gap_world_tracker_s: 300.0    # 5 minutes
+  quiet_gap_recamera_vlm_s: 2700.0    # 45 minutes
+  quiet_gap_sensor_s: 1800.0          # 30 minutes
+
 # Continuous Tracking Service / Tracking Orchestrator Service
 # Note: the CTS BFF gateway URL lives under cts.upstream.tracking_orchestrator
 # (supports mTLS). This url is used only for the /health proxy in the dashboard.
@@ -406,6 +421,16 @@ cts:
   # automatic revisions carrying no explicit range_start/range_end. Mirrors
   # CTS resolver.revision_horizon_s; change both together.
   revision_horizon_s: 600.0
+
+  # M38: publishing to cc.identity_assertions from the reCamera ingest
+  # adapter. Default false because the proto cannot yet represent "no floor
+  # point" (floor_x_m/floor_y_m default to 0.0, which the orchestrator
+  # matcher would treat as a real position) and reCamera camera ids never
+  # match CTS camera ids either. identity-continuity M09 fixes both and
+  # flips this default; until then the adapter still writes the SSOT, it
+  # just does not publish the assertion.
+  identity_assertions:
+    publish_enabled: false
 
   # Service JWT signing (EdDSA).  Leave blank for dev mode (no JWT).
   jwt:

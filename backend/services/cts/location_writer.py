@@ -45,8 +45,10 @@ class LocationWriter:
         In production this wraps ``SqlAlchemyLocationRepository(get_session())``.
         In tests it returns :class:`InMemoryLocationRepository`.
     authority:
-        Source-authority policy. Defaults to :class:`SourceAuthority`
-        configured to favor CTS over sensor-inferred sources.
+        Source-authority policy. Required: CR-15 is "one writer policy per
+        state row", so every writer must share the *same* configured
+        instance (``app.state.source_authority``) rather than silently
+        constructing its own when a caller forgets to wire it through.
     """
 
     SOURCE = "cts"
@@ -54,11 +56,11 @@ class LocationWriter:
     def __init__(
         self,
         repo_factory,
-        authority: SourceAuthority | None = None,
+        authority: SourceAuthority,
         camera_room_map: dict[str, str] | None = None,
     ) -> None:
         self._repo_factory = repo_factory
-        self._authority = authority or SourceAuthority()
+        self._authority = authority
         self._camera_room_map: dict[str, str] = camera_room_map or {}
 
     async def apply(self, event: dict[str, Any]) -> list[str]:

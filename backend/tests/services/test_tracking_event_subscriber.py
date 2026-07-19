@@ -16,6 +16,7 @@ from backend.integrations.proto.continuoustracking.v1 import (  # type: ignore[a
     tracking_pb2,
 )
 from backend.services.cts.location_writer import LocationWriter
+from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 
 
@@ -291,7 +292,7 @@ def test_uses_in_memory_writer(db_factory):
     def _repo_factory() -> SqlAlchemyLocationRepository:
         return SqlAlchemyLocationRepository(db_factory())
 
-    writer = LocationWriter(repo_factory=_repo_factory)
+    writer = LocationWriter(repo_factory=_repo_factory, authority=SourceAuthority())
     sub = TrackingEventSubscriber(
         redis_url="redis://localhost:6379",
         consumer_id="test",

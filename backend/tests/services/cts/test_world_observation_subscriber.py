@@ -156,6 +156,32 @@ async def test_uncalibrated_identified_still_opens_room_segment():
 
 
 @pytest.mark.asyncio
+async def test_uncalibrated_detection_produces_no_floor_point():
+    """G15: an uncalibrated detection must never fabricate a (0, 0) floor point.
+
+    Room membership comes from the camera map regardless of calibration
+    (see ``test_uncalibrated_identified_still_opens_room_segment`` above),
+    but floor coordinates require calibration: absence must produce
+    ``floor_point=None``, matching the NOT NULL gating that
+    ``latest_floor_point``/zone lookup rely on. Moved here from the deleted
+    reCamera-observation-subscriber test suite (M38 Part D), which
+    asserted the same rule for its own (always-floorless) ingestion path;
+    this is the one ingestion path left that can carry real floor
+    coordinates, so it is the one that must prove it gates them correctly.
+    """
+    svc = _make_location_service()
+    subscriber = WorldObservationSubscriber(
+        redis_url="redis://localhost:6379",
+        location_service=svc,
+        camera_room_id_map={"cam-1": 7},
+    )
+
+    await subscriber.handle(_msg([_det(ph_id="ph-aaa", identity_id="alice", calibrated=False)]))
+
+    assert await svc.latest_floor_point("alice") is None
+
+
+@pytest.mark.asyncio
 async def test_unknown_ph_records_occupancy_only_no_segment():
     """Plan case (b): unknown PH -> occupancy only, no segment."""
     svc = _make_location_service()

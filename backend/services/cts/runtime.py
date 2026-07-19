@@ -78,15 +78,16 @@ class _SubscriberBundle:
     task: asyncio.Task[None] | None = None
 
 
-_INFERRED_DWELL_TICK_INTERVAL_S: float = 60.0
-
-
 class CTSRuntime:
     """Owns the CTS subscribers and shared CTS services.
 
     WTR4: M4 subscribers (WorldObservation, RoomTransition,
     PHContinuation) are owned here and started/stopped with the runtime.
-    Periodic inferred-dwell tick evaluates camera-blind bathroom timeouts.
+
+    M38 Part A: the periodic inferred-dwell/quiet-gap tick moved to a
+    scheduler job in ``bootstrap/guided_task.py`` (``person_location_tick``)
+    since ``PersonLocationService`` is now constructed unconditionally and
+    this runtime only exists when ``cts.enabled``.
     """
 
     def __init__(
@@ -100,8 +101,7 @@ class CTSRuntime:
         scene_analysis_client: SceneAnalysisClient | None = None,
         semantic_memory_client: SemanticMemoryClient | None = None,
         camera_room_map: dict[str, str] | None = None,
-        authority: SourceAuthority | None = None,
-        recamera_subscriber: object | None = None,
+        authority: SourceAuthority,
         person_location_service: object | None = None,
         occupancy_read_model: OccupancyReadModel | None = None,
         orchestrator_client: object | None = None,
@@ -110,9 +110,6 @@ class CTSRuntime:
         self._db_factory = db_factory
         self._ws_manager = ws_manager
         self._pipeline = pipeline
-
-        if authority is None:
-            authority = SourceAuthority(cts_lock_s=config.cts_lock_s)
         self.authority = authority
 
         def _repo_factory() -> SqlAlchemyLocationRepository:
@@ -161,7 +158,6 @@ class CTSRuntime:
         # WTR4: M4 subscribers owned and constructed by CTSRuntime. They are
         # built here (not in main.py) so the runtime can wire the camera→room
         # id map and occupancy read-model that the world tracker needs.
-        self._person_location_service = person_location_service
         self.occupancy_read_model = occupancy_read_model
         self._world_observation_subscriber: WorldObservationSubscriber | None = None
         self._room_transition_subscriber: RoomTransitionSubscriber | None = None
@@ -222,10 +218,6 @@ class CTSRuntime:
             consumer_id=config.consumer_id,
         )
 
-        # Recamera observation subscriber (in-process queue, not Redis).
-        self._recamera_subscriber = recamera_subscriber
-        self._inferred_dwell_task: asyncio.Task[None] | None = None
-
         self._bundles: list[_SubscriberBundle] = [
             _SubscriberBundle(name="tracking_events", subscriber=self.tracking_event_subscriber),
             _SubscriberBundle(
@@ -273,9 +265,6 @@ class CTSRuntime:
             )
             bundle.task = task
         await self.snapshot_publisher.start()
-        # Start recamera subscriber if provided.
-        if self._recamera_subscriber is not None:
-            await self._recamera_subscriber.start()  # type: ignore[union-attr]
         # WTR4: start M4 subscribers.
         for m4_sub in [
             self._world_observation_subscriber,
@@ -289,14 +278,6 @@ class CTSRuntime:
                     ),
                     name=f"cts-runtime-m4-{type(m4_sub).__name__}",
                 )
-        # Start inferred-dwell timeout evaluator if PersonLocationService is wired.
-        if self._person_location_service is not None and (
-            self._inferred_dwell_task is None or self._inferred_dwell_task.done()
-        ):
-            self._inferred_dwell_task = asyncio.create_task(
-                self._run_inferred_dwell_ticker(),
-                name="cts-runtime-inferred-dwell-tick",
-            )
 
         logger.info(
             "cts_runtime_started",
@@ -312,9 +293,6 @@ class CTSRuntime:
         We wait up to 10 seconds per subscriber before cancelling hard.
         """
         await self.snapshot_publisher.stop()
-        # Stop recamera subscriber.
-        if self._recamera_subscriber is not None:
-            await self._recamera_subscriber.stop()  # type: ignore[union-attr]
         # WTR4: stop M4 subscribers.
         for m4_sub in [
             self._world_observation_subscriber,
@@ -353,40 +331,8 @@ class CTSRuntime:
                         error=str(exc),
                     )
                 bundle.task.cancel()
-        # Stop inferred-dwell tick task.
-        if self._inferred_dwell_task is not None and not self._inferred_dwell_task.done():
-            self._inferred_dwell_task.cancel()
-            try:  # noqa: SIM105 -- contextlib.suppress cannot suppress async exceptions
-                await self._inferred_dwell_task
-            except asyncio.CancelledError, Exception:  # noqa: BLE001
-                pass
 
         logger.info("cts_runtime_stopped")
-
-    async def _run_inferred_dwell_ticker(self) -> None:
-        """Periodically evaluate inferred-dwell timeouts and emit signals."""
-        from datetime import UTC
-        from datetime import datetime as dt
-
-        while True:
-            await asyncio.sleep(_INFERRED_DWELL_TICK_INTERVAL_S)
-            try:
-                now = dt.now(UTC)
-                svc = self._person_location_service
-                if svc is None:
-                    continue
-                signals = await svc.tick(now)  # type: ignore[union-attr]
-                for sig in signals:
-                    await self.signal_store.upsert(sig)
-                    logger.info(
-                        "inferred_dwell_signal_persisted",
-                        person_id=sig.get("person_id"),
-                        signal_type=sig.get("signal_type"),
-                    )
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                logger.exception("inferred_dwell_tick_error")
 
     # -- diagnostics --------------------------------------------------------
 

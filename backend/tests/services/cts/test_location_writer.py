@@ -8,6 +8,7 @@ import pytest
 
 from backend.services.cts.location_repository import InMemoryLocationRepository
 from backend.services.cts.location_writer import LocationWriter
+from backend.services.cts.source_authority import SourceAuthority
 
 
 def _make_event(
@@ -52,7 +53,7 @@ class TestLocationWriter:
     async def test_first_room_entry(self) -> None:
         """A new person detection creates a state row and a history row."""
         repo = InMemoryLocationRepository()
-        writer = LocationWriter(lambda: repo)
+        writer = LocationWriter(lambda: repo, authority=SourceAuthority())
 
         event = _make_event(
             detections=[_make_detection(identity_id="alice")],
@@ -76,7 +77,7 @@ class TestLocationWriter:
     async def test_room_change_closes_prior_and_opens_new(self) -> None:
         """Moving between rooms closes the old history row and opens a new one."""
         repo = InMemoryLocationRepository()
-        writer = LocationWriter(lambda: repo)
+        writer = LocationWriter(lambda: repo, authority=SourceAuthority())
 
         t0 = datetime.now(UTC)
 
@@ -117,7 +118,7 @@ class TestLocationWriter:
     async def test_same_room_no_new_history(self) -> None:
         """Staying in the same room does not create additional history rows."""
         repo = InMemoryLocationRepository()
-        writer = LocationWriter(lambda: repo)
+        writer = LocationWriter(lambda: repo, authority=SourceAuthority())
 
         t0 = datetime.now(UTC)
         await writer.apply(
@@ -145,7 +146,7 @@ class TestLocationWriter:
     async def test_empty_identity_skipped(self) -> None:
         """Detections without identity_id are silently skipped."""
         repo = InMemoryLocationRepository()
-        writer = LocationWriter(lambda: repo)
+        writer = LocationWriter(lambda: repo, authority=SourceAuthority())
 
         det = _make_detection(identity_id="")
         await writer.apply(_make_event(detections=[det]))
@@ -157,7 +158,7 @@ class TestLocationWriter:
     async def test_multiple_persons_in_one_event(self) -> None:
         """An event with multiple detections writes state for each person."""
         repo = InMemoryLocationRepository()
-        writer = LocationWriter(lambda: repo)
+        writer = LocationWriter(lambda: repo, authority=SourceAuthority())
 
         await writer.apply(
             _make_event(
@@ -190,7 +191,7 @@ class TestLocationWriter:
 
         # Use a stale event_time (5s ago) so it's not newer than the current state.
         stale_time = datetime.now(UTC) - timedelta(seconds=5)
-        writer = LocationWriter(lambda: repo)
+        writer = LocationWriter(lambda: repo, authority=SourceAuthority())
         await writer.apply(
             _make_event(
                 room_name="kitchen",
@@ -218,7 +219,7 @@ class TestLocationWriter:
         prior = repo._states["alice"]
         prior.last_seen_at = datetime.now(UTC)
 
-        writer = LocationWriter(lambda: repo)
+        writer = LocationWriter(lambda: repo, authority=SourceAuthority())
         await writer.apply(
             _make_event(
                 room_name="kitchen",

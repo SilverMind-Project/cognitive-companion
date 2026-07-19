@@ -16,6 +16,13 @@ are:
    row written for the transition (``direction_semantic``, ``from_room_*``).
 2. Returned to the caller in :class:`CameraEventResult` for use by downstream
    pipeline steps (e.g. to populate ``pipeline_data["room_transitions"]``).
+
+M38: every confirmed camera detection also writes through
+:class:`~backend.services.person_location.recamera_ingest.RecameraLocationIngest`
+into ``PersonLocationService`` (the unified SSOT), alongside the legacy
+``PersonSighting``/``PersonLocationState`` writes below -- a deliberate
+double-write bridge, not a replacement, so a later milestone can delete the
+legacy half once the SSOT path has soaked.
 """
 
 from __future__ import annotations
@@ -42,6 +49,9 @@ from backend.models.person import (
 from backend.models.sensor import Sensor
 from backend.services.camera_topology import RoomTransition, infer_room_transition
 from backend.services.cts.source_authority import SourceAuthority
+from backend.services.person_location.recamera_ingest import RecameraLocationIngest
+from backend.services.person_location.service import PersonLocationService
+from backend.services.person_location.types import is_unknown_bucket
 
 logger = get_logger(__name__)
 
@@ -136,14 +146,18 @@ class PersonTrackingService:
         db_session_factory,
         person_id_client: PersonIDClient,
         ha_client: HomeAssistantClient,
+        authority: SourceAuthority,
         ws_manager=None,
-        authority: SourceAuthority | None = None,
+        recamera_ingest: RecameraLocationIngest | None = None,
+        person_location_service: PersonLocationService | None = None,
     ) -> None:
         self._db_factory = db_session_factory
         self._person_id = person_id_client
         self._ha = ha_client
         self._ws_manager = ws_manager
-        self._authority = authority or SourceAuthority()
+        self._authority = authority
+        self._recamera_ingest = recamera_ingest
+        self._location = person_location_service
         self._stale_minutes: int = settings.as_int("person_tracking.location_stale_minutes")
         self._ha_propagation: bool = settings.as_bool("person_tracking.ha_propagation")
         self._min_confidence: float = settings.as_float("person_id.min_confidence")
@@ -304,6 +318,20 @@ class PersonTrackingService:
                         source="camera",
                         room_transition=transition_by_person.get(det.person_id),
                     )
+
+                # M38 Part D: SSOT write, alongside (not instead of) the
+                # legacy writes above -- the deliberate double-write bridge
+                # that lets a later milestone delete the legacy half once
+                # this soaks. Unconditional: record_sightings/record_presence
+                # are legacy-table-only knobs, not gates on the SSOT.
+                if self._recamera_ingest is not None:
+                    await self._recamera_ingest.ingest(
+                        person_id=det.person_id,
+                        sensor_id=det_sensor_id,
+                        room_name=det_room_name,
+                        confidence=det.confidence,
+                        raw_similarity=det.similarity,
+                    )
         finally:
             db.close()
 
@@ -341,7 +369,26 @@ class PersonTrackingService:
             db.close()
 
     async def _correlate_presence_sensor(self, sensor: Sensor, db: Session) -> None:
-        """Infer person identity when a binary presence sensor reads "on"."""
+        """Infer person identity when a binary presence sensor reads "on".
+
+        M38 Part E: candidate discovery moves onto the SSOT
+        (``PersonLocationService.recent_observations``, world_tracker +
+        recamera_vlm, same 10-minute window the legacy ``PersonSighting``
+        query used) and the already-in-room / fresh-elsewhere skip checks
+        re-express against ``where_is``/``latest_observation`` -- decision
+        semantics unchanged, only the data source moves (M32 discipline).
+        The legacy ``_record_sighting``/``_update_location_state`` writes
+        stay as the deliberate double-write bridge (Part D.2's rule); this
+        method additionally writes through to the SSOT
+        (``source="sensor"``), letting the arbiter's priority-40 handoff
+        reproduce the "HA writes only when cameras are quiet" behavior
+        ``SourceAuthority`` used to provide, now in one place.
+
+        Candidates from the unknown bucket (W7) are skipped: they surface as
+        real observation rows (audit parity) but must never gain a segment
+        or correlation, or every unidentified visitor collapses onto one
+        open segment.
+        """
         ha_entity = sensor.ha_entity_id or f"binary_sensor.{sensor.id}_person_information"
 
         try:
@@ -353,42 +400,44 @@ class PersonTrackingService:
         if state != "on":
             return
 
+        if self._location is None:
+            return
+
         room_name = sensor.room.name if sensor.room else "Unknown"
+        room_id = sensor.room.id if sensor.room is not None else None
         now = datetime.now(UTC)
         cutoff = now - timedelta(minutes=10)
 
-        recent_sightings = (
-            db.query(PersonSighting)
-            .filter(
-                PersonSighting.timestamp >= cutoff,
-                PersonSighting.source == "camera",
-            )
-            .order_by(desc(PersonSighting.timestamp))
-            .limit(20)
-            .all()
+        recent = await self._location.recent_observations(
+            cutoff, sources=("world_tracker", "recamera_vlm"), limit=20
         )
-        if not recent_sightings:
+        if not recent:
             return
 
-        for sighting in recent_sightings:
-            loc_state = (
-                db.query(PersonLocationState)
-                .filter(PersonLocationState.person_id == sighting.person_id)
-                .first()
-            )
-            if loc_state and loc_state.current_room_name == room_name:
+        seen: set[str] = set()
+        for obs in recent:
+            person_id = obs.person_id
+            if person_id in seen:
                 continue
-            if (
-                loc_state
-                and loc_state.current_room_name != room_name
-                and loc_state.last_seen_at
-                and (now - loc_state.last_seen_at).total_seconds() < 60
-            ):
+            seen.add(person_id)
+            if is_unknown_bucket(person_id):
+                # W7: the unknown bucket is a merged pseudo-person shared by
+                # every unidentified visitor. HA correlation can't
+                # meaningfully single one out, and opening a segment for it
+                # would churn one open segment across all of them.
                 continue
+
+            current = await self._location.where_is(person_id)
+            if current is not None and room_id is not None and current.room_id == room_id:
+                continue  # already correctly placed
+            if current is not None and (room_id is None or current.room_id != room_id):
+                latest = await self._location.latest_observation(person_id)
+                if latest is not None and (now - latest.observed_at).total_seconds() < 60:
+                    continue  # fresh elsewhere, don't override
 
             await self._record_sighting(
                 db=db,
-                person_id=sighting.person_id,
+                person_id=person_id,
                 sensor_id=sensor.id,
                 room_name=room_name,
                 confidence=0.6,
@@ -398,11 +447,19 @@ class PersonTrackingService:
             )
             await self._update_location_state(
                 db=db,
-                person_id=sighting.person_id,
+                person_id=person_id,
                 room_name=room_name,
                 sensor_id=sensor.id,
                 confidence=0.6,
                 source="ha_sensor",
+            )
+            await self._location.ingest_observation(
+                person_id=person_id,
+                observed_at=now,
+                source="sensor",
+                confidence=0.6,
+                room_id=room_id,
+                metadata={"sensor_id": sensor.id, "room_name": room_name},
             )
             break
 

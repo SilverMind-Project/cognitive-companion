@@ -2,12 +2,19 @@
 
 Moved verbatim from ``backend/main.py``'s lifespan (M20): the orchestrator
 and ingress-admin clients, PH enrichment/keyframe-read/identity-correction
-/ReID-review services, the gait trend service, ``PersonLocationService``,
-``CTSRuntime`` and its subscribers, the drift-detection poll job, and (via
+/ReID-review services, the gait trend service, ``CTSRuntime`` and its
+subscribers, the drift-detection poll job, and (via
 ``bootstrap.presence.wire_presence``, called from inside the enabled
 branch at the exact point the original source calls it) ``PresenceService``.
 ``wire_cts_disabled`` is the ``else`` side of the same ``if`` in the
 original source.
+
+M38 Part A moved ``PersonLocationService`` construction to
+``perception.wire_perception`` (it depends only on ``get_session``, nothing
+CTS-specific); this phase now only reads ``app.state.person_location_service``
+to wire it into the CTS-gated subscribers (``WorldObservationSubscriber``,
+``RoomTransitionSubscriber``, ``PHContinuationSubscriber``) that remain
+CTS-gated.
 
 **Known pre-existing gap, not fixed here** (see
 ``backend/tests/test_bootstrap_wiring.py`` for the empirical confirmation):
@@ -49,11 +56,6 @@ async def wire_cts(
     from backend.services.cts.event_bucketizer import BucketizerRateConfig
     from backend.services.cts.ph_enrichment import PHEnrichmentService
     from backend.services.cts.runtime import CTSRuntime, CTSRuntimeConfig
-    from backend.services.person_location.repositories import (
-        SqlAlchemyObservationRepository,
-        SqlAlchemySegmentRepository,
-    )
-    from backend.services.person_location.service import PersonLocationService
 
     ws_manager = app.state.ws_manager
     pipeline_executor = app.state.pipeline_executor
@@ -61,12 +63,14 @@ async def wire_cts(
     scene_analysis_client = app.state.scene_analysis_client
     semantic_memory_client = app.state.semantic_memory_client
     occupancy_read_model = app.state.occupancy_read_model
-    companion_surface_service = app.state.companion_surface_service
     zone_service = app.state.zone_service
     guided_task_service = app.state.guided_task_service
     signals_service = app.state.signals
     scheduler = app.state.scheduler
     shared_authority = app.state.source_authority
+    # Constructed unconditionally by perception.wire_perception (M38 Part A);
+    # this phase only consumes it for the CTS subscribers below.
+    person_location_service = app.state.person_location_service
 
     app.state.ingress_admin_client = IngressAdminClient()
     app.state.orchestrator_client = OrchestratorClient()
@@ -93,25 +97,6 @@ async def wire_cts(
 
     redis_url = settings.as_str("redis.url", allow_empty=False)
     consumer_id = settings.as_str("cts.consumer_id", allow_empty=False)
-
-    # PersonLocationService with session-aware repos.
-    # Each repo method opens a short-lived session via the factory,
-    # committing and closing after each operation so that TimescaleDB
-    # chunk-creation locks are never held across idle periods.
-    def _make_pls() -> PersonLocationService:
-        return PersonLocationService(
-            obs_repo=SqlAlchemyObservationRepository(get_session),
-            seg_repo=SqlAlchemySegmentRepository(get_session),
-        )
-
-    person_location_service = _make_pls()
-    app.state.person_location_service = person_location_service
-    container.person_location = person_location_service
-    companion_surface_service.set_person_location_service(person_location_service)
-    zone_service.set_person_location_service(person_location_service)
-    guided_task_service.set_person_location_service(person_location_service)
-    app.state.activity_timeline_service.set_person_location_service(person_location_service)
-    app.state.daily_report_service.set_person_location_service(person_location_service)
 
     # M4 subscribers (world-observation, room-transition, ph-continuation)
     # are constructed and owned by CTSRuntime, which wires the camera→room
@@ -219,5 +204,6 @@ def wire_cts_disabled(app: FastAPI) -> None:
     app.state.dementia_signal_subscriber = None
     app.state.tracking_event_subscriber = None
     app.state.identity_revision_subscriber = None
-    app.state.person_location_service = None
+    # person_location_service is NOT nulled: perception.wire_perception
+    # constructs it unconditionally (M38 Part A), before this function runs.
     app.state.gait_trend_service = None

@@ -42,12 +42,14 @@ async def lifespan(app: FastAPI):
     )
 
     # -- CTS gateway clients + runtime (gated by cts.enabled) --------------
-    # These five attributes are set unconditionally here, then immediately
+    # These four attributes are set unconditionally here, then immediately
     # overwritten by whichever branch below runs -- matching main.py's own
     # pre-branch defaults (harmless: nothing reads them in between).
+    # person_location_service is NOT included: perception.wire_perception
+    # already constructed it unconditionally (M38 Part A), and neither
+    # branch below may null it back out.
     cts_runtime = None
     app.state.ph_enrichment_service = None
-    app.state.person_location_service = None
     app.state.keyframe_read_service = None
     app.state.identity_correction_service = None
     app.state.reid_review_service = None

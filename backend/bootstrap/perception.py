@@ -7,6 +7,16 @@ aggregator; activity session/domain services; daily report; interactive
 response; signals; companion-surface/zone registries; the unified signals
 feed; and the occupancy read-model.
 
+M38 Part A un-gated ``PersonLocationService`` from ``cts.enabled``: it is
+constructed here (unconditionally, depends only on ``get_session``) instead
+of inside ``bootstrap/cts.py``, and wired directly into
+``companion_surface_service``, ``zone_service``, and ``daily_report_service``
+at construction time since all three are also built in this phase.
+``activity_timeline_service`` (built in ``pipeline.wire_executor_and_workflow``)
+and ``guided_task_service`` (built in ``guided_task.wire_guided_task``) read
+``app.state.person_location_service`` directly at their own construction
+time instead.
+
 Sits between the ``ServiceContainer``+``RulesEngine`` construction and the
 pipeline executor in the original source (both of which need the fields
 this phase assigns onto the shared container), so ``lifespan.py`` calls it
@@ -103,6 +113,64 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     )
     app.state.source_authority = shared_authority
 
+    # -- PersonLocationService (M38 Part A: un-gated from cts.enabled) -----
+    # The SSOT depends only on get_session; nothing about it is CTS-specific.
+    # Each repo method opens a short-lived session via the factory,
+    # committing and closing after each operation so that TimescaleDB
+    # chunk-creation locks are never held across idle periods.
+    from backend.services.person_location.config import PersonLocationConfig
+    from backend.services.person_location.repositories import (
+        SqlAlchemyObservationRepository,
+        SqlAlchemySegmentRepository,
+    )
+    from backend.services.person_location.service import PersonLocationService
+
+    pl_settings = settings.as_dict("person_location")
+    person_location_config = PersonLocationConfig(
+        inferred_dwell_max_s=pl_settings.get("inferred_dwell_max_s", 14400.0),
+        revision_horizon_s=pl_settings.get("revision_horizon_s", 600.0),
+        arbitration_staleness_s=pl_settings.get("arbitration_staleness_s", 30.0),
+        quiet_gap_world_tracker_s=pl_settings.get("quiet_gap_world_tracker_s", 300.0),
+        quiet_gap_recamera_vlm_s=pl_settings.get("quiet_gap_recamera_vlm_s", 2700.0),
+        quiet_gap_sensor_s=pl_settings.get("quiet_gap_sensor_s", 1800.0),
+    )
+    person_location_service = PersonLocationService(
+        obs_repo=SqlAlchemyObservationRepository(get_session),
+        seg_repo=SqlAlchemySegmentRepository(get_session),
+        config=person_location_config,
+    )
+    app.state.person_location_service = person_location_service
+    container.person_location = person_location_service
+
+    # -- reCamera location ingest adapter (M38 Part D, decision W7) --------
+    # The single seam that writes reCamera-identified detections to the
+    # SSOT and publishes the identity-assertion face-anchor. Always
+    # constructed (reCamera identification is not CTS-gated); the assertion
+    # publisher itself needs Redis, so it is only real when redis.url is
+    # configured, and publishing is separately flag-gated (default off,
+    # see cts.identity_assertions.publish_enabled in settings.yaml).
+    from backend.services.person_location.recamera_ingest import RecameraLocationIngest
+
+    redis_url = settings.as_str("redis.url", allow_empty=True)
+    identity_assertion_publisher = None
+    if redis_url:
+        import redis.asyncio as aioredis
+
+        from backend.services.cts.identity_assertion_publisher import (
+            IdentityAssertionPublisher,
+        )
+
+        identity_assertion_publisher = IdentityAssertionPublisher(
+            aioredis.from_url(redis_url, decode_responses=False)
+        )
+    recamera_location_ingest = RecameraLocationIngest(
+        db_factory=get_session,
+        location_service=person_location_service,
+        assertion_publisher=identity_assertion_publisher,
+        publish_assertions=settings.as_bool("cts.identity_assertions.publish_enabled"),
+    )
+    app.state.recamera_location_ingest = recamera_location_ingest
+
     # -- Person tracking service -------------------------------------------
     from backend.services.person_tracking import PersonTrackingService
 
@@ -112,6 +180,8 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
         ha_client=ha_client,
         ws_manager=ws_manager,
         authority=shared_authority,
+        recamera_ingest=recamera_location_ingest,
+        person_location_service=person_location_service,
     )
     app.state.person_tracking = person_tracking
     container.person_tracking = person_tracking
@@ -152,7 +222,9 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     # -- Daily report service ----------------------------------------------
     from backend.services.daily_report import DailyReportService
 
-    daily_report_service = DailyReportService(get_session, person_location_service=None)
+    daily_report_service = DailyReportService(
+        get_session, person_location_service=person_location_service
+    )
     app.state.daily_report_service = daily_report_service
     container.daily_report_service = daily_report_service
 
@@ -180,12 +252,12 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
 
     companion_surface_service = CompanionSurfaceService(
         db_factory=get_session,
-        person_location_service=None,
+        person_location_service=person_location_service,
     )
     app.state.companion_surface_service = companion_surface_service
     zone_service = ZoneService(
         db_factory=get_session,
-        person_location_service=None,
+        person_location_service=person_location_service,
     )
     app.state.zone_service = zone_service
 

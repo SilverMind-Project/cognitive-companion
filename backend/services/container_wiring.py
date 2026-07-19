@@ -38,6 +38,10 @@ ALWAYS_REQUIRED: frozenset[str] = frozenset(
         "minio_client",
         "guided_task",
         "camera_source_resolver",
+        # M38 Part A: PersonLocationService is constructed unconditionally by
+        # perception.wire_perception (depends only on get_session), so it is
+        # no longer gated behind cts.enabled.
+        "person_location",
     }
 )
 
@@ -49,7 +53,7 @@ ALWAYS_REQUIRED: frozenset[str] = frozenset(
 # unconfigured, and the dependent features are documented to degrade
 # gracefully in that case.
 REQUIRED_WHEN: dict[str, frozenset[str]] = {
-    "cts": frozenset({"person_location", "presence", "bucketizer"}),
+    "cts": frozenset({"presence", "bucketizer"}),
 }
 
 

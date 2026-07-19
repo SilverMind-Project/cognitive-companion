@@ -24,6 +24,7 @@ from .segment_state_machine import (
     SegmentDecision,
     decide,
 )
+from .source_arbitration import arbitrate
 from .types import (
     CurrentLocation,
     FloorPoint,
@@ -64,8 +65,16 @@ class PersonLocationService:
         confidence: float = 0.5,
         quality: float = 0.0,
         metadata: dict[str, object] | None = None,
+        skip_segment: bool = False,
     ) -> None:
-        """Ingest a single observation and update segments."""
+        """Ingest a single observation and update segments.
+
+        ``skip_segment`` (M38 Part D): records the observation row for
+        audit parity but never opens/moves a segment for it, even when
+        ``room_id`` is given. Used for the reCamera unknown bucket (a
+        merged pseudo-person, not an identity) so it never holds a room
+        open or accumulates a fake dwell.
+        """
         obs = LocationObservation(
             id=uuid4(),
             person_id=person_id,
@@ -80,10 +89,38 @@ class PersonLocationService:
         )
         await self._obs.insert(obs)
 
-        if room_id is None:
+        if room_id is None or skip_segment:
             return
 
         open_seg = await self._seg.get_open(person_id)
+
+        # M38: arbitrate only when the incoming observation would change the
+        # open segment's room -- a same-room repeat is a refresh, never
+        # contested. Suppressing here (not in decide()) keeps the state
+        # machine pure; the observation row above is unaffected either way
+        # (full-fidelity audit trail).
+        if open_seg is not None and open_seg.room_id != room_id:
+            last_source = open_seg.metadata.get("last_source")
+            last_evidence_at = open_seg.last_observed_at or open_seg.entered_at
+            verdict = arbitrate(
+                incoming_source=source,
+                incoming_at=observed_at,
+                last_evidence_source=last_source,  # type: ignore[arg-type]
+                last_evidence_at=last_evidence_at,
+                staleness_s=self._cfg.arbitration_staleness_s,
+            )
+            if not verdict.allowed:
+                logger.info(
+                    "location_ingest_arbitrated",
+                    person_id=person_id,
+                    incoming_source=source,
+                    last_evidence_source=last_source,
+                    reason=verdict.reason,
+                    incoming_room_id=room_id,
+                    open_segment_room_id=open_seg.room_id,
+                )
+                return
+
         event = IncomingEvent(
             kind=EventKind.OBSERVATION,
             person_id=person_id,
@@ -92,6 +129,7 @@ class PersonLocationService:
             confidence=confidence,
             quality=quality,
             source_ref=source_ref,
+            source=source,
             metadata=dict(metadata or {}),
         )
         decision = decide(open_seg, event, self._cfg.inferred_dwell_max_s)
@@ -118,6 +156,9 @@ class PersonLocationService:
             at=event_time,
             confidence=0.85,
             source_ref=transit_zone_id,
+            # Room transitions are CTS-only (RoomTransitionSubscriber), so
+            # this is always the dense, highest-priority source.
+            source="world_tracker",
             metadata={"transit_zone_id": transit_zone_id, "direction": direction},
         )
         decision = decide(open_seg, event, self._cfg.inferred_dwell_max_s)
@@ -153,6 +194,7 @@ class PersonLocationService:
             room_id=room_id,
             at=entered_at,
             confidence=1.0,
+            source="manual",
             metadata=meta,
         )
         decision = decide(open_seg, event, self._cfg.inferred_dwell_max_s)
@@ -240,6 +282,8 @@ class PersonLocationService:
             at=handoff_time,
             confidence=0.85,
             source_ref=successor_ph_id,
+            # PH continuation is CTS-only (world-tracker PH handoff).
+            source="world_tracker",
             metadata={
                 "continuation_from": str(predecessor_person_id),
                 "successor_ph_id": successor_ph_id,
@@ -427,6 +471,23 @@ class PersonLocationService:
             obs = [o for o in obs if o.source in sources]
         return tuple(obs)
 
+    async def recent_observations(
+        self,
+        since: datetime,
+        *,
+        sources: tuple[SourceTag, ...] | None = None,
+        limit: int = 20,
+    ) -> tuple[LocationObservation, ...]:
+        """Most recent observations across every person, since ``since``.
+
+        Unlike ``observations()``, not scoped to a person -- backs HA
+        presence-sensor correlation (M38 Part E), which discovers *which*
+        person to correlate from recent camera activity rather than being
+        told one up front.
+        """
+        obs = await self._obs.list_recent(since, sources=sources, limit=limit)
+        return tuple(obs)
+
     async def bucketed_observations(
         self,
         person_id: str,
@@ -458,13 +519,14 @@ class PersonLocationService:
     async def latest_observation(self, person_id: str) -> LocationObservation | None:
         """Most recent observation for a person, regardless of room or floor point.
 
-        Unlike ``where_is()``'s open segment -- frozen at entry time because
-        the state machine no-ops a same-room repeat observation
-        (``segment_state_machine.decide``) -- this reflects the freshest raw
-        observation timestamp and its resolved room name. Use this for
+        As of M38, a same-room repeat observation refreshes the open
+        segment's ``last_observed_at``/``confidence``/``quality``
+        (``segment_state_machine.decide``'s refresh branch), so
+        ``where_is()``'s segment is no longer frozen at entry time either.
+        This method remains the freshest raw observation timestamp and its
+        resolved room name regardless of segment state -- use it for
         presence-provider staleness and "last known room" queries, which
-        must keep updating even while a person sits still in one room, and
-        must still answer after their segment has closed or timed out.
+        must still answer after a segment has closed or quiet-timed-out.
         """
         return await self._obs.latest_observation(
             person_id, since=datetime.min.replace(tzinfo=UTC)
@@ -475,13 +537,20 @@ class PersonLocationService:
     # ------------------------------------------------------------------
 
     async def tick(self, now: datetime) -> list[dict[str, Any]]:
-        """Evaluate timeout for every open inferred segment.
+        """Evaluate timeout for every open segment.
 
-        Fires a TIMEOUT_TICK event for each open inferred segment. When a
+        Inferred segments: unchanged camera-blind-dwell timeout. When a
         segment's age exceeds ``inferred_dwell_max_s``, the state machine
         closes it and this method appends an ``inferred_dwell_exceeded``
-        signal dict to the return list. The caller (CTSRuntime) is
-        responsible for persisting those signals to the signal store.
+        signal dict to the return list. The caller is responsible for
+        persisting those signals to the signal store.
+
+        Observed (or manual) segments (M38 Part C): per-source quiet-gap
+        closure. A segment whose last-recorded source has gone quiet longer
+        than its configured gap (``PersonLocationConfig.quiet_gap_s``) is
+        closed with ``exit_source="timeout"`` and **no signal** -- this is
+        expected lifecycle for a sparse source, not a care event. A manual
+        override, or a segment with no recorded source, never ages here.
 
         Returns a (possibly empty) list of signal dicts ready for
         ``SignalStore.upsert()``.
@@ -490,8 +559,10 @@ class PersonLocationService:
         signals: list[dict[str, Any]] = []
 
         for seg in open_segments:
-            if not seg.is_inferred:
-                continue
+            last_source = seg.metadata.get("last_source")
+            quiet_gap_s = self._cfg.quiet_gap_s(
+                last_source if isinstance(last_source, str) else None
+            )
 
             event = IncomingEvent(
                 kind=EventKind.TIMEOUT_TICK,
@@ -500,40 +571,55 @@ class PersonLocationService:
                 at=now,
                 confidence=seg.confidence,
             )
-            decision = decide(seg, event, self._cfg.inferred_dwell_max_s)
+            decision = decide(seg, event, self._cfg.inferred_dwell_max_s, quiet_gap_s=quiet_gap_s)
+            if not decision.closes:
+                # No-op for this segment (quiet gap not yet exceeded, or
+                # exempt): skip the write path entirely rather than opening
+                # an empty transaction for every open segment on every tick.
+                continue
             await self._apply_decision(decision)
 
-            if decision.closes:
-                dwell_s = (now - seg.entered_at).total_seconds()
-                signal_id = str(
-                    uuid.uuid5(
-                        uuid.NAMESPACE_URL,
-                        f"{seg.person_id}\x00inferred_dwell_exceeded"
-                        f"\x00{seg.entered_at.isoformat()}\x00{now.isoformat()}",
-                    )
-                )
-                signals.append(
-                    {
-                        "signal_id": signal_id,
-                        "person_id": seg.person_id,
-                        "signal_type": "inferred_dwell_exceeded",
-                        "severity": "warning",
-                        "window_start": seg.entered_at.isoformat(),
-                        "window_end": now.isoformat(),
-                        "value": dwell_s,
-                        "baseline": self._cfg.inferred_dwell_max_s,
-                        "z_score": None,
-                        "context_json": None,
-                        "algorithm_version": 1,
-                    }
-                )
-                logger.warning(
-                    "inferred_dwell_exceeded",
+            if not seg.is_inferred:
+                # Quiet-gap closure: normal lifecycle, no signal (Part C).
+                logger.info(
+                    "person_location_quiet_closed",
                     person_id=seg.person_id,
                     room_id=seg.room_id,
-                    dwell_s=dwell_s,
-                    threshold_s=self._cfg.inferred_dwell_max_s,
+                    last_source=last_source,
+                    quiet_gap_s=quiet_gap_s,
                 )
+                continue
+
+            dwell_s = (now - seg.entered_at).total_seconds()
+            signal_id = str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"{seg.person_id}\x00inferred_dwell_exceeded"
+                    f"\x00{seg.entered_at.isoformat()}\x00{now.isoformat()}",
+                )
+            )
+            signals.append(
+                {
+                    "signal_id": signal_id,
+                    "person_id": seg.person_id,
+                    "signal_type": "inferred_dwell_exceeded",
+                    "severity": "warning",
+                    "window_start": seg.entered_at.isoformat(),
+                    "window_end": now.isoformat(),
+                    "value": dwell_s,
+                    "baseline": self._cfg.inferred_dwell_max_s,
+                    "z_score": None,
+                    "context_json": None,
+                    "algorithm_version": 1,
+                }
+            )
+            logger.warning(
+                "inferred_dwell_exceeded",
+                person_id=seg.person_id,
+                room_id=seg.room_id,
+                dwell_s=dwell_s,
+                threshold_s=self._cfg.inferred_dwell_max_s,
+            )
 
         return signals
 
@@ -543,6 +629,8 @@ class PersonLocationService:
 
     async def _apply_decision(self, decision: SegmentDecision) -> None:
         """Apply a segment decision atomically."""
+        for refresh in decision.refreshes:
+            await self._seg.update(refresh.segment)
         await self._seg.apply_decision(
             writes=[sw.segment for sw in decision.writes],
             closes=[(sc.segment_id, sc.exited_at, sc.exit_source) for sc in decision.closes],

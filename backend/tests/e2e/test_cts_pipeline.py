@@ -42,6 +42,7 @@ from backend.services.cts.identity_revision_subscriber import IdentityRevisionSu
 from backend.services.cts.identity_rewriter import IdentityRewriter
 from backend.services.cts.location_repository import SqlAlchemyLocationRepository
 from backend.services.cts.location_writer import LocationWriter
+from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 
 # Base of the synthetic timeline (2024-12-27T13:20:00Z). Every wire timestamp
@@ -186,7 +187,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
         return SqlAlchemyLocationRepository(db_factory())
 
     ws_manager = _StubWSManager()
-    writer = LocationWriter(repo_factory=_repo_factory)
+    writer = LocationWriter(repo_factory=_repo_factory, authority=SourceAuthority())
     pipeline = _PipelineSpy()
     subscriber = TrackingEventSubscriber(
         redis_url="redis://ignored",

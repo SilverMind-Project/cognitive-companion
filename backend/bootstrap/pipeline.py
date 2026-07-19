@@ -133,9 +133,13 @@ def wire_executor_and_workflow(
     app.state.sensor_polling = sensor_polling
 
     # -- Activity timeline service -----------------------------------------
+    # person_location_service is always constructed by perception.wire_perception
+    # (M38 Part A), which runs before this phase.
     from backend.services.activity_timeline import ActivityTimelineService
 
-    activity_timeline_service = ActivityTimelineService(get_session, person_location_service=None)
+    activity_timeline_service = ActivityTimelineService(
+        get_session, person_location_service=app.state.person_location_service
+    )
     app.state.activity_timeline_service = activity_timeline_service
 
 

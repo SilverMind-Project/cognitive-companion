@@ -107,6 +107,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "pipeline_run_service",
         "pipeline_ws_manager",
         "realtime_provider",
+        "recamera_location_ingest",
         "reid_review_service",
         "scene_analysis_client",
         "scene_intel",
@@ -283,6 +284,13 @@ def test_lifespan_wires_exactly_the_frozen_app_state_attributes(
             )
             assert not missing, drift_message
             assert not extra, drift_message
+
+            # M38 Part A: PersonLocationService is un-gated from cts.enabled --
+            # this boot runs with cts.enabled=false, so a None here would mean
+            # the un-gating regressed back to CTS-only construction.
+            assert main_module.app.state.person_location_service is not None, (
+                "person_location_service must be constructed even with cts.enabled=false"
+            )
     finally:
         auth_module._DECLARED_TOKENS.clear()
         auth_module._DECLARED_TOKENS.update(original_declared_tokens)

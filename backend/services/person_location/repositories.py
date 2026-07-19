@@ -72,6 +72,12 @@ class ObservationRepository(Protocol):
     async def list_for_source_ref(
         self, source_ref: str, since: datetime, until: datetime
     ) -> list[LocationObservation]: ...
+    async def list_recent(
+        self,
+        since: datetime,
+        sources: tuple[SourceTag, ...] | None = None,
+        limit: int = 20,
+    ) -> list[LocationObservation]: ...
     async def list_heatmap_bins(
         self,
         person_id: str,
@@ -203,6 +209,20 @@ class InMemoryObservationRepository:
             for o in self._rows.values()
             if o.source_ref == source_ref and since <= o.observed_at <= until
         ]
+
+    async def list_recent(
+        self,
+        since: datetime,
+        sources: tuple[SourceTag, ...] | None = None,
+        limit: int = 20,
+    ) -> list[LocationObservation]:
+        matching = [
+            o
+            for o in self._rows.values()
+            if o.observed_at >= since and (sources is None or o.source in sources)
+        ]
+        matching.sort(key=lambda o: o.observed_at, reverse=True)
+        return matching[:limit]
 
     async def list_heatmap_bins(
         self,
@@ -495,6 +515,32 @@ class SqlAlchemyObservationRepository:
                 .all()
             )
         return [_obs_to_domain(r) for r in rows]
+
+    async def list_recent(
+        self,
+        since: datetime,
+        sources: tuple[SourceTag, ...] | None = None,
+        limit: int = 20,
+    ) -> list[LocationObservation]:
+        """Most recent observations across every person (M38 Part E).
+
+        Backs HA presence-sensor correlation: unlike every other query here,
+        this is deliberately not scoped to one person -- the caller doesn't
+        know which person to look for yet, only which room just went
+        occupied.
+        """
+        with transaction(self._db_factory) as db:
+            stmt = (
+                select(LOObs, Room.name)
+                .outerjoin(Room, LOObs.room_id == Room.id)
+                .where(LOObs.observed_at >= since)
+            )
+            if sources is not None:
+                stmt = stmt.where(LOObs.source.in_(sources))
+            rows = db.execute(
+                stmt.order_by(LOObs.observed_at.desc()).limit(limit)
+            ).all()
+        return [_obs_to_domain(r[0], room_name=r[1]) for r in rows]
 
     async def list_heatmap_bins(
         self,

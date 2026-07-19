@@ -9,6 +9,11 @@ every ``scheduler.add_job`` call, the telegram trigger service, and
 ``scheduler.start()``. See ``bootstrap/README.md`` for the exact source
 line range and the reasoning.
 
+M38 Part A also moved the person-location inferred-dwell/quiet-gap tick
+job here as a scheduler ``add_job`` (previously an asyncio task owned by
+``CTSRuntime`` and only running when ``cts.enabled``), since this module
+already owns every unconditional job registration.
+
 Wave-3 addendum note: the two private reach-ins the wave-3 M20 addendum
 flagged (``GateGraphRunner(services=pipeline_executor._services, ...)`` and
 ``pipeline_executor._services.guided_task = ...``) were already resolved by
@@ -63,6 +68,7 @@ async def wire_guided_task(
     person_tracking = app.state.person_tracking
     telegram_client = app.state.telegram_client
     knowledge_ingestion = app.state.knowledge_ingestion
+    person_location_service = app.state.person_location_service
 
     # -- Guided task service (headless M3 runtime) -------------------------
     from backend.mcp.server import set_guided_task_service
@@ -101,6 +107,7 @@ async def wire_guided_task(
         db_factory=get_session,
         scheduler=scheduler_bridge,
         pipeline_executor=pipeline_executor,
+        person_location_service=person_location_service,
         zone_service=zone_service,
         bucketizer=None,
         camera_topology=guided_camera_topology,
@@ -229,6 +236,38 @@ async def wire_guided_task(
         replace_existing=True,
     )
     logger.info("knowledge_reembed_job_scheduled", interval_minutes=10)
+
+    # -- Person-location tick (M38 Part A): inferred-dwell timeout +
+    # per-source quiet-gap segment closure. Previously an asyncio task owned
+    # by CTSRuntime (only running when cts.enabled); now on the shared
+    # scheduler since PersonLocationService is always constructed.
+    from backend.services.cts.signal_store import SignalStore
+
+    _PERSON_LOCATION_TICK_INTERVAL_S = 60
+
+    async def _run_person_location_tick() -> None:
+        from datetime import UTC
+        from datetime import datetime as dt
+
+        signals = await person_location_service.tick(dt.now(UTC))
+        if not signals:
+            return
+        store = SignalStore(db_factory=get_session)
+        for sig in signals:
+            await store.upsert(sig)
+            logger.info(
+                "inferred_dwell_signal_persisted",
+                person_id=sig.get("person_id"),
+                signal_type=sig.get("signal_type"),
+            )
+
+    scheduler.add_job(
+        _run_person_location_tick,
+        trigger=IntervalTrigger(seconds=_PERSON_LOCATION_TICK_INTERVAL_S),
+        id="person_location_tick",
+        name="Person-location inferred-dwell timeout and quiet-segment closure",
+        replace_existing=True,
+    )
 
     scheduler.start()
     logger.info("Scheduler started")

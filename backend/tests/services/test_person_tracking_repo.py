@@ -21,6 +21,7 @@ from backend.models.person import (
 )
 from backend.models.room import Room
 from backend.services.camera_topology import RoomTransition
+from backend.services.cts.source_authority import SourceAuthority
 from backend.services.person_tracking import PersonTrackingService
 
 
@@ -39,6 +40,7 @@ def service(db_factory):
         db_session_factory=db_factory,
         person_id_client=_FakePersonID(),  # type: ignore[arg-type]
         ha_client=_FakeHA(),  # type: ignore[arg-type]
+        authority=SourceAuthority(),
         ws_manager=None,
     )
 

@@ -1,6 +1,8 @@
 import { ref, computed, watch } from "vue";
 import { cts } from "@/services/cts";
 
+import { toSvgPoints } from "@/components/cts/floor/coverageFalloff.js";
+
 /**
  * Camera-coverage polygons overlay. Owned by the orchestrator (not the
  * coverage panel) because `watch(mode)` lazy-loads on first entry into
@@ -36,12 +38,7 @@ export function useFloorPlanCoverage(mode, notify) {
   }
 
   function toCoverageSvgPoints(polygon) {
-    if (!coverageImgW.value || !coverageImgH.value) return "";
-    return polygon
-      .map(
-        ([x, y]) => `${(x * coverageImgW.value).toFixed(1)},${(y * coverageImgH.value).toFixed(1)}`,
-      )
-      .join(" ");
+    return toSvgPoints(polygon, coverageImgW.value, coverageImgH.value);
   }
 
   function coverageCentroid(polygon) {

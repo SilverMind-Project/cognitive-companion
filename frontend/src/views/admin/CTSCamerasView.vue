@@ -221,7 +221,11 @@
           </v-row>
           <v-divider class="mb-3" />
           <div class="text-subtitle-2 font-weight-medium mb-1">Placement</div>
-          <v-sheet border rounded class="pa-3 mb-3 d-flex align-center justify-space-between bg-surface-2">
+          <v-sheet
+            border
+            rounded
+            class="pa-3 mb-3 d-flex align-center justify-space-between bg-surface-2"
+          >
             <div>
               <div class="text-caption text-medium-emphasis">Map placement</div>
               <div class="font-weight-medium">
@@ -238,7 +242,12 @@
               >
                 Clear
               </v-btn>
-              <v-btn size="small" variant="tonal" prepend-icon="mdi-map-marker-radius" @click="openPlacementMap">
+              <v-btn
+                size="small"
+                variant="tonal"
+                prepend-icon="mdi-map-marker-radius"
+                @click="openPlacementMap"
+              >
                 Place on Map
               </v-btn>
             </div>
@@ -277,7 +286,9 @@
           </div>
           <v-spacer />
           <v-btn variant="text" @click="placementDialog = false">Cancel</v-btn>
-          <v-btn color="primary" variant="flat" :loading="savingMarker" @click="saveMarker">Save Placement</v-btn>
+          <v-btn color="primary" variant="flat" :loading="savingMarker" @click="saveMarker"
+            >Save Placement</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -400,7 +411,7 @@ const visibilityPolygons = ref(null);
 
 const placementStatusLabel = computed(() => {
   if (!editId.value || !visibilityPolygons.value) return "Unplaced";
-  const vp = visibilityPolygons.value.cameras.find(c => c.camera_id === editId.value);
+  const vp = visibilityPolygons.value.cameras.find((c) => c.camera_id === editId.value);
   if (vp?.marker) return "Operator Defined";
   if (vp?.marker_estimate) return "Derived Estimate";
   return "Unplaced";
@@ -408,7 +419,7 @@ const placementStatusLabel = computed(() => {
 
 const hasOperatorMarker = computed(() => {
   if (!editId.value || !visibilityPolygons.value) return false;
-  const vp = visibilityPolygons.value.cameras.find(c => c.camera_id === editId.value);
+  const vp = visibilityPolygons.value.cameras.find((c) => c.camera_id === editId.value);
   return !!vp?.marker;
 });
 
@@ -530,7 +541,7 @@ function openPlacementMap() {
     notify("Please save the camera first", "warning");
     return;
   }
-  const vp = visibilityPolygons.value.cameras.find(c => c.camera_id === editId.value);
+  const vp = visibilityPolygons.value.cameras.find((c) => c.camera_id === editId.value);
   activeMarker.value = vp?.marker ?? vp?.marker_estimate ?? null;
   newMarker.value = null;
   placementDialog.value = true;
@@ -551,7 +562,7 @@ async function saveMarker() {
     notify("Marker placement saved");
     placementDialog.value = false;
     await loadCameras(); // reload visibility polygons to get updated marker
-  } catch(e) {
+  } catch (e) {
     notify(e.message, "error");
   } finally {
     savingMarker.value = false;

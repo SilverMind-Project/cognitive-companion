@@ -75,6 +75,7 @@ class VerificationHandler(StepHandler):
                     "re_notify_if_failed": {"type": "boolean", "default": False},
                     "re_notify_delay_minutes": {"type": "number", "default": 5},
                 },
+                "additionalProperties": False,
             },
             default_config={
                 "conditions": [],
@@ -111,22 +112,6 @@ class VerificationHandler(StepHandler):
             "sensor_id": trigger.sensor_id or "",
         }
 
-        if "prompt" in config and not conditions:
-            logger.warning(
-                "verification_deprecated_config",
-                hint="verification no longer runs LLM prompts; "
-                "configure activity conditions instead",
-            )
-            return StepResult(
-                data={
-                    "verification": {
-                        "verified": False,
-                        "matched_conditions": [],
-                        "unmatched_conditions": [],
-                    }
-                },
-                should_continue=False,
-            )
 
         if not conditions:
             logger.info("verification_no_conditions")

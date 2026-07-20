@@ -106,7 +106,7 @@ def test_registry_resolves_media_window_poll() -> None:
 
 
 def test_legacy_alias_step_types_are_unregistered() -> None:
-    names = StepRegistry.type_names()
+    names = StepRegistry.all_names()
     assert "cts_window_poll" not in names
     assert "recamera_media_poll" not in names
 

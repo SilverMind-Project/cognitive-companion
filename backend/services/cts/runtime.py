@@ -113,7 +113,7 @@ class CTSRuntime:
 
         # Build camera→room mapping from the CtsCamera table at startup.
         # Cameras rarely change location, so this is loaded once and used
-        # by both LocationWriter (room_name fallback) and SceneSampleSubscriber.
+        # by SceneSampleSubscriber.
         camera_map = camera_room_map if camera_room_map is not None else {}
         if not camera_map and db_factory is not None:
             camera_map = _load_camera_room_map(db_factory)

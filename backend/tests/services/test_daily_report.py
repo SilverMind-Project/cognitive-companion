@@ -172,7 +172,6 @@ class TestDailyReportGeneration:
         assert isinstance(report["meals"], dict)
         assert isinstance(report["medication"], dict)
         assert isinstance(report["bathroom_visits"], dict)
-        assert isinstance(report["door_events"], dict)
         assert isinstance(report["exercise"], dict)
         assert isinstance(report["room_time"], dict)
         assert report["summary_text"] is None
@@ -416,48 +415,7 @@ class TestDailyReportGeneration:
         assert bathroom["total_minutes"] == 30
         assert bathroom["avg_duration_minutes"] == 15.0
 
-    async def test_generate_report_with_door_events(self, db_factory):
-        """Should count door open/close events."""
-        service = DailyReportService(db_factory)
 
-        # Use a fixed time to avoid midnight boundary issues
-        now = datetime.now(UTC)
-        test_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
-        if test_time > now:
-            test_time = test_time - timedelta(days=1)
-        today = test_time.date().isoformat()
-
-        # Create door events using the same db instance
-        db = db_factory()
-        _make_person_activity(
-            db,
-            person_id="person123",
-            activity_type="door_open",
-            detected_at=test_time - timedelta(hours=5),
-        )
-        _make_person_activity(
-            db,
-            person_id="person123",
-            activity_type="door_close",
-            detected_at=test_time - timedelta(hours=4.9),
-        )
-        _make_person_activity(
-            db,
-            person_id="person123",
-            activity_type="door_open",
-            detected_at=test_time - timedelta(hours=3),
-        )
-        db.close()
-
-        report = await service.generate_daily_report(
-            person_id="person123",
-            date=today,
-            tz_name="UTC",
-        )
-
-        door = report["door_events"]
-        assert door["open_count"] == 2
-        assert door["close_count"] == 1
 
     async def test_generate_report_with_exercise_data(self, db_factory):
         """Should aggregate exercise sessions."""

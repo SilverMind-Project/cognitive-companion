@@ -110,3 +110,14 @@ class TestRealRegistries:
         if not FilterRegistry.all_names():
             FilterRegistry.discover()
         assert FilterRegistry.get("room") is not None
+
+    def test_no_deprecated_aliases(self):
+        from backend.channels import ChannelRegistry
+        from backend.filters import FilterRegistry
+        from backend.steps import StepRegistry
+
+        for registry in (StepRegistry, ChannelRegistry, FilterRegistry):
+            for method_name in dir(registry):
+                method = getattr(registry, method_name)
+                if callable(method) and hasattr(method, "__doc__") and method.__doc__:
+                    assert "deprecated alias" not in method.__doc__, f"{registry.__name__}.{method_name} still has deprecated alias"

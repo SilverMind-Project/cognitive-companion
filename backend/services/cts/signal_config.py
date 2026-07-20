@@ -9,28 +9,19 @@ from __future__ import annotations
 
 from typing import Any
 
-ALL_SIGNAL_KINDS: tuple[str, ...] = (
-    "pacing",
-    "room_revisit_rate",
-    "bathroom_dwell_anomaly",
-    "sundowning_index",
-    "nighttime_movement",
-    "stillness_anomaly",
-    "absence",
-    "fall_suspected",
-    "gait_slowing",
-    "agitation_index",
-    # Signal kinds including those from the unified location service
+import cts_contracts
+
+CC_LOCAL_SIGNAL_KINDS: tuple[str, ...] = (
     "inferred_dwell_exceeded",
-    "presumed_location_unknown",
-    "identity_disagreement",
 )
+
+ALL_SIGNAL_KINDS = tuple(k.value for k in cts_contracts.DementiaSignalKind) + CC_LOCAL_SIGNAL_KINDS
 
 # Presence-only kinds that are relevant for everyone regardless of profile.
 _PRESENCE_KINDS: frozenset[str] = frozenset({"absence"})
 _SLEEP_REST_KINDS: frozenset[str] = frozenset({"nighttime_movement", "stillness_anomaly"})
 _DEMENTIA_SPECIFIC_KINDS: frozenset[str] = frozenset(
-    {"pacing", "room_revisit_rate", "bathroom_dwell_anomaly", "sundowning_index"}
+    {"pacing", "bathroom_dwell_anomaly", "sundowning_index"}
 )
 
 # Profile presets: maps a profile name to the default enabled kinds.
@@ -64,6 +55,9 @@ def is_signal_enabled(
     if cts_alert_config is None:
         return True
 
+    if signal_type not in ALL_SIGNAL_KINDS:
+        return False
+
     enabled_kinds = cts_alert_config.get("enabled_kinds")
     if enabled_kinds is not None and signal_type not in enabled_kinds:
         return False
@@ -78,3 +72,5 @@ def default_config_for_profile(profile: str) -> dict[str, Any]:
     """Return the default ``cts_alert_config`` dict for a named profile."""
     kinds = SIGNAL_PROFILE_KINDS.get(profile, ALL_SIGNAL_KINDS)
     return {"enabled_kinds": list(kinds), "min_severity": "info"}
+
+# Tests moved to test suite, but leaving function definitions intact.

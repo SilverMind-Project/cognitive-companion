@@ -81,25 +81,7 @@ async def create_member(
 # Legacy duplicates here shadowed them at runtime, so do not reintroduce them (C17).
 
 
-# DEPRECATED: use GET /api/v1/persons/{id}/location instead.
-@router.get(
-    "/cts/person-location",
-    status_code=410,
-    deprecated=True,
-    include_in_schema=False,
-)
-async def deprecated_cts_person_location():
-    from fastapi.responses import Response as FastAPIResponse
 
-    return FastAPIResponse(
-        status_code=410,
-        content=(
-            "Gone. Use GET /api/v1/persons/{id}/location instead. "
-            "See /docs#tag/Persons for the new API surface."
-        ),
-        headers={"Link": '</api/v1/persons>; rel="successor-version"'},
-        media_type="text/plain",
-    )
 
 
 @router.get("/enrolled", response_model=list[PersonEnrollmentOut])

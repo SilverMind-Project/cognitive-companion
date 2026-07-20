@@ -256,41 +256,6 @@ class PersonLocationService:
             decision = decide(old_seg, event, self._cfg.inferred_dwell_max_s)
             await self._apply_decision(decision)
 
-    async def ingest_ph_continuation(
-        self,
-        predecessor_person_id: str,
-        successor_ph_id: str,
-        predecessor_room_id: int,
-        predecessor_entered_at: datetime,
-        handoff_time: datetime,
-    ) -> None:
-        """Stitch a presumed-presence link across a PH closure.
-
-        When a PH closes and a new one spawns nearby within the handoff window,
-        the predecessor's inferred segment carries forward to the successor.
-        """
-        open_seg = await self._seg.get_open(predecessor_person_id)
-        if open_seg is None or not open_seg.is_inferred:
-            return
-
-        from .segment_state_machine import EventKind, IncomingEvent
-
-        event = IncomingEvent(
-            kind=EventKind.TRANSIT_ENTER,
-            person_id=predecessor_person_id,
-            room_id=predecessor_room_id,
-            at=handoff_time,
-            confidence=0.85,
-            source_ref=successor_ph_id,
-            # PH continuation is CTS-only (world-tracker PH handoff).
-            source="world_tracker",
-            metadata={
-                "continuation_from": str(predecessor_person_id),
-                "successor_ph_id": successor_ph_id,
-            },
-        )
-        decision = decide(open_seg, event, self._cfg.inferred_dwell_max_s)
-        await self._apply_decision(decision)
 
     # ------------------------------------------------------------------
     # Query API

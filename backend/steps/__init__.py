@@ -45,8 +45,3 @@ class StepRegistry(PluginRegistry[StepHandler, StepMetadata]):
     def get_class(cls, type_name: str) -> type[StepHandler] | None:
         """Return the handler *class* (not instance) for *type_name*."""
         return cls._registry.get(type_name)
-
-    @classmethod
-    def type_names(cls) -> list[str]:
-        """Return all registered step type names (deprecated alias)."""
-        return cls.all_names()

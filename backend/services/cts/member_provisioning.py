@@ -8,7 +8,7 @@ auto-created the member row to satisfy that FK; the
 must ensure the row exists before ingesting an identified observation.
 
 Uses ``INSERT ... ON CONFLICT DO NOTHING`` so it is safe to call
-concurrently with the legacy ``LocationWriter`` consuming the same stream.
+concurrently with other CTS ingress consumers.
 """
 
 from __future__ import annotations

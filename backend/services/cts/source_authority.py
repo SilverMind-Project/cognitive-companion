@@ -9,7 +9,7 @@ Without an explicit arbiter, three signal paths can race on the same identity:
    when cameras are offline or during low-light hours, but laggier and
    less granular than CTS.
 
-The policy is codified here so all callers (:class:`LocationWriter` and
+The policy is codified here so all callers (e.g.,
 :class:`PersonTrackingService`) share one implementation.  This enforces
 **CR-15**: one writer policy per state row.
 """
@@ -113,7 +113,7 @@ class SourceAuthority:
         """Legacy convenience for CTS writers.
 
         CTS is always priority 100 (committed).  This method exists so
-        :class:`LocationWriter` callers don't need to know about priority
+        CTS callers don't need to know about priority
         values.
         """
         incoming_priority = self._resolve_priority(f"{self.CTS_LAST_SENSOR_PREFIX}committed")

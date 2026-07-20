@@ -30,8 +30,3 @@ class ChannelRegistry(PluginRegistry[NotificationChannel, ChannelMetadata]):
     @classmethod
     def _key_from_metadata(cls, meta: ChannelMetadata) -> str:
         return meta.channel_name
-
-    @classmethod
-    def channel_names(cls) -> list[str]:
-        """Return all registered channel names (deprecated alias)."""
-        return cls.all_names()

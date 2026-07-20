@@ -140,7 +140,7 @@ class TestDecode:
 class TestHandle:
     @pytest.mark.asyncio
     async def test_forwards_to_writer_and_acks(self, subscriber):
-        sub, writer = subscriber
+        sub, _writer = subscriber
         event = sub.decode(b"0-0", _proto_fields(_make_event()))
         assert event is not None
         ok = await sub.handle(event)
@@ -211,7 +211,7 @@ class TestHandleWithBroadcast:
             async def broadcast(self, payload: dict) -> None:
                 broadcasts.append(payload)
 
-        writer = _StubWriter()
+
         sub = TrackingEventSubscriber(
             redis_url="redis://localhost:6379",
             consumer_id="test",  # type: ignore[arg-type]
@@ -237,7 +237,7 @@ class TestHandleWithBroadcast:
             async def broadcast(self, payload: dict) -> None:
                 broadcasts.append(payload)
 
-        writer = _StubWriter()
+
         sub = TrackingEventSubscriber(
             redis_url="redis://localhost:6379",
             consumer_id="test",  # type: ignore[arg-type]

@@ -1,7 +1,7 @@
 """Shared helper for upserting the unified RoomOccupancyState table.
 
-Both SensorPollingService (HA presence sensors) and CTS LocationWriter
-(camera tracking) call this to keep room occupancy in sync regardless of
+Both SensorPollingService (HA presence sensors) and CTS camera tracking
+call this to keep room occupancy in sync regardless of
 which data source detected the change.
 """
 

@@ -133,7 +133,7 @@ def _build_chain(
     location_service: PersonLocationService,
 ) -> PresenceService:
     """Build the full provider chain from the test fixture config."""
-    config = load_presence_config("backend/tests/fixtures/presence_test.yaml")
+    config = load_presence_config("tests/fixtures/presence_test.yaml")
     providers = build_providers(
         config,
         cache=cache,  # type: ignore[arg-type]  # fake is structurally compatible

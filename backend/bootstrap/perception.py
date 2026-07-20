@@ -131,7 +131,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
         revision_horizon_s=pl_settings.get("revision_horizon_s", 600.0),
         arbitration_staleness_s=pl_settings.get("arbitration_staleness_s", 30.0),
         quiet_gap_world_tracker_s=pl_settings.get("quiet_gap_world_tracker_s", 300.0),
-        quiet_gap_recamera_vlm_s=pl_settings.get("quiet_gap_recamera_vlm_s", 2700.0),
+        quiet_gap_face_sighting_s=pl_settings.get("quiet_gap_face_sighting_s", 2700.0),
         quiet_gap_sensor_s=pl_settings.get("quiet_gap_sensor_s", 1800.0),
     )
     person_location_service = PersonLocationService(

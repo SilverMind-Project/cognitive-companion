@@ -12,7 +12,6 @@ from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
-from backend.services.cts.location_repository import LocationRepository
 
 __all__ = [
     "ConnectionManager",

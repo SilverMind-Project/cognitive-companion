@@ -1,11 +1,11 @@
-"""RecameraLocationIngest: writes reCamera-identified detections to the SSOT.
+"""FaceSightingIngest: writes reCamera-identified detections to the SSOT.
 
 M38 Part D (decision W7): reCamera identification stays rule-driven --
 ``PersonTrackingService`` remains the identification engine and cost
 throttle -- but every confirmed detection now also flows through this one
 adapter into ``PersonLocationService``, instead of being location-blind to
 the SSOT (X11). ``PersonTrackingService.process_camera_event`` calls
-:meth:`RecameraLocationIngest.ingest` for each deduplicated detection
+:meth:`FaceSightingIngest.ingest` for each deduplicated detection
 *alongside* its existing legacy-table writes: the same deliberate
 double-write bridge ``LocationWriter`` provides on the CTS side, so a later
 milestone can delete the legacy half once this soaks.
@@ -33,7 +33,7 @@ from backend.services.person_location.types import is_unknown_bucket
 logger = get_logger(__name__)
 
 
-class RecameraLocationIngest:
+class FaceSightingIngest:
     """Writes one confirmed reCamera detection to ``PersonLocationService``.
 
     The unknown bucket gets an observation row and a provisioned guest
@@ -86,7 +86,7 @@ class RecameraLocationIngest:
             await self._location.ingest_observation(
                 person_id=person_id,
                 observed_at=now,
-                source="recamera_vlm",
+                source="face_sighting",
                 confidence=confidence,
                 metadata={"camera_id": sensor_id, "room_name": room_name},
                 room_id=room_id,

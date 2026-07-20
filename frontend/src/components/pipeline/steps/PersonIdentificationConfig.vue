@@ -63,21 +63,17 @@
   <!-- Presence tab -->
   <div v-else-if="tab === 'presence'">
     <v-switch
-      :model-value="modelValue.record_presence"
       label="Record presence (update location state and history)"
       color="primary"
       hide-details
       class="mb-4"
-      @update:model-value="emit('update:modelValue', { ...modelValue, record_presence: $event })"
     />
 
     <v-switch
-      :model-value="modelValue.record_sightings"
       label="Record sightings (write PersonSighting rows)"
       color="primary"
       hide-details
       class="mb-4"
-      @update:model-value="emit('update:modelValue', { ...modelValue, record_sightings: $event })"
     />
 
     <v-select
@@ -121,8 +117,6 @@ export const stepDefaults = {
   image_source: "trigger",
   pipeline_image_path: "",
   cts_frames_path: "steps.media_window_poll_1.outputs.frames",
-  record_presence: true,
-  record_sightings: true,
   presence_room_source: "trigger",
   presence_room_name: "",
 };

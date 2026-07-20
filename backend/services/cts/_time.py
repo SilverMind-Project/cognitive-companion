@@ -2,7 +2,7 @@
 
 Replaces verbatim-duplicated helpers across 7 files:
 - ``_ns_to_iso`` (4 copies: tracking_event, identity_revision, dementia_signal, scene_sample subscribers)
-- ``_parse_ts`` (3 copies with 3 different signatures: identity_rewriter, location_writer, signal_store)
+- ``_parse_ts`` (3 copies with 3 different signatures: signal_rewriter, location_writer, signal_store)
 - ``_ensure_aware`` (1 copy: source_authority)
 """
 

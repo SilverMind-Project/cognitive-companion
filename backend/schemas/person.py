@@ -82,32 +82,4 @@ class EnrollResultOut(BaseModel):
     status: str
 
 
-# -- Person Sightings --------------------------------------------------------
 
-
-class PersonSightingOut(OutSchema):
-    id: int
-    person_id: str
-    sensor_id: str
-    room_name: str | None = None
-    timestamp: UTCDatetime
-    confidence: float
-    direction: str | None = None
-    bbox_json: dict | None = None
-    source: str
-
-
-# -- Person Location ---------------------------------------------------------
-
-
-# PersonLocationOut was the response model of the two legacy person-location routes removed in
-# C17; current-location responses use PersonLocationEnvelope (schemas/cts_envelopes.py).
-
-
-class PersonLocationHistoryOut(OutSchema):
-    id: int
-    person_id: str
-    room_name: str | None = None
-    entered_at: UTCDatetime
-    exited_at: OptionalUTCDatetime = None
-    source: str

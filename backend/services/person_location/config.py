@@ -25,7 +25,7 @@ class PersonLocationConfig:
     # sighting may be tens of minutes away by design, not by failure.
     # Operator-tunable via settings.yaml's person_location section.
     quiet_gap_world_tracker_s: float = 300.0  # 5 minutes
-    quiet_gap_recamera_vlm_s: float = 2700.0  # 45 minutes
+    quiet_gap_face_sighting_s: float = 2700.0  # 45 minutes
     quiet_gap_sensor_s: float = 1800.0  # 30 minutes
 
     def quiet_gap_s(self, source: str | None) -> float | None:
@@ -38,6 +38,6 @@ class PersonLocationConfig:
         """
         return {
             "world_tracker": self.quiet_gap_world_tracker_s,
-            "recamera_vlm": self.quiet_gap_recamera_vlm_s,
+            "face_sighting": self.quiet_gap_face_sighting_s,
             "sensor": self.quiet_gap_sensor_s,
         }.get(source or "")

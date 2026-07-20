@@ -42,7 +42,7 @@ from .types import SourceTag
 PRIORITY: dict[SourceTag, int] = {
     "manual": 200,
     "world_tracker": 100,
-    "recamera_vlm": 80,
+    "face_sighting": 80,
     "sensor": 40,
 }
 

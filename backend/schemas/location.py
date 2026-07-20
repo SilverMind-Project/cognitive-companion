@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # household_members.id is String(64); rooms.id is Integer. The observation
 # row's own id and the segment's own id are UUID, as is superseded_by.
-SourceTag = Literal["world_tracker", "recamera_vlm", "sensor", "manual"]
+SourceTag = Literal["world_tracker", "face_sighting", "sensor", "manual"]
 EntrySource = Literal["observed", "inferred_transit", "manual"]
 ExitSource = Literal["observed", "inferred_transit", "contradicted", "manual", "timeout"]
 

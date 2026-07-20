@@ -463,7 +463,7 @@ class PersonLocationService:
         rows a second), not an event-grade stream. Use
         ``bucketed_observations`` for a UI/timeline-appropriate downsample.
         ``sources`` restricts to the given source vocabulary
-        (``world_tracker``, ``recamera_vlm``, ``sensor``, ``manual``); omit
+        (``world_tracker``, ``face_sighting``, ``sensor``, ``manual``); omit
         to return every source.
         """
         obs = await self._obs.list_for_person(person_id, start, end, limit=limit)

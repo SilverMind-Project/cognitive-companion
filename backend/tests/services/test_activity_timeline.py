@@ -207,7 +207,7 @@ class TestGetTimelineSources:
             location_service,
             room_name="bedroom",
             observed_at=now - timedelta(hours=1),
-            source="recamera_vlm",
+            source="face_sighting",
         )
         db.close()
 
@@ -220,7 +220,7 @@ class TestGetTimelineSources:
 
         assert len(events) == 1
         assert events[0]["event_type"] == "person_sighted"
-        assert events[0]["metadata"]["source"] == "recamera_vlm"
+        assert events[0]["metadata"]["source"] == "face_sighting"
 
     async def test_get_sighting_events_downsampled_within_a_bucket(self, db_factory):
         """world_tracker can write several observations a second -- far

@@ -34,14 +34,10 @@ from backend.integrations.proto.continuoustracking.v1 import (  # type: ignore[a
 )
 from backend.models.person import (
     HouseholdMember,
-    PersonLocationHistory,
-    PersonLocationState,
 )
 from backend.models.room import Room
 from backend.services.cts.identity_revision_subscriber import IdentityRevisionSubscriber
-from backend.services.cts.identity_rewriter import IdentityRewriter
-from backend.services.cts.location_repository import SqlAlchemyLocationRepository
-from backend.services.cts.location_writer import LocationWriter
+from backend.services.cts.signal_rewriter import SignalRewriter
 from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 
@@ -183,16 +179,12 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
         )
 
     # ----- Stage 2: consume + handle ---------------------------------
-    def _repo_factory() -> SqlAlchemyLocationRepository:
-        return SqlAlchemyLocationRepository(db_factory())
 
     ws_manager = _StubWSManager()
-    writer = LocationWriter(repo_factory=_repo_factory, authority=SourceAuthority())
     pipeline = _PipelineSpy()
     subscriber = TrackingEventSubscriber(
         redis_url="redis://ignored",
         consumer_id=consumer,
-        writer=writer,
         ws_manager=ws_manager,
         pipeline=pipeline,
     )
@@ -212,32 +204,6 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
         ok = await subscriber.handle(decoded)
         assert ok is True
         await redis_client.xack(stream, group, message_id)
-
-    # ----- Stage 3: persistent state + history -----------------------
-    db = db_factory()
-    try:
-        state = (
-            db.query(PersonLocationState).filter(PersonLocationState.person_id == "grandma").one()
-        )
-        assert state.current_room_name == "Bedroom"
-        assert state.last_sensor_id == "cts:cam-overhead"
-
-        rows = (
-            db.query(PersonLocationHistory)
-            .filter(PersonLocationHistory.person_id == "grandma")
-            .order_by(PersonLocationHistory.entered_at.asc())
-            .all()
-        )
-        assert len(rows) == 2
-        kitchen, bedroom = rows
-        assert kitchen.room_name == "Kitchen"
-        assert kitchen.exited_at is not None
-        assert kitchen.ph_id == "ph-grandma"
-        assert kitchen.source == "cts"
-        assert bedroom.room_name == "Bedroom"
-        assert bedroom.exited_at is None
-    finally:
-        db.close()
 
     # ----- Stage 4: pipeline rule firing -----------------------------
     assert len(pipeline.fired) == 2
@@ -273,7 +239,7 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
         ),
     )
 
-    rewriter = IdentityRewriter(db_factory=db_factory, ws_manager=_StubWSManager())
+    rewriter = SignalRewriter(db_factory=db_factory, ws_manager=_StubWSManager())
     revisions_pipeline = _PipelineSpy()
     revisions_subscriber = IdentityRevisionSubscriber(
         redis_url="redis://ignored",
@@ -303,36 +269,6 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
 
     # Existing rows have been soft-deleted via superseded_by_revision_id
     # and replacement rows are inserted under the new identity.
-    db = db_factory()
-    try:
-        grandma_rows = (
-            db.query(PersonLocationHistory)
-            .filter(PersonLocationHistory.person_id == "grandma")
-            .order_by(PersonLocationHistory.entered_at.asc())
-            .all()
-        )
-        assert len(grandma_rows) == 2
-        for row in grandma_rows:
-            assert row.superseded_by_revision_id == "rev-1"
-
-        caregiver_rows = (
-            db.query(PersonLocationHistory)
-            .filter(PersonLocationHistory.person_id == "caregiver")
-            .order_by(PersonLocationHistory.entered_at.asc())
-            .all()
-        )
-        assert len(caregiver_rows) == 2
-        rooms = [row.room_name for row in caregiver_rows]
-        assert rooms == ["Kitchen", "Bedroom"]
-        assert all(row.ph_id == "ph-grandma" for row in caregiver_rows)
-
-        caregiver_state = (
-            db.query(PersonLocationState).filter(PersonLocationState.person_id == "caregiver").one()
-        )
-        assert caregiver_state.current_room_name == "Bedroom"
-    finally:
-        db.close()
-
     # The pipeline executor fires once for the revision so any rule
     # keyed on identity changes can react.
     assert len(revisions_pipeline.fired) == 1

@@ -142,17 +142,17 @@ async def test_observations_filters_by_source() -> None:
     await svc.ingest_observation(
         person_id="alice",
         observed_at=_START + timedelta(hours=2),
-        source="recamera_vlm",
+        source="face_sighting",
         room_id=1,
         confidence=0.7,
     )
 
     all_obs = await svc.observations("alice", _START, _END)
-    filtered = await svc.observations("alice", _START, _END, sources=("recamera_vlm",))
+    filtered = await svc.observations("alice", _START, _END, sources=("face_sighting",))
 
     assert len(all_obs) == 2
     assert len(filtered) == 1
-    assert filtered[0].source == "recamera_vlm"
+    assert filtered[0].source == "face_sighting"
 
 
 @pytest.mark.asyncio

@@ -3,7 +3,7 @@
 M38 Part D removed the dormant reCamera-observation subscriber class (and
 this file's lifecycle tests for it, which this module used to be named for):
 reCamera identification now writes through
-``backend.services.person_location.recamera_ingest.RecameraLocationIngest``
+``backend.services.person_location.face_sighting_ingest.FaceSightingIngest``
 instead, wired directly into ``PersonTrackingService`` (not CTSRuntime).
 """
 

@@ -43,6 +43,64 @@ class VisibilityResult:
     reason: str | None
 
 
+def estimate_camera_marker(
+    matrix: list[list[float]],
+    image_width: int,
+    image_height: int,
+    floor_plan_width_m: float,
+    floor_plan_height_m: float,
+    visibility_polygon: list[list[float]] | None,
+) -> dict | None:
+    if floor_plan_width_m <= 0 or floor_plan_height_m <= 0:
+        return None
+    h: np.ndarray = np.array(matrix, dtype=np.float64)
+    h31, h32, h33 = float(h[2, 0]), float(h[2, 1]), float(h[2, 2])
+
+    def w3(x: float, y: float) -> float:
+        return h31 * x + h32 * y + h33
+
+    ref_w3 = w3(image_width / 2.0, float(image_height))
+    if abs(ref_w3) < 1e-9:
+        return None
+
+    ref_proj = h @ np.array([image_width / 2.0, float(image_height), 1.0], dtype=np.float64)
+    ref_m = ref_proj[:2] / ref_proj[2]
+
+    x_norm = float(ref_m[0] / floor_plan_width_m)
+    y_norm = float(ref_m[1] / floor_plan_height_m)
+
+    center_w3 = w3(image_width / 2.0, float(image_height) / 2.0)
+    sign_ref = 1.0 if ref_w3 > 0 else -1.0
+
+    heading_deg = None
+    if center_w3 * sign_ref > 0:
+        center_proj = h @ np.array([image_width / 2.0, float(image_height) / 2.0, 1.0], dtype=np.float64)
+        center_m = center_proj[:2] / center_proj[2]
+        cx_norm = float(center_m[0] / floor_plan_width_m)
+        cy_norm = float(center_m[1] / floor_plan_height_m)
+        dx = cx_norm - x_norm
+        dy = cy_norm - y_norm
+    elif visibility_polygon and len(visibility_polygon) >= 3:
+        poly = ShapelyPolygon(visibility_polygon)
+        cx_norm = float(poly.centroid.x)
+        cy_norm = float(poly.centroid.y)
+        dx = cx_norm - x_norm
+        dy = cy_norm - y_norm
+    else:
+        dx, dy = 0.0, 0.0
+
+    if dx != 0 or dy != 0:
+        angle = math.degrees(math.atan2(dx, -dy))
+        heading_deg = (angle + 360.0) % 360.0
+
+    return {
+        "x_norm": x_norm,
+        "y_norm": y_norm,
+        "heading_deg": heading_deg,
+        "source": "derived",
+    }
+
+
 def floor_side_boundary(
     matrix: list[list[float]],
     image_width: int,

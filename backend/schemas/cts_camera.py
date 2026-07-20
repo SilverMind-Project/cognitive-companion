@@ -203,12 +203,29 @@ class PrivacyZonesRequest(BaseModel):
     zones: list[PrivacyZoneIn]
 
 
+class CameraMarkerIn(BaseModel):
+    x_norm: float = Field(..., ge=0.0, le=1.0)
+    y_norm: float = Field(..., ge=0.0, le=1.0)
+    heading_deg: float | None = Field(None, ge=0.0, lt=360.0)
+
+    model_config = {"extra": "forbid"}
+
+
+class CameraMarker(BaseModel):
+    x_norm: float = Field(..., ge=0.0, le=1.0)
+    y_norm: float = Field(..., ge=0.0, le=1.0)
+    heading_deg: float | None = Field(None, ge=0.0, lt=360.0)
+    source: str = Field(..., description='"operator" or "derived"')
+
+
 class CameraVisibilityPolygon(BaseModel):
     camera_id: str
     camera_name: str
     has_homography: bool
     visibility_polygon: list[list[float]] | None
     visibility_status: str | None = None
+    marker: CameraMarker | None = None
+    marker_estimate: CameraMarker | None = None
 
 
 class VisibilityPolygonsResponse(BaseModel):

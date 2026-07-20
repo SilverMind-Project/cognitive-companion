@@ -908,6 +908,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cts/cameras/{camera_id}/marker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Camera Marker */
+        put: operations["put_camera_marker"];
+        post?: never;
+        /** Delete Camera Marker */
+        delete: operations["delete_camera_marker"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cts/cameras/{camera_id}/reload": {
         parameters: {
             query?: never;
@@ -5687,6 +5705,29 @@ export interface components {
             /** Tokens Available */
             tokens_available: number | null;
         };
+        /** CameraMarker */
+        CameraMarker: {
+            /** Heading Deg */
+            heading_deg?: number | null;
+            /**
+             * Source
+             * @description "operator" or "derived"
+             */
+            source: string;
+            /** X Norm */
+            x_norm: number;
+            /** Y Norm */
+            y_norm: number;
+        };
+        /** CameraMarkerIn */
+        CameraMarkerIn: {
+            /** Heading Deg */
+            heading_deg?: number | null;
+            /** X Norm */
+            x_norm: number;
+            /** Y Norm */
+            y_norm: number;
+        };
         /** CameraVisibilityPolygon */
         CameraVisibilityPolygon: {
             /** Camera Id */
@@ -5695,6 +5736,8 @@ export interface components {
             camera_name: string;
             /** Has Homography */
             has_homography: boolean;
+            marker?: components["schemas"]["CameraMarker"] | null;
+            marker_estimate?: components["schemas"]["CameraMarker"] | null;
             /** Visibility Polygon */
             visibility_polygon: number[][] | null;
             /** Visibility Status */
@@ -12472,6 +12515,68 @@ export interface operations {
                         [key: string]: unknown;
                     };
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_camera_marker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CameraMarkerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_camera_marker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -20,6 +20,8 @@ Routes:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
@@ -34,7 +36,13 @@ from backend.models.household_settings import HouseholdSettings
 from backend.models.room import Room
 from backend.routers.cts_deps import cts_enabled
 from backend.routers.dependencies import get_ingress_admin_client
-from backend.schemas.cts_camera import CtsCameraCreate, CtsCameraOut, CtsCameraUpdate, RoomRef
+from backend.schemas.cts_camera import (
+    CameraMarkerIn,
+    CtsCameraCreate,
+    CtsCameraOut,
+    CtsCameraUpdate,
+    RoomRef,
+)
 
 logger = get_logger(__name__)
 
@@ -231,6 +239,43 @@ def delete_camera(
     db.delete(cam)
     db.commit()
     logger.info("cts_camera_deleted", camera_id=camera_id)
+
+
+@router.put("/{camera_id}/marker", status_code=status.HTTP_204_NO_CONTENT)
+def put_camera_marker(
+    camera_id: str,
+    payload: CameraMarkerIn,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+) -> None:
+    cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    cam.marker_x_norm = payload.x_norm
+    cam.marker_y_norm = payload.y_norm
+    cam.marker_heading_deg = payload.heading_deg
+    cam.marker_set_at = datetime.now(UTC)
+    db.commit()
+    logger.info("cts_camera_marker_updated", camera_id=camera_id)
+
+
+@router.delete("/{camera_id}/marker", status_code=status.HTTP_204_NO_CONTENT)
+def delete_camera_marker(
+    camera_id: str,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.cameras.write")),
+) -> None:
+    cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+    cam.marker_x_norm = None
+    cam.marker_y_norm = None
+    cam.marker_heading_deg = None
+    cam.marker_set_at = None
+    db.commit()
+    logger.info("cts_camera_marker_deleted", camera_id=camera_id)
 
 
 # ---------------------------------------------------------------------------

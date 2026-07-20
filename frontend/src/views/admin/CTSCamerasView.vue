@@ -219,6 +219,30 @@
               />
             </v-col>
           </v-row>
+          <v-divider class="mb-3" />
+          <div class="text-subtitle-2 font-weight-medium mb-1">Placement</div>
+          <v-sheet border rounded class="pa-3 mb-3 d-flex align-center justify-space-between bg-surface-2">
+            <div>
+              <div class="text-caption text-medium-emphasis">Map placement</div>
+              <div class="font-weight-medium">
+                {{ placementStatusLabel }}
+              </div>
+            </div>
+            <div class="d-flex align-center ga-2">
+              <v-btn
+                v-if="hasOperatorMarker"
+                size="small"
+                variant="text"
+                color="error"
+                @click="clearMarker"
+              >
+                Clear
+              </v-btn>
+              <v-btn size="small" variant="tonal" prepend-icon="mdi-map-marker-radius" @click="openPlacementMap">
+                Place on Map
+              </v-btn>
+            </div>
+          </v-sheet>
         </v-card-text>
         <DialogFooter
           hint="Cameras feed the continuous tracking system for presence and activity detection."
@@ -227,6 +251,34 @@
           @cancel="dialog = false"
           @confirm="saveCamera"
         />
+      </v-card>
+    </v-dialog>
+
+    <!-- Placement Map dialog -->
+    <v-dialog v-model="placementDialog" max-width="800">
+      <v-card>
+        <DialogHeader
+          icon="mdi-map-marker-radius"
+          label="Camera"
+          title="Placement on Map"
+          @close="placementDialog = false"
+        />
+        <v-card-text class="pa-0">
+          <CTSCameraPlacementMap
+            :floor-plan-url="floorPlanUrl"
+            :initial-marker="activeMarker"
+            @placed="onMarkerPlaced"
+          />
+        </v-card-text>
+        <v-divider />
+        <v-card-actions class="px-6 py-3">
+          <div class="text-caption text-medium-emphasis">
+            Click on the map to place the camera. Drag to set its heading.
+          </div>
+          <v-spacer />
+          <v-btn variant="text" @click="placementDialog = false">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" :loading="savingMarker" @click="saveMarker">Save Placement</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -311,9 +363,11 @@ import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";
 import { useConfirm } from "../../composables/useConfirm.js";
 import { useBlurMode, useDisplaySrc } from "../../composables/useBlurMode.js";
+import { useFloorPlanCanvas } from "../../composables/useFloorPlanCanvas.js";
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 import BlurToggle from "../../components/cts/BlurToggle.vue";
+import CTSCameraPlacementMap from "../../components/cts/cameras/CTSCameraPlacementMap.vue";
 
 const { notify } = useNotify();
 const { confirmDialog, confirmTitle, confirmText, showConfirm, onConfirm, onCancel } = useConfirm();
@@ -336,6 +390,27 @@ const testing = ref(false);
 
 const snapshotDialog = ref(false);
 const snapshotUrl = ref(null);
+
+const { floorPlanUrl, loadFloorPlan } = useFloorPlanCanvas();
+const placementDialog = ref(false);
+const activeMarker = ref(null);
+const newMarker = ref(null);
+const savingMarker = ref(false);
+const visibilityPolygons = ref(null);
+
+const placementStatusLabel = computed(() => {
+  if (!editId.value || !visibilityPolygons.value) return "Unplaced";
+  const vp = visibilityPolygons.value.cameras.find(c => c.camera_id === editId.value);
+  if (vp?.marker) return "Operator Defined";
+  if (vp?.marker_estimate) return "Derived Estimate";
+  return "Unplaced";
+});
+
+const hasOperatorMarker = computed(() => {
+  if (!editId.value || !visibilityPolygons.value) return false;
+  const vp = visibilityPolygons.value.cameras.find(c => c.camera_id === editId.value);
+  return !!vp?.marker;
+});
 
 const headers = [
   { title: "ID", key: "id" },
@@ -377,6 +452,7 @@ async function loadCameras() {
   loading.value = true;
   try {
     cameras.value = await cts.getCameras();
+    visibilityPolygons.value = await cts.getVisibilityPolygons();
   } catch (e) {
     notify(e.message, "error");
   } finally {
@@ -449,6 +525,50 @@ async function saveCamera() {
   }
 }
 
+function openPlacementMap() {
+  if (!editId.value || !visibilityPolygons.value) {
+    notify("Please save the camera first", "warning");
+    return;
+  }
+  const vp = visibilityPolygons.value.cameras.find(c => c.camera_id === editId.value);
+  activeMarker.value = vp?.marker ?? vp?.marker_estimate ?? null;
+  newMarker.value = null;
+  placementDialog.value = true;
+}
+
+function onMarkerPlaced(marker) {
+  newMarker.value = marker;
+}
+
+async function saveMarker() {
+  if (!newMarker.value) {
+    placementDialog.value = false;
+    return;
+  }
+  savingMarker.value = true;
+  try {
+    await cts.setCameraMarker(editId.value, newMarker.value);
+    notify("Marker placement saved");
+    placementDialog.value = false;
+    await loadCameras(); // reload visibility polygons to get updated marker
+  } catch(e) {
+    notify(e.message, "error");
+  } finally {
+    savingMarker.value = false;
+  }
+}
+
+async function clearMarker() {
+  if (!editId.value) return;
+  try {
+    await cts.deleteCameraMarker(editId.value);
+    notify("Marker placement cleared");
+    await loadCameras();
+  } catch (e) {
+    notify(e.message, "error");
+  }
+}
+
 async function confirmDelete(cam) {
   const ok = await showConfirm(
     `Delete "${cam.name}"?`,
@@ -509,6 +629,7 @@ function closeSnapshot() {
 onMounted(() => {
   loadCameras();
   loadRooms();
+  loadFloorPlan();
 });
 onBeforeUnmount(() => {
   if (snapshotUrl.value) URL.revokeObjectURL(snapshotUrl.value);

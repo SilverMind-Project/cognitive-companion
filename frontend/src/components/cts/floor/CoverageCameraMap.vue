@@ -56,6 +56,23 @@
           xmlns="http://www.w3.org/2000/svg"
         >
           <g v-for="cam in cameras" :key="cam.camera_id">
+            <defs v-if="getFalloff(cam) && !maraudersEnabled">
+              <radialGradient
+                :id="`falloff-${cam.camera_id}`"
+                gradientUnits="userSpaceOnUse"
+                :cx="getFalloff(cam).cx"
+                :cy="getFalloff(cam).cy"
+                :r="getFalloff(cam).r"
+              >
+                <stop
+                  v-for="(s, i) in getFalloff(cam).stops"
+                  :key="i"
+                  :offset="s.offset"
+                  :stop-color="tokBrandSoft"
+                  :stop-opacity="s.opacity"
+                />
+              </radialGradient>
+            </defs>
             <MaraudersInkPolygon
               v-if="maraudersEnabled && cam.visibility_polygon"
               :points="cam.visibility_polygon"
@@ -66,25 +83,42 @@
             <polygon
               v-else-if="cam.visibility_polygon"
               :points="toSvgPoints(cam.visibility_polygon)"
-              :fill="tokBrandSoft"
+              :fill="getFalloff(cam) ? `url(#falloff-${cam.camera_id})` : tokBrandSoft"
               :stroke="tokBrand"
               stroke-width="2"
             />
             <g v-if="getMarker(cam)">
-              <g :transform="`translate(${getLabelPos(cam)[0]}, ${getLabelPos(cam)[1]}) ${getMarker(cam).heading_deg != null ? 'rotate(' + getMarker(cam).heading_deg + ')' : ''}`">
+              <g
+                :transform="`translate(${getLabelPos(cam)[0]}, ${getLabelPos(cam)[1]}) ${getMarker(cam).heading_deg != null ? 'rotate(' + getMarker(cam).heading_deg + ')' : ''}`"
+              >
                 <line
                   v-if="getMarker(cam).heading_deg != null"
-                  x1="0" y1="0" x2="0" y2="-24"
-                  :stroke="getMarker(cam).source === 'derived' ? 'rgb(var(--v-theme-warning))' : tokBrand"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="-24"
+                  :stroke="
+                    getMarker(cam).source === 'derived' ? 'rgb(var(--v-theme-warning))' : tokBrand
+                  "
                   stroke-width="2"
                   stroke-dasharray="2,2"
                 />
                 <circle
                   r="12"
-                  :fill="getMarker(cam).source === 'derived' ? 'rgb(var(--v-theme-warning))' : tokBrand"
+                  :fill="
+                    getMarker(cam).source === 'derived' ? 'rgb(var(--v-theme-warning))' : tokBrand
+                  "
                 />
                 <foreignObject x="-12" y="-12" width="24" height="24">
-                  <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+                  <div
+                    style="
+                      width: 24px;
+                      height: 24px;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    "
+                  >
                     <v-icon size="14" color="white" style="line-height: 1">mdi-cctv</v-icon>
                   </div>
                 </foreignObject>
@@ -133,7 +167,9 @@
                 </v-btn>
               </span>
               <span v-else-if="g.status === 'scale_missing'">
-                (<a href="#" class="text-primary" @click.prevent="emit('go-upload')">Floor Plan settings</a>)
+                (<a href="#" class="text-primary" @click.prevent="emit('go-upload')"
+                  >Floor Plan settings</a
+                >)
               </span>
             </li>
           </ul>
@@ -146,6 +182,7 @@
 <script setup>
 import { computed } from "vue";
 import MaraudersInkPolygon from "@/components/marauders/MaraudersInkPolygon.vue";
+import { falloffStops } from "./coverageFalloff.js";
 
 const props = defineProps({
   loading: { type: Boolean, default: false },
@@ -168,6 +205,12 @@ function getMarker(cam) {
   return cam.marker || cam.marker_estimate || null;
 }
 
+function getFalloff(cam) {
+  const marker = getMarker(cam);
+  if (!marker || !cam.visibility_polygon) return null;
+  return falloffStops(marker, cam.visibility_polygon, props.imgW, props.imgH);
+}
+
 function getLabelPos(cam) {
   const m = getMarker(cam);
   if (m && props.imgReady) {
@@ -185,17 +228,17 @@ const summary = computed(() => {
     scale_missing: "floor plan scale (m/pixel) not set.",
     no_floor_side: "calibration sees no floor area.",
     degenerate_matrix: "homography math failed (degenerate matrix).",
-    unknown: "visibility polygon could not be computed."
+    unknown: "visibility polygon could not be computed.",
   };
   const counts = {};
   for (const c of props.uncalibrated) {
-    const st = c.visibility_status || 'unknown';
+    const st = c.visibility_status || "unknown";
     counts[st] = (counts[st] || 0) + 1;
   }
-  return Object.keys(counts).map(st => ({
+  return Object.keys(counts).map((st) => ({
     status: st,
     count: counts[st],
-    text: map[st] || map.unknown
+    text: map[st] || map.unknown,
   }));
 });
 </script>

@@ -208,6 +208,7 @@ class CameraVisibilityPolygon(BaseModel):
     camera_name: str
     has_homography: bool
     visibility_polygon: list[list[float]] | None
+    visibility_status: str | None = None
 
 
 class VisibilityPolygonsResponse(BaseModel):
@@ -229,3 +230,7 @@ class AdjacencyEdgeIn(BaseModel):
 
 class AdjacencyRequest(BaseModel):
     edges: list[AdjacencyEdgeIn]
+
+
+class FloorRegionDefaultResponse(BaseModel):
+    polygon: list[list[float]]

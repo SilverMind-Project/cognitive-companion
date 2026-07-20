@@ -91,6 +91,18 @@
           Auto-calibrate
         </v-btn>
 
+        <!-- Seed Floor Region button -->
+        <v-btn
+          v-if="existingCalibration"
+          color="secondary"
+          variant="tonal"
+          prepend-icon="mdi-shape-polygon-plus"
+          size="small"
+          @click="loadDefaultFloorRegion"
+        >
+          Seed Floor Region
+        </v-btn>
+
         <span v-if="floorPlanReady && scaleReady" class="text-caption text-medium-emphasis">
           {{
             inputMode === "pick"
@@ -260,6 +272,7 @@ const {
   floorRegionSaving,
   saveFloorRegion,
   discardFloorRegion,
+  loadDefaultFloorRegion,
 } = useFloorRegion(notify, selectedCameraId);
 
 const {

@@ -45,6 +45,7 @@ from backend.routers.dependencies import (
 from backend.schemas.cts_camera import (
     AdjacencyRequest,
     CameraVisibilityPolygon,
+    FloorRegionDefaultResponse,
     HomographyPreviewRequest,
     HomographyPreviewResult,
     HomographyRequest,
@@ -56,7 +57,7 @@ from backend.schemas.cts_camera import (
     VisibilityPolygonsResponse,
 )
 from backend.services.cts.calibration_validator import validate_homography
-from backend.services.cts_visibility import compute_visibility_from_homography
+from backend.services.cts_visibility import compute_visibility_from_homography, floor_side_boundary
 
 logger = get_logger(__name__)
 
@@ -176,7 +177,7 @@ def _refresh_visibility_polygon(
     fp_width_m = fp_w_px * mpp
     fp_height_m = fp_h_px * mpp
 
-    polygon = compute_visibility_from_homography(
+    result = compute_visibility_from_homography(
         matrix=matrix,
         image_width=cam.snapshot_width,
         image_height=cam.snapshot_height,
@@ -185,29 +186,34 @@ def _refresh_visibility_polygon(
         floor_region_polygon=cam.floor_region_polygon,
     )
 
-    if polygon is not None:
-        cam.visibility_polygon = polygon
+    cam.visibility_polygon = result.polygon
+
+    if result.polygon is not None:
         logger.info(
             "cts_visibility_polygon_derived",
             camera_id=cam.id,
-            point_count=len(polygon),
+            point_count=len(result.polygon),
         )
-        return {"computed": True, "point_count": len(polygon), "warning": None}
+        return {"computed": True, "point_count": len(result.polygon), "warning": None}
 
     logger.warning(
         "cts_visibility_polygon_degenerate",
         camera_id=cam.id,
         snapshot_dims=f"{cam.snapshot_width}x{cam.snapshot_height}",
         fp_dims_m=f"{fp_width_m:.2f}x{fp_height_m:.2f}",
+        reason=result.reason,
     )
+
+    warning_text = "Visibility polygon could not be computed."
+    if result.reason == "no_floor_side":
+        warning_text = "The camera's committed calibration sees no floor area: redraw the floor region or recalibrate."
+    elif result.reason == "degenerate_matrix":
+        warning_text = "Homography matrix is degenerate. Please recalibrate."
+
     return {
         "computed": False,
         "point_count": 0,
-        "warning": (
-            "Visibility polygon could not be computed — projected points fall far outside "
-            "the floor plan. Your calibration point correspondences may be incorrect. "
-            "Verify that floor coordinates reference the correct locations on the floor plan."
-        ),
+        "warning": warning_text,
     }
 
 
@@ -610,6 +616,49 @@ def post_floor_region(
     )
 
 
+@router.get("/floor_region_default/{camera_id}", response_model=FloorRegionDefaultResponse)
+def get_floor_region_default(
+    camera_id: str,
+    db: Session = Depends(get_db),
+    _auth: AuthContext = Depends(require_permission("cts.calibrate")),
+) -> FloorRegionDefaultResponse:
+    cts_enabled()
+    cam = db.get(CtsCamera, camera_id)
+    if not cam:
+        raise NotFoundError("Camera", camera_id)
+
+    if not _has_committed_homography(cam):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "cts.calibration.no_homography",
+                "message": f"Camera '{camera_id}' has not been calibrated yet.",
+            },
+        )
+
+    matrix = cam.homography.get("matrix") if cam.homography else cam.homography_matrix
+    if not matrix or not cam.snapshot_width or not cam.snapshot_height:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "cts.calibration.no_homography",
+                "message": f"Camera '{camera_id}' is missing matrix or snapshot dimensions.",
+            },
+        )
+
+    polygon = floor_side_boundary(matrix, cam.snapshot_width, cam.snapshot_height)
+    if not polygon:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "cts.calibration.no_floor_side",
+                "message": "The camera's calibration sees no floor area.",
+            },
+        )
+
+    return FloorRegionDefaultResponse(polygon=polygon)
+
+
 @router.get("/homography/{camera_id}")
 def get_homography(
     camera_id: str,
@@ -670,15 +719,39 @@ def get_visibility_polygons(
     fp_w: int | None = settings.floor_plan_width if settings else None
     fp_h: int | None = settings.floor_plan_height if settings else None
 
-    items = [
-        CameraVisibilityPolygon(
-            camera_id=cam.id,
-            camera_name=cam.name,
-            has_homography=_has_committed_homography(cam),
-            visibility_polygon=cam.visibility_polygon,
+    items = []
+    for cam in cameras:
+        has_hom = _has_committed_homography(cam)
+        status = "ok"
+        if not has_hom:
+            status = "no_homography"
+        elif not cam.visibility_polygon:
+            if not mpp or not fp_w or not fp_h:
+                status = "scale_missing"
+            else:
+                matrix = cam.homography.get("matrix") if cam.homography else cam.homography_matrix
+                if matrix and cam.snapshot_width and cam.snapshot_height:
+                    res = compute_visibility_from_homography(
+                        matrix=matrix,
+                        image_width=cam.snapshot_width,
+                        image_height=cam.snapshot_height,
+                        floor_plan_width_m=fp_w * mpp,
+                        floor_plan_height_m=fp_h * mpp,
+                        floor_region_polygon=cam.floor_region_polygon,
+                    )
+                    status = res.reason or "unknown"
+                else:
+                    status = "unknown"
+
+        items.append(
+            CameraVisibilityPolygon(
+                camera_id=cam.id,
+                camera_name=cam.name,
+                has_homography=has_hom,
+                visibility_polygon=cam.visibility_polygon,
+                visibility_status=status,
+            )
         )
-        for cam in cameras
-    ]
 
     return VisibilityPolygonsResponse(
         cameras=items,

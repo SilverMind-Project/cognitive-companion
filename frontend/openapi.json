@@ -1933,6 +1933,17 @@
               }
             ],
             "title": "Visibility Polygon"
+          },
+          "visibility_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Status"
           }
         },
         "required": [
@@ -4809,6 +4820,25 @@
           "y_m"
         ],
         "title": "FloorPointEnvelope",
+        "type": "object"
+      },
+      "FloorRegionDefaultResponse": {
+        "properties": {
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Polygon",
+            "type": "array"
+          }
+        },
+        "required": [
+          "polygon"
+        ],
+        "title": "FloorRegionDefaultResponse",
         "type": "object"
       },
       "FloorRegionRequest": {
@@ -16741,7 +16771,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.107"
+    "version": "0.7.109"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -18359,6 +18389,53 @@
           }
         ],
         "summary": "Save floor-region polygon (manual or depth-auto) for a camera",
+        "tags": [
+          "cts-calibration"
+        ]
+      }
+    },
+    "/api/v1/cts/calibration/floor_region_default/{camera_id}": {
+      "get": {
+        "operationId": "get_floor_region_default",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FloorRegionDefaultResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Floor Region Default",
         "tags": [
           "cts-calibration"
         ]

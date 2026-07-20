@@ -104,20 +104,19 @@
       <div v-if="uncalibrated.length > 0" class="px-4 py-3">
         <v-alert type="warning" density="compact" variant="tonal">
           <strong>{{ uncalibrated.length }} camera(s) not shown</strong>
-          &mdash;
-          <span v-if="uncalibrated.some((c) => c.has_homography)">
-            visibility polygon could not be computed. Check that the floor plan scale (m/pixel) is
-            correct in
-            <a href="#" class="text-primary" @click.prevent="emit('go-upload')"
-              >Floor Plan settings</a
-            >.
-          </span>
-          <span v-else>
-            no homography calibration yet.
-            <v-btn variant="text" size="x-small" class="ml-1" :to="{ name: 'cts-calibration' }">
-              Calibrate &rarr;
-            </v-btn>
-          </span>
+          <ul class="ml-4 mt-1">
+            <li v-for="g in summary" :key="g.status">
+              {{ g.count }}x {{ g.text }}
+              <span v-if="g.status === 'no_homography'">
+                <v-btn variant="text" size="x-small" class="ml-1" :to="{ name: 'cts-calibration' }">
+                  Calibrate &rarr;
+                </v-btn>
+              </span>
+              <span v-else-if="g.status === 'scale_missing'">
+                (<a href="#" class="text-primary" @click.prevent="emit('go-upload')">Floor Plan settings</a>)
+              </span>
+            </li>
+          </ul>
         </v-alert>
       </div>
     </v-card-text>
@@ -125,9 +124,10 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import MaraudersInkPolygon from "@/components/marauders/MaraudersInkPolygon.vue";
 
-defineProps({
+const props = defineProps({
   loading: { type: Boolean, default: false },
   floorPlanUrl: { type: String, default: null },
   imgReady: { type: Boolean, default: false },
@@ -143,6 +143,26 @@ defineProps({
   tokText3: { type: String, required: true },
 });
 const emit = defineEmits(["refresh", "img-load", "go-upload"]);
+
+const summary = computed(() => {
+  const map = {
+    no_homography: "no homography calibration yet.",
+    scale_missing: "floor plan scale (m/pixel) not set.",
+    no_floor_side: "calibration sees no floor area.",
+    degenerate_matrix: "homography math failed (degenerate matrix).",
+    unknown: "visibility polygon could not be computed."
+  };
+  const counts = {};
+  for (const c of props.uncalibrated) {
+    const st = c.visibility_status || 'unknown';
+    counts[st] = (counts[st] || 0) + 1;
+  }
+  return Object.keys(counts).map(st => ({
+    status: st,
+    count: counts[st],
+    text: map[st] || map.unknown
+  }));
+});
 </script>
 
 <style scoped>

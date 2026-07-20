@@ -69,6 +69,7 @@ export const cts = {
       method: "POST",
       body: JSON.stringify({ polygon, source }),
     }),
+  getFloorRegionDefault: (camera_id) => req(`/calibration/floor_region_default/${camera_id}`),
 
   // ── Calibration: privacy zones ──────────────────────────────────────────────
   postPrivacyZones: (camera_id, zones) =>

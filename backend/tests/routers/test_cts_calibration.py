@@ -552,3 +552,44 @@ class TestFloorRegionEndpoint:
         assert cam.visibility_polygon is not None, (
             "Visibility polygon should be recomputed using floor_region_polygon"
         )
+
+    def test_floor_region_default_returns_polygon(self, client: TestClient, db_session: Session):
+        from backend.models.cts_camera import CtsCamera
+        cam = CtsCamera(
+            id="cam-def",
+            name="cam-def",
+            snapshot_width=1920,
+            snapshot_height=1080,
+            homography={"matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], "status": "ok"},
+        )
+        db_session.add(cam)
+        db_session.commit()
+        resp = client.get("/api/v1/cts/calibration/floor_region_default/cam-def")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "polygon" in body
+        assert len(body["polygon"]) > 0
+
+    def test_floor_region_default_no_homography_404(self, client: TestClient, db_session: Session):
+        from backend.models.cts_camera import CtsCamera
+        cam = CtsCamera(id="cam-def2", name="cam-def2")
+        db_session.add(cam)
+        db_session.commit()
+        resp = client.get("/api/v1/cts/calibration/floor_region_default/cam-def2")
+        assert resp.status_code == 404
+        assert resp.json()["detail"]["code"] == "cts.calibration.no_homography"
+
+    def test_floor_region_default_empty_floor_side_422(self, client: TestClient, db_session: Session):
+        from backend.models.cts_camera import CtsCamera
+        cam = CtsCamera(
+            id="cam-def3",
+            name="cam-def3",
+            snapshot_width=1920,
+            snapshot_height=1080,
+            homography={"matrix": [[0,0,0],[0,0,0],[0,0,0]], "status": "ok"},
+        )
+        db_session.add(cam)
+        db_session.commit()
+        resp = client.get("/api/v1/cts/calibration/floor_region_default/cam-def3")
+        assert resp.status_code == 422
+        assert resp.json()["detail"]["code"] == "cts.calibration.no_floor_side"

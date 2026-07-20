@@ -652,6 +652,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cts/calibration/floor_region_default/{camera_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Floor Region Default */
+        get: operations["get_floor_region_default"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cts/calibration/health": {
         parameters: {
             query?: never;
@@ -5680,6 +5697,8 @@ export interface components {
             has_homography: boolean;
             /** Visibility Polygon */
             visibility_polygon: number[][] | null;
+            /** Visibility Status */
+            visibility_status?: string | null;
         };
         /**
          * ChannelAuditIssue
@@ -6728,6 +6747,11 @@ export interface components {
             x_m: number;
             /** Y M */
             y_m: number;
+        };
+        /** FloorRegionDefaultResponse */
+        FloorRegionDefaultResponse: {
+            /** Polygon */
+            polygon: number[][];
         };
         /**
          * FloorRegionRequest
@@ -11976,6 +12000,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_floor_region_default: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                camera_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FloorRegionDefaultResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

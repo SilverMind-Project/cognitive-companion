@@ -8,8 +8,7 @@ compute_visibility_from_homography:
     derived from depth auto-calibration or operator hand-drawing) is provided,
     the boundary is sampled **along the floor-region polygon edges** instead of
     the image border.  This excludes walls that project to meaningless floor
-    coordinates.  When absent, falls back to 80 image-border points (original
-    behavior) and logs ``visibility_polygon_no_floor_region``.
+    coordinates.  When absent, falls back to the floor-side boundary.
 
     All returned coordinates are normalised to [0, 1] relative to the
     floor-plan image dimensions so the polygon is independent of floor-plan
@@ -24,11 +23,84 @@ Coordinate spaces:
 
 from __future__ import annotations
 
+import dataclasses
+import math
+
+import numpy as np
+from shapely.geometry import Polygon as ShapelyPolygon
+
+from backend.core.config import settings
 from backend.core.logging import get_logger
 
 _log = get_logger(__name__)
-_POINTS_PER_EDGE: int = 20  # 4 edges x 20 = 80 image-border samples (fallback)
 _DENSIFY_STEP_PX: int = 10  # floor-region edge densification step (pixels)
+_HORIZON_MARGIN_PX: float = 8.0
+
+
+@dataclasses.dataclass(frozen=True)
+class VisibilityResult:
+    polygon: list[list[float]] | None
+    reason: str | None
+
+
+def floor_side_boundary(
+    matrix: list[list[float]],
+    image_width: int,
+    image_height: int,
+    margin_px: float = 8.0,
+) -> list[list[float]] | None:
+    """Return the image boundary clipped to the floor side of the horizon.
+
+    Returns a polygon of normalised [0, 1] image-space coordinates.
+    """
+    h31, h32, h33 = matrix[2][0], matrix[2][1], matrix[2][2]
+
+    def w3(x: float, y: float) -> float:
+        return h31 * x + h32 * y + h33
+
+    # Reference pixel: bottom-center of the image
+    ref_w3 = w3(image_width / 2.0, float(image_height))
+    if abs(ref_w3) < 1e-9:
+        return None  # Degenerate matrix
+
+    sign_ref = 1.0 if ref_w3 > 0 else -1.0
+    grad_norm = math.hypot(h31, h32)
+    margin_w3 = margin_px * grad_norm
+
+    def val(x: float, y: float) -> float:
+        return w3(x, y) * sign_ref - margin_w3
+
+    # Image corners in pixel space
+    W = float(image_width)
+    H = float(image_height)
+    rect = [
+        (0.0, 0.0),
+        (W, 0.0),
+        (W, H),
+        (0.0, H),
+    ]
+
+    clipped = []
+    for i in range(len(rect)):
+        p1 = rect[i]
+        p2 = rect[(i + 1) % len(rect)]
+        v1 = val(p1[0], p1[1])
+        v2 = val(p2[0], p2[1])
+
+        if v1 >= 0:
+            clipped.append(p1)
+
+        if (v1 > 0 and v2 < 0) or (v1 < 0 and v2 > 0):
+            t = v1 / (v1 - v2)
+            ix = p1[0] + t * (p2[0] - p1[0])
+            iy = p1[1] + t * (p2[1] - p1[1])
+            clipped.append((ix, iy))
+
+    if len(clipped) < 3:
+        return None
+
+    # Return as normalised [0, 1] coords
+    return [[px / W, py / H] for px, py in clipped]
 
 
 def _densify_edge(
@@ -43,8 +115,6 @@ def _densify_edge(
     sample per ``_DENSIFY_STEP_PX`` pixels, then returns pixel coordinates.
     The endpoint p1 is NOT included (caller appends the next edge's start).
     """
-    import math
-
     x0, y0 = p0[0] * image_w, p0[1] * image_h
     x1, y1 = p1[0] * image_w, p1[1] * image_h
     dist = math.hypot(x1 - x0, y1 - y0)
@@ -59,7 +129,7 @@ def compute_visibility_from_homography(
     floor_plan_width_m: float,
     floor_plan_height_m: float,
     floor_region_polygon: list[list[float]] | None = None,
-) -> list[list[float]] | None:
+) -> VisibilityResult:
     """Project image boundary (or floor-region polygon) through H to get the visibility polygon.
 
     Args:
@@ -75,81 +145,120 @@ def compute_visibility_from_homography(
             Real-world height of the floor plan in metres.
         floor_region_polygon:
             Optional normalised [0,1] image-space polygon tracing the detected
-            floor (same space as the output, NOT floor metres).  When provided,
-            boundary points are sampled along its edges instead of the image
-            border, excluding walls.  When ``None`` the original 80-point
-            image-border behavior is used and a warning is logged.
+            floor.
 
     Returns:
-        A list of normalised ``[x_norm, y_norm]`` polygon vertices in floor-plan
-        space.  Returns ``None`` if:
-        - floor plan dimensions are zero or negative
-        - the matrix is degenerate (w3 near-zero for any boundary point)
-        - any projected point falls further than 1.5 units outside [0, 1]
-          (indicates a miscalibrated or inverted matrix)
+        VisibilityResult containing the polygon or a failure reason.
     """
-    import numpy as np
-
     if floor_plan_width_m <= 0 or floor_plan_height_m <= 0:
-        return None
+        # Expected to be caught by caller, but guard against zero division.
+        return VisibilityResult(None, "degenerate_matrix")
 
     h: np.ndarray = np.array(matrix, dtype=np.float64)
 
-    W = float(image_width)
-    H = float(image_height)
+    h31, h32, h33 = float(h[2, 0]), float(h[2, 1]), float(h[2, 2])
+
+    def w3(x: float, y: float) -> float:
+        return h31 * x + h32 * y + h33
+
+    ref_w3 = w3(image_width / 2.0, float(image_height))
+    if abs(ref_w3) < 1e-9:
+        return VisibilityResult(None, "degenerate_matrix")
+
+    sign_ref = 1.0 if ref_w3 > 0 else -1.0
 
     if floor_region_polygon is not None:
-        # Sample along the floor-region polygon edges (densified for lens distortion).
-        boundary: list[list[float]] = []
+        boundary = []
         n = len(floor_region_polygon)
         for i in range(n):
             p0 = floor_region_polygon[i]
             p1 = floor_region_polygon[(i + 1) % n]
             boundary.extend(_densify_edge(p0, p1, image_width, image_height))
     else:
-        # Fallback: original 80-point image-border sampling.
         _log.warning("visibility_polygon_no_floor_region")
-        n_pts = _POINTS_PER_EDGE
+        boundary_norm = floor_side_boundary(
+            matrix, image_width, image_height, _HORIZON_MARGIN_PX
+        )
+        if boundary_norm is None:
+            return VisibilityResult(None, "no_floor_side")
+
         boundary = []
-        for i in range(n_pts):
-            t = i / n_pts
-            boundary.append([W * t, 0.0])
-        for i in range(n_pts):
-            t = i / n_pts
-            boundary.append([W, H * t])
-        for i in range(n_pts):
-            t = i / n_pts
-            boundary.append([W * (1 - t), H])
-        for i in range(n_pts):
-            t = i / n_pts
-            boundary.append([0.0, H * (1 - t)])
+        n = len(boundary_norm)
+        for i in range(n):
+            boundary.extend(
+                _densify_edge(boundary_norm[i], boundary_norm[(i + 1) % n], image_width, image_height)
+            )
 
     if not boundary:
-        return None
+        return VisibilityResult(None, "no_floor_side")
 
-    src = np.array(boundary, dtype=np.float64)
+    # Sign filter
+    valid_boundary = []
+    for p in boundary:
+        if w3(p[0], p[1]) * sign_ref > 0:
+            valid_boundary.append(p)
 
+    if len(valid_boundary) < 3:
+        return VisibilityResult(None, "no_floor_side")
+
+    src = np.array(valid_boundary, dtype=np.float64)
     ones = np.ones((len(src), 1), dtype=np.float64)
     src_h = np.hstack([src, ones])
 
     projected = (h @ src_h.T).T
+    w3_arr = projected[:, 2:3]
+    pts_m = projected[:, :2] / w3_arr
 
-    w3 = projected[:, 2:3]
-    if np.any(np.abs(w3) < 1e-9):
-        return None
+    # Range cap
+    max_range = float(settings.get("cts.visibility.max_range_m", 15.0))
+    ref_proj = h @ np.array([image_width / 2.0, float(image_height), 1.0], dtype=np.float64)
+    ref_m = ref_proj[:2] / ref_proj[2]
 
-    pts_m = projected[:, :2] / w3
+    # Pull points exceeding max_range to the cap
+    diffs = pts_m - ref_m
+    dists = np.linalg.norm(diffs, axis=1)
+    over_mask = dists > max_range
+    if np.any(over_mask):
+        pts_m[over_mask] = ref_m + diffs[over_mask] * (max_range / dists[over_mask, np.newaxis])
 
+    # Convert to normal coordinates
     x_norm = pts_m[:, 0] / floor_plan_width_m
     y_norm = pts_m[:, 1] / floor_plan_height_m
 
-    if np.any(x_norm < -1.5) or np.any(x_norm > 2.5):
-        return None
-    if np.any(y_norm < -1.5) or np.any(y_norm > 2.5):
-        return None
+    # Shapely intersection with floor-plan rectangle + 5% buffer
+    buf = 0.05
+    fp_rect = ShapelyPolygon([
+        (-buf, -buf),
+        (1.0 + buf, -buf),
+        (1.0 + buf, 1.0 + buf),
+        (-buf, 1.0 + buf)
+    ])
 
+    pts_norm = np.column_stack((x_norm, y_norm))
+    poly = ShapelyPolygon(pts_norm)
+    if not poly.is_valid:
+        poly = poly.buffer(0)
+
+    intersection = poly.intersection(fp_rect)
+
+    if intersection.is_empty:
+        return VisibilityResult(None, "no_floor_side")
+
+    if intersection.geom_type == 'MultiPolygon':
+        largest_area = -1.0
+        best_poly = None
+        for p in intersection.geoms:
+            if p.area > largest_area:
+                largest_area = p.area
+                best_poly = p
+        intersection = best_poly
+    elif intersection.geom_type != 'Polygon':
+        return VisibilityResult(None, "no_floor_side")
+
+    coords = list(intersection.exterior.coords)
     polygon = [
         [round(float(x), 4), round(float(y), 4)]
-        for x, y in zip(x_norm.tolist(), y_norm.tolist(), strict=True)
+        for x, y in coords[:-1]
     ]
-    return polygon
+
+    return VisibilityResult(polygon, None)

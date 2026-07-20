@@ -38,11 +38,23 @@ export function useFloorRegion(notify, selectedCameraId) {
     floorRegionDragIdx.value = null;
   }
 
+  async function loadDefaultFloorRegion() {
+    if (!selectedCameraId.value) return;
+    try {
+      const res = await cts.getFloorRegionDefault(selectedCameraId.value);
+      floorRegionDraft.value = res.polygon;
+      notify("Default floor region loaded.", "success");
+    } catch (e) {
+      notify(`Failed to load default floor region: ${e.message}`, "error");
+    }
+  }
+
   return {
     floorRegionDraft,
     floorRegionDragIdx,
     floorRegionSaving,
     saveFloorRegion,
     discardFloorRegion,
+    loadDefaultFloorRegion,
   };
 }

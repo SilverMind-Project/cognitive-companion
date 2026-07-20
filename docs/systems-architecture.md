@@ -313,6 +313,21 @@ The primary CTS data paths are:
 | `scene.samples` | Scene samples for timeline and analysis surfaces |
 | CTS routers | Camera admin, calibration, PH correction, presence, signals, trajectory, and dashboard endpoints |
 
+### Person-Location Architecture
+
+Cognitive Companion uses a single unified location store: `PersonLocationService` (`location_observations` and `presence_segments` tables). The legacy tables (`person_location_state`, `person_location_history`, `person_sightings`), `LocationWriter`, and the legacy `recamera_vlm` source tag were decommissioned and deleted in Wave 4 (M33/M38).
+
+Key design principles:
+
+- **Single Store & Read API**: `PersonLocationService` is constructed unconditionally during perception bootstrap (`perception.wire_perception`) and serves as the single source of truth for all location queries (`where_is`, `where_is_everyone`, `presence_history`, `room_segments`, `observations`, `bucketed_observations`).
+- **Three Ingest Producers**:
+  1. `world_tracker`: `TrackingEventSubscriber` consumes CTS `tracking.events` and ingests tracking observations.
+  2. `face_sighting`: `FaceSightingIngest` adapter ingests reCamera face identifications from `person_identification` steps.
+  3. `sensor`: `PersonTrackingService._correlate_presence_sensor` correlates HA presence/bed sensors.
+- **Source Arbitration**: Priority order (`world_tracker` > `face_sighting` > `sensor` > `manual`) governs room-changing segment transitions. Lower-priority sources cannot displace active higher-priority segments until a staleness window elapses. Out-of-order observations insert into observation history but cannot move segment evidence backward.
+- **Per-Source Evidence Aging**: Same-room observations refresh evidence timestamps (`last_observed_at`, confidence, quality). `tick()` automatically closes observed segments when a source goes quiet beyond its per-source quiet gap (`PersonLocationConfig.quiet_gap_s`; `exit_source="timeout"`). Dense CTS ages out rapidly; sparse reCamera stays credible longer; manual overrides never age out.
+- **Segment Supersession**: Identity revisions (`tracking.revisions`) soft-supersede presence segments in place, preserving full history lineage.
+
 ## Frontend surfaces
 
 | Surface | Role |

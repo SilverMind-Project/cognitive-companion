@@ -17,18 +17,22 @@ from backend.services.person_location.types import SourceTag
 # -- Provider configs --------------------------------------------------------
 
 
+def _default_ttl_by_source() -> dict[SourceTag, int]:
+    return {
+        "world_tracker": 120,
+        "face_sighting": 2700,
+        "sensor": 1800,
+        "manual": 86400,
+    }
+
+
 class LocationServiceProviderConfig(BaseModel):
     """Location service provider config."""
 
     name: Literal["location_service"] = "location_service"
     confidence_floor: float = 0.0
     ttl_seconds_by_source: dict[SourceTag, int] = Field(
-        default_factory=lambda: {
-            "world_tracker": 120,
-            "face_sighting": 2700,
-            "sensor": 1800,
-            "manual": 86400,
-        }
+        default_factory=_default_ttl_by_source
     )
     priority: int = 50
 

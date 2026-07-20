@@ -19,6 +19,7 @@ Verification: ``make check`` (runs all tests including this module).
 
 from __future__ import annotations
 
+import pathlib
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -126,9 +127,6 @@ class FakeHaStateCache:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-import pathlib
 
 
 def _build_chain(

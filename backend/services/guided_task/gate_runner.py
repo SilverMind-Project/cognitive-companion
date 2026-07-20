@@ -257,7 +257,7 @@ def _extract_cost_hint(
         if model_id:
             hint["model_id"] = model_id
 
-        frames_path = config.get("cts_frames_path") or config.get("pipeline_image_path")
+        frames_path = config.get("pipeline_image_path")
         if frames_path:
             try:
                 resolved = resolve_pipeline_value(pipeline_data, frames_path)
@@ -267,7 +267,7 @@ def _extract_cost_hint(
                 pass
 
     elif step.step_type == "scene_analysis":
-        frames_path = config.get("cts_frames_path")
+        frames_path = config.get("pipeline_image_path")
         if frames_path:
             try:
                 resolved = resolve_pipeline_value(pipeline_data, frames_path)

@@ -53,7 +53,7 @@ def _positive_probability(value: Any) -> float | None:
 
 
 class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
-    """Consume ``tracking.events`` and apply them to PersonLocationState."""
+    """Consume ``tracking.events`` and ingest observations into PersonLocationService."""
 
     STREAM = "tracking.events"
     GROUP = "cognitive-companion-events"

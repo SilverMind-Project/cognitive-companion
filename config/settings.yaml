@@ -286,7 +286,7 @@ person_tracking:
   ha_propagation: true
 
 # Unified person-location SSOT (PersonLocationService). M38: un-gated from
-# cts.enabled and source-arbitrated across world_tracker/recamera_vlm/sensor.
+# cts.enabled and source-arbitrated across world_tracker/face_sighting/sensor.
 person_location:
   inferred_dwell_max_s: 14400.0  # 4 hours; camera-blind bathroom dwell timeout
   revision_horizon_s: 600.0      # 10 minutes; mirrors cts.revision_horizon_s
@@ -297,7 +297,7 @@ person_location:
   # using inferred_dwell_max_s above). A dense source ages out fast; a
   # sparse, rule-driven source stays credible far longer by design.
   quiet_gap_world_tracker_s: 300.0    # 5 minutes
-  quiet_gap_recamera_vlm_s: 2700.0    # 45 minutes
+  quiet_gap_face_sighting_s: 2700.0    # 45 minutes
   quiet_gap_sensor_s: 1800.0          # 30 minutes
 
 # Continuous Tracking Service / Tracking Orchestrator Service

@@ -322,7 +322,7 @@ class ActivityTimelineService:
 
         Backed by ``bucketed_observations`` (M32), not the legacy
         ``PersonSighting`` table. Covers every SSOT observation source
-        (``world_tracker``, ``recamera_vlm``, ...), not just the legacy
+        (``world_tracker``, ``face_sighting``, ...), not just the legacy
         step-driven path -- an enumerated correctness delta, not breakage.
         """
         if self._person_location is None:

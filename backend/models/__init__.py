@@ -36,9 +36,6 @@ from backend.models.person import (
     DailyReport,
     HouseholdMember,
     PersonActivity,
-    PersonLocationHistory,
-    PersonLocationState,
-    PersonSighting,
 )
 from backend.models.pipeline import PipelineEdge, PipelineStep, WorkflowExecution
 from backend.models.presence_segment import PresenceSegment

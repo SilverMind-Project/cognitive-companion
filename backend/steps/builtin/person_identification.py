@@ -78,16 +78,6 @@ class PersonIdentificationHandler(StepHandler):
                         "type": "string",
                         "default": "steps.media_window_poll_1.outputs.frames",
                     },
-                    "record_presence": {
-                        "type": "boolean",
-                        "default": True,
-                        "description": "DEPRECATED (R2): PersonLocationState and PersonLocationHistory are superseded by PersonLocationService.",
-                    },
-                    "record_sightings": {
-                        "type": "boolean",
-                        "default": True,
-                        "description": "When false, PersonSighting rows are not written.",
-                    },
                     "presence_room_source": {
                         "type": "string",
                         "enum": ["trigger", "source_image", "custom"],
@@ -109,8 +99,6 @@ class PersonIdentificationHandler(StepHandler):
                 "image_source": "trigger",
                 "pipeline_image_path": "",
                 "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
-                "record_presence": True,
-                "record_sightings": True,
                 "presence_room_source": "trigger",
                 "presence_room_name": "",
             },
@@ -222,8 +210,6 @@ class PersonIdentificationHandler(StepHandler):
             save_guest_images=config.get("save_guest_images", False),
             sensor_config=self._load_sensor_config(services, trigger.sensor_id),
             frame_contexts=frame_contexts,
-            record_sightings=config.get("record_sightings", True),
-            record_presence=config.get("record_presence", True),
         )
 
         detections = camera_result.detections

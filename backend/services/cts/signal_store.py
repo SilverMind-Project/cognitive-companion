@@ -30,7 +30,7 @@ def derive_signal_id(
 
     Must match ``_stable_signal_id`` in both
     ``tracking-orchestrator/app/trajectory/dementia_signals.py`` and
-    ``tracking-orchestrator/app/services/identity_rewriter.py`` byte-for-byte:
+    ``tracking-orchestrator/app/services/signal_rewriter.py`` byte-for-byte:
     ``uuid5(uuid.NAMESPACE_DNS, f"{identity}\\x00{kind}\\x00{start}\\x00{end}")``.
     The ID encodes the identity, so any row copied under a different identity
     (an M06 revision replacement row) must re-derive its ID here rather than

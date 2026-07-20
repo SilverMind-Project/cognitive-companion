@@ -52,9 +52,9 @@ def test_higher_priority_wins_immediately():
 
 def test_equal_priority_wins_immediately():
     verdict = arbitrate(
-        incoming_source="recamera_vlm",
+        incoming_source="face_sighting",
         incoming_at=T0 + timedelta(seconds=1),
-        last_evidence_source="recamera_vlm",
+        last_evidence_source="face_sighting",
         last_evidence_at=T0,
     )
     assert verdict.allowed
@@ -105,7 +105,7 @@ def test_manual_incumbent_outranks_every_automatic_source():
     manual placement; it must wait out the staleness handoff like any
     lower-priority source would against a higher one.
     """
-    for source in ("world_tracker", "recamera_vlm", "sensor"):
+    for source in ("world_tracker", "face_sighting", "sensor"):
         fresh = arbitrate(
             incoming_source=source,
             incoming_at=T0 + timedelta(seconds=5),

@@ -57,9 +57,9 @@ async def test_dense_source_refresh_keeps_segment_alive_across_ticks():
 async def test_sparse_source_quiet_closes_and_where_is_goes_none():
     """A single reCamera observation with no follow-up ages out at its gap;
     where_is() returns None afterward (W9)."""
-    svc = _make_service(quiet_gap_recamera_vlm_s=2700.0)
+    svc = _make_service(quiet_gap_face_sighting_s=2700.0)
     await svc.ingest_observation(
-        person_id="bob", observed_at=_START, source="recamera_vlm", room_id=2, confidence=0.7
+        person_id="bob", observed_at=_START, source="face_sighting", room_id=2, confidence=0.7
     )
 
     assert (await svc.where_is("bob")) is not None
@@ -95,7 +95,7 @@ async def test_cross_source_contention_dense_live_suppresses_stale_sparse_batch(
     await svc.ingest_observation(
         person_id="carol",
         observed_at=_START + timedelta(seconds=25),
-        source="recamera_vlm",
+        source="face_sighting",
         room_id=2,
         confidence=0.6,
     )
@@ -105,7 +105,7 @@ async def test_cross_source_contention_dense_live_suppresses_stale_sparse_batch(
     assert loc.room_id == 1  # suppressed: still world_tracker's room
 
     # The observation row is recorded regardless of arbitration (audit trail).
-    recent = await svc.recent_observations(_START, sources=("recamera_vlm",))
+    recent = await svc.recent_observations(_START, sources=("face_sighting",))
     assert any(o.person_id == "carol" and o.room_id == 2 for o in recent)
 
 
@@ -121,7 +121,7 @@ async def test_cross_source_contention_allows_takeover_after_cts_goes_quiet():
     await svc.ingest_observation(
         person_id="dave",
         observed_at=_START + timedelta(seconds=35),
-        source="recamera_vlm",
+        source="face_sighting",
         room_id=2,
         confidence=0.6,
     )
@@ -153,7 +153,7 @@ async def test_out_of_order_replay_never_rewrites_fresher_segment():
     await svc.ingest_observation(
         person_id="erin",
         observed_at=_START - timedelta(seconds=5),
-        source="recamera_vlm",
+        source="face_sighting",
         room_id=3,
         confidence=0.6,
     )
@@ -173,7 +173,7 @@ async def test_adapter_never_writes_floor_points():
     await svc.ingest_observation(
         person_id="frank",
         observed_at=_START,
-        source="recamera_vlm",
+        source="face_sighting",
         room_id=1,
         confidence=0.7,
         floor_point=None,

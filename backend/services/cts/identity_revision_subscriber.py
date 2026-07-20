@@ -2,7 +2,7 @@
 
 Decodes ``IdentityRevision`` proto messages from the
 ``tracking.revisions`` Redis Stream and delegates to
-:class:`IdentityRewriter`.
+:class:`SignalRewriter`.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from backend.schemas.cts_ph_ws import PHCorrectionEvent
 from backend.services.cts import metrics
 from backend.services.cts._time import ns_to_iso
 from backend.services.cts._types import ConnectionManager, PipelineExecutor
-from backend.services.cts.identity_rewriter import IdentityRewriter
+from backend.services.cts.signal_rewriter import SignalRewriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 
 logger = get_logger(__name__)
@@ -34,7 +34,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         self,
         redis_url: str,
         consumer_id: str,
-        rewriter: IdentityRewriter,
+        rewriter: SignalRewriter,
         pipeline: PipelineExecutor | None = None,
         ws_manager: ConnectionManager | None = None,
         person_location_service: object | None = None,

@@ -17,8 +17,6 @@ from backend.schemas.person import (
     HouseholdMemberOut,
     HouseholdMemberUpdate,
     PersonEnrollmentOut,
-    PersonLocationHistoryOut,
-    PersonSightingOut,
 )
 
 logger = get_logger(__name__)
@@ -260,27 +258,3 @@ async def delete_member(
     db.commit()
 
 
-@router.get("/{person_id}/history", response_model=list[PersonLocationHistoryOut])
-async def get_location_history(
-    person_id: str,
-    request: Request,
-    hours: float = Query(default=24.0, ge=0.5, le=168),
-    _auth=Depends(require_permission("caregiver")),
-):
-    """Get location timeline for a person."""
-    tracking = request.app.state.person_tracking
-    history = await tracking.get_location_history(person_id, hours=hours)
-    return history
-
-
-@router.get("/{person_id}/sightings", response_model=list[PersonSightingOut])
-async def get_sightings(
-    person_id: str,
-    request: Request,
-    limit: int = Query(default=20, ge=1, le=100),
-    _auth=Depends(require_permission("caregiver")),
-):
-    """Get recent camera/sensor sightings for a person."""
-    tracking = request.app.state.person_tracking
-    sightings = await tracking.get_recent_sightings(person_id, limit=limit)
-    return sightings

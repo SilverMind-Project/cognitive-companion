@@ -13,7 +13,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from backend.integrations.proto.continuoustracking.v1 import tracking_pb2
-from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.tracking_event_subscriber import (
     TrackingEventSubscriber,
 )
@@ -70,12 +69,9 @@ def _build_event(
 @pytest.mark.asyncio
 async def test_identity_snapshots_set_detection_identity():
     """Identity from identity_snapshots (field 8) is decoded into detections."""
-    writer = MagicMock(spec=LocationWriter)
-    writer.apply = MagicMock(return_value=[])
     subscriber = TrackingEventSubscriber(
         redis_url="redis://localhost:6379",
         consumer_id="test-cc",
-        writer=writer,
     )
 
     event = _build_event(
@@ -99,12 +95,9 @@ async def test_identity_snapshots_set_detection_identity():
 @pytest.mark.asyncio
 async def test_ph_id_becomes_ph_id_in_local_dict():
     """The proto's Detection.ph_id field is decoded as ph_id."""
-    writer = MagicMock(spec=LocationWriter)
-    writer.apply = MagicMock(return_value=[])
     subscriber = TrackingEventSubscriber(
         redis_url="redis://localhost:6379",
         consumer_id="test-cc",
-        writer=writer,
     )
 
     event = _build_event(
@@ -128,12 +121,9 @@ async def test_ph_id_becomes_ph_id_in_local_dict():
 @pytest.mark.asyncio
 async def test_no_identity_revisions_needed_for_current_identity():
     """When identity_snapshots are present, identity_revisions are not needed."""
-    writer = MagicMock(spec=LocationWriter)
-    writer.apply = MagicMock(return_value=[])
     subscriber = TrackingEventSubscriber(
         redis_url="redis://localhost:6379",
         consumer_id="test-cc",
-        writer=writer,
     )
 
     # Build event with NO identity_revisions (deprecated field 5), only

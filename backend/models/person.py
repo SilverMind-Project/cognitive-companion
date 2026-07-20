@@ -60,10 +60,6 @@ class HouseholdMember(Base, TimestampMixin):
     # NULL means "use the default profile" (all kinds, info severity).
     cts_alert_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    sightings: Mapped[list[PersonSighting]] = relationship(back_populates="person")
-    location_state: Mapped[PersonLocationState | None] = relationship(
-        back_populates="person", uselist=False
-    )
     activity_sessions: Mapped[list[ActivitySession]] = relationship(
         back_populates="person", cascade="all, delete-orphan"
     )
@@ -72,84 +68,6 @@ class HouseholdMember(Base, TimestampMixin):
     )
 
 
-class PersonSighting(Base):
-    """A single detection of a person by a camera or sensor."""
-
-    __tablename__ = "person_sightings"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    person_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("household_members.id"), index=True
-    )
-    sensor_id: Mapped[str] = mapped_column(String(128), index=True)
-    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
-    room_name: Mapped[str | None] = mapped_column(String(128))
-    timestamp: Mapped[datetime] = mapped_column(
-        UTCDateTime(), server_default=func.now(), index=True
-    )
-    confidence: Mapped[float] = mapped_column(Float, default=0.0)
-    direction: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    bbox_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    source: Mapped[str] = mapped_column(String(32), default="camera")
-
-    person: Mapped[HouseholdMember] = relationship(back_populates="sightings")
-
-
-class PersonLocationState(Base):
-    """Current inferred location of a person (one row per person)."""
-
-    __tablename__ = "person_location_state"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    person_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("household_members.id"), unique=True, index=True
-    )
-    current_room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
-    current_room_name: Mapped[str | None] = mapped_column(String(128))
-    last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
-    last_sensor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), default="unknown")
-    confidence: Mapped[float] = mapped_column(Float, default=0.0)
-    updated_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), server_default=func.now(), onupdate=func.now()
-    )
-
-    person: Mapped[HouseholdMember] = relationship(back_populates="location_state")
-
-
-class PersonLocationHistory(Base):
-    """Room-level location timeline for a person.
-
-    The ``direction_semantic`` / ``from_room_*`` fields are populated when a
-    camera topology map is configured on the triggering sensor (see
-    :mod:`backend.services.camera_topology`).  They are ``None`` for entries
-    inferred from Home Assistant presence sensors or legacy camera events.
-    """
-
-    __tablename__ = "person_location_history"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    person_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("household_members.id"), index=True
-    )
-    room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
-    room_name: Mapped[str | None] = mapped_column(String(128))
-    entered_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
-    exited_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
-    source: Mapped[str] = mapped_column(String(32), default="inferred")
-
-    # Camera-topology-derived fields (nullable: absent on legacy rows).
-    direction_semantic: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    from_room_id: Mapped[int | None] = mapped_column(ForeignKey("rooms.id"), nullable=True)
-    from_room_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
-
-    # CTS M9 identity-rewrite lineage.  When set, this row was superseded by
-    # the named revision; ``IdentityRewriter`` uses this to drop the row from
-    # reads without physically deleting it (audit trail is preserved).
-    superseded_by_revision_id: Mapped[str | None] = mapped_column(
-        String(64), nullable=True, index=True
-    )
-    ph_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
 
 
 class PersonActivity(Base):

@@ -24,7 +24,6 @@ from backend.schemas.cts_ph_ws import PHUpdateEvent
 from backend.services.cts import metrics
 from backend.services.cts._time import ns_to_iso
 from backend.services.cts._types import ConnectionManager, MinioClient, PipelineExecutor
-from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 from backend.services.cts.world_snapshot_publisher import WorldSnapshotPublisher
 
@@ -63,7 +62,6 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         self,
         redis_url: str,
         consumer_id: str,
-        writer: LocationWriter,
         ws_manager: ConnectionManager | None = None,
         pipeline: PipelineExecutor | None = None,
         bucketizer: Any = None,
@@ -79,7 +77,6 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 concurrency=2,
             )
         )
-        self._writer = writer
         self._ws_manager = ws_manager
         self._pipeline = pipeline
         self._bucketizer = bucketizer
@@ -229,12 +226,11 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
         camera_id = event.get("camera_id", "unknown")
         metrics.cts_events_received.labels(event_type=camera_id).inc()
 
-        try:
-            touched = await self._writer.apply(event)
-        except Exception:
-            logger.exception("tracking_event_apply_error", camera=event.get("camera_id"))
-            metrics.cts_events_dropped.labels(event_type=camera_id).inc()
-            return False
+        touched: list[str] = []
+        for det in event.get("detections", []):
+            person_id = (det.get("identity_id") or "").strip()
+            if person_id and person_id not in touched:
+                touched.append(person_id)
 
         metrics.cts_events_persisted.labels(event_type=camera_id).inc()
 

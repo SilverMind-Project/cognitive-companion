@@ -83,12 +83,12 @@ class TestSameRoomRefresh:
             room_id=1,
             at=T0 + timedelta(seconds=5),
             confidence=0.8,
-            source="recamera_vlm",
+            source="face_sighting",
         )
 
         decision = decide(seg, event, inferred_dwell_max_s=14400.0)
 
-        assert decision.refreshes[0].segment.metadata["last_source"] == "recamera_vlm"
+        assert decision.refreshes[0].segment.metadata["last_source"] == "face_sighting"
 
     def test_out_of_order_same_room_event_is_noop_not_regression(self):
         """The regression this guards: a delayed world_tracker capture-time
@@ -149,7 +149,7 @@ class TestSameRoomRefresh:
 
 class TestQuietGapClosure:
     def test_observed_segment_closes_after_quiet_gap(self):
-        seg = _open_segment(last_observed_at=T0, last_source="recamera_vlm")
+        seg = _open_segment(last_observed_at=T0, last_source="face_sighting")
         tick = IncomingEvent(
             kind=EventKind.TIMEOUT_TICK,
             person_id="alice",
@@ -164,7 +164,7 @@ class TestQuietGapClosure:
         assert decision.closes[0].exit_source == "timeout"
 
     def test_observed_segment_stays_open_before_quiet_gap(self):
-        seg = _open_segment(last_observed_at=T0, last_source="recamera_vlm")
+        seg = _open_segment(last_observed_at=T0, last_source="face_sighting")
         tick = IncomingEvent(
             kind=EventKind.TIMEOUT_TICK,
             person_id="alice",

@@ -563,37 +563,7 @@ class TestDownstreamImageSources:
 
 
 class TestPresenceRecording:
-    @pytest.mark.asyncio
-    async def test_record_presence_false_passes_flag_to_tracking_service(self):
-        person_tracking = _make_person_tracking(detections=[_make_detection()])
-        services = _make_services(person_tracking=person_tracking)
 
-        config = {"record_presence": False, "image_source": "trigger"}
-        await _HANDLER.execute(
-            _make_step(config),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
-        )
-        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
-        assert call_kwargs["record_presence"] is False
-
-    @pytest.mark.asyncio
-    async def test_record_sightings_false_passes_flag_to_tracking_service(self):
-        person_tracking = _make_person_tracking(detections=[_make_detection()])
-        services = _make_services(person_tracking=person_tracking)
-
-        config = {"record_sightings": False, "image_source": "trigger"}
-        await _HANDLER.execute(
-            _make_step(config),
-            _FakeExecution(),
-            {},
-            _make_trigger(),
-            services,
-        )
-        call_kwargs = person_tracking.process_camera_event.call_args.kwargs
-        assert call_kwargs["record_sightings"] is False
 
     @pytest.mark.asyncio
     async def test_presence_room_source_custom_uses_configured_room(self):

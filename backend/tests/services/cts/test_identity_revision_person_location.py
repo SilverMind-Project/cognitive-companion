@@ -9,7 +9,7 @@ import pytest
 from backend.services.cts.identity_revision_subscriber import (
     IdentityRevisionSubscriber,
 )
-from backend.services.cts.identity_rewriter import IdentityRewriter
+from backend.services.cts.signal_rewriter import SignalRewriter
 from backend.services.person_location.config import PersonLocationConfig
 from backend.services.person_location.repositories import (
     InMemoryObservationRepository,
@@ -57,7 +57,7 @@ async def test_revision_without_pls_does_not_crash():
     """When pls is None, the subscriber must not crash."""
     from unittest.mock import AsyncMock
 
-    rewriter = IdentityRewriter(db_factory=None, ws_manager=None)
+    rewriter = SignalRewriter(db_factory=None, ws_manager=None)
     rewriter.apply = AsyncMock(return_value={"rewritten": 1})
     subscriber = IdentityRevisionSubscriber(
         redis_url="redis://localhost:6379",

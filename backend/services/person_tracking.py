@@ -12,17 +12,12 @@ transitions ("entering", "exiting" …) via
 resulting :class:`~backend.services.camera_topology.RoomTransition` objects
 are:
 
-1. Stored as metadata on the :class:`~backend.models.person.PersonLocationHistory`
-   row written for the transition (``direction_semantic``, ``from_room_*``).
-2. Returned to the caller in :class:`CameraEventResult` for use by downstream
+1. Returned to the caller in :class:`CameraEventResult` for use by downstream
    pipeline steps (e.g. to populate ``pipeline_data["room_transitions"]``).
 
 M38: every confirmed camera detection also writes through
-:class:`~backend.services.person_location.recamera_ingest.RecameraLocationIngest`
-into ``PersonLocationService`` (the unified SSOT), alongside the legacy
-``PersonSighting``/``PersonLocationState`` writes below -- a deliberate
-double-write bridge, not a replacement, so a later milestone can delete the
-legacy half once the SSOT path has soaked.
+:class:`~backend.services.person_location.face_sighting_ingest.FaceSightingIngest`
+into ``PersonLocationService`` (the unified SSOT).
 """
 
 from __future__ import annotations
@@ -42,14 +37,10 @@ from backend.integrations.person_id_client import PersonIDClient
 from backend.models.person import (
     HouseholdMember,
     PersonActivity,
-    PersonLocationHistory,
-    PersonLocationState,
-    PersonSighting,
 )
 from backend.models.sensor import Sensor
 from backend.services.camera_topology import RoomTransition, infer_room_transition
-from backend.services.cts.source_authority import SourceAuthority
-from backend.services.person_location.recamera_ingest import RecameraLocationIngest
+from backend.services.person_location.face_sighting_ingest import FaceSightingIngest
 from backend.services.person_location.service import PersonLocationService
 from backend.services.person_location.types import is_unknown_bucket
 
@@ -146,17 +137,15 @@ class PersonTrackingService:
         db_session_factory,
         person_id_client: PersonIDClient,
         ha_client: HomeAssistantClient,
-        authority: SourceAuthority,
         ws_manager=None,
-        recamera_ingest: RecameraLocationIngest | None = None,
+        face_sighting_ingest: FaceSightingIngest | None = None,
         person_location_service: PersonLocationService | None = None,
     ) -> None:
         self._db_factory = db_session_factory
         self._person_id = person_id_client
         self._ha = ha_client
         self._ws_manager = ws_manager
-        self._authority = authority
-        self._recamera_ingest = recamera_ingest
+        self._face_sighting_ingest = face_sighting_ingest
         self._location = person_location_service
         self._stale_minutes: int = settings.as_int("person_tracking.location_stale_minutes")
         self._ha_propagation: bool = settings.as_bool("person_tracking.ha_propagation")
@@ -176,8 +165,6 @@ class PersonTrackingService:
         sensor_config: dict | None = None,
         *,
         frame_contexts: list[CameraFrameContext] | None = None,
-        record_sightings: bool = True,
-        record_presence: bool = True,
     ) -> CameraEventResult:
         """Process a camera event through the person-id service.
 
@@ -191,10 +178,7 @@ class PersonTrackingService:
            person).
         4. Infer semantic room transitions via the sensor's topology map when
            ``sensor_config`` contains a ``movement_map``.
-        5. Write :class:`~backend.models.person.PersonSighting` and update
-           :class:`~backend.models.person.PersonLocationState` /
-           :class:`~backend.models.person.PersonLocationHistory` for each
-           detection.
+        5. Write into the SSOT via FaceSightingIngest.
 
         Args:
             sensor_id: ID of the triggering camera sensor.
@@ -297,35 +281,10 @@ class PersonTrackingService:
                 if det_transition is not None:
                     transition_by_person[det.person_id] = det_transition
 
-                if record_sightings:
-                    await self._record_sighting(
-                        db=db,
-                        person_id=det.person_id,
-                        sensor_id=det_sensor_id,
-                        room_name=det_room_name,
-                        confidence=det.confidence,
-                        direction=det.direction,
-                        bbox=det.bbox,
-                        source="camera",
-                    )
-                if record_presence:
-                    await self._update_location_state(
-                        db=db,
-                        person_id=det.person_id,
-                        room_name=det_room_name,
-                        sensor_id=det_sensor_id,
-                        confidence=det.confidence,
-                        source="camera",
-                        room_transition=transition_by_person.get(det.person_id),
-                    )
+                self._ensure_member_exists(db, det.person_id)
 
-                # M38 Part D: SSOT write, alongside (not instead of) the
-                # legacy writes above -- the deliberate double-write bridge
-                # that lets a later milestone delete the legacy half once
-                # this soaks. Unconditional: record_sightings/record_presence
-                # are legacy-table-only knobs, not gates on the SSOT.
-                if self._recamera_ingest is not None:
-                    await self._recamera_ingest.ingest(
+                if self._face_sighting_ingest is not None:
+                    await self._face_sighting_ingest.ingest(
                         person_id=det.person_id,
                         sensor_id=det_sensor_id,
                         room_name=det_room_name,
@@ -373,7 +332,7 @@ class PersonTrackingService:
 
         M38 Part E: candidate discovery moves onto the SSOT
         (``PersonLocationService.recent_observations``, world_tracker +
-        recamera_vlm, same 10-minute window the legacy ``PersonSighting``
+        face_sighting, same 10-minute window the legacy ``PersonSighting``
         query used) and the already-in-room / fresh-elsewhere skip checks
         re-express against ``where_is``/``latest_observation`` -- decision
         semantics unchanged, only the data source moves (M32 discipline).
@@ -409,7 +368,7 @@ class PersonTrackingService:
         cutoff = now - timedelta(minutes=10)
 
         recent = await self._location.recent_observations(
-            cutoff, sources=("world_tracker", "recamera_vlm"), limit=20
+            cutoff, sources=("world_tracker", "face_sighting"), limit=20
         )
         if not recent:
             return
@@ -435,24 +394,7 @@ class PersonTrackingService:
                 if latest is not None and (now - latest.observed_at).total_seconds() < 60:
                     continue  # fresh elsewhere, don't override
 
-            await self._record_sighting(
-                db=db,
-                person_id=person_id,
-                sensor_id=sensor.id,
-                room_name=room_name,
-                confidence=0.6,
-                direction=None,
-                bbox=None,
-                source="ha_sensor",
-            )
-            await self._update_location_state(
-                db=db,
-                person_id=person_id,
-                room_name=room_name,
-                sensor_id=sensor.id,
-                confidence=0.6,
-                source="ha_sensor",
-            )
+            self._ensure_member_exists(db, person_id)
             await self._location.ingest_observation(
                 person_id=person_id,
                 observed_at=now,
@@ -467,18 +409,8 @@ class PersonTrackingService:
     # Persistence helpers
     # ------------------------------------------------------------------
 
-    async def _record_sighting(
-        self,
-        db: Session,
-        person_id: str,
-        sensor_id: str,
-        room_name: str,
-        confidence: float,
-        direction: str | None,
-        bbox: list[float] | None,
-        source: str,
-    ) -> None:
-        """Insert a :class:`~backend.models.person.PersonSighting` row."""
+    def _ensure_member_exists(self, db: Session, person_id: str) -> None:
+        """Ensure HouseholdMember exists for guests."""
         member = db.query(HouseholdMember).filter(HouseholdMember.id == person_id).first()
         if not member:
             is_guest = person_id == "unknown" or person_id.startswith("unknown_")
@@ -490,225 +422,7 @@ class PersonTrackingService:
             db.add(member)
             db.flush()
 
-        from backend.models.room import Room
 
-        room = db.query(Room).filter(Room.name == room_name).first()
-        room_id = room.id if room else None
-
-        sighting = PersonSighting(
-            person_id=person_id,
-            sensor_id=sensor_id,
-            room_id=room_id,
-            room_name=room_name,
-            confidence=confidence,
-            direction=direction,
-            bbox_json={"x1": bbox[0], "y1": bbox[1], "x2": bbox[2], "y2": bbox[3]}
-            if bbox
-            else None,
-            source=source,
-        )
-        db.add(sighting)
-        db.commit()
-
-    async def _update_location_state(
-        self,
-        db: Session,
-        person_id: str,
-        room_name: str,
-        sensor_id: str,
-        confidence: float,
-        source: str,
-        room_transition: RoomTransition | None = None,
-    ) -> None:
-        """Upsert :class:`~backend.models.person.PersonLocationState` and append
-        to :class:`~backend.models.person.PersonLocationHistory` on room change.
-
-        When *room_transition* is provided its ``direction_semantic`` /
-        ``from_room_*`` fields are stored on the new history row.
-
-        Persistence is delegated to :class:`LocationRepository` (M10 / TD-005)
-        so this service and the CTS :class:`LocationWriter` share one
-        canonical write path.
-        """
-        from backend.models.room import Room
-        from backend.services.cts.location_repository import (
-            SqlAlchemyLocationRepository,
-        )
-
-        now = datetime.now(UTC)
-        room = db.query(Room).filter(Room.name == room_name).first()
-        room_id = room.id if room else None
-
-        repo = SqlAlchemyLocationRepository(db)
-
-        existing = repo.get_state(person_id)
-
-        # Check SourceAuthority before writing (CR-15).
-        incoming_priority = self._authority.priority_for(source)
-        if existing is not None and not self._authority.should_write(
-            incoming_priority=incoming_priority,
-            incoming_time=now,
-            current_source=existing.last_sensor_id or "",
-            current_updated_at=existing.updated_at,
-        ):
-            # A higher-priority source already owns this state; skip.
-            return
-
-        room_changed = existing is None or existing.current_room_name != room_name
-
-        if room_changed:
-            repo.close_open_history(person_id, exited_at=now)
-            repo.append_history(
-                person_id=person_id,
-                room_id=room_id,
-                room_name=room_name,
-                entered_at=now,
-                source=source,
-                direction_semantic=(room_transition.semantic if room_transition else None),
-                from_room_id=(room_transition.from_room_id if room_transition else None),
-                from_room_name=(room_transition.from_room_name if room_transition else None),
-            )
-
-        state_source = (
-            f"recamera:{sensor_id}"
-            if source == "camera"
-            else f"ha:uncorrelated:{sensor_id}"
-            if source == "ha_sensor"
-            else sensor_id
-        )
-
-        repo.upsert_state(
-            person_id=person_id,
-            room_name=room_name,
-            room_id=room_id,
-            sensor_id=state_source,
-            confidence=confidence,
-            status="home",
-            event_time=now,
-        )
-
-        repo.commit()
-
-        if self._ha_propagation:
-            await self._propagate_to_ha(person_id, room_name, confidence)
-
-    async def _propagate_to_ha(self, person_id: str, room_name: str, confidence: float) -> None:
-        """Push person location to Home Assistant as an input_text helper."""
-        try:
-            await self._ha.set_person_location(person_id, room_name, confidence)
-        except Exception:  # noqa: BLE001
-            logger.warning("ha_propagation_failed", person_id=person_id)
-
-    # ------------------------------------------------------------------
-    # Query helpers
-    # ------------------------------------------------------------------
-
-    async def get_person_locations(self) -> list[dict]:
-        """Return current location of all active tracked persons."""
-        db: Session = self._db_factory()
-        try:
-            rows = (
-                db.query(PersonLocationState, HouseholdMember)
-                .join(HouseholdMember, PersonLocationState.person_id == HouseholdMember.id)
-                .filter(HouseholdMember.is_active.is_(True))
-                .all()
-            )
-            return [
-                {
-                    "person_id": state.person_id,
-                    "person_name": member.name,
-                    "current_room_name": state.current_room_name,
-                    "last_seen_at": state.last_seen_at.isoformat() if state.last_seen_at else None,
-                    "last_sensor_id": state.last_sensor_id,
-                    "status": state.status,
-                    "confidence": state.confidence,
-                }
-                for state, member in rows
-            ]
-        finally:
-            db.close()
-
-    async def get_person_location(self, person_id: str) -> dict | None:
-        """Return current location of a specific person."""
-        db: Session = self._db_factory()
-        try:
-            result = (
-                db.query(PersonLocationState, HouseholdMember)
-                .join(HouseholdMember, PersonLocationState.person_id == HouseholdMember.id)
-                .filter(PersonLocationState.person_id == person_id)
-                .first()
-            )
-            if not result:
-                return None
-            state, member = result
-            return {
-                "person_id": state.person_id,
-                "person_name": member.name,
-                "current_room_name": state.current_room_name,
-                "last_seen_at": state.last_seen_at.isoformat() if state.last_seen_at else None,
-                "last_sensor_id": state.last_sensor_id,
-                "status": state.status,
-                "confidence": state.confidence,
-            }
-        finally:
-            db.close()
-
-    async def get_location_history(self, person_id: str, hours: float = 24.0) -> list[dict]:
-        """Return location timeline for a person."""
-        db: Session = self._db_factory()
-        try:
-            cutoff = datetime.now(UTC) - timedelta(hours=hours)
-            entries = (
-                db.query(PersonLocationHistory)
-                .filter(
-                    PersonLocationHistory.person_id == person_id,
-                    PersonLocationHistory.entered_at >= cutoff,
-                )
-                .order_by(desc(PersonLocationHistory.entered_at))
-                .all()
-            )
-            return [
-                {
-                    "id": e.id,
-                    "person_id": e.person_id,
-                    "room_name": e.room_name,
-                    "entered_at": e.entered_at.isoformat(),
-                    "exited_at": e.exited_at.isoformat() if e.exited_at else None,
-                    "source": e.source,
-                    "direction_semantic": e.direction_semantic,
-                    "from_room_name": e.from_room_name,
-                }
-                for e in entries
-            ]
-        finally:
-            db.close()
-
-    async def get_recent_sightings(self, person_id: str, limit: int = 20) -> list[dict]:
-        """Return recent sightings for a person."""
-        db: Session = self._db_factory()
-        try:
-            sightings = (
-                db.query(PersonSighting)
-                .filter(PersonSighting.person_id == person_id)
-                .order_by(desc(PersonSighting.timestamp))
-                .limit(limit)
-                .all()
-            )
-            return [
-                {
-                    "id": s.id,
-                    "person_id": s.person_id,
-                    "sensor_id": s.sensor_id,
-                    "room_name": s.room_name,
-                    "timestamp": s.timestamp.isoformat(),
-                    "confidence": s.confidence,
-                    "direction": s.direction,
-                    "source": s.source,
-                }
-                for s in sightings
-            ]
-        finally:
-            db.close()
 
     async def record_activity(
         self,

@@ -1,4 +1,4 @@
-"""M38 Part F: RecameraLocationIngest adapter tests.
+"""M38 Part F: FaceSightingIngest adapter tests.
 
 Detection -> observation row + gated assertion publish, guest
 auto-provisioning, missing-room degradation, and the unknown-bucket rule
@@ -17,7 +17,7 @@ from backend.models.room import Room
 from backend.models.sensor import Sensor
 from backend.services.cts.identity_assertion_publisher import IdentityAssertionPublisher
 from backend.services.person_location.config import PersonLocationConfig
-from backend.services.person_location.recamera_ingest import RecameraLocationIngest
+from backend.services.person_location.face_sighting_ingest import FaceSightingIngest
 from backend.services.person_location.repositories import (
     InMemoryObservationRepository,
     InMemorySegmentRepository,
@@ -51,9 +51,9 @@ def _make_adapter(
     publisher: IdentityAssertionPublisher | None = None,
     publish_assertions: bool = True,
     location_service: PersonLocationService | None = None,
-) -> tuple[RecameraLocationIngest, PersonLocationService]:
+) -> tuple[FaceSightingIngest, PersonLocationService]:
     svc = location_service or _make_location_service()
-    adapter = RecameraLocationIngest(
+    adapter = FaceSightingIngest(
         db_factory=db_factory,
         location_service=svc,
         assertion_publisher=publisher,

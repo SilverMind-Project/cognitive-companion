@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
-SourceTag = Literal["world_tracker", "recamera_vlm", "sensor", "manual"]
+SourceTag = Literal["world_tracker", "face_sighting", "sensor", "manual"]
 EntrySource = Literal["observed", "inferred_transit", "manual"]
 ExitSource = Literal["observed", "inferred_transit", "contradicted", "manual", "timeout"]
 

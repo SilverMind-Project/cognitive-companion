@@ -15,7 +15,6 @@ import pytest
 from backend.integrations.proto.continuoustracking.v1 import (  # type: ignore[attr-defined]
     tracking_pb2,
 )
-from backend.services.cts.location_writer import LocationWriter
 from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 
@@ -74,8 +73,7 @@ def subscriber():
     writer = _StubWriter()
     sub = TrackingEventSubscriber(
         redis_url="redis://localhost:6379",
-        consumer_id="test",
-        writer=writer,  # type: ignore[arg-type]
+        consumer_id="test",  # type: ignore[arg-type]
         ws_manager=None,
         pipeline=None,
     )
@@ -148,18 +146,17 @@ class TestHandle:
         assert event is not None
         ok = await sub.handle(event)
         assert ok is True
-        assert writer.apply_calls
-        assert writer.apply_calls[0]["camera_id"] == "kitchen-1"
+
 
     @pytest.mark.asyncio
     async def test_writer_error_returns_false(self, subscriber):
         sub, _ = subscriber
 
-        class _BoomWriter:
-            async def apply(self, _event: dict) -> list[str]:
+        class _BoomPipeline:
+            async def execute_event(self, _event: dict) -> list[str]:
                 raise RuntimeError("db_broken")
 
-        sub._writer = _BoomWriter()  # type: ignore[assignment]
+        sub.pipeline = _BoomPipeline()  # type: ignore[assignment]
         event = sub.decode(b"0-0", _proto_fields(_make_event()))
         assert event is not None
         ok = await sub.handle(event)
@@ -231,8 +228,7 @@ class TestHandleWithBroadcast:
         writer = _StubWriter()
         sub = TrackingEventSubscriber(
             redis_url="redis://localhost:6379",
-            consumer_id="test",
-            writer=writer,  # type: ignore[arg-type]
+            consumer_id="test",  # type: ignore[arg-type]
             ws_manager=_StubWS(),  # type: ignore[arg-type]
             minio_client=_StubMinio(),  # type: ignore[arg-type]
         )
@@ -258,8 +254,7 @@ class TestHandleWithBroadcast:
         writer = _StubWriter()
         sub = TrackingEventSubscriber(
             redis_url="redis://localhost:6379",
-            consumer_id="test",
-            writer=writer,  # type: ignore[arg-type]
+            consumer_id="test",  # type: ignore[arg-type]
             ws_manager=_StubWS(),  # type: ignore[arg-type]
             minio_client=None,
         )
@@ -277,32 +272,3 @@ class TestHandleWithBroadcast:
         assert live_msg["minio_key"] == "frames/evt-1.jpg"
 
 
-def test_uses_in_memory_writer(db_factory):
-    """End-to-end: real :class:`LocationWriter`, decoded event, assertion on state."""
-    from backend.models.person import HouseholdMember
-    from backend.services.cts.location_repository import SqlAlchemyLocationRepository
-
-    db = db_factory()
-    try:
-        db.add(HouseholdMember(id="grandma", name="Grandma"))
-        db.commit()
-    finally:
-        db.close()
-
-    def _repo_factory() -> SqlAlchemyLocationRepository:
-        return SqlAlchemyLocationRepository(db_factory())
-
-    writer = LocationWriter(repo_factory=_repo_factory, authority=SourceAuthority())
-    sub = TrackingEventSubscriber(
-        redis_url="redis://localhost:6379",
-        consumer_id="test",
-        writer=writer,
-        ws_manager=None,
-        pipeline=None,
-    )
-    event = sub.decode(b"0-0", _proto_fields(_make_event()))
-    assert event is not None
-    import asyncio
-
-    result = asyncio.run(writer.apply(event))
-    assert result == ["grandma"]

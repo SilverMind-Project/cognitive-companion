@@ -34,9 +34,7 @@ from backend.services.cts.event_bucketizer import (
     CtsWindowTrigger,
 )
 from backend.services.cts.identity_revision_subscriber import IdentityRevisionSubscriber
-from backend.services.cts.identity_rewriter import IdentityRewriter
-from backend.services.cts.location_repository import SqlAlchemyLocationRepository
-from backend.services.cts.location_writer import LocationWriter
+from backend.services.cts.signal_rewriter import SignalRewriter
 from backend.services.cts.ph_continuation_subscriber import PHContinuationSubscriber
 from backend.services.cts.room_transition_subscriber import RoomTransitionSubscriber
 from backend.services.cts.scene_sample_subscriber import SceneSampleSubscriber
@@ -110,10 +108,8 @@ class CTSRuntime:
         self._db_factory = db_factory
         self._ws_manager = ws_manager
         self._pipeline = pipeline
+        self._pipeline = pipeline
         self.authority = authority
-
-        def _repo_factory() -> SqlAlchemyLocationRepository:
-            return SqlAlchemyLocationRepository(db_factory())
 
         # Build camera→room mapping from the CtsCamera table at startup.
         # Cameras rarely change location, so this is loaded once and used
@@ -126,13 +122,7 @@ class CTSRuntime:
         camera_id_map: dict[str, int] = {}
         if db_factory is not None:
             camera_id_map = _load_camera_room_id_map(db_factory)
-
-        self.location_writer = LocationWriter(
-            repo_factory=_repo_factory,
-            authority=self.authority,
-            camera_room_map=camera_map,
-        )
-        self.identity_rewriter = IdentityRewriter(
+        self.signal_rewriter = SignalRewriter(
             db_factory=db_factory,
             ws_manager=ws_manager,
             revision_horizon_s=config.revision_horizon_s,
@@ -183,7 +173,6 @@ class CTSRuntime:
         self.tracking_event_subscriber = TrackingEventSubscriber(
             redis_url=config.redis_url,
             consumer_id=config.consumer_id,
-            writer=self.location_writer,
             ws_manager=ws_manager,
             pipeline=pipeline,
             bucketizer=self.bucketizer,
@@ -193,7 +182,7 @@ class CTSRuntime:
         self.identity_revision_subscriber = IdentityRevisionSubscriber(
             redis_url=config.redis_url,
             consumer_id=config.consumer_id,
-            rewriter=self.identity_rewriter,
+            rewriter=self.signal_rewriter,
             pipeline=pipeline,
             ws_manager=ws_manager,
             orchestrator_client=orchestrator_client,

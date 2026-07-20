@@ -29,9 +29,9 @@ pipeline.wire_scheduler                   (APScheduler instance + scheduler brid
 guided_task.wire_guided_task              (safety watch, gate runner, GuidedTaskService, all scheduler.add_job, scheduler.start())  -> guided_camera_topology
 if cts.enabled:
     cts.wire_cts                          (orchestrator clients, PH/keyframe/identity/ReID services, CTSRuntime)  -> cts_runtime
-        -> presence.wire_presence         (called from inside wire_cts, not from lifespan.py -- see below)
 else:
     cts.wire_cts_disabled
+presence.wire_presence                    (unconditional: HaStateCache + PresenceService, M39 Part B)
 [inline] auth token check, ServiceContainer completeness gate, MCP session manager, yield, shutdown
 ```
 
@@ -50,16 +50,11 @@ behavior-preserving refactor may not do. Concretely:
    three functions (`wire_service_container`, `wire_executor_and_workflow`,
    `wire_scheduler`) with `perception.wire_perception` and `mcp.wire_mcp`
    called in between, matching the original interleaving exactly.
-2. **`presence.wire_presence` is called from inside `cts.wire_cts`, not
-   from `lifespan.py`.** In the original source, presence construction is
-   nested *inside* the `if cts.enabled:` branch, between
-   `await cts_runtime.start()` and the MCP-runtime surfacing step -- it is
-   not a top-level lifespan step. Making it a lifespan.py-level call would
-   mean either duplicating the `if cts.enabled:` check or reordering
-   `wire_cts`'s internals; instead `cts.py` imports and calls
-   `presence.wire_presence` at the exact point the original code ran it.
-   Presence therefore stays its own file (matching the milestone's list)
-   without pretending it is an independent lifespan phase.
+2. **`presence.wire_presence` is called unconditionally from `lifespan.py` (M39 Part B).**
+   Formerly nested inside `wire_cts`, `wire_presence` was un-gated from `cts.enabled`
+   because `PresenceService` and `HaStateCache` read from `PersonLocationService` (SSOT)
+   and HA, neither of which is CTS-specific. It now runs unconditionally in `lifespan.py`
+   right after the CTS branch.
 3. **`guided_task.wire_guided_task` also owns every `scheduler.add_job`
    call, the telegram trigger service, and `scheduler.start()`** -- not
    just the guided-task-specific pieces the milestone's bullet for
@@ -240,40 +235,22 @@ Also assigns `container.presence` (via `presence.wire_presence`).
 | `dementia_signal_subscriber` | constructed | `None` |
 | `tracking_event_subscriber` | constructed | `None` |
 | `identity_revision_subscriber` | constructed | `None` |
-| `scene_sample_subscriber` | constructed | **absent** (see gap below) |
-| `ha_state_cache` (via `presence.wire_presence`) | constructed | **absent** (see gap below) |
-| `presence` (via `presence.wire_presence`) | constructed | **absent** (see gap below) |
+| `scene_sample_subscriber` | constructed | `None` (M39 Part B) |
 
 `person_location_service` is **not** in this table any more: it is
 constructed once by `perception.wire_perception`, unconditionally, and
 neither `wire_cts` nor `wire_cts_disabled` touches it.
 
-### `presence.wire_presence` (called from inside `cts.wire_cts`)
+### `presence.wire_presence` (called unconditionally from `lifespan.py`, M39 Part B)
 
 | Attribute | Depends on |
 | --- | --- |
 | `ha_state_cache` | `ha_client` |
-| `presence` | `ha_state_cache`, `cts_runtime` (for its private `_db_factory`, an existing reach-in kept verbatim) |
+| `presence` | `ha_state_cache`, `person_location_service` |
 
-## Known pre-existing gap, surfaced by writing the wiring-pin test, not fixed here
+## Resolution of pre-existing gap (M39 Part B)
 
-`cts.wire_cts_disabled` mirrors every CTS-gated attribute to `None` except
-three: `scene_sample_subscriber`, `ha_state_cache`, and `presence`. When
-`cts.enabled=false`, those three attributes do not exist on `app.state` at
-all -- confirmed empirically by running the real lifespan under
-`backend/tests/test_bootstrap_wiring.py` (it also confirmed a *second*
-consequence: `main.py`'s shutdown block does
-`if app.state.ha_state_cache is not None`, no `hasattr` guard, so a
-`cts.enabled=false` deployment's shutdown raises `AttributeError` instead
-of exiting cleanly -- the test works around this by setting
-`app.state.ha_state_cache = None` itself right after capturing the real
-attribute set, since fixing the underlying bug is a behavior change and
-this milestone is strictly behavior-preserving). `backend/routers/cts_presence.py`
-reads `request.app.state.presence` and `request.app.state.ha_state_cache`
-with direct attribute access (no `getattr` default), so those routes would
-also raise `AttributeError` rather than a clean 503 on such a deployment.
-Filed as a follow-up finding alongside C17 in the M11 overview; not fixed
-by M20.
+The pre-existing gap (where `scene_sample_subscriber`, `ha_state_cache`, and `presence` were missing on `app.state` when `cts.enabled=false`) was resolved in M39 Part B: `wire_presence` runs unconditionally after the CTS branch, and `wire_cts_disabled` sets `scene_sample_subscriber = None`, ensuring all attributes exist on `app.state` in both branches.
 
 ## Import boundary
 

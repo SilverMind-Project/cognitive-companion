@@ -47,7 +47,7 @@ def _make_snapshot(
         confidence=confidence,
         last_seen_at=datetime.now(UTC) - timedelta(minutes=5),
         dwell_minutes=12.5,
-        sources=(PresenceSource(name="cts_location", confidence=0.9),),
+        sources=(PresenceSource(name="location_service", confidence=0.9),),
         inferred_at=datetime.now(UTC),
         notes=None,
     )

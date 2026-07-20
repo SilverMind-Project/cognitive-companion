@@ -12,15 +12,24 @@ from typing import Annotated, Literal
 import yaml
 from pydantic import BaseModel, Field
 
+from backend.services.person_location.types import SourceTag
+
 # -- Provider configs --------------------------------------------------------
 
 
-class CtsLocationProviderConfig(BaseModel):
-    """CTS location provider config."""
+class LocationServiceProviderConfig(BaseModel):
+    """Location service provider config."""
 
-    name: Literal["cts_location"] = "cts_location"
+    name: Literal["location_service"] = "location_service"
     confidence_floor: float = 0.0
-    ttl_seconds: int = 120
+    ttl_seconds_by_source: dict[SourceTag, int] = Field(
+        default_factory=lambda: {
+            "world_tracker": 120,
+            "face_sighting": 2700,
+            "sensor": 1800,
+            "manual": 86400,
+        }
+    )
     priority: int = 50
 
 
@@ -76,9 +85,9 @@ class UnknownSentinelProviderConfig(BaseModel):
 
 
 Provider = Annotated[
-    CtsLocationProviderConfig
-    | HaBedSensorProviderConfig
+    HaBedSensorProviderConfig
     | HaDeviceTrackerProviderConfig
+    | LocationServiceProviderConfig
     | NightAnchorProviderConfig
     | StaleFallbackProviderConfig
     | UnknownSentinelProviderConfig,

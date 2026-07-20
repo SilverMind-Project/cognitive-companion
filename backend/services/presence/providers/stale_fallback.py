@@ -5,6 +5,9 @@ and returns a ``PresenceSnapshot`` with ``STALE`` status when the
 observation exists but is older than the configured ``ttl_seconds``. When
 no observation exists or the data is fresh, it returns ``None`` so a
 higher-priority provider can answer.
+
+Post-M38 source note: ``stale_fallback`` keeps a single coarse ``ttl_seconds``
+(deliberately the coarse last resort across all multi-source location observations).
 """
 
 from __future__ import annotations

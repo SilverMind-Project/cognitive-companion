@@ -29,12 +29,9 @@
     "bathroom_dwell_anomaly",
     "fall_suspected",
     "gait_slowing",
-    "identity_disagreement",
     "inferred_dwell_exceeded",
     "nighttime_movement",
     "pacing",
-    "presumed_location_unknown",
-    "room_revisit_rate",
     "stillness_anomaly",
     "sundowning_index"
   ],

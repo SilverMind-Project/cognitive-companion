@@ -28,6 +28,10 @@ from backend.models.sensor import Sensor
 from backend.services.cts.identity_assertion_publisher import IdentityAssertionPublisher
 from backend.services.person_location.service import PersonLocationService
 from backend.services.person_location.types import is_unknown_bucket
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from backend.services.occupancy.read_model import OccupancyReadModel
 
 logger = get_logger(__name__)
 
@@ -40,7 +44,10 @@ class FaceSightingIngest:
     identity assertion: giving it presence segments would churn one open
     segment across every unidentified visitor in the house, and asserting
     it to the orchestrator would poison its Bayesian identity resolver with
-    a non-identity.
+    a non-identity. Identified persons and named guests also record room
+    presence into ``OccupancyReadModel`` under stable hypothesis key
+    ``face_{person_id}`` (the unknown bucket is excluded from occupancy for
+    the same absence of stable hypothesis ID across frames).
     """
 
     def __init__(
@@ -50,11 +57,13 @@ class FaceSightingIngest:
         assertion_publisher: IdentityAssertionPublisher | None,
         *,
         publish_assertions: bool,
+        occupancy_read_model: OccupancyReadModel | None = None,
     ) -> None:
         self._db_factory = db_factory
         self._location = location_service
         self._assertion_publisher = assertion_publisher
         self._publish_assertions = publish_assertions
+        self._occupancy_read_model = occupancy_read_model
 
     async def ingest(
         self,
@@ -66,6 +75,7 @@ class FaceSightingIngest:
         raw_similarity: float = 0.0,
         calibrated_confidence: float | None = None,
         calibration_status: str = "uncalibrated",
+        transition: Any | None = None,
     ) -> None:
         """Ingest one confirmed detection. Never raises: logs and returns on failure.
 
@@ -82,12 +92,17 @@ class FaceSightingIngest:
             self._ensure_member(person_id, is_guest=is_unknown)
 
             now = datetime.now(UTC)
+            obs_metadata: dict[str, Any] = {"camera_id": sensor_id, "room_name": room_name}
+            if transition is not None:
+                obs_metadata["from_room"] = transition.from_room_name
+                obs_metadata["direction"] = transition.semantic
+
             await self._location.ingest_observation(
                 person_id=person_id,
                 observed_at=now,
                 source="face_sighting",
                 confidence=confidence,
-                metadata={"camera_id": sensor_id, "room_name": room_name},
+                metadata=obs_metadata,
                 room_id=room_id,
                 # The unknown bucket is a merged pseudo-person: give it an
                 # observation row for audit parity, but never a segment (it
@@ -95,6 +110,18 @@ class FaceSightingIngest:
                 # visitor in the house).
                 skip_segment=is_unknown,
             )
+
+            if not is_unknown and room_id is not None and self._occupancy_read_model is not None:
+                from backend.services.occupancy.read_model import FACE_SIGHTING_SOURCE
+
+                self._occupancy_read_model.record_room_presence(
+                    room_id=room_id,
+                    room_name=room_name,
+                    ph_id=f"face_{person_id}",
+                    identity_id=person_id,
+                    source=FACE_SIGHTING_SOURCE,
+                    observed_at=now,
+                )
 
             if is_unknown:
                 return

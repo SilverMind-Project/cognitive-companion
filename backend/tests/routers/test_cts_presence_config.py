@@ -45,7 +45,7 @@ def _make_snapshot() -> PresenceSnapshot:
         confidence=0.85,
         last_seen_at=now,
         dwell_minutes=15.0,
-        sources=(PresenceSource(name="cts_location", confidence=0.85),),
+        sources=(PresenceSource(name="location_service", confidence=0.85),),
         inferred_at=now,
     )
 
@@ -53,7 +53,7 @@ def _make_snapshot() -> PresenceSnapshot:
 @pytest.fixture
 def presence_service() -> PresenceService:
     mock_provider = MagicMock()
-    mock_provider.name = "cts_location"
+    mock_provider.name = "location_service"
     mock_provider.priority = 50
     mock_provider.probe = AsyncMock(return_value=_make_snapshot())
     return PresenceService(providers=[mock_provider], confidence_floor=0.0)

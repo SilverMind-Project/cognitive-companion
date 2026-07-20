@@ -142,6 +142,14 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     app.state.person_location_service = person_location_service
     container.person_location = person_location_service
 
+    # -- Occupancy read-model (M39 Part C) ---------------------------------
+    # Unified live room occupancy. Fed by world tracker and reCamera
+    # (face_sighting) and merged-at-read with HA presence sensors.
+    from backend.services.occupancy import OccupancyReadModel
+
+    occupancy_read_model = OccupancyReadModel(db_factory=get_session)
+    app.state.occupancy_read_model = occupancy_read_model
+
     # -- reCamera location ingest adapter (M38 Part D, decision W7) --------
     # The single seam that writes reCamera-identified detections to the
     # SSOT and publishes the identity-assertion face-anchor. Always
@@ -168,6 +176,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
         location_service=person_location_service,
         assertion_publisher=identity_assertion_publisher,
         publish_assertions=settings.as_bool("cts.identity_assertions.publish_enabled"),
+        occupancy_read_model=occupancy_read_model,
     )
     app.state.recamera_location_ingest = recamera_location_ingest
 
@@ -264,12 +273,3 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
 
     signals_feed_service = SignalsFeedService(db_factory=get_session)
     app.state.signals_feed = signals_feed_service
-
-    # -- Occupancy read-model ---------------------------------------------
-    # Unified live room occupancy. Fed by the world tracker (when CTS is
-    # enabled) and merged-at-read with HA presence-sensor rows, so it serves
-    # /occupancy regardless of whether CTS is on.
-    from backend.services.occupancy import OccupancyReadModel
-
-    occupancy_read_model = OccupancyReadModel(db_factory=get_session)
-    app.state.occupancy_read_model = occupancy_read_model

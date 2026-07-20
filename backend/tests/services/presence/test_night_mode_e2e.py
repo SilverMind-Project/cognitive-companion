@@ -102,7 +102,7 @@ async def _seed_location(
 
 
 def _make_minimal_config() -> PresenceConfig:
-    """Create a minimal config that includes night_anchor + cts_location."""
+    """Create a minimal config that includes night_anchor + location_service."""
     return PresenceConfig(
         providers=[
             {
@@ -117,8 +117,7 @@ def _make_minimal_config() -> PresenceConfig:
                 "priority": 90,
             },
             {
-                "name": "cts_location",
-                "ttl_seconds": 120,
+                "name": "location_service",
                 "priority": 50,
             },
         ],
@@ -190,7 +189,7 @@ async def test_night_mode_anchor_released_at_02_30():
     query_time = datetime(2026, 5, 4, 2, 31, 0, tzinfo=UTC)
     result = await service.get("mom", at=query_time)
 
-    # Anchor released -> falls through to cts_location -> PRESENT_ROOM bathroom.
+    # Anchor released -> falls through to location_service -> PRESENT_ROOM bathroom.
     assert result.status.value == "present_room"
     assert result.room_name == "bathroom"
 

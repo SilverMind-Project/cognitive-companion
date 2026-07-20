@@ -31,7 +31,6 @@ ALLOWLISTED: dict[str, str] = {
     "GET /api/v1/cts/frames/{key:path}": "binary frame bytes (Response), not JSON",
     "GET /api/v1/image/active": "binary image bytes (Response), not JSON",
     "GET /api/v1/image/templates/{template_id}/preview": "binary image bytes (Response), not JSON",
-    "GET /api/v1/persons/cts/person-location": "410 Gone tombstone, no body",
     "GET /metrics": "Prometheus text exposition format, not JSON",
     "POST /api/v1/image/preview": "binary image bytes (Response), not JSON",
     "POST /api/v1/image/preview-form": "binary image bytes (Response), not JSON",

@@ -3,9 +3,7 @@
 Moved verbatim from ``backend/main.py``'s lifespan (M20): the orchestrator
 and ingress-admin clients, PH enrichment/keyframe-read/identity-correction
 /ReID-review services, the gait trend service, ``CTSRuntime`` and its
-subscribers, the drift-detection poll job, and (via
-``bootstrap.presence.wire_presence``, called from inside the enabled
-branch at the exact point the original source calls it) ``PresenceService``.
+subscribers, and the drift-detection poll job.
 ``wire_cts_disabled`` is the ``else`` side of the same ``if`` in the
 original source.
 
@@ -16,13 +14,10 @@ to wire it into the CTS-gated subscribers (``WorldObservationSubscriber``,
 ``RoomTransitionSubscriber``, ``PHContinuationSubscriber``) that remain
 CTS-gated.
 
-**Known pre-existing gap, not fixed here** (see
-``backend/tests/test_bootstrap_wiring.py`` for the empirical confirmation):
-``wire_cts_disabled`` does not set ``ha_state_cache``, ``presence``, or
-``scene_sample_subscriber`` to ``None`` the way it mirrors every other
-CTS-gated attribute -- those three simply do not exist on ``app.state``
-when CTS is disabled. Fixing that is a behavior change and out of scope for
-this refactor; it is filed as a follow-up in the M11 overview.
+M39 Part B un-gated ``PresenceService`` and ``HaStateCache`` so they run
+unconditionally in ``lifespan.py``, and updated ``wire_cts_disabled`` to set
+``scene_sample_subscriber = None`` so every ``app.state`` attribute exists in
+both branches.
 """
 
 from __future__ import annotations
@@ -157,11 +152,6 @@ async def wire_cts(
     app.state.scene_sample_subscriber = cts_runtime.scene_sample_subscriber
     await cts_runtime.start()
 
-    # -- PresenceService (Block 2: HaStateCache + HA providers) --------
-    from backend.bootstrap.presence import wire_presence
-
-    await wire_presence(app, settings, container)
-
     # Now that the runtime exists, surface it to the MCP tool set.
     from backend.mcp.server import _svc as _mcp_svc
 
@@ -204,6 +194,7 @@ def wire_cts_disabled(app: FastAPI) -> None:
     app.state.dementia_signal_subscriber = None
     app.state.tracking_event_subscriber = None
     app.state.identity_revision_subscriber = None
+    app.state.scene_sample_subscriber = None
     # person_location_service is NOT nulled: perception.wire_perception
     # constructs it unconditionally (M38 Part A), before this function runs.
     app.state.gait_trend_service = None

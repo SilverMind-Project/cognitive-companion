@@ -70,10 +70,30 @@
               :stroke="tokBrand"
               stroke-width="2"
             />
+            <g v-if="getMarker(cam)">
+              <g :transform="`translate(${getLabelPos(cam)[0]}, ${getLabelPos(cam)[1]}) ${getMarker(cam).heading_deg != null ? 'rotate(' + getMarker(cam).heading_deg + ')' : ''}`">
+                <line
+                  v-if="getMarker(cam).heading_deg != null"
+                  x1="0" y1="0" x2="0" y2="-24"
+                  :stroke="getMarker(cam).source === 'derived' ? 'rgb(var(--v-theme-warning))' : tokBrand"
+                  stroke-width="2"
+                  stroke-dasharray="2,2"
+                />
+                <circle
+                  r="12"
+                  :fill="getMarker(cam).source === 'derived' ? 'rgb(var(--v-theme-warning))' : tokBrand"
+                />
+                <foreignObject x="-12" y="-12" width="24" height="24">
+                  <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+                    <v-icon size="14" color="white" style="line-height: 1">mdi-cctv</v-icon>
+                  </div>
+                </foreignObject>
+              </g>
+            </g>
             <text
-              v-if="cam.visibility_polygon"
-              :x="centroid(cam.visibility_polygon)[0]"
-              :y="centroid(cam.visibility_polygon)[1]"
+              v-if="cam.visibility_polygon || getMarker(cam)"
+              :x="getLabelPos(cam)[0]"
+              :y="getLabelPos(cam)[1] + (getMarker(cam) ? 20 : 0)"
               text-anchor="middle"
               dominant-baseline="middle"
               font-size="12"
@@ -143,6 +163,21 @@ const props = defineProps({
   tokText3: { type: String, required: true },
 });
 const emit = defineEmits(["refresh", "img-load", "go-upload"]);
+
+function getMarker(cam) {
+  return cam.marker || cam.marker_estimate || null;
+}
+
+function getLabelPos(cam) {
+  const m = getMarker(cam);
+  if (m && props.imgReady) {
+    return [m.x_norm * props.imgW, m.y_norm * props.imgH];
+  }
+  if (cam.visibility_polygon) {
+    return props.centroid(cam.visibility_polygon);
+  }
+  return [0, 0];
+}
 
 const summary = computed(() => {
   const map = {

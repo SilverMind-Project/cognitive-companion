@@ -81,6 +81,14 @@ class CtsCamera(Base):
     # and x=1 is the right edge.  Populated automatically when homography is saved.
     visibility_polygon: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
+    # Normalised [0,1] floor-plan coordinates (same space as visibility_polygon, resolution-independent).
+    # Each element is [x_norm, y_norm] where x=0 is the left edge of the floor plan
+    # and x=1 is the right edge.
+    marker_x_norm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    marker_y_norm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    marker_heading_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    marker_set_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+
     # List of privacy-zone dicts [{zone_id, name, polygon, policy, enabled}].
     privacy_zones: Mapped[list | None] = mapped_column(JSON, nullable=True)
 

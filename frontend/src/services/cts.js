@@ -32,6 +32,8 @@ export const cts = {
   updateCamera: (id, data) =>
     req(`/cameras/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteCamera: (id) => req(`/cameras/${id}`, { method: "DELETE" }),
+  setCameraMarker: (id, data) => req(`/cameras/${id}/marker`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteCameraMarker: (id) => req(`/cameras/${id}/marker`, { method: "DELETE" }),
   testConnect: (rtsp_url) =>
     req("/cameras/test-connect", { method: "POST", body: JSON.stringify({ rtsp_url }) }),
   /** Live camera snapshot as an authenticated object URL. The caller must revoke it. */

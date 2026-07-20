@@ -1903,6 +1903,83 @@
         "title": "CameraAggregatorStateOut",
         "type": "object"
       },
+      "CameraMarker": {
+        "properties": {
+          "heading_deg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 360.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading Deg"
+          },
+          "source": {
+            "description": "\"operator\" or \"derived\"",
+            "title": "Source",
+            "type": "string"
+          },
+          "x_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X Norm",
+            "type": "number"
+          },
+          "y_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y Norm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x_norm",
+          "y_norm",
+          "source"
+        ],
+        "title": "CameraMarker",
+        "type": "object"
+      },
+      "CameraMarkerIn": {
+        "additionalProperties": false,
+        "properties": {
+          "heading_deg": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 360.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading Deg"
+          },
+          "x_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X Norm",
+            "type": "number"
+          },
+          "y_norm": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y Norm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x_norm",
+          "y_norm"
+        ],
+        "title": "CameraMarkerIn",
+        "type": "object"
+      },
       "CameraVisibilityPolygon": {
         "properties": {
           "camera_id": {
@@ -1916,6 +1993,26 @@
           "has_homography": {
             "title": "Has Homography",
             "type": "boolean"
+          },
+          "marker": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CameraMarker"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "marker_estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CameraMarker"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "visibility_polygon": {
             "anyOf": [
@@ -16771,7 +16868,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.109"
+    "version": "0.7.110"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -19057,6 +19154,94 @@
           }
         ],
         "summary": "Get Health",
+        "tags": [
+          "cts-cameras"
+        ]
+      }
+    },
+    "/api/v1/cts/cameras/{camera_id}/marker": {
+      "delete": {
+        "operationId": "delete_camera_marker",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete Camera Marker",
+        "tags": [
+          "cts-cameras"
+        ]
+      },
+      "put": {
+        "operationId": "put_camera_marker",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "camera_id",
+            "required": true,
+            "schema": {
+              "title": "Camera Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CameraMarkerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Put Camera Marker",
         "tags": [
           "cts-cameras"
         ]

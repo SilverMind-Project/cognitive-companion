@@ -57,7 +57,11 @@ from backend.schemas.cts_camera import (
     VisibilityPolygonsResponse,
 )
 from backend.services.cts.calibration_validator import validate_homography
-from backend.services.cts_visibility import compute_visibility_from_homography, floor_side_boundary
+from backend.services.cts_visibility import (
+    compute_visibility_from_homography,
+    estimate_camera_marker,
+    floor_side_boundary,
+)
 
 logger = get_logger(__name__)
 
@@ -743,6 +747,28 @@ def get_visibility_polygons(
                 else:
                     status = "unknown"
 
+        marker = None
+        if cam.marker_x_norm is not None and cam.marker_y_norm is not None:
+            marker = {
+                "x_norm": cam.marker_x_norm,
+                "y_norm": cam.marker_y_norm,
+                "heading_deg": cam.marker_heading_deg,
+                "source": "operator",
+            }
+
+        marker_estimate = None
+        if has_hom and mpp and fp_w and fp_h:
+            matrix = cam.homography.get("matrix") if cam.homography else cam.homography_matrix
+            if matrix and cam.snapshot_width and cam.snapshot_height:
+                marker_estimate = estimate_camera_marker(
+                    matrix=matrix,
+                    image_width=cam.snapshot_width,
+                    image_height=cam.snapshot_height,
+                    floor_plan_width_m=fp_w * mpp,
+                    floor_plan_height_m=fp_h * mpp,
+                    visibility_polygon=cam.visibility_polygon,
+                )
+
         items.append(
             CameraVisibilityPolygon(
                 camera_id=cam.id,
@@ -750,6 +776,8 @@ def get_visibility_polygons(
                 has_homography=has_hom,
                 visibility_polygon=cam.visibility_polygon,
                 visibility_status=status,
+                marker=marker,
+                marker_estimate=marker_estimate,
             )
         )
 

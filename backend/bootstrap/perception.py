@@ -149,7 +149,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     # publisher itself needs Redis, so it is only real when redis.url is
     # configured, and publishing is separately flag-gated (default off,
     # see cts.identity_assertions.publish_enabled in settings.yaml).
-    from backend.services.person_location.recamera_ingest import RecameraLocationIngest
+    from backend.services.person_location.face_sighting_ingest import FaceSightingIngest
 
     redis_url = settings.as_str("redis.url", allow_empty=True)
     identity_assertion_publisher = None
@@ -163,7 +163,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
         identity_assertion_publisher = IdentityAssertionPublisher(
             aioredis.from_url(redis_url, decode_responses=False)
         )
-    recamera_location_ingest = RecameraLocationIngest(
+    recamera_location_ingest = FaceSightingIngest(
         db_factory=get_session,
         location_service=person_location_service,
         assertion_publisher=identity_assertion_publisher,
@@ -179,8 +179,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
         person_id_client=person_id_client,
         ha_client=ha_client,
         ws_manager=ws_manager,
-        authority=shared_authority,
-        recamera_ingest=recamera_location_ingest,
+        face_sighting_ingest=recamera_location_ingest,
         person_location_service=person_location_service,
     )
     app.state.person_tracking = person_tracking

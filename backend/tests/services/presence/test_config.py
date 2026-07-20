@@ -8,9 +8,9 @@ import pytest
 import yaml
 
 from backend.services.presence.config import (
-    CtsLocationProviderConfig,
     HaBedSensorProviderConfig,
     HaDeviceTrackerProviderConfig,
+    LocationServiceProviderConfig,
     NightAnchorProviderConfig,
     PresenceConfig,
     StaleFallbackProviderConfig,
@@ -24,8 +24,11 @@ def test_load_config_from_file(tmp_path: Path) -> None:
     config_data = {
         "providers": [
             {
-                "name": "cts_location",
-                "ttl_seconds": 120,
+                "name": "location_service",
+                "ttl_seconds_by_source": {
+                    "world_tracker": 120,
+                    "face_sighting": 2700,
+                },
                 "confidence_floor": 0.0,
                 "priority": 50,
             },
@@ -56,14 +59,14 @@ def test_load_config_from_file(tmp_path: Path) -> None:
     config = load_presence_config(yaml_path)
     assert isinstance(config, PresenceConfig)
     assert len(config.providers) == 3
-    assert isinstance(config.providers[0], CtsLocationProviderConfig)
+    assert isinstance(config.providers[0], LocationServiceProviderConfig)
     assert isinstance(config.providers[1], HaBedSensorProviderConfig)
     assert isinstance(config.providers[2], HaDeviceTrackerProviderConfig)
     assert config.fusion.rule == "highest_priority_above_floor"
     assert config.fusion.confidence_floor == 0.4
 
 
-def test_unknown_provider_rejects() -> None:
+def test_unknown_provider_rejects(tmp_path: Path) -> None:
     """Reject a YAML with an unknown provider type."""
     config_data = {
         "providers": [
@@ -72,29 +75,30 @@ def test_unknown_provider_rejects() -> None:
             },
         ],
     }
-    yaml_path = Path("/tmp/test_presence.yaml")
+    yaml_path = tmp_path / "test_presence.yaml"
     yaml_path.write_text(yaml.dump(config_data), encoding="utf-8")
 
     with pytest.raises(ValueError, match="nonexistent_provider"):
         load_presence_config(yaml_path)
 
 
-def test_defaults_applied_when_fields_omitted() -> None:
+def test_defaults_applied_when_fields_omitted(tmp_path: Path) -> None:
     """Minimal provider config gets default values."""
     config_data = {
         "providers": [
-            {"name": "cts_location"},
+            {"name": "location_service"},
         ],
     }
-    yaml_path = Path("/tmp/test_defaults.yaml")
+    yaml_path = tmp_path / "test_defaults.yaml"
     yaml_path.write_text(yaml.dump(config_data), encoding="utf-8")
 
     config = load_presence_config(yaml_path)
-    cts = config.providers[0]
-    assert isinstance(cts, CtsLocationProviderConfig)
-    assert cts.ttl_seconds == 120
-    assert cts.confidence_floor == 0.0
-    assert cts.priority == 50
+    loc = config.providers[0]
+    assert isinstance(loc, LocationServiceProviderConfig)
+    assert loc.ttl_seconds_by_source["world_tracker"] == 120
+    assert loc.ttl_seconds_by_source["face_sighting"] == 2700
+    assert loc.confidence_floor == 0.0
+    assert loc.priority == 50
 
 
 def test_ha_bed_sensor_defaults() -> None:

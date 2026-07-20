@@ -27,7 +27,7 @@ def _make_snapshot(status: PresenceStatus) -> PresenceSnapshot:
         confidence=0.9,
         last_seen_at=datetime.now(UTC),
         dwell_minutes=10.0,
-        sources=(PresenceSource(name="cts_location", confidence=0.9),),
+        sources=(PresenceSource(name="location_service", confidence=0.9),),
         inferred_at=datetime.now(UTC),
     )
 

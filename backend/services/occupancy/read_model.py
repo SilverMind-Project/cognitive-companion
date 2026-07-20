@@ -30,6 +30,7 @@ from backend.schemas.occupancy import RoomOccupancyStateEnvelope
 logger = get_logger(__name__)
 
 WORLD_TRACKER_SOURCE = "world_tracker"
+FACE_SIGHTING_SOURCE = "face_sighting"
 _DEFAULT_TTL_SECONDS = 120
 
 
@@ -137,13 +138,19 @@ class OccupancyReadModel:
             identified = sorted({p.identity_id for p in phs.values() if p.identity_id})
             unknown = sum(1 for p in phs.values() if not p.identity_id)
             rn = next(iter(phs.values())).room_name
+            sources = {p.source for p in phs.values()}
+            primary_source = (
+                WORLD_TRACKER_SOURCE
+                if WORLD_TRACKER_SOURCE in sources
+                else next(iter(sources))
+            )
             by_name[rn] = RoomOccupancyStateEnvelope(
                 room_id=room_id,
                 room_name=rn,
                 occupied=True,
                 person_ids=identified,
                 unknown_count=unknown,
-                source=WORLD_TRACKER_SOURCE,
+                source=primary_source,
                 since=min(p.first_seen for p in phs.values()),
                 last_updated=max(p.last_seen for p in phs.values()),
             )

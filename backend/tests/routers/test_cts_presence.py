@@ -41,7 +41,7 @@ def _make_snapshot(
         confidence=confidence,
         last_seen_at=at,
         dwell_minutes=15.0,
-        sources=(PresenceSource(name="cts_location", confidence=confidence),),
+        sources=(PresenceSource(name="location_service", confidence=confidence),),
         inferred_at=at,
     )
 
@@ -49,7 +49,7 @@ def _make_snapshot(
 @pytest.fixture
 def presence_service() -> PresenceService:
     mock_provider = MagicMock()
-    mock_provider.name = "cts_location"
+    mock_provider.name = "location_service"
     mock_provider.priority = 50
     mock_provider.probe = AsyncMock(return_value=_make_snapshot())
 
@@ -94,7 +94,7 @@ async def test_person_not_in_repo_returns_unknown(presence_service: PresenceServ
     """When no provider returns a snapshot, return UNKNOWN."""
     # Override the provider to return None
     mock_provider = MagicMock()
-    mock_provider.name = "cts_location"
+    mock_provider.name = "location_service"
     mock_provider.priority = 50
     mock_provider.probe = AsyncMock(return_value=None)
 
@@ -156,4 +156,4 @@ async def test_person_in_repo_returns_present_room(presence_service: PresenceSer
     assert body["confidence"] == 0.85
     assert body["person_id"] == "mom"
     assert len(body["sources"]) == 1
-    assert body["sources"][0]["name"] == "cts_location"
+    assert body["sources"][0]["name"] == "location_service"

@@ -58,6 +58,11 @@ async def lifespan(app: FastAPI):
     else:
         cts.wire_cts_disabled(app)
 
+    # -- PresenceService (M39 Part B: un-gated from cts.enabled) ------------
+    from backend.bootstrap.presence import wire_presence
+
+    await wire_presence(app, settings, container)
+
     # -- Auth: every token named at a call site must exist in auth.yaml -----
     from backend.core.auth import assert_declared_tokens_known
 

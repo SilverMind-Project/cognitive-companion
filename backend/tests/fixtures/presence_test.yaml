@@ -1,5 +1,5 @@
 # Test fixture for Block 9 night-mode integration test.
-# Canonical provider chain: night_anchor > ha_bed_sensor > cts_location >
+# Canonical provider chain: night_anchor > ha_bed_sensor > location_service >
 # ha_device_tracker > stale_fallback > unknown_sentinel.
 
 providers:
@@ -26,9 +26,13 @@ providers:
     confidence: 0.95
     priority: 70
 
-  - name: cts_location
+  - name: location_service
     confidence_floor: 0.0
-    ttl_seconds: 120
+    ttl_seconds_by_source:
+      world_tracker: 120
+      face_sighting: 2700
+      sensor: 1800
+      manual: 86400
     priority: 50
 
   - name: ha_device_tracker

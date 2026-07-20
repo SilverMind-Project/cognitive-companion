@@ -13,14 +13,14 @@ from backend.integrations.ha_state_cache import HaStateCache
 from backend.services.person_location.service import PersonLocationService
 from backend.services.presence.anchor_rules import compile_predicate
 from backend.services.presence.config import PresenceConfig
-from backend.services.presence.providers.cts_location import (
-    CtsLocationProvider,
-)
 from backend.services.presence.providers.ha_bed_sensor import (
     HaBedSensorProvider,
 )
 from backend.services.presence.providers.ha_device_tracker import (
     HaDeviceTrackerProvider,
+)
+from backend.services.presence.providers.location_service import (
+    LocationServiceProvider,
 )
 from backend.services.presence.providers.night_anchor import (
     NightAnchorProvider,
@@ -36,11 +36,6 @@ logger = get_logger(__name__)
 
 # Mapping from config discriminator to provider class + builder.
 _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
-    "cts_location": lambda cfg, **kw: CtsLocationProvider(
-        location_service=kw["location_service"],
-        ttl_seconds=cfg.ttl_seconds,
-        priority=cfg.priority,
-    ),
     "ha_bed_sensor": lambda cfg, **kw: HaBedSensorProvider(
         cache=kw["cache"],
         entity_id=cfg.entity_id,
@@ -55,6 +50,11 @@ _PROVIDER_BUILDERS: dict[str, Callable[..., Any]] = {
         entity_id_template=cfg.entity_id_template,
         confidence=cfg.confidence,
         person_id_map=cfg.person_id_map,
+        priority=cfg.priority,
+    ),
+    "location_service": lambda cfg, **kw: LocationServiceProvider(
+        location_service=kw["location_service"],
+        ttl_seconds_by_source=cfg.ttl_seconds_by_source,
         priority=cfg.priority,
     ),
     "night_anchor": lambda cfg, **kw: NightAnchorProvider(
@@ -94,8 +94,8 @@ def build_providers(
     cache:
         The ``HaStateCache`` for HA-backed providers.
     location_service:
-        The shared ``PersonLocationService`` instance. CTS-backed providers
-        (``cts_location``, ``night_anchor``, ``stale_fallback``) read
+        The shared ``PersonLocationService`` instance. Location-backed providers
+        (``location_service``, ``night_anchor``, ``stale_fallback``) read
         through it instead of holding their own repository session.
 
     Returns

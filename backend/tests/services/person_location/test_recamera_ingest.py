@@ -51,6 +51,7 @@ def _make_adapter(
     publisher: IdentityAssertionPublisher | None = None,
     publish_assertions: bool = True,
     location_service: PersonLocationService | None = None,
+    occupancy_read_model=None,
 ) -> tuple[FaceSightingIngest, PersonLocationService]:
     svc = location_service or _make_location_service()
     adapter = FaceSightingIngest(
@@ -58,6 +59,7 @@ def _make_adapter(
         location_service=svc,
         assertion_publisher=publisher,
         publish_assertions=publish_assertions,
+        occupancy_read_model=occupancy_read_model,
     )
     return adapter, svc
 
@@ -259,3 +261,70 @@ async def test_adapter_never_writes_a_floor_point(db_factory):
     await adapter.ingest(person_id="frank", sensor_id="cam-1", room_name="kitchen", confidence=0.8)
 
     assert await svc.latest_floor_point("frank", max_age_s=10**9) is None
+
+
+@pytest.mark.asyncio
+async def test_adapter_records_occupancy_for_identified_person(db_factory):
+    """M39 Part C: FaceSightingIngest records occupancy for identified persons into OccupancyReadModel."""
+    from backend.services.occupancy.read_model import OccupancyReadModel
+
+    _seed_room_and_sensor(db_factory)
+    occupancy_rm = OccupancyReadModel()
+    adapter, _svc = _make_adapter(db_factory, occupancy_read_model=occupancy_rm)
+
+    db = db_factory()
+    try:
+        db.add(HouseholdMember(id="grace", name="Grace"))
+        db.commit()
+    finally:
+        db.close()
+
+    await adapter.ingest(person_id="grace", sensor_id="cam-1", room_name="kitchen", confidence=0.85)
+
+    occupancy = await occupancy_rm.get_occupancy()
+    assert len(occupancy) == 1
+    assert occupancy[0].room_name == "kitchen"
+    assert occupancy[0].person_ids == ["grace"]
+    assert occupancy[0].source == "face_sighting"
+
+
+@pytest.mark.asyncio
+async def test_adapter_includes_transition_metadata(db_factory):
+    """M39 Part D: FaceSightingIngest includes transition metadata on observation."""
+    from backend.services.camera_topology import RoomTransition
+
+    _seed_room_and_sensor(db_factory)
+    adapter, svc = _make_adapter(db_factory)
+
+    db = db_factory()
+    try:
+        db.add(HouseholdMember(id="henry", name="Henry"))
+        db.commit()
+    finally:
+        db.close()
+
+    transition = RoomTransition(
+        person_id="henry",
+        person_name="Henry",
+        sensor_id="cam-1",
+        direction_raw="left_to_right",
+        semantic="entered_room",
+        from_room_id=2,
+        from_room_name="bedroom",
+        to_room_id=1,
+        to_room_name="kitchen",
+        confidence=0.85,
+    )
+
+    await adapter.ingest(
+        person_id="henry",
+        sensor_id="cam-1",
+        room_name="kitchen",
+        confidence=0.85,
+        transition=transition,
+    )
+
+    obs = await svc.latest_observation("henry")
+    assert obs is not None
+    assert obs.metadata.get("from_room") == "bedroom"
+    assert obs.metadata.get("direction") == "entered_room"

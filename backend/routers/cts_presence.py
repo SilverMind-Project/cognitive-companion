@@ -117,12 +117,13 @@ def _build_provider_summaries(
         name = provider.name
         priority = provider.priority
         # Build a human-readable summary from provider attributes.
-        if name == "cts_location":
+        if name == "location_service":
+            ttls = getattr(provider, "_ttl_seconds_by_source", {})
             summaries.append(
                 _ProviderSummary(
                     name=name,
                     priority=priority,
-                    config_summary=f"ttl {getattr(provider, '_ttl_seconds', 120)}s",
+                    config_summary=f"ttls {ttls}",
                 )
             )
         elif name == "ha_bed_sensor":

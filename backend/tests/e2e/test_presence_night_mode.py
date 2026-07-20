@@ -1,7 +1,7 @@
 """End-to-end night-mode integration test for PresenceService (Block 9).
 
 This test wires the full provider chain (HaStateCache + night_anchor +
-ha_bed_sensor + cts_location + stale_fallback + unknown_sentinel) and
+ha_bed_sensor + location_service + stale_fallback + unknown_sentinel) and
 simulates the canonical night-mode flow from the design document:
 
 1. **Asleep scenario** (22:00): bedroom lights off + bed sensor on
@@ -282,7 +282,7 @@ async def test_night_mode_release():
     # CTS (priority 50) returns PRESENT_ROOM bathroom.
     assert snapshot.status == PresenceStatus.PRESENT_ROOM
     assert snapshot.room_name == "bathroom"
-    assert any(s.name == "cts_location" for s in snapshot.sources)
+    assert any(s.name == "location_service" for s in snapshot.sources)
 
 
 # ---------------------------------------------------------------------------

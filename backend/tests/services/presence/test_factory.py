@@ -54,8 +54,7 @@ def _make_config(**overrides):
     defaults = {
         "providers": [
             {
-                "name": "cts_location",
-                "ttl_seconds": 120,
+                "name": "location_service",
                 "priority": 50,
             },
             {
@@ -141,7 +140,7 @@ def test_build_all_provider_types():
     """Every provider type can be instantiated from a representative config."""
     config = PresenceConfig(
         providers=[
-            {"name": "cts_location", "ttl_seconds": 120, "priority": 50},
+            {"name": "location_service", "priority": 50},
             {
                 "name": "ha_bed_sensor",
                 "entity_id": "binary_sensor.bed",
@@ -179,7 +178,7 @@ def test_build_all_provider_types():
     names = [p.name for p in providers]
     assert "night_anchor" in names
     assert "ha_bed_sensor" in names
-    assert "cts_location" in names
+    assert "location_service" in names
     assert "ha_device_tracker" in names
     assert "stale_fallback" in names
     assert "unknown_sentinel" in names

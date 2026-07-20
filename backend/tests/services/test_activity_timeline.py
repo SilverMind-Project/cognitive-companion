@@ -355,3 +355,35 @@ class TestGetTimelineSources:
 
         timestamps = [e["timestamp"] for e in events]
         assert timestamps == sorted(timestamps, reverse=True)
+
+    async def test_location_events_carry_transition_metadata(self, db_factory):
+        """M39 Part D: Location events in timeline carry transition metadata (from_room, direction)."""
+        location_service = _make_location_service(db_factory)
+        service = ActivityTimelineService(db_factory, person_location_service=location_service)
+
+        now = datetime.now(UTC)
+        db = db_factory()
+        _get_or_create_person(db, "person123")
+        room_id = _get_or_create_room(db, "kitchen")
+        db.commit()
+        db.close()
+
+        await location_service.ingest_observation(
+            person_id="person123",
+            observed_at=now,
+            source="face_sighting",
+            confidence=0.85,
+            metadata={"camera_id": "cam-1", "room_name": "kitchen", "from_room": "bedroom", "direction": "entered_room"},
+            room_id=room_id,
+        )
+
+        events = await service.get_timeline(
+            person_id="person123",
+            event_types=["location"],
+        )
+
+        assert len(events) == 1
+        loc_event = events[0]
+        assert loc_event["room_name"] == "kitchen"
+        assert loc_event["metadata"]["from_room"] == "bedroom"
+        assert loc_event["metadata"]["direction"] == "entered_room"

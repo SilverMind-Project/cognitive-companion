@@ -33,9 +33,13 @@ providers:
     confidence: 0.95
     priority: 70
 
-  # CTS location provider (Block 1, still active in Block 2)
-  - name: cts_location
-    ttl_seconds: 120
+  # Location service provider (Block 1)
+  - name: location_service
+    ttl_seconds_by_source:
+      world_tracker: 120
+      face_sighting: 2700
+      sensor: 1800
+      manual: 86400
     confidence_floor: 0.0
     priority: 50
 

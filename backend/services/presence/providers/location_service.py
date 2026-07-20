@@ -1,10 +1,9 @@
-"""CtsLocationProvider: reads person location from PersonLocationService.
+"""LocationServiceProvider: reads person location from PersonLocationService.
 
-This provider is the first provider in the fusion chain for Block 1.
-It reads the current open segment (room) and the latest observation
+Reads the current open segment (room) and the latest observation
 (freshness) from ``PersonLocationService`` and returns a
 ``PresenceSnapshot`` with ``PRESENT_ROOM`` or ``STALE`` status depending
-on the TTL.
+on the per-source TTL.
 """
 
 from __future__ import annotations
@@ -13,20 +12,28 @@ from datetime import datetime, timedelta
 
 from backend.core.logging import get_logger
 from backend.services.person_location.service import PersonLocationService
+from backend.services.person_location.types import SourceTag
 from backend.services.presence import PresenceSnapshot, PresenceSource, PresenceStatus
 
 logger = get_logger(__name__)
 
+_DEFAULT_TTLS: dict[SourceTag, int] = {
+    "world_tracker": 120,
+    "face_sighting": 2700,
+    "sensor": 1800,
+    "manual": 86400,
+}
 
-class CtsLocationProvider:
+
+class LocationServiceProvider:
     """Reads location state from ``PersonLocationService``.
 
     Parameters
     ----------
     location_service:
         The shared ``PersonLocationService`` instance.
-    ttl_seconds:
-        Seconds after which the latest observation is considered stale.
+    ttl_seconds_by_source:
+        Per-source mapping of seconds after which the latest observation is considered stale.
     name:
         Provider name (used in ``PresenceSource``).
     priority:
@@ -37,14 +44,15 @@ class CtsLocationProvider:
         self,
         *,
         location_service: PersonLocationService,
-        ttl_seconds: int = 120,
-        name: str = "cts_location",
+        ttl_seconds_by_source: dict[SourceTag, int] | None = None,
+        name: str = "location_service",
         priority: int = 50,
     ) -> None:
         self._location = location_service
-        self._ttl_seconds = ttl_seconds
+        self._ttl_seconds_by_source = dict(ttl_seconds_by_source or _DEFAULT_TTLS)
         self._name = name
         self._priority = priority
+        self._unknown_sources_logged: set[str] = set()
 
     @property
     def name(self) -> str:
@@ -84,8 +92,22 @@ class CtsLocationProvider:
                 notes="last_seen_at is None",
             )
 
+        source = obs.source if obs is not None else None
+        if source in self._ttl_seconds_by_source:
+            ttl_seconds = self._ttl_seconds_by_source[source]
+        else:
+            # Unknown source uses most conservative configured value (min)
+            ttl_seconds = min(self._ttl_seconds_by_source.values()) if self._ttl_seconds_by_source else 120
+            if source and source not in self._unknown_sources_logged:
+                self._unknown_sources_logged.add(source)
+                logger.warning(
+                    "location_service_unknown_source",
+                    source=source,
+                    fallback_ttl_seconds=ttl_seconds,
+                )
+
         elapsed = at - last_seen_at
-        if elapsed > timedelta(seconds=self._ttl_seconds):
+        if elapsed > timedelta(seconds=ttl_seconds):
             return PresenceSnapshot(
                 person_id=person_id,
                 status=PresenceStatus.STALE,
@@ -96,7 +118,7 @@ class CtsLocationProvider:
                 dwell_minutes=None,
                 sources=(PresenceSource(name=self._name, confidence=loc.confidence),),
                 inferred_at=at,
-                notes=f"last_seen {elapsed.total_seconds():.0f}s ago (TTL={self._ttl_seconds}s)",
+                notes=f"last_seen {elapsed.total_seconds():.0f}s ago (TTL={ttl_seconds}s, source={source})",
             )
 
         dwell_minutes = round((at - loc.since).total_seconds() / 60.0, 2)

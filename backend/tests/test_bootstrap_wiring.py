@@ -81,6 +81,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "guided_metrics_service",
         "guided_task_service",
         "ha_client",
+        "ha_state_cache",
         "identity_correction_service",
         "identity_revision_subscriber",
         "image_pipeline",
@@ -106,11 +107,13 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "pipeline_executor",
         "pipeline_run_service",
         "pipeline_ws_manager",
+        "presence",
         "realtime_provider",
         "recamera_location_ingest",
         "reid_review_service",
         "scene_analysis_client",
         "scene_intel",
+        "scene_sample_subscriber",
         "scheduler",
         "semantic_memory_client",
         "sensor_polling",
@@ -265,15 +268,6 @@ def test_lifespan_wires_exactly_the_frozen_app_state_attributes(
             assert resp.status_code == 200
 
             actual = set(main_module.app.state)
-
-            # Work around a confirmed-by-running-it pre-existing bug, not
-            # fixed here (fixing it is a behavior change; this milestone is
-            # not): shutdown does `if app.state.ha_state_cache is not None`
-            # with no hasattr guard, but the cts.enabled=False branch never
-            # assigns that attribute (see module docstring), so exiting this
-            # `with` block raises AttributeError before the assertion below
-            # -- pass or fail -- ever gets to run. Filed as a follow-up.
-            main_module.app.state.ha_state_cache = None
 
             missing = EXPECTED_APP_STATE_ATTRS - actual
             extra = actual - EXPECTED_APP_STATE_ATTRS

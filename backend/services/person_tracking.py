@@ -288,6 +288,7 @@ class PersonTrackingService:
                         room_name=det_room_name,
                         confidence=det.confidence,
                         raw_similarity=det.similarity,
+                        transition=det_transition,
                     )
         finally:
             db.close()

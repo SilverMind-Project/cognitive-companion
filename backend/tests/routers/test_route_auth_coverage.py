@@ -36,8 +36,6 @@ ALLOWLISTED_ROUTES: dict[str, str] = {
     "GET /api/v1/admin/health": "liveness probe, static payload",
     # Public bootstrap metadata the SPA reads before it holds a key (api.js).
     "GET /api/v1/admin/app-info": "public bootstrap metadata, no household data",
-    # Deprecated tombstone: returns 410 unconditionally, touches no data.
-    "GET /api/v1/persons/cts/person-location": "410 Gone tombstone, no handler body",
     # Authenticated by X-Webhook-Secret (per-rule HMAC), asserted below.
     "POST /api/v1/webhooks/{rule_id}": "X-Webhook-Secret HMAC auth, see test_webhook_trigger_*",
     # Prometheus scrape surface; network-restricted at the deployment layer.

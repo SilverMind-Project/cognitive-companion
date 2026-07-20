@@ -1,14 +1,9 @@
 """Bootstrap phase: PresenceService (HaStateCache + HA providers).
 
-Moved verbatim from ``backend/main.py``'s lifespan (M20). In the original
-source this code sits *inside* the ``cts.enabled`` branch, between
-``await cts_runtime.start()`` and the MCP-runtime surfacing step -- it is
-not a lifespan.py-level phase call like the others. ``bootstrap.cts.wire_cts``
-calls this function directly at that exact point, rather than lifespan.py
-calling it, so the original nesting (presence only ever runs when CTS is
-enabled, and only after the CTS runtime has started and
-``app.state.person_location_service`` is set) is preserved exactly.
-See ``bootstrap/README.md``.
+M39 Part B: presence service construction is un-gated from ``cts.enabled``:
+it runs unconditionally in ``lifespan.py`` after the CTS branch, because
+presence reads from ``PersonLocationService`` (SSOT) and ``HaStateCache``,
+neither of which depends on CTS.
 """
 
 from __future__ import annotations

@@ -51,7 +51,7 @@ def _make_snapshot(
         confidence=confidence,
         last_seen_at=now,
         dwell_minutes=15.0,
-        sources=(PresenceSource(name="cts_location", confidence=confidence),),
+        sources=(PresenceSource(name="location_service", confidence=confidence),),
         inferred_at=now,
         notes=notes,
     )
@@ -60,7 +60,7 @@ def _make_snapshot(
 @pytest.fixture
 def presence_service() -> PresenceService:
     mock_provider = MagicMock()
-    mock_provider.name = "cts_location"
+    mock_provider.name = "location_service"
     mock_provider.priority = 50
     mock_provider.probe = AsyncMock(return_value=_make_snapshot())
     return PresenceService(providers=[mock_provider], confidence_floor=0.0)
@@ -162,7 +162,7 @@ async def test_response_types(presence_service: PresenceService):
 async def test_unknown_snapshot_empty_sources(presence_service: PresenceService):
     """When no provider matches, sources must be an empty list (not null)."""
     mock_provider = MagicMock()
-    mock_provider.name = "cts_location"
+    mock_provider.name = "location_service"
     mock_provider.priority = 50
     mock_provider.probe = AsyncMock(return_value=None)
 

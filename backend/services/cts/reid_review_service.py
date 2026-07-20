@@ -144,6 +144,7 @@ class ReIDReviewService:
         try:
             return ReviewCountsResponse(
                 pending_review=raw["pending_review"],
+                auto_verified=raw["auto_verified"],
                 operator_verified=raw["operator_verified"],
                 rejected=raw["rejected"],
             )
@@ -187,6 +188,22 @@ class ReIDReviewService:
         return await self._mutate(
             "relabel",
             lambda: self._client.relabel_review_candidate(candidate_id, payload=payload),
+            presign,
+        )
+
+    async def demote(
+        self,
+        candidate_id: str,
+        *,
+        actor: str,
+        base_audit_version: int,
+        note: str | None,
+        presign: Presigner = _no_presign,
+    ) -> ReviewCandidateView:
+        payload = {"actor": actor, "base_audit_version": base_audit_version, "note": note}
+        return await self._mutate(
+            "demote",
+            lambda: self._client.demote_review_candidate(candidate_id, payload=payload),
             presign,
         )
 

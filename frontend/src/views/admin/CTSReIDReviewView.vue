@@ -5,6 +5,14 @@
       <v-chip size="small" color="warning" variant="tonal" title="Pending review">
         {{ state.counts.value.pending_review }} pending
       </v-chip>
+      <v-chip
+        size="small"
+        color="info"
+        variant="tonal"
+        title="Auto-verified by calibrated face match"
+      >
+        {{ state.counts.value.auto_verified }} auto-verified
+      </v-chip>
       <v-chip size="small" color="success" variant="tonal" title="Operator verified">
         {{ state.counts.value.operator_verified }} verified
       </v-chip>
@@ -110,6 +118,7 @@
           <thead>
             <tr>
               <th style="width: 44px"></th>
+              <th>State</th>
               <th>Pending age</th>
               <th>Proposed identity</th>
               <th>Camera / time</th>
@@ -122,12 +131,12 @@
           </thead>
           <tbody>
             <tr v-if="state.listLoading.value && !state.candidates.value.length">
-              <td colspan="9" class="text-center py-8">
+              <td colspan="10" class="text-center py-8">
                 <v-progress-circular indeterminate size="28" />
               </td>
             </tr>
             <tr v-else-if="!state.candidates.value.length">
-              <td colspan="9" class="text-center py-8 text-medium-emphasis">
+              <td colspan="10" class="text-center py-8 text-medium-emphasis">
                 No candidates match the current filters.
               </td>
             </tr>
@@ -145,6 +154,11 @@
                   :disabled="c.state !== 'pending_review'"
                   @update:model-value="actions.toggleSelected(c.candidate_id)"
                 />
+              </td>
+              <td>
+                <v-chip size="x-small" :color="stateColor(c.state)" variant="tonal">
+                  {{ stateLabel(c.state) }}
+                </v-chip>
               </td>
               <td>{{ relativeAge(c.created_at || c.seen_at) }}</td>
               <td>{{ c.proposed_identity_id || c.identity_id || "Unknown" }}</td>
@@ -208,19 +222,15 @@
 
         <!-- Eligibility -->
         <v-alert
-          :type="
-            detailCandidate.state !== 'pending_review'
-              ? 'info'
-              : eligibility.eligible
-                ? 'success'
-                : 'warning'
-          "
+          :type="!isReviewable ? 'info' : eligibility.eligible ? 'success' : 'warning'"
           variant="tonal"
           density="compact"
           class="mb-3"
         >
-          <template v-if="detailCandidate.state !== 'pending_review'">
-            Already reviewed: {{ detailCandidate.state }}.
+          <template v-if="!isReviewable"> Already reviewed: {{ detailCandidate.state }}. </template>
+          <template v-else-if="detailCandidate.state === 'auto_verified'">
+            Auto-verified by a calibrated face match; already voting at reduced trust. Approve to
+            fully verify, or demote to un-trust it back to pending review.
           </template>
           <template v-else-if="eligibility.eligible">Eligible for approval.</template>
           <template v-else>
@@ -350,7 +360,9 @@
                 ? 'error'
                 : ev.new_state === 'operator_verified'
                   ? 'success'
-                  : 'grey'
+                  : ev.new_state === 'auto_verified'
+                    ? 'info'
+                    : 'grey'
             "
           >
             <div class="text-body-2">{{ ev.previous_state }} &rarr; {{ ev.new_state }}</div>
@@ -363,9 +375,9 @@
         <div v-else class="text-caption text-medium-emphasis mb-3">No review actions yet.</div>
 
         <!-- Actions -->
-        <div v-if="detailCandidate.state === 'pending_review'">
+        <div v-if="isReviewable">
           <v-divider class="mb-3" />
-          <div class="d-flex ga-2 mb-2">
+          <div class="d-flex ga-2 mb-2 flex-wrap">
             <v-btn
               color="success"
               size="small"
@@ -386,6 +398,18 @@
               @click="showRelabel = !showRelabel"
             >
               Relabel
+            </v-btn>
+            <v-btn
+              v-if="detailCandidate.state === 'auto_verified'"
+              color="secondary"
+              size="small"
+              prepend-icon="mdi-undo"
+              :disabled="state.acting.value"
+              :loading="state.acting.value"
+              title="Un-trust this auto-verified candidate back to pending review"
+              @click="confirmDemote"
+            >
+              Demote
             </v-btn>
             <v-btn
               color="error"
@@ -520,6 +544,7 @@ import IdentityBboxOverlay from "@/components/cts/identity/IdentityBboxOverlay.v
 
 const STATE_OPTIONS = [
   { title: "Pending review", value: "pending_review" },
+  { title: "Auto-verified", value: "auto_verified" },
   { title: "Operator verified", value: "operator_verified" },
   { title: "Rejected", value: "rejected" },
 ];
@@ -565,6 +590,11 @@ const detailEvents = computed(() => state.detail.value?.events || []);
 const eligibility = computed(
   () => state.detail.value?.eligibility || { eligible: false, model_compatible: true, reasons: [] },
 );
+// Mirrors the server's REVIEWABLE_STATES: pending_review and auto_verified
+// both accept approve/relabel/reject; only the terminal states do not.
+const isReviewable = computed(() =>
+  ["pending_review", "auto_verified"].includes(detailCandidate.value.state),
+);
 const frameBboxes = computed(() => {
   const c = detailCandidate.value;
   if (!c.bbox) return [];
@@ -582,6 +612,24 @@ function pct(q) {
 }
 function orientationLabel(o) {
   return ORIENTATIONS[o] ?? "unknown";
+}
+const STATE_LABELS = {
+  pending_review: "Pending",
+  auto_verified: "Auto-verified",
+  operator_verified: "Verified",
+  rejected: "Rejected",
+};
+const STATE_COLORS = {
+  pending_review: "warning",
+  auto_verified: "info",
+  operator_verified: "success",
+  rejected: undefined,
+};
+function stateLabel(s) {
+  return STATE_LABELS[s] ?? s;
+}
+function stateColor(s) {
+  return STATE_COLORS[s];
 }
 function modelOk(c) {
   // The server is authoritative; this only mirrors the detail eligibility flag
@@ -655,6 +703,14 @@ async function confirmRelabel() {
   await actions
     .relabel(detailCandidate.value.candidate_id, { target_identity_id: relabelTarget.value })
     .catch(() => {});
+}
+async function confirmDemote() {
+  const ok = await showConfirm(
+    "Demote candidate",
+    "Un-trust this auto-verified candidate back to pending review? It stops voting until re-approved.",
+  );
+  if (!ok) return;
+  await actions.demote(detailCandidate.value.candidate_id).catch(() => {});
 }
 async function confirmReject() {
   await actions

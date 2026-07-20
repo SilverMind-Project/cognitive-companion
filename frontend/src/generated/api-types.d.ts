@@ -1454,6 +1454,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cts/identity/reid-review/candidates/{candidate_id}/demote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Demote Candidate */
+        post: operations["demote_candidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cts/identity/reid-review/candidates/{candidate_id}/events": {
         parameters: {
             query?: never;
@@ -6550,6 +6567,13 @@ export interface components {
             /** Trigger */
             trigger: components["schemas"]["VariableEntry"][];
         };
+        /** DemoteRequest */
+        DemoteRequest: {
+            /** Base Audit Version */
+            base_audit_version: number;
+            /** Note */
+            note?: string | null;
+        };
         /** DependencyBundle */
         DependencyBundle: {
             /**
@@ -9394,11 +9418,16 @@ export interface components {
             seen_at?: string | null;
             /** Source Episode Id */
             source_episode_id?: string | null;
-            /** State */
-            state: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending_review" | "auto_verified" | "operator_verified" | "rejected";
         };
         /** ReviewCountsResponse */
         ReviewCountsResponse: {
+            /** Auto Verified */
+            auto_verified: number;
             /** Operator Verified */
             operator_verified: number;
             /** Pending Review */
@@ -13394,6 +13423,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewCandidateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demote_candidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DemoteRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

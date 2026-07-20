@@ -26,6 +26,13 @@ RejectReasonCode = Literal[
     "other",
 ]
 
+# Identity-continuity M02: the fourth gallery lifecycle state, auto_verified,
+# sits between pending_review and operator_verified. A candidate can also be
+# terminally rejected. Only these four values are ever valid on the wire; an
+# out-of-vocabulary state from a stale/newer upstream is a contract violation
+# (502), not silently accepted.
+ReviewState = Literal["pending_review", "auto_verified", "operator_verified", "rejected"]
+
 
 # ---------------------------------------------------------------------------
 # Candidate views
@@ -46,7 +53,7 @@ class ReviewCandidateView(BaseModel):
     proposed_identity_id: str | None = None
     effective_identity_id: str | None = None
     person_id: str | None = None
-    state: str
+    state: ReviewState
     label_source: str | None = None
     candidate_reason: str | None = None
     model_version: str | None = None
@@ -110,6 +117,7 @@ class ReviewEventsResponse(BaseModel):
 
 class ReviewCountsResponse(BaseModel):
     pending_review: int
+    auto_verified: int
     operator_verified: int
     rejected: int
 
@@ -131,6 +139,13 @@ class RelabelRequest(BaseModel):
 
     base_audit_version: int
     target_identity_id: str = Field(min_length=1, max_length=128)
+    note: str | None = Field(default=None, max_length=2048)
+
+
+class DemoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    base_audit_version: int
     note: str | None = Field(default=None, max_length=2048)
 
 

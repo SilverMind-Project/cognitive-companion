@@ -127,6 +127,14 @@ export const ctsReidReview = {
       body: JSON.stringify({ base_audit_version, target_identity_id, note }),
     }),
 
+  /** Demote an auto_verified candidate back to pending_review (individual only).
+   *  Unlike reject, the vector survives; the candidate re-enters the queue. */
+  demote: (candidateId, { base_audit_version, note = null }) =>
+    req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/demote`, {
+      method: "POST",
+      body: JSON.stringify({ base_audit_version, note }),
+    }),
+
   /** Reject one candidate with a structured reason. */
   reject: (candidateId, { base_audit_version, reason, note = null }) =>
     req(`/identity/reid-review/candidates/${encodeURIComponent(candidateId)}/reject`, {

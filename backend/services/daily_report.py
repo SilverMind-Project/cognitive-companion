@@ -120,9 +120,6 @@ class DailyReportService:
                 "bathroom_visits": self._aggregate_bathroom(
                     db, person_id, day_start_utc, day_end_utc
                 ),
-                "door_events": self._aggregate_door_events(
-                    db, person_id, day_start_utc, day_end_utc
-                ),
                 "exercise": self._aggregate_exercise(db, person_id, day_start_utc, day_end_utc),
                 "room_time": await self._aggregate_room_time(person_id, day_start_utc, day_end_utc),
                 "summary_text": None,
@@ -309,32 +306,6 @@ class DailyReportService:
             "visit_count": visit_count,
             "total_minutes": total_minutes,
             "avg_duration_minutes": round(avg_minutes, 1) if avg_minutes else None,
-        }
-
-    def _aggregate_door_events(
-        self, db: Session, person_id: str, start: datetime, end: datetime
-    ) -> dict:
-        """Aggregate door open/close events from person activities."""
-        from backend.models.person import PersonActivity
-
-        # Door events are typically recorded as person_activities with activity_type "door_open" or "door_close"
-        stmt = select(PersonActivity).where(
-            and_(
-                PersonActivity.person_id == person_id,
-                PersonActivity.activity_type.in_(["door_open", "door_close"]),
-                PersonActivity.detected_at >= start,
-                PersonActivity.detected_at < end,
-            )
-        )
-
-        activities = db.execute(stmt).scalars().all()
-
-        open_count = sum(1 for a in activities if a.activity_type == "door_open")
-        close_count = sum(1 for a in activities if a.activity_type == "door_close")
-
-        return {
-            "open_count": open_count,
-            "close_count": close_count,
         }
 
     def _aggregate_exercise(
@@ -539,10 +510,6 @@ class DailyReportService:
             existing.bathroom_visit_count = bathroom.get("visit_count")
             existing.bathroom_total_minutes = bathroom.get("total_minutes")
 
-            door = report.get("door_events", {})
-            existing.door_open_count = door.get("open_count")
-            existing.door_close_count = door.get("close_count")
-
             exercise = report.get("exercise", {})
             existing.exercise_session_count = exercise.get("session_count")
             existing.exercise_total_minutes = exercise.get("total_minutes")
@@ -561,7 +528,6 @@ class DailyReportService:
             meals = report.get("meals", {})
             medication = report.get("medication", {})
             bathroom = report.get("bathroom_visits", {})
-            door = report.get("door_events", {})
             exercise = report.get("exercise", {})
             room_time = report.get("room_time", {})
 
@@ -582,8 +548,6 @@ class DailyReportService:
                 medication_adherence_pct=medication.get("adherence_pct"),
                 bathroom_visit_count=bathroom.get("visit_count"),
                 bathroom_total_minutes=bathroom.get("total_minutes"),
-                door_open_count=door.get("open_count"),
-                door_close_count=door.get("close_count"),
                 exercise_session_count=exercise.get("session_count"),
                 exercise_total_minutes=exercise.get("total_minutes"),
                 room_time_json=room_time.get("distribution"),
@@ -637,10 +601,6 @@ class DailyReportService:
                 "bathroom_visits": {
                     "visit_count": record.bathroom_visit_count,
                     "total_minutes": record.bathroom_total_minutes,
-                },
-                "door_events": {
-                    "open_count": record.door_open_count,
-                    "close_count": record.door_close_count,
                 },
                 "exercise": {
                     "session_count": record.exercise_session_count,

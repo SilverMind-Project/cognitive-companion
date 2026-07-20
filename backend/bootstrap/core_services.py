@@ -99,9 +99,9 @@ def wire_boot_preamble(app: FastAPI, settings: Settings) -> None:
     FilterRegistry.discover()
     logger.info(
         "plugins_discovered",
-        steps=StepRegistry.type_names(),
-        channels=ChannelRegistry.channel_names(),
-        filters=FilterRegistry.filter_types(),
+        steps=StepRegistry.all_names(),
+        channels=ChannelRegistry.all_names(),
+        filters=FilterRegistry.all_names(),
     )
 
 

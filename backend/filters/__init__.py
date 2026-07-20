@@ -30,8 +30,3 @@ class FilterRegistry(PluginRegistry[ContextFilter, FilterMetadata]):
     @classmethod
     def _key_from_metadata(cls, meta: FilterMetadata) -> str:
         return meta.filter_type
-
-    @classmethod
-    def filter_types(cls) -> list[str]:
-        """Return all registered filter type names (deprecated alias)."""
-        return cls.all_names()

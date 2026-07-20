@@ -1,8 +1,8 @@
 """TrackingEventSubscriber: consume tracking.events and apply to location state.
 
 Decodes :class:`TrackingEvent` proto messages from the ``tracking.events``
-Redis Stream, translates them into the dict shape that :class:`LocationWriter`
-consumes, and forwards live-frame broadcasts to the WebSocket fan-out.
+Redis Stream, translates them into an event dict,
+and forwards live-frame broadcasts to the WebSocket fan-out.
 
 Wire format
 -----------
@@ -89,7 +89,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
     def decode(
         self, message_id: bytes, fields: dict[bytes | str, bytes | str]
     ) -> dict[str, Any] | None:
-        """Decode the proto envelope into the LocationWriter event dict."""
+        """Decode the proto envelope into an event dict."""
         payload = fields.get(FIELD) or fields.get(FIELD.decode())
         if payload is None:
             logger.warning("tracking_event_missing_payload", message_id=message_id)

@@ -130,6 +130,7 @@ class FakeHaStateCache:
 
 import pathlib
 
+
 def _build_chain(
     cache: FakeHaStateCache,
     location_service: PersonLocationService,

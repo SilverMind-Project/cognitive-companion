@@ -51,6 +51,11 @@ class TestIsSignalEnabled:
         cfg = {"min_severity": "info"}
         assert is_signal_enabled(cfg, "sundowning_index", "info") is True
 
+    def test_dropped_kinds_are_tolerated_but_not_enabled(self):
+        cfg = {"enabled_kinds": ["pacing", "room_revisit_rate"], "min_severity": "info"}
+        assert is_signal_enabled(cfg, "room_revisit_rate", "info") is False
+        assert is_signal_enabled(cfg, "pacing", "info") is True
+
 
 class TestDefaultConfigForProfile:
     def test_senior_has_all_kinds(self):
@@ -73,3 +78,21 @@ class TestDefaultConfigForProfile:
     def test_unknown_profile_falls_back_to_all_kinds(self):
         cfg = default_config_for_profile("nonexistent_profile")
         assert set(cfg["enabled_kinds"]) == set(ALL_SIGNAL_KINDS)
+
+class TestProfileGuard:
+    def test_all_profile_members_are_in_all_signal_kinds(self):
+        from backend.services.cts.signal_config import (
+            _DEMENTIA_SPECIFIC_KINDS,
+            _PRESENCE_KINDS,
+            _SLEEP_REST_KINDS,
+            SIGNAL_PROFILE_KINDS,
+        )
+        for kind in _PRESENCE_KINDS:
+            assert kind in ALL_SIGNAL_KINDS
+        for kind in _SLEEP_REST_KINDS:
+            assert kind in ALL_SIGNAL_KINDS
+        for kind in _DEMENTIA_SPECIFIC_KINDS:
+            assert kind in ALL_SIGNAL_KINDS
+        for _profile, kinds in SIGNAL_PROFILE_KINDS.items():
+            for kind in kinds:
+                assert kind in ALL_SIGNAL_KINDS

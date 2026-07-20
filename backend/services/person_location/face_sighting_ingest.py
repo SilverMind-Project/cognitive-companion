@@ -6,9 +6,8 @@ throttle -- but every confirmed detection now also flows through this one
 adapter into ``PersonLocationService``, instead of being location-blind to
 the SSOT (X11). ``PersonTrackingService.process_camera_event`` calls
 :meth:`FaceSightingIngest.ingest` for each deduplicated detection
-*alongside* its existing legacy-table writes: the same deliberate
-double-write bridge ``LocationWriter`` provides on the CTS side, so a later
-milestone can delete the legacy half once this soaks.
+    *alongside* its existing legacy-table writes, so a later milestone can
+    delete the legacy half once this soaks.
 
 This adapter never writes floor points: reCamera detections carry no floor
 coordinates, so inventing one would repeat the exact (0, 0)-poisoning

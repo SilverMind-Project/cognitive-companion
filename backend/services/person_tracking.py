@@ -137,14 +137,12 @@ class PersonTrackingService:
         db_session_factory,
         person_id_client: PersonIDClient,
         ha_client: HomeAssistantClient,
-        ws_manager=None,
         face_sighting_ingest: FaceSightingIngest | None = None,
         person_location_service: PersonLocationService | None = None,
     ) -> None:
         self._db_factory = db_session_factory
         self._person_id = person_id_client
         self._ha = ha_client
-        self._ws_manager = ws_manager
         self._face_sighting_ingest = face_sighting_ingest
         self._location = person_location_service
         self._stale_minutes: int = settings.as_int("person_tracking.location_stale_minutes")

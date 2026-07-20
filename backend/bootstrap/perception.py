@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 async def wire_perception(app: FastAPI, settings: Settings, container: ServiceContainer) -> None:
     minio_client = app.state.minio_client
     ha_client = app.state.ha_client
-    ws_manager = app.state.ws_manager
+
 
     # -- Person identification client --------------------------------------
     from backend.integrations.person_id_client import PersonIDClient
@@ -178,7 +178,6 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
         db_session_factory=get_session,
         person_id_client=person_id_client,
         ha_client=ha_client,
-        ws_manager=ws_manager,
         face_sighting_ingest=recamera_location_ingest,
         person_location_service=person_location_service,
     )

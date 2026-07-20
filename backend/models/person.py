@@ -203,7 +203,7 @@ class DailyReport(Base):
     bathroom_total_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     bathroom_avg_duration_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    # Door events
+    # Door events (unused since M35; drop with the next schema tidy)
     door_open_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     door_close_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

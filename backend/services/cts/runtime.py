@@ -43,7 +43,6 @@ from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.stream_consumer import StreamConsumer
 from backend.services.cts.subscriber import DementiaSignalSubscriber
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
-from backend.services.cts.tracking_response_subscriber import TrackingResponseSubscriber
 from backend.services.cts.world_observation_subscriber import WorldObservationSubscriber
 from backend.services.cts.world_snapshot_publisher import WorldSnapshotPublisher
 from backend.services.occupancy.read_model import OccupancyReadModel
@@ -202,10 +201,6 @@ class CTSRuntime:
             semantic_memory_client=semantic_memory_client,
             camera_room_map=camera_map,
         )
-        self.tracking_response_subscriber = TrackingResponseSubscriber(
-            redis_url=config.redis_url,
-            consumer_id=config.consumer_id,
-        )
 
         self._bundles: list[_SubscriberBundle] = [
             _SubscriberBundle(name="tracking_events", subscriber=self.tracking_event_subscriber),
@@ -214,15 +209,12 @@ class CTSRuntime:
             ),
             _SubscriberBundle(name="dementia_signals", subscriber=self.dementia_signal_subscriber),
             _SubscriberBundle(name="scene_samples", subscriber=self.scene_sample_subscriber),
-            _SubscriberBundle(
-                name="tracking_responses", subscriber=self.tracking_response_subscriber
-            ),
         ]
 
     # -- lifecycle ----------------------------------------------------------
 
     async def start(self) -> None:
-        """Start all five CTS subscribers as background tasks.
+        """Start all four CTS subscribers as background tasks.
 
         Idempotent: calling start twice is a no-op on already-running tasks.
 

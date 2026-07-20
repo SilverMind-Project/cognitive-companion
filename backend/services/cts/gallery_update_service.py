@@ -9,11 +9,12 @@ gallery storage.
 from __future__ import annotations
 
 import cv2
-import httpx
 import numpy as np
 
 from backend.core.logging import get_logger
+from backend.core.upstream_errors import UpstreamError, UpstreamTimeout, UpstreamUnavailable
 from backend.integrations.minio_client import MinioClient
+from backend.integrations.tracking_orchestrator_client import OrchestratorClient
 from backend.schemas.cts_bbox import BboxAnnotationResponse
 
 logger = get_logger(__name__)
@@ -41,12 +42,10 @@ class GalleryUpdateService:
     def __init__(
         self,
         minio_client: MinioClient,
-        tracking_orchestrator_url: str,
-        http_client: httpx.AsyncClient,
+        orchestrator_client: OrchestratorClient,
     ) -> None:
         self._minio = minio_client
-        self._to_url = tracking_orchestrator_url.rstrip("/")
-        self._http = http_client
+        self._orchestrator_client = orchestrator_client
 
     async def submit_crop_for_identity(
         self,
@@ -83,16 +82,10 @@ class GalleryUpdateService:
             return
 
         try:
-            await self._http.post(
-                f"{self._to_url}/internal/gallery/add_crop",
-                content=crop_bytes,
-                headers={
-                    "X-Identity-Id": identity_id,
-                    "Content-Type": "image/jpeg",
-                },
-                timeout=10.0,
+            await self._orchestrator_client.add_gallery_crop(
+                payload={"crop_bytes": crop_bytes, "identity_id": identity_id}
             )
-        except httpx.HTTPError:
+        except (UpstreamError, UpstreamTimeout, UpstreamUnavailable):
             logger.exception(
                 "gallery_crop_submit_error",
                 annotation_id=bbox.id,

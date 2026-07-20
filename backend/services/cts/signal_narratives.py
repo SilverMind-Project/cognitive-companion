@@ -36,20 +36,6 @@ def narrative_for(
             f"no contradicting observation since."
         )
 
-    if kind == "presumed_location_unknown":
-        return (
-            f"Presumed location unknown since {entered_at or 'last observation'}. "
-            f"No camera or sensor has confirmed this person's location for "
-            f"over {actual_min:.0f} minutes."
-        )
-
-    if kind == "identity_disagreement":
-        return (
-            f"Identity resolver detected conflicting evidence for this person "
-            f"during the window {window_start or 'start'} to {window_end or 'end'}. "
-            f"Multiple identity candidates were proposed with similar probabilities."
-        )
-
     if kind == "pacing":
         return (
             f"Pacing behaviour detected: {transition_count or 'multiple'} room transitions "

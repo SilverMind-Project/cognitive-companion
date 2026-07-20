@@ -9,13 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
-import cts_contracts
+from cts_contracts import DementiaSignalKind
 
-CC_LOCAL_SIGNAL_KINDS: tuple[str, ...] = (
-    "inferred_dwell_exceeded",
-)
-
-ALL_SIGNAL_KINDS = tuple(k.value for k in cts_contracts.DementiaSignalKind) + CC_LOCAL_SIGNAL_KINDS
+WIRE_SIGNAL_KINDS: tuple[str, ...] = tuple(str(k) for k in DementiaSignalKind)
+CC_LOCAL_SIGNAL_KINDS: tuple[str, ...] = ("inferred_dwell_exceeded",)
+ALL_SIGNAL_KINDS: tuple[str, ...] = WIRE_SIGNAL_KINDS + CC_LOCAL_SIGNAL_KINDS
 
 # Presence-only kinds that are relevant for everyone regardless of profile.
 _PRESENCE_KINDS: frozenset[str] = frozenset({"absence"})

@@ -30,6 +30,7 @@ from backend.schemas.cts_reid_review import (
     ApproveRequest,
     BatchRejectRequest,
     BatchRejectResponse,
+    DemoteRequest,
     RejectRequest,
     RelabelRequest,
     ReviewCandidateDetailResponse,
@@ -204,6 +205,32 @@ async def relabel_candidate(
             actor=_actor(request),
             base_audit_version=body.base_audit_version,
             target_identity_id=body.target_identity_id,
+            note=body.note,
+            presign=_presigner(request),
+        )
+    except ReviewUpstreamError as exc:
+        raise _raise_for_review(exc) from exc
+    except ReviewContractError as exc:
+        raise _contract_502(exc) from exc
+
+
+@router.post(
+    "/identity/reid-review/candidates/{candidate_id}/demote",
+    response_model=ReviewCandidateView,
+)
+async def demote_candidate(
+    candidate_id: str,
+    body: DemoteRequest,
+    request: Request,
+    svc: ReIDReviewService = Depends(get_reid_review_service),
+    _auth=Depends(require_token(_GALLERY_REVIEW)),
+) -> ReviewCandidateView:
+    cts_enabled()
+    try:
+        return await svc.demote(
+            candidate_id,
+            actor=_actor(request),
+            base_audit_version=body.base_audit_version,
             note=body.note,
             presign=_presigner(request),
         )

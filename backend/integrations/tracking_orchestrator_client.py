@@ -670,6 +670,14 @@ class OrchestratorClient(UpstreamClient):
         )
         return r.json()
 
+    async def demote_review_candidate(self, candidate_id: str, *, payload: dict) -> dict:
+        r = await self._request(
+            "POST",
+            f"/internal/reid-review/candidates/{candidate_id}/demote",
+            json=payload,
+        )
+        return r.json()
+
     async def reject_review_batch(self, *, payload: dict) -> dict:
         r = await self._request("POST", "/internal/reid-review/reject-batch", json=payload)
         return r.json()

@@ -4270,6 +4270,32 @@
         "title": "DataKeysResponse",
         "type": "object"
       },
+      "DemoteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base_audit_version": {
+            "title": "Base Audit Version",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "base_audit_version"
+        ],
+        "title": "DemoteRequest",
+        "type": "object"
+      },
       "DependencyBundle": {
         "properties": {
           "lookback_minutes": {
@@ -12155,6 +12181,12 @@
             "title": "Source Episode Id"
           },
           "state": {
+            "enum": [
+              "pending_review",
+              "auto_verified",
+              "operator_verified",
+              "rejected"
+            ],
             "title": "State",
             "type": "string"
           }
@@ -12173,6 +12205,10 @@
       },
       "ReviewCountsResponse": {
         "properties": {
+          "auto_verified": {
+            "title": "Auto Verified",
+            "type": "integer"
+          },
           "operator_verified": {
             "title": "Operator Verified",
             "type": "integer"
@@ -12188,6 +12224,7 @@
         },
         "required": [
           "pending_review",
+          "auto_verified",
           "operator_verified",
           "rejected"
         ],
@@ -16868,7 +16905,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.110"
+    "version": "0.7.112"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -20682,6 +20719,63 @@
           }
         ],
         "summary": "Compensate Candidate",
+        "tags": [
+          "cts-reid-review"
+        ]
+      }
+    },
+    "/api/v1/cts/identity/reid-review/candidates/{candidate_id}/demote": {
+      "post": {
+        "operationId": "demote_candidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCandidateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Demote Candidate",
         "tags": [
           "cts-reid-review"
         ]

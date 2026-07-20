@@ -121,10 +121,18 @@ Each item shows:
 - nearby observations in the same PH segment;
 - proposed identity and ArcFace evidence;
 - quality, orientation, camera, timestamp, model/preprocessing version;
-- source PH, observation, keyframe, and correction links.
+- source PH, observation, keyframe, and correction links;
+- a state chip visually distinct for all four lifecycle states (`pending_review`, `auto_verified`,
+  `operator_verified`, `rejected`; identity-continuity M02 added `auto_verified`), and a state
+  filter option covering all four.
 
-Actions are `Approve`, `Reject`, and `Relabel`. No bulk approval. Batch rejection is allowed for
-obvious low-quality candidates. Approval/relabel require individual visual review.
+Actions are `Approve`, `Reject`, `Relabel`, and `Demote`. No bulk approval. Batch rejection is
+allowed for obvious low-quality candidates. Approval/relabel/reject act on a row in
+`pending_review` or `auto_verified` (an `auto_verified` row is machine-trusted but still fully
+operator-governable); demote acts only on `auto_verified` and returns it to `pending_review`
+without touching its embedding, unlike reject. Approval/relabel require individual visual review.
+The frontend never derives which states are reviewable or what demote/undo restore to; it renders
+the server's `eligible`/`reasons` and the row's current `state` as returned.
 
 Use the existing blur behavior and a blur toggle consistent with other CTS pages. Respect auth and
 never reveal unblurred media to an unauthorized user.
@@ -161,7 +169,7 @@ UI.
   uncalibrated ArcFace, and pending review;
 - detail overlay tests for all bboxes and click-to-correct;
 - selector tests with empty gallery but populated household identities;
-- review queue permission, blur, approve/reject/relabel, and no-bulk-approval tests;
+- review queue permission, blur, approve/reject/relabel/demote, and no-bulk-approval tests;
 - server-side filter and pagination tests;
 - responsive visual checks at desktop and mobile widths;
 - full build and test suite with zero Vue warnings or console errors.

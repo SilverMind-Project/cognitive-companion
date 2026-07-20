@@ -73,10 +73,13 @@ def _mock_service() -> MagicMock:
     svc.get_detail = AsyncMock(return_value=_detail())
     svc.list_events = AsyncMock(return_value=ReviewEventsResponse(events=[]))
     svc.counts = AsyncMock(
-        return_value=ReviewCountsResponse(pending_review=1, operator_verified=0, rejected=0)
+        return_value=ReviewCountsResponse(
+            pending_review=1, auto_verified=0, operator_verified=0, rejected=0
+        )
     )
     svc.approve = AsyncMock(return_value=_candidate(state="operator_verified"))
     svc.relabel = AsyncMock(return_value=_candidate(state="operator_verified"))
+    svc.demote = AsyncMock(return_value=_candidate(state="pending_review"))
     svc.reject = AsyncMock(return_value=_candidate(state="rejected", crop_url=None))
     svc.reject_batch = AsyncMock(
         return_value=BatchRejectResponse(
@@ -120,6 +123,11 @@ _ROUTES = [
         "post",
         "/api/v1/cts/identity/reid-review/candidates/c1/relabel",
         {"base_audit_version": 1, "target_identity_id": "appa"},
+    ),
+    (
+        "post",
+        "/api/v1/cts/identity/reid-review/candidates/c1/demote",
+        {"base_audit_version": 1},
     ),
     (
         "post",
@@ -209,6 +217,27 @@ def test_actor_is_server_injected_not_from_body(client_authorized):
     assert svc.approve.await_args.kwargs["actor"] != "attacker"
 
 
+def test_demote_returns_pending_review(client_authorized):
+    """M02: demote un-trusts an auto_verified row back to pending_review."""
+    client, svc = client_authorized
+    resp = client.post(
+        "/api/v1/cts/identity/reid-review/candidates/c1/demote",
+        json={"base_audit_version": 1},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "pending_review"
+    assert svc.demote.await_args.kwargs["actor"] != "attacker"
+
+
+def test_demote_actor_is_server_injected_not_from_body(client_authorized):
+    client, _ = client_authorized
+    resp = client.post(
+        "/api/v1/cts/identity/reid-review/candidates/c1/demote",
+        json={"base_audit_version": 1, "actor": "attacker"},
+    )
+    assert resp.status_code == 422  # extra="forbid"
+
+
 def test_no_bulk_approve_route(client_authorized):
     client, _ = client_authorized
     assert client.post("/api/v1/cts/identity/reid-review/approve-batch", json={}).status_code == 404
@@ -260,10 +289,12 @@ def test_ineligible_upstream_409_passthrough(client_authorized):
 def test_no_mcp_tool_for_reid_review():
     """Gallery review is intentionally not an MCP tool (documented exemption).
 
-    Exposing approve/relabel/reject to an unattended agent would let it
-    re-identify a household member without operator review.
+    Exposing approve/relabel/demote/reject to an unattended agent would let it
+    re-identify a household member, or silently un-trust a machine-verified
+    one, without operator review. M02 adds demote to the same exemption.
     """
     configured = settings.get("mcp.tools", []) or []
     names = " ".join(str(t) for t in configured).lower()
     assert "reid_review" not in names
     assert "gallery_review" not in names
+    assert "demote" not in names

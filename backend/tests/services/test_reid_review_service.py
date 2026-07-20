@@ -126,3 +126,44 @@ async def test_malformed_envelope_is_contract_error(service_and_client):
     client.list_review_candidates = AsyncMock(return_value={"unexpected": True})
     with pytest.raises(ReviewContractError):
         await service.list_candidates(params={})
+
+
+async def test_demote_proxying(service_and_client):
+    """M02: demote forwards the server-injected actor and base_audit_version,
+    and the auto_verified -> pending_review transition round-trips."""
+    service, client = service_and_client
+    client.demote_review_candidate = AsyncMock(return_value=_raw_candidate(state="pending_review"))
+    view = await service.demote("c1", actor="alice", base_audit_version=1, note="not trusted")
+    payload = client.demote_review_candidate.await_args.kwargs["payload"]
+    assert payload["actor"] == "alice"
+    assert payload["base_audit_version"] == 1
+    assert view.state == "pending_review"
+
+
+async def test_auto_verified_state_round_trips(service_and_client):
+    """M02: the fourth state is a valid envelope value, not a contract violation."""
+    service, client = service_and_client
+    client.get_review_candidate = AsyncMock(
+        return_value={
+            "candidate": _raw_candidate(state="auto_verified"),
+            "events": [],
+            "eligibility": {"eligible": True, "model_compatible": True, "reasons": []},
+        }
+    )
+    detail = await service.get_detail("c1", presign=_presign)
+    assert detail.candidate.state == "auto_verified"
+
+
+async def test_out_of_vocabulary_state_from_upstream_is_contract_error(service_and_client):
+    """A stale/newer upstream sending an unrecognized state is a typed 502,
+    never silently accepted or coerced."""
+    service, client = service_and_client
+    client.get_review_candidate = AsyncMock(
+        return_value={
+            "candidate": _raw_candidate(state="bogus_state"),
+            "events": [],
+            "eligibility": {"eligible": True, "model_compatible": True, "reasons": []},
+        }
+    )
+    with pytest.raises(ReviewContractError):
+        await service.get_detail("c1", presign=_presign)

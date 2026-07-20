@@ -8,6 +8,7 @@ const { mockSvc, mockIdentity } = vi.hoisted(() => ({
     counts: vi.fn(),
     approve: vi.fn(),
     relabel: vi.fn(),
+    demote: vi.fn(),
     reject: vi.fn(),
     rejectBatch: vi.fn(),
     compensate: vi.fn(),
@@ -36,7 +37,12 @@ const notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockSvc.counts.mockResolvedValue({ pending_review: 3, operator_verified: 1, rejected: 2 });
+  mockSvc.counts.mockResolvedValue({
+    pending_review: 3,
+    auto_verified: 0,
+    operator_verified: 1,
+    rejected: 2,
+  });
   mockIdentity.correctionTargets.mockResolvedValue({
     targets: [{ identity_id: "amma", display_name: "Amma" }],
     gallery_available: true,
@@ -151,6 +157,21 @@ describe("useReIDReview", () => {
       target_identity_id: "amma",
       note: null,
     });
+  });
+
+  it("demote passes the base audit version and refreshes via invalidate", async () => {
+    mockSvc.list.mockResolvedValue({
+      candidates: [candidate("c1", 3, "auto_verified")],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    });
+    mockSvc.demote.mockResolvedValue(candidate("c1", 4, "pending_review"));
+    const { actions } = useReIDReview(notify);
+    await actions.loadList();
+    await actions.demote("c1");
+    expect(mockSvc.demote).toHaveBeenCalledWith("c1", { base_audit_version: 3, note: null });
+    expect(mockSvc.counts).toHaveBeenCalled();
   });
 
   it("rejectSelected sends one batch and clears the selection", async () => {

@@ -211,6 +211,15 @@ export function useReIDReview(notify) {
     );
   }
 
+  function demote(candidateId, { note = null } = {}) {
+    return _runAction("Candidate un-verified", () =>
+      ctsReidReview.demote(candidateId, {
+        base_audit_version: _baseVersion(candidateId),
+        note,
+      }),
+    );
+  }
+
   function reject(candidateId, { reason, note = null }) {
     return _runAction("Candidate rejected", () =>
       ctsReidReview.reject(candidateId, {
@@ -271,6 +280,7 @@ export function useReIDReview(notify) {
       clearSelection,
       approve,
       relabel,
+      demote,
       reject,
       rejectSelected,
       compensate,

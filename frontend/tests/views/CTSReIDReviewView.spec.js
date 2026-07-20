@@ -75,7 +75,7 @@ function makeStore(overrides = {}) {
       detailLoading: ref(false),
       detailError: ref(""),
       acting: ref(false),
-      counts: ref({ pending_review: 4, operator_verified: 2, rejected: 1 }),
+      counts: ref({ pending_review: 4, auto_verified: 3, operator_verified: 2, rejected: 1 }),
       targets: ref([{ identity_id: "amma", display_name: "Amma" }]),
       targetsLoading: ref(false),
     },
@@ -92,6 +92,7 @@ function makeStore(overrides = {}) {
       clearSelection: vi.fn(),
       approve: vi.fn(),
       relabel: vi.fn(),
+      demote: vi.fn(),
       reject: vi.fn(),
       rejectSelected: vi.fn(),
       compensate: vi.fn(),
@@ -146,7 +147,39 @@ describe("CTSReIDReviewView", () => {
     const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
     await flushPromises();
     expect(wrapper.text()).toContain("4 pending");
+    expect(wrapper.text()).toContain("3 auto-verified");
     expect(wrapper.text()).toContain("No candidates match");
+  });
+
+  it("renders a distinct auto_verified state chip in the queue table", async () => {
+    store.value = makeStore({
+      candidates: [{ candidate_id: "c1", state: "auto_verified", audit_version: 1, quality: 0.9 }],
+    });
+    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    await flushPromises();
+    expect(wrapper.text()).toContain("Auto-verified");
+  });
+
+  it("offers a Demote action for an auto_verified candidate, not Approve-only", async () => {
+    store.value = makeStore({
+      detail: {
+        candidate: {
+          candidate_id: "c1",
+          state: "auto_verified",
+          audit_version: 1,
+          model_version: "v1",
+        },
+        events: [],
+        eligibility: { eligible: true, model_compatible: true, reasons: [] },
+      },
+    });
+    const wrapper = mount(CTSReIDReviewView, { global: { stubs } });
+    await flushPromises();
+    const buttons = wrapper.findAll("button").map((b) => b.text());
+    expect(buttons).toContain("Demote");
+    expect(buttons).toContain("Approve");
+    const approveBtn = wrapper.findAll("button").find((b) => b.text() === "Approve");
+    expect(approveBtn.attributes("disabled")).toBeUndefined();
   });
 
   it("has no bulk-approve control (batch is reject-only)", async () => {

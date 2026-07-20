@@ -681,3 +681,15 @@ class OrchestratorClient(UpstreamClient):
             json={"actor": actor},
         )
         return r.json()
+
+    async def add_gallery_crop(self, *, payload: dict) -> dict:
+        r = await self._request(
+            "POST", 
+            "/internal/gallery/add_crop", 
+            content=payload["crop_bytes"],
+            headers={
+                "X-Identity-Id": payload["identity_id"],
+                "Content-Type": "image/jpeg",
+            }
+        )
+        return {}

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Session
 
@@ -28,7 +29,6 @@ from backend.models.sensor import Sensor
 from backend.services.cts.identity_assertion_publisher import IdentityAssertionPublisher
 from backend.services.person_location.service import PersonLocationService
 from backend.services.person_location.types import is_unknown_bucket
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from backend.services.occupancy.read_model import OccupancyReadModel
@@ -135,11 +135,11 @@ class FaceSightingIngest:
                     raw_similarity=raw_similarity,
                     calibrated_confidence=calibrated_confidence,
                     calibration_status=calibration_status,
-                    source="cc-recamera-vlm",
+                    source="cc-face-sighting",
                 )
         except Exception:
             logger.exception(
-                "recamera_location_ingest_failed",
+                "face_sighting_ingest_failed",
                 person_id=person_id,
                 sensor_id=sensor_id,
             )

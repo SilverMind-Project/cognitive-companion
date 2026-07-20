@@ -45,9 +45,14 @@ export const getPersonLocation = (id: string) =>
     client.GET("/api/v1/persons/{person_id}/location", { params: { path: { person_id: id } } }),
   );
 
-export const getPersonHistory = async (id: string, hours = 24) => [] as any[];
+export const getPersonHistory = (id: string, since?: string, until?: string) =>
+  unwrap(
+    client.GET("/api/v1/persons/{person_id}/presence-history", {
+      params: { path: { person_id: id }, query: { since, until } },
+    }),
+  );
 
-export const getPersonSightings = async (id: string, limit = 20) => [] as any[];
+export const getPersonSightings = async (_id: string, _limit = 20) => [];
 
 /**
  * `person_id`, `start_time` and `end_time` are required by the endpoint. The old client

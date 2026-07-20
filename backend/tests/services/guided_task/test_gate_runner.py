@@ -236,8 +236,8 @@ async def test_branchy_gate_cheap_exit(
         "scene_analysis",
         config={
             "run_detect": True,
-            "image_source": "cts_window",
-            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+            "image_source": "media_window",
+            "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
         },
     )
     cond = _make_step(

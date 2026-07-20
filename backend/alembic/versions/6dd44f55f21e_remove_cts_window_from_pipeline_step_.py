@@ -6,6 +6,8 @@ Create Date: 2026-07-19 21:40:16.694387
 
 """
 
+import json
+import logging
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -18,9 +20,6 @@ down_revision: str | Sequence[str] | None = "c65ae3bbb50f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-
-import json
-import logging
 
 logger = logging.getLogger("alembic.runtime.migration")
 

@@ -25,7 +25,7 @@ def get_step_types() -> tuple[str, ...]:
     try:
         from backend.steps import StepRegistry
 
-        names = StepRegistry.type_names()
+        names = StepRegistry.all_names()
         if names:
             return tuple(names)
     except Exception:  # noqa: BLE001

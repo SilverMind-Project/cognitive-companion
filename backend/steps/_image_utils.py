@@ -51,8 +51,7 @@ async def resolve_image_sources(
     * ``<prefix>sensor_frame_limits`` -- per-sensor overrides
 
     Also accepts *pipeline_data* and *minio_client* so that
-    ``image_source="pipeline"``, ``image_source="media_window"``, and
-    ``image_source="cts_window"`` sources work.
+    ``image_source="pipeline"`` and ``image_source="media_window"`` sources work.
     """
     # Build a prefixed config view for the shared resolver.
     if config_prefix:

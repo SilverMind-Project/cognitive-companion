@@ -73,8 +73,10 @@ def wire_boot_preamble(app: FastAPI, settings: Settings) -> None:
     """Settings/logging/DB/plugin-registry bootstrapping that precedes every
     other phase and does not itself belong to any one of them."""
     from backend.core.auth import invalidate_lookup_cache
+    from backend.core.logging import setup_logging
 
     settings.reload()
+    setup_logging()
     # Invalidate the auth key cache so it is rebuilt from the freshly loaded config.
     invalidate_lookup_cache()
     logger.info("Starting Cognitive Companion v2")

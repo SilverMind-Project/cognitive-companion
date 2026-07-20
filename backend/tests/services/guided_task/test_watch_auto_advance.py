@@ -177,7 +177,9 @@ async def test_k_consecutive_completes_advances(db_session, monkeypatch) -> None
         settings=_settings(),
         time_fn=clock,
         gate_runner=gate_runner,
-        voice_instructions=VoiceInstructionConfig(guided_task_auto_advance_prefix=_AUTO_ADVANCE_PREFIX),
+        voice_instructions=VoiceInstructionConfig(
+            guided_task_auto_advance_prefix=_AUTO_ADVANCE_PREFIX
+        ),
     )
     session = await svc.start(routine_id, "resident-1")
 

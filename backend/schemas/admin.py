@@ -40,7 +40,9 @@ class AppInfoOut(OutSchema):
 
     name: str
     version: str
-    timezone: str = Field(description="Operator-configured IANA zone; the UI formats all timestamps in it.")
+    timezone: str = Field(
+        description="Operator-configured IANA zone; the UI formats all timestamps in it."
+    )
     services: dict[str, ServiceInfo] = {}
 
 

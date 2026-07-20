@@ -313,7 +313,7 @@ async def test_branchy_gate_heavy_path(
     mock_services.llm_model_registry = MockLLMRegistry(llm_provider)
 
     rule = _make_rule(db_session)
-    poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
+    poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "auto"})
     yolo = _make_step(
         db_session,
         rule,
@@ -321,8 +321,9 @@ async def test_branchy_gate_heavy_path(
         "scene_analysis",
         config={
             "run_detect": True,
-            "image_source": "cts_window",
-            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
+            "pipeline_image_object_name_field": "minio_key",
         },
     )
     cond = _make_step(
@@ -371,8 +372,9 @@ async def test_branchy_gate_heavy_path(
     )
 
     with patch("backend.steps.builtin.scene_analysis._fetch_image", return_value=b"dummy"):
+        from backend.services.guided_task.camera_selection import ResolvedCamera
         res_verdict = await runner.run(
-            gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+            gate_rule_id=rule.id, profile=profile, cameras=[ResolvedCamera(id="cam1", source="cts")], context=context
         )
 
     assert res_verdict.complete is True

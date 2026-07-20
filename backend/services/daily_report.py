@@ -124,9 +124,7 @@ class DailyReportService:
                     db, person_id, day_start_utc, day_end_utc
                 ),
                 "exercise": self._aggregate_exercise(db, person_id, day_start_utc, day_end_utc),
-                "room_time": await self._aggregate_room_time(
-                    person_id, day_start_utc, day_end_utc
-                ),
+                "room_time": await self._aggregate_room_time(person_id, day_start_utc, day_end_utc),
                 "summary_text": None,
                 "wellness_score": None,
                 "wellness_alerts": [],

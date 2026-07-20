@@ -84,7 +84,9 @@ class AgentSessionVoice:
         language_override = getattr(session, "language_override", None)
         directive = compose_language_directive(self._settings, self._voice, language_override)
         if directive:
-            voice_instruction = f"{voice_instruction}\n\n{directive}" if voice_instruction else directive
+            voice_instruction = (
+                f"{voice_instruction}\n\n{directive}" if voice_instruction else directive
+            )
 
         extra_metadata: dict[str, Any] = {"step_ord": step.ord, "is_retry": is_retry}
         voice_override = getattr(session, "voice_override", None)

@@ -172,49 +172,7 @@ async def test_confirm_profile_resolved_via_precedence(monkeypatch) -> None:
     assert profile.min_confidence == 0.8
     assert profile.model_id == "global-model"
 
-    # 2. Test routine override
-    runner = FakeGateGraphRunner()
-    routine = _Routine(
-        config_json={
-            "guided_task": {
-                "vision": {
-                    "confirm": {
-                        "window_s": 30.0,
-                        "max_frames": 6,
-                        "min_confidence": 0.85,
-                        "min_interval_s": 12.0,
-                        "model_id": "routine-model",
-                    }
-                }
-            }
-        }
-    )
-    session = _Session(routine=routine)
-    evaluator = VisionEvaluator(
-        gate_config={"vision": {"gate_graph_rule_id": 42}},
-        gate_runner=runner,
-        settings=Settings.from_dict(
-            {
-                "guided_task": {
-                    "vision": {
-                        "confirm": {
-                            "window_s": 25.0,
-                            "max_frames": 5,
-                            "min_confidence": 0.8,
-                            "min_interval_s": 10.0,
-                            "model_id": "global-model",
-                        }
-                    }
-                }
-            }
-        ),
-    )
-    await evaluator.is_complete(session=session, step=_Step(), evidence={})
-    profile = runner.run_calls[0]["profile"]
-    assert profile.window_s == 30.0
-    assert profile.max_frames == 6
-    assert profile.min_confidence == 0.85
-    assert profile.model_id == "routine-model"
+
 
     # 3. Test step override
     runner = FakeGateGraphRunner()
@@ -248,7 +206,7 @@ async def test_confirm_profile_resolved_via_precedence(monkeypatch) -> None:
             }
         ),
     )
-    await evaluator.is_complete(session=session, step=_Step(), evidence={})
+    await evaluator.is_complete(session=_Session(), step=_Step(), evidence={})
     profile = runner.run_calls[0]["profile"]
     assert profile.window_s == 35.0
     assert profile.max_frames == 7

@@ -52,7 +52,5 @@ def downgrade() -> None:
         "guided_sessions",
         type_="foreignkey",
     )
-    op.drop_index(
-        "ix_guided_sessions_conversation_session_id", table_name="guided_sessions"
-    )
+    op.drop_index("ix_guided_sessions_conversation_session_id", table_name="guided_sessions")
     op.drop_column("guided_sessions", "conversation_session_id")

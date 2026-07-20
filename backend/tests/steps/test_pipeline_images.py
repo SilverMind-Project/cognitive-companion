@@ -85,11 +85,11 @@ class TestNormalizeMinioKeyDict:
                 "camera_id": "cam1",
                 "room_name": "Kitchen",
             },
-            default_source_type="cts_window",
+            default_source_type="media_window",
         )
         assert len(refs) == 1
         assert refs[0].object_name == "cts/frames/cam1/20260523_120000.jpg"
-        assert refs[0].source_type == "cts_window"
+        assert refs[0].source_type == "media_window"
         assert refs[0].source_camera_id == "cam1"
         assert refs[0].source_room_name == "Kitchen"
 
@@ -122,7 +122,7 @@ class TestNormalizeCtsFrame:
                 "frame_width": 1920,
                 "frame_height": 1080,
             },
-            default_source_type="cts_window",
+            default_source_type="media_window",
         )
         assert len(refs) == 1
         ref = refs[0]
@@ -378,7 +378,7 @@ class TestResolveMediaWindowSource:
         assert refs[0].source_type == "media_window"
 
 
-class TestResolveCtsWindowSource:
+class TestResolveLegacyMediaWindowSource:
     @pytest.mark.asyncio
     async def test_reads_frames_path_from_pipeline_data(self):
         trigger = _make_trigger()
@@ -403,8 +403,8 @@ class TestResolveCtsWindowSource:
 
         refs = await resolve_pipeline_image_refs(
             config={
-                "image_source": "cts_window",
-                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+                "image_source": "pipeline",
+                "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
             },
             pipeline_data=pipeline_data,
             trigger=trigger,
@@ -417,7 +417,7 @@ class TestResolveCtsWindowSource:
         assert refs[0].source_room_name == "Living Room"
         assert refs[0].width == 1920
         assert refs[0].height == 1080
-        assert refs[0].source_type == "cts_window"
+        assert refs[0].source_type == "pipeline"
 
 
 class TestResolveNoneSource:
@@ -475,8 +475,8 @@ class TestResolveMinioPresignedUrl:
 
         refs = await resolve_pipeline_image_refs(
             config={
-                "image_source": "cts_window",
-                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+                "image_source": "pipeline",
+                "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
             },
             pipeline_data=pipeline_data,
             trigger=trigger,
@@ -496,7 +496,7 @@ class TestResolveMinioPresignedUrl:
 class TestImageRefsToUrls:
     def test_regenerates_url_from_object_name(self):
         minio = _mock_minio()
-        refs = [PipelineImageRef(object_name="cts/frame.jpg", source_type="cts_window")]
+        refs = [PipelineImageRef(object_name="cts/frame.jpg", source_type="pipeline")]
 
         urls = image_refs_to_urls(refs, minio_client=minio)
 

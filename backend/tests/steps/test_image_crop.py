@@ -207,7 +207,7 @@ class TestTriggerImageCrop:
         assert len(crop_keys) == 1
 
     @pytest.mark.asyncio
-    async def test_execute_with_cts_frame_uses_minio_key(self):
+    async def test_execute_with_pipeline_frame_uses_minio_key(self):
         fake_minio = _FakeMinio()
         fake_minio.objects["cts/cam1/frame.jpg"] = _make_test_image(640, 480)
 
@@ -234,8 +234,8 @@ class TestTriggerImageCrop:
 
         step = _FakeStep(
             config_json={
-                "image_source": "cts_window",
-                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+                "image_source": "pipeline",
+                "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
                 "regions": _STANDARD_REGIONS,
             }
         )
@@ -249,7 +249,7 @@ class TestTriggerImageCrop:
 
         assert result.data["count"] == 1
         ci = result.data["cropped_images"][0]
-        assert ci["source_type"] == "cts_window"
+        assert ci["source_type"] == "pipeline"
         assert ci["source_camera_id"] == "cam1"
         assert ci["source_room_name"] == "Living Room"
         assert ci["source_object_name"] == "cts/cam1/frame.jpg"

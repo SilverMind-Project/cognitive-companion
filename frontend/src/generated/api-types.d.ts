@@ -3752,26 +3752,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/persons/{person_id}/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Location History
-         * @description Get location timeline for a person.
-         */
-        get: operations["get_location_history"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/persons/{person_id}/location": {
         parameters: {
             query?: never;
@@ -3828,26 +3808,6 @@ export interface paths {
          * @description Return presence segments for a person in a time window.
          */
         get: operations["get_presence_history"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/persons/{person_id}/sightings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Sightings
-         * @description Get recent camera/sensor sightings for a person.
-         */
-        get: operations["get_sightings"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8485,44 +8445,6 @@ export interface components {
              * @description Seconds since last observation.
              */
             staleness_seconds: number;
-        };
-        /** PersonLocationHistoryOut */
-        PersonLocationHistoryOut: {
-            /** Entered At */
-            entered_at: string | null;
-            /** Exited At */
-            exited_at?: string | null;
-            /** Id */
-            id: number;
-            /** Person Id */
-            person_id: string;
-            /** Room Name */
-            room_name?: string | null;
-            /** Source */
-            source: string;
-        };
-        /** PersonSightingOut */
-        PersonSightingOut: {
-            /** Bbox Json */
-            bbox_json?: {
-                [key: string]: unknown;
-            } | null;
-            /** Confidence */
-            confidence: number;
-            /** Direction */
-            direction?: string | null;
-            /** Id */
-            id: number;
-            /** Person Id */
-            person_id: string;
-            /** Room Name */
-            room_name?: string | null;
-            /** Sensor Id */
-            sensor_id: string;
-            /** Source */
-            source: string;
-            /** Timestamp */
-            timestamp: string | null;
         };
         /**
          * PipelineEdgeBulkUpdate
@@ -17828,39 +17750,6 @@ export interface operations {
             };
         };
     };
-    get_location_history: {
-        parameters: {
-            query?: {
-                hours?: number;
-            };
-            header?: never;
-            path: {
-                person_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersonLocationHistoryOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_person_location: {
         parameters: {
             query?: never;
@@ -17950,39 +17839,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PresenceHistoryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_sightings: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                person_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PersonSightingOut"][];
                 };
             };
             /** @description Validation Error */

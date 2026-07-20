@@ -80,6 +80,3 @@ class EnrollResultOut(BaseModel):
     name: str
     embedding_count: int
     status: str
-
-
-

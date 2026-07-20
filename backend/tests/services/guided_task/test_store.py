@@ -69,11 +69,7 @@ def test_create_session_second_live_session_raises_conflict(db_factory, db_sessi
         )
 
     db_session.expire_all()
-    count = (
-        db_session.query(GuidedSession)
-        .filter(GuidedSession.person_id == "person-1")
-        .count()
-    )
+    count = db_session.query(GuidedSession).filter(GuidedSession.person_id == "person-1").count()
     assert count == 1
 
 
@@ -95,9 +91,5 @@ async def test_concurrent_request_start_only_one_session_created(db_factory, db_
     assert isinstance(failures[0], ConflictError)
 
     db_session.expire_all()
-    count = (
-        db_session.query(GuidedSession)
-        .filter(GuidedSession.person_id == "person-1")
-        .count()
-    )
+    count = db_session.query(GuidedSession).filter(GuidedSession.person_id == "person-1").count()
     assert count == 1

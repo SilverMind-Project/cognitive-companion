@@ -17,7 +17,7 @@ the match query excludes already-rewritten rows.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -68,12 +68,22 @@ class SignalRewriter:
         applied_at = parse_ts(revision.get("revision_time"))
 
         if previous_identity_id == new_identity_id:
-            return {"revision_id": revision_id, "rewritten": 0, "inserted": 0, "signals_superseded": 0}
+            return {
+                "revision_id": revision_id,
+                "rewritten": 0,
+                "inserted": 0,
+                "signals_superseded": 0,
+            }
 
         db = self._db_factory()
         try:
             if not previous_identity_id and not ph_id:
-                return {"revision_id": revision_id, "rewritten": 0, "inserted": 0, "signals_superseded": 0}
+                return {
+                    "revision_id": revision_id,
+                    "rewritten": 0,
+                    "inserted": 0,
+                    "signals_superseded": 0,
+                }
 
             range_start = (
                 parse_ts(revision.get("range_start")) if revision.get("range_start") else None

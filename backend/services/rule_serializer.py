@@ -223,9 +223,7 @@ def validate_bundle(bundle: RuleBundle, current_app_version: str) -> ImportRepor
                     + "; ".join(config_errors),
                 )
             )
-            report.errors.append(
-                f"Step '{step_bundle.label}': " + "; ".join(config_errors)
-            )
+            report.errors.append(f"Step '{step_bundle.label}': " + "; ".join(config_errors))
             report.status = "error"
 
     # Validate context types

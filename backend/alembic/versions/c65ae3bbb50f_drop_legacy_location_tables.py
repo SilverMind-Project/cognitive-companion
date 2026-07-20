@@ -5,17 +5,16 @@ Revises: 0015_guided_live_unique
 Create Date: 2026-07-19 21:07:40.122350
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
-revision: str = 'c65ae3bbb50f'
-down_revision: Union[str, Sequence[str], None] = '0015_guided_live_unique'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "c65ae3bbb50f"
+down_revision: str | Sequence[str] | None = "0015_guided_live_unique"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -37,4 +36,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    pass

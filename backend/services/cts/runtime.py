@@ -34,10 +34,10 @@ from backend.services.cts.event_bucketizer import (
     CtsWindowTrigger,
 )
 from backend.services.cts.identity_revision_subscriber import IdentityRevisionSubscriber
-from backend.services.cts.signal_rewriter import SignalRewriter
 from backend.services.cts.ph_continuation_subscriber import PHContinuationSubscriber
 from backend.services.cts.room_transition_subscriber import RoomTransitionSubscriber
 from backend.services.cts.scene_sample_subscriber import SceneSampleSubscriber
+from backend.services.cts.signal_rewriter import SignalRewriter
 from backend.services.cts.signal_store import SignalStore
 from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.stream_consumer import StreamConsumer

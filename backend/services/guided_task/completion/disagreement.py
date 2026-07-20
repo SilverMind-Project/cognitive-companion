@@ -15,7 +15,11 @@ from typing import Any
 from backend.models.guided_task import GuidedSession as GuidedSessionModel
 from backend.models.guided_task import Routine, RoutineStep
 from backend.services.guided_task.context import RuntimeContext
-from backend.services.guided_task.domain import Decision
+from backend.services.guided_task.domain import (
+    CompletionGateConfig,
+    Decision,
+    VisionGateConfig,
+)
 from backend.services.guided_task.policy import resolve_policy, resolve_vision_override
 from backend.services.guided_task.state_machine import GuidedTaskStateMachine
 
@@ -52,23 +56,19 @@ async def resolve_vision_disagreement(
     escalates, or defers to her word and advances -- mirroring the
     pre-extraction inline logic in ``handle_completion`` exactly.
     """
-    confirm_cfg = (step.completion_gate or {}).get("vision", {}).get("confirm") or {}
-    routine_confirm_cfg = (getattr(routine, "config_json", None) or {}).get(
-        "guided_task", {}
-    ).get("vision", {}).get("confirm") or {}
+    gate_cfg = CompletionGateConfig.model_validate(step.completion_gate or {})
+    vision_cfg = gate_cfg.vision or VisionGateConfig()
+    confirm_cfg = vision_cfg.confirm
+
     max_disagreements = resolve_vision_override(
-        "max_disagreements",
-        step_cfg=confirm_cfg,
-        routine_cfg=routine_confirm_cfg,
+        confirm_cfg.max_disagreements if confirm_cfg else None,
         settings=ctx.settings,
         settings_path="guided_task.vision.confirm.max_disagreements",
         cast=int,
         default=2,
     )
     on_max = resolve_vision_override(
-        "on_max_disagreements",
-        step_cfg=confirm_cfg,
-        routine_cfg=routine_confirm_cfg,
+        confirm_cfg.on_max_disagreements if confirm_cfg else None,
         settings=ctx.settings,
         settings_path="guided_task.vision.confirm.on_max_disagreements",
         cast=str,

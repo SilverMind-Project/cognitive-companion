@@ -235,7 +235,9 @@ class Caregiver:
             ctx.settings, ctx.voice_instructions, routine.language_override
         )
         if directive:
-            voice_instruction = f"{voice_instruction}\n\n{directive}" if voice_instruction else directive
+            voice_instruction = (
+                f"{voice_instruction}\n\n{directive}" if voice_instruction else directive
+            )
         await inject_session_prompt(
             ws_manager,
             prompt=prompt,

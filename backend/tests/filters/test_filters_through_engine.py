@@ -357,22 +357,20 @@ class TestFilterMatrixSensorPath:
     async def test_room_transition(self, db_session):
         sensor = _make_sensor(db_session)
         history = [
-            _segment(room_id="hallway", room_name="Hallway", entered_at=_NOW - timedelta(minutes=3)),
+            _segment(
+                room_id="hallway", room_name="Hallway", entered_at=_NOW - timedelta(minutes=3)
+            ),
             _segment(room_id="k1", room_name="Kitchen", entered_at=_NOW - timedelta(minutes=1)),
         ]
         match = _make_rule(
             db_session,
             "match",
-            contexts=[
-                _ctx("room_transition", {"person_id": "mom", "to_room_name": "Kitchen"})
-            ],
+            contexts=[_ctx("room_transition", {"person_id": "mom", "to_room_name": "Kitchen"})],
         )
         nomatch = _make_rule(
             db_session,
             "nomatch",
-            contexts=[
-                _ctx("room_transition", {"person_id": "mom", "to_room_name": "Bedroom"})
-            ],
+            contexts=[_ctx("room_transition", {"person_id": "mom", "to_room_name": "Bedroom"})],
         )
         db_session.commit()
 
@@ -386,16 +384,12 @@ class TestFilterMatrixSensorPath:
         match = _make_rule(
             db_session,
             "match",
-            contexts=[
-                _ctx("person_movement_memory", {"person_id": "mom", "min_confidence": 0.5})
-            ],
+            contexts=[_ctx("person_movement_memory", {"person_id": "mom", "min_confidence": 0.5})],
         )
         nomatch = _make_rule(
             db_session,
             "nomatch",
-            contexts=[
-                _ctx("person_movement_memory", {"person_id": "mom", "min_confidence": 0.99})
-            ],
+            contexts=[_ctx("person_movement_memory", {"person_id": "mom", "min_confidence": 0.99})],
         )
         db_session.commit()
 
@@ -411,16 +405,12 @@ class TestFilterMatrixSensorPath:
         match = _make_rule(
             db_session,
             "match",
-            contexts=[
-                _ctx("scene_contains", {"room_id": "k1", "objects_any": ["kettle"]})
-            ],
+            contexts=[_ctx("scene_contains", {"room_id": "k1", "objects_any": ["kettle"]})],
         )
         nomatch = _make_rule(
             db_session,
             "nomatch",
-            contexts=[
-                _ctx("scene_contains", {"room_id": "k1", "objects_any": ["knife"]})
-            ],
+            contexts=[_ctx("scene_contains", {"room_id": "k1", "objects_any": ["knife"]})],
         )
         db_session.commit()
 
@@ -466,9 +456,7 @@ class TestFilterMatrixSensorPath:
         matched = {r.id for r in await engine_empty.get_matching_rules(sensor, db_session)}
         assert match.id in matched
 
-        engine_active = _engine(
-            person_location=_StubPersonLocationService(history=[_segment()])
-        )
+        engine_active = _engine(person_location=_StubPersonLocationService(history=[_segment()]))
         matched_active = {r.id for r in await engine_active.get_matching_rules(sensor, db_session)}
         assert match.id not in matched_active
         assert nomatch.id not in matched_active  # different person_id, never matches either way

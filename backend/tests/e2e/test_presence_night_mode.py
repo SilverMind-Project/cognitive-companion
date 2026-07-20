@@ -128,12 +128,15 @@ class FakeHaStateCache:
 # ---------------------------------------------------------------------------
 
 
+import pathlib
+
 def _build_chain(
     cache: FakeHaStateCache,
     location_service: PersonLocationService,
 ) -> PresenceService:
     """Build the full provider chain from the test fixture config."""
-    config = load_presence_config("tests/fixtures/presence_test.yaml")
+    config_path = pathlib.Path(__file__).parent.parent / "fixtures" / "presence_test.yaml"
+    config = load_presence_config(str(config_path))
     providers = build_providers(
         config,
         cache=cache,  # type: ignore[arg-type]  # fake is structurally compatible

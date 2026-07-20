@@ -229,7 +229,6 @@ async def resolve_pipeline_image_refs(
     * ``both`` -- trigger + additional
     * ``pipeline`` -- a prior step output path (read via *pipeline_image_path*)
     * ``media_window`` -- unified media-window output, preferring ``images`` then ``frames``
-    * ``cts_window`` -- CTS frame dicts from a *cts_frames_path* path
     * ``none`` -- return empty list (for text-only LLM calls)
 
     The function returns an empty list when a service or path is missing
@@ -326,14 +325,6 @@ async def resolve_pipeline_image_refs(
                     )
             elif raw is not None:
                 refs.extend(normalize_image_value(raw, default_source_type="media_window"))
-
-    # -- cts_window (CTS frame dicts) ---------------------------------------
-    if image_source == "cts_window":
-        path = str(config.get("cts_frames_path", ""))
-        if path:
-            raw = resolve_pipeline_value(pipeline_data, path)
-            if raw is not None:
-                refs.extend(normalize_image_value(raw, default_source_type="cts_window"))
 
     # -- apply max_images cap -----------------------------------------------
     max_images = _as_int(config.get("max_images"), default_max_images)

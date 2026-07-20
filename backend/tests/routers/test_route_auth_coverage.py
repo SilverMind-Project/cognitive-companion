@@ -96,7 +96,9 @@ def _keystore() -> KeyStore:
 
 def test_every_route_is_guarded_or_allowlisted() -> None:
     unguarded = [
-        _key(r) for r in _api_routes() if not _auth_checkers(r) and _key(r) not in ALLOWLISTED_ROUTES
+        _key(r)
+        for r in _api_routes()
+        if not _auth_checkers(r) and _key(r) not in ALLOWLISTED_ROUTES
     ]
     assert not unguarded, (
         "Routes with no require_permission/require_token dependency:\n  "

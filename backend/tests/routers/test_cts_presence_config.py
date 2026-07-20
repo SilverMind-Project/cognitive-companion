@@ -166,7 +166,7 @@ async def test_reload_disabled_returns_404(presence_service: PresenceService):
 async def test_reload_with_valid_yaml(presence_service: PresenceService, tmp_path: Path):
     """POST with valid YAML on disk → 200, sanitized response."""
     # Copy the test fixture to tmp_path as presence.yaml.
-    fixture = Path("backend/tests/fixtures/presence_test.yaml")
+    fixture = Path(__file__).parent.parent / "fixtures" / "presence_test.yaml"
     target = tmp_path / "presence.yaml"
     copyfile(fixture, target)
 

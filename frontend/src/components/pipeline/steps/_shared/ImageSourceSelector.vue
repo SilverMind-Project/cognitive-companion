@@ -85,16 +85,6 @@
       @update:model-value="patch({ pipeline_image_path: $event })"
     />
 
-    <v-text-field
-      v-if="modelValue.image_source === 'cts_window'"
-      :model-value="modelValue.cts_frames_path"
-      label="CTS Frames Path"
-      hint="Dotted path to CTS window frames, e.g. steps.media_window_poll_1.outputs.frames"
-      persistent-hint
-      class="mb-4"
-      @update:model-value="patch({ cts_frames_path: $event })"
-    />
-
     <!-- Step-specific extras (e.g. llm_call's sort/annotation options). -->
     <slot :is-additional="isAdditional" />
   </div>
@@ -111,7 +101,6 @@ export const DEFAULT_IMAGE_SOURCES = [
   { title: "Trigger plus selected reCameras", value: "both" },
   { title: "Pipeline step output", value: "pipeline" },
   { title: "Media window output", value: "media_window" },
-  { title: "CTS window frames", value: "cts_window" },
 ];
 </script>
 

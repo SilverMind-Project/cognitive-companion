@@ -16,6 +16,10 @@ from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.guided_task import GuidedSession, Routine, RoutineStep
 from backend.services.guided_task.context import RuntimeContext
+from backend.services.guided_task.domain import (
+    CompletionGateConfig,
+    VisionGateConfig,
+)
 from backend.services.guided_task.policy import resolve_policy, resolve_vision_override
 from backend.services.guided_task.presentation import Presentation
 from backend.services.guided_task.runtime import Runtime
@@ -147,37 +151,27 @@ class Watch:
         now: datetime,
     ) -> bool:
         ctx = self._ctx
-        vision_cfg = (
-            (step.completion_gate or {}).get("vision")
-            or (step.completion_gate or {}).get("vision_confirm")
-            or {}
-        )
-        watch_cfg = vision_cfg.get("watch") or {}
-        confirm_cfg = vision_cfg.get("confirm") or {}
-        routine_cfg = (
-            (getattr(routine, "config_json", None) or {}).get("guided_task", {}).get("vision", {})
-        )
-
-        r_watch = routine_cfg.get("watch") or {}
+        gate_cfg = CompletionGateConfig.model_validate(step.completion_gate or {})
+        vision_cfg = gate_cfg.vision or VisionGateConfig()
+        watch_cfg = vision_cfg.watch
+        confirm_cfg = vision_cfg.confirm
 
         def resolve_val(
-            key: str, default_path: str, type_cast: Callable[[Any], Any], fallback: Any = None
+            val: Any | None, default_path: str, type_cast: Callable[[Any], Any], fallback: Any = None
         ) -> Any:
             return resolve_vision_override(
-                key,
-                step_cfg=watch_cfg,
-                routine_cfg=r_watch,
+                val,
                 settings=ctx.settings,
                 settings_path=default_path,
                 cast=type_cast,
                 default=fallback,
             )
 
-        enabled = resolve_val("enabled", "guided_task.vision.watch.enabled", bool, False)
+        enabled = resolve_val(watch_cfg.enabled if watch_cfg else None, "guided_task.vision.watch.enabled", bool, False)
         if not enabled:
             return False
 
-        tick_s = resolve_val("tick_s", "guided_task.vision.watch.tick_s", float, 20.0)
+        tick_s = resolve_val(watch_cfg.tick_s if watch_cfg else None, "guided_task.vision.watch.tick_s", float, 20.0)
 
         # 1. Per-session watch throttle
         last_watch = ctx.last_watch_at.get((session.id, step.ord))
@@ -186,7 +180,7 @@ class Watch:
             if elapsed < tick_s:
                 return False
 
-        gate_graph_rule_id = vision_cfg.get("gate_graph_rule_id")
+        gate_graph_rule_id = vision_cfg.gate_graph_rule_id
         if not gate_graph_rule_id:
             return False
 
@@ -194,22 +188,20 @@ class Watch:
         ctx.last_watch_at[(session.id, step.ord)] = now
 
         # Resolve other profile keys
-        window_s = resolve_val("window_s", "guided_task.vision.watch.window_s", float, 4.0)
-        max_frames = resolve_val("max_frames", "guided_task.vision.watch.max_frames", int, 3)
-        max_cameras = resolve_val("max_cameras", "guided_task.vision.max_cameras", int, 3)
-        model_id = resolve_val("model_id", "guided_task.vision.watch.model_id", str)
-        prune_heavy = resolve_val("prune_heavy", "guided_task.vision.watch.prune_heavy", bool, True)
+        window_s = resolve_val(watch_cfg.window_s if watch_cfg else None, "guided_task.vision.watch.window_s", float, 4.0)
+        max_frames = resolve_val(watch_cfg.max_frames if watch_cfg else None, "guided_task.vision.watch.max_frames", int, 3)
+        max_cameras = resolve_val(None, "guided_task.vision.max_cameras", int, 3)
+        model_id = resolve_val(watch_cfg.model_id if watch_cfg else None, "guided_task.vision.watch.model_id", str)
+        prune_heavy = resolve_val(None, "guided_task.vision.watch.prune_heavy", bool, True)
 
         # Watch has no dedicated min_confidence default; fall back to the confirm
-        # threshold (step -> routine -> global -> 0.7) when watch leaves it unset.
+        # threshold (step -> global -> 0.7) when watch leaves it unset.
         min_confidence = resolve_val(
-            "min_confidence", "guided_task.vision.watch.min_confidence", float
+            None, "guided_task.vision.watch.min_confidence", float
         )
         if min_confidence is None:
             min_confidence = resolve_vision_override(
-                "min_confidence",
-                step_cfg=confirm_cfg,
-                routine_cfg=routine_cfg.get("confirm") or {},
+                confirm_cfg.min_confidence if confirm_cfg else None,
                 settings=ctx.settings,
                 settings_path="guided_task.vision.confirm.min_confidence",
                 cast=float,
@@ -314,11 +306,11 @@ class Watch:
 
         # Part C: Opt-in conservative auto-advance
         auto_advance = resolve_val(
-            "auto_advance", "guided_task.vision.watch.auto_advance", bool, False
+            watch_cfg.auto_advance if watch_cfg else None, "guided_task.vision.watch.auto_advance", bool, False
         )
         if auto_advance and not step.is_safety_critical:
             auto_advance_k = resolve_val(
-                "auto_advance_k", "guided_task.vision.watch.auto_advance_k", int, 3
+                watch_cfg.auto_advance_k if watch_cfg else None, "guided_task.vision.watch.auto_advance_k", int, 3
             )
             db = ctx.db_factory()
             try:

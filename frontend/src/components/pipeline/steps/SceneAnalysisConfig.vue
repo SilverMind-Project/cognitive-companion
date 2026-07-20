@@ -74,7 +74,7 @@ export const stepDefaults = {
   pipeline_image_path: "",
   pipeline_image_url_field: "url",
   pipeline_image_object_name_field: "object_name",
-  cts_frames_path: "steps.media_window_poll_1.outputs.frames",
+
 };
 export const stepTabs = [{ key: "images", label: "Images", icon: "mdi-camera-outline" }];
 

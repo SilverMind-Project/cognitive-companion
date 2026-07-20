@@ -116,7 +116,7 @@ export const stepDefaults = {
   additional_sensor_ids: [],
   image_source: "trigger",
   pipeline_image_path: "",
-  cts_frames_path: "steps.media_window_poll_1.outputs.frames",
+
   presence_room_source: "trigger",
   presence_room_name: "",
 };

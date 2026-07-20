@@ -68,8 +68,6 @@ class HouseholdMember(Base, TimestampMixin):
     )
 
 
-
-
 class PersonActivity(Base):
     """Detected activity for a person (e.g. eating, sleeping, taking medication).
 

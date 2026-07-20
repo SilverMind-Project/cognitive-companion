@@ -230,7 +230,10 @@ async def test_summon_message_localized(db_factory, db_session) -> None:
 
     dispatcher = _Dispatcher()
     svc = GuidedTaskService(
-        db_factory=db_factory, notification_dispatcher=dispatcher, settings=_settings(), time_fn=lambda: now
+        db_factory=db_factory,
+        notification_dispatcher=dispatcher,
+        settings=_settings(),
+        time_fn=lambda: now,
     )
 
     await svc._announce_summon(session=session, routine=routine, room_name="kitchen", broad=False)
@@ -247,7 +250,10 @@ async def test_summon_language_fallback_logs(db_factory, db_session, caplog) -> 
 
     dispatcher = _Dispatcher()
     svc = GuidedTaskService(
-        db_factory=db_factory, notification_dispatcher=dispatcher, settings=_settings(), time_fn=lambda: now
+        db_factory=db_factory,
+        notification_dispatcher=dispatcher,
+        settings=_settings(),
+        time_fn=lambda: now,
     )
 
     await svc._announce_summon(session=session, routine=routine, room_name="kitchen", broad=False)
@@ -269,7 +275,10 @@ async def test_summon_defaults_to_household_language_when_no_routine_override(
 
     dispatcher = _Dispatcher()
     svc = GuidedTaskService(
-        db_factory=db_factory, notification_dispatcher=dispatcher, settings=_settings(), time_fn=lambda: now
+        db_factory=db_factory,
+        notification_dispatcher=dispatcher,
+        settings=_settings(),
+        time_fn=lambda: now,
     )
 
     await svc._announce_summon(session=session, routine=routine, room_name="kitchen", broad=False)

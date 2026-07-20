@@ -65,7 +65,6 @@ class PersonIdentificationHandler(StepHandler):
                             "both",
                             "pipeline",
                             "media_window",
-                            "cts_window",
                         ],
                         "default": "trigger",
                     },
@@ -73,10 +72,6 @@ class PersonIdentificationHandler(StepHandler):
                         "type": "string",
                         "default": "",
                         "description": "Dotted path to image URLs or image refs from a previous step.",
-                    },
-                    "cts_frames_path": {
-                        "type": "string",
-                        "default": "steps.media_window_poll_1.outputs.frames",
                     },
                     "presence_room_source": {
                         "type": "string",
@@ -98,7 +93,6 @@ class PersonIdentificationHandler(StepHandler):
                 "write_movements_to_memory": False,
                 "image_source": "trigger",
                 "pipeline_image_path": "",
-                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
                 "presence_room_source": "trigger",
                 "presence_room_name": "",
             },

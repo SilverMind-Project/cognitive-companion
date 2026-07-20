@@ -221,7 +221,9 @@ class TestRulesRouter:
 
         resp = client.put(
             f"/api/v1/rules/{rule.id}/steps/{step_id}",
-            json={"config_json": {"signal_kind": None, "person_id": None, "output_key": "presence"}},
+            json={
+                "config_json": {"signal_kind": None, "person_id": None, "output_key": "presence"}
+            },
         )
         assert resp.status_code == 200
 

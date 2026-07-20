@@ -183,7 +183,7 @@ import ImageCropCanvas from "./_shared/ImageCropCanvas.vue";
 export const stepDefaults = {
   image_source: "trigger",
   pipeline_image_path: "",
-  cts_frames_path: "steps.media_window_poll_1.outputs.frames",
+
   max_images: 1,
   trigger_images_count: 0,
   additional_sensor_ids: [],

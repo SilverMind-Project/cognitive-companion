@@ -106,7 +106,7 @@ class TestMetadata:
     def test_image_source_enum_includes_pipeline_and_cts(self):
         enum = _HANDLER.metadata().config_schema["properties"]["image_source"]["enum"]
         assert "pipeline" in enum
-        assert "cts_window" in enum
+        assert "cts_window" not in enum
         assert "none" in enum
 
 
@@ -155,7 +155,7 @@ class TestPipelineImageSource:
         assert any("pipeline/crops/100/1/stove.jpg" in p for p in call_kwargs["media_paths"])
 
     @pytest.mark.asyncio
-    async def test_vision_model_with_cts_window_source_passes_presigned_urls(self):
+    async def test_vision_model_with_pipeline_source_passes_presigned_urls(self):
         minio = _mock_minio({"cts/cam1/frame.jpg": _FAKE_JPEG})
         provider = _make_provider("analysis")
         model_cfg = _make_model_cfg(["vision"])
@@ -179,8 +179,8 @@ class TestPipelineImageSource:
         }
         config = {
             "model_id": "test-vision",
-            "image_source": "cts_window",
-            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
             "prompt": "Describe the scene.",
         }
         await _HANDLER.execute(

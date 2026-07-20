@@ -177,8 +177,9 @@ class Scheduler:
             )
 
             for rule in rules:
-                if self._rules_engine is not None and not await (
-                    self._rules_engine.get_matching_rules_for_cron(rule, db)
+                if (
+                    self._rules_engine is not None
+                    and not await self._rules_engine.get_matching_rules_for_cron(rule, db)
                 ):
                     continue
 

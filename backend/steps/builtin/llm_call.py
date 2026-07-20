@@ -82,7 +82,6 @@ class LLMCallHandler(StepHandler):
                             "both",
                             "pipeline",
                             "media_window",
-                            "cts_window",
                         ],
                         "default": "none",
                         "description": (
@@ -90,8 +89,7 @@ class LLMCallHandler(StepHandler):
                             "'additional' = extra cameras only, "
                             "'both' = trigger frames + additional cameras, "
                             "'pipeline' = prior step output, "
-                            "'media_window' = unified media window output, "
-                            "'cts_window' = CTS window poll frames."
+                            "'media_window' = unified media window output."
                         ),
                     },
                     "pipeline_image_path": {
@@ -106,10 +104,6 @@ class LLMCallHandler(StepHandler):
                     "pipeline_image_object_name_field": {
                         "type": "string",
                         "default": "object_name",
-                    },
-                    "cts_frames_path": {
-                        "type": "string",
-                        "default": "steps.media_window_poll_1.outputs.frames",
                     },
                     "max_images": {
                         "type": "integer",
@@ -276,7 +270,6 @@ class LLMCallHandler(StepHandler):
                 "pipeline_image_path": "",
                 "pipeline_image_url_field": "url",
                 "pipeline_image_object_name_field": "object_name",
-                "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
                 "response_format": "text",
                 "response_schema": "",
                 "response_json_schema": "",

@@ -223,9 +223,7 @@ async def test_unresolvable_room_still_records_observation_with_room_id_none(db_
     recorded (room_id=None), just without a segment effect."""
     db = db_factory()
     try:
-        db.add(
-            Sensor(id="cam-orphan", name="cam-orphan", room_id=None, sensor_type="camera")
-        )
+        db.add(Sensor(id="cam-orphan", name="cam-orphan", room_id=None, sensor_type="camera"))
         db.add(HouseholdMember(id="erin", name="Erin"))
         db.commit()
     finally:

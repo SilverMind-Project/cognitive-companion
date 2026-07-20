@@ -153,9 +153,7 @@ class Summon:
                         session, conversation_session_id, now=ctx.now(), actor="system"
                     )
                 except Exception:
-                    logger.exception(
-                        "guided_on_session_opened_link_failed", session_id=session.id
-                    )
+                    logger.exception("guided_on_session_opened_link_failed", session_id=session.id)
 
         for session in ctx.store.list_summoning_sessions():
             try:
@@ -220,7 +218,9 @@ class Summon:
         if skipped_further:
             return ctx.require_session(session_id)
         await self._presentation.speak(updated, step, is_retry=False)
-        ctx.schedule_timeout(updated, routine, step, begin_at, finalize=self._runtime.on_step_timeout)
+        ctx.schedule_timeout(
+            updated, routine, step, begin_at, finalize=self._runtime.on_step_timeout
+        )
         return updated
 
     async def summon_recheck(self, session_id: int, summon_timeout_s: int) -> None:

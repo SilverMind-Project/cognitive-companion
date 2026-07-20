@@ -10,6 +10,10 @@ from typing import Any
 from backend.core.logging import get_logger
 from backend.services.guided_task.camera_selection import ResolvedCamera, select_cameras_tagged
 from backend.services.guided_task.completion.base import CompletionResult
+from backend.services.guided_task.domain import (
+    CompletionGateConfig,
+    VisionGateConfig,
+)
 from backend.services.guided_task.gate_runner import GateProfile, GateRunContext
 from backend.services.guided_task.policy import resolve_vision_override
 
@@ -65,10 +69,10 @@ class VisionEvaluator:
         the bounded-disagreement count.
         """
         # 1. Resolve the gate rule
-        vision_cfg = (
-            self._gate_config.get("vision") or self._gate_config.get("vision_confirm") or {}
-        )
-        gate_graph_rule_id = vision_cfg.get("gate_graph_rule_id")
+        gate_cfg = CompletionGateConfig.model_validate(self._gate_config or {})
+        vision_cfg = gate_cfg.vision or VisionGateConfig()
+        gate_graph_rule_id = vision_cfg.gate_graph_rule_id
+
         if not gate_graph_rule_id:
             await self._record(
                 session=session,
@@ -84,45 +88,29 @@ class VisionEvaluator:
             return CompletionResult(False, 0.0, "no_gate_graph")
 
         # 2. Resolve confirm profile
-        confirm_cfg = vision_cfg.get("confirm") or {}
-        routine = evidence.get("routine")
-        if routine is None:
-            try:
-                routine = getattr(session, "routine", None)
-            except Exception:  # noqa: BLE001
-                routine = None
-        routine_cfg = {}
-        if routine is not None:
-            routine_cfg = (
-                (getattr(routine, "config_json", None) or {})
-                .get("guided_task", {})
-                .get("vision", {})
-                .get("confirm", {})
-            )
+        confirm_cfg = vision_cfg.confirm
 
         def resolve_val(
-            key: str, default_path: str, type_cast: Callable[[Any], Any], default: Any = None
+            val: Any | None, default_path: str, type_cast: Callable[[Any], Any], default: Any = None
         ) -> Any:
             return resolve_vision_override(
-                key,
-                step_cfg=confirm_cfg,
-                routine_cfg=routine_cfg,
+                val,
                 settings=self._settings,
                 settings_path=default_path,
                 cast=type_cast,
                 default=default,
             )
 
-        window_s = resolve_val("window_s", "guided_task.vision.confirm.window_s", float, 20.0)
-        max_frames = resolve_val("max_frames", "guided_task.vision.confirm.max_frames", int, 9)
-        max_cameras = resolve_val("max_cameras", "guided_task.vision.max_cameras", int, 3)
+        window_s = resolve_val(confirm_cfg.window_s if confirm_cfg else None, "guided_task.vision.confirm.window_s", float, 20.0)
+        max_frames = resolve_val(confirm_cfg.max_frames if confirm_cfg else None, "guided_task.vision.confirm.max_frames", int, 9)
+        max_cameras = resolve_val(None, "guided_task.vision.max_cameras", int, 3)
         min_confidence = resolve_val(
-            "min_confidence", "guided_task.vision.confirm.min_confidence", float, 0.7
+            confirm_cfg.min_confidence if confirm_cfg else None, "guided_task.vision.confirm.min_confidence", float, 0.7
         )
         min_interval_s = resolve_val(
-            "min_interval_s", "guided_task.vision.confirm.min_interval_s", float, 15.0
+            confirm_cfg.min_interval_s if confirm_cfg else None, "guided_task.vision.confirm.min_interval_s", float, 15.0
         )
-        model_id = resolve_val("model_id", "guided_task.vision.confirm.model_id", str)
+        model_id = resolve_val(confirm_cfg.model_id if confirm_cfg else None, "guided_task.vision.confirm.model_id", str)
 
         confirm_profile = GateProfile(
             name="confirm",

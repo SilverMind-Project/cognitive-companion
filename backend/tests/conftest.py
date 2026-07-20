@@ -271,9 +271,17 @@ def make_executor(db_factory):
     from backend.services.pipeline_executor import PipelineExecutor
     from backend.steps.base import ServiceContainer
 
-    def _make(services: ServiceContainer | None = None, *, rules_engine=None, event_publisher=None, **container_overrides):
+    def _make(
+        services: ServiceContainer | None = None,
+        *,
+        rules_engine=None,
+        event_publisher=None,
+        **container_overrides,
+    ):
         if services is None:
             services = ServiceContainer(db_factory=db_factory, **container_overrides)
-        return PipelineExecutor(services, rules_engine=rules_engine, event_publisher=event_publisher)
+        return PipelineExecutor(
+            services, rules_engine=rules_engine, event_publisher=event_publisher
+        )
 
     return _make

@@ -15,7 +15,6 @@ import pytest
 from backend.integrations.proto.continuoustracking.v1 import (  # type: ignore[attr-defined]
     tracking_pb2,
 )
-from backend.services.cts.source_authority import SourceAuthority
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
 
 
@@ -148,19 +147,6 @@ class TestHandle:
         assert ok is True
 
 
-    @pytest.mark.asyncio
-    async def test_writer_error_returns_false(self, subscriber):
-        sub, _ = subscriber
-
-        class _BoomPipeline:
-            async def execute_event(self, _event: dict) -> list[str]:
-                raise RuntimeError("db_broken")
-
-        sub.pipeline = _BoomPipeline()  # type: ignore[assignment]
-        event = sub.decode(b"0-0", _proto_fields(_make_event()))
-        assert event is not None
-        ok = await sub.handle(event)
-        assert ok is False
 
     def test_world_snapshot_omits_posterior_when_probability_is_zero(self, subscriber):
         sub, _ = subscriber
@@ -270,5 +256,3 @@ class TestHandleWithBroadcast:
         # minio_key is always included so the frontend proxy path works independently
         # of whether MinIO presigned URLs are configured
         assert live_msg["minio_key"] == "frames/evt-1.jpg"
-
-

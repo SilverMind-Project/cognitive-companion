@@ -9,10 +9,8 @@ from backend.services.guided_task.domain import ResolvedPolicy
 
 
 def resolve_vision_override(
-    key: str,
+    val: Any | None,
     *,
-    step_cfg: dict | None,
-    routine_cfg: dict | None,
     settings: Any,
     settings_path: str,
     cast: Callable[[Any], Any] = lambda v: v,
@@ -20,26 +18,18 @@ def resolve_vision_override(
 ) -> Any:
     """Resolve one nested ``guided_task.vision.*`` setting.
 
-    Precedence: per-step override, per-routine override, ``config/settings.yaml``
-    global, then ``default``. ``step_cfg`` / ``routine_cfg`` are the already-narrowed
-    override dicts (for example the ``...vision.confirm`` or ``...vision.watch`` sub-
-    dict); a ``None`` value at any level falls through to the next. This is the single
-    precedence resolver for the nested vision config that the fixed ``ResolvedPolicy``
-    of :func:`resolve_policy` cannot express; the confirm gate, the watch tick, and the
-    disagreement bound all share it (no hand-rolled precedence chains).
+    Precedence: per-step override, ``config/settings.yaml``
+    global, then ``default``.
     """
-    for src in (step_cfg, routine_cfg):
-        if src is not None:
-            val = src.get(key)
-            if val is not None:
-                return cast(val)
+    if val is not None:
+        return cast(val)
     if settings is not None:
         try:
-            val = settings.get(settings_path)
+            settings_val = settings.get(settings_path)
         except Exception:  # noqa: BLE001
-            val = None
-        if val is not None:
-            return cast(val)
+            settings_val = None
+        if settings_val is not None:
+            return cast(settings_val)
     return default
 
 

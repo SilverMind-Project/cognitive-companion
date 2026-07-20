@@ -302,9 +302,7 @@ class TestGetTimelineSources:
         rooms = {e["room_name"] for e in events}
         assert rooms == {"bedroom", "kitchen"}
 
-    async def test_get_timeline_missing_person_location_service_degrades_to_empty(
-        self, db_factory
-    ):
+    async def test_get_timeline_missing_person_location_service_degrades_to_empty(self, db_factory):
         """Missing-service path: location/sighting sources degrade to empty
         lists (CTS disabled) rather than raising; activity/session still work."""
         db = db_factory()

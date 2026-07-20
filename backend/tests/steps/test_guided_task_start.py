@@ -241,9 +241,7 @@ async def test_park_budget_covers_all_steps(db_factory, db_session):
     global_step_timeout_s = settings.as_int("guided_task.step_timeout_s")
     global_max_attempts = settings.as_int("guided_task.max_step_attempts")
     resume_grace_s = settings.as_int("guided_task.resume_grace_s")
-    routine_budget_s = (
-        (global_step_timeout_s * global_max_attempts) + (600 * 2) + (120 * 1)
-    )
+    routine_budget_s = (global_step_timeout_s * global_max_attempts) + (600 * 2) + (120 * 1)
     expected_park_s = 120 + routine_budget_s + resume_grace_s
     assert before + timedelta(seconds=expected_park_s - 1) <= result.wait_until
     assert result.wait_until <= after + timedelta(seconds=expected_park_s + 1)

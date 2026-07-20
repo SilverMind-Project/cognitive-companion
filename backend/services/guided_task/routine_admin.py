@@ -110,9 +110,7 @@ class RoutineAdmin:
     def list_routines(
         self, *, person_id: str | None = None, limit: int = 20, offset: int = 0
     ) -> RoutineListOut:
-        rows, total = self._ctx.store.list_routines(
-            person_id=person_id, limit=limit, offset=offset
-        )
+        rows, total = self._ctx.store.list_routines(person_id=person_id, limit=limit, offset=offset)
         items = []
         for r in rows:
             step_count = self._ctx.store.count_steps(r.id)
@@ -167,9 +165,7 @@ class RoutineAdmin:
         steps_out = [RoutineStepOut.model_validate(s, from_attributes=True) for s in new_steps]
         return RoutineDetailOut(routine=routine_out, steps=steps_out)
 
-    async def test_run(
-        self, routine_id: int, *, surface_id: str | None = None
-    ) -> GuidedSessionOut:
+    async def test_run(self, routine_id: int, *, surface_id: str | None = None) -> GuidedSessionOut:
         routine = self._ctx.store.get_routine(routine_id)
         if routine is None:
             raise NotFoundError("Routine", routine_id)

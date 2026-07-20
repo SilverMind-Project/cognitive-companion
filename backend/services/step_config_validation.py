@@ -62,6 +62,4 @@ def validate_step_config_schema(step_type: str, config: dict) -> list[str]:
         return []
 
     errors = sorted(validator.iter_errors(config), key=lambda e: list(e.path))
-    return [
-        f"{'.'.join(str(p) for p in e.path) or '<root>'}: {e.message}" for e in errors
-    ]
+    return [f"{'.'.join(str(p) for p in e.path) or '<root>'}: {e.message}" for e in errors]

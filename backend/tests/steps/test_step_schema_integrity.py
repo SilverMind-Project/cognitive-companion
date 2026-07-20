@@ -87,3 +87,18 @@ def test_filter_config_schema_is_well_formed(meta):
         Draft202012Validator.check_schema(meta.config_schema)
     except SchemaError as e:
         pytest.fail(f"Filter '{meta.filter_type}' config_schema is not valid JSONSchema: {e}")
+
+
+@pytest.mark.parametrize("meta", _all_step_metadata(), ids=lambda m: m.type_name)
+def test_step_config_vocabulary_m34_guard(meta):
+    """M34 guard: Prevent cts_window or cts_frames_path from returning."""
+    schema = meta.config_schema
+    if "properties" in schema:
+        assert "cts_frames_path" not in schema["properties"], (
+            f"Step '{meta.type_name}' includes forbidden property cts_frames_path"
+        )
+        if "image_source" in schema["properties"]:
+            enum = schema["properties"]["image_source"].get("enum", [])
+            assert "cts_window" not in enum, (
+                f"Step '{meta.type_name}' image_source enum includes forbidden member cts_window"
+            )

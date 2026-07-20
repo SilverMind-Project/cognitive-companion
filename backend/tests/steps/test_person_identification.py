@@ -484,7 +484,7 @@ class TestDownstreamImageSources:
         assert call_kwargs["media_paths"] == ["http://minio/crops/stove.jpg"]
 
     @pytest.mark.asyncio
-    async def test_cts_window_image_source_uses_minio_key_frames(self):
+    async def test_pipeline_image_source_uses_minio_key_frames(self):
         person_tracking = _make_person_tracking(detections=[_make_detection()])
         minio = _mock_minio()
         services = _make_services(person_tracking=person_tracking, minio_client=minio)
@@ -505,8 +505,8 @@ class TestDownstreamImageSources:
             }
         }
         config = {
-            "image_source": "cts_window",
-            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
             "presence_room_source": "source_image",
         }
         result = await _HANDLER.execute(
@@ -563,8 +563,6 @@ class TestDownstreamImageSources:
 
 
 class TestPresenceRecording:
-
-
     @pytest.mark.asyncio
     async def test_presence_room_source_custom_uses_configured_room(self):
         person_tracking = _make_person_tracking(detections=[_make_detection()])
@@ -609,8 +607,8 @@ class TestPresenceRecording:
             }
         }
         config = {
-            "image_source": "cts_window",
-            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
             "presence_room_source": "source_image",
         }
         trigger = _make_trigger(room_name="Kitchen")

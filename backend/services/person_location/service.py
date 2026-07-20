@@ -528,9 +528,7 @@ class PersonLocationService:
         presence-provider staleness and "last known room" queries, which
         must still answer after a segment has closed or quiet-timed-out.
         """
-        return await self._obs.latest_observation(
-            person_id, since=datetime.min.replace(tzinfo=UTC)
-        )
+        return await self._obs.latest_observation(person_id, since=datetime.min.replace(tzinfo=UTC))
 
     # ------------------------------------------------------------------
     # Inferred-dwell timeout evaluation

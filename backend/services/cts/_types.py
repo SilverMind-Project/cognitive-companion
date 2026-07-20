@@ -12,12 +12,10 @@ from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
-
 __all__ = [
     "ConnectionManager",
     "DBSessionFactory",
     "IdentityLookupClient",
-    "LocationRepository",
     "MinioClient",
     "PipelineExecutor",
     "SceneAnalysisClient",

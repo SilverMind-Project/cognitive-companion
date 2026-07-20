@@ -422,8 +422,6 @@ class PersonTrackingService:
             db.add(member)
             db.flush()
 
-
-
     async def record_activity(
         self,
         person_id: str,

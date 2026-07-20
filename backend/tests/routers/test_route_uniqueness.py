@@ -50,9 +50,7 @@ def test_no_duplicate_path_method_registrations() -> None:
     duplicates = {key: eps for key, eps in groups.items() if len(eps) > 1}
 
     assert not duplicates, "Shadowed route(s) -- only the first registration serves:\n" + "\n".join(
-        f"  {method} {path}\n"
-        f"    serves:    {eps[0]}\n"
-        f"    shadowed:  {', '.join(eps[1:])}"
+        f"  {method} {path}\n    serves:    {eps[0]}\n    shadowed:  {', '.join(eps[1:])}"
         for (path, method), eps in sorted(duplicates.items())
     )
 

@@ -117,9 +117,7 @@ def serve_active_image(
     request: Request,
     db: Session = Depends(get_db),
     minio: MinioClient = Depends(get_config_minio_client),
-    auth: AuthContext = Depends(
-        require_permission("image:read", resolver=get_auth_context_device)
-    ),
+    auth: AuthContext = Depends(require_permission("image:read", resolver=get_auth_context_device)),
 ):
     """Serve the active image for the authenticated device.
 

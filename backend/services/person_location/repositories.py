@@ -537,9 +537,7 @@ class SqlAlchemyObservationRepository:
             )
             if sources is not None:
                 stmt = stmt.where(LOObs.source.in_(sources))
-            rows = db.execute(
-                stmt.order_by(LOObs.observed_at.desc()).limit(limit)
-            ).all()
+            rows = db.execute(stmt.order_by(LOObs.observed_at.desc()).limit(limit)).all()
         return [_obs_to_domain(r[0], room_name=r[1]) for r in rows]
 
     async def list_heatmap_bins(

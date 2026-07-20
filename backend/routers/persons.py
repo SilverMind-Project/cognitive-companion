@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import base64
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
@@ -256,5 +256,3 @@ async def delete_member(
         raise HTTPException(status_code=404, detail=f"Member '{person_id}' not found")
     db.delete(member)
     db.commit()
-
-

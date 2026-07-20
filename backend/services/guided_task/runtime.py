@@ -57,9 +57,10 @@ class Runtime:
             )
             return self._presentation.decision_descriptor(decision)
 
-        if evidence.get("already_done") and (step.skip_condition or {}).get(
-            "kind"
-        ) == "response_says_done":
+        if (
+            evidence.get("already_done")
+            and (step.skip_condition or {}).get("kind") == "response_says_done"
+        ):
             decision = GuidedTaskStateMachine.decide(
                 ctx.session_view(session, steps),
                 ctx.step_view(step),
@@ -198,7 +199,9 @@ class Runtime:
                     step_ord=step.ord,
                     progress_seen_at=progress_seen_at,
                 )
-                ctx.schedule_timeout(session, routine, step, progress_seen_at, finalize=self.on_step_timeout)
+                ctx.schedule_timeout(
+                    session, routine, step, progress_seen_at, finalize=self.on_step_timeout
+                )
                 return Decision(
                     kind="noop",
                     next_status=session.status,
@@ -359,7 +362,9 @@ class Runtime:
                     await self._presentation.speak(
                         updated, next_step, is_retry=False, prefix=speak_prefix
                     )
-                ctx.schedule_timeout(updated, routine, next_step, now, finalize=self.on_step_timeout)
+                ctx.schedule_timeout(
+                    updated, routine, next_step, now, finalize=self.on_step_timeout
+                )
             return
 
         if decision.kind == "retry":

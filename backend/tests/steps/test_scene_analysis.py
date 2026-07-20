@@ -689,7 +689,7 @@ class TestDownstreamImageSource:
         assert result.data["scene_images"] == []
 
     @pytest.mark.asyncio
-    async def test_cts_window_source_reads_minio_keys(self):
+    async def test_pipeline_source_reads_minio_keys(self):
         """CTS frame dicts with minio_key are resolved through MinIO."""
         client = _mock_client()
         minio = _mock_minio({"cts/cam1/frame.jpg": _FAKE_JPEG})
@@ -711,8 +711,8 @@ class TestDownstreamImageSource:
             }
         }
         config = {
-            "image_source": "cts_window",
-            "cts_frames_path": "steps.media_window_poll_1.outputs.frames",
+            "image_source": "pipeline",
+            "pipeline_image_path": "steps.media_window_poll_1.outputs.frames",
         }
         with _patch_http():
             result = await _HANDLER.execute(

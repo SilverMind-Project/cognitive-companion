@@ -399,9 +399,7 @@ class GuidedTaskStore:
                 )
                 .distinct()
             )
-            return [
-                int(row) for row in db.execute(stmt).scalars().all() if row is not None
-            ]
+            return [int(row) for row in db.execute(stmt).scalars().all() if row is not None]
         finally:
             db.close()
 

@@ -422,15 +422,15 @@ cts:
   # CTS resolver.revision_horizon_s; change both together.
   revision_horizon_s: 600.0
 
-  # M38: publishing to cc.identity_assertions from the reCamera ingest
-  # adapter. Default false because the proto cannot yet represent "no floor
-  # point" (floor_x_m/floor_y_m default to 0.0, which the orchestrator
-  # matcher would treat as a real position) and reCamera camera ids never
-  # match CTS camera ids either. identity-continuity M09 fixes both and
-  # flips this default; until then the adapter still writes the SSOT, it
-  # just does not publish the assertion.
+  # M38 shipped this publishing flag default false because the proto could
+  # not represent "no floor point" and reCamera camera ids never match CTS
+  # camera ids. identity-continuity M09 fixes both (has_floor_point wire
+  # flag, room-level matching) and flips this default to true: the resolver
+  # side starts in shadow mode (resolver.cc_assertion_mode on the CTS side),
+  # so publishing now is safe and is required for the shadow measurement to
+  # collect data.
   identity_assertions:
-    publish_enabled: false
+    publish_enabled: true
 
   # Service JWT signing (EdDSA).  Leave blank for dev mode (no JWT).
   jwt:

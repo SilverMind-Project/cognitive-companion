@@ -75,6 +75,7 @@ class FaceSightingIngest:
         raw_similarity: float = 0.0,
         calibrated_confidence: float | None = None,
         calibration_status: str = "uncalibrated",
+        yaw_deg: float | None = None,
         transition: Any | None = None,
     ) -> None:
         """Ingest one confirmed detection. Never raises: logs and returns on failure.
@@ -127,6 +128,12 @@ class FaceSightingIngest:
                 return
 
             if self._publish_assertions and self._assertion_publisher is not None:
+                # No floor coordinates: reCameras have no spatial calibration on
+                # either side (verified 2026-07-19), so the room-name gate is the
+                # only spatial match available to the orchestrator. No face-crop
+                # quality value exists in the person-identification-service
+                # response today; omitted so the consumer's conservative default
+                # applies (identity-continuity M09).
                 await self._assertion_publisher.publish(
                     person_id=person_id,
                     confidence=confidence,
@@ -136,6 +143,8 @@ class FaceSightingIngest:
                     calibrated_confidence=calibrated_confidence,
                     calibration_status=calibration_status,
                     source="cc-face-sighting",
+                    room_name=room_name,
+                    yaw_deg=yaw_deg,
                 )
         except Exception:
             logger.exception(

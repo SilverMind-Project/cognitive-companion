@@ -61,6 +61,13 @@ class FaceResult:
     roll_deg: float = 0.0
     # Rich face evidence: SCRFD face detection confidence score.
     det_score: float = 0.0
+    # M09: ArcFace calibration fields, forwarded so CC-side identification
+    # (reCamera face sighting) can carry the same fail-closed calibration
+    # contract as CTS's own face client. None/degraded means "not trustworthy",
+    # never a raw-similarity fallback.
+    calibrated_confidence: float | None = None
+    calibration_status: str = "degraded_missing"
+    calibration_artifact_version: str | None = None
 
 
 @dataclass
@@ -290,6 +297,9 @@ class PersonIDClient:
                 pitch_deg=f.get("pitch_deg", 0.0),
                 roll_deg=f.get("roll_deg", 0.0),
                 det_score=f.get("det_score", 0.0),
+                calibrated_confidence=f.get("calibrated_confidence"),
+                calibration_status=f.get("calibration_status", "degraded_missing"),
+                calibration_artifact_version=f.get("calibration_artifact_version"),
             )
             for f in data.get("faces", [])
         ]
@@ -610,6 +620,9 @@ class PersonIDClient:
                     pitch_deg=f.get("pitch_deg", 0.0),
                     roll_deg=f.get("roll_deg", 0.0),
                     det_score=f.get("det_score", 0.0),
+                    calibrated_confidence=f.get("calibrated_confidence"),
+                    calibration_status=f.get("calibration_status", "degraded_missing"),
+                    calibration_artifact_version=f.get("calibration_artifact_version"),
                 )
                 for f in frame.get("faces", [])
             ]

@@ -39,6 +39,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         ws_manager: ConnectionManager | None = None,
         person_location_service: object | None = None,
         orchestrator_client: object | None = None,
+        backfill_projector: object | None = None,
     ) -> None:
         super().__init__(
             ConsumerConfig(
@@ -54,6 +55,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
         self._ws_manager = ws_manager
         self._pls = person_location_service
         self._orchestrator = orchestrator_client
+        self._backfill_projector = backfill_projector
 
     # -- StreamConsumer abstract methods -------------------------------------
 
@@ -116,6 +118,20 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
 
     async def handle(self, revision: dict[str, Any]) -> bool:
         metrics.cts_revisions_received.inc()
+
+        # identity-continuity M05: an inferred_backfill revision has no rows
+        # to supersede (an Unknown segment was never attributed in the first
+        # place), so it routes entirely to the projector instead of the
+        # rewriter/apply_identity_revision/pipeline/WS-broadcast path below.
+        # The projector owns its own ack, audit log, and WS broadcast.
+        if revision.get("revision_kind") == "inferred_backfill":
+            if self._backfill_projector is None:
+                logger.warning(
+                    "backfill_projector_unavailable", revision_id=revision.get("revision_id")
+                )
+                return False
+            return await self._backfill_projector.project(revision)  # type: ignore[attr-defined]
+
         try:
             result = await self._rewriter.apply(revision)
         except Exception:
@@ -150,7 +166,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
                     rev_time = datetime.fromisoformat(rev_time_str.replace("Z", "+00:00"))
                 else:
                     rev_time = datetime.now(UTC)
-                await self._pls.apply_identity_revision(  # type: ignore[union-attr]
+                await self._pls.apply_identity_revision(  # type: ignore[attr-defined]
                     old_person_id=revision.get("previous_identity_id") or "",
                     new_person_id=revision.get("new_identity_id"),
                     ph_id=revision.get("ph_id", ""),

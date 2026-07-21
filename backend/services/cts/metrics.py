@@ -116,6 +116,22 @@ cts_revisions_dropped = Counter(
     "Total tracking.revisions messages dropped.",
 )
 
+# -- Identity-continuity M05 backfill projector counters ----------------------
+
+BACKFILL_OUTCOME_LABEL = (
+    "outcome"  # applied | skipped_duplicate | dropped_invalid | overlap_skipped
+)
+
+cc_cts_backfill_projections_total = Counter(
+    "cc_cts_backfill_projections_total",
+    "Total inferred_backfill revisions processed by the CC backfill projector.",
+    [BACKFILL_OUTCOME_LABEL],
+)
+
+cc_cts_backfill_rows_inserted_total = Counter(
+    "cc_cts_backfill_rows_inserted_total",
+    "Total presence_segments rows inserted by the CC backfill projector.",
+)
 
 
 # -- Filter degradation counters -------------------------------------------

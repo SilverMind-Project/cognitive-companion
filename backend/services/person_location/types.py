@@ -69,6 +69,10 @@ class PresenceSegment:
     quality: float = 0.0  # PH mean_quality from CTS wire
     last_observed_at: datetime | None = None
     superseded_by: UUID | None = None
+    # identity-continuity M05: set only for segments inserted by the Unknown
+    # backfill projector; None for every ordinary segment. Backed by a
+    # partial unique index on (backfill_revision_id, entered_at).
+    backfill_revision_id: str | None = None
     metadata: dict[str, object] = field(default_factory=dict)
 
     @property
@@ -132,3 +136,32 @@ class CurrentLocation:
     is_inferred: bool
     quality: float = 0.0  # PH mean_quality; 0.0 = no data yet
     last_observed_at: datetime | None = None  # for staleness_seconds in envelope
+
+
+@dataclass(frozen=True)
+class BackfillDwellInput:
+    """One CTS room dwell to project as a closed presence segment (M05).
+
+    ``room_id`` is None when the dwell's ``room_name`` could not be resolved
+    against the ``rooms`` table; the caller drops it rather than fabricating
+    a room. ``confidence`` is the dwell's own ``entry_confidence`` from the
+    CTS ``/internal/trajectory/dwells`` response -- the wire-level
+    ``IdentityRevision`` carries no revision-level confidence field.
+    """
+
+    room_id: int | None
+    room_name: str
+    entered_at: datetime
+    exited_at: datetime
+    confidence: float
+
+
+@dataclass(frozen=True)
+class BackfillIngestResult:
+    """Outcome counts from :meth:`PersonLocationService.ingest_backfill_segments`."""
+
+    inserted: int = 0
+    skipped_duplicate: int = 0
+    dropped_unmapped_room: int = 0
+    dropped_zero_length: int = 0
+    overlap_skipped: int = 0

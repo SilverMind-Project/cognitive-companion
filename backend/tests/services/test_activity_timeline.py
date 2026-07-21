@@ -373,7 +373,12 @@ class TestGetTimelineSources:
             observed_at=now,
             source="face_sighting",
             confidence=0.85,
-            metadata={"camera_id": "cam-1", "room_name": "kitchen", "from_room": "bedroom", "direction": "entered_room"},
+            metadata={
+                "camera_id": "cam-1",
+                "room_name": "kitchen",
+                "from_room": "bedroom",
+                "direction": "entered_room",
+            },
             room_id=room_id,
         )
 
@@ -387,3 +392,55 @@ class TestGetTimelineSources:
         assert loc_event["room_name"] == "kitchen"
         assert loc_event["metadata"]["from_room"] == "bedroom"
         assert loc_event["metadata"]["direction"] == "entered_room"
+
+
+async def test_backfilled_segments_visible_in_room_segments_and_timeline(db_factory):
+    """Identity-continuity M05 headline: a segment inserted by the Unknown
+    backfill projector is not a special case for any read model. The M32
+    read API (``room_segments``) returns it, and the activity timeline
+    surfaces it as an ordinary room event, with zero projector-aware code
+    in either read path.
+    """
+    from backend.services.person_location.types import BackfillDwellInput
+
+    location_service = _make_location_service(db_factory)
+    service = ActivityTimelineService(db_factory, person_location_service=location_service)
+
+    db = db_factory()
+    _get_or_create_person(db, "grandma")
+    room_id = _get_or_create_room(db, "kitchen")
+    db.commit()
+    db.close()
+
+    range_start = datetime(2026, 7, 20, 6, 0, tzinfo=UTC)
+    range_end = datetime(2026, 7, 20, 9, 0, tzinfo=UTC)
+    result = await location_service.ingest_backfill_segments(
+        revision_id="rev-headline",
+        person_id="grandma",
+        dwells=[
+            BackfillDwellInput(
+                room_id=room_id,
+                room_name="kitchen",
+                entered_at=range_start,
+                exited_at=range_end,
+                confidence=0.85,
+            )
+        ],
+        range_start=range_start,
+        range_end=range_end,
+    )
+    assert result.inserted == 1
+
+    segments = await location_service.room_segments("grandma", range_start, range_end)
+    assert len(segments) == 1
+    assert segments[0].room_name == "kitchen"
+
+    events = await service.get_timeline(
+        person_id="grandma",
+        start_time=range_start - timedelta(minutes=1),
+        end_time=range_end + timedelta(minutes=1),
+        event_types=["location"],
+    )
+    assert len(events) == 1
+    assert events[0]["room_name"] == "kitchen"
+    assert events[0]["event_type"] == "room_transited"

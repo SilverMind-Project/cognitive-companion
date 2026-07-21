@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import socket
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import fakeredis.aioredis as fakeredis
 import pytest
@@ -36,9 +37,16 @@ from backend.models.person import (
     HouseholdMember,
 )
 from backend.models.room import Room
+from backend.services.cts.backfill_projector import BackfillProjector
 from backend.services.cts.identity_revision_subscriber import IdentityRevisionSubscriber
 from backend.services.cts.signal_rewriter import SignalRewriter
 from backend.services.cts.tracking_event_subscriber import TrackingEventSubscriber
+from backend.services.person_location.config import PersonLocationConfig
+from backend.services.person_location.repositories import (
+    InMemoryObservationRepository,
+    InMemorySegmentRepository,
+)
+from backend.services.person_location.service import PersonLocationService
 
 # Base of the synthetic timeline (2024-12-27T13:20:00Z). Every wire timestamp
 # in this test derives from it -- events and the revision that corrects them
@@ -277,6 +285,95 @@ async def test_proto_event_drives_location_state_and_pipeline(db_factory):
     assert rev_payload["previous_identity_id"] == "grandma"
     assert rev_payload["new_identity_id"] == "caregiver"
     assert rev_payload["rewritten_rows"] >= 0
+
+    await redis_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_proto_inferred_backfill_revision_projects_segments(db_factory):
+    """identity-continuity M05: an inferred_backfill IdentityRevision proto,
+    delivered through the real subscriber wiring (fakeredis stream, decode,
+    handle), routes to BackfillProjector and inserts closed presence
+    segments for the recovered Unknown range.
+    """
+    db = db_factory()
+    try:
+        db.add(Room(id=1, name="Kitchen"))
+        db.commit()
+    finally:
+        db.close()
+
+    redis_client = fakeredis.FakeRedis(decode_responses=False)
+    stream = "tracking.revisions"
+    group = "cognitive-companion-revisions"
+
+    range_start = _T0
+    range_end = _T0 + timedelta(hours=3)
+    await redis_client.xadd(
+        stream,
+        _make_revision_fields(
+            revision_id="rev-backfill-e2e",
+            ph_id="ph-newly-identified",
+            previous_identity_id=None,
+            new_identity_id="grandma",
+            revision_time=range_end,
+            range_start=range_start,
+            range_end=range_end,
+            reason="unknown_backfill",
+            revision_kind="inferred_backfill",
+            range_authority="inferred",
+        ),
+    )
+
+    orchestrator = AsyncMock()
+    orchestrator.list_room_dwells.return_value = {
+        "dwells": [
+            {
+                "room_name": "Kitchen",
+                "entered_at": range_start.isoformat(),
+                "exited_at": range_end.isoformat(),
+                "identity_id": None,
+                "ph_id": "ph-newly-identified",
+                "entry_confidence": 0.85,
+            }
+        ]
+    }
+    location_service = PersonLocationService(
+        InMemoryObservationRepository(), InMemorySegmentRepository(), PersonLocationConfig()
+    )
+    projector = BackfillProjector(
+        db_factory=db_factory,
+        orchestrator_client=orchestrator,
+        person_location_service=location_service,
+    )
+    subscriber = IdentityRevisionSubscriber(
+        redis_url="redis://ignored",
+        consumer_id="rev-consumer",
+        rewriter=SignalRewriter(db_factory=db_factory),
+        backfill_projector=projector,
+    )
+    subscriber._redis = redis_client  # type: ignore[attr-defined]
+    await redis_client.xgroup_create(stream, group, id="0", mkstream=True)
+
+    response = await redis_client.xreadgroup(
+        group, "rev-consumer", streams={stream: ">"}, count=10, block=10
+    )
+    assert response, "no IdentityRevision delivered"
+    _, batch = response[0]
+    assert len(batch) == 1
+    message_id, fields = batch[0]
+    decoded = subscriber.decode(message_id, fields)
+    assert decoded is not None
+    assert decoded["revision_kind"] == "inferred_backfill"
+
+    ok = await subscriber.handle(decoded)
+    assert ok is True
+    await redis_client.xack(stream, group, message_id)
+
+    segments = await location_service.room_segments("grandma", range_start, range_end)
+    assert len(segments) == 1
+    assert segments[0].room_name == "Kitchen"
+    orchestrator.post_projection_ack.assert_called_once()
 
     await redis_client.aclose()
 

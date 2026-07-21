@@ -28,6 +28,7 @@ from backend.services.cts._types import (
     SceneAnalysisClient,
     SemanticMemoryClient,
 )
+from backend.services.cts.backfill_projector import BackfillProjector
 from backend.services.cts.event_bucketizer import (
     BucketizerRateConfig,
     CtsEventBucketizer,
@@ -178,13 +179,30 @@ class CTSRuntime:
             minio_client=minio_client,
             snapshot_publisher=self.snapshot_publisher,
         )
+        # identity-continuity M05: an inferred_backfill revision requires
+        # both person_location_service (to insert segments) and
+        # orchestrator_client (to fetch dwells and ack). Absent either,
+        # backfill_projector stays None and the subscriber logs+retries
+        # rather than silently dropping the revision kind.
+        backfill_projector: BackfillProjector | None = None
+        if person_location_service is not None and orchestrator_client is not None:
+            backfill_projector = BackfillProjector(
+                db_factory=db_factory,
+                orchestrator_client=orchestrator_client,
+                person_location_service=person_location_service,  # type: ignore[arg-type]
+                ws_manager=ws_manager,
+            )
+        self.backfill_projector = backfill_projector
+
         self.identity_revision_subscriber = IdentityRevisionSubscriber(
             redis_url=config.redis_url,
             consumer_id=config.consumer_id,
             rewriter=self.signal_rewriter,
             pipeline=pipeline,
             ws_manager=ws_manager,
+            person_location_service=person_location_service,
             orchestrator_client=orchestrator_client,
+            backfill_projector=backfill_projector,
         )
         self.dementia_signal_subscriber = DementiaSignalSubscriber(
             redis_url=config.redis_url,

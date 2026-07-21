@@ -162,6 +162,28 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("GET", f"/internal/calibration/homography/{camera_id}")
         return r.json()
 
+    async def list_room_dwells(
+        self,
+        *,
+        ph_id: str,
+        start: str,
+        end: str,
+    ) -> dict:
+        """Return one PH's room dwells within an explicit ISO-8601 UTC range.
+
+        Backs the identity-continuity M05 backfill projector: fetches the
+        CTS room-dwell history for an ``inferred_backfill`` revision's range
+        so it can be projected into ``PersonLocationService`` as closed
+        presence segments. Returns the raw envelope ``{"dwells": [...]}``;
+        the caller validates shape before use (BFF fail-closed rule).
+        """
+        r = await self._request(
+            "GET",
+            "/internal/trajectory/dwells",
+            params={"ph_id": ph_id, "start": start, "end": end},
+        )
+        return r.json()
+
     async def list_recent_trajectory(
         self,
         *,

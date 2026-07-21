@@ -19,7 +19,7 @@ from backend.integrations.semantic_memory_client import (
     ObservationRecord,
 )
 from backend.services.scene_intel.service import SceneIntelService
-from backend.services.scene_intel.types import RoomTransition, SceneIntelRecord
+from backend.services.scene_intel.types import ObservationDraft, RoomTransition, SceneIntelRecord
 
 # ---------------------------------------------------------------------------
 # Stub clients
@@ -330,6 +330,134 @@ async def test_persist_uses_source_param():
 
     obs = memory_client.create_observation_calls[0]
     assert obs.source == "manual"
+
+
+@pytest.mark.asyncio
+async def test_persist_observation_maps_all_draft_fields():
+    """persist_observation maps every ObservationDraft field into ObservationCreate."""
+    memory_client = _StubMemoryClient()
+    svc = SceneIntelService(scene_client=None, memory_client=memory_client)
+
+    draft = ObservationDraft(
+        room_id="kitchen",
+        description="A cup on the table",
+        object_list=["cup"],
+        hazard_flags=["stove_on"],
+        embedding=[0.1, 0.2],
+        source="manual",
+    )
+
+    intel = await svc.persist_observation(draft)
+
+    assert intel.observation_id == 1
+    assert intel.movement_ids == []
+    assert intel.source == "manual"
+    obs = memory_client.create_observation_calls[0]
+    assert obs.room_id == "kitchen"
+    assert obs.description == "A cup on the table"
+    assert obs.object_list == ["cup"]
+    assert obs.hazard_flags == ["stove_on"]
+    assert obs.embedding == [0.1, 0.2]
+    assert obs.source == "manual"
+
+
+@pytest.mark.asyncio
+async def test_persist_observation_empty_draft_still_persists():
+    """Unlike persist(), persist_observation never skips an empty-looking draft."""
+    memory_client = _StubMemoryClient()
+    svc = SceneIntelService(scene_client=None, memory_client=memory_client)
+
+    intel = await svc.persist_observation(ObservationDraft(room_id="kitchen"))
+
+    assert intel.observation_id == 1
+    assert len(memory_client.create_observation_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_persist_observation_client_unavailable_returns_zero_record_and_warns():
+    """memory_client=None -> zero-value record, no call attempted."""
+    svc = SceneIntelService(scene_client=None, memory_client=None)
+
+    intel = await svc.persist_observation(ObservationDraft(room_id="kitchen", description="x"))
+
+    assert intel == SceneIntelRecord.empty()
+
+
+@pytest.mark.asyncio
+async def test_persist_movements_maps_transitions():
+    """persist_movements maps each RoomTransition into a MovementCreate, linked to observation_id."""
+    memory_client = _StubMemoryClient()
+    svc = SceneIntelService(scene_client=None, memory_client=memory_client)
+
+    transitions = (
+        RoomTransition(
+            person_id="mom",
+            from_room_id="bedroom",
+            to_room_id="kitchen",
+            direction_semantic="approaching",
+            confidence=0.85,
+        ),
+    )
+
+    movement_ids = await svc.persist_movements(transitions, observation_id=7)
+
+    assert movement_ids == [1]
+    movement = memory_client.create_movement_calls[0]
+    assert movement.person_id == "mom"
+    assert movement.from_room_id == "bedroom"
+    assert movement.to_room_id == "kitchen"
+    assert movement.direction_semantic == "approaching"
+    assert movement.confidence == 0.85
+    assert movement.observation_id == 7
+
+
+@pytest.mark.asyncio
+async def test_persist_movements_client_unavailable_returns_empty():
+    svc = SceneIntelService(scene_client=None, memory_client=None)
+
+    movement_ids = await svc.persist_movements(
+        (RoomTransition(person_id="mom", from_room_id="bedroom", to_room_id="kitchen"),)
+    )
+
+    assert movement_ids == []
+
+
+@pytest.mark.asyncio
+async def test_persist_movements_failure_logged_not_raised():
+    memory_client = _StubMemoryClient()
+    memory_client.create_movement = AsyncMock(side_effect=RuntimeError("network error"))
+    svc = SceneIntelService(scene_client=None, memory_client=memory_client)
+
+    movement_ids = await svc.persist_movements(
+        (RoomTransition(person_id="mom", from_room_id="bedroom", to_room_id="kitchen"),)
+    )
+
+    assert movement_ids == []
+
+
+@pytest.mark.asyncio
+async def test_persist_composes_observation_and_movements():
+    """persist() still delegates to persist_observation + persist_movements."""
+    scene_result = SceneAnalyzeResult(
+        detections=[
+            SceneDetection(label="cup", confidence=0.9, bbox=[0, 0, 50, 50, 0.9], class_id=2)
+        ],
+        description="A cup on the table",
+    )
+    scene_client = _StubSceneClient(result=scene_result)
+    memory_client = _StubMemoryClient()
+    svc = SceneIntelService(scene_client=scene_client, memory_client=memory_client)
+
+    transitions = (RoomTransition(person_id="mom", from_room_id="bedroom", to_room_id="kitchen"),)
+
+    intel = await svc.persist(scene_result, room_id="kitchen", transitions=transitions)
+
+    assert intel.observation_id == 1
+    assert intel.movement_ids == [1]
+    obs = memory_client.create_observation_calls[0]
+    assert obs.object_list == ["cup"]
+    movement = memory_client.create_movement_calls[0]
+    assert movement.observation_id == 1
 
 
 @pytest.mark.asyncio

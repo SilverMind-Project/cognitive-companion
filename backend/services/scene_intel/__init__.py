@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from backend.services.scene_intel.service import SceneIntelService
 from backend.services.scene_intel.types import (
+    ObservationDraft,
     RoomTransition,
     SceneAnalyzeResult,
     SceneDetection,
@@ -19,6 +20,7 @@ from backend.services.scene_intel.types import (
 )
 
 __all__ = [
+    "ObservationDraft",
     "RoomTransition",
     "SceneAnalyzeResult",
     "SceneDetection",

@@ -171,6 +171,17 @@ from backend.core.exceptions import (
    ```
 5. **Use `logger.exception()` in except blocks** (includes traceback). Use `logger.error()` for known error conditions that aren't exceptions.
 
+### Semantic-memory writes (DL8, DL-M02)
+
+Semantic-memory writes go through `backend/services/scene_intel/`
+(`persist_observation` / `persist_movements`, or the composed `persist` for the
+analyze-then-write case). Never call the semantic-memory client's write
+methods (`create_observation`, `create_movement`) from steps, subscribers, or
+routers; read-side query methods may be used by query services. This is the
+single write seam: one place to plug in a new writer, one degradation
+behavior (a `None` memory client returns a zero-value record), and one test
+surface (`backend/tests/services/scene_intel/`).
+
 ---
 
 ## 5. Logging

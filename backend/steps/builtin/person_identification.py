@@ -233,21 +233,27 @@ class PersonIdentificationHandler(StepHandler):
         }
 
         # -- Optional: write movements to semantic memory --------------------
-        if config.get("write_movements_to_memory", False) and services.semantic_memory_client:
-            from backend.integrations.semantic_memory_client import MovementCreate
+        # Gated on semantic_memory_client (not just scene_intel, which is always
+        # constructed) so behavior matches whether semantic memory is actually
+        # configured; the write itself goes through the scene_intel seam (DL8).
+        if (
+            config.get("write_movements_to_memory", False)
+            and services.semantic_memory_client
+            and services.scene_intel
+        ):
+            from backend.services.scene_intel.types import RoomTransition as SceneIntelTransition
 
-            movement_ids: list[int] = []
-            for t in camera_result.room_transitions:
-                movement = MovementCreate(
+            transitions = tuple(
+                SceneIntelTransition(
                     person_id=t.person_id or "unknown",
                     from_room_id=str(t.from_room_id) if t.from_room_id else "unknown",
                     to_room_id=str(t.to_room_id) if t.to_room_id else "unknown",
                     direction_semantic=t.semantic or "any",
                     confidence=t.confidence or 0.8,
                 )
-                record = await services.semantic_memory_client.create_movement(movement)
-                if record:
-                    movement_ids.append(record.id)
+                for t in camera_result.room_transitions
+            )
+            movement_ids = await services.scene_intel.persist_movements(transitions)
             result_data["semantic_memory_movement_ids"] = movement_ids
 
         # Store annotated image if available.

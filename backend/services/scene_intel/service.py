@@ -19,6 +19,7 @@ from backend.integrations.semantic_memory_client import (
     SemanticMemoryClient,
 )
 from backend.services.scene_intel.types import (
+    ObservationDraft,
     RoomTransition,
     SceneIntelRecord,
 )
@@ -77,57 +78,50 @@ class SceneIntelService:
         )
 
     # ------------------------------------------------------------------
-    # persist
+    # persist_observation
     # ------------------------------------------------------------------
 
-    async def persist(
-        self,
-        result: SceneAnalyzeResult,
-        *,
-        room_id: str,
-        source: str = "scene_intel",
-        transitions: tuple[RoomTransition, ...] = (),
-    ) -> SceneIntelRecord:
-        """Persist a scene analysis result to semantic memory.
+    async def persist_observation(self, draft: ObservationDraft) -> SceneIntelRecord:
+        """Persist an already-built observation draft to semantic memory.
 
-        Builds an ``ObservationCreate`` from the analysis result and
-        calls ``memory_client.create_observation()``.  For each
-        ``RoomTransition``, builds a ``MovementCreate`` and calls
-        ``memory_client.create_movement()``.
-
-        Returns a ``SceneIntelRecord`` with the observation ID and
-        movement IDs.
+        Unlike ``persist()``, this never skips an empty-looking draft: the
+        caller built it deliberately and owns that decision (e.g. the CTS
+        scene-sample subscriber always records a sample, even a blank one).
         """
         if self._memory_client is None:
             return SceneIntelRecord.empty()
 
-        # Build observation payload.
-        description = result.description or ""
-        object_list = [d.label for d in result.detections]
-        hazard_flags = [h.name for h in result.hazards]
-        embedding = result.embedding if isinstance(result.embedding, list) else []
-
-        # Skip persistence if all four are empty.
-        if not description and not object_list and not hazard_flags and not embedding:
-            logger.info(
-                "scene_persist_skipped_empty",
-                room_id=room_id,
-            )
-            return SceneIntelRecord.empty()
-
         obs = ObservationCreate(
-            room_id=room_id,
-            description=description,
-            object_list=object_list,
-            hazard_flags=hazard_flags,
-            embedding=embedding,
-            source=source,
+            room_id=draft.room_id,
+            description=draft.description,
+            object_list=draft.object_list,
+            hazard_flags=draft.hazard_flags,
+            embedding=draft.embedding,
+            source=draft.source,
         )
-
         record = await self._memory_client.create_observation(obs)
         observation_id: int | None = record.id if record else None
 
-        # Write movements, linked to the observation.
+        return SceneIntelRecord(
+            observation_id=observation_id,
+            movement_ids=[],
+            source=draft.source,
+        )
+
+    # ------------------------------------------------------------------
+    # persist_movements
+    # ------------------------------------------------------------------
+
+    async def persist_movements(
+        self,
+        transitions: tuple[RoomTransition, ...],
+        *,
+        observation_id: int | None = None,
+    ) -> list[int]:
+        """Persist room-transition movements, optionally linked to an observation."""
+        if self._memory_client is None:
+            return []
+
         movement_ids: list[int] = []
         for transition in transitions:
             try:
@@ -149,9 +143,61 @@ class SceneIntelService:
                     from_room=transition.from_room_id,
                     to_room=transition.to_room_id,
                 )
+        return movement_ids
+
+    # ------------------------------------------------------------------
+    # persist
+    # ------------------------------------------------------------------
+
+    async def persist(
+        self,
+        result: SceneAnalyzeResult,
+        *,
+        room_id: str,
+        source: str = "scene_intel",
+        transitions: tuple[RoomTransition, ...] = (),
+    ) -> SceneIntelRecord:
+        """Persist a scene analysis result to semantic memory.
+
+        Thin composition of ``persist_observation`` and ``persist_movements``:
+        builds an ``ObservationDraft`` from the analysis result (skipping the
+        write entirely when the result is empty), then links any transitions
+        to the resulting observation.
+
+        Returns a ``SceneIntelRecord`` with the observation ID and
+        movement IDs.
+        """
+        if self._memory_client is None:
+            return SceneIntelRecord.empty()
+
+        description = result.description or ""
+        object_list = [d.label for d in result.detections]
+        hazard_flags = [h.name for h in result.hazards]
+        embedding = result.embedding if isinstance(result.embedding, list) else []
+
+        # Skip persistence if all four are empty.
+        if not description and not object_list and not hazard_flags and not embedding:
+            logger.info(
+                "scene_persist_skipped_empty",
+                room_id=room_id,
+            )
+            return SceneIntelRecord.empty()
+
+        draft = ObservationDraft(
+            room_id=room_id,
+            description=description,
+            object_list=object_list,
+            hazard_flags=hazard_flags,
+            embedding=embedding,
+            source=source,
+        )
+        obs_record = await self.persist_observation(draft)
+        movement_ids = await self.persist_movements(
+            transitions, observation_id=obs_record.observation_id
+        )
 
         return SceneIntelRecord(
-            observation_id=observation_id,
+            observation_id=obs_record.observation_id,
             movement_ids=movement_ids,
             source=source,
         )

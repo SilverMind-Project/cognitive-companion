@@ -17,8 +17,9 @@ from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import scene_pb2
 from backend.services.cts import metrics
 from backend.services.cts._time import ns_to_iso
-from backend.services.cts._types import MinioClient, SceneAnalysisClient, SemanticMemoryClient
+from backend.services.cts._types import MinioClient, SceneAnalysisClient, SceneIntel
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
+from backend.services.scene_intel.types import ObservationDraft
 
 logger = get_logger(__name__)
 
@@ -38,7 +39,7 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
         consumer_id: str,
         minio_client: MinioClient | None = None,
         scene_analysis_client: SceneAnalysisClient | None = None,
-        semantic_memory_client: SemanticMemoryClient | None = None,
+        scene_intel: SceneIntel | None = None,
         camera_room_map: dict[str, str] | None = None,
     ) -> None:
         super().__init__(
@@ -52,7 +53,7 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
         )
         self._minio = minio_client
         self._scene_analysis = scene_analysis_client
-        self._semantic_memory = semantic_memory_client
+        self._scene_intel = scene_intel
         self._camera_room_map = camera_room_map or {}
 
     # -- StreamConsumer abstract methods ----------------------------------
@@ -149,12 +150,10 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
         # 4. Persist to semantic memory -------------------------------------------
         observation_id: int | None = None
 
-        if self._semantic_memory and self._semantic_memory.configured:
+        if self._scene_intel is not None:
             try:
-                from backend.integrations.semantic_memory_client import ObservationCreate
-
-                record = await self._semantic_memory.create_observation(
-                    ObservationCreate(
+                intel_record = await self._scene_intel.persist_observation(
+                    ObservationDraft(
                         room_id=room_id,
                         description=description,
                         object_list=object_list,
@@ -163,8 +162,8 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
                         source="scene_intel",
                     )
                 )
-                if record:
-                    observation_id = record.id
+                if intel_record.observation_id is not None:
+                    observation_id = intel_record.observation_id
                     logger.info(
                         "scene_sample_observation_created",
                         observation_id=observation_id,

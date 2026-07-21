@@ -269,17 +269,22 @@ class TestResultData:
         """Regression: the write-movements branch reads the camera_topology
         RoomTransition's ``.semantic`` (not the nonexistent ``.direction_semantic``)
         and coerces int room ids to str. Before the fix this branch raised
-        AttributeError at runtime (it was reachable but untested)."""
+        AttributeError at runtime (it was reachable but untested).
+
+        DL-M02: the write now goes through ``scene_intel.persist_movements``
+        (the single write seam) instead of the raw semantic-memory client;
+        ``semantic_memory_client`` stays as the gating check for whether
+        semantic memory is configured at all."""
         transition = _make_transition(semantic="entering")
         person_tracking = _make_person_tracking(
             detections=[_make_detection()],
             transitions=[transition],
         )
-        record = MagicMock(id=42)
-        semantic_memory = MagicMock()
-        semantic_memory.create_movement = AsyncMock(return_value=record)
+        scene_intel = MagicMock()
+        scene_intel.persist_movements = AsyncMock(return_value=[42])
         services = _make_services(person_tracking=person_tracking)
-        services.semantic_memory_client = semantic_memory
+        services.semantic_memory_client = MagicMock()
+        services.scene_intel = scene_intel
 
         result = await _HANDLER.execute(
             _make_step({"write_movements_to_memory": True}),
@@ -290,11 +295,36 @@ class TestResultData:
         )
 
         assert result.data["semantic_memory_movement_ids"] == [42]
-        semantic_memory.create_movement.assert_awaited_once()
-        movement = semantic_memory.create_movement.await_args.args[0]
-        assert movement.direction_semantic == "entering"
-        assert movement.from_room_id == "2"
-        assert movement.to_room_id == "1"
+        scene_intel.persist_movements.assert_awaited_once()
+        transitions = scene_intel.persist_movements.await_args.args[0]
+        assert transitions[0].direction_semantic == "entering"
+        assert transitions[0].from_room_id == "2"
+        assert transitions[0].to_room_id == "1"
+
+    async def test_write_movements_skipped_when_semantic_memory_unconfigured(self):
+        """No semantic_memory_client -> movements block does not run at all,
+        matching current behavior when semantic memory is unconfigured."""
+        transition = _make_transition(semantic="entering")
+        person_tracking = _make_person_tracking(
+            detections=[_make_detection()],
+            transitions=[transition],
+        )
+        scene_intel = MagicMock()
+        scene_intel.persist_movements = AsyncMock(return_value=[42])
+        services = _make_services(person_tracking=person_tracking)
+        services.scene_intel = scene_intel
+        # services.semantic_memory_client left at its ServiceContainer default (None).
+
+        result = await _HANDLER.execute(
+            _make_step({"write_movements_to_memory": True}),
+            _FakeExecution(),
+            {},
+            _make_trigger(),
+            services,
+        )
+
+        assert "semantic_memory_movement_ids" not in result.data
+        scene_intel.persist_movements.assert_not_awaited()
 
     async def test_source_media_path_annotated_on_detections(self):
         det = _make_detection(frame_index=0)

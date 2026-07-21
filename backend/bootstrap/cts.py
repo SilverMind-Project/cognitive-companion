@@ -56,7 +56,7 @@ async def wire_cts(
     pipeline_executor = app.state.pipeline_executor
     minio_client = app.state.minio_client
     scene_analysis_client = app.state.scene_analysis_client
-    semantic_memory_client = app.state.semantic_memory_client
+    scene_intel = app.state.scene_intel
     occupancy_read_model = app.state.occupancy_read_model
     zone_service = app.state.zone_service
     guided_task_service = app.state.guided_task_service
@@ -116,7 +116,7 @@ async def wire_cts(
         pipeline=pipeline_executor,
         minio_client=minio_client,
         scene_analysis_client=scene_analysis_client,
-        semantic_memory_client=semantic_memory_client,
+        scene_intel=scene_intel,
         authority=shared_authority,
         person_location_service=person_location_service,
         occupancy_read_model=occupancy_read_model,

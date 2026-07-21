@@ -56,6 +56,7 @@ if TYPE_CHECKING:
     from backend.services.scheduler import SchedulerBridge
     from backend.services.sensor_polling import SensorPollingService
     from backend.services.signals.feed import SignalsFeedService
+    from backend.services.visitors import VisitorAdminService
     from backend.services.zones import ZoneService
     from backend.websocket.connection_manager import ConnectionManager
 
@@ -84,6 +85,7 @@ __all__ = [
     "get_scheduler",
     "get_sensor_polling",
     "get_signals_feed",
+    "get_visitor_admin_service",
     "get_ws_manager",
     "get_zone_service",
 ]
@@ -139,6 +141,14 @@ def get_reid_review_service(request: Request) -> ReIDReviewService:
     service: ReIDReviewService | None = request.app.state.reid_review_service
     if service is None:
         raise _raise_503("reid_review_service", "ReID review service")
+    return service
+
+
+def get_visitor_admin_service(request: Request) -> VisitorAdminService:
+    """Return the lifespan-managed visitor admin service (503 if unavailable)."""
+    service: VisitorAdminService | None = request.app.state.visitor_admin_service
+    if service is None:
+        raise _raise_503("visitor_admin_service", "Visitor admin service")
     return service
 
 

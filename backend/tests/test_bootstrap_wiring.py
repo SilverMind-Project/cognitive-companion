@@ -124,6 +124,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "telegram_client",
         "tracking_event_subscriber",
         "tts_client",
+        "visitor_admin_service",
         "voice_instructions",
         "workflow",
         "ws_manager",

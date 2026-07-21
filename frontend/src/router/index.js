@@ -72,6 +72,11 @@ const routes = [
         props: true,
       },
       {
+        path: "visitors",
+        name: "admin-visitors",
+        component: () => import("../views/admin/VisitorsView.vue"),
+      },
+      {
         path: "activities",
         name: "admin-activities",
         component: () => import("../views/admin/ActivitiesView.vue"),

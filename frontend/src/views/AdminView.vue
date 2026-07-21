@@ -304,6 +304,7 @@ const navSections = [
     title: "People",
     items: [
       { to: "/admin/persons", icon: "mdi-account-group-outline", title: "Members & Enrollment" },
+      { to: "/admin/visitors", icon: "mdi-account-question-outline", title: "Visitors" },
       { to: "/admin/activities", icon: "mdi-run", title: "Activities" },
       { to: "/admin/reports", icon: "mdi-chart-box", title: "Daily Reports" },
       { to: "/admin/alerts", icon: "mdi-alert-circle-outline", title: "Alerts" },

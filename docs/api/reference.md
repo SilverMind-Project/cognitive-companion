@@ -241,6 +241,29 @@ eligible and dropped image counters, and the latest event timestamp.
 
 The occupancy read-model and the signals feed each use one service function exposed through both the router and the matching MCP tool (`get_room_occupancy`, `get_signals_feed`). Room occupancy is keyed on PersonHypothesis with a short TTL, so unknown people are counted without a household identity. The legacy `emergency_alerts` table and `/alerts` endpoints were removed; caregiver alerts now flow through the signals feed.
 
+### Visitors
+
+Identity-continuity M07: proxies person-identification-service's visitor clustering API (M06). Naming
+is a two-system transaction (face-service member, then a CC household member with `is_guest=true`)
+orchestrated by `VisitorAdminService`. Permission: `visitors.review`, a strict `require_token` grant
+separate from the broad `caregiver`/`caregiver_admin` `GET /api/v1/*` globs, the same pattern as
+`cts.identity.gallery_review`. No MCP tool: naming/dismissing/merging a visitor cluster is a
+caregiver-admin action, not agent-facing (see `test_no_mcp_tool_for_visitor_mutations`).
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/visitors/clusters` | List visitor clusters. Query: `status` (`candidate`\|`surfaced`\|`named`\|`dismissed`) |
+| `GET` | `/visitors/clusters/{cluster_id}` | Cluster detail with recent sightings |
+| `POST` | `/visitors/clusters/{cluster_id}/name` | Name a cluster: creates the face-service member and the CC household member |
+| `POST` | `/visitors/clusters/{cluster_id}/dismiss` | Dismiss a cluster from the review queue |
+| `POST` | `/visitors/clusters/{cluster_a}/merge/{cluster_b}` | Merge two clusters (same physical person split across two clusters) |
+
+A 409 from any mutation means visitor clustering is disabled upstream (`visitors.clustering_enabled:
+false` in person-identification-service); `GET /visitors/clusters` still serves whatever was already
+surfaced. A 502 with `code: "visitors.partial_failure"` on `/name` means the face-service member was
+created but the CC household member insert failed; the face-service call is idempotent on
+`person_id`, so retrying the same request is safe.
+
 CTS routers expose camera admin, calibration, live data, PH identity review, presence configuration, signals, trajectories, overlap groups, and CTS window trigger definitions. These endpoints require CTS to be enabled through the shared `cts_enabled` dependency.
 
 ### CTS analytics

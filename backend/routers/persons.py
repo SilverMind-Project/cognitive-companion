@@ -18,6 +18,7 @@ from backend.schemas.person import (
     HouseholdMemberUpdate,
     PersonEnrollmentOut,
 )
+from backend.services.persons import insert_household_member
 
 logger = get_logger(__name__)
 
@@ -61,16 +62,13 @@ async def create_member(
     if existing:
         raise HTTPException(status_code=409, detail=f"Member '{body.id}' already exists")
 
-    member = HouseholdMember(
+    return insert_household_member(
+        db,
         id=body.id,
         name=body.name,
         is_guest=body.is_guest,
         metadata_json=body.metadata_json,
     )
-    db.add(member)
-    db.commit()
-    db.refresh(member)
-    return member
 
 
 # Static paths must be defined before /{person_id} to avoid being

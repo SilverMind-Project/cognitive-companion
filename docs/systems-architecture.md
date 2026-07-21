@@ -315,7 +315,7 @@ The primary CTS data paths are:
 
 ### Person-Location Architecture
 
-Cognitive Companion uses a single unified location store: `PersonLocationService` (`location_observations` and `presence_segments` tables). The legacy presence tables (state, history, and sightings), `LocationWriter`, and the legacy `recamera_vlm` source tag were decommissioned and deleted in Wave 4 (M33/M38).
+Cognitive Companion uses a single unified location store: `PersonLocationService` (`location_observations` and `presence_segments` tables). The legacy presence tables (state, history, and sightings), `LocationWriter`, and the legacy `recamera_vlm` source tag were decommissioned and deleted in Wave 4.
 
 Key design principles:
 
@@ -358,10 +358,10 @@ When the mode is off, the app is byte-for-byte the standard `ccDark` / `ccLight`
 
 ### Aggregator rollout
 
-Deploy the aggregator work in milestone order. M1 is a behavior-preserving
-shared-core refactor. M2 is the first production behavior change because it
-enables CTS image throttling. M3 generalizes media polling, M4 changes the BFF
-contracts, M5 updates the console, and M6 consolidates documentation and
+Deploy the aggregator work in milestone order. The first is a behavior-preserving
+shared-core refactor. The second is the first production behavior change because it
+enables CTS image throttling. The third generalizes media polling, the fourth changes the BFF
+contracts, the fifth updates the console, and the sixth consolidates documentation and
 operating guidance.
 
 Start CTS at the default `cts.image_rate_per_second: 0.5`. Watch
@@ -369,8 +369,8 @@ Start CTS at the default `cts.image_rate_per_second: 0.5`. Watch
 call rate. Raise a camera's entry in `cts.image_rate_overrides` only when a busy
 room needs more image coverage.
 
-M4 changes `GET /api/v1/media/buffer` from a raw array to `{items, total}`.
-Deploy M4 and M5 in the same release train. Do not put the M4 backend in front
+The update changes `GET /api/v1/media/buffer` from a raw array to `{items, total}`.
+Deploy the backend and frontend updates in the same release train. Do not put the new backend in front
 of an older frontend that still expects an array.
 
 No database migration or protobuf regeneration is required for any aggregator

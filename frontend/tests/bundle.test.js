@@ -3,7 +3,7 @@
  *
  * The "no full bundle import" half of this guard (no `from "echarts"`, no
  * `require("echarts")`) is now enforced by eslint.config.js's
- * no-restricted-imports / no-restricted-syntax rules (M19) -- those fire at
+ * no-restricted-imports / no-restricted-syntax rules -- those fire at
  * edit time, not just at test time, so they replace the equivalent checks
  * that used to live here. What remains below is not lint-expressible: "this
  * specific file must contain these specific registration calls" is a content

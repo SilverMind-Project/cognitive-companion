@@ -1,5 +1,5 @@
 /**
- * M08: pure formatters for server-owned identity provenance.
+ * pure formatters for server-owned identity provenance.
  *
  * These translate the server's per-bbox provenance fields into display labels.
  * They derive NO authority, confidence, or conflict -- those are computed
@@ -17,7 +17,7 @@ export function sourceBadge(bbox = {}) {
   const source = bbox.decision_source;
   if (source === "face") {
     // "direct_face" is the resolver's bounded IdentityAuthority vocabulary value for a
-    // calibrated, authoritative ArcFace commit (M07/F9) -- never an identity id or the
+    // calibrated, authoritative ArcFace commit -- never an identity id or the
     // decision_source string "arcface_authority".
     return bbox.authority === "direct_face"
       ? { label: "ArcFace", icon: "mdi-face-recognition", tone: "info" }

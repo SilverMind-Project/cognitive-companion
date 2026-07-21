@@ -1,7 +1,7 @@
 /**
  * CTS pixelation — single source of truth.
  *
- * The blur *flag* lives in the `ui` Pinia store (M18): it is one app-wide privacy setting that
+ * The blur *flag* lives in the `ui` Pinia store: it is one app-wide privacy setting that
  * eight views and the BlurToggle all share. The pixelation *engine* below stays here — those are
  * pure functions over a module-level image cache, called from non-component code, and a store
  * would add indirection without sharing anything.

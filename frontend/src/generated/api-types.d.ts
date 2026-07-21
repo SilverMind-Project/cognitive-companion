@@ -1565,7 +1565,7 @@ export interface paths {
         };
         /**
          * List Keyframes
-         * @description List keyframes grouped into one card per physical source frame (M07).
+         * @description List keyframes grouped into one card per physical source frame.
          *
          *     Each card carries every visible bbox with server-owned effective identity,
          *     a card summary, and explicit Unknown/conflict/pending counts. Filtering and
@@ -4410,7 +4410,7 @@ export interface paths {
         };
         /**
          * Get Language Options
-         * @description Configured language codes for the Routine Builder's language select (M27/D15).
+         * @description Configured language codes for the Routine Builder's language select (/D15).
          *
          *     Registered ahead of ``/{routine_id}`` so the literal path wins the match.
          */
@@ -6922,7 +6922,7 @@ export interface components {
         FloorRegionRequest: {
             /**
              * Polygon
-             * @description Floor-region polygon in normalised [0,1] image space: [[x_norm, y_norm], ...]. NOT floor-plan metres and not the same coordinate space as visibility_polygon.
+             * @description Floor-region polygon in normalised [0,1] image space: [[x_norm, y_norm],...]. NOT floor-plan metres and not the same coordinate space as visibility_polygon.
              */
             polygon: number[][];
             /**
@@ -7409,7 +7409,7 @@ export interface components {
          *     This models the contract as it is rather than pretending; the union is the underlying
          *     problem (a missing integration should be a typed 503, and `RoomsView.vue:121` renders
          *     "Created undefined" today when it hits the error branch), but changing the status code is a
-         *     behavioral change outside M17's scope.
+         *     behavioral change.
          */
         HaSyncRoomsOut: {
             /** Created */
@@ -9870,7 +9870,7 @@ export interface components {
         };
         /**
          * RoutineLanguageOptionsOut
-         * @description Configured language codes for the Routine Builder's language select (M27/D15).
+         * @description Configured language codes for the Routine Builder's language select (/D15).
          */
         RoutineLanguageOptionsOut: {
             /** Language Names */

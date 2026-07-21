@@ -1192,3 +1192,27 @@ When two features need the same graph walk (such as the durable executor and the
 
 ### Regression-gating rule for executor refactors
 Any refactor touching the executor's traversal path must be regression-gated: the full existing pipeline executor test suite must pass with **unchanged** expectations. Modifying any existing test expectation is a signal that behavior has drifted, which violates the requirement for a pure refactor.
+
+---
+
+## 26. Code Comments and Documentation
+
+Industry best practices require that code comments explain the *intent* and *rationale* behind the code, rather than simply restating what the code does or capturing project management artifacts.
+
+1. **Focus on Intent and Rationale:**
+   - Explain *why* a particular approach was chosen, especially if it is non-obvious or involves trade-offs.
+   - Describe the high-level intent of complex algorithms or business logic.
+
+2. **Avoid Transitory Project Management Data:**
+   - **No Milestone Numbers:** Do not include references to milestones (e.g., "M05", "M12") in comments. Code outlives milestones.
+   - **No Decision Log Numbers:** Avoid citing specific decision records or tracking issue numbers (e.g., "D6", "Ticket #1234") unless it is a permanent architectural design document link.
+   - **No Deadlines or Status:** Do not leave comments indicating when a piece of code is supposed to be completed or refactored based on a schedule.
+
+3. **Keep it Relevant:**
+   - Comments should reflect the actual code and its intent.
+   - If the code changes, update the comments to match.
+   - Use docstrings for public APIs, classes, and complex functions to define contracts and usage.
+
+4. **Self-Documenting Code:**
+   - Prioritize clear naming (functions, variables, classes) over explanatory comments.
+   - A comment should not be necessary to explain *what* standard code is doing.

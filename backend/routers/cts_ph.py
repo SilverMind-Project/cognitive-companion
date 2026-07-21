@@ -1,4 +1,4 @@
-"""N2: CC BFF gateway for Person Hypotheses.
+"""CC BFF gateway for Person Hypotheses.
 
 Proxies orchestrator /ph/* endpoints, enriches responses with presigned
 image URLs and posterior top-label data.  Requires ``cts.identity.view``
@@ -468,7 +468,7 @@ async def purge_unknown(
 
 
 # ---------------------------------------------------------------------------
-# Segment correction workflow (M08): propose / apply / compensate / job status
+# Segment correction workflow: propose / apply / compensate / job status
 # ---------------------------------------------------------------------------
 
 

@@ -1,13 +1,13 @@
-"""M09 ReID review-queue BFF envelopes.
+"""ReID review-queue BFF envelopes.
 
-The orchestrator (M05/M09) owns the governed gallery lifecycle and computes
+The orchestrator owns the governed gallery lifecycle and computes
 per-candidate eligibility. The BFF validates the upstream envelopes, injects the
 audited actor from the auth context (never the browser), maps the effective
 identity onto Cognitive Companion's ``person_id``, and presigns crop/full-frame
 media only when the object still exists (rejected rows have no live crop). The
 frontend derives no eligibility, identity authority, or lifecycle state.
 
-Reason codes mirror the M08 correction vocabulary so reviewers see one
+Reason codes mirror the correction vocabulary so reviewers see one
 consistent set across the keyframe, PH, and gallery surfaces.
 """
 
@@ -26,10 +26,10 @@ RejectReasonCode = Literal[
     "other",
 ]
 
-# Identity-continuity M02: the fourth gallery lifecycle state, auto_verified,
+# The fourth gallery lifecycle state, auto_verified,
 # sits between pending_review and operator_verified. A candidate can also be
 # terminally rejected. Only these four values are ever valid on the wire; an
-# out-of-vocabulary state from a stale/newer upstream is a contract violation
+# out-of-vocabulary state from a stale or newer upstream is a contract violation
 # (502), not silently accepted.
 ReviewState = Literal["pending_review", "auto_verified", "operator_verified", "rejected"]
 

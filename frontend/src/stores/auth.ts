@@ -1,5 +1,5 @@
 /**
- * API key ownership (M18).
+ * API key ownership.
  *
  * The key used to live in raw `localStorage` reads scattered across `api.js` and `AdminView`.
  * This store is now the only reader/writer: `main.js` points `http.ts`'s `setApiKeyProvider`

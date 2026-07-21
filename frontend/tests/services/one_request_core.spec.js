@@ -1,14 +1,14 @@
 /**
- * One request core (M17).
+ * One request core.
  *
- * Before M17 the request/auth/error plumbing existed in five places: `api.js`'s six variants
+ * Before the request/auth/error plumbing existed in five places: `api.js`'s six variants
  * plus a private copy in each of `cts.js`, `cts_identity.js`, `cts_ph.js` and `household.js`.
  * They drifted -- different error message shapes, some encoding params and some interpolating
  * them raw. All HTTP now goes through `services/http.ts`.
  *
  * `r4_bypass_guard.spec.js` enforces the same rule for components and views (it only walks
  * `.vue` files); this covers the service layer, which is where the duplication actually lived.
- * M19 replaces both with ESLint rules that catch this at edit time rather than in CI.
+ * replaces both with ESLint rules that catch this at edit time rather than in CI.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";

@@ -37,7 +37,7 @@ import { ccToken } from "./useChartTheme.js";
 
 // Camera / video feed context: white text fill with dark halo.
 // For :style bindings (camelCase), access .color and .strokeLinejoin separately.
-// .color is a getter so it reads the CSS token at call time, enabling M2 parchment re-skin.
+// .color is a getter so it reads the CSS token at call time, enabling parchment re-skin.
 export const HALO = Object.freeze({
   get color() {
     return ccToken("--cc-annotation-halo") || "rgba(0,0,0,0.70)";

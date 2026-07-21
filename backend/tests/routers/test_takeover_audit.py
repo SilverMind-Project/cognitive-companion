@@ -91,7 +91,7 @@ async def test_full_takeover_produces_attributed_event_trail(db_session, db_fact
     )
     trail = [(event.kind, event.actor) for event in events]
     # caregiver_say links a conversation on demand when none is open yet
-    # (M24, D18: GuidedTaskService._link_conversation), so the first
+    # (GuidedTaskService._link_conversation()), so the first
     # caregiver message is preceded by a system-attributed conversation_linked
     # event.
     assert trail == [

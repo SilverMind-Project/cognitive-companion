@@ -52,7 +52,7 @@ from backend.services.person_location.service import PersonLocationService
 # in this test derives from it -- events and the revision that corrects them
 # must share one clock. A revision stamped with the wall clock instead would
 # be range-scoped to "now" and match none of the rows it is meant to rewrite
-# (see ``IdentityRewriter``: M06 bounds every revision to an explicit
+# (see ``IdentityRewriter``: bounds every revision to an explicit
 # range_start/range_end, or to ``revision_horizon_s`` around revision_time).
 _T0_NS = 1735305600000000000
 _T0 = datetime.fromtimestamp(_T0_NS / 1e9, UTC)

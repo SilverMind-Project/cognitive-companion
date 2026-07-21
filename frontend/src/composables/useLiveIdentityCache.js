@@ -159,7 +159,7 @@ export function useLiveIdentityCache() {
 
   // NOTE (pre-existing, preserved verbatim): neither of these two cleanup timers is ever
   // cleared. The original script-setup top-level `setInterval` calls had no teardown either;
-  // this is a latent leak, not something an M21 behavior-preserving refactor should fix. Filed
+  // this is a latent leak, not something an behavior-preserving refactor should fix. Filed
   // as a follow-up rather than patched here.
   setInterval(() => {
     const gtCutoff = Date.now() - PH_IDENTITY_TTL_MS;

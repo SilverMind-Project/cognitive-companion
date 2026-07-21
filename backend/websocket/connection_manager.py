@@ -30,10 +30,10 @@ class ConnectionManager:
         # Guards the active_connections list against concurrent connect /
         # disconnect / broadcast operations.  Without the lock, two simultaneous
         # upgrade requests could both pass the max-connections check before
-        # either appends to the list because ``await websocket.accept()``
+        # either appends to the list because ``await websocket.accept``
         # yields control between the check and the append.
         self._lock: asyncio.Lock = asyncio.Lock()
-        # Set by AudioSessionHandler.run() once it opens a conversation_sessions
+        # Set by AudioSessionHandler.run once it opens a conversation_sessions
         # row for the live realtime connection, cleared on disconnect. Lets
         # other services (guided_task) link to the live conversation without
         # reaching into the audio handler directly.

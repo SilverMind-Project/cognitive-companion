@@ -243,7 +243,7 @@ The occupancy read-model and the signals feed each use one service function expo
 
 ### Visitors
 
-Identity-continuity M07: proxies person-identification-service's visitor clustering API (M06). Naming
+Proxies person-identification-service's visitor clustering API. Naming
 is a two-system transaction (face-service member, then a CC household member with `is_guest=true`)
 orchestrated by `VisitorAdminService`. Permission: `visitors.review`, a strict `require_token` grant
 separate from the broad `caregiver`/`caregiver_admin` `GET /api/v1/*` globs, the same pattern as

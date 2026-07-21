@@ -140,9 +140,7 @@ class OccupancyReadModel:
             rn = next(iter(phs.values())).room_name
             sources = {p.source for p in phs.values()}
             primary_source = (
-                WORLD_TRACKER_SOURCE
-                if WORLD_TRACKER_SOURCE in sources
-                else next(iter(sources))
+                WORLD_TRACKER_SOURCE if WORLD_TRACKER_SOURCE in sources else next(iter(sources))
             )
             by_name[rn] = RoomOccupancyStateEnvelope(
                 room_id=room_id,

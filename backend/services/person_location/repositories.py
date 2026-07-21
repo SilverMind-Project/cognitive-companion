@@ -124,7 +124,7 @@ class SegmentRepository(Protocol):
 class InMemoryObservationRepository:
     def __init__(self, room_names: dict[int, str] | None = None) -> None:
         self._rows: dict[UUID, LocationObservation] = {}
-        # Mirrors the SQL repo's rooms-table join in latest_observation();
+        # Mirrors the SQL repo's rooms-table join in latest_observation;
         # tests inject the room_id -> name mapping they care about.
         self._room_names: dict[int, str] = room_names or {}
 
@@ -170,7 +170,7 @@ class InMemoryObservationRepository:
         result = result[:limit]
         # Mirrors the SQL repo's rooms-table join (see below): resolve
         # room_name from the injected map for every row, not just the
-        # single-row latest_observation() path.
+        # single-row latest_observation path.
         return [
             replace(o, room_name=self._room_names.get(o.room_id) if o.room_id is not None else None)
             for o in result
@@ -190,7 +190,7 @@ class InMemoryObservationRepository:
             if o.person_id == person_id and since <= o.observed_at <= until
         ]
         # One representative (most recent) row per (room, time bucket),
-        # mirroring the SQL repo's ROW_NUMBER()-over-partition window.
+        # mirroring the SQL repo's ROW_NUMBER-over-partition window.
         best: dict[tuple[int | None, int], LocationObservation] = {}
         for o in matching:
             bucket_index = int(o.observed_at.timestamp() // bucket_seconds)

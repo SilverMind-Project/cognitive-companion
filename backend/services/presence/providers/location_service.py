@@ -97,7 +97,9 @@ class LocationServiceProvider:
             ttl_seconds = self._ttl_seconds_by_source[source]
         else:
             # Unknown source uses most conservative configured value (min)
-            ttl_seconds = min(self._ttl_seconds_by_source.values()) if self._ttl_seconds_by_source else 120
+            ttl_seconds = (
+                min(self._ttl_seconds_by_source.values()) if self._ttl_seconds_by_source else 120
+            )
             if source and source not in self._unknown_sources_logged:
                 self._unknown_sources_logged.add(source)
                 logger.warning(

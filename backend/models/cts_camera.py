@@ -102,7 +102,7 @@ class CtsCamera(Base):
     floor_region_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     floor_region_set_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
-    # Drift detection columns (M11).
+    # Drift detection columns.
     # needs_recalibration is set True when the drift scorer detects that the
     # camera has been moved since its last committed calibration.  Cleared when
     # the operator runs a new calibration.  Never set automatically.

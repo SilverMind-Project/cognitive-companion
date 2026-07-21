@@ -555,12 +555,16 @@ class TestFloorRegionEndpoint:
 
     def test_floor_region_default_returns_polygon(self, client: TestClient, db_session: Session):
         from backend.models.cts_camera import CtsCamera
+
         cam = CtsCamera(
             id="cam-def",
             name="cam-def",
             snapshot_width=1920,
             snapshot_height=1080,
-            homography={"matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], "status": "ok"},
+            homography={
+                "matrix": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                "status": "ok",
+            },
         )
         db_session.add(cam)
         db_session.commit()
@@ -572,6 +576,7 @@ class TestFloorRegionEndpoint:
 
     def test_floor_region_default_no_homography_404(self, client: TestClient, db_session: Session):
         from backend.models.cts_camera import CtsCamera
+
         cam = CtsCamera(id="cam-def2", name="cam-def2")
         db_session.add(cam)
         db_session.commit()
@@ -579,14 +584,17 @@ class TestFloorRegionEndpoint:
         assert resp.status_code == 404
         assert resp.json()["detail"]["code"] == "cts.calibration.no_homography"
 
-    def test_floor_region_default_empty_floor_side_422(self, client: TestClient, db_session: Session):
+    def test_floor_region_default_empty_floor_side_422(
+        self, client: TestClient, db_session: Session
+    ):
         from backend.models.cts_camera import CtsCamera
+
         cam = CtsCamera(
             id="cam-def3",
             name="cam-def3",
             snapshot_width=1920,
             snapshot_height=1080,
-            homography={"matrix": [[0,0,0],[0,0,0],[0,0,0]], "status": "ok"},
+            homography={"matrix": [[0, 0, 0], [0, 0, 0], [0, 0, 0]], "status": "ok"},
         )
         db_session.add(cam)
         db_session.commit()

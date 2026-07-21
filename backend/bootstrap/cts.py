@@ -63,7 +63,7 @@ async def wire_cts(
     signals_service = app.state.signals
     scheduler = app.state.scheduler
     shared_authority = app.state.source_authority
-    # Constructed unconditionally by perception.wire_perception (M38 Part A);
+    # Constructed unconditionally by perception.wire_perception();
     # this phase only consumes it for the CTS subscribers below.
     person_location_service = app.state.person_location_service
 
@@ -162,7 +162,7 @@ async def wire_cts(
     _mcp_svc.identity_correction_service = app.state.identity_correction_service
     logger.info("cts_runtime_started")
 
-    # -- Drift detection poll (M11) -------------------------------------
+    # -- Drift detection poll -------------------------------------
     from backend.services.cts.drift_poll import poll_camera_drift
 
     drift_poll_interval_s = int(settings.get("cts.drift_poll_interval_s") or 3600)
@@ -196,5 +196,5 @@ def wire_cts_disabled(app: FastAPI) -> None:
     app.state.identity_revision_subscriber = None
     app.state.scene_sample_subscriber = None
     # person_location_service is NOT nulled: perception.wire_perception
-    # constructs it unconditionally (M38 Part A), before this function runs.
+    # constructs it unconditionally, before this function runs.
     app.state.gait_trend_service = None

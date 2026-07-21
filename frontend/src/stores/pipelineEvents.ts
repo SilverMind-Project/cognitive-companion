@@ -1,11 +1,11 @@
 /**
- * Live pipeline feed — one /ws/pipeline socket for the whole app (M18).
+ * Live pipeline feed — one /ws/pipeline socket for the whole app.
  *
  * `useLivePipeline` used to own a socket per calling component, so two mounted consumers meant
  * two connections and every event processed twice. The socket is a process-wide resource; this
  * store is its honest owner.
  *
- * Consumers acquire with `connect()`, which returns a release function. The socket opens on the
+ * Consumers acquire with connect(), which returns a release function. The socket opens on the
  * first acquire and closes on the last release, preserving the old behavior where navigating
  * away from the last live view drops the connection rather than holding it open forever.
  *

@@ -1,5 +1,5 @@
 /**
- * Pilot domain modules on the typed client (M17).
+ * Pilot domain modules on the typed client.
  *
  * Beyond happy/error paths, the load-bearing assertion here is serialization: the old client
  * built URLs by interpolating values straight into template strings, so any value containing a

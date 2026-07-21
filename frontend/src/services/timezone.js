@@ -24,7 +24,7 @@
  * 2. **Vite HMR resetting module state.**  Vite's Hot Module Replacement
  *    re-evaluates individual ES modules when they change.  A plain module-level
  *    `let _appTimezone = "UTC"` would revert to "UTC" on every HMR cycle
- *    without re-running `bootstrap()`.  Storing the value in localStorage and
+ *    without re-running bootstrap(). Storing the value in localStorage and
  *    reading it on every formatter call removes all in-memory state: there is
  *    nothing to reset.
  */
@@ -76,7 +76,7 @@ export function getAppTimezone() {
  * When the string already carries a timezone designator (trailing "Z",
  * "+HH:MM", or "-HH:MM") the browser's built-in parser handles it correctly.
  * Naive strings: as produced by SQLite via SQLAlchemy: get an explicit "Z"
- * appended so `new Date()` interprets them as UTC rather than local time.
+ * appended so `new Date` interprets them as UTC rather than local time.
  *
  * @param {string} iso
  * @returns {Date}

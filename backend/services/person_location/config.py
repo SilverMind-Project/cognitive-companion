@@ -12,13 +12,13 @@ class PersonLocationConfig:
     ph_anchor_match_distance_m: float = 1.5
     ph_anchor_match_window_s: float = 3.0
     presence_grace_s: float = 30.0  # "away" after 30s of no segment
-    # M38: seconds of quiet on the open segment's current source before a
+    # seconds of quiet on the open segment's current source before a
     # lower-priority source may take over (source_arbitration.arbitrate's
     # staleness handoff). Mirrors the legacy SourceAuthority's
     # STALENESS_THRESHOLD_S.
     arbitration_staleness_s: float = 30.0
 
-    # M38 Part C: per-source quiet gaps for *observed* open segments (an
+    # per-source quiet gaps for *observed* open segments (an
     # inferred segment keeps using inferred_dwell_max_s above). A dense
     # source ages out fast (person left camera coverage); a sparse,
     # rule-driven source stays credible for much longer since its next

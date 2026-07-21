@@ -28,7 +28,7 @@ register_session_prefix(
 )
 
 # Once-per-session warning budget for the unsupported voice-override degrade.
-# TTL is a memory bound only (mirrors the M25/G10 pattern in service.py); a
+# TTL is a memory bound only (mirrors the pattern in service.py); a
 # session outliving a day is not realistic for this always-on process.
 _VOICE_OVERRIDE_WARNING_TTL_S = 86400
 

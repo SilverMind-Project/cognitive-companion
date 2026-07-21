@@ -136,7 +136,7 @@ function mountView() {
   return mount(ProcessActivityView, { global: { stubs } });
 }
 
-// Vue Test Utils unwraps refs from defineExpose; access them directly (not .value).
+// Vue Test Utils unwraps refs from defineExpose(); access them directly (not .value).
 
 describe("ProcessActivityView — connection state (D5)", () => {
   it("shows stream-interrupted alert when socket error fires", async () => {

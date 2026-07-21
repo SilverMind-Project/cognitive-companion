@@ -294,7 +294,7 @@ async function fetchLanguageOptions() {
   }
 }
 
-// Free-text language codes silently did nothing before M27; the select
+// Free-text language codes silently did nothing before; the select
 // constrains authoring to codes the backend actually resolves.
 const languageItems = computed(() =>
   Object.entries(languageNames.value).map(([code, name]) => ({

@@ -117,7 +117,7 @@ class RuntimeContext:
             resume_grace_s = self.settings.as_int("guided_task.resume_grace_s")
         except SettingNotFoundError:
             resume_grace_s = 600
-        # TTL is a memory bound only (M25/G10); correctness relies on the
+        # TTL is a memory bound only; correctness relies on the
         # explicit elapsed-time comparisons at each read site, not on cache
         # eviction. Eagerly evicted per-session on terminal transitions too
         # (see evict_runtime_state).

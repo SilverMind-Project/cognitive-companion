@@ -4,11 +4,11 @@ import pluginVue from "eslint-plugin-vue";
 import { withVueTs, vueTsConfigs } from "@vue/eslint-config-typescript";
 import eslintConfigPrettier from "eslint-config-prettier";
 
-// M19: closes finding C13 (no deterministic frontend tooling). The
+// closes finding (no deterministic frontend tooling). The
 // no-restricted-syntax selectors below replace tests/r4_bypass_guard.spec.js
-// (Rule 17 / M18 auth-store ownership) and the negative half of
+// (auth-store ownership) and the negative half of
 // tests/bundle.test.js (full-bundle echarts import) -- see those files'
-// history before touching the messages, so the parity notes in the M19 PR
+// history before touching the messages, so the parity notes in the PR
 // stay accurate.
 //
 // IMPORTANT: ESLint flat config does not merge array-valued rule options
@@ -66,7 +66,7 @@ export default withVueTs(
       // dev-time noise that should not ship.
       "no-console": ["warn", { allow: ["warn", "error"] }],
       // Vuetify + the admin surface use a lot of established single-word names
-      // (AdminView, RoomsView, ...); this project's convention is
+      // (AdminView, RoomsView,...); this project's convention is
       // `<Domain><Kind>` which already reads as multi-word to a human, but the
       // rule's word-splitter only sees a single capitalized segment for some.
       // Audited against every current name in src/components + src/views:
@@ -105,7 +105,7 @@ export default withVueTs(
     },
   },
   {
-    // M18: the Pinia auth store is the only owner of the API key storage key.
+    // the Pinia auth store is the only owner of the API key storage key.
     // http.ts keeps a pre-wire localStorage fallback (see its own comment)
     // until main.js calls setApiKeyProvider.
     files: ["src/**/*.{js,ts,vue}"],
@@ -128,10 +128,10 @@ export default withVueTs(
     },
   },
   {
-    // Established live-camera debug tracing convention (all "[cts_live] ..."
+    // Established live-camera debug tracing convention (all "[cts_live]..."
     // prefixed) predates this milestone; keep it rather than delete working
     // trace points, but scope the console.debug allowance to just these files.
-    // M21 moved the tracing calls out of CTSLiveView.vue into the composables
+    // moved the tracing calls out of CTSLiveView.vue into the composables
     // that now own that state, so the allowance moves with them.
     files: [
       "src/views/admin/CTSLiveView.vue",

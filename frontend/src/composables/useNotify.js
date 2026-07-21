@@ -1,5 +1,5 @@
 /**
- * Notification entry point — a thin delegate to the notifications Pinia store (M18).
+ * Notification entry point — a thin delegate to the notifications Pinia store.
  *
  * Usage:
  *   const { notify } = useNotify();

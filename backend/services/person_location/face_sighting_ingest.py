@@ -133,7 +133,7 @@ class FaceSightingIngest:
                 # only spatial match available to the orchestrator. No face-crop
                 # quality value exists in the person-identification-service
                 # response today; omitted so the consumer's conservative default
-                # applies (identity-continuity M09).
+                # applies.
                 await self._assertion_publisher.publish(
                     person_id=person_id,
                     confidence=confidence,

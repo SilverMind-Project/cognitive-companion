@@ -76,10 +76,7 @@ async def create_member(
 
 # GET /locations and GET /{person_id}/location live in routers/persons_location.py: they serve
 # PersonLocationEnvelope from PersonLocationService (the U2 SSOT, shared with the MCP tools).
-# Legacy duplicates here shadowed them at runtime, so do not reintroduce them (C17).
-
-
-
+# Legacy duplicates here shadowed them at runtime, so do not reintroduce them.
 
 
 @router.get("/enrolled", response_model=list[PersonEnrollmentOut])

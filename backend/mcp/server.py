@@ -67,8 +67,8 @@ class MCPServices:
     gait_trend_service: Any = None
     guided_task_service: Any = None
     guided_metrics_service: Any = None
-    keyframe_read_service: Any = None  # M07 grouped physical-frame read model
-    identity_correction_service: Any = None  # M08 segment correction workflow
+    keyframe_read_service: Any = None  # grouped physical-frame read model
+    identity_correction_service: Any = None  # segment correction workflow
 
 
 _svc = MCPServices()
@@ -472,7 +472,6 @@ async def get_enrolled_persons() -> list[dict]:
         ]
     finally:
         db.close()
-
 
 
 @_register

@@ -143,7 +143,7 @@ export const cts = {
 
   // ── Tagged keyframes ────────────────────────────────────────────────────────
   getKeyframes: (params = {}) => {
-    // M07: grouped physical-frame cards with server-side filters.
+    // grouped physical-frame cards with server-side filters.
     const qs = new URLSearchParams();
     if (params.person_id) qs.set("person_id", params.person_id);
     if (params.camera_id) qs.set("camera_id", params.camera_id);

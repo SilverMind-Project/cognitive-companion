@@ -284,7 +284,7 @@ class PHCoPresentResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# M06 correction targets (active household roster, gallery-independent)
+# correction targets (active household roster, gallery-independent)
 # ---------------------------------------------------------------------------
 
 
@@ -305,7 +305,7 @@ class CorrectionTargetsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# WebSocket event payloads (N2 §3.3)
+# WebSocket event payloads
 # Re-exported from cts_ph_ws for backward compatibility.
 # ---------------------------------------------------------------------------
 

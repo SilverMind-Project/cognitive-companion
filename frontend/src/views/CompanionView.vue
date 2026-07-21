@@ -449,7 +449,7 @@ onUnmounted(() => {
 /*
  * Senior companion surface — warm DS paper. The global ccWarm theme applies
  * here too (it is the default Vuetify theme), so widgets inherit the warm
- * tokens. We only need the page background; the global warm .glass-card rule
+ * tokens. We only need the page background; the global warm.glass-card rule
  * styles the cards (no scoped dark override).
  */
 .companion-app {

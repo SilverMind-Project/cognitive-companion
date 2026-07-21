@@ -27,7 +27,7 @@ def create_app() -> FastAPI:
         description="Privacy-first AI companion for senior care",
         lifespan=lifespan,
         # Operation IDs are the endpoint function names, so the generated TypeScript client
-        # keys on `list_rules` rather than `list_rules_api_v1_rules_get` (M17). Route names
+        # keys on list_rules() rather than list_rules_api_v1_rules_get(). Route names
         # must therefore be unique app-wide; test_route_uniqueness.py enforces that.
         generate_unique_id_function=lambda route: route.name,
     )

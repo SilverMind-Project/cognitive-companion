@@ -498,7 +498,7 @@ const sameOverlapGroupHint = computed(() => {
  * The backend contract is VisibilityPolygonsResponse:
  *   { cameras: [{ camera_id: string, camera_name: string,
  *                 visibility_polygon: number[][] | null }],
- *     floor_meters_per_pixel: number | null, ... }
+ *     floor_meters_per_pixel: number | null,... }
  *
  * Rejects entries that don't match the contract and logs what was wrong
  * so the operator can fix the source (database content, serialization).

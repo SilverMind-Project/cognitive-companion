@@ -122,17 +122,11 @@ class TestNamingTransaction:
 
         assert result.household_member_created is True
         assert result.named_person_id == "nurse-priya"
-        member = (
-            db_session.query(HouseholdMember)
-            .filter(HouseholdMember.id == "nurse-priya")
-            .one()
-        )
+        member = db_session.query(HouseholdMember).filter(HouseholdMember.id == "nurse-priya").one()
         assert member.name == "Nurse Priya"
         assert member.is_guest is True
 
-    async def test_name_cluster_retry_after_cc_row_already_exists_is_idempotent(
-        self, db_session
-    ):
+    async def test_name_cluster_retry_after_cc_row_already_exists_is_idempotent(self, db_session):
         """Simulates a retry where a prior attempt already created the CC row
         (e.g. the client received a network error after the write committed).
         The face-service call is idempotent per M06's 2026-07-21 rider, so this
@@ -156,15 +150,11 @@ class TestNamingTransaction:
 
         assert result.household_member_created is False
         count = (
-            db_session.query(HouseholdMember)
-            .filter(HouseholdMember.id == "nurse-priya")
-            .count()
+            db_session.query(HouseholdMember).filter(HouseholdMember.id == "nurse-priya").count()
         )
         assert count == 1
 
-    async def test_name_cluster_propagates_upstream_error_before_any_cc_write(
-        self, db_session
-    ):
+    async def test_name_cluster_propagates_upstream_error_before_any_cc_write(self, db_session):
         client = AsyncMock()
         client.name_visitor_cluster.side_effect = PersonIDUpstreamError(
             409, "Visitor clustering is disabled"
@@ -172,9 +162,7 @@ class TestNamingTransaction:
         svc = VisitorAdminService(client)
 
         with pytest.raises(PersonIDUpstreamError) as exc_info:
-            await svc.name_cluster(
-                "c1", person_id="nurse-priya", name="Nurse Priya", db=db_session
-            )
+            await svc.name_cluster("c1", person_id="nurse-priya", name="Nurse Priya", db=db_session)
         assert exc_info.value.status == 409
         assert db_session.query(HouseholdMember).count() == 0
 
@@ -199,9 +187,7 @@ class TestNamingTransaction:
         monkeypatch.setattr("backend.services.visitors.insert_household_member", _boom)
 
         with pytest.raises(VisitorPartialFailureError) as exc_info:
-            await svc.name_cluster(
-                "c1", person_id="nurse-priya", name="Nurse Priya", db=db_session
-            )
+            await svc.name_cluster("c1", person_id="nurse-priya", name="Nurse Priya", db=db_session)
         assert exc_info.value.person_id == "nurse-priya"
 
 

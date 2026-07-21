@@ -104,7 +104,7 @@ class GuidedSession(Base):
             ),
         ),
         # One live (or about-to-be-live) session per person, enforced by the
-        # database rather than a read-then-write check (M25/G19). The status
+        # database rather than a read-then-write check. The status
         # list mirrors LIVE_STATUSES in services/guided_task/domain.py plus
         # "pending"; keep both in sync (see test_store.py's pg_indexes check).
         Index(

@@ -10,6 +10,7 @@ from backend.services.cts_visibility import compute_visibility_from_homography
 
 _POINTS_PER_EDGE = 20
 
+
 @pytest.fixture(autouse=True)
 def no_range_cap():
     with patch("backend.services.cts_visibility.settings.get", return_value=99999.0):
@@ -261,11 +262,7 @@ def test_degenerate_floor_region_falls_back_or_returns_none():
 
 def test_horizon_clipping_no_floor_side():
     # Matrix where points project outside the floor plan entirely.
-    matrix = [
-        [1.0, 0.0, 5000.0],
-        [0.0, 1.0, 5000.0],
-        [0.0, 0.0, 1.0]
-    ]
+    matrix = [[1.0, 0.0, 5000.0], [0.0, 1.0, 5000.0], [0.0, 0.0, 1.0]]
     res = compute_visibility_from_homography(
         matrix=matrix,
         image_width=100,
@@ -280,11 +277,7 @@ def test_horizon_clipping_no_floor_side():
 def test_range_capping():
     with patch("backend.services.cts_visibility.settings.get", return_value=15.0):
         # Matrix where reference point is (50, 50) but top of image projects to infinity
-        matrix = [
-            [50.0, 0.0, 0.0],
-            [0.0, 25.0, 0.0],
-            [0.0, 1.0, -50.0]
-        ]
+        matrix = [[50.0, 0.0, 0.0], [0.0, 25.0, 0.0], [0.0, 1.0, -50.0]]
         res = compute_visibility_from_homography(
             matrix=matrix,
             image_width=100,

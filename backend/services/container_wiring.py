@@ -38,7 +38,7 @@ ALWAYS_REQUIRED: frozenset[str] = frozenset(
         "minio_client",
         "guided_task",
         "camera_source_resolver",
-        # M38 Part A: PersonLocationService is constructed unconditionally by
+        # PersonLocationService is constructed unconditionally by
         # perception.wire_perception (depends only on get_session), so it is
         # no longer gated behind cts.enabled.
         "person_location",

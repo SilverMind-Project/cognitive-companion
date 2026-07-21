@@ -11,12 +11,12 @@ const adjacencyView = readFileSync(
   resolve(process.cwd(), "src/views/admin/CTSAdjacencyView.vue"),
   "utf8",
 );
-// M21 moved the floor-plan <img> out of CTSCalibrationView.vue into its own pane component.
+// moved the floor-plan <img> out of CTSCalibrationView.vue into its own pane component.
 const calibrationFloorPlanPane = readFileSync(
   resolve(process.cwd(), "src/components/cts/calibration/FloorPlanPickerPane.vue"),
   "utf8",
 );
-// M21 also decomposed CTSFloorPlanView.vue: the raster/SVG background images that
+// also decomposed CTSFloorPlanView.vue: the raster/SVG background images that
 // used to live in one file are now spread across its mode-panel components.
 const floorPlanUploadPanel = readFileSync(
   resolve(process.cwd(), "src/components/cts/floor/FloorPlanUploadPanel.vue"),

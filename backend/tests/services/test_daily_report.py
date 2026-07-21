@@ -415,8 +415,6 @@ class TestDailyReportGeneration:
         assert bathroom["total_minutes"] == 30
         assert bathroom["avg_duration_minutes"] == 15.0
 
-
-
     async def test_generate_report_with_exercise_data(self, db_factory):
         """Should aggregate exercise sessions."""
         service = DailyReportService(db_factory)

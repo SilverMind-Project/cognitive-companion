@@ -20,7 +20,7 @@ describe("identityEvidence formatters", () => {
   });
 
   it("never keys the ArcFace badge off the decision_source string 'arcface_authority' (M07/F9)", () => {
-    // Pre-M07 bug: authority carried the identity id or the decision_source string on the
+    // Pre-bug: authority carried the identity id or the decision_source string on the
     // ArcFace-authority path. The badge must require the bounded authority value
     // "direct_face"; a stale/legacy authority value falls back to "ArcFace / Uncalibrated".
     expect(sourceBadge({ decision_source: "face", authority: "arcface_authority" }).label).toBe(

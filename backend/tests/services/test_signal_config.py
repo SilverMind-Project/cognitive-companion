@@ -79,6 +79,7 @@ class TestDefaultConfigForProfile:
         cfg = default_config_for_profile("nonexistent_profile")
         assert set(cfg["enabled_kinds"]) == set(ALL_SIGNAL_KINDS)
 
+
 class TestProfileGuard:
     def test_all_profile_members_are_in_all_signal_kinds(self):
         from backend.services.cts.signal_config import (
@@ -87,6 +88,7 @@ class TestProfileGuard:
             _SLEEP_REST_KINDS,
             SIGNAL_PROFILE_KINDS,
         )
+
         for kind in _PRESENCE_KINDS:
             assert kind in ALL_SIGNAL_KINDS
         for kind in _SLEEP_REST_KINDS:

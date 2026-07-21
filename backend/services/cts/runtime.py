@@ -62,7 +62,7 @@ class CTSRuntimeConfig:
     consumer_id: str
     cts_lock_s: float = 60.0
     bucketizer_rate: BucketizerRateConfig = field(default_factory=BucketizerRateConfig)
-    # M06: fallback supersession window for automatic revisions with no
+    # fallback supersession window for automatic revisions with no
     # explicit range_start/range_end. Mirrors CTS resolver.revision_horizon_s.
     revision_horizon_s: float = 600.0
 
@@ -130,7 +130,7 @@ class CTSRuntime:
         self.signal_store = SignalStore(db_factory=db_factory)
 
         # Bucketizer for cts_window triggers. Loads enabled triggers from the
-        # DB at startup and caches them; call ``reload_triggers()`` to refresh.
+        # DB at startup and caches them; call reload_triggers() to refresh.
         def _load_triggers() -> list[CtsWindowTrigger]:
             return _load_window_triggers(db_factory)
 
@@ -179,7 +179,7 @@ class CTSRuntime:
             minio_client=minio_client,
             snapshot_publisher=self.snapshot_publisher,
         )
-        # identity-continuity M05: an inferred_backfill revision requires
+        # An inferred_backfill revision requires
         # both person_location_service (to insert segments) and
         # orchestrator_client (to fetch dwells and ack). Absent either,
         # backfill_projector stays None and the subscriber logs+retries

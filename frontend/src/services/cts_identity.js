@@ -1,5 +1,5 @@
 /**
- * M08: shared identity-correction BFF client.
+ * shared identity-correction BFF client.
  *
  * One service module for the correction workflow used by BOTH the Keyframes
  * surface and the PH inspector: correction targets, segment proposals, apply,
@@ -84,7 +84,7 @@ export const ctsIdentity = {
 };
 
 /**
- * M09: ReID gallery review-queue client.
+ * ReID gallery review-queue client.
  *
  * A separate biometric-admin surface behind the `cts.identity.gallery_review`
  * permission. The same `CorrectionError` carries the upstream `status`/`code`,

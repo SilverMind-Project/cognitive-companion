@@ -1,5 +1,5 @@
 /**
- * Typed HTTP core (M17).
+ * Typed HTTP core.
  *
  * The properties here are the ones every domain module inherits, so they are tested once at the
  * core rather than re-asserted per module: auth injection, the error contract, and the two

@@ -237,7 +237,7 @@ async def wire_guided_task(
     )
     logger.info("knowledge_reembed_job_scheduled", interval_minutes=10)
 
-    # -- Person-location tick (M38 Part A): inferred-dwell timeout +
+    # -- Person-location tick: inferred-dwell timeout +
     # per-source quiet-gap segment closure. Previously an asyncio task owned
     # by CTSRuntime (only running when cts.enabled); now on the shared
     # scheduler since PersonLocationService is always constructed.

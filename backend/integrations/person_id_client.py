@@ -61,7 +61,7 @@ class FaceResult:
     roll_deg: float = 0.0
     # Rich face evidence: SCRFD face detection confidence score.
     det_score: float = 0.0
-    # M09: ArcFace calibration fields, forwarded so CC-side identification
+    # ArcFace calibration fields, forwarded so CC-side identification
     # (reCamera face sighting) can carry the same fail-closed calibration
     # contract as CTS's own face client. None/degraded means "not trustworthy",
     # never a raw-similarity fallback.
@@ -474,7 +474,7 @@ class PersonIDClient:
         ]
         return MotionDetectionResult(persons=persons)
 
-    # -- Visitors (identity-continuity M06/M07) --------------------------------
+    # -- Visitors --------------------------------
     #
     # Unlike the rest of this client, these methods raise PersonIDUpstreamError
     # on failure instead of returning None. The visitor admin surface is a
@@ -523,9 +523,7 @@ class PersonIDClient:
     async def dismiss_visitor_cluster(self, cluster_id: str) -> None:
         await self._visitor_request("POST", f"/api/v1/visitors/clusters/{cluster_id}/dismiss")
 
-    async def merge_visitor_clusters(
-        self, cluster_a: str, cluster_b: str
-    ) -> VisitorClusterSummary:
+    async def merge_visitor_clusters(self, cluster_a: str, cluster_b: str) -> VisitorClusterSummary:
         data = await self._visitor_request(
             "POST", f"/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}"
         )

@@ -318,7 +318,7 @@ describe("DashboardView — Tracking Orchestrator health", () => {
 // ---------------------------------------------------------------------------
 describe("api.js — llmHealth method", () => {
   it("requests /api/v1/admin/health/llm-models", async () => {
-    // Asserts the URL the real client requests, not how it calls fetch: since M17 the request
+    // Asserts the URL the real client requests, not how it calls fetch: since the request
     // goes through the typed openapi-fetch client, which passes a Request object rather than
     // (url, init). A real Response is used because the client reads headers/text off it.
     const mockFetch = vi

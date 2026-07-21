@@ -15,7 +15,7 @@ import { api } from "@/services/api.js";
  *   locations: import("vue").Ref<Array<import("../services/api.js").PersonLocationEnvelope>>,
  *   loading: import("vue").Ref<boolean>,
  *   error: import("vue").Ref<string|null>,
- *   refresh: () => Promise<void>,
+ *   refresh:  => Promise<void>,
  * }}
  */
 export function usePersonPresence({ pollMs = 15000 } = {}) {

@@ -28,8 +28,8 @@ from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 from backend.services.cts.world_snapshot_publisher import WorldSnapshotPublisher
 
 # TrackingEvents whose capture_time_unix_ns is older than this are replayed
-# backlog.  Returning None from decode() causes the base class to XACK and
-# skip handle(), keeping the live view free of historical frames.
+# backlog. Returning None from decode causes the base class to XACK and
+# skip handle, keeping the live view free of historical frames.
 _MAX_TRACKING_EVENT_AGE_S: float = 30.0
 
 logger = get_logger(__name__)
@@ -375,7 +375,7 @@ class TrackingEventSubscriber(StreamConsumer[dict[str, Any]]):
                 {
                     "ph_id": ph_id,
                     "identity_id": identity.get("identity_id"),
-                    # No identity_color: the frontend derives it via identityColor()
+                    # No identity_color: the frontend derives it via identityColor
                     # from identity_id/ph_id so every PH gets a stable distinct hue.
                     "identity_committed": bool(identity.get("identity_id")),
                     "posterior_top_label": identity.get("identity_id") if posterior_prob else None,

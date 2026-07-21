@@ -39,14 +39,13 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     minio_client = app.state.minio_client
     ha_client = app.state.ha_client
 
-
     # -- Person identification client --------------------------------------
     from backend.integrations.person_id_client import PersonIDClient
 
     person_id_client = PersonIDClient()
     app.state.person_id_client = person_id_client
 
-    # -- Visitor admin service (identity-continuity M07) --------------------
+    # -- Visitor admin service --------------------
     # Depends only on person_id_client, not cts.enabled: visitor naming has
     # nothing to do with camera tracking, so it is wired unconditionally here
     # rather than inside bootstrap/cts.py.
@@ -121,7 +120,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     )
     app.state.source_authority = shared_authority
 
-    # -- PersonLocationService (M38 Part A: un-gated from cts.enabled) -----
+    # -- PersonLocationService (un-gated from cts.enabled) -----
     # The SSOT depends only on get_session; nothing about it is CTS-specific.
     # Each repo method opens a short-lived session via the factory,
     # committing and closing after each operation so that TimescaleDB
@@ -150,7 +149,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     app.state.person_location_service = person_location_service
     container.person_location = person_location_service
 
-    # -- Occupancy read-model (M39 Part C) ---------------------------------
+    # -- Occupancy read-model ---------------------------------
     # Unified live room occupancy. Fed by world tracker and reCamera
     # (face_sighting) and merged-at-read with HA presence sensors.
     from backend.services.occupancy import OccupancyReadModel
@@ -158,7 +157,7 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     occupancy_read_model = OccupancyReadModel(db_factory=get_session)
     app.state.occupancy_read_model = occupancy_read_model
 
-    # -- reCamera location ingest adapter (M38 Part D, decision W7) --------
+    # -- reCamera location ingest adapter --------
     # The single seam that writes reCamera-identified detections to the
     # SSOT and publishes the identity-assertion face-anchor. Always
     # constructed (reCamera identification is not CTS-gated); the assertion

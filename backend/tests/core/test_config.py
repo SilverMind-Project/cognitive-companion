@@ -63,7 +63,7 @@ class TestFromDict:
         assert s.get("x.y", default="fallback") == "fallback"
 
     def test_no_disk_io(self, tmp_path: Path) -> None:
-        # from_dict should mark loaded=True so get() never touches the fs.
+        # from_dict() should mark loaded=True so get() never touches the fs.
         s = Settings.from_dict({"k": "v"})
         # Point config_dir at a non-existent path to prove we don't read it.
         s._config_dir = tmp_path / "does-not-exist"

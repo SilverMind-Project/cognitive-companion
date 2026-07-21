@@ -5,7 +5,7 @@ import { ref } from "vue";
  *
  * Usage:
  *   const { confirmDialog, confirmTitle, confirmText, showConfirm } = useConfirm();
- *   if (await showConfirm("Delete Item", "Are you sure?")) { ... }
+ *   if (await showConfirm("Delete Item", "Are you sure?")) {... }
  *
  * Template:
  *   <v-dialog v-model="confirmDialog" max-width="400">

@@ -144,6 +144,7 @@ Also assigns `container.scene_analysis_client`, `.semantic_memory_client`,
 | Attribute | Depends on |
 | --- | --- |
 | `person_id_client` | -- |
+| `visitor_admin_service` | `person_id_client` (identity-continuity M07; unconditional, not gated by `cts.enabled`) |
 | `scene_analysis_client` | -- |
 | `semantic_memory_client` | -- (`None` if unconfigured/unreachable) |
 | `memory_query` | `semantic_memory_client` |

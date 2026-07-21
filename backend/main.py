@@ -100,6 +100,7 @@ def create_app() -> FastAPI:
         rules,
         sensors,
         signals_feed,
+        visitors,
         webhooks,
         workflows,
         ws,
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
     # the /persons/{person_id} route in persons.router would otherwise capture (C17).
     app.include_router(persons_location.router)  # already has /api/v1 prefix
     app.include_router(persons.router, prefix=api)
+    app.include_router(visitors.router, prefix=api)
     app.include_router(workflows.router, prefix=api)
     app.include_router(activities.router, prefix=api)
     app.include_router(webhooks.router, prefix=api)

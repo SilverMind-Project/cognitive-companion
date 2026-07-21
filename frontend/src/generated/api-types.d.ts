@@ -4882,6 +4882,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/visitors/clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Clusters */
+        get: operations["list_clusters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Merge Clusters */
+        post: operations["merge_clusters"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visitors/clusters/{cluster_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Cluster */
+        get: operations["get_cluster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visitors/clusters/{cluster_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dismiss Cluster */
+        post: operations["dismiss_cluster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visitors/clusters/{cluster_id}/name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Name Cluster */
+        post: operations["name_cluster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/{rule_id}": {
         parameters: {
             query?: never;
@@ -6604,6 +6689,16 @@ export interface components {
              */
             require_success: boolean;
         };
+        /** DismissVisitorResponse */
+        DismissVisitorResponse: {
+            /** Cluster Id */
+            cluster_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "candidate" | "surfaced" | "named" | "dismissed";
+        };
         /** DwellsResponse */
         DwellsResponse: {
             /** Dwells */
@@ -8158,6 +8253,31 @@ export interface components {
             source_ph_id: string;
             /** Target Ph Id */
             target_ph_id: string;
+        };
+        /** NameVisitorRequest */
+        NameVisitorRequest: {
+            /** Name */
+            name: string;
+            /** Person Id */
+            person_id: string;
+        };
+        /** NameVisitorResponse */
+        NameVisitorResponse: {
+            /** Cluster Id */
+            cluster_id: string;
+            /** Embedding Count */
+            embedding_count: number;
+            /** Household Member Created */
+            household_member_created: boolean;
+            /** Member Name */
+            member_name: string;
+            /** Named Person Id */
+            named_person_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "candidate" | "surfaced" | "named" | "dismissed";
         };
         /** ObservationResponse */
         ObservationResponse: {
@@ -10991,6 +11111,63 @@ export interface components {
             floor_plan_height_px: number | null;
             /** Floor Plan Width Px */
             floor_plan_width_px: number | null;
+        };
+        /** VisitorClusterDetailView */
+        VisitorClusterDetailView: {
+            cluster: components["schemas"]["VisitorClusterView"];
+            /** Recent Sightings */
+            recent_sightings?: components["schemas"]["VisitorSightingView"][];
+        };
+        /** VisitorClusterListResponse */
+        VisitorClusterListResponse: {
+            /** Clusters */
+            clusters: components["schemas"]["VisitorClusterView"][];
+            /** Total */
+            total: number;
+        };
+        /** VisitorClusterView */
+        VisitorClusterView: {
+            /** Cluster Id */
+            cluster_id: string;
+            /** Display Hint */
+            display_hint?: string | null;
+            /** Distinct Days */
+            distinct_days: number;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Named Person Id */
+            named_person_id?: string | null;
+            /** Recent Crop Urls */
+            recent_crop_urls?: string[];
+            /** Sighting Count */
+            sighting_count: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "candidate" | "surfaced" | "named" | "dismissed";
+        };
+        /** VisitorSightingView */
+        VisitorSightingView: {
+            /** Crop Object */
+            crop_object?: string | null;
+            /** Crop Url */
+            crop_url?: string | null;
+            /** Quality */
+            quality: number;
+            /**
+             * Seen At
+             * Format: date-time
+             */
+            seen_at: string;
         };
         /**
          * VoiceDefaultsOut
@@ -20557,6 +20734,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignalEnvelope"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_clusters: {
+        parameters: {
+            query?: {
+                status?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitorClusterListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_clusters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster_a: string;
+                cluster_b: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitorClusterView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_cluster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitorClusterDetailView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_cluster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DismissVisitorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    name_cluster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NameVisitorRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NameVisitorResponse"];
                 };
             };
             /** @description Validation Error */

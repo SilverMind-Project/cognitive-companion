@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, Literal
 
 import httpx
 
@@ -11,6 +12,27 @@ from backend.core.config import settings
 from backend.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+VisitorClusterStatus = Literal["candidate", "surfaced", "named", "dismissed"]
+
+
+class PersonIDUpstreamError(Exception):
+    """The person-identification service rejected or failed a visitor request.
+
+    Unlike the rest of this client (which returns ``None``/``[]`` on any
+    failure -- an acceptable degrade for optional face-recognition reads), the
+    visitor admin surface (identity-continuity M07) needs to distinguish a
+    genuine 404/409/400 domain response (cluster not found, clustering
+    disabled, bad slug) from a transport failure, so the BFF can render each
+    distinctly instead of collapsing everything to one generic error. Callers
+    map this to a BFF-facing status: upstream 5xx and transport failures
+    become 502/504, upstream 4xx statuses pass through unchanged.
+    """
+
+    def __init__(self, status: int, message: str) -> None:
+        self.status = status
+        self.message = message
+        super().__init__(f"{status}: {message}")
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +122,55 @@ class PersonTrack:
 @dataclass
 class MotionDetectionResult:
     persons: list[PersonTrack]
+
+
+@dataclass
+class VisitorSightingInfo:
+    seen_at: datetime
+    quality: float
+    crop_object: str | None = None
+
+
+@dataclass
+class VisitorClusterSummary:
+    cluster_id: str
+    status: VisitorClusterStatus
+    display_hint: str | None
+    named_person_id: str | None
+    sighting_count: int
+    distinct_days: int
+    first_seen_at: datetime
+    last_seen_at: datetime
+    recent_crop_keys: list[str] = field(default_factory=list)
+
+
+@dataclass
+class VisitorClusterDetail(VisitorClusterSummary):
+    recent_sightings: list[VisitorSightingInfo] = field(default_factory=list)
+
+
+@dataclass
+class VisitorClusterListResult:
+    clusters: list[VisitorClusterSummary]
+    total: int
+
+
+@dataclass
+class VisitorNameResult:
+    cluster_id: str
+    status: VisitorClusterStatus
+    named_person_id: str
+    member_name: str
+    embedding_count: int
+
+
+def _extract_detail(response: httpx.Response) -> str:
+    try:
+        body = response.json()
+    except ValueError:
+        return response.text[:500] or f"HTTP {response.status_code}"
+    detail = body.get("detail") if isinstance(body, dict) else None
+    return str(detail) if detail else (response.text[:500] or f"HTTP {response.status_code}")
 
 
 # ---------------------------------------------------------------------------
@@ -392,6 +463,134 @@ class PersonIDClient:
             for p in data.get("persons", [])
         ]
         return MotionDetectionResult(persons=persons)
+
+    # -- Visitors (identity-continuity M06/M07) --------------------------------
+    #
+    # Unlike the rest of this client, these methods raise PersonIDUpstreamError
+    # on failure instead of returning None. The visitor admin surface is a
+    # caregiver-facing mutation surface (naming, dismissing, merging a visitor
+    # cluster): the BFF must distinguish "cluster not found" (404) from
+    # "clustering disabled" (409) from a transport failure (502/504), which a
+    # blanket None return would collapse into one generic error.
+
+    async def list_visitor_clusters(self, status: str | None = None) -> VisitorClusterListResult:
+        params = {"status": status} if status else None
+        data = await self._visitor_request("GET", "/api/v1/visitors/clusters", params=params)
+        try:
+            return VisitorClusterListResult(
+                clusters=[self._parse_cluster_summary(c) for c in data["clusters"]],
+                total=data["total"],
+            )
+        except (KeyError, TypeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed cluster list envelope: {exc}") from exc
+
+    async def get_visitor_cluster(self, cluster_id: str) -> VisitorClusterDetail:
+        data = await self._visitor_request("GET", f"/api/v1/visitors/clusters/{cluster_id}")
+        try:
+            return self._parse_cluster_detail(data)
+        except (KeyError, TypeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed cluster detail envelope: {exc}") from exc
+
+    async def name_visitor_cluster(
+        self, cluster_id: str, person_id: str, name: str
+    ) -> VisitorNameResult:
+        data = await self._visitor_request(
+            "POST",
+            f"/api/v1/visitors/clusters/{cluster_id}/name",
+            json={"person_id": person_id, "name": name},
+        )
+        try:
+            return VisitorNameResult(
+                cluster_id=data["cluster_id"],
+                status=data["status"],
+                named_person_id=data["named_person_id"],
+                member_name=data["member_name"],
+                embedding_count=data["embedding_count"],
+            )
+        except (KeyError, TypeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed name response envelope: {exc}") from exc
+
+    async def dismiss_visitor_cluster(self, cluster_id: str) -> None:
+        await self._visitor_request("POST", f"/api/v1/visitors/clusters/{cluster_id}/dismiss")
+
+    async def merge_visitor_clusters(
+        self, cluster_a: str, cluster_b: str
+    ) -> VisitorClusterSummary:
+        data = await self._visitor_request(
+            "POST", f"/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}"
+        )
+        try:
+            return self._parse_cluster_summary(data)
+        except (KeyError, TypeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed merge response envelope: {exc}") from exc
+
+    @staticmethod
+    def _cluster_fields(data: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "cluster_id": data["cluster_id"],
+            "status": data["status"],
+            "display_hint": data.get("display_hint"),
+            "named_person_id": data.get("named_person_id"),
+            "sighting_count": data["sighting_count"],
+            "distinct_days": data["distinct_days"],
+            "first_seen_at": datetime.fromisoformat(data["first_seen_at"]),
+            "last_seen_at": datetime.fromisoformat(data["last_seen_at"]),
+            "recent_crop_keys": data.get("recent_crop_keys", []),
+        }
+
+    @classmethod
+    def _parse_cluster_summary(cls, data: dict[str, Any]) -> VisitorClusterSummary:
+        return VisitorClusterSummary(**cls._cluster_fields(data))
+
+    @classmethod
+    def _parse_cluster_detail(cls, data: dict[str, Any]) -> VisitorClusterDetail:
+        return VisitorClusterDetail(
+            **cls._cluster_fields(data),
+            recent_sightings=[
+                VisitorSightingInfo(
+                    seen_at=datetime.fromisoformat(s["seen_at"]),
+                    quality=s["quality"],
+                    crop_object=s.get("crop_object"),
+                )
+                for s in data.get("recent_sightings", [])
+            ],
+        )
+
+    async def _visitor_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, str] | None = None,
+        json: dict[str, Any] | None = None,
+    ) -> Any:
+        if not self.enabled:
+            raise PersonIDUpstreamError(503, "Person identification service is disabled")
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.request(
+                    method, f"{self.base_url}{path}", params=params, json=json
+                )
+                resp.raise_for_status()
+                return resp.json() if resp.content else None
+        except httpx.HTTPStatusError as exc:
+            detail = _extract_detail(exc.response)
+            logger.warning(
+                "person_id_visitor_request_failed",
+                method=method,
+                path=path,
+                status=exc.response.status_code,
+                detail=detail,
+            )
+            raise PersonIDUpstreamError(exc.response.status_code, detail) from exc
+        except httpx.TimeoutException as exc:
+            logger.warning("person_id_visitor_request_timeout", method=method, path=path)
+            raise PersonIDUpstreamError(504, "Person identification service timed out") from exc
+        except httpx.HTTPError as exc:
+            logger.exception("person_id_visitor_request_error", method=method, path=path)
+            raise PersonIDUpstreamError(
+                502, "Person identification service is unreachable"
+            ) from exc
 
     # -- Internal helpers -----------------------------------------------------
 

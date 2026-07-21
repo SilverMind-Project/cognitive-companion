@@ -46,6 +46,14 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     person_id_client = PersonIDClient()
     app.state.person_id_client = person_id_client
 
+    # -- Visitor admin service (identity-continuity M07) --------------------
+    # Depends only on person_id_client, not cts.enabled: visitor naming has
+    # nothing to do with camera tracking, so it is wired unconditionally here
+    # rather than inside bootstrap/cts.py.
+    from backend.services.visitors import VisitorAdminService
+
+    app.state.visitor_admin_service = VisitorAdminService(person_id_client)
+
     # -- Scene analysis client --------------------------------------------
     from backend.integrations.scene_analysis_client import SceneAnalysisClient
 

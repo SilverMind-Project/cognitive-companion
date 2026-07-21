@@ -4342,6 +4342,30 @@
         "title": "DependencyCreate",
         "type": "object"
       },
+      "DismissVisitorResponse": {
+        "properties": {
+          "cluster_id": {
+            "title": "Cluster Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "candidate",
+              "surfaced",
+              "named",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "status"
+        ],
+        "title": "DismissVisitorResponse",
+        "type": "object"
+      },
       "DwellsResponse": {
         "properties": {
           "dwells": {
@@ -8657,6 +8681,73 @@
           "target_ph_id"
         ],
         "title": "MergeResponse",
+        "type": "object"
+      },
+      "NameVisitorRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "person_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Person Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "person_id",
+          "name"
+        ],
+        "title": "NameVisitorRequest",
+        "type": "object"
+      },
+      "NameVisitorResponse": {
+        "properties": {
+          "cluster_id": {
+            "title": "Cluster Id",
+            "type": "string"
+          },
+          "embedding_count": {
+            "title": "Embedding Count",
+            "type": "integer"
+          },
+          "household_member_created": {
+            "title": "Household Member Created",
+            "type": "boolean"
+          },
+          "member_name": {
+            "title": "Member Name",
+            "type": "string"
+          },
+          "named_person_id": {
+            "title": "Named Person Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "candidate",
+              "surfaced",
+              "named",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "status",
+          "named_person_id",
+          "member_name",
+          "embedding_count",
+          "household_member_created"
+        ],
+        "title": "NameVisitorResponse",
         "type": "object"
       },
       "ObservationResponse": {
@@ -16358,6 +16449,162 @@
         "title": "VisibilityPolygonsResponse",
         "type": "object"
       },
+      "VisitorClusterDetailView": {
+        "properties": {
+          "cluster": {
+            "$ref": "#/components/schemas/VisitorClusterView"
+          },
+          "recent_sightings": {
+            "items": {
+              "$ref": "#/components/schemas/VisitorSightingView"
+            },
+            "title": "Recent Sightings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cluster"
+        ],
+        "title": "VisitorClusterDetailView",
+        "type": "object"
+      },
+      "VisitorClusterListResponse": {
+        "properties": {
+          "clusters": {
+            "items": {
+              "$ref": "#/components/schemas/VisitorClusterView"
+            },
+            "title": "Clusters",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clusters",
+          "total"
+        ],
+        "title": "VisitorClusterListResponse",
+        "type": "object"
+      },
+      "VisitorClusterView": {
+        "properties": {
+          "cluster_id": {
+            "title": "Cluster Id",
+            "type": "string"
+          },
+          "display_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Hint"
+          },
+          "distinct_days": {
+            "title": "Distinct Days",
+            "type": "integer"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "named_person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Named Person Id"
+          },
+          "recent_crop_urls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recent Crop Urls",
+            "type": "array"
+          },
+          "sighting_count": {
+            "title": "Sighting Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "candidate",
+              "surfaced",
+              "named",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cluster_id",
+          "status",
+          "sighting_count",
+          "distinct_days",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "VisitorClusterView",
+        "type": "object"
+      },
+      "VisitorSightingView": {
+        "properties": {
+          "crop_object": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crop Object"
+          },
+          "crop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crop Url"
+          },
+          "quality": {
+            "title": "Quality",
+            "type": "number"
+          },
+          "seen_at": {
+            "format": "date-time",
+            "title": "Seen At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seen_at",
+          "quality"
+        ],
+        "title": "VisitorSightingView",
+        "type": "object"
+      },
       "VoiceDefaultsOut": {
         "description": "Default voice instructions per delivery type.",
         "properties": {
@@ -16905,7 +17152,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.112"
+    "version": "0.7.115"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -33656,6 +33903,267 @@
         "summary": "Get Signals Feed",
         "tags": [
           "signals"
+        ]
+      }
+    },
+    "/api/v1/visitors/clusters": {
+      "get": {
+        "operationId": "list_clusters",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorClusterListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Clusters",
+        "tags": [
+          "visitors"
+        ]
+      }
+    },
+    "/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}": {
+      "post": {
+        "operationId": "merge_clusters",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cluster_a",
+            "required": true,
+            "schema": {
+              "title": "Cluster A",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "cluster_b",
+            "required": true,
+            "schema": {
+              "title": "Cluster B",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorClusterView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Merge Clusters",
+        "tags": [
+          "visitors"
+        ]
+      }
+    },
+    "/api/v1/visitors/clusters/{cluster_id}": {
+      "get": {
+        "operationId": "get_cluster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cluster_id",
+            "required": true,
+            "schema": {
+              "title": "Cluster Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorClusterDetailView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Cluster",
+        "tags": [
+          "visitors"
+        ]
+      }
+    },
+    "/api/v1/visitors/clusters/{cluster_id}/dismiss": {
+      "post": {
+        "operationId": "dismiss_cluster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cluster_id",
+            "required": true,
+            "schema": {
+              "title": "Cluster Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DismissVisitorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Dismiss Cluster",
+        "tags": [
+          "visitors"
+        ]
+      }
+    },
+    "/api/v1/visitors/clusters/{cluster_id}/name": {
+      "post": {
+        "operationId": "name_cluster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cluster_id",
+            "required": true,
+            "schema": {
+              "title": "Cluster Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameVisitorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NameVisitorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Name Cluster",
+        "tags": [
+          "visitors"
         ]
       }
     },

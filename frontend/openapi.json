@@ -4196,11 +4196,6 @@
             "title": "Bathroom Visits",
             "type": "object"
           },
-          "door_events": {
-            "additionalProperties": true,
-            "title": "Door Events",
-            "type": "object"
-          },
           "exercise": {
             "additionalProperties": true,
             "title": "Exercise",
@@ -4268,6 +4263,11 @@
             ],
             "title": "Summary Text"
           },
+          "tv": {
+            "additionalProperties": true,
+            "title": "Tv",
+            "type": "object"
+          },
           "tz_name": {
             "title": "Tz Name",
             "type": "string"
@@ -4301,8 +4301,8 @@
           "meals",
           "medication",
           "bathroom_visits",
-          "door_events",
           "exercise",
+          "tv",
           "room_time",
           "summary_text",
           "wellness_score",
@@ -17315,7 +17315,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.121"
+    "version": "0.7.122"
   },
   "openapi": "3.1.0",
   "paths": {

@@ -121,6 +121,7 @@ class DailyReportService:
                     db, person_id, day_start_utc, day_end_utc
                 ),
                 "exercise": self._aggregate_exercise(db, person_id, day_start_utc, day_end_utc),
+                "tv": self._aggregate_tv(db, person_id, day_start_utc, day_end_utc),
                 "room_time": await self._aggregate_room_time(person_id, day_start_utc, day_end_utc),
                 "summary_text": None,
                 "wellness_score": None,
@@ -320,6 +321,45 @@ class DailyReportService:
                     and_(
                         ActivitySession.person_id == person_id,
                         ActivitySession.activity_type == "exercise",
+                        ActivitySession.status == "closed",
+                        or_(
+                            and_(
+                                ActivitySession.opened_at >= start, ActivitySession.opened_at < end
+                            ),
+                            and_(
+                                ActivitySession.closed_at >= start, ActivitySession.closed_at < end
+                            ),
+                        ),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        session_count = len(sessions)
+        total_minutes = sum(s.duration_minutes or 0 for s in sessions)
+
+        return {
+            "session_count": session_count,
+            "total_minutes": total_minutes,
+        }
+
+    def _aggregate_tv(self, db: Session, person_id: str, start: datetime, end: datetime) -> dict:
+        """Aggregate TV-watching data from activity sessions.
+
+        No dedicated ``daily_reports`` column exists for this metric; it is
+        persisted via ``metadata_json`` and ``get_report`` reads it back
+        from there.
+        """
+        from backend.models.person import ActivitySession
+
+        sessions = (
+            db.execute(
+                select(ActivitySession).where(
+                    and_(
+                        ActivitySession.person_id == person_id,
+                        ActivitySession.activity_type == "watching_tv",
                         ActivitySession.status == "closed",
                         or_(
                             and_(
@@ -564,7 +604,16 @@ class DailyReportService:
         db.commit()
 
     def get_report(self, person_id: str, date: str) -> dict | None:
-        """Retrieve an existing daily report from database.
+        """Retrieve an existing daily report from database without recomputing it.
+
+        Reconstructed from ``metadata_json``, which ``_upsert_report_db`` always
+        sets to the exact dict ``generate_daily_report`` last produced -- this
+        keeps the shape identical to the regenerate path (dict-per-metric,
+        ``tv``, ``wellness_score``, etc.) instead of hand-rebuilding it from a
+        divergent subset of dedicated columns, which is how a prior version of
+        this method silently diverged from the BFF router's always-regenerate
+        path (returning ``sleep`` as a bare int, omitting ``tv``/``wellness_score``
+        entirely).
 
         Args:
             person_id: Household member ID.
@@ -583,33 +632,11 @@ class DailyReportService:
             if not record:
                 return None
 
-            return {
-                "person_id": record.person_id,
-                "report_date": record.report_date,
-                "status": record.status,
-                "generated_at": record.generated_at,
-                "sleep": record.sleep_total_minutes,
-                "meals": {
-                    "prep_count": record.meal_prep_count,
-                    "eating_count": record.meal_eating_count,
-                },
-                "medication": {
-                    "doses_taken": record.medication_doses_taken,
-                    "doses_due": record.medication_doses_due,
-                    "adherence_pct": record.medication_adherence_pct,
-                },
-                "bathroom_visits": {
-                    "visit_count": record.bathroom_visit_count,
-                    "total_minutes": record.bathroom_total_minutes,
-                },
-                "exercise": {
-                    "session_count": record.exercise_session_count,
-                    "total_minutes": record.exercise_total_minutes,
-                },
-                "room_time": record.room_time_json,
-                "summary_text": record.summary_text,
-                "wellness_score": record.wellness_score,
-                "wellness_alerts": record.wellness_alerts_json,
-            }
+            report = dict(record.metadata_json or {})
+            report["person_id"] = record.person_id
+            report["report_date"] = record.report_date
+            report["generated_at"] = record.generated_at
+            report.setdefault("tv", {"session_count": 0, "total_minutes": 0})
+            return report
         finally:
             db.close()

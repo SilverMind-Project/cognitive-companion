@@ -110,7 +110,11 @@ class TestExecute:
         assert result.data["closed_session"]["closed_via"] == "explicit"
         svc.close_session.assert_called_once()
 
-    async def test_no_open_session_returns_error(self):
+    async def test_no_open_session_is_structured_no_op_success(self):
+        # A closing rule firing while nothing is open is routine (e.g. a
+        # 2-minute cron poll ticking while the TV has been off all along),
+        # not a failure: success=True keeps it from showing as a failed
+        # step on every quiet poll (DL-M04 Part E.2).
         svc = _make_mock_service(raise_on_close=True)
         step = _make_step({"activity_type": "sleep", "person_id": "grandma"})
         result = await handler.execute(
@@ -120,9 +124,11 @@ class TestExecute:
             trigger=_make_trigger(),
             services=_make_services(activity=svc),
         )
-        assert not result.success
-        assert "error" in result.data["closed_session"]
+        assert result.success
+        assert "error" not in result.data["closed_session"]
         assert result.data["closed_session"]["no_open_session"] is True
+        assert result.data["closed_session"]["person_id"] == "grandma"
+        assert result.data["closed_session"]["activity_type"] == "sleep"
 
     async def test_no_service_returns_error(self):
         step = _make_step({"activity_type": "sleep"})
@@ -341,8 +347,8 @@ class TestBlock7Delegation:
         assert result.success
         assert "error" in result.data["closed_session"]
 
-    async def test_no_open_session_error(self):
-        """Should return no_open_session error when close_session raises ValueError."""
+    async def test_no_open_session_is_no_op_success(self):
+        """close_session raising ValueError (nothing open) is a structured success."""
         mock_svc = MagicMock()
         mock_svc.close_session = MagicMock(side_effect=ValueError("No open session found"))
         step = _make_step({"activity_type": "sleep"})
@@ -353,5 +359,5 @@ class TestBlock7Delegation:
             trigger=_make_trigger(),
             services=_make_services(activity=mock_svc),
         )
-        assert not result.success
+        assert result.success
         assert result.data["closed_session"]["no_open_session"] is True

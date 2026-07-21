@@ -6649,10 +6649,6 @@ export interface components {
             bathroom_visits: {
                 [key: string]: unknown;
             };
-            /** Door Events */
-            door_events: {
-                [key: string]: unknown;
-            };
             /** Exercise */
             exercise: {
                 [key: string]: unknown;
@@ -6685,6 +6681,10 @@ export interface components {
             };
             /** Summary Text */
             summary_text: string | null;
+            /** Tv */
+            tv: {
+                [key: string]: unknown;
+            };
             /** Tz Name */
             tz_name: string;
             /** Wellness Alerts */

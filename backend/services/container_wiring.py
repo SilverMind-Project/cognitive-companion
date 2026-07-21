@@ -42,6 +42,11 @@ ALWAYS_REQUIRED: frozenset[str] = frozenset(
         # perception.wire_perception (depends only on get_session), so it is
         # no longer gated behind cts.enabled.
         "person_location",
+        # presence.wire_presence constructs this unconditionally (it does not
+        # depend on cts.enabled). It has a real consumer again in the
+        # home_state filter/step entity_id extension; see the note on the
+        # ServiceContainer field before deleting it for lack of a consumer.
+        "ha_state_cache",
     }
 )
 

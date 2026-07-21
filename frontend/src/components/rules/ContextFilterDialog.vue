@@ -145,35 +145,64 @@
 
         <!-- Home State filter -->
         <template v-else-if="ctxForm.context_type === 'home_state'">
-          <v-autocomplete
-            v-model="ctxForm.config.person_id"
-            :items="personIds"
-            label="Person"
+          <v-text-field
+            v-model="ctxForm.config.entity_id"
+            label="HA Entity (optional)"
+            hint="e.g. media_player.living_room_tv. When set, matches this entity's state instead of a person's home state below (person/state are ignored)."
+            persistent-hint
             variant="outlined"
             density="compact"
             hide-details="auto"
             rounded="lg"
             clearable
             class="mb-3"
-            aria-label="Person whose home-state to evaluate"
           />
-          <v-select
-            v-model="ctxForm.config.state"
-            :items="[
-              { title: 'At home (any room or asleep)', value: 'at_home' },
-              { title: 'Asleep (anchored)', value: 'asleep' },
-              { title: 'Away from home', value: 'away' },
-              { title: 'Unknown', value: 'unknown' },
-            ]"
-            item-title="title"
-            item-value="value"
-            label="Required state"
-            :rules="[(v) => !!v || 'Choose a state.']"
+          <v-combobox
+            v-if="ctxForm.config.entity_id"
+            v-model="ctxForm.config.states_any"
+            :items="[]"
+            label="Matching states (any)"
+            multiple
+            chips
+            closable-chips
+            hint="e.g. playing, on"
+            persistent-hint
             variant="outlined"
             density="compact"
-            hide-details="auto"
             rounded="lg"
+            class="mb-3"
           />
+          <template v-if="!ctxForm.config.entity_id">
+            <v-autocomplete
+              v-model="ctxForm.config.person_id"
+              :items="personIds"
+              label="Person"
+              variant="outlined"
+              density="compact"
+              hide-details="auto"
+              rounded="lg"
+              clearable
+              class="mb-3"
+              aria-label="Person whose home-state to evaluate"
+            />
+            <v-select
+              v-model="ctxForm.config.state"
+              :items="[
+                { title: 'At home (any room or asleep)', value: 'at_home' },
+                { title: 'Asleep (anchored)', value: 'asleep' },
+                { title: 'Away from home', value: 'away' },
+                { title: 'Unknown', value: 'unknown' },
+              ]"
+              item-title="title"
+              item-value="value"
+              label="Required state"
+              :rules="[(v) => !!v || 'Choose a state.']"
+              variant="outlined"
+              density="compact"
+              hide-details="auto"
+              rounded="lg"
+            />
+          </template>
         </template>
 
         <!-- Presence Status filter -->

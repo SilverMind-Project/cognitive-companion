@@ -171,18 +171,18 @@ const reportSections = computed(() => {
       data: report.value.bathroom_visits,
     },
     {
-      key: "door_events",
-      label: "Door Events",
-      icon: "mdi-door",
-      color: "teal",
-      data: report.value.door_events,
-    },
-    {
       key: "exercise",
       label: "Exercise",
       icon: "mdi-run",
       color: "green",
       data: report.value.exercise,
+    },
+    {
+      key: "tv",
+      label: "Watching TV",
+      icon: "mdi-television",
+      color: "teal",
+      data: report.value.tv,
     },
     {
       key: "room_time",

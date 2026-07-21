@@ -26,6 +26,8 @@ from .segment_state_machine import (
 )
 from .source_arbitration import arbitrate
 from .types import (
+    BackfillDwellInput,
+    BackfillIngestResult,
     CurrentLocation,
     FloorPoint,
     LocationObservation,
@@ -35,6 +37,21 @@ from .types import (
 )
 
 logger = get_logger(__name__)
+
+
+def _overlap_seconds(
+    a_start: datetime, a_end: datetime | None, b_start: datetime, b_end: datetime
+) -> float:
+    """Seconds of overlap between segment ``[a_start, a_end)`` and ``[b_start, b_end)``.
+
+    An open segment (``a_end is None``) is treated as extending to ``b_end``
+    for this comparison -- an open segment overlapping a historical backfill
+    window overlaps it for the entire window.
+    """
+    end = a_end if a_end is not None else b_end
+    latest_start = max(a_start, b_start)
+    earliest_end = min(end, b_end)
+    return max(0.0, (earliest_end - latest_start).total_seconds())
 
 
 class PersonLocationService:
@@ -256,6 +273,106 @@ class PersonLocationService:
             decision = decide(old_seg, event, self._cfg.inferred_dwell_max_s)
             await self._apply_decision(decision)
 
+    async def ingest_backfill_segments(
+        self,
+        *,
+        revision_id: str,
+        person_id: str,
+        dwells: list[BackfillDwellInput],
+        range_start: datetime,
+        range_end: datetime,
+    ) -> BackfillIngestResult:
+        """Insert closed presence segments for an ``inferred_backfill`` revision.
+
+        Identity-continuity M05 (dated-corrected design): projects CTS room
+        dwells for a previously-Unknown segment into the SSOT as **closed**
+        historical segments (``entered_at``/``exited_at`` both set), so the
+        one-open-segment-per-person invariant and ``where_is()`` are
+        untouched by construction. No observation rows are inserted here --
+        observations are the live audit feed, and fabricating historical rows
+        would pollute ``bucketed_observations``/the heatmap with synthetic
+        data; the dwell evidence lives in CTS.
+
+        Idempotent under stream redelivery: if any segment already carries
+        this ``revision_id``, the whole call is a no-op (the per-segment
+        enforcement is the partial unique index on ``(backfill_revision_id,
+        entered_at)`` in :meth:`SegmentRepository.insert_backfill_batch`;
+        this early check just avoids redoing the room-resolution/overlap
+        work on every redelivery).
+        """
+        if await self._seg.exists_for_backfill_revision(revision_id):
+            return BackfillIngestResult(skipped_duplicate=len(dwells))
+
+        candidates: list[PresenceSegment] = []
+        dropped_unmapped_room = 0
+        dropped_zero_length = 0
+        overlap_skipped = 0
+
+        for dwell in dwells:
+            if dwell.room_id is None:
+                dropped_unmapped_room += 1
+                logger.warning(
+                    "backfill_segment_dropped_unmapped_room",
+                    revision_id=revision_id,
+                    person_id=person_id,
+                    room_name=dwell.room_name,
+                )
+                continue
+
+            entered_at = max(dwell.entered_at, range_start)
+            exited_at = min(dwell.exited_at, range_end)
+            if exited_at <= entered_at:
+                dropped_zero_length += 1
+                continue
+
+            overlapping = await self._seg.list_overlapping(person_id, entered_at, exited_at)
+            non_backfill = [s for s in overlapping if s.backfill_revision_id is None]
+            dwell_s = (exited_at - entered_at).total_seconds()
+            overlap_s = sum(
+                _overlap_seconds(s.entered_at, s.exited_at, entered_at, exited_at)
+                for s in non_backfill
+            )
+            if dwell_s > 0 and (overlap_s / dwell_s) > 0.5:
+                overlap_skipped += 1
+                logger.info(
+                    "backfill_segment_overlap_skipped",
+                    revision_id=revision_id,
+                    person_id=person_id,
+                    room_id=dwell.room_id,
+                    overlap_fraction=overlap_s / dwell_s,
+                )
+                continue
+
+            candidates.append(
+                PresenceSegment(
+                    id=uuid4(),
+                    person_id=person_id,
+                    room_id=dwell.room_id,
+                    entered_at=entered_at,
+                    exited_at=exited_at,
+                    entry_source="observed",
+                    exit_source="observed",
+                    confidence=dwell.confidence,
+                    last_observed_at=exited_at,
+                    backfill_revision_id=revision_id,
+                    metadata={
+                        "room_name": dwell.room_name,
+                        "backfill_revision_id": revision_id,
+                        "revision_kind": "inferred_backfill",
+                    },
+                )
+            )
+
+        inserted = 0
+        if candidates:
+            inserted = await self._seg.insert_backfill_batch(candidates)
+
+        return BackfillIngestResult(
+            inserted=inserted,
+            dropped_unmapped_room=dropped_unmapped_room,
+            dropped_zero_length=dropped_zero_length,
+            overlap_skipped=overlap_skipped,
+        )
 
     # ------------------------------------------------------------------
     # Query API
@@ -317,6 +434,16 @@ class PersonLocationService:
     async def current_dwell(self, person_id: str) -> PresenceSegment | None:
         """Return the currently-open segment (including inferred)."""
         return await self._seg.get_open(person_id)
+
+    async def has_backfill_segments(self, revision_id: str) -> bool:
+        """Whether any segment already carries this backfill ``revision_id``.
+
+        Lets the M05 backfill projector skip its CTS dwell-fetch HTTP call
+        entirely on stream redelivery, without reaching into
+        ``SegmentRepository`` directly (never query the repo from outside
+        this service).
+        """
+        return await self._seg.exists_for_backfill_revision(revision_id)
 
     async def get_heatmap(
         self,

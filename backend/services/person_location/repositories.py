@@ -14,6 +14,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from backend.core.database import transaction
@@ -111,6 +112,8 @@ class SegmentRepository(Protocol):
         closes: list[tuple[UUID, datetime, ExitSource]],
         supersedes: list[tuple[UUID, UUID | None]],
     ) -> None: ...
+    async def exists_for_backfill_revision(self, revision_id: str) -> bool: ...
+    async def insert_backfill_batch(self, segments: list[PresenceSegment]) -> int: ...
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +289,7 @@ class InMemorySegmentRepository:
                 quality=seg.quality,
                 last_observed_at=seg.last_observed_at,
                 superseded_by=seg.superseded_by,
+                backfill_revision_id=seg.backfill_revision_id,
                 metadata=seg.metadata,
             )
 
@@ -345,11 +349,38 @@ class InMemorySegmentRepository:
                     entry_source=existing.entry_source,
                     exit_source=existing.exit_source,
                     confidence=existing.confidence,
+                    quality=existing.quality,
                     last_observed_at=existing.last_observed_at,
                     superseded_by=superseded_by,
+                    backfill_revision_id=existing.backfill_revision_id,
                     metadata=existing.metadata,
                 )
                 self._rows[seg_id] = existing
+
+    async def exists_for_backfill_revision(self, revision_id: str) -> bool:
+        return any(s.backfill_revision_id == revision_id for s in self._rows.values())
+
+    async def insert_backfill_batch(self, segments: list[PresenceSegment]) -> int:
+        """Insert closed backfill segments, skipping ones already present.
+
+        Mirrors the SQL repo's ``ON CONFLICT (backfill_revision_id,
+        entered_at) DO NOTHING``: the uniqueness is on the pair, not the
+        segment's own ``id``.
+        """
+        existing_keys: set[tuple[str | None, datetime]] = {
+            (s.backfill_revision_id, s.entered_at)
+            for s in self._rows.values()
+            if s.backfill_revision_id is not None
+        }
+        inserted = 0
+        for seg in segments:
+            key = (seg.backfill_revision_id, seg.entered_at)
+            if key in existing_keys:
+                continue
+            self._rows[seg.id] = seg
+            existing_keys.add(key)
+            inserted += 1
+        return inserted
 
 
 # ---------------------------------------------------------------------------
@@ -717,6 +748,57 @@ class SqlAlchemySegmentRepository:
                     row.superseded_by = str(superseded_by) if superseded_by else None
             db.flush()
 
+    async def exists_for_backfill_revision(self, revision_id: str) -> bool:
+        with transaction(self._db_factory) as db:
+            row = (
+                db.execute(select(PSeg.id).where(PSeg.backfill_revision_id == revision_id).limit(1))
+                .scalars()
+                .first()
+            )
+        return row is not None
+
+    async def insert_backfill_batch(self, segments: list[PresenceSegment]) -> int:
+        """Atomically insert closed backfill segments, skipping duplicates.
+
+        Enforcement is the partial unique index on ``(backfill_revision_id,
+        entered_at)``, not this method's own logic: ``ON CONFLICT DO
+        NOTHING`` makes concurrent redelivery of the same revision race-safe
+        even if two projector runs overlap. The ``RETURNING`` clause reports
+        the true inserted count, since conflicting rows are silently skipped.
+        """
+        if not segments:
+            return 0
+        rows = [
+            {
+                "id": seg.id,
+                "person_id": seg.person_id,
+                "room_id": seg.room_id,
+                "entered_at": seg.entered_at,
+                "exited_at": seg.exited_at,
+                "entry_source": seg.entry_source,
+                "exit_source": seg.exit_source,
+                "confidence": seg.confidence,
+                "quality": seg.quality,
+                "last_observed_at": seg.last_observed_at,
+                "backfill_revision_id": seg.backfill_revision_id,
+                "metadata_json": dict(seg.metadata),
+            }
+            for seg in segments
+        ]
+        stmt = (
+            pg_insert(PSeg)
+            .values(rows)
+            .on_conflict_do_nothing(
+                index_elements=["backfill_revision_id", "entered_at"],
+                index_where=text("backfill_revision_id IS NOT NULL"),
+            )
+            .returning(PSeg.id)
+        )
+        with transaction(self._db_factory) as db:
+            result = db.execute(stmt)
+            inserted_ids = result.scalars().all()
+        return len(inserted_ids)
+
 
 # ---------------------------------------------------------------------------
 # Domain conversion helpers
@@ -781,6 +863,7 @@ def _seg_to_domain(row: PSeg) -> PresenceSegment:
         quality=float(getattr(row, "quality", 0.0) or 0.0),
         last_observed_at=row.last_observed_at,
         superseded_by=UUID(str(row.superseded_by)) if row.superseded_by else None,
+        backfill_revision_id=row.backfill_revision_id,
         metadata=row.metadata_json or {},
     )
 
@@ -798,6 +881,7 @@ def _insert_seg(db: Session, seg: PresenceSegment) -> None:
         quality=seg.quality,
         last_observed_at=seg.last_observed_at,
         superseded_by=seg.superseded_by,
+        backfill_revision_id=seg.backfill_revision_id,
         metadata_json=dict(seg.metadata),
     )
     db.add(row)

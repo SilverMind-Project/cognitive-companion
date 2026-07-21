@@ -427,6 +427,12 @@ Three rules apply to all plugin types:
 2. **Metadata is mandatory.** `StepMetadata`, `ChannelMetadata`, or `FilterMetadata` must be complete: display name, description, icon (for steps), config schema, default config.
 3. **Zero-config by default.** `default_config` must produce a working handler without any user overrides.
 
+Image-space geometry questions (person in a part of the frame) use the
+`region_presence` step over `scene_detections`; never spend a model call on a
+geometry question. `region_presence` coordinates are normalized image space;
+floor-space `RoomZone` meters are a different space and the two are never
+mixed.
+
 Channel and notification-dispatch code that emits links in outbound messages
 (Telegram, email, any channel a remote caregiver reads on a phone) resolves them
 against `app.public_base_url` in `config/settings.yaml` (empty by default, which

@@ -28,6 +28,7 @@ export const STEP_DOT_COLORS = {
   object_trend_analysis: "teal",
   person_identification: "indigo",
   presence_query: "blue",
+  region_presence: "green",
   scene_analysis: "teal",
   semantic_memory_query: "teal",
   semantic_memory_write: "indigo",

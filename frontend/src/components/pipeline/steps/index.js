@@ -111,6 +111,11 @@ import GateVerdictConfig, {
   stepDefaults as gateVerdictDefaults,
   stepTabs as gateVerdictTabs,
 } from "./GateVerdictConfig.vue";
+import RegionPresenceConfig, {
+  stepDefaults as regionPresenceDefaults,
+  stepTabs as regionPresenceTabs,
+  chips as regionPresenceChips,
+} from "./RegionPresenceConfig.vue";
 import vocabularies from "@/generated/vocabularies.json";
 import { ALERT_COLORS, chip, truncate } from "./stepMeta.js";
 
@@ -216,6 +221,12 @@ export const stepConfigMap = {
     component: GateVerdictConfig,
     defaults: gateVerdictDefaults,
     tabs: gateVerdictTabs,
+  },
+  region_presence: {
+    component: RegionPresenceConfig,
+    defaults: regionPresenceDefaults,
+    tabs: regionPresenceTabs,
+    chips: regionPresenceChips,
   },
   quiz_start: { component: GenericPluginConfig, defaults: {}, tabs: genericTabs },
 };

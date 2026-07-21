@@ -229,6 +229,16 @@
     },
     {
       "category": "perception",
+      "display_name": "Region Presence",
+      "gate_safe": true,
+      "icon": "mdi-vector-polygon",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "region_presence"
+    },
+    {
+      "category": "perception",
       "display_name": "Scene Analysis",
       "gate_safe": true,
       "icon": "mdi-image-search",

@@ -1,5 +1,5 @@
 /**
- * M08: the one identity-correction composable.
+ * the one identity-correction composable.
  *
  * Shared by the Keyframes surface and the PH inspector. Owns correction
  * targets, the segment proposal + optimistic version token, apply (frame-only,

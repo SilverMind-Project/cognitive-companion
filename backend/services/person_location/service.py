@@ -111,9 +111,9 @@ class PersonLocationService:
 
         open_seg = await self._seg.get_open(person_id)
 
-        # M38: arbitrate only when the incoming observation would change the
+        # arbitrate only when the incoming observation would change the
         # open segment's room -- a same-room repeat is a refresh, never
-        # contested. Suppressing here (not in decide()) keeps the state
+        # contested. Suppressing here (not in decide) keeps the state
         # machine pure; the observation row above is unaffected either way
         # (full-fidelity audit trail).
         if open_seg is not None and open_seg.room_id != room_id:

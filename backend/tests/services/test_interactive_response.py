@@ -397,7 +397,7 @@ async def test_record_response_invalid_raw_response(
 
 
 # ---------------------------------------------------------------------------
-# get_response()
+# get_response
 # ---------------------------------------------------------------------------
 
 
@@ -467,7 +467,7 @@ def test_check_response_exists_false(service: InteractiveResponseService) -> Non
 
 
 # ---------------------------------------------------------------------------
-# cancel_pending_response()
+# cancel_pending_response
 # ---------------------------------------------------------------------------
 
 
@@ -584,7 +584,7 @@ async def test_timeout_channel_does_not_cancel_timeout_job(
         raw_response={"timeout_action": "escalate"},
     )
 
-    # cancel_pending_response should NOT have been called for timeout channel
+    # cancel_pending_response() should NOT have been called for timeout channel
     assert len(fake_scheduler.remove_job_calls) == 0
 
 

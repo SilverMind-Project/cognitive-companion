@@ -101,7 +101,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
             "reason": message.reason,
             "evidence": evidence,
             "revision_time": ns_to_iso(message.revision_time_unix_ns),
-            # -- M06 typed revision-range / projection metadata --
+            # -- typed revision-range / projection metadata --
             "revision_kind": message.revision_kind or None,
             "range_start": ns_to_iso(message.range_start_unix_ns)
             if message.range_start_unix_ns
@@ -119,7 +119,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
     async def handle(self, revision: dict[str, Any]) -> bool:
         metrics.cts_revisions_received.inc()
 
-        # identity-continuity M05: an inferred_backfill revision has no rows
+        # An inferred_backfill revision has no rows
         # to supersede (an Unknown segment was never attributed in the first
         # place), so it routes entirely to the projector instead of the
         # rewriter/apply_identity_revision/pipeline/WS-broadcast path below.
@@ -138,13 +138,13 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
             logger.exception("identity_revision_apply_error", revision=revision)
             metrics.cts_revisions_dropped.inc()
             # Tell CTS this projection failed so the revision job is marked
-            # failed and retried idempotently (M06). Never acknowledge success.
+            # failed and retried idempotently. Never acknowledge success.
             await self._ack_projection(revision, status="failed", counts={})
             return False
 
         metrics.cts_revisions_persisted.inc()
 
-        # M06: acknowledge the projection so CTS can complete the revision job.
+        # acknowledge the projection so CTS can complete the revision job.
         # Only revisions that explicitly require the "cc" projection expect an
         # ack; legacy automatic revisions carry no required_projections.
         await self._ack_projection(

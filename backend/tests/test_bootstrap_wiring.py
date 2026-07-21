@@ -54,7 +54,7 @@ from testcontainers.postgres import PostgresContainer
 
 pytestmark = pytest.mark.integration
 
-# Frozen from the M20 bootstrap inventory (backend/bootstrap/README.md).
+# Frozen from the bootstrap inventory (backend/bootstrap/README.md).
 # Attributes assigned only inside the cts.enabled branch (see module
 # docstring) are deliberately excluded: this test runs with cts disabled.
 # ``telegram_trigger`` is also excluded: it is only assigned when
@@ -244,7 +244,7 @@ def test_lifespan_wires_exactly_the_frozen_app_state_attributes(
     reset_default_database()
 
     # Work around cross-test pollution of a real, pre-existing global
-    # registry, not introduced here: `require_permission()` permanently adds
+    # registry, not introduced here: require_permission() permanently adds
     # to `backend.core.auth._DECLARED_TOKENS` at call time, and
     # `test_auth.py::test_...` (elsewhere in this suite) declares a
     # `Depends(require_permission("secret:read"))` test-only route with a
@@ -280,7 +280,7 @@ def test_lifespan_wires_exactly_the_frozen_app_state_attributes(
             assert not missing, drift_message
             assert not extra, drift_message
 
-            # M38 Part A: PersonLocationService is un-gated from cts.enabled --
+            # PersonLocationService is un-gated from cts.enabled --
             # this boot runs with cts.enabled=false, so a None here would mean
             # the un-gating regressed back to CTS-only construction.
             assert main_module.app.state.person_location_service is not None, (

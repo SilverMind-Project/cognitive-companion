@@ -37,7 +37,7 @@ class IncomingEvent:
     quality: float = 0.0
     metadata: dict[str, object] = field(default_factory=dict)
     # Which source produced this event, for arbitration and per-source
-    # evidence aging (M38). None for event kinds that don't carry one
+    # evidence aging. None for event kinds that don't carry one
     # (TIMEOUT_TICK, IDENTITY_REVISION -- the latter preserves the
     # superseded segment's existing last_source via its metadata copy).
     source: SourceTag | None = None
@@ -120,7 +120,7 @@ def decide(
     # Open segment exists. Cases by event kind.
     if event.kind == EventKind.OBSERVATION:
         if event.room_id == open_segment.room_id:
-            # M38 Part B: a same-room repeat now refreshes the open segment's
+            # a same-room repeat now refreshes the open segment's
             # evidence instead of no-opping, so per-source quiet-gap aging
             # (Part C) and staleness handoff have a live last_observed_at to
             # measure from.
@@ -131,7 +131,7 @@ def decide(
             # slower-arriving source (e.g. world_tracker capture time vs.
             # a reCamera adapter's ingest-time stamp) could move
             # last_observed_at *backward*, regressing quiet-gap aging and
-            # where_is() staleness. An event no newer than what the segment
+            # where_is staleness. An event no newer than what the segment
             # already has is a no-op, not a refresh.
             last_evidence_at = open_segment.last_observed_at or open_segment.entered_at
             if event.at <= last_evidence_at:
@@ -184,8 +184,8 @@ def decide(
                     closes=[SegmentClose(open_segment.id, event.at, "timeout")],
                 )
             return _noop()
-        # M38 Part C: observed (or manual) segment -- per-source quiet-gap
-        # closure. No signal is emitted for this by the caller (tick()):
+        # observed (or manual) segment -- per-source quiet-gap
+        # closure. No signal is emitted for this by the caller (tick):
         # inferred_dwell_exceeded stays exclusive to inferred segments.
         if quiet_gap_s is None:
             return _noop()
@@ -234,7 +234,7 @@ def _noop() -> SegmentDecision:
 def _new_segment(event: IncomingEvent, entry_source: EntrySource) -> PresenceSegment:
     metadata = dict(event.metadata)
     if event.source is not None:
-        # Seed last_source at segment open so the very first tick()/refresh
+        # Seed last_source at segment open so the very first tick/refresh
         # after opening has a source to key per-source evidence aging on.
         metadata["last_source"] = event.source
     return PresenceSegment(

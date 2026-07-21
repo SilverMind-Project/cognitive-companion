@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 /**
- * The app's one notification renderer (M18). Mounted once, in App.vue.
+ * The app's one notification renderer. Mounted once, in App.vue.
  *
  * Messages stack upward so a burst stays readable rather than overwriting itself, which is what
  * the old per-view single-ref snackbar did. Vuetify clears `model-value` when a timeout expires

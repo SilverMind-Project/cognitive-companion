@@ -1,8 +1,8 @@
 /**
- * Identity-continuity M07: the visitor cluster review composable.
+ * The visitor cluster review composable.
  *
  * Owns the review-queue lifecycle for `VisitorsView`: list load, the naming/dismiss/merge
- * mutations, and the 409-triggered disabled-state explanation (M06's contract: `GET
+ * mutations, and the 409-triggered disabled-state explanation's contract: `GET
  * /clusters` returns an empty list when clustering is disabled, `POST` mutations 409; there
  * is no dedicated "disabled" flag on the list envelope, so the disabled banner only appears
  * once a mutation attempt actually 409s).

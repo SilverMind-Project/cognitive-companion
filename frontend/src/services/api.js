@@ -46,7 +46,7 @@ import * as webhooksModule from "./modules/webhooks";
 import * as workflowsModule from "./modules/workflows";
 
 /**
- * @deprecated The auth store owns the API key: call `useAuthStore().setApiKey(key)`.
+ * @deprecated The auth store owns the API key: call useAuthStore().setApiKey(key).
  *
  * Kept so the existing `api.setApiKey(...)` call sites keep working. It delegates rather than
  * writing localStorage itself: a direct write would update storage while leaving the store's

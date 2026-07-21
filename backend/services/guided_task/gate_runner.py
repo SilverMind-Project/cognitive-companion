@@ -184,7 +184,7 @@ class _CoolOffCache:
         time_fn: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         # Key is (session_id, step_ord, profile_name). TTL here is a memory
-        # bound only (M25/G10): the freshness gate below keeps its own
+        # bound only: the freshness gate below keeps its own
         # explicit min_interval_s comparison as the correctness check.
         self._cache: TTLCache[tuple[str, int, str], _CachedVerdict] = TTLCache(
             maxsize=4096, ttl=ttl_s, timer=lambda: time_fn().timestamp()
@@ -229,7 +229,7 @@ class _SyntheticRule:
 class _SyntheticExecution:
     id: str  # f"gate_{session_id}_{step_ord}_{profile}"
     rule_id: int  # the gate rule id
-    rule: _SyntheticRule  # exposes .name
+    rule: _SyntheticRule  # exposes.name
 
 
 def _synthetic_trigger(*, room_name: str | None, sensor_id: str | None) -> TriggerContext:

@@ -1,9 +1,9 @@
 /**
- * App-wide UI state: marauders mode and reduced-motion (M18).
+ * App-wide UI state: marauders mode and reduced-motion.
  *
  * Ported from the module-level `reactive` singleton in `useMaraudersMode.js`. The composable
- * stays the public API because `useTheme()` must run inside a setup context; it hands the theme
- * binding to `init(theme)` here. The store never calls `useTheme()` itself -- a store action can
+ * stays the public API because useTheme() must run inside a setup context; it hands the theme
+ * binding to init(theme) here. The store never calls useTheme() itself -- a store action can
  * run from anywhere, and Vuetify's inject would fail outside setup.
  */
 

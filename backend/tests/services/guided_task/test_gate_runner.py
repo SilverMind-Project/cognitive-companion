@@ -373,8 +373,12 @@ async def test_branchy_gate_heavy_path(
 
     with patch("backend.steps.builtin.scene_analysis._fetch_image", return_value=b"dummy"):
         from backend.services.guided_task.camera_selection import ResolvedCamera
+
         res_verdict = await runner.run(
-            gate_rule_id=rule.id, profile=profile, cameras=[ResolvedCamera(id="cam1", source="cts")], context=context
+            gate_rule_id=rule.id,
+            profile=profile,
+            cameras=[ResolvedCamera(id="cam1", source="cts")],
+            context=context,
         )
 
     assert res_verdict.complete is True

@@ -1,6 +1,6 @@
-"""M08 segment-correction BFF envelopes.
+"""Segment-correction BFF envelopes.
 
-The orchestrator (M06) owns the correction semantics: it proposes observation-
+The orchestrator owns the correction semantics: it proposes observation-
 bounded segments, applies frame-only or bounded corrections (and explicit
 Set-to-Unknown) under an optimistic version token, composes handoff splits, and
 runs the asynchronous revision job. The BFF validates the upstream envelopes,
@@ -15,7 +15,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Reason codes agreed in M06; the browser may only send these.
+# Reason codes agreed; the browser may only send these.
 ReasonCode = Literal[
     "wrong_person",
     "identity_uncertain",

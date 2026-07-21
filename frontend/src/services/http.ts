@@ -1,5 +1,5 @@
 /**
- * The one HTTP core (M17).
+ * The one HTTP core.
  *
  * A single typed `openapi-fetch` client keyed on the generated `paths` type, replacing the six
  * copies of fetch/error boilerplate in `api.js`. Request paths, params, bodies and responses are
@@ -25,7 +25,7 @@ import type { paths } from "@/generated/api-types";
 export const client = createClient<paths>({
   baseUrl: "",
   // openapi-fetch captures globalThis.fetch when the client is constructed, at module load.
-  // Resolving it per call instead keeps `vi.stubGlobal("fetch", ...)` working in specs, and
+  // Resolving it per call instead keeps `vi.stubGlobal("fetch",...)` working in specs, and
   // costs one property lookup per request.
   fetch: (request) => globalThis.fetch(request),
 });
@@ -41,7 +41,7 @@ let apiKeyProvider: ApiKeyProvider = () => localStorage.getItem(API_KEY_STORAGE_
 /**
  * Swap the source of the API key.
  *
- * `main.js` points this at the Pinia auth store at startup (M18), which is the key's owner. The
+ * `main.js` points this at the Pinia auth store at startup, which is the key's owner. The
  * localStorage default remains as the pre-wire fallback, so a request issued before bootstrap
  * completes -- or from a spec that never boots the app -- still authenticates.
  */
@@ -108,7 +108,7 @@ function messageFor(status: number, detail: unknown): string {
   return `HTTP ${status}`;
 }
 
-/** Extract FastAPI's `{detail: ...}` without assuming the error body is JSON at all. */
+/** Extract FastAPI's `{detail:...}` without assuming the error body is JSON at all. */
 async function errorDetail(response: Response): Promise<unknown> {
   try {
     const body = await response.json();
@@ -145,7 +145,7 @@ export async function unwrap<T>(
  * The escape hatch for domain modules that are not yet keyed to the generated types -- today
  * the CTS clients (`cts.js`, `cts_identity.js`, `cts_ph.js`, `household.js`), whose ~70 methods
  * are a separate migration. It exists so those modules stop each carrying their own copy of the
- * auth/error plumbing (four copies before M17), not as a general-purpose door: everything it
+ * auth/error plumbing (four copies before), not as a general-purpose door: everything it
  * touches is already in `openapi.json`, so prefer `client.GET(...)` and let the types check the
  * call.
  *

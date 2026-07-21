@@ -18,7 +18,7 @@ class PresenceSegment(Base):
         Index("idx_ps_person_open", "person_id", postgresql_where=text("exited_at IS NULL")),
         Index("idx_ps_person_time", "person_id", text("entered_at DESC")),
         Index("idx_ps_room_time", "room_id", text("entered_at DESC")),
-        # identity-continuity M05: idempotency backstop for the backfill
+        # idempotency backstop for the backfill.
         # projector under concurrent stream redelivery. A read-then-write
         # check alone is not enforcement; this partial unique index is.
         Index(
@@ -47,7 +47,7 @@ class PresenceSegment(Base):
     superseded_by: Mapped[str | None] = mapped_column(
         UUID, ForeignKey("presence_segments.id"), nullable=True
     )
-    # identity-continuity M05: set only on segments inserted by the Unknown-
+    # set only on segments inserted by the Unknown backfill.
     # backfill projector. NULL for every ordinary (observed/inferred/manual)
     # segment. See the partial unique index above.
     backfill_revision_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

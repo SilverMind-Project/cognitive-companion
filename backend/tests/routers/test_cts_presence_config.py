@@ -27,7 +27,7 @@ from backend.services.presence import (
 )
 from backend.tests.routers.conftest import CTS_PRESENCE_AUTH as AUTH
 
-# M16: the presence routes now require cts.presence.view.
+# the presence routes now require cts.presence.view.
 pytestmark = pytest.mark.usefixtures("cts_presence_keystore")
 
 # ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ async def test_reload_with_valid_yaml(presence_service: PresenceService, tmp_pat
         app.include_router(router, prefix="/api/v1")
         app.state.presence = presence_service
         app.state.ha_state_cache = MagicMock()  # needed by reload endpoint
-        app.state.person_location_service = MagicMock()  # needed by reload endpoint (M32)
+        app.state.person_location_service = MagicMock()  # needed by reload endpoint
 
         with patch("backend.routers.cts_deps.settings", mock_settings):
             transport = ASGITransport(app=app)

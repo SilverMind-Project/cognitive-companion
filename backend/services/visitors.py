@@ -113,9 +113,7 @@ class VisitorAdminService:
         created = False
         if existing is None:
             try:
-                insert_household_member(
-                    db, id=person_id, name=result.member_name, is_guest=True
-                )
+                insert_household_member(db, id=person_id, name=result.member_name, is_guest=True)
                 created = True
             except SQLAlchemyError as exc:
                 logger.exception(

@@ -188,7 +188,7 @@ class AudioSessionHandler:
 
         # Bridge orchestrator prompts from the connection-manager queue into
         # _client_to_backend continuously, so that prompt arrivals can wake
-        # _wait_for_activity() even before a session is open.
+        # _wait_for_activity even before a session is open.
         async def _bridge_prompts() -> None:
             while True:
                 item = await self.manager.prompt_queue.get()

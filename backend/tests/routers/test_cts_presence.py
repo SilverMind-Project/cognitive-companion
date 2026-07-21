@@ -18,7 +18,7 @@ from backend.services.presence import (
 )
 from backend.tests.routers.conftest import CTS_PRESENCE_AUTH as AUTH
 
-# M16: the presence routes now require cts.presence.view.
+# the presence routes now require cts.presence.view.
 pytestmark = pytest.mark.usefixtures("cts_presence_keystore")
 
 # ---------------------------------------------------------------------------

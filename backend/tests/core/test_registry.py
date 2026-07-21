@@ -120,4 +120,6 @@ class TestRealRegistries:
             for method_name in dir(registry):
                 method = getattr(registry, method_name)
                 if callable(method) and hasattr(method, "__doc__") and method.__doc__:
-                    assert "deprecated alias" not in method.__doc__, f"{registry.__name__}.{method_name} still has deprecated alias"
+                    assert "deprecated alias" not in method.__doc__, (
+                        f"{registry.__name__}.{method_name} still has deprecated alias"
+                    )

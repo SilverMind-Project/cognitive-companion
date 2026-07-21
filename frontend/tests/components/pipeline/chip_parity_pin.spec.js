@@ -3,7 +3,7 @@ import { buildStepDetailChips } from "@/components/pipeline/steps/index.js";
 
 // Pins buildStepDetailChips' output, one representative config per step type that has a
 // chip-producing block, BEFORE it is split into per-step chips(cfg, helpers) functions
-// co-located in each step's *Config.vue (backend-hardening-m14 task 8). This spec must not
+// co-located in each step's *Config.vue (backend-hardening-task 8). This spec must not
 // change in the same commit as that refactor; a green, unmodified run here is the mechanical
 // check that the move was behavior-preserving.
 

@@ -1,7 +1,7 @@
 /**
- * useMaraudersMode — public API over the `ui` Pinia store (M18).
+ * useMaraudersMode() — public API over the `ui` Pinia store.
  *
- * The state itself lives in the store; this composable exists because `useTheme()` must run in a
+ * The state itself lives in the store; this composable exists because useTheme() must run in a
  * setup context. It acquires the Vuetify theme binding on the first component that uses it and
  * hands it to the store's `init(theme)`, which is idempotent.
  *

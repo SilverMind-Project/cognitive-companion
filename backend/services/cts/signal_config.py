@@ -71,4 +71,5 @@ def default_config_for_profile(profile: str) -> dict[str, Any]:
     kinds = SIGNAL_PROFILE_KINDS.get(profile, ALL_SIGNAL_KINDS)
     return {"enabled_kinds": list(kinds), "min_severity": "info"}
 
+
 # Tests moved to test suite, but leaving function definitions intact.

@@ -7,7 +7,7 @@
  * - removeStep() removes a step and re-indexes ords
  * - moveStep() swaps steps and re-indexes
  * - updateStep() merges fields without mutation
- * - saveSteps() calls replaceRoutineSteps with current steps
+ * - saveSteps() calls replaceRoutineSteps() with current steps
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount, flushPromises } from "@vue/test-utils";

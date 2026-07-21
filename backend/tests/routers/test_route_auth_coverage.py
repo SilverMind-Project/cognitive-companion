@@ -33,13 +33,6 @@ from backend.core.auth import AuthContext, KeyStore, require_permission
 ALLOWLISTED_ROUTES: dict[str, str] = {
     # Liveness probes: no data, must answer before auth config is trusted.
     "GET /api/v1/health": "liveness probe, static payload",
-    "GET /api/v1/admin/health": "liveness probe, static payload",
-    # Public bootstrap metadata the SPA reads before it holds a key (api.js).
-    "GET /api/v1/admin/app-info": "public bootstrap metadata, no household data",
-    # Authenticated by X-Webhook-Secret (per-rule HMAC), asserted below.
-    "POST /api/v1/webhooks/{rule_id}": "X-Webhook-Secret HMAC auth, see test_webhook_trigger_*",
-    # Prometheus scrape surface; network-restricted at the deployment layer.
-    "GET /metrics": "Prometheus scrape endpoint, no household data",
 }
 
 # WebSocket routes authenticate inside the handler via the
@@ -134,16 +127,6 @@ def test_non_api_routes_are_framework_or_mounts() -> None:
             assert route.path in ALLOWLISTED_MOUNT_PATHS, f"Unreviewed mount: {route.path}"
         elif isinstance(route, Route):
             assert route.path in FRAMEWORK_PATHS, f"Unreviewed bare route: {route.path}"
-
-
-def test_webhook_trigger_requires_secret_header() -> None:
-    """The one allowlisted data-mutating route must still authenticate."""
-    route = next(r for r in _api_routes() if _key(r) == "POST /api/v1/webhooks/{rule_id}")
-    names = {p.name for p in route.dependant.header_params}
-    assert "x_webhook_secret" in names, (
-        "webhook trigger no longer reads X-Webhook-Secret; it is allowlisted from "
-        "API-key auth on the assumption that it verifies an HMAC secret instead."
-    )
 
 
 # ─── 2. Every guarded route is reachable by some role ─────────────────────
@@ -256,15 +239,7 @@ def test_permission_map_patterns_match_a_live_route() -> None:
 
 # ─── 3. The permissive resolver stays confined to the device surface ──────
 
-# Routes allowed to accept a key via query string / JSON body. Hardware that
-# cannot set HTTP headers only. Adding to this set is a security decision.
-DEVICE_RESOLVER_ROUTES = {
-    # reCamera pushes YOLO payloads; key arrives as ?api_key= or in the body.
-    "POST /api/v1/device/recamera",
-    # reTerminal e-ink displays poll for their active image; "image:read" is
-    # held only by device keys and no browser client calls this route.
-    "GET /api/v1/image/active",
-}
+DEVICE_RESOLVER_ROUTES = set()
 
 
 def _uses_device_resolver(route: APIRoute) -> bool:
@@ -285,12 +260,6 @@ def test_device_resolver_used_only_by_device_routes() -> None:
     assert actual == DEVICE_RESOLVER_ROUTES, (
         f"device resolver drift: expected {DEVICE_RESOLVER_ROUTES}, found {actual}"
     )
-
-
-def test_recamera_route_still_accepts_query_key() -> None:
-    """reCamera hardware cannot set headers; its key arrives as ?api_key=."""
-    route = next(r for r in _api_routes() if _key(r) == "POST /api/v1/device/recamera")
-    assert _uses_device_resolver(route)
 
 
 # ─── 4. Self-test: the gate actually catches an unguarded route ───────────

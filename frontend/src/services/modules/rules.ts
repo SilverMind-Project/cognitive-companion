@@ -1,7 +1,7 @@
 /**
  * Rules domain: rules, their steps/edges, contexts, dependencies, cron triggers, import/export.
  *
- * Method names and return shapes match the pre-M17 `api.js` exactly; `api.js` re-exports these
+ * Method names and return shapes match the pre-`api.js` exactly; `api.js` re-exports these
  * under the same names, so views are unchanged. Params go through the typed client rather than
  * string interpolation, so path/query encoding is handled once, correctly.
  */

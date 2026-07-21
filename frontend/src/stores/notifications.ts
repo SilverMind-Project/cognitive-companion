@@ -1,9 +1,9 @@
 /**
- * Notification queue — the app's single source of user feedback (M18, closes the C14 defect).
+ * Notification queue — the app's single source of user feedback (closes the defect).
  *
- * Before this store, `useNotify()` minted a *fresh* set of refs on every call, so it was a
+ * Before this store, useNotify() minted a *fresh* set of refs on every call, so it was a
  * factory wearing a singleton's clothes. A view bound its `<v-snackbar>` to its own instance's
- * refs; a shared composable calling `useNotify().notify.error(...)` wrote to refs no template
+ * refs; a shared composable calling useNotify().notify.error(...) wrote to refs no template
  * rendered, and the message vanished. Errors raised inside composables were silently dropped.
  *
  * One store, one queue, one renderer (`CcSnackbarHost` in `App.vue`): a message is visible no

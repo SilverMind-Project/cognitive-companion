@@ -1,7 +1,7 @@
 /**
- * Visitor cluster admin surface (identity-continuity M07).
+ * Visitor cluster admin surface.
  *
- * Proxies person-identification-service's visitor clustering API (M06) through the CC BFF.
+ * Proxies person-identification-service's visitor clustering API through the CC BFF.
  * Naming a cluster is a two-system transaction (face-service member + CC household member);
  * dismiss and merge only affect the review queue.
  */

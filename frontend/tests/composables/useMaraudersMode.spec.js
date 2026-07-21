@@ -107,7 +107,7 @@ describe("useMaraudersMode", () => {
   });
 
   it("shared state: two useMaraudersMode() callers observe each other's changes", async () => {
-    // Identity (r1.state === r2.state) is deliberately not asserted: since M18 the state lives in
+    // Identity (r1.state === r2.state) is deliberately not asserted: since the state lives in
     // the `ui` store and each call returns its own reactive view of it, so the objects differ
     // while the state behind them is shared. Sharing is the guarantee that matters -- it is what
     // makes two mounted components agree on the theme -- so it is asserted directly, both ways.

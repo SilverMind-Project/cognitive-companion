@@ -122,7 +122,7 @@
 
         <!-- ReID verify gate: only when the server marks the crop eligible.
              The producing side (eligibility + quality reasons) lands with the
-             M09 ReID review queue; until then no eligible flag is returned, so
+             ReID review queue; until then no eligible flag is returned, so
              the action stays hidden. Client-side override is never allowed. -->
         <div v-if="reidVerification" class="mb-3">
           <v-checkbox

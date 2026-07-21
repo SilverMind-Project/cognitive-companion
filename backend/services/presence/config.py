@@ -31,9 +31,7 @@ class LocationServiceProviderConfig(BaseModel):
 
     name: Literal["location_service"] = "location_service"
     confidence_floor: float = 0.0
-    ttl_seconds_by_source: dict[SourceTag, int] = Field(
-        default_factory=_default_ttl_by_source
-    )
+    ttl_seconds_by_source: dict[SourceTag, int] = Field(default_factory=_default_ttl_by_source)
     priority: int = 50
 
 

@@ -157,7 +157,10 @@ class TestMutations:
         ctx = MagicMock()
         ctx.__aenter__ = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
         ctx.__aexit__ = AsyncMock(return_value=False)
-        with patch(_HTTPX_TARGET, return_value=ctx), pytest.raises(PersonIDUpstreamError) as exc_info:
+        with (
+            patch(_HTTPX_TARGET, return_value=ctx),
+            pytest.raises(PersonIDUpstreamError) as exc_info,
+        ):
             await client.list_visitor_clusters()
         assert exc_info.value.status == 504
 
@@ -168,6 +171,9 @@ class TestMutations:
         ctx = MagicMock()
         ctx.__aenter__ = AsyncMock(side_effect=httpx.ConnectError("refused"))
         ctx.__aexit__ = AsyncMock(return_value=False)
-        with patch(_HTTPX_TARGET, return_value=ctx), pytest.raises(PersonIDUpstreamError) as exc_info:
+        with (
+            patch(_HTTPX_TARGET, return_value=ctx),
+            pytest.raises(PersonIDUpstreamError) as exc_info,
+        ):
             await client.list_visitor_clusters()
         assert exc_info.value.status == 502

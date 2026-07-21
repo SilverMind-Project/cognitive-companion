@@ -617,7 +617,7 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("GET", "/ph/revisions", params=params)
         return r.json()
 
-    # -- M08 segment correction (propose / apply / compensate / job) ----------
+    # -- segment correction (propose / apply / compensate / job) ----------
 
     async def propose_segment(
         self,
@@ -650,7 +650,7 @@ class OrchestratorClient(UpstreamClient):
         r = await self._request("GET", f"/internal/corrections/jobs/{revision_id}")
         return r.json()
 
-    # -- M09 ReID review queue ------------------------------------------------
+    # -- ReID review queue ------------------------------------------------
 
     async def list_review_candidates(self, params: dict[str, str]) -> dict:
         r = await self._request("GET", "/internal/reid-review/candidates", params=params)

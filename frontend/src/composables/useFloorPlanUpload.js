@@ -39,9 +39,9 @@ export function useFloorPlanUpload(notify, floorPlanUrl, fpWidth, fpHeight, fpMp
   const scaleImgEl = ref(null);
   const scaleImgRect = ref(null);
   // C19 fix: this must be a ref, not a plain variable. scalePickerImageUrl below reads it
-  // inside a computed(); a plain `let` is never tracked, so selecting a new file never
+  // inside a computed; a plain `let` is never tracked, so selecting a new file never
   // invalidated the computed's cache and the preview kept showing the previously-saved
-  // floor plan. Confirmed via `git stash` that this bug predates the M21 refactor.
+  // floor plan. Confirmed via `git stash` that this bug predates the refactor.
   const _uploadBlobUrl = ref(null); // blob URL lifecycle managed manually
   let _originalFile = null; // pre-crop File object, kept for reset (never read reactively)
   let _resizeObserver = null; // keeps scaleImgRect current on resize

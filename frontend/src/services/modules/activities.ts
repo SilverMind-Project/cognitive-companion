@@ -22,7 +22,7 @@ export const getTimeline = (personId: string, params: Omit<TimelineParams, "pers
 
 // ─── Sessions ──────────────────────────────────────────────────────────────
 //
-// These endpoints take *query* parameters, not a JSON body. The pre-M17 client sent a body and
+// These endpoints take *query* parameters, not a JSON body. The pre-client sent a body and
 // no query string, so every call was a guaranteed 422 -- invisible because nothing calls these
 // two today. Migrated to the real contract rather than preserving the broken call.
 
@@ -65,7 +65,7 @@ export const getDailyReport = (personId: string, date: string, params: ReportPar
  * has been answering 405 and failing silently in `DailyReportCard.vue` -- the typed client is
  * what surfaced it. The endpoint deleting and rebuilding a report behind a GET is its own
  * problem (unsafe/non-idempotent verb, prefetchable); fixing the verb is a backend contract
- * change and is filed separately rather than smuggled into M17.
+ * change and is filed separately rather than smuggled into this change.
  */
 export const regenerateDailyReport = (
   personId: string,

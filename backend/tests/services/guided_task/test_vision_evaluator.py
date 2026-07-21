@@ -172,8 +172,6 @@ async def test_confirm_profile_resolved_via_precedence(monkeypatch) -> None:
     assert profile.min_confidence == 0.8
     assert profile.model_id == "global-model"
 
-
-
     # 3. Test step override
     runner = FakeGateGraphRunner()
     evaluator = VisionEvaluator(

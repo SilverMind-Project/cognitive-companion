@@ -54,7 +54,7 @@ describe("notifications store", () => {
   });
 
   it("renders a message raised by a non-component module (C14 regression)", async () => {
-    // The defect: useNotify() used to mint fresh refs per call, so a message raised here -- in a
+    // The defect: useNotify used to mint fresh refs per call, so a message raised here -- in a
     // plain module, not the component owning the snackbar -- was written to refs no template
     // rendered and the user never saw it. This fails against the old implementation.
     const host = mountHost();

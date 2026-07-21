@@ -1,7 +1,7 @@
 /**
  * Kiosk mode — deliberately NOT a Pinia store.
  *
- * Audited during M18 and left as a composable. Unlike blur mode and marauders mode, this state
+ * Audited during and left as a composable. Unlike blur mode and marauders mode, this state
  * is per-instance, not app-wide: every call builds its own `reactive` from injected
  * dependencies (route, apiClient, storage, wakeLock, document, heartbeat interval), and it owns
  * mount-scoped resources -- a wake lock and a heartbeat timer -- that belong to the gate that

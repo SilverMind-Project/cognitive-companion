@@ -26,7 +26,7 @@ import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { api } from "../../../../services/api.js";
 
-// Global base theme for autocomplete tooltips. EditorView.baseTheme() injects
+// Global base theme for autocomplete tooltips. EditorView.baseTheme injects
 // styles without a scoped class prefix so they reach tooltip elements placed in
 // document.body (outside the editor root) by tooltips({ parent: document.body }).
 // CM6's StyleModule deduplicates these, so multiple TemplateInput instances
@@ -80,7 +80,7 @@ const view = shallowRef(null);
 // Initial container height is derived from rows. After mount the user can drag
 // to resize (multiline only). CM6 fills the container via height: 100%.
 const ROW_HEIGHT_PX = 24; // matches lineHeight 1.6 × fontSize 14px ≈ 22.4, rounded up
-const PADDING_PX = 16; // 8px top + 8px bottom from .cm-content
+const PADDING_PX = 16; // 8px top + 8px bottom from.cm-content
 
 const containerStyle = computed(() => {
   if (!props.multiline) return {};
@@ -151,7 +151,7 @@ function autocompleteSource(context) {
   const pos = context.pos;
   const text = context.state.doc.toString();
 
-  // Determine if the cursor is inside an open {{ ... }}
+  // Determine if the cursor is inside an open {{... }}
   let braceStart = -1;
   for (let i = pos - 1; i >= 0; i--) {
     if (text[i] === "{" && i > 0 && text[i - 1] === "{") {
@@ -178,7 +178,7 @@ function autocompleteSource(context) {
     return null;
   }
 
-  // Inside {{ ... }}: offer filtered completions based on what's typed so far
+  // Inside {{... }}: offer filtered completions based on what's typed so far
   const insideText = text.slice(braceStart, pos);
   const lastDot = insideText.lastIndexOf(".");
   const partial = lastDot >= 0 ? insideText.slice(lastDot + 1) : insideText;

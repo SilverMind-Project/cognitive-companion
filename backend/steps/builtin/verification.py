@@ -112,7 +112,6 @@ class VerificationHandler(StepHandler):
             "sensor_id": trigger.sensor_id or "",
         }
 
-
         if not conditions:
             logger.info("verification_no_conditions")
             return StepResult(

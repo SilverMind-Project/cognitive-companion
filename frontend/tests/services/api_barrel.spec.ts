@@ -1,7 +1,7 @@
 /**
- * Barrel pin (M17).
+ * Barrel pin.
  *
- * M17 migrates `api.js`'s ~150 methods onto the typed client over two PRs (17a: rules, pipeline,
+ * migrates `api.js`'s ~150 methods onto the typed client over two PRs (17a: rules, pipeline,
  * workflows; 17b: everything else). The migration is mechanical and therefore easy to silently
  * drop a method from -- and a dropped method is not a type error anywhere, it is a runtime
  * `api.foo is not a function` in whichever view happened to call it.

@@ -49,7 +49,7 @@ _container_name: str | None = None
 # pool -- regardless of which fixture initiated it. ``_truncate_tables``
 # reads and clears this flag instead of gating on fixture names, so a
 # TestClient dependency override or a service built with its own
-# ``sessionmaker(bind=db_engine, ...)`` cannot silently bypass cleanup.
+# ``sessionmaker(bind=db_engine,...)`` cannot silently bypass cleanup.
 _db_engine_touched = False
 
 

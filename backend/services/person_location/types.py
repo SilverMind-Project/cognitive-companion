@@ -50,7 +50,7 @@ class LocationObservation:
     confidence: float = 0.5
     quality: float = 0.0  # PH mean_quality from CTS snapshot
     metadata: dict[str, object] = field(default_factory=dict)
-    # Resolved from the rooms table by ObservationRepository.latest_observation()
+    # Resolved from the rooms table by ObservationRepository.latest_observation
     # only; every other read path leaves this None (room_id is the durable
     # identity, this is a display-name convenience for that one query).
     room_name: str | None = None
@@ -69,7 +69,7 @@ class PresenceSegment:
     quality: float = 0.0  # PH mean_quality from CTS wire
     last_observed_at: datetime | None = None
     superseded_by: UUID | None = None
-    # identity-continuity M05: set only for segments inserted by the Unknown
+    # set only for segments inserted by the Unknown backfill
     # backfill projector; None for every ordinary segment. Backed by a
     # partial unique index on (backfill_revision_id, entered_at).
     backfill_revision_id: str | None = None

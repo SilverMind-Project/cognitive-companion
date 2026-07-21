@@ -101,16 +101,36 @@ class VisionEvaluator:
                 default=default,
             )
 
-        window_s = resolve_val(confirm_cfg.window_s if confirm_cfg else None, "guided_task.vision.confirm.window_s", float, 20.0)
-        max_frames = resolve_val(confirm_cfg.max_frames if confirm_cfg else None, "guided_task.vision.confirm.max_frames", int, 9)
+        window_s = resolve_val(
+            confirm_cfg.window_s if confirm_cfg else None,
+            "guided_task.vision.confirm.window_s",
+            float,
+            20.0,
+        )
+        max_frames = resolve_val(
+            confirm_cfg.max_frames if confirm_cfg else None,
+            "guided_task.vision.confirm.max_frames",
+            int,
+            9,
+        )
         max_cameras = resolve_val(None, "guided_task.vision.max_cameras", int, 3)
         min_confidence = resolve_val(
-            confirm_cfg.min_confidence if confirm_cfg else None, "guided_task.vision.confirm.min_confidence", float, 0.7
+            confirm_cfg.min_confidence if confirm_cfg else None,
+            "guided_task.vision.confirm.min_confidence",
+            float,
+            0.7,
         )
         min_interval_s = resolve_val(
-            confirm_cfg.min_interval_s if confirm_cfg else None, "guided_task.vision.confirm.min_interval_s", float, 15.0
+            confirm_cfg.min_interval_s if confirm_cfg else None,
+            "guided_task.vision.confirm.min_interval_s",
+            float,
+            15.0,
         )
-        model_id = resolve_val(confirm_cfg.model_id if confirm_cfg else None, "guided_task.vision.confirm.model_id", str)
+        model_id = resolve_val(
+            confirm_cfg.model_id if confirm_cfg else None,
+            "guided_task.vision.confirm.model_id",
+            str,
+        )
 
         confirm_profile = GateProfile(
             name="confirm",

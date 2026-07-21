@@ -85,7 +85,7 @@ class GalleryUpdateService:
             await self._orchestrator_client.add_gallery_crop(
                 payload={"crop_bytes": crop_bytes, "identity_id": identity_id}
             )
-        except (UpstreamError, UpstreamTimeout, UpstreamUnavailable):
+        except UpstreamError, UpstreamTimeout, UpstreamUnavailable:
             logger.exception(
                 "gallery_crop_submit_error",
                 annotation_id=bbox.id,

@@ -1,5 +1,5 @@
 /**
- * M09: the ReID review-queue composable.
+ * the ReID review-queue composable.
  *
  * Owns the review queue lifecycle for `CTSReIDReviewView`: paginated/filtered
  * candidate list, selection, the detail drawer, the approve/relabel/reject/

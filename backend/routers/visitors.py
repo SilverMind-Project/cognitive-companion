@@ -1,4 +1,4 @@
-"""Visitor cluster admin routes (identity-continuity M07, browser-facing BFF).
+"""Visitor cluster admin routes (browser-facing BFF).
 
 Every route is gated by ``require_token("visitors.review")``, a strict token
 check that ignores the broad ``GET /api/v1/*`` role glob (the same pattern
@@ -104,9 +104,7 @@ async def name_cluster(
     _auth=Depends(require_token(_VISITORS_REVIEW)),
 ) -> NameVisitorResponse:
     try:
-        result = await svc.name_cluster(
-            cluster_id, person_id=body.person_id, name=body.name, db=db
-        )
+        result = await svc.name_cluster(cluster_id, person_id=body.person_id, name=body.name, db=db)
     except PersonIDUpstreamError as exc:
         raise _raise_for_upstream(exc) from exc
     except VisitorPartialFailureError as exc:

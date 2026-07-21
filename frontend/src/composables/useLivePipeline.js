@@ -1,7 +1,7 @@
 /**
  * useLivePipeline — live pipeline execution feed (U5 W3).
  *
- * A thin acquire/release wrapper over the pipelineEvents store (M18). The store owns the
+ * A thin acquire/release wrapper over the pipelineEvents store. The store owns the
  * /ws/pipeline socket, so N mounted consumers now share one connection instead of opening one
  * each; this composable holds a reference for the calling component's lifetime and releases it
  * on unmount.

@@ -11,7 +11,7 @@ from prometheus_client import Counter, Histogram
 SIGNAL_KIND_LABEL = "signal_kind"
 EVENT_TYPE_LABEL = "event_type"
 
-# -- M09 ReID review-queue metrics --------------------------------------------
+# -- ReID review-queue metrics --------------------------------------------
 
 REVIEW_ACTION_LABEL = "action"  # approve | relabel | reject | reject_batch | compensate
 
@@ -116,7 +116,7 @@ cts_revisions_dropped = Counter(
     "Total tracking.revisions messages dropped.",
 )
 
-# -- Identity-continuity M05 backfill projector counters ----------------------
+# -- Backfill projector counters ----------------------
 
 BACKFILL_OUTCOME_LABEL = (
     "outcome"  # applied | skipped_duplicate | dropped_invalid | overlap_skipped

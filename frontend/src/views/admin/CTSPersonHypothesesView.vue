@@ -535,7 +535,7 @@ export default {
     // refresh or returning to this tab later doesn't reopen the same inspector.
     //
     // The query strip must happen BEFORE opening the drawer, not after: VNavigationDrawer
-    // has a built-in `watch(router.currentRoute, () => isTemporary.value && (isActive.value
+    // has a built-in watch(router.currentRoute, () => isTemporary.value && (isActive.value
     // = false))` (vuetify/lib/components/VNavigationDrawer/VNavigationDrawer.js) that force
     // -closes any temporary drawer on every route change, including a query-only replace.
     // Opening the drawer and then stripping the query immediately closed it again the

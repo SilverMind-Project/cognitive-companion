@@ -81,7 +81,7 @@ class PersonDetection:
     recognition_state: str = "recognized"
     similarity: float = 0.0
     yaw_deg: float = 0.0
-    # M09: calibrated confidence, trusted only when the service reports
+    # calibrated confidence, trusted only when the service reports
     # calibration_status == "ready" (see _resolve_calibrated_confidence).
     # None means no trustworthy calibration; never a raw-similarity fallback.
     calibrated_confidence: float | None = None

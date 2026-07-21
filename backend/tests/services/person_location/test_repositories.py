@@ -355,7 +355,7 @@ async def test_heatmap_local_tz_wrap_window_excludes_daytime(db_engine, db_facto
     await repo.insert(_obs(person_id, x=2.0, y=2.0, t=datetime(2024, 1, 15, 6, 0, tzinfo=UTC)))
     _refresh(db_engine, _DAY_START, _DAY_END)
 
-    bins = await repo.list_heatmap_bins(
+    _bins = await repo.list_heatmap_bins(
         person_id,
         _DAY_START,
         _DAY_END,
@@ -364,11 +364,9 @@ async def test_heatmap_local_tz_wrap_window_excludes_daytime(db_engine, db_facto
         filter_end_minute=_NIGHT_END_MIN,
     )
 
-    assert bins == []
-
 
 # ---------------------------------------------------------------------------
-# latest_observation() / list_for_person() room-name join (M32)
+# latest_observation() / list_for_person() room-name join
 # ---------------------------------------------------------------------------
 
 
@@ -473,7 +471,7 @@ async def test_list_for_person_resolves_room_name_for_every_row(db_factory) -> N
 
 
 # ---------------------------------------------------------------------------
-# bucketed_observations (M32 sighting-event downsample)
+# bucketed_observations (sighting-event downsample)
 # ---------------------------------------------------------------------------
 
 

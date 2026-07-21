@@ -1,5 +1,5 @@
 /**
- * App-info lifecycle (M18).
+ * App-info lifecycle.
  *
  * Owns the *fetch* of the operator-configured app info at startup; `services/timezone.js` stays
  * the formatting engine. That split is deliberate: timezone.js reads localStorage on every
@@ -14,6 +14,7 @@ import { ref } from "vue";
 
 import { getAppInfo } from "@/services/modules/admin";
 import { getAppTimezone, initTimezone } from "@/services/timezone.js";
+import { useNotify } from "@/composables/useNotify";
 
 export const useAppConfigStore = defineStore("appConfig", () => {
   const timezone = ref<string>(getAppTimezone());
@@ -25,7 +26,7 @@ export const useAppConfigStore = defineStore("appConfig", () => {
    * Fetch app info and hand the timezone to timezone.js.
    *
    * Never throws: a backend that is down at page load must not block the mount. The formatters
-   * then fall back to the last cached value (or UTC), which is the pre-M18 behavior.
+   * then fall back to the last cached value (or UTC), which is the pre-refactor behavior.
    */
   async function bootstrap(): Promise<void> {
     try {
@@ -36,7 +37,8 @@ export const useAppConfigStore = defineStore("appConfig", () => {
       appVersion.value = info.version;
       loaded.value = true;
     } catch (e) {
-      console.warn("Failed to fetch app-info; timezone defaults to", getAppTimezone(), e);
+      const { notify } = useNotify();
+      notify.warning(`Failed to fetch app-info; timezone defaults to ${getAppTimezone()}`);
     }
   }
 

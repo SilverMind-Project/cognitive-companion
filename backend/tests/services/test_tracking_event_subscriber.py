@@ -146,8 +146,6 @@ class TestHandle:
         ok = await sub.handle(event)
         assert ok is True
 
-
-
     def test_world_snapshot_omits_posterior_when_probability_is_zero(self, subscriber):
         sub, _ = subscriber
         phs = sub._build_ph_entries(
@@ -211,7 +209,6 @@ class TestHandleWithBroadcast:
             async def broadcast(self, payload: dict) -> None:
                 broadcasts.append(payload)
 
-
         sub = TrackingEventSubscriber(
             redis_url="redis://localhost:6379",
             consumer_id="test",  # type: ignore[arg-type]
@@ -236,7 +233,6 @@ class TestHandleWithBroadcast:
         class _StubWS:
             async def broadcast(self, payload: dict) -> None:
                 broadcasts.append(payload)
-
 
         sub = TrackingEventSubscriber(
             redis_url="redis://localhost:6379",

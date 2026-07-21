@@ -165,7 +165,7 @@ class NightAnchorProvider:
                 return None
 
         # Step 3: Last known room must be in the require list. Sourced from
-        # the latest observation, not where_is()'s open segment: a full
+        # the latest observation, not where_is's open segment: a full
         # night's sleep can exceed inferred_dwell_max_s with no new camera
         # evidence, closing the segment exactly when the anchor needs it.
         obs = await self._location.latest_observation(person_id)

@@ -7,7 +7,7 @@ import pytest
 from backend.core import auth as auth_module
 from backend.core.auth import KeyStore
 
-# M16: the CTS presence routes require cts.presence.view. Modules that build a
+# the CTS presence routes require cts.presence.view. Modules that build a
 # bare app around those routers opt in with:
 #
 #     pytestmark = pytest.mark.usefixtures("cts_presence_keystore")

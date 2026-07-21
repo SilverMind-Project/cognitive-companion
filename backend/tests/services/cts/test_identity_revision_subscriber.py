@@ -158,7 +158,7 @@ async def test_handle_supersedes_a_real_segment_through_a_real_person_location_s
     location_service = PersonLocationService(
         InMemoryObservationRepository(), InMemorySegmentRepository(), PersonLocationConfig()
     )
-    # Seed a backfilled segment (the supersession-interaction case M05's
+    # Seed a backfilled segment (the supersession-interaction case's
     # design specifically calls out), not just an ordinary live one.
     await location_service.ingest_backfill_segments(
         revision_id="rev-original-backfill",

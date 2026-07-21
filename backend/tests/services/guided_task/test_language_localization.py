@@ -283,7 +283,7 @@ async def test_summon_defaults_to_household_language_when_no_routine_override(
 
     await svc._announce_summon(session=session, routine=routine, room_name="kitchen", broad=False)
 
-    # tts.default_language is "ta" in _settings()
+    # tts.default_language is "ta" in _settings
     assert dispatcher.calls[0]["message"] == "ta-summon-text"
     assert dispatcher.calls[0]["rule_config"]["tts_language"] == "ta"
 
@@ -321,7 +321,7 @@ async def test_auto_advance_prefix_is_agent_instruction(db_factory, db_session) 
 def test_no_hardcoded_english_summon_or_prefix_literal_in_service() -> None:
     import inspect
 
-    # M29 moved the summon announcement into summon.py and the watch
+    # moved the summon announcement into summon.py and the watch
     # auto-advance prefix into watch.py; guard the modules that actually
     # own this logic now; otherwise this regression guard goes vacuous.
     from backend.services.guided_task import summon as summon_module

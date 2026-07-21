@@ -4,7 +4,7 @@
  * `getPipelineRuns` is for lightweight live and recent-run lists only. For inspector data use
  * `getWorkflowDetail` in `modules/workflows.ts` -- that is the detail contract.
  *
- * The metadata endpoints back the authoring palette. `vocabularies.json` (M14) is the
+ * The metadata endpoints back the authoring palette. `vocabularies.json` is the
  * synchronous fallback for code that cannot await a network call; these are the live source.
  */
 

@@ -48,7 +48,7 @@ describe("main.js bootstrap", () => {
   });
 
   // `import("@/main.js")` cold-loads the whole app entry (router, Pinia, Vuetify,
-  // ECharts, vue-flow, ...); `deps.server.inline` for Vuetify (see vite.config.js)
+  // ECharts, vue-flow,...); `deps.server.inline` for Vuetify (see vite.config.js)
   // means that graph is transformed on the fly rather than pre-bundled. That is
   // fast in isolation but can exceed the 5s default test timeout under full-suite
   // parallel CPU contention. The generous timeout here is a concession to that

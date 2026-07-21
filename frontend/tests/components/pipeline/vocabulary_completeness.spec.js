@@ -4,8 +4,8 @@ import { knownSignalKinds, stepConfigMap } from "@/components/pipeline/steps/ind
 import { STEP_DOT_COLORS } from "@/components/pipeline/steps/stepMeta.js";
 
 // STEP_DOT_COLORS is pure presentation (frontend-owned, not generated); these step types
-// intentionally have no dedicated dot color and fall back to stepDotColor()'s "primary"
-// default (backend-hardening-m14 task 7).
+// intentionally have no dedicated dot color and fall back to stepDotColor's "primary"
+// default (backend-hardening-task 7).
 const STEP_DOT_COLOR_FALLBACK_EXEMPT = new Set(["guided_task_start", "quiz_start"]);
 
 describe("vocabulary completeness: step types", () => {

@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     # overwritten by whichever branch below runs -- matching main.py's own
     # pre-branch defaults (harmless: nothing reads them in between).
     # person_location_service is NOT included: perception.wire_perception
-    # already constructed it unconditionally (M38 Part A), and neither
+    # already constructed it unconditionally, and neither
     # branch below may null it back out.
     cts_runtime = None
     app.state.ph_enrichment_service = None
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     else:
         cts.wire_cts_disabled(app)
 
-    # -- PresenceService (M39 Part B: un-gated from cts.enabled) ------------
+    # -- PresenceService (un-gated from cts.enabled) ------------
     from backend.bootstrap.presence import wire_presence
 
     await wire_presence(app, settings, container)

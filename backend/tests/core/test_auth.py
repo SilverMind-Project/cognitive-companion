@@ -285,7 +285,7 @@ class TestGetAuthContextIntegration:
         assert r.status_code == 401
 
 
-# ─── Declared-token startup contract (M16) ────────────────────────────────
+# ─── Declared-token startup contract  ────────────────────────────────
 
 
 class TestAssertDeclaredTokensKnown:
@@ -321,7 +321,7 @@ class TestAssertDeclaredTokensKnown:
         assert {"some:token", "other:token"} <= auth_module._DECLARED_TOKENS
 
 
-# ─── Checker marker + resolver plumbing (M16) ─────────────────────────────
+# ─── Checker marker + resolver plumbing  ─────────────────────────────
 
 
 class TestCheckerMarker:
@@ -375,7 +375,7 @@ class TestResolverPlumbing:
         assert client.post("/thing?api_key=ADMIN").status_code == 200
 
 
-# ─── Denial logging (M16) ─────────────────────────────────────────────────
+# ─── Denial logging  ─────────────────────────────────────────────────
 
 
 class TestAuthDeniedLogging:

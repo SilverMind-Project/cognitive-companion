@@ -74,7 +74,9 @@ def estimate_camera_marker(
 
     heading_deg = None
     if center_w3 * sign_ref > 0:
-        center_proj = h @ np.array([image_width / 2.0, float(image_height) / 2.0, 1.0], dtype=np.float64)
+        center_proj = h @ np.array(
+            [image_width / 2.0, float(image_height) / 2.0, 1.0], dtype=np.float64
+        )
         center_m = center_proj[:2] / center_proj[2]
         cx_norm = float(center_m[0] / floor_plan_width_m)
         cy_norm = float(center_m[1] / floor_plan_height_m)
@@ -234,9 +236,7 @@ def compute_visibility_from_homography(
             boundary.extend(_densify_edge(p0, p1, image_width, image_height))
     else:
         _log.warning("visibility_polygon_no_floor_region")
-        boundary_norm = floor_side_boundary(
-            matrix, image_width, image_height, _HORIZON_MARGIN_PX
-        )
+        boundary_norm = floor_side_boundary(matrix, image_width, image_height, _HORIZON_MARGIN_PX)
         if boundary_norm is None:
             return VisibilityResult(None, "no_floor_side")
 
@@ -244,7 +244,9 @@ def compute_visibility_from_homography(
         n = len(boundary_norm)
         for i in range(n):
             boundary.extend(
-                _densify_edge(boundary_norm[i], boundary_norm[(i + 1) % n], image_width, image_height)
+                _densify_edge(
+                    boundary_norm[i], boundary_norm[(i + 1) % n], image_width, image_height
+                )
             )
 
     if not boundary:
@@ -285,12 +287,9 @@ def compute_visibility_from_homography(
 
     # Shapely intersection with floor-plan rectangle + 5% buffer
     buf = 0.05
-    fp_rect = ShapelyPolygon([
-        (-buf, -buf),
-        (1.0 + buf, -buf),
-        (1.0 + buf, 1.0 + buf),
-        (-buf, 1.0 + buf)
-    ])
+    fp_rect = ShapelyPolygon(
+        [(-buf, -buf), (1.0 + buf, -buf), (1.0 + buf, 1.0 + buf), (-buf, 1.0 + buf)]
+    )
 
     pts_norm = np.column_stack((x_norm, y_norm))
     poly = ShapelyPolygon(pts_norm)
@@ -302,7 +301,7 @@ def compute_visibility_from_homography(
     if intersection.is_empty:
         return VisibilityResult(None, "no_floor_side")
 
-    if intersection.geom_type == 'MultiPolygon':
+    if intersection.geom_type == "MultiPolygon":
         largest_area = -1.0
         best_poly = None
         for p in intersection.geoms:
@@ -310,13 +309,10 @@ def compute_visibility_from_homography(
                 largest_area = p.area
                 best_poly = p
         intersection = best_poly
-    elif intersection.geom_type != 'Polygon':
+    elif intersection.geom_type != "Polygon":
         return VisibilityResult(None, "no_floor_side")
 
     coords = list(intersection.exterior.coords)
-    polygon = [
-        [round(float(x), 4), round(float(y), 4)]
-        for x, y in coords[:-1]
-    ]
+    polygon = [[round(float(x), 4), round(float(y), 4)] for x, y in coords[:-1]]
 
     return VisibilityResult(polygon, None)

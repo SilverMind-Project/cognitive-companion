@@ -241,6 +241,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/daily-living-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Daily Living Health Endpoint
+         * @description Return semantic-memory write recency and activity-ledger population.
+         *
+         *     503 only if the service itself is unwired (see ``get_daily_living_health``);
+         *     an unreachable upstream semantic-memory service is a degraded 200
+         *     (``semantic_memory.reachable=False``, ``stale=True``), not an error, per
+         *     the platform's optional-integration degradation contract.
+         */
+        get: operations["daily_living_health_endpoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/health": {
         parameters: {
             query?: never;
@@ -1565,7 +1590,7 @@ export interface paths {
         };
         /**
          * List Keyframes
-         * @description List keyframes grouped into one card per physical source frame.
+         * @description List keyframes grouped into one card per physical source frame (M07).
          *
          *     Each card carries every visible bbox with server-owned effective identity,
          *     a card summary, and explicit Unknown/conflict/pending counts. Filtering and
@@ -4410,7 +4435,7 @@ export interface paths {
         };
         /**
          * Get Language Options
-         * @description Configured language codes for the Routine Builder's language select (/D15).
+         * @description Configured language codes for the Routine Builder's language select (M27/D15).
          *
          *     Registered ahead of ``/{routine_id}`` so the literal path wins the match.
          */
@@ -5175,6 +5200,16 @@ export interface components {
             updated_at: string | null;
         };
         /**
+         * ActivityLedgerHealthOut
+         * @description Write-recency snapshot for the activity ledger.
+         */
+        ActivityLedgerHealthOut: {
+            /** By Type */
+            by_type: components["schemas"]["ActivityTypeHealthOut"][];
+            /** Stale */
+            stale: boolean;
+        };
+        /**
          * ActivitySessionCloseResult
          * @description Result of closing an activity session.
          */
@@ -5246,6 +5281,18 @@ export interface components {
             status: string;
             /** Timeout Minutes */
             timeout_minutes: number | null;
+        };
+        /**
+         * ActivityTypeHealthOut
+         * @description Write-recency snapshot for one activity type in the ledger.
+         */
+        ActivityTypeHealthOut: {
+            /** Activity Type */
+            activity_type: string;
+            /** Count */
+            count: number;
+            /** Last Opened At */
+            last_opened_at: string | null;
         };
         /** AdjacencyEdgeIn */
         AdjacencyEdgeIn: {
@@ -6586,6 +6633,14 @@ export interface components {
             step_type: string;
         };
         /**
+         * DailyLivingHealthOut
+         * @description Combined memory + ledger health snapshot for the admin dashboard.
+         */
+        DailyLivingHealthOut: {
+            activity_ledger: components["schemas"]["ActivityLedgerHealthOut"];
+            semantic_memory: components["schemas"]["SemanticMemoryHealthOut"];
+        };
+        /**
          * DailyReportOut
          * @description Output schema for daily report.
          */
@@ -6922,7 +6977,7 @@ export interface components {
         FloorRegionRequest: {
             /**
              * Polygon
-             * @description Floor-region polygon in normalised [0,1] image space: [[x_norm, y_norm],...]. NOT floor-plan metres and not the same coordinate space as visibility_polygon.
+             * @description Floor-region polygon in normalised [0,1] image space: [[x_norm, y_norm], ...]. NOT floor-plan metres and not the same coordinate space as visibility_polygon.
              */
             polygon: number[][];
             /**
@@ -7409,7 +7464,7 @@ export interface components {
          *     This models the contract as it is rather than pretending; the union is the underlying
          *     problem (a missing integration should be a typed 503, and `RoomsView.vue:121` renders
          *     "Created undefined" today when it hits the error branch), but changing the status code is a
-         *     behavioral change.
+         *     behavioral change outside M17's scope.
          */
         HaSyncRoomsOut: {
             /** Created */
@@ -8315,6 +8370,18 @@ export interface components {
              * @default
              */
             observation_id: string;
+        };
+        /**
+         * ObservationsByDayOut
+         * @description One day/source bucket of semantic-memory observation counts.
+         */
+        ObservationsByDayOut: {
+            /** Count */
+            count: number;
+            /** Day */
+            day: string;
+            /** Source */
+            source: string;
         };
         /**
          * OccupancyHistoryResponse
@@ -9870,7 +9937,7 @@ export interface components {
         };
         /**
          * RoutineLanguageOptionsOut
-         * @description Configured language codes for the Routine Builder's language select (/D15).
+         * @description Configured language codes for the Routine Builder's language select (M27/D15).
          */
         RoutineLanguageOptionsOut: {
             /** Language Names */
@@ -10446,6 +10513,26 @@ export interface components {
             /** Ph Version */
             ph_version: number;
             start: components["schemas"]["SegmentBoundaryView"];
+        };
+        /**
+         * SemanticMemoryHealthOut
+         * @description Write-recency snapshot for the semantic-memory service.
+         */
+        SemanticMemoryHealthOut: {
+            /** Last Movement At */
+            last_movement_at: string | null;
+            /** Last Observation At */
+            last_observation_at: string | null;
+            /** Observations By Day */
+            observations_by_day: components["schemas"]["ObservationsByDayOut"][];
+            /** Reachable */
+            reachable: boolean;
+            /** Stale */
+            stale: boolean;
+            /** Total Movements */
+            total_movements: number;
+            /** Total Observations */
+            total_observations: number;
         };
         /** SeniorKnowledgeQueryOut */
         SeniorKnowledgeQueryOut: {
@@ -11712,6 +11799,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CtsMetricsSummary"];
+                };
+            };
+        };
+    };
+    daily_living_health_endpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyLivingHealthOut"];
                 };
             };
         };

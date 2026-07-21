@@ -84,6 +84,29 @@
         "title": "ActiveImageStateOut",
         "type": "object"
       },
+      "ActivityLedgerHealthOut": {
+        "additionalProperties": false,
+        "description": "Write-recency snapshot for the activity ledger.",
+        "properties": {
+          "by_type": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityTypeHealthOut"
+            },
+            "title": "By Type",
+            "type": "array"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "by_type",
+          "stale"
+        ],
+        "title": "ActivityLedgerHealthOut",
+        "type": "object"
+      },
       "ActivitySessionCloseResult": {
         "description": "Result of closing an activity session.",
         "properties": {
@@ -322,6 +345,39 @@
           "observation_id"
         ],
         "title": "ActivitySessionOut",
+        "type": "object"
+      },
+      "ActivityTypeHealthOut": {
+        "additionalProperties": false,
+        "description": "Write-recency snapshot for one activity type in the ledger.",
+        "properties": {
+          "activity_type": {
+            "title": "Activity Type",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "last_opened_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Opened At"
+          }
+        },
+        "required": [
+          "activity_type",
+          "count",
+          "last_opened_at"
+        ],
+        "title": "ActivityTypeHealthOut",
         "type": "object"
       },
       "AdjacencyEdgeIn": {
@@ -4112,6 +4168,24 @@
           "status"
         ],
         "title": "DagNode",
+        "type": "object"
+      },
+      "DailyLivingHealthOut": {
+        "additionalProperties": false,
+        "description": "Combined memory + ledger health snapshot for the admin dashboard.",
+        "properties": {
+          "activity_ledger": {
+            "$ref": "#/components/schemas/ActivityLedgerHealthOut"
+          },
+          "semantic_memory": {
+            "$ref": "#/components/schemas/SemanticMemoryHealthOut"
+          }
+        },
+        "required": [
+          "semantic_memory",
+          "activity_ledger"
+        ],
+        "title": "DailyLivingHealthOut",
         "type": "object"
       },
       "DailyReportOut": {
@@ -8807,6 +8881,31 @@
           }
         },
         "title": "ObservationResponse",
+        "type": "object"
+      },
+      "ObservationsByDayOut": {
+        "additionalProperties": false,
+        "description": "One day/source bucket of semantic-memory observation counts.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "day": {
+            "title": "Day",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "source",
+          "count"
+        ],
+        "title": "ObservationsByDayOut",
         "type": "object"
       },
       "OccupancyHistoryResponse": {
@@ -14922,6 +15021,70 @@
         "title": "SegmentProposalResponse",
         "type": "object"
       },
+      "SemanticMemoryHealthOut": {
+        "additionalProperties": false,
+        "description": "Write-recency snapshot for the semantic-memory service.",
+        "properties": {
+          "last_movement_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Movement At"
+          },
+          "last_observation_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Observation At"
+          },
+          "observations_by_day": {
+            "items": {
+              "$ref": "#/components/schemas/ObservationsByDayOut"
+            },
+            "title": "Observations By Day",
+            "type": "array"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "total_movements": {
+            "title": "Total Movements",
+            "type": "integer"
+          },
+          "total_observations": {
+            "title": "Total Observations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reachable",
+          "last_observation_at",
+          "last_movement_at",
+          "observations_by_day",
+          "total_observations",
+          "total_movements",
+          "stale"
+        ],
+        "title": "SemanticMemoryHealthOut",
+        "type": "object"
+      },
       "SeniorKnowledgeQueryOut": {
         "properties": {
           "answer_text": {
@@ -17152,7 +17315,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.115"
+    "version": "0.7.119"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -17907,6 +18070,33 @@
           }
         ],
         "summary": "Cts Metrics Endpoint",
+        "tags": [
+          "metrics"
+        ]
+      }
+    },
+    "/api/v1/admin/daily-living-health": {
+      "get": {
+        "description": "Return semantic-memory write recency and activity-ledger population.\n\n503 only if the service itself is unwired (see ``get_daily_living_health``);\nan unreachable upstream semantic-memory service is a degraded 200\n(``semantic_memory.reachable=False``, ``stale=True``), not an error, per\nthe platform's optional-integration degradation contract.",
+        "operationId": "daily_living_health_endpoint",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DailyLivingHealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Daily Living Health Endpoint",
         "tags": [
           "metrics"
         ]

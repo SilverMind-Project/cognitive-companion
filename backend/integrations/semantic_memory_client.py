@@ -152,6 +152,26 @@ class RoomTrendResult:
 
 
 @dataclass(frozen=True)
+class ObservationsByDay:
+    """One day/source bucket, part of WriteHealthResult."""
+
+    day: datetime
+    source: str
+    count: int
+
+
+@dataclass(frozen=True)
+class WriteHealthResult:
+    """Returned by get_write_health."""
+
+    last_observation_at: datetime | None
+    last_movement_at: datetime | None
+    observations_by_day: list[ObservationsByDay] = field(default_factory=list)
+    total_observations: int = 0
+    total_movements: int = 0
+
+
+@dataclass(frozen=True)
 class TrendSnapshot:
     """Returned by get_snapshots."""
 
@@ -344,6 +364,47 @@ class _RoomTrendPayload(BaseModel):
             persistent_objects=self.persistent_objects,
             novel_objects=self.novel_objects,
             anomalies=self.anomalies,
+        )
+
+
+class _ObservationsByDayPayload(BaseModel):
+    day: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    source: str = ""
+    count: int = 0
+
+    @field_validator("day", mode="before")
+    @classmethod
+    def _parse_day(cls, value: object) -> datetime:
+        dt = normalize_utc_datetime(_coerce_datetime(value))
+        assert dt is not None
+        return dt
+
+    def to_bucket(self) -> ObservationsByDay:
+        return ObservationsByDay(day=self.day, source=self.source, count=self.count)
+
+
+class _WriteHealthPayload(BaseModel):
+    last_observation_at: datetime | None = None
+    last_movement_at: datetime | None = None
+    observations_by_day: list[_ObservationsByDayPayload] = Field(default_factory=list)
+    total_observations: int = 0
+    total_movements: int = 0
+
+    @field_validator("last_observation_at", "last_movement_at", mode="before")
+    @classmethod
+    def _parse_optional(cls, value: object) -> datetime | None:
+        if value is None:
+            return None
+        dt = normalize_utc_datetime(_coerce_datetime(value))
+        return dt
+
+    def to_result(self) -> WriteHealthResult:
+        return WriteHealthResult(
+            last_observation_at=self.last_observation_at,
+            last_movement_at=self.last_movement_at,
+            observations_by_day=[b.to_bucket() for b in self.observations_by_day],
+            total_observations=self.total_observations,
+            total_movements=self.total_movements,
         )
 
 
@@ -575,6 +636,15 @@ class SemanticMemoryClient(HttpUpstreamClient):
     async def health_check(self) -> dict | None:
         """GET /health. Returns the service health dict or None."""
         return await self._get_json("/health")
+
+    async def get_write_health(self, days: int = 14) -> WriteHealthResult | None:
+        """GET /api/v1/stats/write-health. Returns None when unreachable/unconfigured."""
+        data = await self._get_json("/api/v1/stats/write-health", params={"days": days})
+        if data is None:
+            logger.warning("semantic_memory_write_health_unavailable")
+            return None
+        payload = _validate_payload(data, _WriteHealthPayload)
+        return payload.to_result() if payload else None
 
 
 # ---------------------------------------------------------------------------

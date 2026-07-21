@@ -174,6 +174,7 @@ Also assigns `container.camera_source_resolver`.
 | `camera_source_resolver` | -- |
 | `pipeline_executor` | `container` (as of this point), `rules_engine`, `pipeline_ws_manager` |
 | `media_observability` | `event_aggregator`, `pipeline_executor`, `minio_client` |
+| `daily_living_health` | `semantic_memory_client` (constructed by `perception.wire_perception`, which runs before this phase); `get_session` (DL-M01) |
 | `workflow` | `rules_engine`, `pipeline_executor` |
 | `sensor_polling` | `ha_client`, `workflow` |
 | `activity_timeline_service` | `person_location_service` (constructed by `perception.wire_perception`, which runs before this phase) |

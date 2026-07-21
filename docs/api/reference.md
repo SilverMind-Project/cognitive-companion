@@ -218,6 +218,23 @@ pagination. Each item includes the camera origin and identity, buffer depth and
 capacity, pending flush and cooldown state, rate ceiling and available tokens,
 eligible and dropped image counters, and the latest event timestamp.
 
+## Daily Living health
+
+Requires the `admin:read` permission.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/admin/daily-living-health` | Semantic-memory write recency and activity-ledger population (DL-M01) |
+
+Returns `{semantic_memory, activity_ledger}`. `semantic_memory` includes `reachable`,
+`last_observation_at`, `last_movement_at`, a 14-day `observations_by_day` breakdown by source,
+`total_observations`, `total_movements`, and `stale` (last write older than
+`daily_living.health.memory_stale_hours`). `activity_ledger` includes per-`activity_type`
+counts and last-write times over the same lookback, and `stale` (no write across any type
+older than `daily_living.health.ledger_stale_hours`). An unreachable upstream semantic-memory
+service is a degraded `200` (`reachable=False`, `stale=True`), not an error; a `503` means the
+health service itself is unwired.
+
 ## People, presence, and CTS
 
 | Method | Path | Description |

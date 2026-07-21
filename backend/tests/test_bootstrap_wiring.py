@@ -71,6 +71,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "config_minio_client",
         "conversation_manager",
         "cts_runtime",
+        "daily_living_health",
         "daily_report_service",
         "dementia_signal_subscriber",
         "eink_renderer",

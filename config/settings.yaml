@@ -314,10 +314,25 @@ scene_analysis:
   timeout: 30
 
 # Semantic Memory Service (also provides object trend tracking API)
+# Re-enabled 2026-07-21 (DL-M01 diagnosis): the service is reachable and the
+# CTS scene.samples consumer has zero lag; this flag was the only thing
+# preventing every consumed sample from being persisted. See the dated
+# "L1 diagnosis result" addendum in daily-living-m00-*.md for the full
+# evidence chain.
 semantic_memory:
   url: "${SEMANTIC_MEMORY_URL}"         # e.g. http://localhost:8400
-  enabled: false
+  enabled: true
   timeout: 10
+
+# Daily Living program (DL-M01): memory + ledger health surfacing thresholds.
+daily_living:
+  health:
+    # Semantic-memory last write older than this many hours is "stale" on the
+    # admin dashboard health tile.
+    memory_stale_hours: 24
+    # Activity-ledger last write (any type) older than this many hours is
+    # "stale" on the admin dashboard health tile.
+    ledger_stale_hours: 48
 
 # Embedding inference (Triton)
 embedding:

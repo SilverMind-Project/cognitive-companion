@@ -48,6 +48,11 @@
       </v-col>
     </v-row>
 
+    <!-- Daily Living Health -->
+    <div class="mt-6">
+      <CcDailyLivingHealthCard />
+    </div>
+
     <!-- Person Locations -->
     <h3 class="text-h6 mt-6 mb-3">Person Locations</h3>
     <v-row>
@@ -156,6 +161,7 @@
 import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { formatDateTimeShort } from "../../services/timezone.js";
+import CcDailyLivingHealthCard from "@/components/dashboard/CcDailyLivingHealthCard.vue";
 
 const refreshing = ref(false);
 

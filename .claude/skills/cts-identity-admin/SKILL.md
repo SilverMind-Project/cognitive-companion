@@ -137,6 +137,11 @@ the server's `eligible`/`reasons` and the row's current `state` as returned.
 Use the existing blur behavior and a blur toggle consistent with other CTS pages. Respect auth and
 never reveal unblurred media to an unauthorized user.
 
+## Visitor review surface
+
+A dedicated review surface exists for unmatched face clusters (`cts.identity.visitors.review` token required).
+The UI connects to the BFF's visitor endpoints, not the ReID endpoints. It displays cross-visit clusters (seen on >= 3 distinct days within 30 days) and allows operators to name a cluster (creating a guest `HouseholdMember` and enrolling the faces for tracking) or dismiss it.
+
 ## Component and composable boundaries
 
 Required shared ownership:

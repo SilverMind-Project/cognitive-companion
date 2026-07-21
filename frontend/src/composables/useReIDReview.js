@@ -48,7 +48,7 @@ export function useReIDReview(notify) {
   const acting = ref(false);
 
   // -- counts (shared indicator source) ------------------------------------
-  const counts = ref({ pending_review: 0, operator_verified: 0, rejected: 0 });
+  const counts = ref({ pending_review: 0, auto_verified: 0, operator_verified: 0, rejected: 0 });
 
   // -- relabel targets (active household roster, not gallery identities) ----
   const targets = ref([]);

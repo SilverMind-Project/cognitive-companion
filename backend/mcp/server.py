@@ -474,18 +474,6 @@ async def get_enrolled_persons() -> list[dict]:
         db.close()
 
 
-@_register
-async def get_person_sightings(person_id: str, limit: int = 10) -> list[dict]:
-    """Get recent camera sightings for a specific person."""
-    from backend.observability.metrics import location_metrics
-
-    if _svc.person_tracking is None:
-        location_metrics.mcp_tool_dependency_unavailable_total.labels(
-            tool="get_person_sightings"
-        ).inc()
-        raise RuntimeError("PersonTrackingService not available")
-    return await _svc.person_tracking.get_recent_sightings(person_id, limit=limit)
-
 
 @_register
 async def get_person_activities(

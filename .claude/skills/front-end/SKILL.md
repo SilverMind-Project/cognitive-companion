@@ -268,6 +268,7 @@ A vision-confirm gate is a callable rule authored in the **same** `PipelineCanva
 - In `gate` mode the canvas exposes a **Validate** action that calls `POST /api/v1/gate-graphs/{id}/validate` (full `validate_gate_graph`) and surfaces "exactly one reachable `gate_verdict`" + "all steps gate-safe" inline. Edge saves still go through the existing `PUT /rules/{id}/edges` (gate-safe structural check at edit time).
 - Host the canvas inside `GateEditorDialog` (an `AppDialog size="xl"`). Add a preview/test-run button that calls `POST /api/v1/gate-graphs/{id}/test-run` and renders the `GateVerdict` (complete/confidence/reason + cost). See the AppDialog standard above.
 - New step config components register in `frontend/src/components/pipeline/steps/index.js` and `stepMeta.js` (label/icon/dot color). Reuse the condition expression widget (`_shared/TemplateInput.vue`) for any expression field (`gate_verdict.complete_if`); do not build a new expression editor.
+- Region editing (rects over a reference frame) is shared via `_shared/ImageCropCanvas.vue` and the shared region-list logic (`_shared/useRegionList.js`); step config components consume it and never reimplement region math. Step config components must render in both `StepConfigDialog` and the scoped gate canvas when their step is `gate_safe`.
 
 ### Right-side drawer pattern
 

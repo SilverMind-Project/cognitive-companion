@@ -106,7 +106,7 @@
             :model-value="region.id"
             label="ID"
             density="compact"
-            hide-details
+            :rules="[(v) => isValidRegionId(v) || 'Lowercase letters, digits, underscores']"
             hint="Lowercase letters, digits, underscores"
             persistent-hint
             @update:model-value="updateRegionField(i, 'id', $event)"
@@ -220,6 +220,13 @@ export function chips(cfg, { chip }) {
 import { ref, computed } from "vue";
 import { api } from "../../../services/api.js";
 import { useNotify } from "../../../composables/useNotify.js";
+import {
+  addRectRegion,
+  deleteRegion as deleteRegionFromList,
+  isValidRegionId,
+  rectRegionSummary,
+  updateRegionField as updateRegionFieldInList,
+} from "./_shared/useRegionList.js";
 
 const { notify } = useNotify();
 
@@ -278,43 +285,23 @@ async function loadSample() {
   }
 }
 
-// Region helpers
-function toPercent(ratio) {
-  if (ratio == null) return 0;
-  return Math.round(ratio * 100);
-}
-
-// Human-readable, read-only summary of a region's geometry. Direct editing
-// happens on the canvas (drag/resize); the raw percentage fields were removed
-// because they were hard to relate to the image.
-function regionSummary(r) {
-  return `${toPercent(r.width)}% wide x ${toPercent(r.height)}% tall, at (${toPercent(r.x)}%, ${toPercent(r.y)}%)`;
-}
+// Region helpers (list-level logic shared with RegionPresenceConfig.vue via
+// _shared/useRegionList.js; direct geometry editing happens on the canvas).
+const regionSummary = rectRegionSummary;
 
 function updateRegionField(index, field, value) {
-  const regions = [...(props.modelValue.regions || [])];
-  regions[index] = { ...regions[index], [field]: value };
+  const regions = updateRegionFieldInList(props.modelValue.regions || [], index, field, value);
   emit("update:modelValue", { ...props.modelValue, regions });
 }
 
 function addRegion() {
-  const regions = [...(props.modelValue.regions || [])];
-  const idx = regions.length + 1;
-  regions.push({
-    id: `region_${idx}`,
-    name: `Region ${idx}`,
-    x: 0.1,
-    y: 0.1,
-    width: 0.3,
-    height: 0.3,
-  });
+  const regions = addRectRegion(props.modelValue.regions || []);
   selectedRegionIndex.value = regions.length - 1;
   emit("update:modelValue", { ...props.modelValue, regions });
 }
 
 function deleteRegion(index) {
-  const regions = [...(props.modelValue.regions || [])];
-  regions.splice(index, 1);
+  const regions = deleteRegionFromList(props.modelValue.regions || [], index);
   if (selectedRegionIndex.value >= regions.length) {
     selectedRegionIndex.value = regions.length - 1;
   }

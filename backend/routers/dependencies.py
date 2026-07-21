@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from backend.services.cts.ph_enrichment import PHEnrichmentService
     from backend.services.cts.reid_review_service import ReIDReviewService
     from backend.services.cts.runtime import CTSRuntime
+    from backend.services.daily_living_health import DailyLivingHealthService
     from backend.services.event_aggregator import EventAggregator
     from backend.services.guided_task.metrics_service import GuidedMetricsService
     from backend.services.guided_task.service import GuidedTaskService
@@ -65,6 +66,7 @@ __all__ = [
     "get_config_minio_client",
     "get_conversation_manager",
     "get_cts_runtime",
+    "get_daily_living_health",
     "get_event_aggregator",
     "get_gemini_adapter",
     "get_guided_metrics_service",
@@ -227,6 +229,14 @@ def get_media_observability(request: Request) -> MediaObservabilityService:
     svc: MediaObservabilityService | None = request.app.state.media_observability
     if svc is None:
         raise _raise_503("media_observability", "Media observability service")
+    return svc
+
+
+def get_daily_living_health(request: Request) -> DailyLivingHealthService:
+    """Return the lifespan-managed Daily Living health service (503 if unavailable)."""
+    svc: DailyLivingHealthService | None = request.app.state.daily_living_health
+    if svc is None:
+        raise _raise_503("daily_living_health", "Daily Living health service")
     return svc
 
 

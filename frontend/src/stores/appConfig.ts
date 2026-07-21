@@ -36,7 +36,7 @@ export const useAppConfigStore = defineStore("appConfig", () => {
       appName.value = info.name;
       appVersion.value = info.version;
       loaded.value = true;
-    } catch (e) {
+    } catch {
       const { notify } = useNotify();
       notify.warning(`Failed to fetch app-info; timezone defaults to ${getAppTimezone()}`);
     }

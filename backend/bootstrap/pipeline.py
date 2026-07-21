@@ -98,6 +98,17 @@ def wire_executor_and_workflow(
     )
     app.state.media_observability = media_observability
 
+    # -- Daily Living memory + ledger health (DL-M01) -----------------------
+    from backend.services.daily_living_health import DailyLivingHealthService
+
+    daily_living_health = DailyLivingHealthService(
+        db_session_factory=get_session,
+        semantic_memory_client=app.state.semantic_memory_client,
+        memory_stale_hours=settings.get("daily_living.health.memory_stale_hours", 24.0),
+        ledger_stale_hours=settings.get("daily_living.health.ledger_stale_hours", 48.0),
+    )
+    app.state.daily_living_health = daily_living_health
+
     # Wire pipeline executor into knowledge delivery for quiz completion resume
     knowledge_delivery._pipeline_executor = pipeline_executor
 

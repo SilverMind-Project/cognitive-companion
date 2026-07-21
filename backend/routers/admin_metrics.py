@@ -8,7 +8,16 @@ from pydantic import BaseModel
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.logging import get_logger
+from backend.routers.dependencies import get_daily_living_health
+from backend.schemas.daily_living_health import (
+    ActivityLedgerHealthOut,
+    ActivityTypeHealthOut,
+    DailyLivingHealthOut,
+    ObservationsByDayOut,
+    SemanticMemoryHealthOut,
+)
 from backend.services.cts import metrics as cts_metrics
+from backend.services.daily_living_health import DailyLivingHealthService
 
 logger = get_logger(__name__)
 
@@ -83,6 +92,47 @@ def cts_metrics_endpoint(
             status_code=503,
             detail="CTS metrics unavailable: Prometheus counters could not be read",
         ) from exc
+
+
+@router.get("/api/v1/admin/daily-living-health", response_model=DailyLivingHealthOut)
+async def daily_living_health_endpoint(
+    request: Request,
+    svc: DailyLivingHealthService = Depends(get_daily_living_health),
+    _auth: AuthContext = Depends(require_permission("admin:read")),
+) -> DailyLivingHealthOut:
+    """Return semantic-memory write recency and activity-ledger population.
+
+    503 only if the service itself is unwired (see ``get_daily_living_health``);
+    an unreachable upstream semantic-memory service is a degraded 200
+    (``semantic_memory.reachable=False``, ``stale=True``), not an error, per
+    the platform's optional-integration degradation contract.
+    """
+    snapshot = await svc.snapshot()
+    return DailyLivingHealthOut(
+        semantic_memory=SemanticMemoryHealthOut(
+            reachable=snapshot.semantic_memory.reachable,
+            last_observation_at=snapshot.semantic_memory.last_observation_at,
+            last_movement_at=snapshot.semantic_memory.last_movement_at,
+            observations_by_day=[
+                ObservationsByDayOut(day=b.day.date().isoformat(), source=b.source, count=b.count)
+                for b in snapshot.semantic_memory.observations_by_day
+            ],
+            total_observations=snapshot.semantic_memory.total_observations,
+            total_movements=snapshot.semantic_memory.total_movements,
+            stale=snapshot.semantic_memory.stale,
+        ),
+        activity_ledger=ActivityLedgerHealthOut(
+            by_type=[
+                ActivityTypeHealthOut(
+                    activity_type=row.activity_type,
+                    count=row.count,
+                    last_opened_at=row.last_opened_at,
+                )
+                for row in snapshot.activity_ledger.by_type
+            ],
+            stale=snapshot.activity_ledger.stale,
+        ),
+    )
 
 
 def _prometheus_response():

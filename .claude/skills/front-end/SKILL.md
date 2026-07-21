@@ -1398,6 +1398,38 @@ surfaces, also load
 
 ---
 
+## Admin dashboard cards
+
+`CcDailyLivingHealthCard.vue` (`components/dashboard/`, DL-M01) is the reference
+implementation for an admin health/telemetry card. New admin cards mirror this
+structure rather than forking it:
+
+1. **Data via a generated-client composable.** A `use<Name>.js` composable under
+   `composables/` wraps a typed function from `services/modules/<domain>.ts` (built on the
+   generated OpenAPI client) and returns `{ state: { loading, error, ...data }, actions:
+   { refresh, ... } }`. Polling, if the surface needs it, is caller-driven (the mounting view
+   starts/stops a timer that calls `actions.refresh`); the composable itself never hides a
+   timer.
+2. **Charts via the shared `Cc*` chart components**, themed with `useChartTheme` (see the
+   data-visualisation skill's form heuristic for which chart shape fits the data).
+3. **Stale/alert states use the existing design-system warning treatment**: the
+   `status` prop on `CcMetricTile` (`'ok' | 'warning' | 'error' | 'info'`, mapped to Vuetify's
+   `success`/`warning`/`error`/`info` colors and matching icons) for tile-level state, and a
+   `v-alert type="warning" variant="tonal"` banner for a section-level stale/degraded call-out.
+   Never invent a bespoke color or icon set for "this data is old" or "this data is missing".
+4. **Card body lives in `components/dashboard/`, wrapped in `CcSectionCard`** for the
+   title/subtitle/actions-slot chrome; the card mounts into the owning admin view (today,
+   `DashboardView.vue`) rather than becoming its own routed view, unless the data volume
+   genuinely warrants a dedicated page.
+5. **Timestamps always go through `services/timezone.js`** (`formatRelative` from
+   `composables/useFormatRelative.js` for "N minutes ago" style ages, `formatDateTimeShort`/
+   `formatDateTime` for absolute stamps). Never `toLocaleString()` or hand-rolled relative-time
+   math.
+
+DL-M09's inference-load telemetry card follows this same pattern.
+
+---
+
 ## Routine Builder
 
 The guided-task Routine Builder in M9 is a linear step-list editor, not a Vue Flow

@@ -19,6 +19,7 @@ from backend.integrations.semantic_memory_client import (
     RoomTrendResult,
     SemanticMemoryClient,
     TrendSnapshot,
+    WriteHealthResult,
 )
 
 _HTTPX_TARGET = "backend.integrations._http_base.httpx.AsyncClient"
@@ -100,6 +101,10 @@ class TestDisabledClient:
     async def test_prune_observations_returns_zero(self):
         client = _make_client(enabled=False)
         assert await client.prune_observations(30) == 0
+
+    async def test_get_write_health_returns_none(self):
+        client = _make_client(enabled=False)
+        assert await client.get_write_health() is None
 
 
 # ---------------------------------------------------------------------------
@@ -491,3 +496,59 @@ class TestGetSnapshots:
         with patch(_HTTPX_TARGET, return_value=ctx):
             results = await client.get_snapshots("kitchen")
         assert results == []
+
+
+# ---------------------------------------------------------------------------
+# get_write_health
+# ---------------------------------------------------------------------------
+
+
+class TestGetWriteHealth:
+    async def test_returns_write_health_result(self):
+        payload = {
+            "last_observation_at": "2026-07-21T14:00:00+00:00",
+            "last_movement_at": None,
+            "observations_by_day": [
+                {"day": "2026-07-21T00:00:00+00:00", "source": "scene_intel", "count": 12},
+            ],
+            "total_observations": 12,
+            "total_movements": 0,
+        }
+        ctx, http_client = _make_http_mock(payload)
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            result = await client.get_write_health(days=14)
+        assert isinstance(result, WriteHealthResult)
+        assert result.last_observation_at is not None
+        assert result.last_movement_at is None
+        assert result.total_observations == 12
+        assert len(result.observations_by_day) == 1
+        assert result.observations_by_day[0].source == "scene_intel"
+        call_kwargs = http_client.get.call_args.kwargs
+        assert call_kwargs["params"] == {"days": 14}
+
+    async def test_returns_none_on_non_200(self):
+        ctx, http_client = _make_http_mock({}, status_code=503)
+        import httpx
+
+        http_client.get.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "error", request=MagicMock(), response=MagicMock(status_code=503)
+        )
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            result = await client.get_write_health()
+        assert result is None
+
+    async def test_returns_none_on_timeout(self):
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(side_effect=Exception("timeout"))
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        client = _make_client()
+        with patch(_HTTPX_TARGET, return_value=ctx):
+            result = await client.get_write_health()
+        assert result is None
+
+    async def test_returns_none_when_unconfigured(self):
+        client = _make_client(enabled=False)
+        result = await client.get_write_health()
+        assert result is None

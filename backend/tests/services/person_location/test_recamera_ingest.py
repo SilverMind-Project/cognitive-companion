@@ -245,6 +245,51 @@ async def test_unresolvable_room_still_records_observation_with_room_id_none(db_
 
 
 @pytest.mark.asyncio
+async def test_published_assertion_carries_room_and_calibration_no_coordinates(db_factory):
+    """Identity-continuity M09: the published assertion carries room_name,
+    yaw_deg, and calibration fields, but never floor coordinates (reCameras
+    have no spatial calibration on either side)."""
+    from backend.integrations.proto.continuoustracking.v1.tracking_pb2 import (
+        CCIdentityAssertion,
+    )
+
+    _seed_room_and_sensor(db_factory)
+    redis_mock = AsyncMock()
+    publisher = IdentityAssertionPublisher(redis_mock)
+    adapter, _svc = _make_adapter(db_factory, publisher=publisher, publish_assertions=True)
+
+    db = db_factory()
+    try:
+        db.add(HouseholdMember(id="ivy", name="Ivy"))
+        db.commit()
+    finally:
+        db.close()
+
+    await adapter.ingest(
+        person_id="ivy",
+        sensor_id="cam-1",
+        room_name="kitchen",
+        confidence=0.85,
+        raw_similarity=0.9,
+        calibrated_confidence=0.91,
+        calibration_status="ready",
+        yaw_deg=8.0,
+    )
+
+    redis_mock.xadd.assert_called_once()
+    fields = redis_mock.xadd.call_args[0][1]
+    msg = CCIdentityAssertion.FromString(fields[b"assertion"])
+    assert msg.room_name == "kitchen"
+    assert msg.calibration_status == "ready"
+    assert msg.HasField("calibrated_confidence")
+    assert msg.calibrated_confidence == pytest.approx(0.91, abs=1e-4)
+    assert msg.has_yaw is True
+    assert msg.yaw_deg == pytest.approx(8.0, abs=1e-4)
+    assert msg.has_floor_point is False
+    assert msg.source == "cc-face-sighting"
+
+
+@pytest.mark.asyncio
 async def test_adapter_never_writes_a_floor_point(db_factory):
     """CC-M28 rule (carried into every ingestion path, M38 Part D.4):
     reCamera detections carry no floor coordinates -- never fabricate one."""

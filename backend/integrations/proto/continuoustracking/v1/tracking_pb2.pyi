@@ -280,7 +280,7 @@ class DwellEvent(_message.Message):
     def __init__(self, ph_id: _Optional[str] = ..., identity_id: _Optional[str] = ..., event_type: _Optional[_Union[DwellEventType, str]] = ..., room_name: _Optional[str] = ..., event_time_unix_ns: _Optional[int] = ..., duration_s: _Optional[int] = ...) -> None: ...
 
 class CCIdentityAssertion(_message.Message):
-    __slots__ = ("person_id", "camera_id", "captured_at_unix_ns", "floor_x_m", "floor_y_m", "raw_similarity", "calibrated_confidence", "calibration_status", "source", "model_version", "preprocessing_version")
+    __slots__ = ("person_id", "camera_id", "captured_at_unix_ns", "floor_x_m", "floor_y_m", "raw_similarity", "calibrated_confidence", "calibration_status", "source", "model_version", "preprocessing_version", "has_floor_point", "room_name", "yaw_deg", "has_yaw", "quality", "has_quality")
     PERSON_ID_FIELD_NUMBER: _ClassVar[int]
     CAMERA_ID_FIELD_NUMBER: _ClassVar[int]
     CAPTURED_AT_UNIX_NS_FIELD_NUMBER: _ClassVar[int]
@@ -292,6 +292,12 @@ class CCIdentityAssertion(_message.Message):
     SOURCE_FIELD_NUMBER: _ClassVar[int]
     MODEL_VERSION_FIELD_NUMBER: _ClassVar[int]
     PREPROCESSING_VERSION_FIELD_NUMBER: _ClassVar[int]
+    HAS_FLOOR_POINT_FIELD_NUMBER: _ClassVar[int]
+    ROOM_NAME_FIELD_NUMBER: _ClassVar[int]
+    YAW_DEG_FIELD_NUMBER: _ClassVar[int]
+    HAS_YAW_FIELD_NUMBER: _ClassVar[int]
+    QUALITY_FIELD_NUMBER: _ClassVar[int]
+    HAS_QUALITY_FIELD_NUMBER: _ClassVar[int]
     person_id: str
     camera_id: str
     captured_at_unix_ns: int
@@ -303,4 +309,10 @@ class CCIdentityAssertion(_message.Message):
     source: str
     model_version: str
     preprocessing_version: str
-    def __init__(self, person_id: _Optional[str] = ..., camera_id: _Optional[str] = ..., captured_at_unix_ns: _Optional[int] = ..., floor_x_m: _Optional[float] = ..., floor_y_m: _Optional[float] = ..., raw_similarity: _Optional[float] = ..., calibrated_confidence: _Optional[float] = ..., calibration_status: _Optional[str] = ..., source: _Optional[str] = ..., model_version: _Optional[str] = ..., preprocessing_version: _Optional[str] = ...) -> None: ...
+    has_floor_point: bool
+    room_name: str
+    yaw_deg: float
+    has_yaw: bool
+    quality: float
+    has_quality: bool
+    def __init__(self, person_id: _Optional[str] = ..., camera_id: _Optional[str] = ..., captured_at_unix_ns: _Optional[int] = ..., floor_x_m: _Optional[float] = ..., floor_y_m: _Optional[float] = ..., raw_similarity: _Optional[float] = ..., calibrated_confidence: _Optional[float] = ..., calibration_status: _Optional[str] = ..., source: _Optional[str] = ..., model_version: _Optional[str] = ..., preprocessing_version: _Optional[str] = ..., has_floor_point: bool = ..., room_name: _Optional[str] = ..., yaw_deg: _Optional[float] = ..., has_yaw: bool = ..., quality: _Optional[float] = ..., has_quality: bool = ...) -> None: ...

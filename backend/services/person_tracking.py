@@ -81,6 +81,11 @@ class PersonDetection:
     recognition_state: str = "recognized"
     similarity: float = 0.0
     yaw_deg: float = 0.0
+    # M09: calibrated confidence, trusted only when the service reports
+    # calibration_status == "ready" (see _resolve_calibrated_confidence).
+    # None means no trustworthy calibration; never a raw-similarity fallback.
+    calibrated_confidence: float | None = None
+    calibration_status: str = "degraded_missing"
 
     def dict(self) -> dict:
         return {
@@ -95,7 +100,23 @@ class PersonDetection:
             "recognition_state": self.recognition_state,
             "similarity": self.similarity,
             "yaw_deg": self.yaw_deg,
+            "calibrated_confidence": self.calibrated_confidence,
+            "calibration_status": self.calibration_status,
         }
+
+
+def _resolve_calibrated_confidence(face) -> float | None:
+    """Return calibrated_confidence only when the service reports it ready.
+
+    Mirrors CTS's ``FaceIdentityStage._resolve_calibrated_confidence`` fail-closed
+    discipline: any degraded calibration status yields None. Model/preprocessing
+    version equality is enforced upstream by person-identification-service itself
+    (an incompatible artifact reports a degraded status, never "ready"), so CC does
+    not need its own expected-version config to apply the same guarantee.
+    """
+    if face.calibration_status != "ready":
+        return None
+    return face.calibrated_confidence
 
 
 @dataclass(frozen=True)
@@ -234,6 +255,8 @@ class PersonTrackingService:
                         recognition_state=face.recognition_state,
                         similarity=face.similarity,
                         yaw_deg=face.yaw_deg,
+                        calibrated_confidence=_resolve_calibrated_confidence(face),
+                        calibration_status=face.calibration_status,
                     )
 
         detections = list(best.values())
@@ -288,6 +311,9 @@ class PersonTrackingService:
                         room_name=det_room_name,
                         confidence=det.confidence,
                         raw_similarity=det.similarity,
+                        calibrated_confidence=det.calibrated_confidence,
+                        calibration_status=det.calibration_status,
+                        yaw_deg=det.yaw_deg,
                         transition=det_transition,
                     )
         finally:

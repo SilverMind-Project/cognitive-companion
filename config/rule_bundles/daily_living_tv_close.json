@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "rule": {
+    "name": "daily_living_tv_close",
+    "description": "DL-M04 companion to daily_living_tv_open. Closes the open watching_tv ActivitySession once the TV is off, OR the resident has been in a different room for at least idle_close_minutes (daily_living.tv.idle_close_minutes; the '10' literal in this rule's condition mirrors that setting -- update both together if changed). The absence check approximates 'time since left the TV room' as 'dwell in whatever OTHER room she is currently in', since presence_query only reports dwell in the current room; see the dated M00 correction for why this is an accepted approximation rather than a new step. PLACEHOLDERS: __RESIDENT_PERSON_ID__, __TV_ROOM_NAME__, __TV_MEDIA_PLAYER_ENTITY__.",
+    "enabled": true,
+    "trigger_types": ["cron"],
+    "cool_off_minutes": 0,
+    "max_daily_triggers": 0,
+    "max_concurrent_executions": 1,
+    "execution_timeout_minutes": 5,
+    "cron_expressions": [{"expression": "*/5 * * * *", "timezone": "UTC"}]
+  },
+  "contexts": [],
+  "steps": [
+    {
+      "label": "presence",
+      "step_type": "presence_query",
+      "config": {"person_id": "__RESIDENT_PERSON_ID__", "output_key": "presence"}
+    },
+    {
+      "label": "tv_state",
+      "step_type": "home_state",
+      "config": {
+        "entity_id": "__TV_MEDIA_PLAYER_ENTITY__",
+        "states_any": ["playing", "on"],
+        "output_key": "tv"
+      }
+    },
+    {
+      "label": "should_close",
+      "step_type": "condition",
+      "config": {
+        "expression": "(not steps.tv_state.outputs.tv_entity_on) or (steps.presence.outputs.presence_room_name != \"__TV_ROOM_NAME__\" and steps.presence.outputs.presence_dwell_minutes != null and steps.presence.outputs.presence_dwell_minutes >= 10)"
+      }
+    },
+    {
+      "label": "end",
+      "step_type": "activity_session_end",
+      "config": {
+        "activity_type": "watching_tv",
+        "person_id": "__RESIDENT_PERSON_ID__",
+        "write_activity_record": true
+      }
+    }
+  ],
+  "edges": [
+    {"source_label": "presence", "source_port": "main", "target_label": "tv_state", "target_port": "main"},
+    {"source_label": "tv_state", "source_port": "main", "target_label": "should_close", "target_port": "main"},
+    {"source_label": "should_close", "source_port": "true", "target_label": "end", "target_port": "main"}
+  ]
+}

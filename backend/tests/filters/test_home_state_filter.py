@@ -144,3 +144,77 @@ async def test_no_person_returns_false(now):
         services=services,
     )
     assert result is False
+
+
+class _FakeHaState:
+    def __init__(self, state: str) -> None:
+        self.state = state
+
+
+class _StubHaStateCache:
+    def __init__(self, states: dict[str, str]) -> None:
+        self._states = states
+
+    def get(self, entity_id: str):
+        state = self._states.get(entity_id)
+        return _FakeHaState(state) if state is not None else None
+
+
+@pytest.mark.asyncio
+async def test_entity_id_matches_states_any(now):
+    filter_instance = HomeStateFilter()
+    services = type(
+        "Svc",
+        (),
+        {"ha_state_cache": _StubHaStateCache({"media_player.tv": "playing"})},
+    )()
+    result = await filter_instance.evaluate(
+        config={"entity_id": "media_player.tv", "states_any": ["playing", "on"]},
+        sensor=None,
+        now=now,
+        services=services,
+    )
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_entity_id_does_not_match_states_any(now):
+    filter_instance = HomeStateFilter()
+    services = type(
+        "Svc",
+        (),
+        {"ha_state_cache": _StubHaStateCache({"media_player.tv": "off"})},
+    )()
+    result = await filter_instance.evaluate(
+        config={"entity_id": "media_player.tv", "states_any": ["playing", "on"]},
+        sensor=None,
+        now=now,
+        services=services,
+    )
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_entity_id_no_cache_service_fails_closed(now):
+    filter_instance = HomeStateFilter()
+    services = type("Svc", (), {"ha_state_cache": None})()
+    result = await filter_instance.evaluate(
+        config={"entity_id": "media_player.tv", "states_any": ["playing"]},
+        sensor=None,
+        now=now,
+        services=services,
+    )
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_entity_id_cache_miss_fails_closed(now):
+    filter_instance = HomeStateFilter()
+    services = type("Svc", (), {"ha_state_cache": _StubHaStateCache({})})()
+    result = await filter_instance.evaluate(
+        config={"entity_id": "media_player.tv", "states_any": ["playing"]},
+        sensor=None,
+        now=now,
+        services=services,
+    )
+    assert result is False

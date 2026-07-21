@@ -111,6 +111,13 @@ llm:
       Keep responses concise and easy to understand. DO NOT infer the emotional
       state of the user. Ignore Minimal Input such as '...' or 'um' unless the
       user explicitly says to interpret them.
+      For countable or duration questions about daily life (medication, meals,
+      TV time), call get_daily_report or get_person_timeline and answer only
+      from their data; never estimate a count from a scene description.
+      Phrase answers to match the evidence: a guided-companion-completed
+      routine is "she completed X with me", a vision/sensor inference is "I
+      detected X, I cannot confirm more", and no data is "I have no record of
+      that today".
 
 # TTS configuration (tts-service on port 8200)
 tts:
@@ -260,6 +267,12 @@ mcp:
     - "get_local_datetime"
     - "get_person_activities"
     - "get_enrolled_persons"
+    # DL-M04: activity ledger query surface (daily-living countable/duration
+    # questions -- medication/TV/meals). Never answer these by aggregating
+    # semantic-memory captions (DL2); always call these tools.
+    - "get_person_timeline"
+    - "get_daily_report"
+    - "get_open_sessions"
     - "submit_user_response"
     - "query_knowledge_base"
     - "submit_quiz_answer"
@@ -333,6 +346,21 @@ daily_living:
     # Activity-ledger last write (any type) older than this many hours is
     # "stale" on the admin dashboard health tile.
     ledger_stale_hours: 48
+  # DL-M04: activity ledger population (TV, meals). Deployment-specific
+  # values (entity id, room names, person id) are placeholders in the
+  # daily_living_activity.json rule bundle; these are the shared timing knobs.
+  tv:
+    # HA media_player entity id backing the watching_tv rules' home_state
+    # entity_id extension. Empty disables HaStateCache registration for it.
+    media_player_entity: ""
+    # She left the TV room this long while the TV was still on: close the
+    # watching session (approximated from presence_query's current-room
+    # dwell once she is in a different room; see daily_living_tv_close).
+    idle_close_minutes: 10
+  meals:
+    # Re-seating within this gap continues the same meal_eating session
+    # (one lunch, not two).
+    merge_gap_minutes: 20
 
 # Embedding inference (Triton)
 embedding:

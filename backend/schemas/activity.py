@@ -78,8 +78,8 @@ class DailyReportOut(BaseModel):
     meals: dict[str, Any]
     medication: dict[str, Any]
     bathroom_visits: dict[str, Any]
-    door_events: dict[str, Any]
     exercise: dict[str, Any]
+    tv: dict[str, Any]
     room_time: dict[str, Any]
     summary_text: str | None
     wellness_score: float | None

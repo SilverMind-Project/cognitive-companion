@@ -34,8 +34,14 @@ async def wire_presence(app: FastAPI, settings: Settings, container: ServiceCont
     ha_state_cache = HaStateCache(homeassistant_client=ha_client)
     for entity in collect_required_entities(presence_config):
         ha_state_cache.register(entity)
+    # The TV media_player entity backs the home_state filter/step's
+    # entity_id extension used by the watching_tv activity-ledger rules.
+    tv_entity = settings.get("daily_living.tv.media_player_entity", "")
+    if tv_entity:
+        ha_state_cache.register(tv_entity)
     await ha_state_cache.start()
     app.state.ha_state_cache = ha_state_cache
+    container.ha_state_cache = ha_state_cache
 
     providers = build_providers(
         presence_config,

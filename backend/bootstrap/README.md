@@ -219,7 +219,9 @@ Returns `guided_camera_topology` for `cts.wire_cts`.
 
 ### `cts.wire_cts` (only when `cts.enabled`) / `cts.wire_cts_disabled`
 
-Also assigns `container.presence` (via `presence.wire_presence`).
+Also assigns `container.presence` and `container.ha_state_cache` (both via
+`presence.wire_presence`, which runs unconditionally regardless of
+`cts.enabled`).
 `container.person_location` is assigned unconditionally by
 `perception.wire_perception` instead (M38 Part A); this phase only reads
 `app.state.person_location_service` to wire it into the CTS subscribers.

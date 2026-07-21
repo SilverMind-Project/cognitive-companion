@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "rule": {
+    "name": "daily_living_tv_open",
+    "description": "DL-M04 (activity ledger population, tier 0 / zero model calls). Opens a watching_tv ActivitySession when the TV media_player is on and the resident is present in the TV room. PLACEHOLDERS to replace before import: __RESIDENT_PERSON_ID__ (household_members.id), __TV_ROOM_NAME__ (rooms.name), __TV_MEDIA_PLAYER_ENTITY__ (HA media_player entity id -- must also be set as daily_living.tv.media_player_entity in config/settings.yaml so HaStateCache subscribes to it). Import: POST the four daily_living_*.json bundles in this directory to /api/v1/rules/import (see daily-living-m04-*.md Part E for the full sequence).",
+    "enabled": true,
+    "trigger_types": ["cron"],
+    "cool_off_minutes": 0,
+    "max_daily_triggers": 0,
+    "max_concurrent_executions": 1,
+    "execution_timeout_minutes": 5,
+    "cron_expressions": [{"expression": "*/2 * * * *", "timezone": "UTC"}]
+  },
+  "contexts": [
+    {
+      "context_type": "home_state",
+      "config": {"entity_id": "__TV_MEDIA_PLAYER_ENTITY__", "states_any": ["playing", "on"]}
+    },
+    {
+      "context_type": "presence_status",
+      "config": {
+        "person_id": "__RESIDENT_PERSON_ID__",
+        "status": "present_room",
+        "room_name": "__TV_ROOM_NAME__"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "label": "start",
+      "step_type": "activity_session_start",
+      "config": {
+        "activity_type": "watching_tv",
+        "person_id": "__RESIDENT_PERSON_ID__",
+        "room_name": "__TV_ROOM_NAME__",
+        "confidence": 0.95,
+        "timeout_minutes": 240,
+        "metadata_extra": "{\"source\": \"ha_state_join\"}"
+      }
+    }
+  ],
+  "edges": []
+}

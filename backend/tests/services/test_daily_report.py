@@ -305,6 +305,48 @@ class TestDailyReportGeneration:
         assert meals["eating_count"] == 1
         assert meals["avg_duration_minutes"] == 30.0
 
+    async def test_generate_report_with_tv_data(self, db_factory):
+        """DL-M04: should aggregate watching_tv sessions (headline query: how
+        long did she watch TV today)."""
+        service = DailyReportService(db_factory)
+
+        now = datetime.now(UTC)
+        test_time = now.replace(hour=18, minute=0, second=0, microsecond=0)
+        if test_time > now:
+            test_time = test_time - timedelta(days=1)
+        today = test_time.date().isoformat()
+
+        db = db_factory()
+        _make_activity_session(
+            db,
+            person_id="person123",
+            activity_type=ActivityTypeEnum.watching_tv,
+            opened_at=test_time - timedelta(hours=3),
+            closed_at=test_time - timedelta(hours=1),
+            duration_minutes=120,
+            status="closed",
+        )
+        _make_activity_session(
+            db,
+            person_id="person123",
+            activity_type=ActivityTypeEnum.watching_tv,
+            opened_at=test_time,
+            closed_at=test_time + timedelta(minutes=45),
+            duration_minutes=45,
+            status="closed",
+        )
+        db.close()
+
+        report = await service.generate_daily_report(
+            person_id="person123",
+            date=today,
+            tz_name="UTC",
+        )
+
+        tv = report["tv"]
+        assert tv["session_count"] == 2
+        assert tv["total_minutes"] == 165
+
     async def test_generate_report_with_medication_data(self, db_factory):
         """Should track medication doses taken."""
         service = DailyReportService(db_factory)
@@ -704,6 +746,72 @@ class TestReportRetrieval:
         assert retrieved["person_id"] == "person123"
         assert retrieved["report_date"] == today
         assert retrieved["wellness_score"] == report["wellness_score"]
+
+    async def test_get_existing_report_matches_generate_shape(self, db_factory):
+        """DL-M04 regression: get_report used to hand-rebuild a divergent
+        shape (sleep as a bare int, no tv/wellness_score) from dedicated
+        columns; it now mirrors generate_daily_report exactly via
+        metadata_json, which is what the MCP get_daily_report tool relies on
+        via a DailyReportOut(**...) validation on the BFF side."""
+        service = DailyReportService(db_factory)
+        today = datetime.now(UTC).date().isoformat()
+
+        db = db_factory()
+        _make_activity_session(
+            db,
+            person_id="person123",
+            activity_type=ActivityTypeEnum.watching_tv,
+            duration_minutes=45,
+        )
+        db.close()
+
+        generated = await service.generate_daily_report(
+            person_id="person123",
+            date=today,
+            tz_name="UTC",
+        )
+        retrieved = service.get_report("person123", today)
+
+        assert isinstance(retrieved["sleep"], dict)
+        assert retrieved["tv"] == generated["tv"]
+        assert retrieved["meals"] == generated["meals"]
+        assert retrieved["wellness_score"] == generated["wellness_score"]
+        assert retrieved["wellness_alerts"] == generated["wellness_alerts"]
+
+        # The full retrieved dict must validate against the wire schema the
+        # BFF router and the MCP tool both hand to DailyReportOut.
+        from backend.schemas.activity import DailyReportOut
+
+        DailyReportOut(**retrieved)
+
+    async def test_get_report_defaults_tv_for_a_pre_dl_m04_row(self, db_factory):
+        """A report generated before DL-M04 has no 'tv' key in metadata_json;
+        get_report must default it rather than raise or omit the field."""
+        from backend.models.person import DailyReport, HouseholdMember
+
+        db = db_factory()
+        db.add(HouseholdMember(id="legacy_person", name="Legacy"))
+        db.add(
+            DailyReport(
+                id="legacy_person_2024-01-01",
+                person_id="legacy_person",
+                report_date="2024-01-01",
+                status="complete",
+                generated_at=datetime.now(UTC),
+                metadata_json={
+                    "person_id": "legacy_person",
+                    "report_date": "2024-01-01",
+                    "sleep": {"total_minutes": 0, "session_count": 0},
+                },
+            )
+        )
+        db.commit()
+        db.close()
+
+        service = DailyReportService(db_factory)
+        retrieved = service.get_report("legacy_person", "2024-01-01")
+
+        assert retrieved["tv"] == {"session_count": 0, "total_minutes": 0}
 
     async def test_get_nonexistent_report(self, db_factory):
         """Should return None for non-existent report."""

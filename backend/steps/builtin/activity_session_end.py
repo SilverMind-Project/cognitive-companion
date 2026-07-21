@@ -121,16 +121,25 @@ class ActivitySessionEndHandler(StepHandler):
                     end_event_id=execution.event_log_id,
                     closed_via="explicit",
                 )
-            except ValueError as e:
-                # No open session found - warn and continue
-                logger.warning(
+            except ValueError:
+                # No open session found: an expected, routine outcome (e.g. a
+                # closing rule firing while nothing is open), not a failure.
+                # success=True keeps this from showing as a failed step on
+                # every quiet poll.
+                logger.info(
                     "session_end_no_open_session",
                     person_id=person_id,
                     activity_type=activity_type,
                 )
                 return StepResult(
-                    success=False,
-                    data={output_key: {"error": str(e), "no_open_session": True}},
+                    success=True,
+                    data={
+                        output_key: {
+                            "no_open_session": True,
+                            "person_id": person_id,
+                            "activity_type": activity_type,
+                        }
+                    },
                 )
             except Exception:
                 logger.exception(

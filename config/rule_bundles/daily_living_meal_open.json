@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "rule": {
+    "name": "daily_living_meal_open",
+    "description": "DL-M04 (activity ledger population). Opens a meal_eating ActivitySession when the resident has been at the dining table for at least 3 minutes during meal hours, confirmed by a Florence-2 scene-description keyword check (DL5 tier 2). Deviation from the milestone's literal text: a YOLO detection-label condition (cup/bowl/plate) is infeasible here -- verified against scene-analysis-service/triton_shared's decode_output, which hard-filters every detection to class_id==0 (person) before TritonDetector ever sees it, so the deployed model can never emit a food/dish label; see the dated M00 correction. PLACEHOLDERS: __RESIDENT_PERSON_ID__, __DINING_ROOM_NAME__, __DINING_CAMERA_SENSOR_ID__.",
+    "enabled": true,
+    "trigger_types": ["cron"],
+    "primary_sensor_ref": {"kind": "sensor", "label": "__DINING_CAMERA_SENSOR_ID__"},
+    "cool_off_minutes": 0,
+    "max_daily_triggers": 0,
+    "max_concurrent_executions": 1,
+    "execution_timeout_minutes": 5,
+    "cron_expressions": [{"expression": "*/10 * * * *", "timezone": "UTC"}]
+  },
+  "contexts": [
+    {"context_type": "time_range", "config": {"start_time": "06:00", "end_time": "21:00"}},
+    {
+      "context_type": "presence_status",
+      "config": {
+        "person_id": "__RESIDENT_PERSON_ID__",
+        "status": "present_room",
+        "room_name": "__DINING_ROOM_NAME__"
+      }
+    },
+    {
+      "context_type": "presence_dwell",
+      "config": {"person_id": "__RESIDENT_PERSON_ID__", "min_minutes": 3}
+    }
+  ],
+  "steps": [
+    {
+      "label": "poll",
+      "step_type": "media_window_poll",
+      "config": {
+        "source": "auto",
+        "cameras": ["__DINING_CAMERA_SENSOR_ID__"],
+        "max_images": 1,
+        "images_per_sensor": 1
+      }
+    },
+    {
+      "label": "scene",
+      "step_type": "scene_analysis",
+      "config": {
+        "run_detect": false,
+        "run_describe": true,
+        "run_embed": false,
+        "run_hazards": false,
+        "image_source": "media_window",
+        "max_images": 1
+      }
+    },
+    {
+      "label": "should_open",
+      "step_type": "condition",
+      "config": {
+        "expression": "icontains(steps.scene.outputs.scene_description, \"eating\") or icontains(steps.scene.outputs.scene_description, \"meal\") or icontains(steps.scene.outputs.scene_description, \"drinking\") or icontains(steps.scene.outputs.scene_description, \"plate\") or icontains(steps.scene.outputs.scene_description, \"bowl\") or icontains(steps.scene.outputs.scene_description, \"food\")"
+      }
+    },
+    {
+      "label": "start",
+      "step_type": "activity_session_start",
+      "config": {
+        "activity_type": "meal_eating",
+        "person_id": "__RESIDENT_PERSON_ID__",
+        "room_name": "__DINING_ROOM_NAME__",
+        "confidence": 0.6,
+        "timeout_minutes": 90,
+        "metadata_extra": "{\"source\": \"vision_inferred\"}"
+      }
+    }
+  ],
+  "edges": [
+    {"source_label": "poll", "source_port": "main", "target_label": "scene", "target_port": "main"},
+    {"source_label": "scene", "source_port": "main", "target_label": "should_open", "target_port": "main"},
+    {"source_label": "should_open", "source_port": "true", "target_label": "start", "target_port": "main"}
+  ]
+}

@@ -30,7 +30,38 @@
       density="compact"
       hide-details="auto"
       rounded="lg"
+      class="mb-4"
       @update:model-value="emit('update:modelValue', { ...modelValue, output_key: $event })"
+    />
+
+    <v-text-field
+      :model-value="modelValue.entity_id"
+      label="HA Entity (optional)"
+      hint="e.g. media_player.living_room_tv. Also emits <key>_entity_state and <key>_entity_on, independent of person_id."
+      persistent-hint
+      variant="outlined"
+      density="compact"
+      hide-details="auto"
+      rounded="lg"
+      clearable
+      class="mb-4"
+      @update:model-value="emit('update:modelValue', { ...modelValue, entity_id: $event })"
+    />
+
+    <v-combobox
+      v-if="modelValue.entity_id"
+      :model-value="modelValue.states_any"
+      :items="[]"
+      label="States counted as 'on' (any)"
+      multiple
+      chips
+      closable-chips
+      hint="e.g. playing, on"
+      persistent-hint
+      variant="outlined"
+      density="compact"
+      rounded="lg"
+      @update:model-value="emit('update:modelValue', { ...modelValue, states_any: $event })"
     />
   </v-form>
 </template>

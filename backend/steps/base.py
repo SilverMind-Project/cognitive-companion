@@ -16,6 +16,7 @@ from backend.core.registry import HasMetadata
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 
 if TYPE_CHECKING:
+    from backend.integrations.ha_state_cache import HaStateCache
     from backend.integrations.homeassistant import HomeAssistantClient
     from backend.integrations.llm import LLMModelRegistry
     from backend.integrations.minio_client import MinioClient
@@ -108,6 +109,13 @@ class ServiceContainer:
     scheduler: SchedulerBridge | None = None
     llm_model_registry: LLMModelRegistry | None = None
     presence: PresenceService | None = None
+    # In-process HA entity-state cache (WS-fed). Consumed by home_state's
+    # entity_id/states_any extension so filters/steps never make a blocking
+    # HTTP call to Home Assistant on every rule evaluation. Removed once
+    # before for having no consumer; do not remove again without
+    # re-checking backend/filters/builtin/home_state.py and
+    # backend/steps/builtin/home_state.py.
+    ha_state_cache: HaStateCache | None = None
     person_location: PersonLocationService | None = None
     scene_analysis_client: SceneAnalysisClient | None = None
     daily_report_service: DailyReportService | None = None

@@ -177,6 +177,20 @@ class _RecentObject:
         self.observation_count = observation_count
 
 
+class _FakeHaState:
+    def __init__(self, state: str) -> None:
+        self.state = state
+
+
+class _StubHaStateCache:
+    def __init__(self, states: dict[str, str]) -> None:
+        self._states = states
+
+    def get(self, entity_id: str):
+        state = self._states.get(entity_id)
+        return _FakeHaState(state) if state is not None else None
+
+
 def _engine(**container_overrides) -> RulesEngine:
     return RulesEngine(
         ServiceContainer(db_factory=lambda: None, **container_overrides), tz_name="UTC"
@@ -476,6 +490,33 @@ class TestFilterMatrixSensorPath:
         db_session.commit()
 
         engine = _engine(person_location=_StubPersonLocationService(current=_location("k1")))
+        matched = {r.id for r in await engine.get_matching_rules(sensor, db_session)}
+        assert matched == {match.id}
+        assert nomatch.id not in matched
+
+    async def test_home_state_entity_id(self, db_session):
+        # DL-M04: home_state's entity_id/states_any extension, used by the
+        # watching_tv rules to gate on an HA media_player without a live
+        # HTTP call (reads the shared HaStateCache instead).
+        sensor = _make_sensor(db_session)
+        match = _make_rule(
+            db_session,
+            "match",
+            contexts=[
+                _ctx("home_state", {"entity_id": "media_player.tv", "states_any": ["playing"]})
+            ],
+        )
+        nomatch = _make_rule(
+            db_session,
+            "nomatch",
+            contexts=[
+                _ctx("home_state", {"entity_id": "media_player.tv", "states_any": ["off"]})
+            ],
+        )
+        db_session.commit()
+
+        cache = _StubHaStateCache({"media_player.tv": "playing"})
+        engine = _engine(ha_state_cache=cache)
         matched = {r.id for r in await engine.get_matching_rules(sensor, db_session)}
         assert matched == {match.id}
         assert nomatch.id not in matched

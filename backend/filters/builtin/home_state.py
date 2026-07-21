@@ -22,7 +22,11 @@ class HomeStateFilter(ContextFilter):
         return FilterMetadata(
             filter_type="home_state",
             display_name="Home State",
-            description="Match when a person's home state is at home, asleep, away, or unknown.",
+            description=(
+                "Match when a person's home state is at home, asleep, away, or unknown. "
+                "When entity_id is set, matches instead on an arbitrary Home Assistant "
+                "entity's state (e.g. a media_player), ignoring person_id/state."
+            ),
             config_schema={
                 "type": "object",
                 "properties": {
@@ -35,8 +39,28 @@ class HomeStateFilter(ContextFilter):
                         "enum": ["at_home", "asleep", "away", "unknown"],
                         "description": "Required home state.",
                     },
+                    "entity_id": {
+                        "type": "string",
+                        "description": (
+                            "Optional HA entity to match instead of a person's home "
+                            "state (e.g. 'media_player.living_room_tv'). Read from the "
+                            "in-process HaStateCache, never a live HA HTTP call. "
+                            "When set, person_id/state are ignored."
+                        ),
+                    },
+                    "states_any": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "description": (
+                            "Entity states that count as a match (e.g. ['playing', 'on']). "
+                            "Only used with entity_id."
+                        ),
+                    },
                 },
-                "required": ["state"],
+                # "state" is not JSON-Schema-required: an entity_id-based
+                # config (see description) needs states_any instead, not
+                # state/person_id.
             },
         )
 
@@ -48,6 +72,16 @@ class HomeStateFilter(ContextFilter):
         db: Any = None,
         services: Any = None,
     ) -> bool:
+        entity_id = (config.get("entity_id") or "").strip()
+        if entity_id:
+            if services is None or services.ha_state_cache is None:
+                return False
+            states_any = config.get("states_any") or []
+            cached = services.ha_state_cache.get(entity_id)
+            if cached is None:
+                return False
+            return cached.state in states_any
+
         person_id = (config.get("person_id") or "").strip() or None
         if not person_id:
             return False

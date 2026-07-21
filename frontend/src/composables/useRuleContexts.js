@@ -92,7 +92,9 @@ export function ctxSummary(ctx) {
     case "person_activity":
       return `${c.person_id || "any person"}: ${c.activity_type || "?"}`;
     case "home_state":
-      return `${c.person_id || "any person"} state = ${c.state || "?"}`;
+      return c.entity_id
+        ? `${c.entity_id} in ${Array.isArray(c.states_any) ? c.states_any.join("/") : "?"}`
+        : `${c.person_id || "any person"} state = ${c.state || "?"}`;
     case "presence_status":
       return (
         `${c.person_id || "any person"}: ${c.status || "?"}` +

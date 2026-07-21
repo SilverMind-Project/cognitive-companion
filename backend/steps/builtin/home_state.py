@@ -17,6 +17,12 @@ These map directly to the four high-level home states:
 - **asleep**: ``asleep``
 - **away**: ``away``
 - **state_unknown**: ``unknown`` or ``stale``
+
+When ``entity_id`` is configured, the step additionally (independent of
+``person_id``) reads that Home Assistant entity from the in-process
+``HaStateCache`` and writes:
+``{output_key}_entity_state`` (str | None) -- raw HA state string
+``{output_key}_entity_on`` (bool) -- True when the state is in ``states_any``
 """
 
 from __future__ import annotations
@@ -74,6 +80,23 @@ class HomeStateHandler(StepHandler):
                             "<key>_state_unknown."
                         ),
                     },
+                    "entity_id": {
+                        "type": "string",
+                        "description": (
+                            "Optional HA entity (e.g. 'media_player.living_room_tv') to "
+                            "also read from HaStateCache. Emits <key>_entity_state and "
+                            "<key>_entity_on. Independent of person_id."
+                        ),
+                    },
+                    "states_any": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "description": (
+                            "Entity states that count as 'on' for <key>_entity_on. "
+                            "Only used with entity_id."
+                        ),
+                    },
                 },
                 "required": [],
             },
@@ -95,22 +118,28 @@ class HomeStateHandler(StepHandler):
         output_key = (config.get("output_key") or "home").strip() or "home"
 
         if not person_id or services.presence is None:
-            return StepResult(
-                data={
-                    f"{output_key}_at_home": False,
-                    f"{output_key}_asleep": False,
-                    f"{output_key}_away": False,
-                    f"{output_key}_state_unknown": True,
-                },
-            )
+            data: dict[str, Any] = {
+                f"{output_key}_at_home": False,
+                f"{output_key}_asleep": False,
+                f"{output_key}_away": False,
+                f"{output_key}_state_unknown": True,
+            }
+        else:
+            snapshot = await services.presence.get(person_id)
+            status = snapshot.status.value
 
-        snapshot = await services.presence.get(person_id)
-        status = snapshot.status.value
+            data = {
+                f"{output_key}_at_home": status in ("present_room", "present_home", "asleep"),
+                f"{output_key}_asleep": status == "asleep",
+                f"{output_key}_away": status == "away",
+                f"{output_key}_state_unknown": status in ("unknown", "stale"),
+            }
 
-        data: dict[str, Any] = {
-            f"{output_key}_at_home": status in ("present_room", "present_home", "asleep"),
-            f"{output_key}_asleep": status == "asleep",
-            f"{output_key}_away": status == "away",
-            f"{output_key}_state_unknown": status in ("unknown", "stale"),
-        }
+        entity_id = (config.get("entity_id") or "").strip()
+        if entity_id:
+            states_any = config.get("states_any") or []
+            cached = services.ha_state_cache.get(entity_id) if services.ha_state_cache else None
+            data[f"{output_key}_entity_state"] = cached.state if cached is not None else None
+            data[f"{output_key}_entity_on"] = cached is not None and cached.state in states_any
+
         return StepResult(data=data)

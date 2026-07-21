@@ -55,6 +55,20 @@ class _StubPresenceService:
         return self.snapshot
 
 
+@dataclass
+class _FakeHaState:
+    state: str
+
+
+class _StubHaStateCache:
+    def __init__(self, states: dict[str, str]) -> None:
+        self._states = states
+
+    def get(self, entity_id: str) -> _FakeHaState | None:
+        state = self._states.get(entity_id)
+        return _FakeHaState(state=state) if state is not None else None
+
+
 @pytest.mark.asyncio
 async def test_present_room():
     snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM)
@@ -161,3 +175,74 @@ async def test_no_presence_service():
     data = result.data
     assert data["home_at_home"] is False
     assert data["home_state_unknown"] is True
+
+
+@pytest.mark.asyncio
+async def test_entity_id_on_when_state_in_states_any():
+    services = ServiceContainer(
+        db_factory=lambda: None,
+        ha_state_cache=_StubHaStateCache({"media_player.tv": "playing"}),
+    )
+    handler = HomeStateHandler()
+    result = await handler.execute(
+        step=_FakeStep(
+            config_json={
+                "entity_id": "media_player.tv",
+                "states_any": ["playing", "on"],
+                "output_key": "tv",
+            }
+        ),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+    data = result.data
+    assert data["tv_entity_state"] == "playing"
+    assert data["tv_entity_on"] is True
+
+
+@pytest.mark.asyncio
+async def test_entity_id_off_when_state_not_in_states_any():
+    services = ServiceContainer(
+        db_factory=lambda: None,
+        ha_state_cache=_StubHaStateCache({"media_player.tv": "off"}),
+    )
+    handler = HomeStateHandler()
+    result = await handler.execute(
+        step=_FakeStep(
+            config_json={
+                "entity_id": "media_player.tv",
+                "states_any": ["playing", "on"],
+                "output_key": "tv",
+            }
+        ),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+    data = result.data
+    assert data["tv_entity_state"] == "off"
+    assert data["tv_entity_on"] is False
+
+
+@pytest.mark.asyncio
+async def test_entity_id_missing_from_cache_degrades_to_none():
+    services = ServiceContainer(
+        db_factory=lambda: None,
+        ha_state_cache=_StubHaStateCache({}),
+    )
+    handler = HomeStateHandler()
+    result = await handler.execute(
+        step=_FakeStep(
+            config_json={"entity_id": "media_player.tv", "states_any": ["playing"]}
+        ),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+    data = result.data
+    assert data["home_entity_state"] is None
+    assert data["home_entity_on"] is False

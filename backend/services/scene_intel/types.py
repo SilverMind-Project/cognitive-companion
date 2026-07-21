@@ -17,6 +17,7 @@ from backend.integrations.scene_analysis_client import (
 # ---------------------------------------------------------------------------
 
 __all__ = [
+    "ObservationDraft",
     "RoomTransition",
     "SceneAnalyzeResult",
     "SceneDetection",
@@ -49,6 +50,23 @@ class SceneRunFlags(StrEnum):
     @property
     def run_hazards(self) -> bool:
         return self in (self.HAZARDS,)
+
+
+@dataclass(frozen=True)
+class ObservationDraft:
+    """Caller-facing input to ``SceneIntelService.persist_observation``.
+
+    Callers outside ``scene_intel`` build this instead of importing the
+    integration client's ``ObservationCreate`` directly (DL8: the raw
+    semantic-memory schema stays private to the service).
+    """
+
+    room_id: str
+    description: str = ""
+    object_list: list[str] = field(default_factory=list)
+    hazard_flags: list[str] = field(default_factory=list)
+    embedding: list[float] = field(default_factory=list)
+    source: str = "scene_intel"
 
 
 @dataclass(frozen=True)

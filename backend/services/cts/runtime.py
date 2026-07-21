@@ -26,7 +26,7 @@ from backend.services.cts._types import (
     MinioClient,
     PipelineExecutor,
     SceneAnalysisClient,
-    SemanticMemoryClient,
+    SceneIntel,
 )
 from backend.services.cts.backfill_projector import BackfillProjector
 from backend.services.cts.event_bucketizer import (
@@ -97,7 +97,7 @@ class CTSRuntime:
         pipeline: PipelineExecutor | None = None,
         minio_client: MinioClient | None = None,
         scene_analysis_client: SceneAnalysisClient | None = None,
-        semantic_memory_client: SemanticMemoryClient | None = None,
+        scene_intel: SceneIntel | None = None,
         camera_room_map: dict[str, str] | None = None,
         authority: SourceAuthority,
         person_location_service: object | None = None,
@@ -216,7 +216,7 @@ class CTSRuntime:
             consumer_id=config.consumer_id,
             minio_client=minio_client,
             scene_analysis_client=scene_analysis_client,
-            semantic_memory_client=semantic_memory_client,
+            scene_intel=scene_intel,
             camera_room_map=camera_map,
         )
 

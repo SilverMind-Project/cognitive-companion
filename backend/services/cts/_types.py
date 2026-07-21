@@ -12,6 +12,8 @@ from typing import Any, Protocol
 
 from sqlalchemy.orm import Session
 
+from backend.services.scene_intel.types import ObservationDraft, SceneIntelRecord
+
 __all__ = [
     "ConnectionManager",
     "DBSessionFactory",
@@ -19,7 +21,7 @@ __all__ = [
     "MinioClient",
     "PipelineExecutor",
     "SceneAnalysisClient",
-    "SemanticMemoryClient",
+    "SceneIntel",
 ]
 
 
@@ -69,13 +71,10 @@ class SceneAnalysisClient(Protocol):
     ) -> Any: ...
 
 
-class SemanticMemoryClient(Protocol):
-    """Semantic memory service subset used by the scene-sample subscriber."""
+class SceneIntel(Protocol):
+    """Scene-intel domain-service subset used by the scene-sample subscriber."""
 
-    @property
-    def configured(self) -> bool: ...
-
-    async def create_observation(self, observation: Any) -> Any | None: ...
+    async def persist_observation(self, draft: ObservationDraft) -> SceneIntelRecord: ...
 
 
 class IdentityLookupClient(Protocol):

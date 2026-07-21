@@ -10,8 +10,8 @@ from backend.integrations.scene_analysis_client import (
     SceneDetection,
     SceneHazardAlert,
 )
-from backend.integrations.semantic_memory_client import ObservationCreate, ObservationRecord
 from backend.services.cts.scene_sample_subscriber import SceneSampleSubscriber
+from backend.services.scene_intel.types import ObservationDraft, SceneIntelRecord
 
 
 def _make_sample_proto(**overrides) -> scene_pb2.SceneSample:
@@ -95,19 +95,9 @@ class TestSceneSampleHandle:
         analysis.configured = True
         analysis.analyze = AsyncMock(return_value=_make_analysis_result())
 
-        memory = MagicMock()
-        memory.configured = True
-        memory.create_observation = AsyncMock(
-            return_value=ObservationRecord(
-                id=42,
-                room_id="kitchen",
-                description="test",
-                object_list=["stove"],
-                hazard_flags=["stove_unattended"],
-                observed_at=None,
-                source="scene_intel",
-                created_at=None,
-            )
+        scene_intel = MagicMock()
+        scene_intel.persist_observation = AsyncMock(
+            return_value=SceneIntelRecord(observation_id=42, movement_ids=[], source="scene_intel")
         )
 
         sub = SceneSampleSubscriber(
@@ -115,7 +105,7 @@ class TestSceneSampleHandle:
             consumer_id="t1",
             minio_client=minio,
             scene_analysis_client=analysis,
-            semantic_memory_client=memory,
+            scene_intel=scene_intel,
         )
 
         sample = {
@@ -129,13 +119,13 @@ class TestSceneSampleHandle:
         assert result  # not a coroutine
         minio.async_get_object.assert_called_once_with("keyframes/kf-001.jpg")
         analysis.analyze.assert_called_once()
-        memory.create_observation.assert_called_once()
+        scene_intel.persist_observation.assert_called_once()
 
-        obs: ObservationCreate = memory.create_observation.call_args.args[0]
-        assert obs.source == "scene_intel"
-        assert "stove" in obs.object_list
-        assert "stove_unattended" in obs.hazard_flags
-        assert len(obs.embedding) == 3
+        draft: ObservationDraft = scene_intel.persist_observation.call_args.args[0]
+        assert draft.source == "scene_intel"
+        assert "stove" in draft.object_list
+        assert "stove_unattended" in draft.hazard_flags
+        assert len(draft.embedding) == 3
 
     async def test_minio_miss_acks_and_skips(self):
         minio = MagicMock()
@@ -162,19 +152,9 @@ class TestSceneSampleHandle:
         analysis = MagicMock()
         analysis.configured = False
 
-        memory = MagicMock()
-        memory.configured = True
-        memory.create_observation = AsyncMock(
-            return_value=ObservationRecord(
-                id=1,
-                room_id="",
-                description="",
-                object_list=[],
-                hazard_flags=[],
-                observed_at=None,
-                source="scene_intel",
-                created_at=None,
-            )
+        scene_intel = MagicMock()
+        scene_intel.persist_observation = AsyncMock(
+            return_value=SceneIntelRecord(observation_id=1, movement_ids=[], source="scene_intel")
         )
 
         sub = SceneSampleSubscriber(
@@ -182,15 +162,16 @@ class TestSceneSampleHandle:
             consumer_id="t1",
             minio_client=minio,
             scene_analysis_client=analysis,
-            semantic_memory_client=memory,
+            scene_intel=scene_intel,
         )
 
         sample = {"keyframe_id": "kf-001", "camera_id": "cam-kitchen", "minio_key": "kf.jpg"}
         result = await sub.handle(sample)
         assert result is True
         analysis.analyze.assert_not_called()
-        # Still persists to memory (empty observation)
-        memory.create_observation.assert_called_once()
+        # Still persists to memory (empty observation): persist_observation, unlike
+        # scene_intel.persist(), never skips an empty-looking draft.
+        scene_intel.persist_observation.assert_called_once()
 
     async def test_no_minio_client_acks(self):
         sub = SceneSampleSubscriber(redis_url="redis://x", consumer_id="t1")
@@ -198,7 +179,7 @@ class TestSceneSampleHandle:
         result = await sub.handle(sample)
         assert result is True
 
-    async def test_no_semantic_memory_client_skips_persist(self):
+    async def test_no_scene_intel_skips_persist(self):
         minio = MagicMock()
         minio.async_get_object = AsyncMock(return_value=b"jpeg")
 
@@ -236,19 +217,9 @@ class TestSceneSampleHandle:
         analysis.configured = True
         analysis.analyze = AsyncMock(side_effect=RuntimeError("service down"))
 
-        memory = MagicMock()
-        memory.configured = True
-        memory.create_observation = AsyncMock(
-            return_value=ObservationRecord(
-                id=1,
-                room_id="",
-                description="",
-                object_list=[],
-                hazard_flags=[],
-                observed_at=None,
-                source="scene_intel",
-                created_at=None,
-            )
+        scene_intel = MagicMock()
+        scene_intel.persist_observation = AsyncMock(
+            return_value=SceneIntelRecord(observation_id=1, movement_ids=[], source="scene_intel")
         )
 
         sub = SceneSampleSubscriber(
@@ -256,11 +227,34 @@ class TestSceneSampleHandle:
             consumer_id="t1",
             minio_client=minio,
             scene_analysis_client=analysis,
-            semantic_memory_client=memory,
+            scene_intel=scene_intel,
         )
 
         sample = {"keyframe_id": "kf-001", "camera_id": "cam-kitchen", "minio_key": "kf.jpg"}
         result = await sub.handle(sample)
         assert result is True
         # Still creates empty observation
-        memory.create_observation.assert_called_once()
+        scene_intel.persist_observation.assert_called_once()
+
+    async def test_persist_observation_exception_does_not_crash(self):
+        minio = MagicMock()
+        minio.async_get_object = AsyncMock(return_value=b"jpeg")
+
+        analysis = MagicMock()
+        analysis.configured = True
+        analysis.analyze = AsyncMock(return_value=_make_analysis_result())
+
+        scene_intel = MagicMock()
+        scene_intel.persist_observation = AsyncMock(side_effect=RuntimeError("upstream down"))
+
+        sub = SceneSampleSubscriber(
+            redis_url="redis://x",
+            consumer_id="t1",
+            minio_client=minio,
+            scene_analysis_client=analysis,
+            scene_intel=scene_intel,
+        )
+
+        sample = {"keyframe_id": "kf-001", "camera_id": "cam-kitchen", "minio_key": "kf.jpg"}
+        result = await sub.handle(sample)
+        assert result is True  # acked; exception caught, not propagated

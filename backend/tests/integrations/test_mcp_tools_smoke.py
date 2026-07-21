@@ -26,7 +26,6 @@ EXPECTED_TOOLS = {
     "get_conversation_history",
     "get_person_locations",
     "get_enrolled_persons",
-    "get_person_sightings",
     "get_person_activities",
     "get_workflow_executions",
     "get_rule_pipeline",
@@ -76,7 +75,7 @@ EXPECTED_TOOLS = {
     "propose_identity_correction",
 }
 
-EXPECTED_COUNT = 59
+EXPECTED_COUNT = 58
 
 
 # ---------------------------------------------------------------------------

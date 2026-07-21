@@ -14,7 +14,6 @@ from backend.mcp.server import (
     get_person_activities,
     get_person_location,
     get_person_locations,
-    get_person_sightings,
     get_room_occupancy,
 )
 
@@ -87,30 +86,6 @@ async def test_get_room_occupancy_never_returns_message_dict():
         return
     if isinstance(result, dict):
         assert "message" not in result, "Silent fallback message dict returned"
-
-
-# ---------------------------------------------------------------------------
-# get_person_sightings: raises when person_tracking unavailable
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_get_person_sightings_raises_when_tracking_unavailable():
-    _svc.person_tracking = None
-    with pytest.raises(RuntimeError, match="PersonTrackingService not available"):
-        await get_person_sightings("alice")
-
-
-@pytest.mark.asyncio
-async def test_get_person_sightings_never_returns_message_dict():
-    _svc.person_tracking = None
-    try:
-        result = await get_person_sightings("alice")
-    except RuntimeError:
-        return
-    if isinstance(result, list) and result:
-        for item in result:
-            assert "message" not in item, "Silent fallback message record returned"
 
 
 # ---------------------------------------------------------------------------

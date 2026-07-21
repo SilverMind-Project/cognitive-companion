@@ -2,7 +2,7 @@
 
 M32: the location/sighting sources are backed by PersonLocationService
 (room_segments / observations), not the legacy PersonLocationHistory /
-PersonSighting tables. See
+old_sightings_record tables. See
 codebase-hardening-m32-cc-location-read-unification.md.
 """
 
@@ -224,7 +224,7 @@ class TestGetTimelineSources:
 
     async def test_get_sighting_events_downsampled_within_a_bucket(self, db_factory):
         """world_tracker can write several observations a second -- far
-        denser than legacy PersonSighting's once-per-identification-run
+        denser than legacy old_sightings_record's once-per-identification-run
         cadence. A dense cluster inside one 2-minute bucket must collapse
         to a single sighting event, not one per raw observation."""
         location_service = _make_location_service(db_factory)

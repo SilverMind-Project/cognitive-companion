@@ -7,7 +7,9 @@ Decodes ``IdentityRevision`` proto messages from the
 
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import Coroutine
 from typing import Any
 
 from backend.core.logging import get_logger
@@ -22,6 +24,21 @@ from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 logger = get_logger(__name__)
 
 FIELD = b"revision"
+
+
+def _run_off_loop[T](coro: Coroutine[Any, Any, T]) -> Coroutine[Any, Any, T]:
+    """Run a coroutine on a worker thread via its own event loop.
+
+    ``SignalRewriter.apply`` and ``PersonLocationService.apply_identity_revision``
+    are ``async def`` in name only: every ``await`` inside them resolves a
+    synchronous, blocking SQLAlchemy call (no real async I/O). Awaiting them
+    directly runs that blocking work on the shared event loop, so a large
+    revision replay (hundreds of segments after downtime) froze the entire
+    process -- HTTP requests, other CTS consumers, the scheduler -- for the
+    whole drain. ``asyncio.run`` in a fresh thread gives the coroutine its
+    own loop, safe because neither depends on the caller's loop or its state.
+    """
+    return asyncio.to_thread(asyncio.run, coro)
 
 
 class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
@@ -133,7 +150,7 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
             return await self._backfill_projector.project(revision)  # type: ignore[attr-defined]
 
         try:
-            result = await self._rewriter.apply(revision)
+            result = await _run_off_loop(self._rewriter.apply(revision))
         except Exception:
             logger.exception("identity_revision_apply_error", revision=revision)
             metrics.cts_revisions_dropped.inc()
@@ -166,11 +183,13 @@ class IdentityRevisionSubscriber(StreamConsumer[dict[str, Any]]):
                     rev_time = datetime.fromisoformat(rev_time_str.replace("Z", "+00:00"))
                 else:
                     rev_time = datetime.now(UTC)
-                await self._pls.apply_identity_revision(  # type: ignore[attr-defined]
-                    old_person_id=revision.get("previous_identity_id") or "",
-                    new_person_id=revision.get("new_identity_id"),
-                    ph_id=revision.get("ph_id", ""),
-                    revision_time=rev_time,
+                await _run_off_loop(
+                    self._pls.apply_identity_revision(  # type: ignore[attr-defined]
+                        old_person_id=revision.get("previous_identity_id") or "",
+                        new_person_id=revision.get("new_identity_id"),
+                        ph_id=revision.get("ph_id", ""),
+                        revision_time=rev_time,
+                    )
                 )
             except Exception:
                 logger.exception("identity_revision_pls_apply_error")

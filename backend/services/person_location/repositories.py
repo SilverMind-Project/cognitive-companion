@@ -53,6 +53,7 @@ def minute_of_day_in_window(
 
 class ObservationRepository(Protocol):
     async def insert(self, obs: LocationObservation) -> None: ...
+    async def insert_many(self, observations: list[LocationObservation]) -> None: ...
     async def latest_floor_point(
         self, person_id: str, since: datetime
     ) -> LocationObservation | None: ...
@@ -130,6 +131,10 @@ class InMemoryObservationRepository:
 
     async def insert(self, obs: LocationObservation) -> None:
         self._rows[obs.id] = obs
+
+    async def insert_many(self, observations: list[LocationObservation]) -> None:
+        for obs in observations:
+            self._rows[obs.id] = obs
 
     async def latest_floor_point(
         self, person_id: str, since: datetime
@@ -407,6 +412,28 @@ class SqlAlchemyObservationRepository:
                 metadata_json=dict(obs.metadata),
             )
             db.add(row)
+            db.flush()
+
+    async def insert_many(self, observations: list[LocationObservation]) -> None:
+        """Insert observations in a single transaction (e.g. revision replay)."""
+        if not observations:
+            return
+        with transaction(self._db_factory) as db:
+            for obs in observations:
+                db.add(
+                    LOObs(
+                        id=obs.id,
+                        person_id=obs.person_id,
+                        observed_at=obs.observed_at,
+                        source=obs.source,
+                        source_ref=obs.source_ref,
+                        floor_x_m=obs.floor_point.x_m if obs.floor_point else None,
+                        floor_y_m=obs.floor_point.y_m if obs.floor_point else None,
+                        room_id=obs.room_id,
+                        confidence=obs.confidence,
+                        metadata_json=dict(obs.metadata),
+                    )
+                )
             db.flush()
 
     async def latest_floor_point(

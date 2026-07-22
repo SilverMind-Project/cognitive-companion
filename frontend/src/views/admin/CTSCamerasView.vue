@@ -368,7 +368,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { cts } from "../../services/cts.js";
 import { api } from "../../services/api.js";
 import { useNotify } from "../../composables/useNotify.js";

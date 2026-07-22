@@ -228,37 +228,47 @@ class PersonLocationService:
         horizon = timedelta(seconds=self._cfg.revision_horizon_s)
         window_start = revision_time - horizon
 
-        # Rewrite observations.
+        # Rewrite observations. Batched into one insert (see the segment
+        # batching note below): a revision replay can touch a full horizon
+        # window of observations, and committing one row at a time blocked
+        # the event loop for the whole drain.
         affected_obs = await self._obs.list_for_source_ref(
             source_ref=ph_id,
             since=window_start,
             until=revision_time,
         )
-        for old_obs in affected_obs:
-            if new_person_id is None:
-                continue
-            corrected = LocationObservation(
-                id=uuid4(),
-                person_id=new_person_id,
-                observed_at=old_obs.observed_at,
-                source=old_obs.source,
-                source_ref=old_obs.source_ref,
-                floor_point=old_obs.floor_point,
-                room_id=old_obs.room_id,
-                confidence=old_obs.confidence,
-                metadata={
-                    **old_obs.metadata,
-                    "revised_from_person_id": str(old_obs.person_id),
-                },
-            )
-            await self._obs.insert(corrected)
+        if new_person_id is not None:
+            corrected_obs = [
+                LocationObservation(
+                    id=uuid4(),
+                    person_id=new_person_id,
+                    observed_at=old_obs.observed_at,
+                    source=old_obs.source,
+                    source_ref=old_obs.source_ref,
+                    floor_point=old_obs.floor_point,
+                    room_id=old_obs.room_id,
+                    confidence=old_obs.confidence,
+                    metadata={
+                        **old_obs.metadata,
+                        "revised_from_person_id": str(old_obs.person_id),
+                    },
+                )
+                for old_obs in affected_obs
+            ]
+            await self._obs.insert_many(corrected_obs)
 
-        # Supersede affected segments.
+        # Supersede affected segments. A revision replay can touch hundreds of
+        # segments at once (e.g. after downtime); committing per-segment made
+        # this a long sequential drain of synchronous, un-offloaded DB commits
+        # that starved the event loop for its whole duration (DL-M06 incident:
+        # health checks timed out for minutes after a backlog replay). Decide
+        # every segment first, then apply the merged batch in one transaction.
         affected_segs = await self._seg.list_overlapping(
             person_id=old_person_id,
             since=window_start,
             until=revision_time + horizon,
         )
+        batch = SegmentDecision()
         for old_seg in affected_segs:
             event = IncomingEvent(
                 kind=EventKind.IDENTITY_REVISION,
@@ -271,7 +281,11 @@ class PersonLocationService:
                 },
             )
             decision = decide(old_seg, event, self._cfg.inferred_dwell_max_s)
-            await self._apply_decision(decision)
+            batch.writes.extend(decision.writes)
+            batch.refreshes.extend(decision.refreshes)
+            batch.closes.extend(decision.closes)
+            batch.supersedes.extend(decision.supersedes)
+        await self._apply_decision(batch)
 
     async def ingest_backfill_segments(
         self,

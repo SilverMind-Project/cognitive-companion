@@ -18,6 +18,15 @@ class PresenceSegment(Base):
         Index("idx_ps_person_open", "person_id", postgresql_where=text("exited_at IS NULL")),
         Index("idx_ps_person_time", "person_id", text("entered_at DESC")),
         Index("idx_ps_room_time", "room_id", text("entered_at DESC")),
+        # superseded_by is a self-referencing FK with no index otherwise:
+        # every UPDATE/DELETE touching a row's id makes Postgres check for
+        # referencing rows, which without this index is a full table scan
+        # per row (see alembic 0019_ps_superseded_by_idx).
+        Index(
+            "idx_ps_superseded_by",
+            "superseded_by",
+            postgresql_where=text("superseded_by IS NOT NULL"),
+        ),
         # idempotency backstop for the backfill.
         # projector under concurrent stream redelivery. A read-then-write
         # check alone is not enforcement; this partial unique index is.

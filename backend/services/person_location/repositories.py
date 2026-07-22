@@ -330,6 +330,7 @@ class InMemorySegmentRepository:
             if s.person_id == person_id
             and s.entered_at <= until
             and (s.exited_at is None or s.exited_at >= since)
+            and s.superseded_by is None
         ]
 
     async def apply_decision(
@@ -747,6 +748,7 @@ class SqlAlchemySegmentRepository:
                         PSeg.person_id == person_id,
                         PSeg.entered_at <= until,
                         (PSeg.exited_at.is_(None)) | (PSeg.exited_at >= since),
+                        PSeg.superseded_by.is_(None),
                     )
                 )
                 .scalars()

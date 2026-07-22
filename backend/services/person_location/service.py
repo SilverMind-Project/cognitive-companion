@@ -257,35 +257,47 @@ class PersonLocationService:
             ]
             await self._obs.insert_many(corrected_obs)
 
-        # Supersede affected segments. A revision replay can touch hundreds of
-        # segments at once (e.g. after downtime); committing per-segment made
-        # this a long sequential drain of synchronous, un-offloaded DB commits
-        # that starved the event loop for its whole duration (DL-M06 incident:
-        # health checks timed out for minutes after a backlog replay). Decide
-        # every segment first, then apply the merged batch in one transaction.
-        affected_segs = await self._seg.list_overlapping(
-            person_id=old_person_id,
-            since=window_start,
-            until=revision_time + horizon,
-        )
-        batch = SegmentDecision()
-        for old_seg in affected_segs:
-            event = IncomingEvent(
-                kind=EventKind.IDENTITY_REVISION,
-                person_id=new_person_id or old_seg.person_id,
-                room_id=None,
-                at=revision_time,
-                confidence=old_seg.confidence,
-                metadata={
-                    "new_person_id": str(new_person_id or old_seg.person_id),
-                },
+        # Supersede affected segments. Only when the revision actually names a
+        # new identity: with new_person_id is None, decide()'s IDENTITY_REVISION
+        # branch falls back to `new_person_id or old_seg.person_id`, which
+        # produces a same-person "replacement" that supersedes the original
+        # with an identical copy -- a no-op in effect, but not in cost. On
+        # stream redelivery of the same "no correction" revision this churned
+        # unboundedly: list_overlapping (see below) doesn't exclude segments
+        # already superseded, so every replay found *both* the original and
+        # every prior replacement and copied all of them again, compounding
+        # each redelivery (incident: 2.5M+ duplicate rows from one revision
+        # replayed ~13 times after reclaim-timeout redelivery). Mirrors the
+        # observation loop's existing `if new_person_id is not None:` guard.
+        if new_person_id is not None:
+            # A revision replay can touch hundreds of segments at once (e.g.
+            # after downtime); committing per-segment made this a long
+            # sequential drain of synchronous, un-offloaded DB commits that
+            # starved the event loop for its whole duration (DL-M06 incident:
+            # health checks timed out for minutes after a backlog replay).
+            # Decide every segment first, then apply the merged batch in one
+            # transaction.
+            affected_segs = await self._seg.list_overlapping(
+                person_id=old_person_id,
+                since=window_start,
+                until=revision_time + horizon,
             )
-            decision = decide(old_seg, event, self._cfg.inferred_dwell_max_s)
-            batch.writes.extend(decision.writes)
-            batch.refreshes.extend(decision.refreshes)
-            batch.closes.extend(decision.closes)
-            batch.supersedes.extend(decision.supersedes)
-        await self._apply_decision(batch)
+            batch = SegmentDecision()
+            for old_seg in affected_segs:
+                event = IncomingEvent(
+                    kind=EventKind.IDENTITY_REVISION,
+                    person_id=new_person_id,
+                    room_id=None,
+                    at=revision_time,
+                    confidence=old_seg.confidence,
+                    metadata={"new_person_id": new_person_id},
+                )
+                decision = decide(old_seg, event, self._cfg.inferred_dwell_max_s)
+                batch.writes.extend(decision.writes)
+                batch.refreshes.extend(decision.refreshes)
+                batch.closes.extend(decision.closes)
+                batch.supersedes.extend(decision.supersedes)
+            await self._apply_decision(batch)
 
     async def ingest_backfill_segments(
         self,

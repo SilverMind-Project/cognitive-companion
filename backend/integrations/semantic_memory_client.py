@@ -37,12 +37,20 @@ logger = get_logger(__name__)
 class ObservationCreate:
     """Input to create_observation."""
 
-    room_id: str
+    room_id: str | None = None
     description: str = ""
     object_list: list[str] = field(default_factory=list)
     hazard_flags: list[str] = field(default_factory=list)
     embedding: list[float] = field(default_factory=list)
     source: str = "scene_intel"
+    # DL-M05: attributes an observation to a resident and distinguishes
+    # record taxonomy ("scene" / "guided_episode" / "hygiene_verdict").
+    person_id: str | None = None
+    kind: str | None = None
+    # 768-dim text embedding (embeddinggemma), distinct from ``embedding``
+    # (CLIP image embedding); SMS keeps these in separate columns so text
+    # search never mixes with image-similarity search.
+    description_embedding: list[float] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -57,6 +65,8 @@ class ObservationRecord:
     observed_at: datetime
     source: str
     created_at: datetime
+    person_id: str | None = None
+    kind: str | None = None
 
 
 @dataclass(frozen=True)
@@ -64,11 +74,14 @@ class ObservationSearchRequest:
     """Input to search_observations."""
 
     room_id: str | None = None
-    since_minutes: int = 60
+    since_minutes: int | None = 60
     objects_any: list[str] = field(default_factory=list)
     hazard_flags_any: list[str] = field(default_factory=list)
     query_text: str = ""
     limit: int = 5
+    person_id: str | None = None
+    # "scene" also matches legacy rows written before this column existed.
+    kind: str | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +97,8 @@ class ObservationSearchHit:
     text_similarity: float = 0.0
     image_similarity: float = 0.0
     source: str = ""
+    person_id: str | None = None
+    kind: str | None = None
 
 
 @dataclass(frozen=True)
@@ -198,6 +213,8 @@ class _ObservationPayload(BaseModel):
     observed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     source: str = "scene_intel"
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    person_id: str | None = None
+    kind: str | None = None
 
     @field_validator("observed_at", "created_at", mode="before")
     @classmethod
@@ -221,6 +238,8 @@ class _ObservationPayload(BaseModel):
             observed_at=self.observed_at,
             source=self.source,
             created_at=self.created_at,
+            person_id=self.person_id,
+            kind=self.kind,
         )
 
 
@@ -234,6 +253,8 @@ class _ObservationSearchHitPayload(BaseModel):
     text_similarity: float = 0.0
     image_similarity: float = 0.0
     source: str = ""
+    person_id: str | None = None
+    kind: str | None = None
 
     @field_validator("observed_at", mode="before")
     @classmethod
@@ -258,6 +279,8 @@ class _ObservationSearchHitPayload(BaseModel):
             text_similarity=self.text_similarity,
             image_similarity=self.image_similarity,
             source=self.source,
+            person_id=self.person_id,
+            kind=self.kind,
         )
 
 
@@ -470,8 +493,13 @@ class SemanticMemoryClient(HttpUpstreamClient):
             "object_list": obs.object_list,
             "hazard_flags": obs.hazard_flags,
             "embedding": obs.embedding,
+            # Empty list means "not computed"; send None so pgvector stores
+            # NULL rather than rejecting a zero-length vector(768) value.
+            "description_embedding": obs.description_embedding or None,
             "source": obs.source,
             "observed_at": datetime.now(UTC).isoformat(),
+            "person_id": obs.person_id,
+            "kind": obs.kind,
         }
         data = await self._post_json("/api/v1/observations", json=body)
         if data is None:
@@ -490,6 +518,8 @@ class SemanticMemoryClient(HttpUpstreamClient):
             "hazard_flags_any": req.hazard_flags_any,
             "query_text": req.query_text,
             "limit": req.limit,
+            "person_id": req.person_id,
+            "kind": req.kind,
         }
         data = await self._post_json("/api/v1/observations/search", json=body)
         if data is None:

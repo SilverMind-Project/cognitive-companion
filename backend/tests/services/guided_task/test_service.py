@@ -82,12 +82,16 @@ class _FakePipelineExecutor:
 
 
 @dataclass
-class _MemoryClient:
-    observations: list = field(default_factory=list)
+class _SceneIntel:
+    """Fake ``SceneIntelService`` capturing drafts passed to ``persist_observation``."""
 
-    async def create_observation(self, observation):
-        self.observations.append(observation)
-        return None
+    drafts: list = field(default_factory=list)
+
+    async def persist_observation(self, draft):
+        from backend.services.scene_intel.types import SceneIntelRecord
+
+        self.drafts.append(draft)
+        return SceneIntelRecord(observation_id=len(self.drafts))
 
 
 def _settings(max_step_attempts: int = 3, resume_grace_s: int = 600) -> Settings:
@@ -133,7 +137,9 @@ def _service(
     escalator: _RecordingEscalator | None = None,
     safety_watch: _SafetyWatch | None = None,
     pipeline_executor=None,
-    semantic_memory_client=None,
+    scene_intel=None,
+    memory_query=None,
+    knowledge_ingestion=None,
     settings: Settings | None = None,
 ) -> GuidedTaskService:
     return GuidedTaskService(
@@ -143,7 +149,9 @@ def _service(
         voice=voice,
         escalator=escalator,
         safety_watch=safety_watch,
-        semantic_memory_client=semantic_memory_client,
+        scene_intel=scene_intel,
+        memory_query=memory_query,
+        knowledge_ingestion=knowledge_ingestion,
         settings=settings or _settings(),
         time_fn=clock,
     )
@@ -282,6 +290,61 @@ async def test_resume_after_grace_abandons(db_session, db_factory):
 
 
 @pytest.mark.asyncio
+async def test_terminal_transition_invokes_bridge_on_complete(db_session, db_factory):
+    routine_id = _seed_routine(db_session, steps=1)
+    service = _service(db_factory, _Clock())
+    calls: list[str] = []
+
+    async def fake_terminal(session):
+        calls.append(session.status)
+
+    service._memory_bridge.on_session_terminal = fake_terminal
+    session = await service.start(routine_id, "resident-1")
+
+    await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
+
+    assert calls == ["completed"]
+
+
+@pytest.mark.asyncio
+async def test_terminal_transition_invokes_bridge_on_abandon(db_session, db_factory):
+    routine_id = _seed_routine(db_session)
+    clock = _Clock()
+    service = _service(db_factory, clock, settings=_settings(resume_grace_s=60))
+    calls: list[str] = []
+
+    async def fake_terminal(session):
+        calls.append(session.status)
+
+    service._memory_bridge.on_session_terminal = fake_terminal
+    session = await service.start(routine_id, "resident-1", execution_id=42)
+    clock.advance(61)
+
+    decision = await service.resume(session.id)
+
+    assert decision.kind == "abandon"
+    assert calls == ["abandoned"]
+
+
+@pytest.mark.asyncio
+async def test_terminal_transition_bridge_not_invoked_for_non_terminal_event(db_session, db_factory):
+    routine_id = _seed_routine(db_session, steps=2)
+    service = _service(db_factory, _Clock())
+    calls: list[str] = []
+
+    async def fake_terminal(session):
+        calls.append(session.status)
+
+    service._memory_bridge.on_session_terminal = fake_terminal
+    session = await service.start(routine_id, "resident-1")
+
+    # Advances step 0 -> step 1, a non-terminal transition.
+    await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
+
+    assert calls == []
+
+
+@pytest.mark.asyncio
 async def test_missing_scheduler_is_graceful(db_session, db_factory):
     routine_id = _seed_routine(db_session)
     service = _service(db_factory, _Clock(), scheduler=None)
@@ -295,17 +358,18 @@ async def test_missing_scheduler_is_graceful(db_session, db_factory):
 async def test_complete_writes_observation_without_transcript(db_session, db_factory):
     routine_id = _seed_routine(db_session, steps=1)
     clock = _Clock()
-    memory = _MemoryClient()
-    service = _service(db_factory, clock, semantic_memory_client=memory)
+    scene_intel = _SceneIntel()
+    service = _service(db_factory, clock, scene_intel=scene_intel)
     session = await service.start(routine_id, "resident-1")
 
     await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
 
-    assert len(memory.observations) == 1
-    observation = memory.observations[0]
-    assert observation.source == "guided_task"
-    assert "Make tea" in observation.description
-    assert "transcript" not in observation.description.lower()
+    assert len(scene_intel.drafts) == 1
+    draft = scene_intel.drafts[0]
+    assert draft.source == "guided_companion"
+    assert draft.kind == "guided_episode"
+    assert "Make tea" in draft.description
+    assert "transcript" not in draft.description.lower()
 
 
 @pytest.mark.asyncio
@@ -329,7 +393,7 @@ async def test_guided_metrics_counters_increment_on_finalize(db_session, db_fact
 @pytest.mark.asyncio
 async def test_missing_memory_service_graceful(db_session, db_factory):
     routine_id = _seed_routine(db_session, steps=1)
-    service = _service(db_factory, _Clock(), semantic_memory_client=None)
+    service = _service(db_factory, _Clock(), scene_intel=None)
     session = await service.start(routine_id, "resident-1")
 
     result = await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
@@ -486,3 +550,178 @@ async def test_tick_evaluates_all_active_sessions_and_escalates(db_session, db_f
     db_session.expire_all()
     stored = db_session.get(GuidedSession, session.id)
     assert stored.status == "escalated"
+
+
+@dataclass
+class _MemoryQuery:
+    hits: list = field(default_factory=list)
+
+    async def search(self, **kwargs):
+        return self.hits
+
+
+def _seed_routine_with_prompt(db_session, prompt_template: str) -> Routine:
+    db_session.add(HouseholdMember(id="resident-1", name="Resident"))
+    db_session.flush()
+    routine = Routine(name="Make tea", person_id="resident-1", is_enabled=True)
+    routine.steps.append(RoutineStep(ord=0, prompt_template=prompt_template))
+    db_session.add(routine)
+    db_session.commit()
+    db_session.refresh(routine)
+    return routine
+
+
+@pytest.mark.asyncio
+async def test_session_prompt_includes_last_episode_sentence(db_session, db_factory):
+    from backend.integrations.semantic_memory_client import ObservationSearchHit
+
+    routine = _seed_routine_with_prompt(db_session, "Ready? {{ memory_context }}")
+    hit = ObservationSearchHit(
+        id=1,
+        room_id="",
+        observed_at=datetime.now(UTC),
+        description=(
+            "Guided routine 'Make tea' ended with outcome 'completed'. "
+            "Duration 840 seconds. Started near local time 09:00. "
+            "Completed steps: [0]. Skipped steps: none. Stalled steps: none. "
+            "Total retries: 0. Escalations: 0."
+        ),
+        object_list=["Make tea"],
+        hazard_flags=[],
+        kind="guided_episode",
+        person_id="resident-1",
+    )
+    service = _service(db_factory, _Clock(), memory_query=_MemoryQuery(hits=[hit]))
+
+    session = await service.start(routine.id, "resident-1")
+    step = await service.get_active_step(session.id)
+
+    assert "Last time this routine: completed in 14 minutes" in step["prompt_text"]
+
+
+@pytest.mark.asyncio
+async def test_session_prompt_without_history_unchanged(db_session, db_factory):
+    routine = _seed_routine_with_prompt(db_session, "Ready? {{ memory_context }}")
+    service = _service(db_factory, _Clock(), memory_query=_MemoryQuery(hits=[]))
+
+    session = await service.start(routine.id, "resident-1")
+    step = await service.get_active_step(session.id)
+
+    assert step["prompt_text"] == "Ready? "
+
+
+@dataclass
+class _KnowledgeIngestion:
+    docs: list = field(default_factory=list)
+
+    def list_documents_by_tags(self, tags, *, limit=50):
+        return self.docs
+
+
+@pytest.mark.asyncio
+async def test_session_prompt_includes_top_3_preferences_shortest_first(db_session, db_factory):
+    routine = _seed_routine_with_prompt(db_session, "{{ preferences }}")
+    docs = [
+        _fake_doc("Likes the kitchen radio on low during tea"),
+        _fake_doc("Two sugars"),
+        _fake_doc("Prefers her tea lukewarm, not hot"),
+        _fake_doc("No milk"),
+    ]
+    knowledge_ingestion = _KnowledgeIngestion(docs=docs)
+    service = _service(db_factory, _Clock(), knowledge_ingestion=knowledge_ingestion)
+
+    session = await service.start(routine.id, "resident-1")
+    step = await service.get_active_step(session.id)
+
+    assert step["prompt_text"] == '["No milk", "Two sugars", "Prefers her tea lukewarm, not hot"]'
+
+
+def _fake_doc(source_text: str):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(source_text=source_text)
+
+
+@pytest.mark.asyncio
+async def test_end_to_end_tea_run_ledger_episode_events_and_readback(db_session, db_factory):
+    """Completion-criteria proof (DL-M05): a completed tea run produces one
+    ledger row, one episodic observation, timeline trace events, and the
+    *next* session's prompt carries the one-sentence read-back.
+
+    Run against a real Postgres testcontainer end to end within the service
+    layer; substitutes for exercising the live ``cc-backend`` deployment,
+    which was not rebuilt/redeployed with this milestone's code (the same
+    operator-action boundary DL-M01 documented for the semantic-memory flip).
+    """
+    from backend.integrations.semantic_memory_client import ObservationSearchHit
+    from backend.models.person import ActivitySession
+    from backend.services.activity_session import ActivitySessionService
+
+    db_session.add(HouseholdMember(id="resident-1", name="Resident"))
+    db_session.flush()
+    routine = Routine(
+        name="Make tea", person_id="resident-1", is_enabled=True, activity_type="meal_prep"
+    )
+    routine.steps.append(RoutineStep(ord=0, prompt_template="Boil water. {{ memory_context }}"))
+    db_session.add(routine)
+    db_session.commit()
+    db_session.refresh(routine)
+
+    activity_service = ActivitySessionService(db_factory)
+    scene_intel = _SceneIntel()
+    clock = _Clock()
+    # _service() doesn't take activity_service; build GuidedTaskService directly.
+    service = GuidedTaskService(
+        db_factory=db_factory,
+        activity_service=activity_service,
+        scene_intel=scene_intel,
+        settings=_settings(),
+        time_fn=clock,
+    )
+
+    session = await service.start(routine.id, "resident-1")
+    await service.handle_completion(session.id, {"confirmed": True, "step_ord": 0})
+
+    # 1. One ledger row, closed.
+    ledger_rows = db_session.execute(
+        select(ActivitySession).where(ActivitySession.person_id == "resident-1")
+    ).scalars().all()
+    assert len(ledger_rows) == 1
+    assert ledger_rows[0].status == "closed"
+    assert ledger_rows[0].activity_type == "meal_prep"
+
+    # 2. One episodic observation, kind="guided_episode".
+    assert len(scene_intel.drafts) == 1
+    draft = scene_intel.drafts[0]
+    assert draft.kind == "guided_episode"
+    assert draft.person_id == "resident-1"
+
+    # 3. Timeline trace events.
+    detail = await service.get_detail(session.id)
+    event_kinds = {e.kind for e in detail.recent_events}
+    assert "ledger_recorded" in event_kinds
+    assert "episode_recorded" in event_kinds
+
+    # 4. The next session's prompt carries the one-sentence read-back,
+    # fed from the episode this run just wrote.
+    hit = ObservationSearchHit(
+        id=1,
+        room_id="",
+        observed_at=datetime.now(UTC),
+        description=draft.description,
+        object_list=draft.object_list,
+        hazard_flags=[],
+        kind="guided_episode",
+        person_id="resident-1",
+    )
+    service2 = GuidedTaskService(
+        db_factory=db_factory,
+        activity_service=ActivitySessionService(db_factory),
+        scene_intel=_SceneIntel(),
+        memory_query=_MemoryQuery(hits=[hit]),
+        settings=_settings(),
+        time_fn=_Clock(),
+    )
+    next_session = await service2.start(routine.id, "resident-1")
+    step = await service2.get_active_step(next_session.id)
+    assert "Last time this routine:" in step["prompt_text"]

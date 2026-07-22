@@ -42,6 +42,11 @@ class Routine(Base):
     escalation_channels_override: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     summon_channels_override: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     rephrase_via_override: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # DL-M05: when set, a completed session of this routine writes an
+    # ActivitySession ledger row. Constrained to ActivityTypeEnum values or
+    # NULL at the schema layer (RoutineCreate/Update), not a DB enum, matching
+    # how activity_sessions.activity_type is stored as a plain string.
+    activity_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), nullable=False, server_default=func.now()
     )

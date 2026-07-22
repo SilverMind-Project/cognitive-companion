@@ -31,6 +31,9 @@ def wire_knowledge(app: FastAPI, settings: Settings) -> None:
     from backend.integrations.triton_embedding_client import TritonEmbeddingClient
 
     embedding_client = TritonEmbeddingClient()
+    # Shared with the guided-task bridge (DL-M05): one lazy Triton
+    # connection for text embeddings, not a second client instance.
+    app.state.embedding_client = embedding_client
 
     # -- Knowledge services -------------------------------------------------
     from backend.services.knowledge.content_generation import ContentGenerationService

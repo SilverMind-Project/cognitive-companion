@@ -4426,6 +4426,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/routines/activity-type-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Activity Type Options
+         * @description ``ActivityTypeEnum`` values for the Routine Builder's "Records activity"
+         *     select (DL-M05 Part F).
+         *
+         *     Registered ahead of ``/{routine_id}`` so the literal path wins the match.
+         */
+        get: operations["get_activity_type_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/routines/language-options": {
         parameters: {
             query?: never;
@@ -5282,6 +5305,12 @@ export interface components {
             /** Timeout Minutes */
             timeout_minutes: number | null;
         };
+        /**
+         * ActivityTypeEnum
+         * @description Activity types supported by the duration-aware session model.
+         * @enum {string}
+         */
+        ActivityTypeEnum: "sleep" | "meal_prep" | "meal_eating" | "bathroom" | "exercise" | "cooking" | "medication" | "watching_tv" | "reading" | "phone_call" | "other";
         /**
          * ActivityTypeHealthOut
          * @description Write-recency snapshot for one activity type in the ledger.
@@ -9899,8 +9928,19 @@ export interface components {
             /** Purpose */
             purpose?: string | null;
         };
+        /**
+         * RoutineActivityTypeOptionsOut
+         * @description ``ActivityTypeEnum`` values for the Routine Builder's "Records activity"
+         *     select (DL-M05 Part F). Generated from the backend enum, never
+         *     hand-typed in the frontend.
+         */
+        RoutineActivityTypeOptionsOut: {
+            /** Activity Types */
+            activity_types: string[];
+        };
         /** RoutineCreate */
         RoutineCreate: {
+            activity_type?: components["schemas"]["ActivityTypeEnum"] | null;
             /** Escalation Channels Override */
             escalation_channels_override?: string[] | null;
             /**
@@ -9954,6 +9994,7 @@ export interface components {
         };
         /** RoutineOut */
         RoutineOut: {
+            activity_type: components["schemas"]["ActivityTypeEnum"] | null;
             /**
              * Created At
              * Format: date-time
@@ -10069,6 +10110,7 @@ export interface components {
         };
         /** RoutineUpdate */
         RoutineUpdate: {
+            activity_type?: components["schemas"]["ActivityTypeEnum"] | null;
             /** Escalation Channels Override */
             escalation_channels_override?: string[] | null;
             /** Is Enabled */
@@ -19487,6 +19529,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_activity_type_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutineActivityTypeOptionsOut"];
                 };
             };
         };

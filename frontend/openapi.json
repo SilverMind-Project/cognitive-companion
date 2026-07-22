@@ -347,6 +347,24 @@
         "title": "ActivitySessionOut",
         "type": "object"
       },
+      "ActivityTypeEnum": {
+        "description": "Activity types supported by the duration-aware session model.",
+        "enum": [
+          "sleep",
+          "meal_prep",
+          "meal_eating",
+          "bathroom",
+          "exercise",
+          "cooking",
+          "medication",
+          "watching_tv",
+          "reading",
+          "phone_call",
+          "other"
+        ],
+        "title": "ActivityTypeEnum",
+        "type": "string"
+      },
       "ActivityTypeHealthOut": {
         "additionalProperties": false,
         "description": "Write-recency snapshot for one activity type in the ledger.",
@@ -13240,9 +13258,37 @@
         "title": "RoomZoneUpdate",
         "type": "object"
       },
+      "RoutineActivityTypeOptionsOut": {
+        "additionalProperties": false,
+        "description": "``ActivityTypeEnum`` values for the Routine Builder's \"Records activity\"\nselect (DL-M05 Part F). Generated from the backend enum, never\nhand-typed in the frontend.",
+        "properties": {
+          "activity_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Activity Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "activity_types"
+        ],
+        "title": "RoutineActivityTypeOptionsOut",
+        "type": "object"
+      },
       "RoutineCreate": {
         "additionalProperties": false,
         "properties": {
+          "activity_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActivityTypeEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "escalation_channels_override": {
             "anyOf": [
               {
@@ -13441,6 +13487,16 @@
       },
       "RoutineOut": {
         "properties": {
+          "activity_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActivityTypeEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -13592,6 +13648,7 @@
           "escalation_channels_override",
           "summon_channels_override",
           "rephrase_via_override",
+          "activity_type",
           "created_at",
           "updated_at"
         ],
@@ -13855,6 +13912,16 @@
       "RoutineUpdate": {
         "additionalProperties": false,
         "properties": {
+          "activity_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActivityTypeEnum"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "escalation_channels_override": {
             "anyOf": [
               {
@@ -17315,7 +17382,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.122"
+    "version": "0.7.123"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -31890,6 +31957,33 @@
           }
         ],
         "summary": "Create Routine",
+        "tags": [
+          "routines"
+        ]
+      }
+    },
+    "/api/v1/routines/activity-type-options": {
+      "get": {
+        "description": "``ActivityTypeEnum`` values for the Routine Builder's \"Records activity\"\nselect (DL-M05 Part F).\n\nRegistered ahead of ``/{routine_id}`` so the literal path wins the match.",
+        "operationId": "get_activity_type_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineActivityTypeOptionsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Activity Type Options",
         "tags": [
           "routines"
         ]

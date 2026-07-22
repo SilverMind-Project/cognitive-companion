@@ -10,6 +10,7 @@ updates without duplicating that logic.
 
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 from typing import Any
 
@@ -240,6 +241,7 @@ class Presentation:
         step: RoutineStep,
     ) -> str:
         memory_context = await self._memory_context(session, routine)
+        preferences = self._preferences(session.person_id)
         return render_template(
             step.prompt_template,
             {
@@ -251,15 +253,51 @@ class Presentation:
                 "routine": {"id": routine.id, "name": routine.name},
                 "step": {"ord": step.ord},
                 "memory_context": memory_context,
+                "preferences": preferences,
             },
         )
 
+    def _preferences(self, person_id: str) -> list[str]:
+        """Top 3 durable resident preferences, shortest-first (DL-M05 Part E.2).
+
+        Best-effort: a lookup failure degrades to no preferences rather than
+        blocking prompt rendering.
+        """
+        knowledge_ingestion = self._ctx.knowledge_ingestion
+        if knowledge_ingestion is None:
+            return []
+        try:
+            docs = knowledge_ingestion.list_documents_by_tags(
+                ["resident_preference", person_id], limit=20
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "guided_preferences_unavailable",
+                person_id=person_id,
+                error=str(exc),
+            )
+            return []
+        texts = sorted((doc.source_text for doc in docs), key=len)
+        return texts[:3]
+
     async def _memory_context(self, session: GuidedSession, routine: Routine) -> str:
+        """Compose the prompt's memory context: recent scene context (fuzzy)
+        plus, when available, one sentence recalling the last time this
+        routine ran (DL-M05 Part E.1). Single seam: no second prompt-compose
+        hook is added for the episode read-back.
+        """
         memory_query = self._ctx.memory_query
         if memory_query is None:
             return ""
         try:
-            hits = await memory_query.search_observations(routine.name, limit=3)
+            hits = await memory_query.search(
+                room_id=None,
+                since_minutes=None,
+                objects_any=(routine.name,),
+                kind="guided_episode",
+                person_id=session.person_id,
+                limit=1,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "guided_memory_context_unavailable",
@@ -267,9 +305,34 @@ class Presentation:
                 error=str(exc),
             )
             return ""
-        summaries: list[str] = []
-        for hit in hits:
-            description = getattr(hit, "description", "")
-            if description:
-                summaries.append(str(description))
-        return " ".join(summaries[:3])
+        if not hits:
+            return ""
+        return _condense_episode_sentence(hits[0].description)
+
+
+_OUTCOME_RE = re.compile(r"ended with outcome '([^']+)'")
+_DURATION_RE = re.compile(r"Duration (\d+) seconds")
+_RETRY_RE = re.compile(r"step (\d+) retried (\d+)x")
+
+
+def _condense_episode_sentence(description: str) -> str:
+    """Condense an episode's deterministic multi-sentence summary (built by
+    ``memory_bridge.build_episode_description``) into one prompt sentence.
+    Hard-capped at one sentence: the prompt is per-session token cost.
+    """
+    if not description:
+        return ""
+    outcome_match = _OUTCOME_RE.search(description)
+    duration_match = _DURATION_RE.search(description)
+    if outcome_match is None or duration_match is None:
+        # Format doesn't match the bridge's template (e.g. a legacy or
+        # hand-written observation); fall back to a bounded raw prefix.
+        return f"Last time this routine: {description[:160].rstrip()}"
+    outcome = outcome_match.group(1)
+    minutes = max(1, int(duration_match.group(1)) // 60)
+    plural = "" if minutes == 1 else "s"
+    sentence = f"Last time this routine: {outcome} in {minutes} minute{plural}"
+    retry_match = _RETRY_RE.search(description)
+    if retry_match:
+        sentence += f"; step {retry_match.group(1)} needed {retry_match.group(2)} tries"
+    return sentence + "."

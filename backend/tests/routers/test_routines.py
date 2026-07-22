@@ -101,6 +101,44 @@ def test_crud_roundtrip(db_factory, db_session) -> None:
     assert after_delete.status_code == 404
 
 
+def test_activity_type_roundtrip_and_validation(db_factory, db_session) -> None:
+    """DL-M05 Part C/F: activity_type persists and is schema-validated."""
+    _seed_member(db_session)
+    client = _client(db_factory, _admin())
+
+    created = client.post(
+        "/api/v1/routines",
+        json={"name": "Take pills", "person_id": "resident-1", "activity_type": "medication"},
+    )
+    assert created.status_code == 201
+    routine_id = created.json()["id"]
+    assert created.json()["activity_type"] == "medication"
+
+    detail = client.get(f"/api/v1/routines/{routine_id}")
+    assert detail.json()["routine"]["activity_type"] == "medication"
+
+    cleared = client.patch(f"/api/v1/routines/{routine_id}", json={"activity_type": None})
+    assert cleared.status_code == 200
+    assert cleared.json()["activity_type"] is None
+
+    invalid = client.post(
+        "/api/v1/routines",
+        json={"name": "Bogus", "person_id": "resident-1", "activity_type": "not_a_real_type"},
+    )
+    assert invalid.status_code == 422
+
+
+def test_activity_type_options_lists_the_enum(db_factory) -> None:
+    client = _client(db_factory, _admin())
+
+    response = client.get("/api/v1/routines/activity-type-options")
+
+    assert response.status_code == 200
+    types = response.json()["activity_types"]
+    assert "medication" in types
+    assert "watching_tv" in types
+
+
 def test_list_filter_by_person(db_factory, db_session) -> None:
     db_session.add(HouseholdMember(id="resident-1", name="A"))
     db_session.add(HouseholdMember(id="resident-2", name="B"))

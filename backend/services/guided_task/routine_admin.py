@@ -8,8 +8,10 @@ from typing import Any
 
 from backend.core.exceptions import NotFoundError, ValidationError
 from backend.core.logging import get_logger
+from backend.models.person import ActivityTypeEnum
 from backend.schemas.guided_task import (
     GuidedSessionOut,
+    RoutineActivityTypeOptionsOut,
     RoutineCreate,
     RoutineDetailOut,
     RoutineLanguageOptionsOut,
@@ -106,6 +108,13 @@ class RoutineAdmin:
         """Configured language codes for the Routine Builder's language select (M27/D15)."""
         names = self._ctx.settings.get("app.language_names", {}) or {}
         return RoutineLanguageOptionsOut(language_names=names)
+
+    def get_activity_type_options(self) -> RoutineActivityTypeOptionsOut:
+        """``ActivityTypeEnum`` values for the Routine Builder's "Records
+        activity" select (DL-M05 Part F)."""
+        return RoutineActivityTypeOptionsOut(
+            activity_types=[member.value for member in ActivityTypeEnum]
+        )
 
     def list_routines(
         self, *, person_id: str | None = None, limit: int = 20, offset: int = 0

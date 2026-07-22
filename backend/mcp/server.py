@@ -64,6 +64,7 @@ class MCPServices:
     ws_manager: Any = None
     knowledge_query: Any = None
     knowledge_delivery: Any = None
+    knowledge_ingestion: Any = None
     gait_trend_service: Any = None
     guided_task_service: Any = None
     guided_metrics_service: Any = None
@@ -92,6 +93,7 @@ def init_services(
     ws_manager=None,
     knowledge_query=None,
     knowledge_delivery=None,
+    knowledge_ingestion=None,
     gait_trend_service=None,
     guided_task_service=None,
     guided_metrics_service=None,
@@ -114,6 +116,7 @@ def init_services(
     _svc.ws_manager = ws_manager
     _svc.knowledge_query = knowledge_query
     _svc.knowledge_delivery = knowledge_delivery
+    _svc.knowledge_ingestion = knowledge_ingestion
     _svc.gait_trend_service = gait_trend_service
     _svc.guided_task_service = guided_task_service
     _svc.guided_metrics_service = guided_metrics_service
@@ -1419,6 +1422,35 @@ async def request_caregiver_help(session_id: int, reason: str | None = None) -> 
     if _svc.guided_task_service is None:
         return {"error": "Guided task service not available"}
     return await _svc.guided_task_service.request_help(session_id, reason)
+
+
+@_register
+async def record_resident_preference(
+    person_id: str, preference: str, context: str | None = None
+) -> dict:
+    """Agent-facing: record a stable resident preference to the knowledge repository.
+
+    Use when the resident states a stable preference (how she takes her
+    tea, what music she likes), not a transient fact ("I'm hungry right
+    now"). Stored as a caregiver-visible knowledge document tagged for this
+    resident; the top 3 preferences (shortest first) are surfaced back into
+    future guided-session prompts.
+    """
+    if _svc.knowledge_ingestion is None:
+        return {"error": "Knowledge ingestion service not available"}
+    if not preference or not preference.strip():
+        return {"error": "preference must not be empty"}
+    source_text = preference.strip()
+    if context:
+        source_text += f"\n\nContext: {context.strip()}"
+    doc = await _svc.knowledge_ingestion.create_document(
+        title=f"Preference: {preference.strip()[:80]}",
+        source_text=source_text,
+        tags=["resident_preference", person_id],
+        created_by="guided_companion",
+        images=[],
+    )
+    return {"document_id": doc.id, "recorded": True}
 
 
 @_register

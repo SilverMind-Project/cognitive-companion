@@ -276,14 +276,21 @@ class MemoryQueryService:
     async def search(
         self,
         *,
-        query_text: str,
+        query_text: str = "",
         room_id: str | None = None,
-        since_minutes: int = 60,
+        since_minutes: int | None = 60,
+        objects_any: tuple[str, ...] = (),
+        kind: str | None = None,
+        person_id: str | None = None,
         limit: int = 10,
     ) -> tuple[ObservationSearchHit, ...]:
-        """Free-text vector search over observations.
+        """Free-text vector search over observations, with structured filters.
 
-        Not cached (too much variation in query_text).
+        ``objects_any``/``kind``/``person_id`` are exact-match filters
+        (DL-M05); when ``query_text`` is empty, results fall back to
+        most-recent-first ordering, which is what a structured "last
+        matching record" lookup wants. Not cached (too much variation in
+        query_text and filters).
         """
         if self._client is None:
             return ()
@@ -291,7 +298,10 @@ class MemoryQueryService:
         req = ObservationSearchRequest(
             room_id=room_id,
             since_minutes=since_minutes,
+            objects_any=list(objects_any),
             query_text=query_text,
+            kind=kind,
+            person_id=person_id,
             limit=limit,
         )
         hits = await self._client.search_observations(req)

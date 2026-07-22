@@ -73,9 +73,10 @@ EXPECTED_TOOLS = {
     "acknowledge_dementia_signal",
     "list_keyframe_frames",
     "propose_identity_correction",
+    "record_resident_preference",
 }
 
-EXPECTED_COUNT = 58
+EXPECTED_COUNT = 59
 
 
 # ---------------------------------------------------------------------------

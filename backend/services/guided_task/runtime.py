@@ -1,10 +1,16 @@
 """Session runtime around the pure state machine (M29).
 
 Depends on ``presentation.py`` (rendering/voice/broadcast) and
-``retention.py`` (episodic write on completion), both leaf modules; never
-imported by them (no cycle). ``summon.py``, ``watch.py``, and
-``caregiver.py`` depend on this module's public methods
-(``apply_decision``, ``maybe_skip_step``, ``complete``).
+``memory_bridge.py`` (ledger/episode write on every terminal transition),
+both leaf modules; never imported by them (no cycle). ``summon.py``,
+``watch.py``, and ``caregiver.py`` depend on this module's public methods
+(``apply_decision``, ``maybe_skip_step``, ``complete``, ``abandon``).
+
+``abandon()`` is the single funnel for every abandon route (DL-M05): it
+wraps ``ctx.mark_abandoned`` (state write) with the same memory-bridge call
+``complete()`` makes, so a session that never finishes still gets its
+episodic observation. ``summon.py`` and ``watch.py`` call this instead of
+``ctx.mark_abandoned`` directly for that reason.
 """
 
 from __future__ import annotations
@@ -20,9 +26,9 @@ from backend.services.guided_task.completion.disagreement import resolve_vision_
 from backend.services.guided_task.completion.response import build_evaluators, evaluate_completion
 from backend.services.guided_task.context import RuntimeContext
 from backend.services.guided_task.domain import Decision
+from backend.services.guided_task.memory_bridge import GuidedMemoryBridge
 from backend.services.guided_task.policy import resolve_policy
 from backend.services.guided_task.presentation import Presentation
-from backend.services.guided_task.retention import Retention
 from backend.services.guided_task.state_machine import GuidedTaskStateMachine
 from backend.services.interactive_session.pipeline_link import resume_owning_pipeline
 
@@ -36,11 +42,11 @@ class Runtime:
         self,
         ctx: RuntimeContext,
         presentation: Presentation,
-        retention: Retention,
+        memory_bridge: GuidedMemoryBridge,
     ) -> None:
         self._ctx = ctx
         self._presentation = presentation
-        self._retention = retention
+        self._memory_bridge = memory_bridge
 
     async def handle_completion(self, session_id: int, evidence: dict) -> dict:
         ctx = self._ctx
@@ -260,8 +266,21 @@ class Runtime:
             detail={"outcome": outcome},
         )
         guided_metrics.guided_sessions_total.labels(outcome=outcome).inc()
-        await self._retention.write_session_observation(updated)
+        await self._memory_bridge.on_session_terminal(updated)
         resume_owning_pipeline(ctx.pipeline_executor, ctx.db_factory, updated.execution_id)
+        return updated
+
+    async def abandon(self, session_id: int, *, now: datetime, outcome: str) -> GuidedSession:
+        """Single funnel for every abandon route (mirrors ``complete()``).
+
+        Wraps ``ctx.mark_abandoned`` (the DB write + cache eviction + pipeline
+        resume) with the same memory-bridge call ``complete()`` makes, so the
+        episodic observation is written on every terminal outcome, not just
+        completion (DL9's headline test: abandon still writes the episode,
+        never the ledger row).
+        """
+        updated = self._ctx.mark_abandoned(session_id, now=now, outcome=outcome)
+        await self._memory_bridge.on_session_terminal(updated)
         return updated
 
     async def apply_decision(
@@ -410,7 +429,7 @@ class Runtime:
             return
 
         if decision.kind == "abandon":
-            ctx.mark_abandoned(session.id, now=now, outcome="abandoned")
+            await self.abandon(session.id, now=now, outcome="abandoned")
             return
 
         if decision.kind == "complete":

@@ -92,7 +92,7 @@ class ActivitySessionService:
         self,
         person_id: str,
         activity_type: str,
-        room_name: str,
+        room_name: str | None,
         confidence: float,
         started_at: datetime,
         start_event_id: int | None,

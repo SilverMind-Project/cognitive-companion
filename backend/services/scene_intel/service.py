@@ -98,6 +98,9 @@ class SceneIntelService:
             hazard_flags=draft.hazard_flags,
             embedding=draft.embedding,
             source=draft.source,
+            person_id=draft.person_id,
+            kind=draft.kind,
+            description_embedding=draft.description_embedding,
         )
         record = await self._memory_client.create_observation(obs)
         observation_id: int | None = record.id if record else None

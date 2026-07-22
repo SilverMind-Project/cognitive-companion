@@ -119,7 +119,7 @@ class Watch:
         at: datetime,
     ) -> None:
         ctx = self._ctx
-        updated = ctx.mark_abandoned(session.id, now=at, outcome="escalated_unanswered")
+        updated = await self._runtime.abandon(session.id, now=at, outcome="escalated_unanswered")
         ctx.store.add_event(
             session_id=session.id,
             at=at,

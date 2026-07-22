@@ -126,6 +126,29 @@ class KnowledgeIngestionService:
         finally:
             db.close()
 
+    def list_documents_by_tags(self, tags: list[str], *, limit: int = 50) -> list[KnowledgeDocument]:
+        """Documents carrying every tag in ``tags`` (AND match), newest first.
+
+        Used for DL-M05 resident-preference recall (``tags=["resident_preference",
+        person_id]``): these are agent-recorded, not caregiver-authored, so
+        unlike ``list_documents`` this does not filter by review ``status``.
+        """
+        db: Session = self._db_factory()
+        try:
+            stmt = (
+                select(KnowledgeDocument)
+                .where(KnowledgeDocument.tags.contains(tags))
+                .order_by(KnowledgeDocument.created_at.desc())
+                .limit(limit)
+            )
+            docs = list(db.execute(stmt).scalars().all())
+            for doc in docs:
+                _ = doc.images
+                _ = doc.chunks
+            return docs
+        finally:
+            db.close()
+
     def get_document(self, doc_id: int) -> KnowledgeDocument | None:
         db: Session = self._db_factory()
         try:

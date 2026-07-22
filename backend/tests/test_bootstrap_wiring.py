@@ -75,6 +75,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "daily_report_service",
         "dementia_signal_subscriber",
         "eink_renderer",
+        "embedding_client",
         "event_aggregator",
         "gait_trend_service",
         "gate_runner",

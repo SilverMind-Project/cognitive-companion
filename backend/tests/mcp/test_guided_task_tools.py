@@ -18,6 +18,17 @@ def guided_service():
     _svc.guided_task_service = original
 
 
+@pytest.fixture
+def knowledge_ingestion():
+    from backend.mcp.server import _svc
+
+    original = _svc.knowledge_ingestion
+    service = AsyncMock()
+    _svc.knowledge_ingestion = service
+    yield service
+    _svc.knowledge_ingestion = original
+
+
 def test_registry_resolves_all_guided_tools() -> None:
     from backend.mcp.server import _tool_handlers
 
@@ -27,6 +38,7 @@ def test_registry_resolves_all_guided_tools() -> None:
         "repeat_guided_step",
         "report_step_blocked",
         "request_caregiver_help",
+        "record_resident_preference",
     }:
         assert name in _tool_handlers
 
@@ -40,7 +52,50 @@ def test_guided_tools_are_in_gemini_allowlist() -> None:
         "repeat_guided_step",
         "report_step_blocked",
         "request_caregiver_help",
+        "record_resident_preference",
     }.issubset(tools)
+
+
+@pytest.mark.asyncio
+async def test_record_resident_preference_writes_tagged_document(knowledge_ingestion) -> None:
+    from backend.mcp.server import record_resident_preference
+
+    doc = type("Doc", (), {"id": 42})()
+    knowledge_ingestion.create_document.return_value = doc
+
+    result = await record_resident_preference("resident-1", "Two sugars in her tea", "said during tea routine")
+
+    assert result == {"document_id": 42, "recorded": True}
+    knowledge_ingestion.create_document.assert_awaited_once()
+    call_kwargs = knowledge_ingestion.create_document.call_args.kwargs
+    assert call_kwargs["tags"] == ["resident_preference", "resident-1"]
+    assert call_kwargs["created_by"] == "guided_companion"
+    assert "Two sugars in her tea" in call_kwargs["source_text"]
+    assert "said during tea routine" in call_kwargs["source_text"]
+
+
+@pytest.mark.asyncio
+async def test_record_resident_preference_missing_service_returns_error() -> None:
+    from backend.mcp.server import _svc, record_resident_preference
+
+    original = _svc.knowledge_ingestion
+    _svc.knowledge_ingestion = None
+    try:
+        result = await record_resident_preference("resident-1", "Two sugars")
+    finally:
+        _svc.knowledge_ingestion = original
+
+    assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_record_resident_preference_rejects_empty_preference(knowledge_ingestion) -> None:
+    from backend.mcp.server import record_resident_preference
+
+    result = await record_resident_preference("resident-1", "   ")
+
+    assert "error" in result
+    knowledge_ingestion.create_document.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -8,6 +8,7 @@ from backend.core.auth import AuthContext, require_permission
 from backend.routers.dependencies import get_guided_task_service
 from backend.schemas.guided_task import (
     GuidedSessionOut,
+    RoutineActivityTypeOptionsOut,
     RoutineCreate,
     RoutineDetailOut,
     RoutineLanguageOptionsOut,
@@ -43,6 +44,19 @@ def get_language_options(
     Registered ahead of ``/{routine_id}`` so the literal path wins the match.
     """
     return svc.get_language_options()
+
+
+@router.get("/activity-type-options", response_model=RoutineActivityTypeOptionsOut)
+def get_activity_type_options(
+    svc: GuidedTaskService = Depends(get_guided_task_service),
+    _auth: AuthContext = Depends(require_permission("routines:read")),
+) -> RoutineActivityTypeOptionsOut:
+    """``ActivityTypeEnum`` values for the Routine Builder's "Records activity"
+    select (DL-M05 Part F).
+
+    Registered ahead of ``/{routine_id}`` so the literal path wins the match.
+    """
+    return svc.get_activity_type_options()
 
 
 @router.get("/{routine_id}", response_model=RoutineDetailOut)

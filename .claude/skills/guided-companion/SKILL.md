@@ -36,8 +36,12 @@ backend/services/guided_task/
                         delegates every public method (composition root)
   routine_admin.py     routine CRUD, sanitize_completion_gate, gate-preview/test-run
   presentation.py      descriptors, voice dispatch, session reads, WS broadcast (leaf)
-  retention.py         transcript/event pruning, episodic session-summary write (leaf)
-  runtime.py           handle_completion, apply_decision, on_step_timeout, maybe_skip_step
+  retention.py         transcript/event pruning (leaf)
+  memory_bridge.py     ledger/episode/preference writes on every terminal
+                        transition (DL-M05, leaf; see skill section 13a)
+  runtime.py           handle_completion, apply_decision, on_step_timeout,
+                        maybe_skip_step, abandon (single funnel for every
+                        abandon route, mirrors complete())
   resident_actions.py  repeat_step / report_blocked / request_help / resume
   summon.py            presence-gated start, summon announce/recheck
   watch.py             live tick: vision watch, resume-grace abandon, safety events
@@ -51,7 +55,7 @@ backend/services/guided_task/
   camera_selection.py  the D5 cascade (M7)
 ```
 
-Layering (from engineering-standards): `state_machine.py` is pure and imports only from `core/` and domain dataclasses. `presentation.py` and `retention.py` are leaves depending only on `context.py`; `runtime.py` depends on both of those; `summon.py`, `watch.py`, and `caregiver.py` depend on `runtime.py` and `presentation.py`. `RuntimeContext` is held by reference everywhere (bootstrap setters like `set_zone_service` write through it, so already-built collaborators see the update). No collaborator reaches into another's private (`_`-prefixed) attributes; cross-cutting calls go through a constructor-injected public method or callable. Routers and MCP tools are thin and call `service.py`; they never touch the store, or any collaborator module, directly. A structural test (`test_guided_task_module_sizes.py`) keeps every module in this list under 500 lines.
+Layering (from engineering-standards): `state_machine.py` is pure and imports only from `core/` and domain dataclasses. `presentation.py`, `retention.py`, and `memory_bridge.py` are leaves depending only on `context.py`; `runtime.py` depends on `presentation.py` and `memory_bridge.py`; `summon.py`, `watch.py`, and `caregiver.py` depend on `runtime.py` and `presentation.py`. `RuntimeContext` is held by reference everywhere (bootstrap setters like `set_zone_service` write through it, so already-built collaborators see the update). No collaborator reaches into another's private (`_`-prefixed) attributes; cross-cutting calls go through a constructor-injected public method or callable. Routers and MCP tools are thin and call `service.py`; they never touch the store, or any collaborator module, directly. A structural test (`test_guided_task_module_sizes.py`) keeps every module in this list under 500 lines.
 
 ## 3. The state machine is pure and clock-injectable
 
@@ -197,6 +201,55 @@ passes only those ids to `conversation_manager.prune_sessions`; it never passes 
 guided session id. A conversation still linked to a *live* guided session is excluded
 even if another guided session that shares it has aged out, so retention never deletes
 a transcript still in active use.
+
+## 13a. What a session writes to memory (DL7, DL-M05)
+
+Every terminal transition (`complete()` **and** `abandon()`, the latter's single funnel
+being `Runtime.abandon()`, which every abandon call site -- `apply_decision`'s abandon
+branch, `summon.py`'s summon-timeout, `watch.py`'s escalated-unanswered -- goes through
+instead of calling `ctx.mark_abandoned` directly) invokes
+`memory_bridge.py::GuidedMemoryBridge.on_session_terminal(session)`. It writes up to
+three destinations, by information type (DL7):
+
+1. **Activity ledger** (`ActivitySession`, via `ctx.activity_service`): **only** when
+   `session.status == "completed"` **and** `routine.activity_type` is set. An abandoned
+   or failed session never writes a ledger row, even if the routine has an
+   `activity_type` -- a false "she took her medication" is a care-safety hazard (DL9).
+   Confidence and provenance are folded into `metadata` (`source="guided_companion"`,
+   `guided_session_id`, `routine_id`, `confidence"`), since `ActivitySession` has no
+   dedicated confidence column.
+2. **Episodic observation** (semantic memory, via `ctx.scene_intel.persist_observation`):
+   on **every** terminal outcome, exactly one per session. `kind="guided_episode"`,
+   `person_id=session.person_id`, `source="guided_companion"`,
+   `object_list=[routine.name]`, no fake room key (`room_id=None` -- `Routine` has no
+   room field). Per-step writes are forbidden; this is the only semantic-memory write in
+   the guided-task package (DL8's single write seam, via `scene_intel`, never the raw
+   `semantic_memory_client`). The description is a deterministic 2-4 sentence template
+   (`memory_bridge.build_episode_description`): outcome, duration, local start hour,
+   completed/skipped/stalled step ordinals, total retries plus the most-retried step,
+   and escalation count. Text-embedded via the shared Triton `embedding_client`
+   (`app.state.embedding_client`, the same instance the knowledge repository uses) into
+   `description_embedding`, never the CLIP `embedding` column; an unavailable embedder
+   degrades to no embedding, not a failed write.
+3. **Durable preferences** (knowledge repository, via the `record_resident_preference`
+   MCP tool, not the bridge): use only for a stable preference ("two sugars"), never a
+   transient fact. Stored as a `KnowledgeDocument` tagged
+   `["resident_preference", person_id]`; the top 3, shortest-first, are read back into
+   `{{ preferences }}` in every step's prompt via `Presentation._preferences`.
+
+**Best-effort, never fails the transition.** Each write is independently wrapped: a
+failure logs `guided_memory_bridge_error` and appends a `memory_write_failed`
+`GuidedSessionEvent` (`detail.target` is `"ledger"` or `"episode"`); success appends
+`ledger_recorded` / `episode_recorded`. The bridge never raises into `complete()` /
+`abandon()`.
+
+**Personalization read-back (DL-M05 Part E.1).** `Presentation._memory_context` (the
+same seam that renders scene-memory context into prompts) also looks up the most recent
+`kind="guided_episode"` observation matching `objects_any=[routine.name]` and
+`person_id=session.person_id`, and contributes **one condensed sentence**
+("Last time this routine: completed in 14 minutes; step 1 needed 3 tries.") to
+`{{ memory_context }}`. One seam, hard-capped at one sentence -- do not add a second
+prompt-compose hook for this.
 
 ## 14. Testing
 

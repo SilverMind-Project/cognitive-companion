@@ -72,8 +72,10 @@ class RuntimeContext:
         admin_ws_broadcaster: Any = None,
         notification_dispatcher: Any = None,
         conversation_manager: Any = None,
-        semantic_memory_client: Any = None,
         memory_query: Any = None,
+        scene_intel: Any = None,
+        embedding_client: Any = None,
+        knowledge_ingestion: Any = None,
         voice: SessionVoice | None = None,
         voice_instructions: VoiceInstructionConfig | None = None,
         safety_watch: SafetyWatch | None = None,
@@ -101,8 +103,10 @@ class RuntimeContext:
         self.admin_ws_broadcaster = admin_ws_broadcaster
         self.notification_dispatcher = notification_dispatcher
         self.conversation_manager = conversation_manager
-        self.semantic_memory_client = semantic_memory_client
         self.memory_query = memory_query
+        self.scene_intel = scene_intel
+        self.embedding_client = embedding_client
+        self.knowledge_ingestion = knowledge_ingestion
         self.voice = voice or NoopSessionVoice()
         self.voice_instructions = voice_instructions or VoiceInstructionConfig()
         self.safety_watch = safety_watch or NoopSafetyWatch()

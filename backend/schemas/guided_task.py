@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from backend.models.person import ActivityTypeEnum
+
 # ---------------------------------------------------------------------------
 # Routine CRUD
 # ---------------------------------------------------------------------------
@@ -125,6 +127,7 @@ class RoutineCreate(BaseModel):
     escalation_channels_override: list[str] | None = None
     summon_channels_override: list[str] | None = None
     rephrase_via_override: str | None = Field(default=None, max_length=16)
+    activity_type: ActivityTypeEnum | None = None
 
 
 class RoutineUpdate(BaseModel):
@@ -141,6 +144,7 @@ class RoutineUpdate(BaseModel):
     escalation_channels_override: list[str] | None = None
     summon_channels_override: list[str] | None = None
     rephrase_via_override: str | None = Field(default=None, max_length=16)
+    activity_type: ActivityTypeEnum | None = None
 
 
 class RoutineOut(BaseModel):
@@ -159,6 +163,7 @@ class RoutineOut(BaseModel):
     escalation_channels_override: list[str] | None
     summon_channels_override: list[str] | None
     rephrase_via_override: str | None
+    activity_type: ActivityTypeEnum | None
     created_at: datetime
     updated_at: datetime
     step_count: int = 0
@@ -182,6 +187,16 @@ class RoutineLanguageOptionsOut(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     language_names: dict[str, str]
+
+
+class RoutineActivityTypeOptionsOut(BaseModel):
+    """``ActivityTypeEnum`` values for the Routine Builder's "Records activity"
+    select (DL-M05 Part F). Generated from the backend enum, never
+    hand-typed in the frontend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    activity_types: list[str]
 
 
 class RoutineStepsReplaceIn(BaseModel):

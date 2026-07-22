@@ -86,6 +86,20 @@
               hide-details
               class="mb-3"
             />
+            <v-select
+              v-model="routineEdit.activity_type"
+              :items="activityTypeItems"
+              item-title="title"
+              item-value="value"
+              label="Records activity"
+              hint="On completion, writes an activity ledger entry of this type"
+              persistent-hint
+              density="compact"
+              hide-details="auto"
+              clearable
+              placeholder="none"
+              class="mb-3"
+            />
 
             <v-expansion-panels variant="accordion" flat>
               <v-expansion-panel>
@@ -303,6 +317,26 @@ const languageItems = computed(() =>
   })),
 );
 
+const activityTypes = ref([]);
+
+async function fetchActivityTypeOptions() {
+  try {
+    const res = await api.getActivityTypeOptions();
+    activityTypes.value = res.activity_types ?? [];
+  } catch {
+    activityTypes.value = [];
+  }
+}
+
+// Generated from the backend ActivityTypeEnum (DL-M05 Part F), never
+// hand-typed here.
+const activityTypeItems = computed(() =>
+  activityTypes.value.map((value) => ({
+    title: value.replaceAll("_", " "),
+    value,
+  })),
+);
+
 const routineEdit = reactive({
   name: "",
   is_enabled: true,
@@ -313,6 +347,7 @@ const routineEdit = reactive({
   max_step_attempts_override: null,
   resume_grace_s_override: null,
   rephrase_via_override: null,
+  activity_type: null,
 });
 
 // A routine doesn't store room_id directly; zone picker will be disabled if no room
@@ -332,6 +367,7 @@ watch(
       max_step_attempts_override: r.max_step_attempts_override ?? null,
       resume_grace_s_override: r.resume_grace_s_override ?? null,
       rephrase_via_override: r.rephrase_via_override ?? null,
+      activity_type: r.activity_type ?? null,
     });
   },
 );
@@ -359,5 +395,6 @@ onMounted(() => {
   actions.load(props.id);
   fetchRooms();
   fetchLanguageOptions();
+  fetchActivityTypeOptions();
 });
 </script>

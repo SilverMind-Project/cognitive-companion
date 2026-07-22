@@ -61,12 +61,21 @@ class ObservationDraft:
     semantic-memory schema stays private to the service).
     """
 
-    room_id: str
+    room_id: str | None = None
     description: str = ""
     object_list: list[str] = field(default_factory=list)
     hazard_flags: list[str] = field(default_factory=list)
     embedding: list[float] = field(default_factory=list)
     source: str = "scene_intel"
+    # DL-M05: person attribution and record-kind taxonomy. ``kind`` defaults
+    # to "scene" so existing writers (CTS scene samples, person movements)
+    # keep writing legacy-shaped rows without callers touching this field.
+    person_id: str | None = None
+    kind: str = "scene"
+    # 768-dim text embedding (embeddinggemma), kept separate from
+    # ``embedding`` (CLIP image embedding) so text search over episode
+    # summaries never mixes with image-similarity search.
+    description_embedding: list[float] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

@@ -58,7 +58,6 @@ async def wire_guided_task(
     pipeline_ws_manager = app.state.pipeline_ws_manager
     notifier = app.state.notification_dispatcher
     conversation_manager = app.state.conversation_manager
-    semantic_memory_client = app.state.semantic_memory_client
     memory_query_service = app.state.memory_query
     voice_instructions = app.state.voice_instructions
     camera_source_resolver = app.state.camera_source_resolver
@@ -68,6 +67,8 @@ async def wire_guided_task(
     person_tracking = app.state.person_tracking
     telegram_client = app.state.telegram_client
     knowledge_ingestion = app.state.knowledge_ingestion
+    embedding_client = app.state.embedding_client
+    scene_intel = app.state.scene_intel
     person_location_service = app.state.person_location_service
 
     # -- Guided task service (headless M3 runtime) -------------------------
@@ -121,8 +122,10 @@ async def wire_guided_task(
         admin_ws_broadcaster=pipeline_ws_manager.broadcast,
         notification_dispatcher=notifier,
         conversation_manager=conversation_manager,
-        semantic_memory_client=semantic_memory_client,
         memory_query=memory_query_service,
+        scene_intel=scene_intel,
+        embedding_client=embedding_client,
+        knowledge_ingestion=knowledge_ingestion,
         voice=AgentSessionVoice(
             ws_manager=ws_manager,
             voice_instructions=voice_instructions,

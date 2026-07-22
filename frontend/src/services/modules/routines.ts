@@ -14,6 +14,9 @@ export const listRoutines = (params: ListParams = {}) =>
 
 export const getLanguageOptions = () => unwrap(client.GET("/api/v1/routines/language-options", {}));
 
+export const getActivityTypeOptions = () =>
+  unwrap(client.GET("/api/v1/routines/activity-type-options", {}));
+
 export const getRoutine = (id: number) =>
   unwrap(client.GET("/api/v1/routines/{routine_id}", { params: { path: { routine_id: id } } }));
 

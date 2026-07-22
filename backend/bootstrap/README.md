@@ -118,6 +118,7 @@ No `container` parameter -- runs before `ServiceContainer` exists.
 | --- | --- |
 | `layout_registry` | -- |
 | `voice_instructions` | -- |
+| `embedding_client` | -- (DL-M05: shared Triton text-embedding client, also read by the guided-task bridge) |
 | `image_pipeline` | `minio_client`, `layout_registry` |
 | `knowledge_ingestion` | `minio_client`, `image_pipeline` |
 | `knowledge_query` | `llm_model_registry` |

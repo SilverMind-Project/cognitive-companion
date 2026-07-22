@@ -23,6 +23,7 @@ from backend.schemas.guided_task import (
     GuidedSessionDetailOut,
     GuidedSessionListOut,
     GuidedSessionOut,
+    RoutineActivityTypeOptionsOut,
     RoutineCreate,
     RoutineDetailOut,
     RoutineLanguageOptionsOut,
@@ -33,6 +34,7 @@ from backend.schemas.guided_task import (
 from backend.services.guided_task.caregiver import Caregiver
 from backend.services.guided_task.context import RuntimeContext
 from backend.services.guided_task.domain import Decision
+from backend.services.guided_task.memory_bridge import GuidedMemoryBridge
 from backend.services.guided_task.ports import Escalator, NoopSafetyWatch, SafetyWatch, SessionVoice
 from backend.services.guided_task.presentation import Presentation
 from backend.services.guided_task.resident_actions import ResidentActions
@@ -69,8 +71,10 @@ class GuidedTaskService:
         admin_ws_broadcaster: Any = None,
         notification_dispatcher: Any = None,
         conversation_manager: Any = None,
-        semantic_memory_client: Any = None,
         memory_query: Any = None,
+        scene_intel: Any = None,
+        embedding_client: Any = None,
+        knowledge_ingestion: Any = None,
         voice: SessionVoice | None = None,
         voice_instructions: VoiceInstructionConfig | None = None,
         safety_watch: SafetyWatch | None = None,
@@ -99,8 +103,10 @@ class GuidedTaskService:
             admin_ws_broadcaster=admin_ws_broadcaster,
             notification_dispatcher=notification_dispatcher,
             conversation_manager=conversation_manager,
-            semantic_memory_client=semantic_memory_client,
             memory_query=memory_query,
+            scene_intel=scene_intel,
+            embedding_client=embedding_client,
+            knowledge_ingestion=knowledge_ingestion,
             voice=voice,
             voice_instructions=voice_instructions,
             safety_watch=safety_watch,
@@ -111,12 +117,14 @@ class GuidedTaskService:
             camera_source_resolver=camera_source_resolver,
             event_aggregator=event_aggregator,
         )
-        # Dependency order: presentation/retention are leaves; runtime depends
-        # on both; summon/watch/caregiver depend on runtime + presentation;
-        # routine_admin is built last (test_run needs summon + presentation).
+        # Dependency order: presentation/retention/memory_bridge are leaves;
+        # runtime depends on presentation + memory_bridge; summon/watch/
+        # caregiver depend on runtime + presentation; routine_admin is built
+        # last (test_run needs summon + presentation).
         self._presentation = Presentation(ctx)
         self._retention = Retention(ctx)
-        self._runtime = Runtime(ctx, self._presentation, self._retention)
+        self._memory_bridge = GuidedMemoryBridge(ctx)
+        self._runtime = Runtime(ctx, self._presentation, self._memory_bridge)
         self._resident_actions = ResidentActions(
             ctx, self._presentation, apply_decision=self._runtime.apply_decision
         )
@@ -305,6 +313,9 @@ class GuidedTaskService:
 
     def get_language_options(self) -> RoutineLanguageOptionsOut:
         return self._routine_admin.get_language_options()
+
+    def get_activity_type_options(self) -> RoutineActivityTypeOptionsOut:
+        return self._routine_admin.get_activity_type_options()
 
     def list_routines(
         self, *, person_id: str | None = None, limit: int = 20, offset: int = 0

@@ -231,7 +231,7 @@ class Summon:
             return
         routine, steps = ctx.load_routine_steps(session.routine_id)
         if (now - session.started_at).total_seconds() > summon_timeout_s:
-            ctx.mark_abandoned(session.id, now=now, outcome="summon_timeout")
+            await self._runtime.abandon(session.id, now=now, outcome="summon_timeout")
             ctx.store.add_event(
                 session_id=session.id,
                 at=now,

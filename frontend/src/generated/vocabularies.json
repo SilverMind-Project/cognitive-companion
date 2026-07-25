@@ -33,7 +33,8 @@
     "nighttime_movement",
     "pacing",
     "stillness_anomaly",
-    "sundowning_index"
+    "sundowning_index",
+    "tea_intent_suspected"
   ],
   "step_types": [
     {
@@ -266,6 +267,16 @@
         "main"
       ],
       "type_name": "semantic_memory_write"
+    },
+    {
+      "category": "action",
+      "display_name": "Emit Signal",
+      "gate_safe": false,
+      "icon": "mdi-bell-alert-outline",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "signal_emit"
     },
     {
       "category": "state",

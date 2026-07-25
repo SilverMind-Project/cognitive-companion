@@ -3,6 +3,24 @@
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach } from "vitest";
 
+// happy-dom (our `environment`) does not define `visualViewport` at all -- not even as
+// `undefined` -- so Vuetify's VOverlay location strategy (`visualViewport?.addEventListener(...)`)
+// throws ReferenceError on the bare identifier before the `?.` can short-circuit: optional
+// chaining only guards a null/undefined *value*, not an unbound global. Any real component mount
+// that surfaces a VOverlay (VSnackbar, VMenu, VDialog, ...) hits this. Stubbed once globally
+// rather than per-spec, matching the fresh-Pinia pattern below.
+if (typeof globalThis.visualViewport === "undefined") {
+  globalThis.visualViewport = {
+    width: 1024,
+    height: 768,
+    offsetLeft: 0,
+    offsetTop: 0,
+    scale: 1,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+}
+
 // A fresh Pinia per test.
 //
 // Global rather than per-spec for two reasons: every spec that mounts a component touching a

@@ -1,6 +1,7 @@
 """Shared helpers for pipeline step handlers.
 
-Used by ``presence_query.py`` and ``home_state.py`` for person-resolution logic.
+Used by ``presence_query.py``, ``home_state.py``, and ``signal_emit.py`` for
+person-resolution logic.
 """
 
 from __future__ import annotations

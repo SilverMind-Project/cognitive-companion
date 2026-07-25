@@ -363,6 +363,18 @@ daily_living:
     # Re-seating within this gap continues the same meal_eating session
     # (one lunch, not two).
     merge_gap_minutes: 20
+  # DL-M06: tea-intent shadow detector. Documented here per the M00 plan-author
+  # defaults table; the daily_living_tea_intent_shadow.json rule bundle bakes
+  # the current values in as literals (rule bundles do not read settings.yaml
+  # at import time), matching the tv/meals bundles above. Change both together.
+  intent:
+    # Kitchen dwell (presence_dwell filter) before the intent cascade runs;
+    # short enough to catch tea, long enough to skip walk-throughs.
+    dwell_minutes: 3
+    # One intent evaluation per window; enforced as the rule's
+    # cool_off_minutes, armed only on a positive verdict (signal_emit's
+    # trigger_cooloff), so a negative verdict never suppresses the next poll.
+    rate_limit_minutes: 45
 
 # Embedding inference (Triton)
 embedding:

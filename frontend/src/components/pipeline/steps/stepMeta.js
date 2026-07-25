@@ -32,6 +32,7 @@ export const STEP_DOT_COLORS = {
   scene_analysis: "teal",
   semantic_memory_query: "teal",
   semantic_memory_write: "indigo",
+  signal_emit: "orange",
   verification: "green",
   wait: "amber",
 };

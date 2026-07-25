@@ -7,27 +7,26 @@ Regions and normalized bboxes here are in normalized ``[0, 1]`` IMAGE space
 never floor-space ``RoomZone`` meters (M00 glossary rule / guided-companion
 coordinate rule): the two spaces are never compared or mixed.
 
-Bbox space (verified 2026-07-21)
----------------------------------
+Bbox space (verified 2026-07-21, widened 2026-07-25 DL-M06)
+-------------------------------------------------------------
 Read ``backend/integrations/scene_analysis_client.py`` and
 ``scene-analysis-service/app/services/detector.py``: ``SceneDetection.bbox``
 is always ``[x1, y1, x2, y2]`` in PIXEL coordinates relative to the analyzed
-image (see the ``Detection`` docstring in ``detector.py``). Neither
-``scene_analysis``'s ``scene_detections`` nor ``scene_images``
-``pipeline_data`` output carries per-image width/height alongside
-detections today, so a pixel bbox from the default producer cannot be
-normalized from that output alone.
+image (see the ``Detection`` docstring in ``detector.py``). ``scene_analysis``
+now decodes each analyzed image locally (it already has the bytes) and
+attaches ``image_width``/``image_height`` to every detection dict in both
+``scene_detections`` and ``scene_images[*].scene_detections``, so a pixel
+bbox from the default producer normalizes without a second fetch or a model
+call.
 
 This module never infers coordinate space from value magnitude. A
 detection is treated as already-normalized only via an explicit
 ``bbox_normalized: true`` key; a pixel bbox is normalized only when
 ``image_width``/``image_height`` (or ``frame_width``/``frame_height``,
 ``original_width``/``original_height``) sibling keys accompany the
-detection dict. Absent both signals, the detection is skipped with reason
-``"unknown_bbox_space"``. Given today's default ``scene_analysis`` output
-carries neither signal, this is the expected outcome for the default
-``detections_key`` until a follow-up milestone widens ``scene_analysis``'s
-output schema with per-detection or per-image dimensions.
+detection dict. Absent both signals (e.g. an image that failed to decode),
+the detection is skipped with reason ``"unknown_bbox_space"`` rather than
+guessed.
 """
 
 from __future__ import annotations

@@ -88,6 +88,7 @@ const stubs = {
       <div data-testid="v-data-table">
         <template v-for="item in (items || [])" :key="item && item.id">
           <slot name="item.source" :item="item" />
+          <slot name="item.signal_type" :item="item" />
         </template>
         <slot name="no-data" />
       </div>`,
@@ -103,7 +104,10 @@ const stubs = {
   "v-select": { template: "<div />", props: ["modelValue", "items", "label"] },
   "v-progress-linear": { template: "<div />", props: ["modelValue"] },
   "v-progress-circular": { template: "<div />" },
-  "v-chip": { template: "<span><slot /></span>", props: ["size", "color", "variant"] },
+  "v-chip": {
+    template: '<span :data-prepend-icon="prependIcon"><slot /></span>',
+    props: ["size", "color", "variant", "prependIcon"],
+  },
   "v-icon": { template: "<i />" },
   "v-divider": { template: "<hr />" },
   "v-spacer": { template: "<div />" },
@@ -150,5 +154,15 @@ describe("SignalsPanel", () => {
     const w = mount(SignalsPanel, { global: { stubs } });
     await flushPromises();
     expect(w.vm.formatTime("2026-05-29T10:00:00Z")).toBe("FMT(2026-05-29T10:00:00Z)");
+  });
+
+  it("signal kind cell renders through the signalKinds registry (generic fallback for pacing)", async () => {
+    const w = mount(SignalsPanel, { global: { stubs } });
+    await flushPromises();
+    // "pacing" is not in SIGNAL_KIND_PRESENTATIONS, so it must still render
+    // via the generic fallback (humanized label, default icon), not crash.
+    expect(w.text()).toContain("pacing");
+    const table = w.find('[data-testid="v-data-table"]');
+    expect(table.html()).toContain('data-prepend-icon="mdi-bell-outline"');
   });
 });

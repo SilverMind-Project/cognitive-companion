@@ -16,6 +16,11 @@ def test_export_includes_gait_slowing():
     assert "gait_slowing" in vocabularies["signal_kinds"]
 
 
+def test_export_includes_tea_intent_suspected():
+    vocabularies = build_vocabularies()
+    assert "tea_intent_suspected" in vocabularies["signal_kinds"]
+
+
 def test_export_step_types_have_expected_shape():
     vocabularies = build_vocabularies()
     assert vocabularies["step_types"], "expected at least one registered step type"

@@ -17,6 +17,10 @@ const SIGNAL_KIND_PRESENTATIONS = {
     icon: "mdi-kettle-steam-outline",
     blurb: "May be starting to make tea",
   },
+  same_clothes_suspected: {
+    icon: "mdi-tshirt-crew-outline",
+    blurb: "Appears to be wearing yesterday's clothes",
+  },
 };
 
 export function humanizeKind(kind) {

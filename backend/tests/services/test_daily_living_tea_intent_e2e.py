@@ -10,6 +10,7 @@ just that each step passes its own unit test in isolation.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,14 @@ _BUNDLE_PATH = (
 _PERSON_ID = "test_resident"
 _KITCHEN_ROOM = "kitchen"
 _KITCHEN_CAM = "test_kitchen_cam"
+
+# Fixed clock inside the bundle's time_range context (06:00-21:00 UTC). The
+# suite must not depend on wall-clock time: RulesEngine.get_matching_rules_for_cron
+# evaluates the rule's time_range/presence_dwell contexts against "now", and a
+# real midnight-to-6am or 9pm-to-midnight UTC test run would otherwise make
+# every assertion in this file vacuously true (should_fire is False, _tick
+# returns None without ever exercising the pipeline).
+_NOW = datetime(2026, 1, 15, 12, 0, tzinfo=UTC)
 
 _PLACEHOLDERS = {
     "__RESIDENT_PERSON_ID__": _PERSON_ID,
@@ -151,9 +160,8 @@ def _signal_rows(db_session) -> list[DementiaSignal]:
 
 
 async def _tick(rule, db_session, engine, executor):
-    should_fire = await engine.get_matching_rules_for_cron(rule, db_session)
-    if not should_fire:
-        return None
+    should_fire = await engine.get_matching_rules_for_cron(rule, db_session, now=_NOW)
+    assert should_fire, "rule must fire for this test's assertions to be meaningful"
     return await executor.execute(rule, TriggerContext(trigger_type="cron"), db_session)
 
 

@@ -39,6 +39,7 @@ class RulesEngine:
         db: Session,
         trigger_type: str = "sensor_event",
         occupancy_minutes: float | None = None,
+        now: datetime | None = None,
     ) -> list[Rule]:
         """Return enabled rules matching the sensor that pass all checks.
 
@@ -48,8 +49,11 @@ class RulesEngine:
             occupancy_minutes: When ``trigger_type`` is ``"occupancy_duration"``,
                 only rules whose ``occupancy_config.min_minutes`` threshold has
                 been reached are included.
+            now: Injected clock for context/dependency/rate-limit evaluation.
+                Defaults to the current time in ``self.tz``; tests pass an
+                explicit value instead of sleeping or depending on wall time.
         """
-        now = datetime.now(self.tz)
+        now = now or datetime.now(self.tz)
         query = db.query(Rule).filter(
             Rule.enabled.is_(True),
             Rule.filter_active(),
@@ -94,14 +98,21 @@ class RulesEngine:
         self,
         rule: Rule,
         db: Session,
+        now: datetime | None = None,
     ) -> bool:
         """Check whether *rule* should fire from a cron trigger.
 
         Evaluates contexts, dependencies, and rate limits against the current
         time. Returns True if all checks pass. Unlike sensor events, cron
         triggers have no sensor or room context.
+
+        Args:
+            now: Injected clock. Defaults to the current time in ``self.tz``;
+                tests pass an explicit value instead of depending on wall time
+                (a real cron rule's time_range/dwell context checks would
+                otherwise pass or fail depending on when the suite runs).
         """
-        now = datetime.now(self.tz)
+        now = now or datetime.now(self.tz)
 
         if not rule.enabled:
             return False
@@ -123,6 +134,7 @@ class RulesEngine:
         event: dict[str, Any],
         trigger_type: str,
         db: Session,
+        now: datetime | None = None,
     ) -> list[Rule]:
         """Return enabled rules matching a dict-based event (e.g. dementia signals).
 
@@ -136,8 +148,9 @@ class RulesEngine:
             trigger_type: The trigger type string to match against
                 ``Rule.trigger_types`` (e.g. ``"dementia_signal"``).
             db: Active database session.
+            now: Injected clock. Defaults to the current time in ``self.tz``.
         """
-        now = datetime.now(self.tz)
+        now = now or datetime.now(self.tz)
         rules = (
             db.query(Rule)
             .filter(

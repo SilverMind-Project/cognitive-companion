@@ -1233,3 +1233,11 @@ Industry best practices require that code comments explain the *intent* and *rat
 4. **Self-Documenting Code:**
    - Prioritize clear naming (functions, variables, classes) over explanatory comments.
    - A comment should not be necessary to explain *what* standard code is doing.
+
+## 27. CC-local signals and shadow-mode detectors
+
+CC-local signals are emitted from pipelines only via the `signal_emit` step, which validates against the CC-local kind allowlist (`backend.services.cts.signal_config.CC_LOCAL_SIGNAL_KINDS`); rules can never emit CTS-produced kinds. New detectors ship shadow-first: signal + notification only, with the labeling workflow and a flip gate documented in their milestone (DL10).
+
+`signal_emit` writes through `SignalsService.emit()` (`backend/services/signals/service.py`), never the raw `SignalStore` from a step; this mirrors the semantic-memory single-write-seam rule (DL8). Every CC-local emission sets `evidence_grade="experimental"` unconditionally: `SignalStore.acknowledge()` only persists caregiver feedback for that grade, so a shadow detector's precision measurement depends on it. Dedup windows compare against the injected `now`, not the row's `received_at` (which is server-defaulted and not fake-clock-controllable); use `window_start`/`window_end` (set from the injected clock on write) for any time-window comparison in a signal-writing service, per the injectable-clock rule.
+
+A rule that wants "at most one detection per N minutes" without silencing its own polling trigger sets the rule's `cool_off_minutes` to N and arms it only from the terminal action step's `trigger_cooloff` config (already present on `notification`, `ha_action`, `condition`, and `signal_emit`), so a negative-verdict tick never counts against the cool-off (`event_log.status` stays `"ignored"` unless `_cooloff_triggered` was set). Do not use `max_daily_triggers` for this; it is a blunt daily cap, not an interval limiter.

@@ -7,9 +7,11 @@ scene-analysis-service is required.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from PIL import Image
 
 from backend.integrations.minio_client import MinioClient
 from backend.integrations.scene_analysis_client import (
@@ -29,6 +31,15 @@ from backend.steps.builtin.scene_analysis import SceneAnalysisHandler
 _MINIO_URL = "http://minio.nanai.internal/ai-media/cam1/frame.jpg"
 _MINIO_URL2 = "http://minio.nanai.internal/ai-media/cam2/frame.jpg"
 _FAKE_JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 12  # minimal JPEG header bytes
+
+
+def _real_png(width: int, height: int) -> bytes:
+    buf = BytesIO()
+    Image.new("RGB", (width, height), color="black").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+_REAL_PNG_320x240 = _real_png(320, 240)
 
 
 @dataclass
@@ -277,6 +288,41 @@ class TestHappyPath:
         assert h["name"] == "fire"
         assert h["severity"] == "critical"
         assert h["detection"]["label"] == "fire"
+
+    async def test_attaches_image_dimensions_to_detections(self):
+        det = SceneDetection(label="person", confidence=0.9, bbox=[0, 0, 40, 60], class_id=0)
+        client = _mock_client(SceneAnalyzeResult(detections=[det]))
+        services = _make_services(scene_analysis_client=client)
+        with _patch_http(content=_REAL_PNG_320x240):
+            result = await _HANDLER.execute(
+                _make_step(),
+                _FakeExecution(),
+                {},
+                _make_trigger(media_paths=[_MINIO_URL]),
+                services,
+            )
+        detection = result.data["scene_detections"][0]
+        assert detection["image_width"] == 320
+        assert detection["image_height"] == 240
+        image_detection = result.data["scene_images"][0]["scene_detections"][0]
+        assert image_detection["image_width"] == 320
+        assert image_detection["image_height"] == 240
+
+    async def test_undecodable_image_leaves_dimensions_none(self):
+        det = SceneDetection(label="person", confidence=0.9, bbox=[0, 0, 40, 60], class_id=0)
+        client = _mock_client(SceneAnalyzeResult(detections=[det]))
+        services = _make_services(scene_analysis_client=client)
+        with _patch_http():  # default _FAKE_JPEG is not a decodable image
+            result = await _HANDLER.execute(
+                _make_step(),
+                _FakeExecution(),
+                {},
+                _make_trigger(media_paths=[_MINIO_URL]),
+                services,
+            )
+        detection = result.data["scene_detections"][0]
+        assert detection["image_width"] is None
+        assert detection["image_height"] is None
 
     async def test_always_continues_pipeline(self):
         client = _mock_client()

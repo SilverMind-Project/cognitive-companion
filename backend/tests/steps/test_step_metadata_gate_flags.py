@@ -31,6 +31,7 @@ from backend.steps import StepRegistry
         ("interactive_prompt", False),
         ("quiz_start", False),
         ("guided_task_start", False),
+        ("signal_emit", False),
     ],
 )
 def test_expected_steps_are_gate_safe(step_type: str, expected_gate_safe: bool):

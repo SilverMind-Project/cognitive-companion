@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "rule": {
+    "name": "daily_living_tea_intent_shadow",
+    "description": "DL-M06 (tea-intent shadow detector, notify-only). Detects likely tea-making intent from kitchen dwell plus a cheap-first vision cascade (region geometry, then one text llm_call over the Florence caption and detection labels) and only notifies the caregiver and records a labelable tea_intent_suspected signal; no guided_task_start on this port. The flip to launching the guided tea routine is a config-only change specified in daily-living-m06-tea-intent-shadow-detector.md Part D, gated on hardening M23/M24/M25/M27 and on two weeks of measured precision >= 0.7. PLACEHOLDERS (replace before import): __RESIDENT_PERSON_ID__, __KITCHEN_ROOM_NAME__, __KITCHEN_CAMERA_SENSOR_ID__. The 'kettle_counter' region rect below is an illustrative default (right 45% of frame); it MUST be redrawn from a real kitchen frame for the target camera before this bundle is trusted live (see the milestone's verification commands). model_id picks 'qwen-3.6-35b' as the deployment's text-capable llama.cpp reasoning model (guided_decoding: false in config/settings.yaml's llm.models identifies the llama.cpp-backed entries, as opposed to cosmos_reason2's vLLM/guided_decoding: true); swap it in the imported rule if the deployment designates a different reasoning model, no code change needed either way.",
+    "enabled": true,
+    "trigger_types": ["cron"],
+    "primary_sensor_ref": {"kind": "sensor", "label": "__KITCHEN_CAMERA_SENSOR_ID__"},
+    "cool_off_minutes": 45,
+    "max_daily_triggers": 0,
+    "max_concurrent_executions": 1,
+    "execution_timeout_minutes": 5,
+    "cron_expressions": [{"expression": "*/2 * * * *", "timezone": "UTC"}]
+  },
+  "contexts": [
+    {"context_type": "time_range", "config": {"start_time": "06:00", "end_time": "21:00"}},
+    {
+      "context_type": "presence_dwell",
+      "config": {"person_id": "__RESIDENT_PERSON_ID__", "min_minutes": 3}
+    }
+  ],
+  "steps": [
+    {
+      "label": "poll",
+      "step_type": "media_window_poll",
+      "config": {
+        "source": "auto",
+        "cameras": ["__KITCHEN_CAMERA_SENSOR_ID__"],
+        "max_frames": 2,
+        "max_images": 2,
+        "images_per_sensor": 2
+      }
+    },
+    {
+      "label": "scene",
+      "step_type": "scene_analysis",
+      "config": {
+        "run_detect": true,
+        "run_describe": true,
+        "run_embed": false,
+        "run_hazards": false,
+        "image_source": "media_window",
+        "max_images": 2
+      }
+    },
+    {
+      "label": "region_presence_1",
+      "step_type": "region_presence",
+      "config": {
+        "detections_key": "steps.scene.outputs.scene_detections",
+        "regions": [
+          {
+            "id": "kettle_counter",
+            "name": "Kettle counter",
+            "x": 0.55,
+            "y": 0.15,
+            "width": 0.4,
+            "height": 0.75
+          }
+        ],
+        "mode": "anchor",
+        "anchor": "bottom_center",
+        "labels": ["person"],
+        "min_confidence": 0.5
+      }
+    },
+    {
+      "label": "in_region_check",
+      "step_type": "condition",
+      "config": {
+        "expression": "steps.region_presence_1.outputs.in_region == true"
+      }
+    },
+    {
+      "label": "tea_verdict",
+      "step_type": "llm_call",
+      "config": {
+        "model_id": "qwen-3.6-35b",
+        "image_source": "none",
+        "prompt": "The resident has been dwelling near the kitchen kettle counter. Scene caption: \"{{ steps.scene.outputs.scene_description }}\". Detected objects: {{ steps.scene.outputs.scene_detections }}. Region check: person present at the kettle counter = {{ steps.region_presence_1.outputs.in_region }}. (Room and current local time are already provided above.) Based only on this evidence, is she likely starting to make tea (approaching the kettle, reaching for it, filling it, or standing at the counter with kettle-related items nearby)? Respond with your honest best judgement; do not assume tea just because she is in the kitchen.",
+        "response_format": "json_schema",
+        "response_json_schema": "{\"type\": \"object\", \"properties\": {\"tea_intent\": {\"type\": \"boolean\"}, \"confidence\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 1}, \"reason\": {\"type\": \"string\"}}, \"required\": [\"tea_intent\", \"confidence\", \"reason\"]}",
+        "response_schema": "Respond with JSON: {\"tea_intent\": bool, \"confidence\": number between 0 and 1, \"reason\": short string}.",
+        "output_key": "tea_verdict"
+      }
+    },
+    {
+      "label": "verdict_check",
+      "step_type": "condition",
+      "config": {
+        "expression": "steps.tea_verdict.outputs.tea_verdict.tea_intent == true and steps.tea_verdict.outputs.tea_verdict.confidence >= 0.6"
+      }
+    },
+    {
+      "label": "emit_signal",
+      "step_type": "signal_emit",
+      "config": {
+        "kind": "tea_intent_suspected",
+        "person_id": "__RESIDENT_PERSON_ID__",
+        "severity": "info",
+        "value": "{{ steps.tea_verdict.outputs.tea_verdict.confidence }}",
+        "context": {
+          "reason": "{{ steps.tea_verdict.outputs.tea_verdict.reason }}",
+          "confidence": "{{ steps.tea_verdict.outputs.tea_verdict.confidence }}",
+          "camera": "__KITCHEN_CAMERA_SENSOR_ID__",
+          "frame_url": "{{ steps.poll.outputs.images.0 }}"
+        },
+        "dedupe_minutes": 0,
+        "trigger_cooloff": true
+      }
+    },
+    {
+      "label": "notify_caregiver",
+      "step_type": "notification",
+      "config": {
+        "alert_level": "info",
+        "channels": ["telegram"],
+        "message_template": "Looks like she may be starting to make tea (confidence {{ steps.tea_verdict.outputs.tea_verdict.confidence }}). {{ steps.tea_verdict.outputs.tea_verdict.reason }} Frame: {{ steps.poll.outputs.images.0 }}",
+        "telegram_image_source": "none",
+        "trigger_cooloff": false
+      }
+    }
+  ],
+  "edges": [
+    {"source_label": "poll", "source_port": "main", "target_label": "scene", "target_port": "main"},
+    {"source_label": "scene", "source_port": "main", "target_label": "region_presence_1", "target_port": "main"},
+    {"source_label": "region_presence_1", "source_port": "main", "target_label": "in_region_check", "target_port": "main"},
+    {"source_label": "in_region_check", "source_port": "true", "target_label": "tea_verdict", "target_port": "main"},
+    {"source_label": "tea_verdict", "source_port": "main", "target_label": "verdict_check", "target_port": "main"},
+    {"source_label": "verdict_check", "source_port": "true", "target_label": "emit_signal", "target_port": "main"},
+    {"source_label": "verdict_check", "source_port": "true", "target_label": "notify_caregiver", "target_port": "main"}
+  ]
+}

@@ -171,6 +171,33 @@ async def test_step_unknown_bbox_space_is_skipped_not_failed():
 
 
 @pytest.mark.asyncio
+async def test_step_pixel_bbox_with_image_dimensions_normalizes():
+    """A stock scene_analysis -> region_presence chain (post image_width/height
+    widening) must produce a real hit, not unknown_bbox_space."""
+    handler = RegionPresenceHandler()
+    step = _FakeStep(config_json={"regions": [_rect_region()]})
+    pipeline_data = {
+        "scene_detections": [
+            {
+                "label": "person",
+                "confidence": 0.9,
+                "bbox": [32.0, 96.0, 64.0, 192.0],  # pixel-space, left half of a 320x240 image
+                "image_width": 320,
+                "image_height": 240,
+            }
+        ]
+    }
+
+    result = await handler.execute(
+        step, _FakeExecution(), pipeline_data, _make_trigger(), _make_services()
+    )
+
+    assert result.data["skipped"] == []
+    assert result.data["in_region"] is True
+    assert result.data["count"] == 1
+
+
+@pytest.mark.asyncio
 async def test_step_camera_scoped_region_without_attribution_notes_unavailable():
     handler = RegionPresenceHandler()
     step = _FakeStep(

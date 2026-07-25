@@ -1462,6 +1462,20 @@ Use the guided-companion skill for the routine/session data model and domain rul
 
 ---
 
+## Signal kind presentation
+
+Signal kinds reach the frontend only via the generated vocabulary (`make contracts` +
+`npm run generate:api`, landing in `frontend/src/generated/vocabularies.json`); presentational
+extras (icon, blurb) live solely in `frontend/src/constants/signalKinds.js`
+(`getKindPresentation(kind)`) with a mandatory generic fallback for unknown kinds. Never
+hand-type a kind list in a component, and never build a second per-kind icon/label map --
+`SignalsPanel.vue` is the reference consumer. A kind this registry has never heard of must
+still render (humanized label, default icon), not throw or show `undefined`; this is the
+platform forward-compatibility rule (`cts_contracts/signals.py`) and is pinned by a dedicated
+unknown-kind-fallback spec that must exist before a new milestone extends the map.
+
+---
+
 ## Deterministic gates
 
 Before marking frontend work complete run: `npm run lint` (ESLint enforces the

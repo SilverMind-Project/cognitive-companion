@@ -108,9 +108,13 @@
         @click:row="openEvidence"
       >
         <template #item.signal_type="{ item }">
-          <v-chip size="x-small" variant="tonal">{{
-            (item.signal_type || "").replace(/_/g, " ")
-          }}</v-chip>
+          <v-chip
+            size="x-small"
+            variant="tonal"
+            :prepend-icon="kindPresentation(item.signal_type).icon"
+          >
+            {{ kindPresentation(item.signal_type).label }}
+          </v-chip>
         </template>
         <template #item.severity="{ item }">
           <v-chip
@@ -209,8 +213,9 @@
                   size="small"
                   variant="tonal"
                   :color="evidence.signal?.severity === 'emergency' ? 'error' : 'warning'"
+                  :prepend-icon="kindPresentation(evidence.signal?.signal_type).icon"
                 >
-                  {{ (evidence.signal?.signal_type || "").replace(/_/g, " ") }}
+                  {{ kindPresentation(evidence.signal?.signal_type).label }}
                 </v-chip>
                 <span class="text-caption">{{ formatTime(evidence.signal?.fired_at) }}</span>
               </div>
@@ -249,6 +254,7 @@ import CcSectionCard from "@/components/dashboard/CcSectionCard.vue";
 import CcProvenanceBadge from "@/components/dashboard/CcProvenanceBadge.vue";
 import TrackingPanelHeader from "@/components/tracking/TrackingPanelHeader.vue";
 import vocabularies from "@/generated/vocabularies.json";
+import { getKindPresentation } from "@/constants/signalKinds.js";
 
 const { notify } = useNotify();
 
@@ -273,9 +279,13 @@ const headers = [
 ];
 
 const kindOptions = vocabularies.signal_kinds.map((k) => ({
-  title: k.replace(/_/g, " "),
+  title: getKindPresentation(k).label,
   value: k,
 }));
+
+function kindPresentation(kind) {
+  return getKindPresentation(kind);
+}
 
 const kindBars = computed(() => {
   const byKind = aggregates.value.by_kind || {};

@@ -116,6 +116,13 @@ import RegionPresenceConfig, {
   stepTabs as regionPresenceTabs,
   chips as regionPresenceChips,
 } from "./RegionPresenceConfig.vue";
+import SignalEmitConfig, {
+  stepDefaults as signalEmitDefaults,
+  stepTabs as signalEmitTabs,
+  beforeSave as signalEmitBeforeSave,
+  onStepLoaded as signalEmitOnStepLoaded,
+  chips as signalEmitChips,
+} from "./SignalEmitConfig.vue";
 import vocabularies from "@/generated/vocabularies.json";
 import { ALERT_COLORS, chip, truncate } from "./stepMeta.js";
 
@@ -229,6 +236,14 @@ export const stepConfigMap = {
     chips: regionPresenceChips,
   },
   quiz_start: { component: GenericPluginConfig, defaults: {}, tabs: genericTabs },
+  signal_emit: {
+    component: SignalEmitConfig,
+    defaults: signalEmitDefaults,
+    tabs: signalEmitTabs,
+    beforeSave: signalEmitBeforeSave,
+    onStepLoaded: signalEmitOnStepLoaded,
+    chips: signalEmitChips,
+  },
 };
 import SchemaForm from "./_shared/SchemaForm.vue";
 

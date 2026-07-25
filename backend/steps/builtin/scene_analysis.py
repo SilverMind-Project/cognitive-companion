@@ -13,7 +13,11 @@ Result keys written to ``pipeline_data``
 
 ``scene_detections``
     Aggregated list of object-detection dicts across all images
-    (label, confidence, bbox, class_id).
+    (label, confidence, bbox, class_id, image_width, image_height).
+    ``image_width``/``image_height`` are the analyzed image's pixel
+    dimensions, decoded locally from the same bytes sent to the
+    scene-analysis-service; they let ``region_presence`` normalize the
+    pixel-space ``bbox`` without a second fetch or a model call.
 
 ``scene_description``
     All non-empty Florence-2 descriptions joined by ``\\n---\\n``.
@@ -42,7 +46,10 @@ empty.
 
 from __future__ import annotations
 
+from io import BytesIO
+
 import httpx
+from PIL import Image
 
 from backend.core.logging import get_logger
 from backend.integrations.scene_analysis_client import SceneAnalyzeResult
@@ -235,6 +242,7 @@ class SceneAnalysisHandler(StepHandler):
 
         image_results: list[dict] = []
         all_detections = []
+        all_detection_dims: list[tuple[int | None, int | None]] = []
         all_hazards = []
         all_descriptions: list[str] = []
         embedding: list = []
@@ -247,6 +255,8 @@ class SceneAnalysisHandler(StepHandler):
             if not image_bytes:
                 logger.warning("scene_analysis_image_unreadable", path=image_path)
                 continue
+
+            image_width, image_height = _image_dimensions(image_path, image_bytes)
 
             result: SceneAnalyzeResult = await services.scene_analysis_client.analyze(
                 image_bytes,
@@ -262,6 +272,8 @@ class SceneAnalysisHandler(StepHandler):
                     "confidence": d.confidence,
                     "bbox": d.bbox,
                     "class_id": d.class_id,
+                    "image_width": image_width,
+                    "image_height": image_height,
                 }
                 for d in result.detections
             ]
@@ -290,6 +302,7 @@ class SceneAnalysisHandler(StepHandler):
             )
 
             all_detections.extend(result.detections)
+            all_detection_dims.extend([(image_width, image_height)] * len(result.detections))
             all_hazards.extend(result.hazards)
             if result.description:
                 all_descriptions.append(result.description)
@@ -342,8 +355,10 @@ class SceneAnalysisHandler(StepHandler):
                         "confidence": d.confidence,
                         "bbox": d.bbox,
                         "class_id": d.class_id,
+                        "image_width": dims[0],
+                        "image_height": dims[1],
                     }
-                    for d in all_detections
+                    for d, dims in zip(all_detections, all_detection_dims, strict=True)
                 ],
                 "scene_description": description,
                 "scene_embedding": embedding,
@@ -400,3 +415,21 @@ async def _fetch_image(url: str) -> bytes | None:
             return response.content
     except Exception:  # noqa: BLE001
         return None
+
+
+def _image_dimensions(image_path: str, image_bytes: bytes) -> tuple[int | None, int | None]:
+    """Decode the analyzed image's pixel dimensions from bytes already in hand.
+
+    The scene-analysis-service's ``bbox`` is pixel-space with no width/height
+    of its own; decoding locally (rather than round-tripping to the service)
+    is what lets ``region_presence`` normalize it without a second fetch or a
+    model call. Returns ``(None, None)`` on a malformed image so the step
+    still succeeds; a downstream ``region_presence`` skips those detections
+    with ``unknown_bbox_space`` rather than the caller crashing.
+    """
+    try:
+        with Image.open(BytesIO(image_bytes)) as img:
+            return img.size
+    except Exception:  # noqa: BLE001
+        logger.warning("scene_analysis_image_dimensions_undecodable", path=image_path)
+        return None, None

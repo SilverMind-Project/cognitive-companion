@@ -5,6 +5,8 @@ Uses the shared PostgreSQL fixture from conftest so no mocking is needed.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from backend.services.cts.signal_store import SignalStore
@@ -127,3 +129,103 @@ class TestListRecent:
         results = await svc.list_recent(severity_min="info", limit=2, window_minutes=60)
         # With dedup, we get at most limit * len(accept) = 2 * 3 = 6
         assert len(results) <= 6
+
+
+# ---------------------------------------------------------------------------
+# emit — CC-local signal write path (signal_emit step)
+# ---------------------------------------------------------------------------
+
+
+class TestEmit:
+    @pytest.mark.asyncio
+    async def test_emits_new_row_with_experimental_evidence_grade(
+        self, svc: SignalsService, store: SignalStore
+    ):
+        result = await svc.emit(
+            signal_kind="tea_intent_suspected",
+            person_id="grandma",
+            severity="info",
+            value=0.82,
+            context={"reason": "kettle counter, hand near kettle"},
+        )
+        assert result == {"emitted": True, "reason": None, "signal_row_id": result["signal_row_id"]}
+        assert result["signal_row_id"] is not None
+
+        rows, total = await store.list_recent(person_id="grandma", window_hours=1)
+        assert total == 1
+        assert rows[0]["signal_type"] == "tea_intent_suspected"
+        assert rows[0]["evidence_grade"] == "experimental"
+        assert rows[0]["value"] == 0.82
+        assert rows[0]["context_json"] == {"reason": "kettle counter, hand near kettle"}
+
+    @pytest.mark.asyncio
+    async def test_rejects_kind_outside_cc_local_allowlist(self, svc: SignalsService):
+        result = await svc.emit(signal_kind="fall_suspected", person_id="grandma")
+        assert result == {"emitted": False, "reason": "invalid_kind", "signal_row_id": None}
+
+    @pytest.mark.asyncio
+    async def test_dedupe_window_suppresses_repeat_emission(self, svc: SignalsService):
+        base_now = datetime(2026, 7, 25, 9, 0, tzinfo=UTC)
+
+        first = await svc.emit(
+            signal_kind="tea_intent_suspected",
+            person_id="grandma",
+            dedupe_minutes=60,
+            now=base_now,
+        )
+        assert first["emitted"] is True
+
+        second = await svc.emit(
+            signal_kind="tea_intent_suspected",
+            person_id="grandma",
+            dedupe_minutes=60,
+            now=base_now + timedelta(minutes=30),
+        )
+        assert second == {"emitted": False, "reason": "deduped", "signal_row_id": None}
+
+    @pytest.mark.asyncio
+    async def test_dedupe_window_expiry_allows_new_emission(self, svc: SignalsService):
+        base_now = datetime(2026, 7, 25, 9, 0, tzinfo=UTC)
+
+        await svc.emit(
+            signal_kind="tea_intent_suspected",
+            person_id="grandma",
+            dedupe_minutes=60,
+            now=base_now,
+        )
+        later = await svc.emit(
+            signal_kind="tea_intent_suspected",
+            person_id="grandma",
+            dedupe_minutes=60,
+            now=base_now + timedelta(minutes=61),
+        )
+        assert later["emitted"] is True
+
+    @pytest.mark.asyncio
+    async def test_dedupe_minutes_zero_disables_dedup(self, svc: SignalsService):
+        base_now = datetime(2026, 7, 25, 9, 0, tzinfo=UTC)
+        first = await svc.emit(
+            signal_kind="tea_intent_suspected", person_id="grandma", dedupe_minutes=0, now=base_now
+        )
+        second = await svc.emit(
+            signal_kind="tea_intent_suspected", person_id="grandma", dedupe_minutes=0, now=base_now
+        )
+        assert first["emitted"] is True
+        assert second["emitted"] is True
+
+    @pytest.mark.asyncio
+    async def test_acknowledged_signal_persists_caregiver_feedback(
+        self, svc: SignalsService, store: SignalStore
+    ):
+        """The precision measurement (DL10) reads ``feedback`` off acknowledged
+        rows; SignalStore.acknowledge() only persists it for evidence_grade
+        'experimental', so this proves emit() sets that grade correctly."""
+        result = await svc.emit(signal_kind="tea_intent_suspected", person_id="grandma")
+        row_id = result["signal_row_id"]
+
+        acked = await store.acknowledge(row_id, feedback="accurate")
+        assert acked is True
+
+        rows, _total = await store.list_recent(person_id="grandma", window_hours=1)
+        assert rows[0]["feedback"] == "accurate"
+        assert rows[0]["acknowledged_at"] is not None

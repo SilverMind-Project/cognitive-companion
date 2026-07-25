@@ -363,7 +363,7 @@ wheels = [
 
 [[package]]
 name = "cognitive-companion"
-version = "0.7.126"
+version = "0.7.127"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -583,7 +583,7 @@ wheels = [
 [[package]]
 name = "cts-contracts"
 version = "0.1.0"
-source = { git = "https://github.com/SilverMind-Project/cts-contracts#1c418350f32e5fc007f98090a17feacb8ea06a8b" }
+source = { git = "https://github.com/SilverMind-Project/cts-contracts#fe2de9686bdc415ab1012c3618db49a2ea66b2f8" }
 dependencies = [
     { name = "pytest" },
 ]

@@ -36,17 +36,15 @@ FIELD = b"signal"
 # filters, and metrics that key on the string form are unaffected; the vocabulary
 # now has one source of truth shared with the orchestrator (Phase 1 of the
 # shared-types migration). This subscriber stays the single proto->string point.
-
+#
+# Derived from the shared enum (mirrors the CTS publisher's ``_KIND_TO_PROTO``
+# construction in ``signal_publisher.py``): each member ``X`` maps from the proto
+# constant ``DEMENTIA_SIGNAL_KIND_X``. Deriving keeps the map exhaustive by
+# construction; a manually maintained dict here previously let
+# ``fall_suspected``/``gait_slowing``/``agitation_index`` go unmapped and silently
+# dropped on decode.
 _PROTO_KIND_TO_STR: dict[int, DementiaSignalKind] = {
-    signals_pb2.DEMENTIA_SIGNAL_KIND_PACING: DementiaSignalKind.PACING,
-    signals_pb2.DEMENTIA_SIGNAL_KIND_SUNDOWNING_INDEX: DementiaSignalKind.SUNDOWNING_INDEX,
-    signals_pb2.DEMENTIA_SIGNAL_KIND_BATHROOM_DWELL_ANOMALY: DementiaSignalKind.BATHROOM_DWELL_ANOMALY,
-    signals_pb2.DEMENTIA_SIGNAL_KIND_NIGHTTIME_MOVEMENT: DementiaSignalKind.NIGHTTIME_MOVEMENT,
-    signals_pb2.DEMENTIA_SIGNAL_KIND_STILLNESS_ANOMALY: DementiaSignalKind.STILLNESS_ANOMALY,
-    signals_pb2.DEMENTIA_SIGNAL_KIND_ABSENCE: DementiaSignalKind.ABSENCE,
-    signals_pb2.DEMENTIA_SIGNAL_KIND_FALL_SUSPECTED: DementiaSignalKind.FALL_SUSPECTED,
-    signals_pb2.DEMENTIA_SIGNAL_KIND_GAIT_SLOWING: DementiaSignalKind.GAIT_SLOWING,
-    signals_pb2.DEMENTIA_SIGNAL_KIND_AGITATION_INDEX: DementiaSignalKind.AGITATION_INDEX,
+    getattr(signals_pb2, f"DEMENTIA_SIGNAL_KIND_{kind.name}"): kind for kind in DementiaSignalKind
 }
 
 _PROTO_SEVERITY_TO_STR: dict[int, DementiaSignalSeverity] = {

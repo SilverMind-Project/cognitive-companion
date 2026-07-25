@@ -19,7 +19,13 @@ ALL_SIGNAL_KINDS: tuple[str, ...] = WIRE_SIGNAL_KINDS + CC_LOCAL_SIGNAL_KINDS
 _PRESENCE_KINDS: frozenset[str] = frozenset({"absence"})
 _SLEEP_REST_KINDS: frozenset[str] = frozenset({"nighttime_movement", "stillness_anomaly"})
 _DEMENTIA_SPECIFIC_KINDS: frozenset[str] = frozenset(
-    {"pacing", "bathroom_dwell_anomaly", "sundowning_index", "tea_intent_suspected"}
+    {
+        "pacing",
+        "bathroom_dwell_anomaly",
+        "sundowning_index",
+        "tea_intent_suspected",
+        "same_clothes_suspected",
+    }
 )
 
 # Profile presets: maps a profile name to the default enabled kinds.

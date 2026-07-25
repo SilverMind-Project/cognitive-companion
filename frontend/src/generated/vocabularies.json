@@ -32,6 +32,7 @@
     "inferred_dwell_exceeded",
     "nighttime_movement",
     "pacing",
+    "same_clothes_suspected",
     "stillness_anomaly",
     "sundowning_index",
     "tea_intent_suspected"

@@ -182,6 +182,21 @@ single write seam: one place to plug in a new writer, one degradation
 behavior (a `None` memory client returns a zero-value record), and one test
 surface (`backend/tests/services/scene_intel/`).
 
+### Activity ledger (DL2, DL-M04)
+
+Countable/duration daily-life facts (medication, meals, TV, sleep) are recorded as
+`ActivitySession` rows via the `activity_session_start`/`activity_session_end` steps, queried
+via `DailyReportService` and its MCP tools. Never answer a countable question by aggregating
+semantic-memory captions (DL2: typed-first, SQL aggregation, never LLM-counted recall).
+Detectors ship as importable rule bundles, shadow-first (DL10).
+
+Every ledger row carries `source` (`ActivitySourceEnum`) and `confidence` as real columns, not
+metadata keys, and answers are phrased to match that evidence grade (DL9): only
+`source="guided_companion"` supports claiming she completed an action. An unknown `source`
+degrades to the weakest grade rather than raising, so a typo can never inflate confidence.
+Full ledger architecture and the provenance table: the `daily-living` skill
+(`/home/sriram/code/nanai/cognitive-companion/.claude/skills/daily-living/SKILL.md`, section 2).
+
 ---
 
 ## 5. Logging
@@ -287,6 +302,36 @@ Follow the complete recipe in `/home/sriram/code/nanai/cognitive-companion/.clau
 - A test that doesn't assert anything is broken.
 - A test with more mocks than lines of arrange code is testing implementation, not behavior.
 - A test that depends on execution order is fragile. Every test sets up its own state.
+
+### A gate that enumerates a collection needs a non-vacuity canary
+
+Any test shaped "no member of this collection violates X" passes trivially when
+the collection is empty, and nothing about that failure is visible: the suite
+stays green while the gate certifies nothing. Whenever a gate derives its
+subjects by enumerating something it does not itself construct (routes on the
+app, plugins from a registry, files on disk, rows from a fixture), pin the
+enumeration separately:
+
+- assert a **floor** on the size, set far below the real count, so it catches a
+  traversal that broke outright rather than needing a bump on every addition;
+- assert the collection **spans** its sources (routes from several routers, not
+  just the first);
+- or cross-check the enumeration against a **static list** the test does not
+  derive the same way. `tests/docs/test_doc_registry_parity.py` is the reference:
+  it compares each plugin registry bidirectionally against the vocabulary lists
+  in `CLAUDE.md`/`AGENTS.md`, so an empty registry fails loudly instead of
+  silently satisfying every per-plugin check.
+
+This is not hypothetical. FastAPI 0.139 made `include_router` lazy (`app.routes`
+holds opaque `_IncludedRouter` wrappers, expanded at match time), and the
+long-standing `[r for r in app.routes if isinstance(r, APIRoute)]` idiom silently
+went from 322 routes to 1. The route-auth coverage gate kept passing while
+checking a single endpoint, and a later "stale allowlist" cleanup deleted four
+security justifications and two assertions that only looked obsolete because the
+gate had gone blind. Enumerate through `iter_route_contexts` (see
+`backend/tests/routers/_route_inventory.py`, with the canary in
+`test_route_inventory.py`), and treat a shrinking gate population as a defect,
+never as a cleanup opportunity.
 
 ### Injectable clocks for time-based logic
 
@@ -644,11 +689,11 @@ Running bare `python` or `pip` without the venv installs packages into the syste
 
 > Deterministic backend gates: `make lint` (ruff), `make import-lint`, `make typecheck-core` +
 > `typecheck-ratchet` (mypy strict allowlist), `make coverage-gate` (coverage floor from
-> pyproject `fail_under` — ratchet up, never down, and never delete a test to satisfy it),
+> pyproject `fail_under` (ratchet up, never down, and never delete a test to satisfy it),
 > `make deps-check` (deptry; every ignore justified in-line). Test isolation is
 > engine-level: any test that touches the DB gets an unconditional table truncation on
 > teardown; never reintroduce fixture-name-gated cleanup, and never deselect a failing test
-> in the Makefile — fix it or delete it with rationale.
+> in the Makefile: fix it or delete it with rationale.
 
 Before opening a PR, verify:
 
@@ -1054,7 +1099,7 @@ CTS `IdentityDecision.authority` (received over the wire, e.g. `bbox.authority` 
 `unknown` / `height_proxy` legacy members the current CTS producer never emits),
 never an identity id. CTS validates it at its own repository boundary
 (`validate_identity_authority()`); CC receives it already validated and must not re-derive or
-guess it client-side — branch on the string verbatim (`bbox.authority == "direct_face"`, not
+guess it client-side: branch on the string verbatim (`bbox.authority == "direct_face"`, not
 `decision_source == "arcface_authority"`, the F9 workaround this milestone removed). Do not
 confuse it with the unrelated `SourceAuthority` class (`backend/services/cts/source_authority.py`),
 which governs CTS-vs-non-CTS location-write precedence. See
@@ -1236,38 +1281,20 @@ Industry best practices require that code comments explain the *intent* and *rat
 
 ## 27. CC-local signals and shadow-mode detectors
 
-CC-local signals are emitted from pipelines only via the `signal_emit` step, which validates against the CC-local kind allowlist (`backend.services.cts.signal_config.CC_LOCAL_SIGNAL_KINDS`); rules can never emit CTS-produced kinds. New detectors ship shadow-first: signal + notification only, with the labeling workflow and a flip gate documented in their milestone (DL10).
+CC-local signals are emitted from pipelines only via the `signal_emit` step, which validates against the CC-local kind allowlist (`backend.services.cts.signal_config.CC_LOCAL_SIGNAL_KINDS`); rules can never emit CTS-produced kinds. `signal_emit` writes through `SignalsService.emit()` (`backend/services/signals/service.py`), never the raw `SignalStore` from a step; this mirrors the semantic-memory single-write-seam rule (DL8). Every CC-local emission sets `evidence_grade="experimental"` unconditionally: `SignalStore.acknowledge()` only persists caregiver feedback for that grade. New detectors ship shadow-first (DL10): signal + notification only, with the labeling workflow and a flip gate documented in their milestone.
 
-`signal_emit` writes through `SignalsService.emit()` (`backend/services/signals/service.py`), never the raw `SignalStore` from a step; this mirrors the semantic-memory single-write-seam rule (DL8). Every CC-local emission sets `evidence_grade="experimental"` unconditionally: `SignalStore.acknowledge()` only persists caregiver feedback for that grade, so a shadow detector's precision measurement depends on it. Dedup windows compare against the injected `now`, not the row's `received_at` (which is server-defaulted and not fake-clock-controllable); use `window_start`/`window_end` (set from the injected clock on write) for any time-window comparison in a signal-writing service, per the injectable-clock rule.
+A rule with `trigger_types` containing an event-fired kind (`dementia_signal`, dispatched via `PipelineExecutor.fire_event`) reads that event's payload from `pipeline_data["trigger_event"]`, never from `TriggerContext` directly: `resume()` rebuilds a synthetic `TriggerContext` from persisted `pipeline_data["trigger"]` alone, so a field added only to the dataclass would vanish across a wait/resume cycle. `resolve_person_id()` (`backend/steps/_helpers.py`) falls back to `trigger_event.person_id` last, so `signal_emit`/`presence_query` steps in an event-fired rule resolve the right person without an explicit `person_id` in their step config.
 
-A rule that wants "at most one detection per N minutes" without silencing its own polling trigger sets the rule's `cool_off_minutes` to N and arms it only from the terminal action step's `trigger_cooloff` config (already present on `notification`, `ha_action`, `condition`, and `signal_emit`), so a negative-verdict tick never counts against the cool-off (`event_log.status` stays `"ignored"` unless `_cooloff_triggered` was set). Do not use `max_daily_triggers` for this; it is a blunt daily cap, not an interval limiter.
-
-Cross-system detectors follow the prefilter-confirm-join shape: cheap upstream signal (CTS), one bounded VLM confirmation (CC), structured join with local evidence, then alert + CC-local signal (DL-M08). Alerts always carry the evidence that produced them.
-
-A rule with `trigger_types` containing an event-fired kind (`dementia_signal`, dispatched via `PipelineExecutor.fire_event`) reads that event's payload from `pipeline_data["trigger_event"]` (e.g. `trigger_event.evidence.today_best_keyframe_objects`), never from `TriggerContext` directly: `resume()` rebuilds a synthetic `TriggerContext` from persisted `pipeline_data["trigger"]` alone, so a field added only to the dataclass would vanish across a wait/resume cycle. `resolve_person_id()` (`backend/steps/_helpers.py`) falls back to `trigger_event.person_id` last, after config, `pipeline_data["persons"]`, and the scalar `pipeline_data["person_id"]`, so `signal_emit`/`presence_query` steps in an event-fired rule resolve the right person without an explicit `person_id` in their step config. `media_presign` (perception, gate-safe) is the step for turning bare object names from an event's evidence context into presigned URLs; `notification`'s `telegram_image_source: "pipeline"` and `llm_call`'s `image_source: "pipeline"` both consume its `presigned_images` output via a `pipeline_image_path`.
+Full detector-authoring guidance (dedup/cool-off patterns, the prefilter-confirm-join shape, `media_presign`, the signal-kinds table, the shadow-mode labeling/precision workflow) lives in the `daily-living` skill:
+`/home/sriram/code/nanai/cognitive-companion/.claude/skills/daily-living/SKILL.md`.
 
 ## 28. Inference budget (single-Spark deployments)
 
-One DGX Spark serves the Triton model zoo (YOLO, CLIP, Florence-2, ArcFace, SOLIDER, embeddinggemma), the vLLM vision model, the llama.cpp reasoning model, and TTS, fed by 9 to 12 cameras. Every rule, gate graph, and future watch tick that adds inference must be admission-controlled and cheap-first (DL5):
+One DGX Spark serves the Triton model zoo, the vLLM vision model, the llama.cpp reasoning model, and TTS, fed by 9 to 12 cameras. Every rule, gate graph, and watch tick that adds inference must be admission-controlled and cheap-first (DL5): reuse CTS outputs before geometry/novelty gating, before a caption, before text reasoning, before the VLM.
 
-| Tier | What | Cost |
-| --- | --- | --- |
-| 0 | Reuse CTS outputs already paid for (YOLO detections, presence, dwell, posture) | free (already computed) |
-| 1 | Geometry (`region_presence`) and CLIP-delta novelty gating (`novelty_gate`) | near-free |
-| 2 | Florence-2 caption (`scene_analysis`) | cheap |
-| 3 | Text reasoning over structured context (`llm_call`, text-capable model) | moderate |
-| 4 | The vLLM VLM (`llm_call`, vision-capable model), bounded by the admission controller | expensive, globally rate-limited |
+**Local model calls go through the admission controller and carry a `caller` tag; never call a local provider around it.** `LLMAdmissionController` (`backend/integrations/llm/admission.py`) is the single choke point at the provider boundary: `OpenAICompatibleProvider` and `OllamaProvider` wrap their network call in `admission.admit(lane, caller)` whenever a controller is injected (constructed once in the bootstrap LLM phase, `backend/bootstrap/core_services.py`). A queued call that exceeds `llm.admission.queue_timeout_s` raises `LLMAdmissionTimeout` rather than piling up; `llm_call` (`backend/steps/builtin/llm_call.py`) converts that into a structured `StepResult(success=False, ...)`, never an uncaught exception. The cloud realtime provider (Gemini) is exempt by construction. Every local provider call must carry a `caller` tag so telemetry (`GET /api/v1/admin/inference-telemetry`) can attribute load.
 
-**Local model calls go through the admission controller and carry a `caller` tag; never call a local provider around it.** `LLMAdmissionController` (`backend/integrations/llm/admission.py`) is the single choke point at the provider boundary: `OpenAICompatibleProvider` and `OllamaProvider` wrap their network call in `admission.admit(lane, caller)` whenever a controller is injected (constructed once in the bootstrap LLM phase, `backend/bootstrap/core_services.py`, and passed into `LLMModelRegistry`). Lane selection is `"vision"` when the request carries images, else `"text"`; a queued call that exceeds `llm.admission.queue_timeout_s` raises `LLMAdmissionTimeout` rather than piling up. `llm_call` (`backend/steps/builtin/llm_call.py`) converts that into a structured `StepResult(success=False, data={"error": ...})`; it never lets the exception escape uncaught. The cloud realtime provider (Gemini) is exempt by construction, since cloud calls do not load the Spark. Every local provider call must carry a `caller` tag (a rule name, or `"gate:{profile}"` for gate-fired executions, read from `pipeline_data["_profile"]`) so telemetry (`GET /api/v1/admin/inference-telemetry`) can attribute load to the rule or profile responsible.
+**Watch-profile gate graphs are VLM-free unless a node is explicitly `watch_allowed`.** `GateGraphRunner.execute_node` (`backend/services/guided_task/gate_runner.py`) refuses to execute a vision-capable `llm_call` node in the `watch` profile unless the step's config sets `watch_allowed: true`. This is a structural guarantee, not a convention: an accidental Spark-melting watch tick cannot happen just because a node was never tagged.
 
-**`novelty_gate` authoring pattern.** Skip re-running expensive analysis on an unchanged scene by comparing a CLIP embedding (e.g. `scene_analysis`'s `scene_embedding`) against the last one cached for a scope (one slot per rule and camera by default):
-
-```
-scene_analysis -> novelty_gate -> condition(novel == true) -> llm_call
-```
-
-`novelty_gate` fails open (`novel=true`) whenever the embedding is missing, since the gate must never suppress analysis because an upstream step broke. It compares against `novelty_gate.min_distance` (settings default) unless the step overrides it, and a cached embedding older than the step's `ttl_minutes` counts as novel regardless of distance, so a slowly drifting scene eventually re-triggers. `scene_analysis` (tier 2) still runs every tick; the gate only saves the tier-3/4 calls further downstream.
-
-**Watch-profile gate graphs are VLM-free unless a node is explicitly `watch_allowed`.** `GateGraphRunner.execute_node` (`backend/services/guided_task/gate_runner.py`) refuses to execute an `llm_call` node in the `watch` profile when its resolved model has the `vision` capability, unless the step's config sets `watch_allowed: true`. This hardens VG00 D24's "watch may prune heavy nodes" into a structural guarantee: an accidental Spark-melting watch tick cannot happen just because a node was never tagged `heavy`. The confirm profile is untouched. A pruned node reports `pruned: true, reason: "pruned_heavy_vision"` in `node_results`, the same shape as the pre-existing `heavy`-tag prune.
-
-**Tier-0 rule: before adding a vision step to a rule, check whether CTS presence/dwell/detections already answer the question.** `PersonLocationService` already answers "where is she" / "how long has she been in this room" (`presence_dwell` filter, `room_segments`); `scene_detections` from an already-run `scene_analysis` already answers "is a person in this region" (`region_presence`, no model call). A rule that schedules `scene_analysis` or `llm_call` to re-derive an answer CTS or a prior step in the same pipeline already computed is wasted inference load, not a new capability.
+Full tier table, the `novelty_gate` authoring pattern, and the tier-0 pre-flight checklist live in the `daily-living` skill:
+`/home/sriram/code/nanai/cognitive-companion/.claude/skills/daily-living/SKILL.md`.

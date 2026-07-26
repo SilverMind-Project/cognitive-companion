@@ -16,23 +16,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from fastapi import FastAPI
-from fastapi.routing import APIRoute
-from starlette.routing import Match
-
-
-def _app() -> FastAPI:
-    import backend.main
-
-    return backend.main.app
-
-
-def _api_routes() -> list[APIRoute]:
-    return [r for r in _app().routes if isinstance(r, APIRoute)]
-
-
-def _endpoint(route: APIRoute) -> str:
-    return f"{route.endpoint.__module__}.{route.name}"
+from backend.tests.routers._route_inventory import (
+    api_route_contexts,
+    app,
+    endpoint_ref,
+    resolve,
+)
 
 
 def test_no_duplicate_path_method_registrations() -> None:
@@ -43,9 +32,9 @@ def test_no_duplicate_path_method_registrations() -> None:
     path while having different names, so a name-based check missed it.
     """
     groups: dict[tuple[str, str], list[str]] = defaultdict(list)
-    for route in _api_routes():
-        for method in route.methods:
-            groups[(route.path, method)].append(_endpoint(route))
+    for ctx in api_route_contexts():
+        for method in ctx.methods or set():
+            groups[(ctx.path, method)].append(endpoint_ref(ctx))
 
     duplicates = {key: eps for key, eps in groups.items() if len(eps) > 1}
 
@@ -64,7 +53,7 @@ def test_no_duplicate_operation_ids() -> None:
     every client generated from it inherits the lie (M17). FastAPI warns about
     this, but a warning nothing reads is not a gate.
     """
-    spec = _app().openapi()
+    spec = app().openapi()
 
     seen: dict[str, str] = {}
     collisions: list[str] = []
@@ -84,29 +73,6 @@ def test_no_duplicate_operation_ids() -> None:
     )
 
 
-def _resolve(path: str, method: str = "GET") -> str:
-    """Return the endpoint Starlette actually dispatches ``path`` to.
-
-    Resolution, not registration: a static path can also be swallowed by an
-    earlier path *parameter* (``/persons/{person_id}`` capturing
-    ``/persons/locations``), which is a distinct failure from a duplicate
-    registration and invisible to a by-path lookup.
-    """
-    scope = {
-        "type": "http",
-        "method": method,
-        "path": path,
-        "path_params": {},
-        "headers": [],
-        "query_string": b"",
-        "root_path": "",
-    }
-    for route in _api_routes():
-        if route.matches(scope)[0] is Match.FULL:
-            return _endpoint(route)
-    return "NO MATCH"
-
-
 def test_person_location_endpoints_serve_the_envelope() -> None:
     """The U2 envelope handlers own the current-location paths (C17 regression).
 
@@ -121,7 +87,7 @@ def test_person_location_endpoints_serve_the_envelope() -> None:
     regressed.
     """
     for path in ("/api/v1/persons/locations", "/api/v1/persons/{person_id}/location"):
-        resolved = _resolve(path.replace("{person_id}", "alice"))
+        resolved = resolve(path.replace("{person_id}", "alice"))
         assert resolved.startswith("backend.routers.persons_location."), (
             f"GET {path} dispatches to {resolved}; it must be served by "
             "routers.persons_location (PersonLocationService SSOT, shared with the MCP tools)"

@@ -47,4 +47,7 @@ class SessionRecord:
     status: str
     closed_via: str | None
     timeout_minutes: int | None
+    source: str = "vision_inferred"
+    """How the row was produced (``ActivitySourceEnum``); the evidence grade."""
+    confidence: float = 0.0
     was_existing: bool = False

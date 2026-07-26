@@ -235,7 +235,7 @@ class DailyReportService:
         self, db: Session, person_id: str, start: datetime, end: datetime
     ) -> dict:
         """Aggregate medication data from activity sessions."""
-        from backend.models.person import ActivitySession
+        from backend.models.person import ActivitySession, ActivitySourceEnum
 
         sessions = (
             db.execute(
@@ -265,10 +265,21 @@ class DailyReportService:
 
         adherence_pct = (doses_taken / doses_due * 100) if doses_due > 0 else 0.0
 
+        # Split by evidence grade (DL9). Only a routine the resident completed
+        # step-by-step with the companion supports "she took her medication";
+        # a camera-inferred session supports at most "she was at the cabinet".
+        # ``doses_taken`` keeps its original all-sources meaning so existing
+        # consumers do not silently change; the split is additive.
+        confirmed_doses = sum(
+            1 for s in sessions if s.source == ActivitySourceEnum.guided_companion
+        )
+
         return {
             "doses_taken": doses_taken,
             "doses_due": doses_due,
             "adherence_pct": round(adherence_pct, 1),
+            "confirmed_doses": confirmed_doses,
+            "inferred_doses": doses_taken - confirmed_doses,
         }
 
     def _aggregate_bathroom(

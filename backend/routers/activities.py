@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.auth import require_permission
 from backend.core.database import get_db
-from backend.models.person import PersonActivity
+from backend.models.person import ActivitySourceEnum, PersonActivity
 from backend.schemas.activity import (
     ActivitySessionCloseResult,
     ActivitySessionOpenResult,
@@ -65,6 +65,10 @@ def open_activity_session(
     room_name: str = Query(..., description="Room where activity occurred"),
     confidence: float = Query(..., ge=0.0, le=1.0, description="Detection confidence"),
     started_at: datetime = Query(..., description="When the activity started (UTC)"),
+    source: ActivitySourceEnum = Query(
+        default=ActivitySourceEnum.vision_inferred,
+        description="How this session was determined (drives answer phrasing)",
+    ),
     timeout_minutes: int | None = Query(default=None, description="Override timeout in minutes"),
     db: Session = Depends(get_db),
     _auth=Depends(require_permission("caregiver")),
@@ -84,6 +88,7 @@ def open_activity_session(
         confidence=confidence,
         started_at=started_at,
         start_event_id=None,
+        source=source.value,
         timeout_minutes=timeout_minutes,
     )
 
@@ -94,6 +99,8 @@ def open_activity_session(
         room_name=result.room_name,
         opened_at=result.opened_at,
         timeout_minutes=result.timeout_minutes,
+        source=result.source,
+        confidence=result.confidence,
         was_existing=result.was_existing,
     )
 
@@ -144,6 +151,8 @@ def close_activity_session(
         duration_minutes=result.duration_minutes,
         status=result.status,
         closed_via=result.closed_via,
+        source=result.source,
+        confidence=result.confidence,
     )
 
 

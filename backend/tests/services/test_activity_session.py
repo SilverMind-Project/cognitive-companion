@@ -594,3 +594,174 @@ class TestActivitySessionTimeouts:
         """Medication should have the shortest timeout (30 minutes)."""
         assert ACTIVITY_TIMEOUTS["medication"] == 30
         assert ACTIVITY_TIMEOUTS["medication"] == min(ACTIVITY_TIMEOUTS.values())
+
+
+class TestActivitySessionProvenance:
+    """Provenance and confidence are persisted on the row (DL9).
+
+    ``open_session`` accepted a ``confidence`` argument for a long time without
+    persisting it anywhere, so every rule-bundle-driven ledger row silently
+    lost its evidence grade. These pin that it reaches the database.
+    """
+
+    def test_open_persists_source_and_confidence(self, db_factory):
+        service = ActivitySessionService(db_factory)
+        started_at = datetime.now(UTC)
+
+        result = service.open_session(
+            person_id="person123",
+            activity_type="medication",
+            room_name="kitchen",
+            confidence=0.95,
+            started_at=started_at,
+            start_event_id=None,
+            source="guided_companion",
+        )
+
+        assert result.source == "guided_companion"
+        assert result.confidence == 0.95
+
+        db = db_factory()
+        try:
+            row = db.get(ActivitySession, result.session_id)
+            assert row.source == "guided_companion"
+            assert row.confidence == 0.95
+        finally:
+            db.close()
+
+    def test_open_defaults_to_the_weakest_evidence_grade(self, db_factory):
+        """A caller that names no source must not inherit a strong one."""
+        service = ActivitySessionService(db_factory)
+
+        result = service.open_session(
+            person_id="person123",
+            activity_type="watching_tv",
+            room_name="living room",
+            confidence=0.5,
+            started_at=datetime.now(UTC),
+            start_event_id=None,
+        )
+
+        assert result.source == "vision_inferred"
+
+    def test_open_degrades_unknown_source_instead_of_raising(self, db_factory):
+        """A typo must not inflate confidence, and must not lose the row."""
+        service = ActivitySessionService(db_factory)
+
+        result = service.open_session(
+            person_id="person123",
+            activity_type="watching_tv",
+            room_name="living room",
+            confidence=0.5,
+            started_at=datetime.now(UTC),
+            start_event_id=None,
+            source="guided_compainon",  # deliberate typo
+        )
+
+        assert result.source == "vision_inferred"
+
+    def test_open_clamps_out_of_range_confidence(self, db_factory):
+        service = ActivitySessionService(db_factory)
+
+        result = service.open_session(
+            person_id="person123",
+            activity_type="reading",
+            room_name="study",
+            confidence=4.2,
+            started_at=datetime.now(UTC),
+            start_event_id=None,
+        )
+
+        assert result.confidence == 1.0
+
+    def test_reuse_reports_the_stored_provenance_not_the_callers(self, db_factory):
+        """A later weak sighting must not appear to restate a strong claim."""
+        service = ActivitySessionService(db_factory)
+        started_at = datetime.now(UTC)
+
+        service.open_session(
+            person_id="person123",
+            activity_type="medication",
+            room_name="kitchen",
+            confidence=0.95,
+            started_at=started_at,
+            start_event_id=None,
+            source="guided_companion",
+        )
+        reused = service.open_session(
+            person_id="person123",
+            activity_type="medication",
+            room_name="kitchen",
+            confidence=0.3,
+            started_at=started_at + timedelta(minutes=1),
+            start_event_id=None,
+            source="vision_inferred",
+        )
+
+        assert reused.was_existing is True
+        assert reused.source == "guided_companion"
+        assert reused.confidence == 0.95
+
+
+class TestActivitySessionMetadataPersistence:
+    """``closed_via`` survives a close on a session that already has metadata.
+
+    ``metadata_json`` is a JSON column; an in-place ``dict[key] = value`` on an
+    already-populated dict is invisible to SQLAlchemy's flush, so ``closed_via``
+    used to be silently discarded for exactly the sessions that carry metadata
+    (every rule-bundle and guided-companion row).
+    """
+
+    def test_close_preserves_open_metadata_and_records_closed_via(self, db_factory):
+        service = ActivitySessionService(db_factory)
+        started_at = datetime.now(UTC) - timedelta(minutes=30)
+
+        opened = service.open_session(
+            person_id="person123",
+            activity_type="watching_tv",
+            room_name="living room",
+            confidence=0.8,
+            started_at=started_at,
+            start_event_id=None,
+            metadata={"tv_entity": "media_player.lounge"},
+        )
+        service.close_session(
+            person_id="person123",
+            activity_type="watching_tv",
+            ended_at=datetime.now(UTC),
+            end_event_id=None,
+            closed_via="explicit",
+        )
+
+        db = db_factory()
+        try:
+            row = db.get(ActivitySession, opened.session_id)
+            assert row.metadata_json["closed_via"] == "explicit"
+            assert row.metadata_json["tv_entity"] == "media_player.lounge"
+        finally:
+            db.close()
+
+    def test_timeout_sweep_records_closed_via_on_a_session_with_metadata(self, db_factory):
+        service = ActivitySessionService(db_factory)
+        started_at = datetime.now(UTC) - timedelta(minutes=200)
+
+        opened = service.open_session(
+            person_id="person123",
+            activity_type="watching_tv",
+            room_name="living room",
+            confidence=0.8,
+            started_at=started_at,
+            start_event_id=None,
+            metadata={"tv_entity": "media_player.lounge"},
+        )
+
+        results = service.close_timed_out_sessions(now=datetime.now(UTC))
+
+        assert [r.session_id for r in results] == [opened.session_id]
+        db = db_factory()
+        try:
+            row = db.get(ActivitySession, opened.session_id)
+            assert row.metadata_json["closed_via"] == "timeout"
+            assert row.metadata_json["tv_entity"] == "media_player.lounge"
+        finally:
+            db.close()

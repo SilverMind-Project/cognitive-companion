@@ -16,6 +16,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base, TimestampMixin
@@ -36,6 +37,28 @@ class ActivityTypeEnum(StrEnum):
     reading = "reading"
     phone_call = "phone_call"
     other = "other"
+
+
+class ActivitySourceEnum(StrEnum):
+    """How an activity-session row was produced.
+
+    The evidence grade a caregiver-facing answer is phrased against: a routine
+    the resident completed step-by-step with the companion supports "she took
+    her medication with me at 9:05"; a camera inference supports only "she was
+    near the medicine cabinet".
+    """
+
+    guided_companion = "guided_companion"
+    """Confirmed step-by-step during a completed guided routine (highest)."""
+
+    ha_state_join = "ha_state_join"
+    """Derived by joining Home Assistant entity state with presence."""
+
+    sensor = "sensor"
+    """Reported by a physical sensor."""
+
+    vision_inferred = "vision_inferred"
+    """Inferred from camera analysis (lowest; never proves an action)."""
 
 
 class DailyReportStatus(StrEnum):
@@ -143,7 +166,25 @@ class ActivitySession(Base):
     close_event_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("event_logs.id"), nullable=True
     )
-    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # How this row was produced, and how much to trust it. A caregiver-facing
+    # answer is phrased to match its evidence grade: a session confirmed
+    # step-by-step with the resident is not the same claim as one inferred from
+    # a camera, and a false "she took her medication" is a care-safety hazard.
+    # ``source`` mirrors ``PersonActivity.confidence``'s precedent of keeping
+    # provenance on the row rather than in a metadata blob.
+    source: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="vision_inferred", index=True
+    )
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, server_default="0.0")
+
+    # ``MutableDict.as_mutable`` is required: close_session/close_timed_out_sessions
+    # write ``closed_via`` into this dict in place. With a plain JSON column
+    # SQLAlchemy only detects attribute *replacement*, so an in-place write to an
+    # already-populated dict is silently discarded at flush.
+    metadata_json: Mapped[dict | None] = mapped_column(
+        MutableDict.as_mutable(JSON), nullable=True
+    )
 
     # Observation backlink for auditability chain (scene_observations table not yet created)
     observation_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)

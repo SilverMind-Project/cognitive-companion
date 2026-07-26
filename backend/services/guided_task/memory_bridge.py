@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 
 from backend.core.logging import get_logger
 from backend.models.guided_task import GuidedSession, GuidedSessionEvent, Routine
+from backend.models.person import ActivitySourceEnum
 from backend.services.guided_task.context import RuntimeContext
 from backend.services.scene_intel.types import ObservationDraft
 
@@ -62,19 +63,20 @@ class GuidedMemoryBridge:
             return
         now = ctx.now()
         try:
-            confidence = 0.95
+            # Highest evidence grade in the ledger: she confirmed each step
+            # with the companion and the routine reached its terminal
+            # "completed" transition, which is the only path that gets here.
             activity_service.open_session(
                 person_id=session.person_id,
                 activity_type=routine.activity_type,
                 room_name=None,
-                confidence=confidence,
+                confidence=0.95,
                 started_at=session.started_at,
                 start_event_id=None,
+                source=ActivitySourceEnum.guided_companion.value,
                 metadata={
-                    "source": "guided_companion",
                     "guided_session_id": session.id,
                     "routine_id": routine.id,
-                    "confidence": confidence,
                 },
             )
             activity_service.close_session(

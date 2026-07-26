@@ -17,6 +17,7 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 | `.claude/skills/front-end/SKILL.md` | Vue, Vuetify, router, Tracking panels, composables, layout, drawers, dialogs, CSS, and frontend tests |
 | `.claude/skills/data-visualization/SKILL.md` | Shared charts, mobility trends, monitoring, execution graphs, spatial overlays, provenance, and data-heavy UI |
 | `.claude/skills/bff-api-design/SKILL.md` | Browser-visible envelopes/endpoints, MCP adapters, parity tests, authorization mappings, and import boundaries |
+| `.claude/skills/daily-living/SKILL.md` | Daily-living detection, the activity ledger, hygiene/intent signals, semantic-memory writes, rule bundles, and inference load governance |
 
 ## Current stack
 

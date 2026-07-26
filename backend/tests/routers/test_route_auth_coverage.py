@@ -20,10 +20,16 @@ from pathlib import Path
 import pytest
 import yaml
 from fastapi import Depends, FastAPI
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, RouteContext
 from starlette.routing import Mount, Route
 
 from backend.core.auth import AuthContext, KeyStore, require_permission
+from backend.tests.routers._route_inventory import (
+    api_route_contexts,
+    primary_method,
+    route_contexts,
+    route_key,
+)
 
 # ─── Allowlist ────────────────────────────────────────────────────────────
 #
@@ -33,6 +39,13 @@ from backend.core.auth import AuthContext, KeyStore, require_permission
 ALLOWLISTED_ROUTES: dict[str, str] = {
     # Liveness probes: no data, must answer before auth config is trusted.
     "GET /api/v1/health": "liveness probe, static payload",
+    "GET /api/v1/admin/health": "liveness probe, static payload",
+    # Public bootstrap metadata the SPA reads before it holds a key.
+    "GET /api/v1/admin/app-info": "public bootstrap metadata, no household data",
+    # Authenticated by X-Webhook-Secret (per-rule HMAC), asserted below.
+    "POST /api/v1/webhooks/{rule_id}": "X-Webhook-Secret HMAC auth, see test_webhook_trigger_*",
+    # Prometheus scrape surface; network-restricted at the deployment layer.
+    "GET /metrics": "Prometheus scrape endpoint, no household data",
 }
 
 # WebSocket routes authenticate inside the handler via the
@@ -47,22 +60,16 @@ ALLOWLISTED_MOUNT_PATHS = {"/mcp"}
 FRAMEWORK_PATHS = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
 
 
-def _app() -> FastAPI:
-    import backend.main
-
-    return backend.main.app
+_method = primary_method
+_key = route_key
 
 
-def _method(route: APIRoute) -> str:
-    return sorted(route.methods - {"HEAD", "OPTIONS"})[0]
+def _auth_checkers(route: APIRoute | RouteContext) -> list:
+    """Return every marked auth checker in the route's dependency tree.
 
-
-def _key(route: APIRoute) -> str:
-    return f"{_method(route)} {route.path}"
-
-
-def _auth_checkers(route: APIRoute) -> list:
-    """Return every marked auth checker in the route's dependency tree."""
+    Accepts either an ``APIRoute`` or a ``RouteContext``; both expose
+    ``dependant``, which lets the self-test below build a throwaway app.
+    """
     found = []
     stack = list(route.dependant.dependencies)
     while stack:
@@ -73,8 +80,7 @@ def _auth_checkers(route: APIRoute) -> list:
     return found
 
 
-def _api_routes() -> list[APIRoute]:
-    return [r for r in _app().routes if isinstance(r, APIRoute)]
+_api_routes = api_route_contexts
 
 
 def _keystore() -> KeyStore:
@@ -99,16 +105,35 @@ def test_every_route_is_guarded_or_allowlisted() -> None:
 
 
 def test_allowlist_has_no_stale_entries() -> None:
-    """An allowlisted route that no longer exists (or is now guarded) must go."""
+    """An allowlisted route that no longer exists (or is now guarded) must go.
+
+    Trusts the route inventory absolutely, so it is only as honest as that
+    enumeration: when a FastAPI upgrade reduced the visible surface to one
+    route, every entry here read as "stale" and was deleted, taking four
+    security justifications and two assertions with it. ``test_route_inventory``
+    now fails first in that scenario. Never resolve this test by deleting
+    entries without checking the routes are genuinely gone.
+    """
     live = {_key(r) for r in _api_routes() if not _auth_checkers(r)}
     stale = sorted(set(ALLOWLISTED_ROUTES) - live)
     assert not stale, f"Allowlist entries no longer needed (route gone or now guarded): {stale}"
 
 
+def test_webhook_trigger_requires_secret_header() -> None:
+    """The one allowlisted data-mutating route must still authenticate."""
+    route = next(r for r in _api_routes() if _key(r) == "POST /api/v1/webhooks/{rule_id}")
+    names = {p.name for p in route.dependant.header_params}
+    assert "x_webhook_secret" in names, (
+        "webhook trigger no longer reads X-Webhook-Secret; it is allowlisted from "
+        "API-key auth on the assumption that it verifies an HMAC secret instead."
+    )
+
+
 def test_websocket_routes_are_known() -> None:
     from starlette.routing import WebSocketRoute
 
-    for route in _app().routes:
+    for ctx in route_contexts():
+        route = ctx.original_route
         if isinstance(route, WebSocketRoute):
             module = route.endpoint.__module__
             assert module in ALLOWLISTED_WS_MODULES, (
@@ -120,7 +145,8 @@ def test_websocket_routes_are_known() -> None:
 def test_non_api_routes_are_framework_or_mounts() -> None:
     from starlette.routing import WebSocketRoute
 
-    for route in _app().routes:
+    for ctx in route_contexts():
+        route = ctx.original_route
         if isinstance(route, APIRoute | WebSocketRoute):
             continue
         if isinstance(route, Mount):
@@ -190,7 +216,7 @@ def test_reachability_check_is_not_vacuous() -> None:
 def test_routes_reachable_only_by_superuser() -> None:
     """Report-only: routes no *named* role can reach (M16 task 5 audit).
 
-    51 of ~308 guarded routes land here. Reported rather than failed because
+    56 of 322 guarded routes land here. Reported rather than failed because
     the admin key (`*`) is what the SPA itself carries, so a hard gate would
     fail on every new admin route and would encode "admin-only is wrong",
     which is not this product's posture.
@@ -226,7 +252,8 @@ def test_permission_map_patterns_match_a_live_route() -> None:
     live = {_key(r) for r in _api_routes()}
     # WebSocket and mounted sub-apps are grantable targets too, and auth.yaml
     # addresses them with the same "METHOD path" syntax.
-    for route in _app().routes:
+    for ctx in route_contexts():
+        route = ctx.original_route
         if isinstance(route, WebSocketRoute):
             live.add(f"GET {route.path}")
         elif isinstance(route, Mount):
@@ -239,10 +266,18 @@ def test_permission_map_patterns_match_a_live_route() -> None:
 
 # ─── 3. The permissive resolver stays confined to the device surface ──────
 
-DEVICE_RESOLVER_ROUTES = set()
+# Routes allowed to accept a key via query string / JSON body. Hardware that
+# cannot set HTTP headers only. Adding to this set is a security decision.
+DEVICE_RESOLVER_ROUTES = {
+    # reCamera pushes YOLO payloads; key arrives as ?api_key= or in the body.
+    "POST /api/v1/device/recamera",
+    # reTerminal e-ink displays poll for their active image; "image:read" is
+    # held only by device keys and no browser client calls this route.
+    "GET /api/v1/image/active",
+}
 
 
-def _uses_device_resolver(route: APIRoute) -> bool:
+def _uses_device_resolver(route: APIRoute | RouteContext) -> bool:
     from backend.core.auth import get_auth_context_device
 
     stack = list(route.dependant.dependencies)
@@ -262,11 +297,28 @@ def test_device_resolver_used_only_by_device_routes() -> None:
     )
 
 
+def test_recamera_route_still_accepts_query_key() -> None:
+    """reCamera hardware cannot set headers; its key arrives as ?api_key=."""
+    route = next(r for r in _api_routes() if _key(r) == "POST /api/v1/device/recamera")
+    assert _uses_device_resolver(route)
+
+
 # ─── 4. Self-test: the gate actually catches an unguarded route ───────────
 
 
 def test_gate_catches_unguarded_route() -> None:
-    """A deliberately unguarded route on a throwaway app must be detected."""
+    """A deliberately unguarded route on a throwaway app must be detected.
+
+    Covers the *detector* (``_auth_checkers``), not the *enumeration*. That
+    distinction matters: this test kept passing throughout the period when the
+    real gate could only see one of 322 routes, because a working detector over
+    an empty collection still looks healthy. ``test_route_inventory`` is what
+    covers the enumeration.
+
+    ``app.routes`` is read directly here on purpose: routes added by decorator
+    are stored eagerly, unlike the lazily-expanded ``include_router`` entries
+    that the shared inventory exists to traverse.
+    """
     app = FastAPI()
 
     @app.get("/oops")

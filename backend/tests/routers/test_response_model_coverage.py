@@ -19,8 +19,9 @@ bucket any more: a JSON route either declares its shape or fails this test.
 
 from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.routing import APIRoute
+from fastapi.routing import RouteContext
+
+from backend.tests.routers._route_inventory import api_route_contexts, route_key
 
 # ─── Genuinely schemaless ─────────────────────────────────────────────────
 #
@@ -37,28 +38,13 @@ ALLOWLISTED: dict[str, str] = {
 }
 
 
-def _app() -> FastAPI:
-    import backend.main
-
-    return backend.main.app
-
-
-def _api_routes() -> list[APIRoute]:
-    return [r for r in _app().routes if isinstance(r, APIRoute)]
-
-
-def _key(route: APIRoute) -> str:
-    method = sorted(route.methods - {"HEAD", "OPTIONS"})[0]
-    return f"{method} {route.path}"
-
-
-def _undeclared() -> dict[str, APIRoute]:
+def _undeclared() -> dict[str, RouteContext]:
     """Routes that return a JSON body without declaring its schema."""
     return {
-        _key(r): r
-        for r in _api_routes()
+        route_key(c): c
+        for c in api_route_contexts()
         # 204 has no body to describe.
-        if r.response_model is None and r.status_code != 204
+        if c.response_model is None and c.status_code != 204
     }
 
 

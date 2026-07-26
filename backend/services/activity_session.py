@@ -50,6 +50,9 @@ class OpenSessionResult:
     room_name: str | None
     opened_at: datetime
     timeout_minutes: int | None
+    source: str = "vision_inferred"
+    """Provenance of the row (``ActivitySourceEnum``)."""
+    confidence: float = 0.0
     was_existing: bool = False
     """True if a session already existed and was reused (idempotent open)."""
 
@@ -68,6 +71,9 @@ class CloseSessionResult:
     status: str
     closed_via: str
     """One of: 'explicit', 'timeout', 'manual'."""
+    source: str = "vision_inferred"
+    """Provenance carried over from the opened row."""
+    confidence: float = 0.0
 
 
 class ActivitySessionService:
@@ -96,6 +102,7 @@ class ActivitySessionService:
         confidence: float,
         started_at: datetime,
         start_event_id: int | None,
+        source: str = "vision_inferred",
         timeout_minutes: int | None = None,
         metadata: dict | None = None,
         observation_id: int | None = None,
@@ -110,9 +117,12 @@ class ActivitySessionService:
             person_id: Household member ID.
             activity_type: One of ActivityTypeEnum values.
             room_name: Room where activity occurred.
-            confidence: Detection confidence (0-1).
+            confidence: Detection confidence (0-1), clamped to that range.
             started_at: When the activity started (UTC).
             start_event_id: Source event log ID for auditability.
+            source: How this row was produced (``ActivitySourceEnum``). An
+                unrecognized value degrades to ``vision_inferred``, the lowest
+                grade, so a typo can never inflate an answer's confidence.
             timeout_minutes: Override timeout (uses default if None).
             metadata: Additional session metadata.
             observation_id: Scene observation ID for audit chain.
@@ -122,7 +132,12 @@ class ActivitySessionService:
         """
         db = self._db_session_factory()
         try:
-            from backend.models.person import ActivitySession, ActivityTypeEnum, HouseholdMember
+            from backend.models.person import (
+                ActivitySession,
+                ActivitySourceEnum,
+                ActivityTypeEnum,
+                HouseholdMember,
+            )
 
             # Ensure person exists (FK constraint)
             person = db.get(HouseholdMember, person_id)
@@ -136,6 +151,22 @@ class ActivitySessionService:
                 activity_type = ActivityTypeEnum(activity_type).value
             except ValueError:
                 activity_type = "other"
+
+            # Normalize provenance and confidence. Both degrade toward the
+            # weakest claim rather than raising: a detector writing a bad
+            # source string should still record the activity, just without
+            # borrowing an evidence grade it cannot support.
+            try:
+                source = ActivitySourceEnum(source).value
+            except ValueError:
+                logger.warning(
+                    "activity_session_unknown_source",
+                    person_id=person_id,
+                    activity_type=activity_type,
+                    source=source,
+                )
+                source = ActivitySourceEnum.vision_inferred.value
+            confidence = min(1.0, max(0.0, float(confidence)))
 
             # Check for existing open session of same type
             existing = db.execute(
@@ -155,6 +186,9 @@ class ActivitySessionService:
                     activity_type=activity_type,
                     session_id=existing.id,
                 )
+                # Reuse reports the *stored* provenance, not this call's:
+                # the row belongs to whichever detector opened it, and a later
+                # weaker sighting must not appear to restate it.
                 return OpenSessionResult(
                     session_id=existing.id,
                     person_id=person_id,
@@ -162,6 +196,8 @@ class ActivitySessionService:
                     room_name=existing.room_name,
                     opened_at=existing.opened_at,
                     timeout_minutes=existing.timeout_minutes,
+                    source=existing.source,
+                    confidence=existing.confidence,
                     was_existing=True,
                 )
 
@@ -187,6 +223,8 @@ class ActivitySessionService:
                 duration_minutes=None,
                 open_event_id=start_event_id,
                 close_event_id=None,
+                source=source,
+                confidence=confidence,
                 metadata_json=metadata,
                 observation_id=observation_id,
             )
@@ -201,6 +239,8 @@ class ActivitySessionService:
                 session_id=session_id,
                 timeout_minutes=effective_timeout,
                 room_name=room_name,
+                source=source,
+                confidence=confidence,
             )
 
             return OpenSessionResult(
@@ -210,6 +250,8 @@ class ActivitySessionService:
                 room_name=room_name,
                 opened_at=started_at,
                 timeout_minutes=effective_timeout,
+                source=source,
+                confidence=confidence,
                 was_existing=False,
             )
         except Exception:
@@ -271,8 +313,7 @@ class ActivitySessionService:
             session.status = "closed"
             session.duration_minutes = duration_minutes
             session.close_event_id = end_event_id
-            session.metadata_json = session.metadata_json or {}
-            session.metadata_json["closed_via"] = closed_via
+            session.metadata_json = {**(session.metadata_json or {}), "closed_via": closed_via}
             if observation_id:
                 session.observation_id = observation_id
 
@@ -298,6 +339,8 @@ class ActivitySessionService:
                 duration_minutes=duration_minutes,
                 status=session.status,
                 closed_via=closed_via,
+                source=session.source,
+                confidence=session.confidence,
             )
         except Exception:
             logger.exception("activity_session_close_error", person_id=person_id)
@@ -345,8 +388,10 @@ class ActivitySessionService:
                     session.closed_at = now
                     session.status = "closed"
                     session.duration_minutes = duration_minutes
-                    session.metadata_json = session.metadata_json or {}
-                    session.metadata_json["closed_via"] = "timeout"
+                    session.metadata_json = {
+                        **(session.metadata_json or {}),
+                        "closed_via": "timeout",
+                    }
 
                     db.add(session)
 
@@ -361,6 +406,8 @@ class ActivitySessionService:
                             duration_minutes=duration_minutes,
                             status="closed",
                             closed_via="timeout",
+                            source=session.source,
+                            confidence=session.confidence,
                         )
                     )
 
@@ -418,6 +465,8 @@ class ActivitySessionService:
                     "timeout_minutes": s.timeout_minutes,
                     "duration_minutes": s.duration_minutes,
                     "observation_id": s.observation_id,
+                    "source": s.source,
+                    "confidence": s.confidence,
                 }
                 for s in sessions
             ]
@@ -484,6 +533,8 @@ class ActivitySessionService:
                     "closed_via": s.metadata_json.get("closed_via", "unknown")
                     if s.metadata_json
                     else "unknown",
+                    "source": s.source,
+                    "confidence": s.confidence,
                 }
                 for s in sessions
             ]

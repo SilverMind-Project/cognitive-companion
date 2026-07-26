@@ -34,6 +34,9 @@ class ActivitySessionOut(OutSchema):
     timeout_minutes: int | None
     duration_minutes: int | None
     observation_id: int | None
+    source: str = "vision_inferred"
+    """How the row was produced; the evidence grade an answer is phrased against."""
+    confidence: float = 0.0
 
 
 class ActivitySessionOpenResult(BaseModel):
@@ -45,6 +48,9 @@ class ActivitySessionOpenResult(BaseModel):
     room_name: str | None
     opened_at: UTCDatetime
     timeout_minutes: int | None
+    source: str = "vision_inferred"
+    """How the row was produced; the evidence grade an answer is phrased against."""
+    confidence: float = 0.0
     was_existing: bool = False
     """True if a session already existed and was reused (idempotent open)."""
 
@@ -62,6 +68,9 @@ class ActivitySessionCloseResult(BaseModel):
     status: str
     closed_via: str
     """One of: 'explicit', 'timeout', 'manual'."""
+    source: str = "vision_inferred"
+    """Provenance carried over from the opened row."""
+    confidence: float = 0.0
 
 
 # -- Daily Report Schemas -----------------------------------------------------

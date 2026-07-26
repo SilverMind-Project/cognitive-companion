@@ -5268,6 +5268,11 @@ export interface components {
             closed_at: string | null;
             /** Closed Via */
             closed_via: string;
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
             /** Duration Minutes */
             duration_minutes: number;
             /** Opened At */
@@ -5278,6 +5283,11 @@ export interface components {
             room_name: string | null;
             /** Session Id */
             session_id: string;
+            /**
+             * Source
+             * @default vision_inferred
+             */
+            source: string;
             /** Status */
             status: string;
         };
@@ -5288,6 +5298,11 @@ export interface components {
         ActivitySessionOpenResult: {
             /** Activity Type */
             activity_type: string;
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
             /** Opened At */
             opened_at: string | null;
             /** Person Id */
@@ -5296,6 +5311,11 @@ export interface components {
             room_name: string | null;
             /** Session Id */
             session_id: string;
+            /**
+             * Source
+             * @default vision_inferred
+             */
+            source: string;
             /** Timeout Minutes */
             timeout_minutes: number | null;
             /**
@@ -5313,6 +5333,11 @@ export interface components {
             activity_type: string;
             /** Closed At */
             closed_at?: string | null;
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
             /** Duration Minutes */
             duration_minutes: number | null;
             /** Observation Id */
@@ -5325,11 +5350,27 @@ export interface components {
             room_name: string | null;
             /** Session Id */
             session_id: string;
+            /**
+             * Source
+             * @default vision_inferred
+             */
+            source: string;
             /** Status */
             status: string;
             /** Timeout Minutes */
             timeout_minutes: number | null;
         };
+        /**
+         * ActivitySourceEnum
+         * @description How an activity-session row was produced.
+         *
+         *     The evidence grade a caregiver-facing answer is phrased against: a routine
+         *     the resident completed step-by-step with the companion supports "she took
+         *     her medication with me at 9:05"; a camera inference supports only "she was
+         *     near the medicine cabinet".
+         * @enum {string}
+         */
+        ActivitySourceEnum: "guided_companion" | "ha_state_join" | "sensor" | "vision_inferred";
         /**
          * ActivityTypeEnum
          * @description Activity types supported by the duration-aware session model.
@@ -11743,6 +11784,8 @@ export interface operations {
                 confidence: number;
                 /** @description When the activity started (UTC) */
                 started_at: string;
+                /** @description How this session was determined (drives answer phrasing) */
+                source?: components["schemas"]["ActivitySourceEnum"];
                 /** @description Override timeout in minutes */
                 timeout_minutes?: number | null;
             };

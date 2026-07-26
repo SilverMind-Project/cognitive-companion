@@ -137,10 +137,15 @@ async def test_completed_with_activity_type_writes_ledger_row(db_session, db_fac
     assert row.activity_type == "medication"
     assert row.status == "closed"
     assert row.duration_minutes == 10
-    assert row.metadata_json["source"] == "guided_companion"
+    # Provenance and confidence are first-class columns, not metadata keys:
+    # a guided completion is the ledger's highest evidence grade.
+    assert row.source == "guided_companion"
+    assert row.confidence == 0.95
     assert row.metadata_json["guided_session_id"] == session.id
     assert row.metadata_json["routine_id"] == routine.id
-    assert row.metadata_json["confidence"] == 0.95
+    # The close path must not drop the open path's metadata (plain-JSON
+    # in-place mutation used to discard closed_via here).
+    assert row.metadata_json["closed_via"] == "explicit"
 
 
 @pytest.mark.asyncio

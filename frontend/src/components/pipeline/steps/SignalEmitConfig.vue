@@ -78,7 +78,11 @@ import TemplateInput from "./_shared/TemplateInput.vue";
 // config_schema enum already enforces the allowlist server-side (write-time
 // JSONSchema validation); this list only drives the picker and must be kept
 // in sync with the backend tuple when a new CC-local kind is registered.
-const CC_LOCAL_KINDS = ["inferred_dwell_exceeded", "tea_intent_suspected"];
+const CC_LOCAL_KINDS = [
+  "inferred_dwell_exceeded",
+  "tea_intent_suspected",
+  "hygiene_routine_missed",
+];
 
 export const stepDefaults = {
   kind: "",

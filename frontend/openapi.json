@@ -129,6 +129,11 @@
             "title": "Closed Via",
             "type": "string"
           },
+          "confidence": {
+            "default": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
           "duration_minutes": {
             "title": "Duration Minutes",
             "type": "integer"
@@ -163,6 +168,11 @@
             "title": "Session Id",
             "type": "string"
           },
+          "source": {
+            "default": "vision_inferred",
+            "title": "Source",
+            "type": "string"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -188,6 +198,11 @@
           "activity_type": {
             "title": "Activity Type",
             "type": "string"
+          },
+          "confidence": {
+            "default": 0.0,
+            "title": "Confidence",
+            "type": "number"
           },
           "opened_at": {
             "anyOf": [
@@ -217,6 +232,11 @@
           },
           "session_id": {
             "title": "Session Id",
+            "type": "string"
+          },
+          "source": {
+            "default": "vision_inferred",
+            "title": "Source",
             "type": "string"
           },
           "timeout_minutes": {
@@ -264,6 +284,11 @@
               }
             ],
             "title": "Closed At"
+          },
+          "confidence": {
+            "default": 0.0,
+            "title": "Confidence",
+            "type": "number"
           },
           "duration_minutes": {
             "anyOf": [
@@ -317,6 +342,11 @@
             "title": "Session Id",
             "type": "string"
           },
+          "source": {
+            "default": "vision_inferred",
+            "title": "Source",
+            "type": "string"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -346,6 +376,17 @@
         ],
         "title": "ActivitySessionOut",
         "type": "object"
+      },
+      "ActivitySourceEnum": {
+        "description": "How an activity-session row was produced.\n\nThe evidence grade a caregiver-facing answer is phrased against: a routine\nthe resident completed step-by-step with the companion supports \"she took\nher medication with me at 9:05\"; a camera inference supports only \"she was\nnear the medicine cabinet\".",
+        "enum": [
+          "guided_companion",
+          "ha_state_join",
+          "sensor",
+          "vision_inferred"
+        ],
+        "title": "ActivitySourceEnum",
+        "type": "string"
       },
       "ActivityTypeEnum": {
         "description": "Activity types supported by the duration-aware session model.",
@@ -17540,7 +17581,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.129"
+    "version": "0.7.130"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -17941,6 +17982,17 @@
               "format": "date-time",
               "title": "Started At",
               "type": "string"
+            }
+          },
+          {
+            "description": "How this session was determined (drives answer phrasing)",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ActivitySourceEnum",
+              "default": "vision_inferred",
+              "description": "How this session was determined (drives answer phrasing)"
             }
           },
           {

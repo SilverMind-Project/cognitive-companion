@@ -87,10 +87,11 @@ class ActivityService:
         *,
         person_id: str,
         activity_type: str,
-        room_name: str,
+        room_name: str | None,
         confidence: float,
         started_at: datetime,
         start_event_id: int | None = None,
+        source: str = "vision_inferred",
         timeout_minutes: int | None = None,
         metadata: dict | None = None,
     ) -> SessionRecord:
@@ -105,6 +106,7 @@ class ActivityService:
             confidence=confidence,
             started_at=started_at,
             start_event_id=start_event_id,
+            source=source,
             timeout_minutes=timeout_minutes,
             metadata=metadata,
         )
@@ -119,6 +121,8 @@ class ActivityService:
             status="open",
             closed_via=None,
             timeout_minutes=result.timeout_minutes,
+            source=result.source,
+            confidence=result.confidence,
             was_existing=result.was_existing,
         )
 
@@ -153,6 +157,8 @@ class ActivityService:
             status=result.status,
             closed_via=result.closed_via,
             timeout_minutes=None,
+            source=result.source,
+            confidence=result.confidence,
             was_existing=False,
         )
 

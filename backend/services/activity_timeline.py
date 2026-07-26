@@ -237,6 +237,8 @@ class ActivityTimelineService:
                         "session_id": s.id,
                         "timeout_minutes": s.timeout_minutes,
                         "observation_id": s.observation_id,
+                        "evidence_source": s.source,
+                        "confidence": s.confidence,
                     },
                     source="session",
                 )
@@ -258,6 +260,8 @@ class ActivityTimelineService:
                             "closed_via": s.metadata_json.get("closed_via", "unknown")
                             if s.metadata_json
                             else "unknown",
+                            "evidence_source": s.source,
+                            "confidence": s.confidence,
                         },
                         source="session",
                     )

@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 
 from backend.core.logging import get_logger
 from backend.core.template import render_template
+from backend.models.person import ActivitySourceEnum
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
 from backend.steps.base import (
@@ -77,6 +78,17 @@ class ActivitySessionStartHandler(StepHandler):
                             "or {{template}} syntax."
                         ),
                     },
+                    "source": {
+                        "type": "string",
+                        "enum": [s.value for s in ActivitySourceEnum],
+                        "default": ActivitySourceEnum.vision_inferred.value,
+                        "description": (
+                            "How this session was determined. Drives how the "
+                            "companion phrases answers about it: only "
+                            "'guided_companion' supports claiming she completed "
+                            "an action, the rest support 'she appeared to'."
+                        ),
+                    },
                     "timeout_minutes": {
                         "type": ["integer", "string"],
                         "default": "",
@@ -110,6 +122,7 @@ class ActivitySessionStartHandler(StepHandler):
                 "person_id": "",
                 "room_name": "",
                 "confidence": 0.85,
+                "source": ActivitySourceEnum.vision_inferred.value,
                 "timeout_minutes": "",
                 "metadata_extra": "",
                 "output_key": "session",
@@ -159,6 +172,13 @@ class ActivitySessionStartHandler(StepHandler):
         else:
             confidence = max(0.0, min(1.0, float(confidence_raw or 0.85)))
 
+        source = (
+            render_template(
+                str(config.get("source", "") or ""), pipeline_data, trigger_vars
+            ).strip()
+            or ActivitySourceEnum.vision_inferred.value
+        )
+
         timeout_raw = config.get("timeout_minutes", "")
         timeout_minutes = None
         if timeout_raw:
@@ -192,6 +212,7 @@ class ActivitySessionStartHandler(StepHandler):
                     confidence=confidence,
                     started_at=datetime.now(UTC),
                     start_event_id=execution.event_log_id,
+                    source=source,
                     timeout_minutes=timeout_minutes,
                     metadata=metadata or None,
                 )
@@ -222,6 +243,8 @@ class ActivitySessionStartHandler(StepHandler):
             "room_name": result.room_name,
             "started_at": result.opened_at.isoformat() if result.opened_at else None,
             "timeout_minutes": result.timeout_minutes,
+            "source": result.source,
+            "confidence": result.confidence,
             "was_existing": result.was_existing,
         }
 

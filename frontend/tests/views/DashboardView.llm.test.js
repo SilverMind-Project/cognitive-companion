@@ -47,6 +47,10 @@ const stubComponents = {
   "v-list-item": { template: "<li><slot /></li>" },
   "v-chip": { template: "<span><slot /></span>" },
   "v-alert": { template: "<div><slot /></div>" },
+  // Not under test here; shallow-stub so their real Vuetify internals
+  // (v-progress-circular, v-card-title, ...) don't need their own stubs.
+  CcDailyLivingHealthCard: { template: "<div />" },
+  CcInferenceTelemetryCard: { template: "<div />" },
 };
 
 import { api } from "@/services/api.js";

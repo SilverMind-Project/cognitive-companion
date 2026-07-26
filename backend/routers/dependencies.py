@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from backend.services.event_aggregator import EventAggregator
     from backend.services.guided_task.metrics_service import GuidedMetricsService
     from backend.services.guided_task.service import GuidedTaskService
+    from backend.services.inference_telemetry import InferenceTelemetryService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
     from backend.services.media_observability import MediaObservabilityService
     from backend.services.occupancy import OccupancyReadModel
@@ -73,6 +74,7 @@ __all__ = [
     "get_guided_task_service",
     "get_ha_client",
     "get_identity_correction_service",
+    "get_inference_telemetry",
     "get_ingress_admin_client",
     "get_keyframe_read_service",
     "get_knowledge_delivery",
@@ -261,6 +263,14 @@ def get_scheduler(request: Request) -> SchedulerBridge:
     svc: SchedulerBridge | None = request.app.state.scheduler
     if svc is None:
         raise _raise_503("scheduler", "Scheduler bridge")
+    return svc
+
+
+def get_inference_telemetry(request: Request) -> InferenceTelemetryService:
+    """Return the lifespan-managed LLM admission telemetry service (503 if unavailable)."""
+    svc: InferenceTelemetryService | None = request.app.state.inference_telemetry
+    if svc is None:
+        raise _raise_503("inference_telemetry", "Inference telemetry service")
     return svc
 
 

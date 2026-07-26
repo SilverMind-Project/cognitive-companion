@@ -83,6 +83,8 @@ class LLMProvider(ABC):
         temperature: float | None = None,
         top_p: float | None = None,
         max_tokens: int | None = None,
+        *,
+        caller: str = "unknown",
         **kwargs: Any,
     ) -> str:
         """
@@ -113,6 +115,11 @@ class LLMProvider(ABC):
             Top-p (nucleus) sampling override. ``None`` uses the provider default.
         max_tokens:
             Maximum tokens to generate override. ``None`` uses the provider default.
+        caller:
+            Identity tag for admission-control telemetry (rule name,
+            ``"gate:confirm"``, ``"gate:watch"``, etc.). Providers with an
+            injected :class:`~backend.integrations.llm.admission.LLMAdmissionController`
+            record every call under this tag; providers without one ignore it.
 
         Returns
         -------

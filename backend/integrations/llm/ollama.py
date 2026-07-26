@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from backend.core.logging import get_logger
+from backend.integrations.llm.admission import Lane, LLMAdmissionController
 from backend.integrations.llm.base import LLMProvider
 
 logger = get_logger(__name__)
@@ -30,6 +31,7 @@ class OllamaProvider(LLMProvider):
         timeout: float = _DEFAULT_TIMEOUT,
         temperature: float | None = 0.9,
         top_p: float | None = None,
+        admission: LLMAdmissionController | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -37,6 +39,7 @@ class OllamaProvider(LLMProvider):
         self.timeout = timeout
         self.temperature = temperature
         self.top_p = top_p
+        self._admission = admission
 
     # -- LLMProvider interface ------------------------------------------------
 
@@ -50,6 +53,8 @@ class OllamaProvider(LLMProvider):
         temperature: float | None = None,
         top_p: float | None = None,
         max_tokens: int | None = None,
+        *,
+        caller: str = "unknown",
         **kwargs: Any,
     ) -> str:
         """
@@ -90,14 +95,22 @@ class OllamaProvider(LLMProvider):
 
         logger.info("ollama_request", model=self.model)
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-            )
-            response.raise_for_status()
+        async def _run() -> str:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/chat",
+                    json=payload,
+                )
+                response.raise_for_status()
 
-        data = response.json()
-        text: str = data["message"]["content"]
-        logger.debug("ollama_response", length=len(text))
-        return text
+            data = response.json()
+            text: str = data["message"]["content"]
+            logger.debug("ollama_response", length=len(text))
+            return text
+
+        if self._admission is None:
+            return await _run()
+
+        lane: Lane = "vision" if media_paths else "text"
+        async with self._admission.admit(lane, caller, model_id=self.model):
+            return await _run()

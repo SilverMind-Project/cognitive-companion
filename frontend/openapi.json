@@ -1842,6 +1842,41 @@
         "title": "CalibrationValidation",
         "type": "object"
       },
+      "CallerLaneOutcomeOut": {
+        "additionalProperties": false,
+        "description": "Call counts for one (caller, lane) pair over the reporting window.",
+        "properties": {
+          "caller": {
+            "title": "Caller",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "integer"
+          },
+          "lane": {
+            "title": "Lane",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "integer"
+          },
+          "timeout": {
+            "title": "Timeout",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "caller",
+          "lane",
+          "ok",
+          "timeout",
+          "error"
+        ],
+        "title": "CallerLaneOutcomeOut",
+        "type": "object"
+      },
       "CameraAggregatorStateOut": {
         "additionalProperties": false,
         "description": "Enriched runtime state for one camera aggregator.",
@@ -6733,6 +6768,31 @@
         "title": "HomographyResult",
         "type": "object"
       },
+      "HourlyCallBucketOut": {
+        "additionalProperties": false,
+        "description": "Calls started in one UTC hour bucket, per lane.",
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "hour": {
+            "title": "Hour",
+            "type": "string"
+          },
+          "lane": {
+            "title": "Lane",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hour",
+          "lane",
+          "calls"
+        ],
+        "title": "HourlyCallBucketOut",
+        "type": "object"
+      },
       "HouseholdMemberCreate": {
         "properties": {
           "cts_alert_config": {
@@ -7202,6 +7262,84 @@
           "status"
         ],
         "title": "ImportReport",
+        "type": "object"
+      },
+      "InferenceTelemetryOut": {
+        "additionalProperties": false,
+        "description": "Admission-controller telemetry for the admin dashboard.",
+        "properties": {
+          "calls_per_hour": {
+            "items": {
+              "$ref": "#/components/schemas/HourlyCallBucketOut"
+            },
+            "title": "Calls Per Hour",
+            "type": "array"
+          },
+          "queue_depth": {
+            "items": {
+              "$ref": "#/components/schemas/QueueDepthOut"
+            },
+            "title": "Queue Depth",
+            "type": "array"
+          },
+          "queue_wait_p50_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Wait P50 Ms"
+          },
+          "queue_wait_p95_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Wait P95 Ms"
+          },
+          "ring_buffer_capacity": {
+            "title": "Ring Buffer Capacity",
+            "type": "integer"
+          },
+          "ring_buffer_size": {
+            "title": "Ring Buffer Size",
+            "type": "integer"
+          },
+          "timeouts_total": {
+            "title": "Timeouts Total",
+            "type": "integer"
+          },
+          "totals_by_caller_lane": {
+            "items": {
+              "$ref": "#/components/schemas/CallerLaneOutcomeOut"
+            },
+            "title": "Totals By Caller Lane",
+            "type": "array"
+          },
+          "window_minutes": {
+            "title": "Window Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_minutes",
+          "totals_by_caller_lane",
+          "queue_depth",
+          "queue_wait_p50_ms",
+          "queue_wait_p95_ms",
+          "timeouts_total",
+          "calls_per_hour",
+          "ring_buffer_size",
+          "ring_buffer_capacity"
+        ],
+        "title": "InferenceTelemetryOut",
         "type": "object"
       },
       "InferredAdjacencyResponse": {
@@ -10630,6 +10768,26 @@
           "older_than_days"
         ],
         "title": "PurgeUnknownResponse",
+        "type": "object"
+      },
+      "QueueDepthOut": {
+        "additionalProperties": false,
+        "description": "Current (live) admissions waiting on a lane's semaphore.",
+        "properties": {
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "lane": {
+            "title": "Lane",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lane",
+          "depth"
+        ],
+        "title": "QueueDepthOut",
         "type": "object"
       },
       "QuizChoice": {
@@ -17382,7 +17540,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.128"
+    "version": "0.7.129"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -18382,6 +18540,33 @@
         "summary": "Tts Health",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/inference-telemetry": {
+      "get": {
+        "description": "Return LLM admission-controller telemetry for the admin dashboard.\n\nOperational telemetry only (DL-M09): the ring buffer is in-memory and\nresets on restart, mirroring the aggregator-state exemption pattern (one\nservice method, no MCP mirror, since this is not caregiver-facing domain\ndata).",
+        "operationId": "inference_telemetry_endpoint",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceTelemetryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Inference Telemetry Endpoint",
+        "tags": [
+          "metrics"
         ]
       }
     },

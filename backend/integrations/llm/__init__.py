@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
+from backend.integrations.llm.admission import LLMAdmissionController
 from backend.integrations.llm.base import (
     LLMProvider,
     RealtimeLLMProvider,
@@ -28,6 +29,7 @@ from backend.integrations.llm.base import (
 )
 
 __all__ = [
+    "LLMAdmissionController",
     "LLMModelConfig",
     "LLMModelRegistry",
     "LLMProvider",
@@ -251,9 +253,10 @@ class LLMModelRegistry:
               capabilities: [text]
     """
 
-    def __init__(self) -> None:
+    def __init__(self, admission_controller: LLMAdmissionController | None = None) -> None:
         self._configs: dict[str, LLMModelConfig] = {}
         self._instances: dict[str, LLMProvider] = {}
+        self._admission_controller = admission_controller
 
     def load_from_settings(self) -> None:
         """Parse ``llm.models`` from application settings and populate the registry."""
@@ -293,6 +296,7 @@ class LLMModelRegistry:
                 timeout=cfg.timeout,
                 temperature=cfg.temperature,
                 top_p=cfg.top_p,
+                admission=self._admission_controller,
             )
         # Default: OpenAI-compatible (vLLM, llama.cpp, etc.)
         from backend.integrations.llm.openai_compat import OpenAICompatibleProvider
@@ -306,4 +310,5 @@ class LLMModelRegistry:
             max_retries=cfg.max_retries,
             temperature=cfg.temperature,
             top_p=cfg.top_p,
+            admission=self._admission_controller,
         )

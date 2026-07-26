@@ -53,6 +53,11 @@
       <CcDailyLivingHealthCard />
     </div>
 
+    <!-- Inference Load (DL-M09) -->
+    <div class="mt-6">
+      <CcInferenceTelemetryCard />
+    </div>
+
     <!-- Person Locations -->
     <h3 class="text-h6 mt-6 mb-3">Person Locations</h3>
     <v-row>
@@ -162,6 +167,7 @@ import { ref, onMounted } from "vue";
 import { api } from "../../services/api.js";
 import { formatDateTimeShort } from "../../services/timezone.js";
 import CcDailyLivingHealthCard from "@/components/dashboard/CcDailyLivingHealthCard.vue";
+import CcInferenceTelemetryCard from "@/components/dashboard/CcInferenceTelemetryCard.vue";
 
 const refreshing = ref(false);
 

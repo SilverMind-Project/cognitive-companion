@@ -144,9 +144,23 @@ def wire_core_services(app: FastAPI, settings: Settings) -> None:
 
     # -- LLM providers for the pipeline ------------------------------------
     from backend.integrations.llm import LLMModelRegistry
+    from backend.integrations.llm.admission import LLMAdmissionController
+
+    # -- Admission controller (DL5/DL-M09): the single choke point in front
+    # of every local vision/text LLM provider, sized for one DGX Spark. ----
+    llm_admission_controller = LLMAdmissionController(
+        max_concurrent_vision=settings.as_int("llm.admission.max_concurrent_vision"),
+        max_concurrent_text=settings.as_int("llm.admission.max_concurrent_text"),
+        queue_timeout_s=settings.as_float("llm.admission.queue_timeout_s"),
+    )
+    app.state.llm_admission_controller = llm_admission_controller
+
+    from backend.services.inference_telemetry import InferenceTelemetryService
+
+    app.state.inference_telemetry = InferenceTelemetryService(llm_admission_controller)
 
     # -- Named model registry (for the unified llm_call step) --------------
-    llm_model_registry = LLMModelRegistry()
+    llm_model_registry = LLMModelRegistry(admission_controller=llm_admission_controller)
     llm_model_registry.load_from_settings()
     app.state.llm_model_registry = llm_model_registry
     logger.info(

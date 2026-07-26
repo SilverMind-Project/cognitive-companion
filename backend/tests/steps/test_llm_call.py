@@ -254,6 +254,74 @@ class TestAnnotatedImage:
         assert any("data:image/jpeg;base64,base64_fake" in p for p in mp)
 
 
+class TestAdmissionCallerTag:
+    @pytest.mark.asyncio
+    async def test_caller_is_rule_name_for_normal_execution(self):
+        provider = _make_provider("ok")
+        model_cfg = _make_model_cfg(["text"])
+        registry = _make_registry(model_cfg, provider)
+        services = _make_services(llm_model_registry=registry)
+
+        @dataclass
+        class _Rule:
+            name: str = "tea_intent_shadow"
+
+        await _HANDLER.execute(
+            _make_step({"model_id": "test-text", "prompt": "hi"}),
+            _FakeExecution(rule=_Rule()),
+            {},
+            _make_trigger(),
+            services,
+        )
+
+        assert provider.call.call_args.kwargs["caller"] == "tea_intent_shadow"
+
+    @pytest.mark.asyncio
+    async def test_caller_is_gate_profile_when_pipeline_data_has_profile(self):
+        provider = _make_provider("ok")
+        model_cfg = _make_model_cfg(["text"])
+        registry = _make_registry(model_cfg, provider)
+        services = _make_services(llm_model_registry=registry)
+
+        pipeline_data = {"_profile": {"name": "watch"}}
+
+        await _HANDLER.execute(
+            _make_step({"model_id": "test-text", "prompt": "hi"}),
+            _FakeExecution(),
+            pipeline_data,
+            _make_trigger(),
+            services,
+        )
+
+        assert provider.call.call_args.kwargs["caller"] == "gate:watch"
+
+    @pytest.mark.asyncio
+    async def test_admission_timeout_returns_structured_failure(self):
+        from backend.integrations.llm.admission import LLMAdmissionTimeout
+
+        provider = AsyncMock()
+        provider.call = AsyncMock(
+            side_effect=LLMAdmissionTimeout("vision", "tea_intent_shadow", 20.0)
+        )
+        model_cfg = _make_model_cfg(["vision"])
+        registry = _make_registry(model_cfg, provider)
+        services = _make_services(llm_model_registry=registry)
+
+        result = await _HANDLER.execute(
+            _make_step({"model_id": "test-vision", "prompt": "hi"}),
+            _FakeExecution(),
+            {},
+            _make_trigger(),
+            services,
+        )
+
+        assert result.success is False
+        assert "llm_admission_timeout" in result.data["error"]
+        # No ports activated: downstream steps (gate_verdict, notification)
+        # must resolve dead rather than run on a missing response.
+        assert result.output_ports == ()
+
+
 class TestOutputSchema:
     def test_output_conforms_to_schema(self):
         from backend.steps.base import StepResult

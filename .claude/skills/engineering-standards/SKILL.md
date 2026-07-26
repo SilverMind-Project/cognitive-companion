@@ -1245,3 +1245,29 @@ A rule that wants "at most one detection per N minutes" without silencing its ow
 Cross-system detectors follow the prefilter-confirm-join shape: cheap upstream signal (CTS), one bounded VLM confirmation (CC), structured join with local evidence, then alert + CC-local signal (DL-M08). Alerts always carry the evidence that produced them.
 
 A rule with `trigger_types` containing an event-fired kind (`dementia_signal`, dispatched via `PipelineExecutor.fire_event`) reads that event's payload from `pipeline_data["trigger_event"]` (e.g. `trigger_event.evidence.today_best_keyframe_objects`), never from `TriggerContext` directly: `resume()` rebuilds a synthetic `TriggerContext` from persisted `pipeline_data["trigger"]` alone, so a field added only to the dataclass would vanish across a wait/resume cycle. `resolve_person_id()` (`backend/steps/_helpers.py`) falls back to `trigger_event.person_id` last, after config, `pipeline_data["persons"]`, and the scalar `pipeline_data["person_id"]`, so `signal_emit`/`presence_query` steps in an event-fired rule resolve the right person without an explicit `person_id` in their step config. `media_presign` (perception, gate-safe) is the step for turning bare object names from an event's evidence context into presigned URLs; `notification`'s `telegram_image_source: "pipeline"` and `llm_call`'s `image_source: "pipeline"` both consume its `presigned_images` output via a `pipeline_image_path`.
+
+## 28. Inference budget (single-Spark deployments)
+
+One DGX Spark serves the Triton model zoo (YOLO, CLIP, Florence-2, ArcFace, SOLIDER, embeddinggemma), the vLLM vision model, the llama.cpp reasoning model, and TTS, fed by 9 to 12 cameras. Every rule, gate graph, and future watch tick that adds inference must be admission-controlled and cheap-first (DL5):
+
+| Tier | What | Cost |
+| --- | --- | --- |
+| 0 | Reuse CTS outputs already paid for (YOLO detections, presence, dwell, posture) | free (already computed) |
+| 1 | Geometry (`region_presence`) and CLIP-delta novelty gating (`novelty_gate`) | near-free |
+| 2 | Florence-2 caption (`scene_analysis`) | cheap |
+| 3 | Text reasoning over structured context (`llm_call`, text-capable model) | moderate |
+| 4 | The vLLM VLM (`llm_call`, vision-capable model), bounded by the admission controller | expensive, globally rate-limited |
+
+**Local model calls go through the admission controller and carry a `caller` tag; never call a local provider around it.** `LLMAdmissionController` (`backend/integrations/llm/admission.py`) is the single choke point at the provider boundary: `OpenAICompatibleProvider` and `OllamaProvider` wrap their network call in `admission.admit(lane, caller)` whenever a controller is injected (constructed once in the bootstrap LLM phase, `backend/bootstrap/core_services.py`, and passed into `LLMModelRegistry`). Lane selection is `"vision"` when the request carries images, else `"text"`; a queued call that exceeds `llm.admission.queue_timeout_s` raises `LLMAdmissionTimeout` rather than piling up. `llm_call` (`backend/steps/builtin/llm_call.py`) converts that into a structured `StepResult(success=False, data={"error": ...})`; it never lets the exception escape uncaught. The cloud realtime provider (Gemini) is exempt by construction, since cloud calls do not load the Spark. Every local provider call must carry a `caller` tag (a rule name, or `"gate:{profile}"` for gate-fired executions, read from `pipeline_data["_profile"]`) so telemetry (`GET /api/v1/admin/inference-telemetry`) can attribute load to the rule or profile responsible.
+
+**`novelty_gate` authoring pattern.** Skip re-running expensive analysis on an unchanged scene by comparing a CLIP embedding (e.g. `scene_analysis`'s `scene_embedding`) against the last one cached for a scope (one slot per rule and camera by default):
+
+```
+scene_analysis -> novelty_gate -> condition(novel == true) -> llm_call
+```
+
+`novelty_gate` fails open (`novel=true`) whenever the embedding is missing, since the gate must never suppress analysis because an upstream step broke. It compares against `novelty_gate.min_distance` (settings default) unless the step overrides it, and a cached embedding older than the step's `ttl_minutes` counts as novel regardless of distance, so a slowly drifting scene eventually re-triggers. `scene_analysis` (tier 2) still runs every tick; the gate only saves the tier-3/4 calls further downstream.
+
+**Watch-profile gate graphs are VLM-free unless a node is explicitly `watch_allowed`.** `GateGraphRunner.execute_node` (`backend/services/guided_task/gate_runner.py`) refuses to execute an `llm_call` node in the `watch` profile when its resolved model has the `vision` capability, unless the step's config sets `watch_allowed: true`. This hardens VG00 D24's "watch may prune heavy nodes" into a structural guarantee: an accidental Spark-melting watch tick cannot happen just because a node was never tagged `heavy`. The confirm profile is untouched. A pruned node reports `pruned: true, reason: "pruned_heavy_vision"` in `node_results`, the same shape as the pre-existing `heavy`-tag prune.
+
+**Tier-0 rule: before adding a vision step to a rule, check whether CTS presence/dwell/detections already answer the question.** `PersonLocationService` already answers "where is she" / "how long has she been in this room" (`presence_dwell` filter, `room_segments`); `scene_detections` from an already-run `scene_analysis` already answers "is a person in this region" (`region_presence`, no model call). A rule that schedules `scene_analysis` or `llm_call` to re-derive an answer CTS or a prior step in the same pipeline already computed is wasted inference load, not a new capability.

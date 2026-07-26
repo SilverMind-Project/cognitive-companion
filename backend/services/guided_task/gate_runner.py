@@ -128,6 +128,7 @@ class NodeResult(TypedDict, total=False):
     label: str
     ports: list[str]
     pruned: bool
+    reason: str
     skipped: bool
     error: str
     model_id: str
@@ -434,6 +435,42 @@ class GateGraphRunner:
                     "pruned": True,
                 }
                 return NodeOutcome(active_ports=frozenset())
+
+            # 4.b.2 Watch-profile vision pruning (DL-M09 hardens VG00 D24's
+            # "may prune" note into "does not execute unless explicit"): an
+            # llm_call node whose resolved model has the vision capability is
+            # refused in the watch profile unless the node opts in via
+            # `watch_allowed: true`. Confirm profile is untouched.
+            if (
+                profile.name == "watch"
+                and step.step_type == "llm_call"
+                and step.config_json
+                and step.config_json.get("watch_allowed") is not True
+            ):
+                node_model_id = step.config_json.get("model_id")
+                if profile.model_id and step.config_json.get("use_profile_model") is True:
+                    node_model_id = profile.model_id
+                model_cfg = (
+                    self._services.llm_model_registry.get_config(node_model_id)
+                    if self._services.llm_model_registry and node_model_id
+                    else None
+                )
+                if model_cfg and "vision" in model_cfg.capabilities:
+                    logger.info(
+                        "gate_node_pruned",
+                        node_id=node_id,
+                        step_type=step.step_type,
+                        label=label,
+                        reason="pruned_heavy_vision",
+                    )
+                    node_results[label] = {
+                        "type": step.step_type,
+                        "label": label,
+                        "ports": [],
+                        "pruned": True,
+                        "reason": "pruned_heavy_vision",
+                    }
+                    return NodeOutcome(active_ports=frozenset())
 
             # Get step handler
             handler = StepRegistry.get(step.step_type)

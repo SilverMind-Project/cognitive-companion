@@ -202,6 +202,16 @@
     },
     {
       "category": "perception",
+      "display_name": "Novelty Gate",
+      "gate_safe": true,
+      "icon": "mdi-image-filter-center-focus",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "novelty_gate"
+    },
+    {
+      "category": "perception",
       "display_name": "Room Trend Query",
       "gate_safe": false,
       "icon": "mdi-chart-line",

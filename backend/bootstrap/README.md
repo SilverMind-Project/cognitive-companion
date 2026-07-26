@@ -108,7 +108,9 @@ No `container` parameter -- runs before `ServiceContainer` exists.
 | `ws_manager` | -- |
 | `pipeline_ws_manager` | -- |
 | `realtime_provider` | -- |
-| `llm_model_registry` | -- |
+| `llm_admission_controller` | -- |
+| `llm_model_registry` | `llm_admission_controller` (injected into every local provider) |
+| `inference_telemetry` | `llm_admission_controller` |
 | `conversation_manager` | -- |
 | `eink_renderer` | `config_minio_client` |
 

@@ -18,6 +18,7 @@ import httpx
 from tenacity import AsyncRetrying, RetryError, retry_if_result, stop_after_attempt
 
 from backend.core.logging import get_logger
+from backend.integrations.llm.admission import Lane, LLMAdmissionController
 from backend.integrations.llm.base import (
     THINKING_INSTRUCTION,
     LLMProvider,
@@ -53,6 +54,11 @@ class OpenAICompatibleProvider(LLMProvider):
         When ``False``, append the schema as a prompt instruction (llama.cpp).
     max_retries:
         Number of retries when a hallucination marker is detected.
+    admission:
+        Optional admission controller (DL5/DL-M09). When set, every call is
+        wrapped in ``admission.admit(lane, caller)`` so concurrent vision/text
+        calls to this Spark-hosted server are bounded. ``None`` keeps the
+        pre-DL-M09 behaviour (no bound).
     """
 
     def __init__(
@@ -65,6 +71,7 @@ class OpenAICompatibleProvider(LLMProvider):
         max_retries: int = 3,
         temperature: float | None = None,
         top_p: float | None = None,
+        admission: LLMAdmissionController | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -74,6 +81,7 @@ class OpenAICompatibleProvider(LLMProvider):
         self.max_retries = max_retries
         self.temperature = temperature
         self.top_p = top_p
+        self._admission = admission
 
     # -- LLMProvider interface ------------------------------------------------
 
@@ -89,6 +97,7 @@ class OpenAICompatibleProvider(LLMProvider):
         max_tokens: int | None = None,
         *,
         hallucination_marker: str | None = None,
+        caller: str = "unknown",
         **kwargs: Any,
     ) -> str:
         """
@@ -197,31 +206,39 @@ class OpenAICompatibleProvider(LLMProvider):
             logger.debug("openai_compat_response", length=len(text))
             return text
 
-        if not hallucination_marker:
-            return await _call_once()
+        async def _run() -> str:
+            if not hallucination_marker:
+                return await _call_once()
 
-        # Retry on hallucination marker
-        try:
-            async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(self.max_retries),
-                retry=retry_if_result(lambda res: hallucination_marker in str(res)),
-            ):
-                with attempt:
-                    logger.info(
-                        "openai_compat_attempt",
-                        attempt=attempt.retry_state.attempt_number,
-                    )
-                    text = await _call_once()
-                    if hallucination_marker in text:
-                        logger.warning(
-                            "openai_compat_hallucination",
-                            marker=hallucination_marker,
+            # Retry on hallucination marker
+            try:
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(self.max_retries),
+                    retry=retry_if_result(lambda res: hallucination_marker in str(res)),
+                ):
+                    with attempt:
+                        logger.info(
+                            "openai_compat_attempt",
                             attempt=attempt.retry_state.attempt_number,
                         )
-                    return text
-        except RetryError as exc:
-            logger.error("openai_compat_retries_exhausted", max_retries=self.max_retries)
-            val = exc.last_attempt.result()
-            return val if isinstance(val, str) else str(val)
+                        text = await _call_once()
+                        if hallucination_marker in text:
+                            logger.warning(
+                                "openai_compat_hallucination",
+                                marker=hallucination_marker,
+                                attempt=attempt.retry_state.attempt_number,
+                            )
+                        return text
+            except RetryError as exc:
+                logger.error("openai_compat_retries_exhausted", max_retries=self.max_retries)
+                val = exc.last_attempt.result()
+                return val if isinstance(val, str) else str(val)
 
-        return ""
+            return ""
+
+        if self._admission is None:
+            return await _run()
+
+        lane: Lane = "vision" if media_paths else "text"
+        async with self._admission.admit(lane, caller, model_id=self.model):
+            return await _run()

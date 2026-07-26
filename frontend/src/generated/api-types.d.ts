@@ -429,6 +429,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/inference-telemetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inference Telemetry Endpoint
+         * @description Return LLM admission-controller telemetry for the admin dashboard.
+         *
+         *     Operational telemetry only (DL-M09): the ring buffer is in-memory and
+         *     resets on restart, mirroring the aggregator-state exemption pattern (one
+         *     service method, no MCP mirror, since this is not caregiver-facing domain
+         *     data).
+         */
+        get: operations["inference_telemetry_endpoint"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/notification-channels/audit": {
         parameters: {
             query?: never;
@@ -5849,6 +5874,22 @@ export interface components {
             severity: string;
         };
         /**
+         * CallerLaneOutcomeOut
+         * @description Call counts for one (caller, lane) pair over the reporting window.
+         */
+        CallerLaneOutcomeOut: {
+            /** Caller */
+            caller: string;
+            /** Error */
+            error: number;
+            /** Lane */
+            lane: string;
+            /** Ok */
+            ok: number;
+            /** Timeout */
+            timeout: number;
+        };
+        /**
          * CameraAggregatorStateOut
          * @description Enriched runtime state for one camera aggregator.
          */
@@ -7601,6 +7642,18 @@ export interface components {
             /** Visibility Polygon Warning */
             visibility_polygon_warning?: string | null;
         };
+        /**
+         * HourlyCallBucketOut
+         * @description Calls started in one UTC hour bucket, per lane.
+         */
+        HourlyCallBucketOut: {
+            /** Calls */
+            calls: number;
+            /** Hour */
+            hour: string;
+            /** Lane */
+            lane: string;
+        };
         /** HouseholdMemberCreate */
         HouseholdMemberCreate: {
             /** Cts Alert Config */
@@ -7759,6 +7812,30 @@ export interface components {
              * @default []
              */
             warnings: string[];
+        };
+        /**
+         * InferenceTelemetryOut
+         * @description Admission-controller telemetry for the admin dashboard.
+         */
+        InferenceTelemetryOut: {
+            /** Calls Per Hour */
+            calls_per_hour: components["schemas"]["HourlyCallBucketOut"][];
+            /** Queue Depth */
+            queue_depth: components["schemas"]["QueueDepthOut"][];
+            /** Queue Wait P50 Ms */
+            queue_wait_p50_ms: number | null;
+            /** Queue Wait P95 Ms */
+            queue_wait_p95_ms: number | null;
+            /** Ring Buffer Capacity */
+            ring_buffer_capacity: number;
+            /** Ring Buffer Size */
+            ring_buffer_size: number;
+            /** Timeouts Total */
+            timeouts_total: number;
+            /** Totals By Caller Lane */
+            totals_by_caller_lane: components["schemas"]["CallerLaneOutcomeOut"][];
+            /** Window Minutes */
+            window_minutes: number;
         };
         /** InferredAdjacencyResponse */
         InferredAdjacencyResponse: {
@@ -8999,6 +9076,16 @@ export interface components {
             deleted: number;
             /** Older Than Days */
             older_than_days: number;
+        };
+        /**
+         * QueueDepthOut
+         * @description Current (live) admissions waiting on a lane's semaphore.
+         */
+        QueueDepthOut: {
+            /** Depth */
+            depth: number;
+            /** Lane */
+            lane: string;
         };
         /** QuizChoice */
         QuizChoice: {
@@ -12023,6 +12110,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceHealthOut"];
+                };
+            };
+        };
+    };
+    inference_telemetry_endpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InferenceTelemetryOut"];
                 };
             };
         };

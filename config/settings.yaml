@@ -96,6 +96,16 @@ llm:
       temperature: 0.7
       top_p: 0.9
 
+  # Admission control (DL-M09): the single choke point in front of every
+  # local (Spark-hosted) vision/text LLM provider. Vision lane defaults to 1
+  # (the Spark serves one heavy vision request well, two badly); the text
+  # lane is cheaper but still competes for the same GPU. A queued call
+  # older than queue_timeout_s fails closed rather than piling up.
+  admission:
+    max_concurrent_vision: 1
+    max_concurrent_text: 2
+    queue_timeout_s: 20
+
   realtime:
     provider: "gemini"
     api_key: "${GEMINI_API_KEY}"
@@ -396,6 +406,13 @@ hygiene:
     # the rule's alert_missed_hygiene step's telegram_image_source to "none")
     # to keep text-only alerts while leaving this default documented here.
     include_images: true
+
+# DL-M09: novelty_gate step default. CLIP-embedding cosine distance below
+# this vs. the last analyzed frame for a scope means "scene unchanged,
+# skip" (saves the tier-3/4 model calls downstream). Per-step config can
+# override; this is the authoring default only.
+novelty_gate:
+  min_distance: 0.06
 
 # Embedding inference (Triton)
 embedding:

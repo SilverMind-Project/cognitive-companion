@@ -26,6 +26,7 @@ export const STEP_DOT_COLORS = {
   media_presign: "teal",
   media_window_poll: "teal",
   notification: "orange",
+  novelty_gate: "teal",
   object_trend_analysis: "teal",
   person_identification: "indigo",
   presence_query: "blue",

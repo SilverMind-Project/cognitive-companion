@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from backend.core.auth import AuthContext, require_permission
 from backend.core.logging import get_logger
-from backend.routers.dependencies import get_daily_living_health
+from backend.routers.dependencies import get_daily_living_health, get_inference_telemetry
 from backend.schemas.daily_living_health import (
     ActivityLedgerHealthOut,
     ActivityTypeHealthOut,
@@ -16,8 +16,10 @@ from backend.schemas.daily_living_health import (
     ObservationsByDayOut,
     SemanticMemoryHealthOut,
 )
+from backend.schemas.inference_telemetry import InferenceTelemetryOut
 from backend.services.cts import metrics as cts_metrics
 from backend.services.daily_living_health import DailyLivingHealthService
+from backend.services.inference_telemetry import InferenceTelemetryService
 
 logger = get_logger(__name__)
 
@@ -133,6 +135,22 @@ async def daily_living_health_endpoint(
             stale=snapshot.activity_ledger.stale,
         ),
     )
+
+
+@router.get("/api/v1/admin/inference-telemetry", response_model=InferenceTelemetryOut)
+def inference_telemetry_endpoint(
+    request: Request,
+    svc: InferenceTelemetryService = Depends(get_inference_telemetry),
+    _auth: AuthContext = Depends(require_permission("admin:read")),
+) -> InferenceTelemetryOut:
+    """Return LLM admission-controller telemetry for the admin dashboard.
+
+    Operational telemetry only (DL-M09): the ring buffer is in-memory and
+    resets on restart, mirroring the aggregator-state exemption pattern (one
+    service method, no MCP mirror, since this is not caregiver-facing domain
+    data).
+    """
+    return svc.get_telemetry()
 
 
 def _prometheus_response():

@@ -655,6 +655,242 @@ async def test_prune_heavy_skips_tagged_node_in_watch(
 
 
 @pytest.mark.asyncio
+async def test_watch_prunes_vision_capable_llm_call_unless_watch_allowed(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
+    """DL-M09 Part C: watch refuses a vision-capable llm_call unless watch_allowed:true.
+
+    Unlike the ``heavy`` flag (an explicit author opt-out), this check is
+    driven by the resolved model's capabilities, so an ordinary VLM confirm
+    node needs no ``heavy`` tag to be pruned in the watch profile.
+    """
+    llm_provider = MockLLMProvider('{"complete": true}')
+    mock_services.llm_model_registry = MockLLMRegistry(llm_provider, capabilities=["text", "vision"])
+
+    rule = _make_rule(db_session)
+    poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
+    vlm = _make_step(
+        db_session,
+        rule,
+        2,
+        "llm_call",
+        config={
+            "prompt": "VLM confirm",
+            "output_key": "response",
+            "response_format": "json_free",
+            "model_id": "vision-model",
+        },
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        3,
+        "gate_verdict",
+        config={"complete_if": "steps.llm_call_2.outputs.response.complete", "min_confidence": 0.0},
+    )
+    _connect(db_session, rule, poll, vlm)
+    _connect(db_session, rule, vlm, verdict)
+    db_session.commit()
+
+    runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
+
+    watch_profile = GateProfile(
+        name="watch", window_s=4, max_frames=3, min_confidence=0.7, prune_heavy=True
+    )
+    verdict_watch = await runner.run(
+        gate_rule_id=rule.id, profile=watch_profile, cameras=[], context=context
+    )
+    assert verdict_watch.complete is False
+    assert verdict_watch.reason == "no_verdict"
+    assert len(llm_provider.calls) == 0
+    assert verdict_watch.node_results["llm_call_2"]["pruned"] is True
+    assert verdict_watch.node_results["llm_call_2"]["reason"] == "pruned_heavy_vision"
+
+    # Confirm profile is untouched: the same node executes normally.
+    confirm_profile = GateProfile(
+        name="confirm", window_s=20, max_frames=9, min_confidence=0.7, prune_heavy=False
+    )
+    verdict_confirm = await runner.run(
+        gate_rule_id=rule.id, profile=confirm_profile, cameras=[], context=context
+    )
+    assert verdict_confirm.complete is True
+    assert len(llm_provider.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_watch_allowed_opts_a_vision_llm_call_back_in(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
+    llm_provider = MockLLMProvider('{"complete": true}')
+    mock_services.llm_model_registry = MockLLMRegistry(llm_provider, capabilities=["text", "vision"])
+
+    rule = _make_rule(db_session)
+    poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
+    vlm = _make_step(
+        db_session,
+        rule,
+        2,
+        "llm_call",
+        config={
+            "prompt": "VLM confirm",
+            "output_key": "response",
+            "response_format": "json_free",
+            "model_id": "vision-model",
+            "watch_allowed": True,
+        },
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        3,
+        "gate_verdict",
+        config={"complete_if": "steps.llm_call_2.outputs.response.complete", "min_confidence": 0.0},
+    )
+    _connect(db_session, rule, poll, vlm)
+    _connect(db_session, rule, vlm, verdict)
+    db_session.commit()
+
+    runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
+    watch_profile = GateProfile(
+        name="watch", window_s=4, max_frames=3, min_confidence=0.7, prune_heavy=True
+    )
+    verdict_watch = await runner.run(
+        gate_rule_id=rule.id, profile=watch_profile, cameras=[], context=context
+    )
+    assert verdict_watch.complete is True
+    assert len(llm_provider.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_watch_does_not_prune_text_only_llm_call(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
+    """A text-only model (no vision capability) is unaffected by the new check."""
+    llm_provider = MockLLMProvider('{"complete": true}')
+    mock_services.llm_model_registry = MockLLMRegistry(llm_provider, capabilities=["text"])
+
+    rule = _make_rule(db_session)
+    poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
+    reasoning = _make_step(
+        db_session,
+        rule,
+        2,
+        "llm_call",
+        config={
+            "prompt": "reason over structured context",
+            "output_key": "response",
+            "response_format": "json_free",
+            "model_id": "text-model",
+        },
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        3,
+        "gate_verdict",
+        config={"complete_if": "steps.llm_call_2.outputs.response.complete", "min_confidence": 0.0},
+    )
+    _connect(db_session, rule, poll, reasoning)
+    _connect(db_session, rule, reasoning, verdict)
+    db_session.commit()
+
+    runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
+    watch_profile = GateProfile(
+        name="watch", window_s=4, max_frames=3, min_confidence=0.7, prune_heavy=True
+    )
+    verdict_watch = await runner.run(
+        gate_rule_id=rule.id, profile=watch_profile, cameras=[], context=context
+    )
+    assert verdict_watch.complete is True
+    assert len(llm_provider.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_admission_timeout_yields_incomplete_verdict_not_a_raise(
+    db_session: Session,
+    db_factory: Any,
+    test_settings: MockSettings,
+    mock_services: ServiceContainer,
+) -> None:
+    """DL-M09 Part A: an LLMAdmissionTimeout never escapes the gate run as a raise,
+    and it must fail closed structurally, not by authoring accident.
+
+    ``llm_call`` converts the timeout into ``StepResult(success=False, data={...},
+    output_ports=())`` (verified in ``test_llm_call.py``): no output ports are
+    activated, so the edge to ``gate_verdict`` resolves dead, the verdict node is
+    skipped entirely, and the runner falls through to its own ``no_verdict``
+    default (``complete=False``). ``complete_if`` is set to the trivially-true
+    literal ``"true"`` here specifically to prove this: if ``gate_verdict`` had
+    run at all, it would have reported ``complete=True`` regardless of the
+    timeout, since ``complete_if`` is caregiver-authorable through
+    ``TemplateInput`` and cannot be trusted to reference the failed call's output.
+    """
+    from backend.integrations.llm.admission import LLMAdmissionTimeout
+
+    class _TimeoutProvider:
+        async def call(self, **kwargs: Any) -> str:
+            raise LLMAdmissionTimeout("vision", "gate:confirm", 20.0)
+
+    mock_services.llm_model_registry = MockLLMRegistry(_TimeoutProvider())
+
+    rule = _make_rule(db_session)
+    poll = _make_step(db_session, rule, 1, "media_window_poll", config={"source": "cts"})
+    llm = _make_step(
+        db_session,
+        rule,
+        2,
+        "llm_call",
+        config={"prompt": "VLM confirm", "model_id": "vision-model"},
+    )
+    verdict = _make_step(
+        db_session,
+        rule,
+        3,
+        "gate_verdict",
+        config={
+            "complete_if": "true",
+            "min_confidence": 0.0,
+        },
+    )
+    _connect(db_session, rule, poll, llm)
+    _connect(db_session, rule, llm, verdict)
+    db_session.commit()
+
+    runner = GateGraphRunner(services=mock_services, db_factory=db_factory, settings=test_settings)
+    profile = GateProfile(name="confirm", window_s=20, max_frames=9, min_confidence=0.7)
+    context = GateRunContext(
+        person_id="p1", room_name="Living Room", sensor_id="s1", session_id="sess1", step_ord=1
+    )
+
+    verdict_res = await runner.run(
+        gate_rule_id=rule.id, profile=profile, cameras=[], context=context
+    )
+    assert verdict_res.complete is False
+    assert verdict_res.reason == "no_verdict"
+    assert "llm_call_2" in verdict_res.node_results
+    assert verdict_res.node_results["llm_call_2"]["ports"] == []
+    assert verdict_res.node_results["gate_verdict_3"]["skipped"] is True
+
+
+@pytest.mark.asyncio
 async def test_profile_model_override(
     db_session: Session,
     db_factory: Any,

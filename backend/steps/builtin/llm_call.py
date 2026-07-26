@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 
 from backend.core.logging import get_logger
 from backend.core.template import render_template
+from backend.integrations.llm.admission import LLMAdmissionTimeout
 from backend.integrations.llm.json_utils import parse_llm_json
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
@@ -446,17 +447,46 @@ class LLMCallHandler(StepHandler):
         top_p_override = float(raw_top_p) if raw_top_p is not None else None
         max_tokens_override = int(raw_max_tokens) if raw_max_tokens is not None else None
 
-        raw_response = await provider.call(
-            prompt=full_prompt,
-            media_paths=media_paths if media_paths else None,
-            media_type=trigger.media_type if media_paths else None,
-            response_schema=guided_schema,
-            thinking=thinking,
-            temperature=temperature_override,
-            top_p=top_p_override,
-            max_tokens=max_tokens_override,
-            hallucination_marker=hallucination_marker if hallucination_marker else None,
-        )
+        # Admission-control caller tag (DL-M09): gate-fired executions (the
+        # confirm/watch profiles) seed `_profile` into pipeline_data before
+        # traversal (GateGraphRunner.run); everything else is a normal
+        # triggered rule, tagged by its own name.
+        profile_info = pipeline_data.get("_profile")
+        if isinstance(profile_info, dict) and profile_info.get("name"):
+            caller = f"gate:{profile_info['name']}"
+        else:
+            caller = execution.rule.name if execution.rule else "unknown"
+
+        try:
+            raw_response = await provider.call(
+                prompt=full_prompt,
+                media_paths=media_paths if media_paths else None,
+                media_type=trigger.media_type if media_paths else None,
+                response_schema=guided_schema,
+                thinking=thinking,
+                temperature=temperature_override,
+                top_p=top_p_override,
+                max_tokens=max_tokens_override,
+                hallucination_marker=hallucination_marker if hallucination_marker else None,
+                caller=caller,
+            )
+        except LLMAdmissionTimeout as exc:
+            logger.warning(
+                "llm_call_admission_timeout",
+                model_id=model_id,
+                caller=caller,
+                waited_s=exc.waited_s,
+            )
+            # No output ports activated: the node's outgoing edges resolve dead
+            # so downstream steps (gate_verdict, notification) are skipped
+            # rather than running on a missing response. A queue timeout must
+            # fail closed, not fall through main with an error payload that a
+            # caregiver-authored complete_if/template could still read as truthy.
+            return StepResult(
+                success=False,
+                data={"error": f"llm_admission_timeout: {exc}"},
+                output_ports=(),
+            )
 
         # -- Parse output -----------------------------------------------------
         output_key: str = config.get("output_key", "llm_response") or "llm_response"

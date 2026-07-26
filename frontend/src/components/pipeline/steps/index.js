@@ -241,6 +241,16 @@ export const stepConfigMap = {
     defaults: { object_names_key: [], retention_minutes: 240, output_key: "presigned_images" },
     tabs: genericTabs,
   },
+  novelty_gate: {
+    component: GenericPluginConfig,
+    defaults: {
+      embedding_key: "scene_embedding",
+      scope: "{{rule}}:{{camera}}",
+      min_distance: null,
+      ttl_minutes: 120,
+    },
+    tabs: genericTabs,
+  },
   signal_emit: {
     component: SignalEmitConfig,
     defaults: signalEmitDefaults,

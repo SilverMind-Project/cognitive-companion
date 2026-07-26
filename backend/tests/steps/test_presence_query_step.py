@@ -206,3 +206,204 @@ async def test_no_presence_service_returns_false():
         services=ServiceContainer(db_factory=lambda: None),
     )
     assert result.data["presence_available"] is False
+
+
+# ---------------------------------------------------------------------------
+# room_dwell_history mode (DL-M08 Part B)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _FakeRoom:
+    id: int
+    name: str
+
+
+class _StubPersonLocationService:
+    def __init__(self, episodes=()):
+        self.episodes = episodes
+        self.calls: list[dict] = []
+
+    async def dwell_episodes(self, person_id, room_id, start, end, *, now=None, merge_gap_s=120):
+        self.calls.append(
+            {
+                "person_id": person_id,
+                "room_id": room_id,
+                "start": start,
+                "end": end,
+                "now": now,
+                "merge_gap_s": merge_gap_s,
+            }
+        )
+        return self.episodes
+
+
+def _make_mock_db(room: _FakeRoom | None):
+    from unittest.mock import MagicMock
+
+    session = MagicMock()
+    session.query.return_value = session
+    session.filter.return_value = session
+    session.first.return_value = room
+    return session
+
+
+@dataclass
+class _FakeEpisode:
+    entered_at: datetime
+    exited_at: datetime
+    minutes: float
+
+
+def _history_config(**overrides) -> dict:
+    config = {
+        "query_mode": "room_dwell_history",
+        "person_id": "mom",
+        "room_name": "bathroom",
+    }
+    config.update(overrides)
+    return config
+
+
+@pytest.mark.asyncio
+async def test_room_dwell_history_qualifying_episode_found():
+    room = _FakeRoom(id=7, name="bathroom")
+    db = _make_mock_db(room)
+    episodes = (_FakeEpisode(datetime.now(UTC), datetime.now(UTC), 10.0),)
+    person_location = _StubPersonLocationService(episodes)
+    services = ServiceContainer(db_factory=lambda: db, person_location=person_location)
+
+    handler = PresenceQueryHandler()
+    result = await handler.execute(
+        step=_FakeStep(config_json=_history_config(min_episode_minutes=8)),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+
+    assert result.data["presence_had_dwell"] is True
+    assert result.data["presence_qualifying_episodes"] == 1
+    assert result.data["presence_total_minutes"] == 10.0
+    assert result.data["presence_longest_minutes"] == 10.0
+    assert person_location.calls[0]["person_id"] == "mom"
+    assert person_location.calls[0]["room_id"] == 7
+
+
+@pytest.mark.asyncio
+async def test_room_dwell_history_below_threshold_episode_excluded():
+    room = _FakeRoom(id=7, name="bathroom")
+    db = _make_mock_db(room)
+    episodes = (_FakeEpisode(datetime.now(UTC), datetime.now(UTC), 3.0),)
+    person_location = _StubPersonLocationService(episodes)
+    services = ServiceContainer(db_factory=lambda: db, person_location=person_location)
+
+    handler = PresenceQueryHandler()
+    result = await handler.execute(
+        step=_FakeStep(config_json=_history_config(min_episode_minutes=8)),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+
+    assert result.data["presence_had_dwell"] is False
+    assert result.data["presence_qualifying_episodes"] == 0
+    assert result.data["presence_total_minutes"] == 0.0
+    assert result.data["presence_longest_minutes"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_room_dwell_history_empty_history():
+    room = _FakeRoom(id=7, name="bathroom")
+    db = _make_mock_db(room)
+    person_location = _StubPersonLocationService(())
+    services = ServiceContainer(db_factory=lambda: db, person_location=person_location)
+
+    handler = PresenceQueryHandler()
+    result = await handler.execute(
+        step=_FakeStep(config_json=_history_config()),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+
+    assert result.data["presence_had_dwell"] is False
+    assert result.data["presence_qualifying_episodes"] == 0
+
+
+@pytest.mark.asyncio
+async def test_room_dwell_history_unknown_room_fails_silent():
+    db = _make_mock_db(None)
+    person_location = _StubPersonLocationService(())
+    services = ServiceContainer(db_factory=lambda: db, person_location=person_location)
+
+    handler = PresenceQueryHandler()
+    result = await handler.execute(
+        step=_FakeStep(config_json=_history_config(room_name="nonexistent")),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+
+    assert result.success
+    assert result.data["presence_had_dwell"] is False
+    assert not person_location.calls
+
+
+@pytest.mark.asyncio
+async def test_room_dwell_history_no_person_location_service_fails_silent():
+    room = _FakeRoom(id=7, name="bathroom")
+    db = _make_mock_db(room)
+    services = ServiceContainer(db_factory=lambda: db, person_location=None)
+
+    handler = PresenceQueryHandler()
+    result = await handler.execute(
+        step=_FakeStep(config_json=_history_config()),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+
+    assert result.success
+    assert result.data["presence_had_dwell"] is False
+
+
+@pytest.mark.asyncio
+async def test_room_dwell_history_missing_room_name_fails_silent():
+    services = ServiceContainer(
+        db_factory=lambda: _make_mock_db(None),
+        person_location=_StubPersonLocationService(()),
+    )
+
+    handler = PresenceQueryHandler()
+    result = await handler.execute(
+        step=_FakeStep(config_json=_history_config(room_name="")),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+
+    assert result.success
+    assert result.data["presence_had_dwell"] is False
+
+
+@pytest.mark.asyncio
+async def test_room_dwell_history_current_mode_still_default():
+    """query_mode defaults to 'current'; existing behavior is unchanged."""
+    snapshot = _make_snapshot(PresenceStatus.PRESENT_ROOM, room_name="kitchen")
+    services = _make_services(_StubPresenceService(snapshot))
+    handler = PresenceQueryHandler()
+    result = await handler.execute(
+        step=_FakeStep(config_json={"person_id": "mom"}),
+        execution=_FakeExecution(),
+        pipeline_data={},
+        trigger=_make_trigger(),
+        services=services,
+    )
+    assert result.data["presence_available"] is True
+    assert "presence_had_dwell" not in result.data

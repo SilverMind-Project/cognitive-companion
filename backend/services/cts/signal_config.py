@@ -12,7 +12,11 @@ from typing import Any
 from cts_contracts import DementiaSignalKind
 
 WIRE_SIGNAL_KINDS: tuple[str, ...] = tuple(str(k) for k in DementiaSignalKind)
-CC_LOCAL_SIGNAL_KINDS: tuple[str, ...] = ("inferred_dwell_exceeded", "tea_intent_suspected")
+CC_LOCAL_SIGNAL_KINDS: tuple[str, ...] = (
+    "inferred_dwell_exceeded",
+    "tea_intent_suspected",
+    "hygiene_routine_missed",
+)
 ALL_SIGNAL_KINDS: tuple[str, ...] = WIRE_SIGNAL_KINDS + CC_LOCAL_SIGNAL_KINDS
 
 # Presence-only kinds that are relevant for everyone regardless of profile.
@@ -25,6 +29,7 @@ _DEMENTIA_SPECIFIC_KINDS: frozenset[str] = frozenset(
         "sundowning_index",
         "tea_intent_suspected",
         "same_clothes_suspected",
+        "hygiene_routine_missed",
     }
 )
 

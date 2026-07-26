@@ -20,6 +20,13 @@ describe("signalKinds", () => {
     expect(presentation.label).toBe("same clothes suspected");
   });
 
+  it("hygiene_routine_missed returns its registered icon and blurb", () => {
+    const presentation = getKindPresentation("hygiene_routine_missed");
+    expect(presentation.icon).toBe("mdi-shower-head");
+    expect(presentation.blurb).toBe("Same clothes and no wash-up detected");
+    expect(presentation.label).toBe("hygiene routine missed");
+  });
+
   it("unknown kind falls back to a generic humanized label and default icon", () => {
     // This is the forward-compatibility contract (DL-M06 Part E.5): a kind
     // this map has never heard of must still render, not throw or show

@@ -29,6 +29,7 @@ from .types import (
     BackfillDwellInput,
     BackfillIngestResult,
     CurrentLocation,
+    DwellEpisode,
     FloorPoint,
     LocationObservation,
     PresenceSegment,
@@ -564,6 +565,73 @@ class PersonLocationService:
                 )
             )
         return tuple(result)
+
+    async def dwell_episodes(
+        self,
+        person_id: str,
+        room_id: int,
+        start: datetime,
+        end: datetime,
+        *,
+        now: datetime | None = None,
+        merge_gap_s: int = 120,
+    ) -> tuple[DwellEpisode, ...]:
+        """Gap-merged dwell episodes in one room, built on :meth:`room_segments`.
+
+        Built on top of ``room_segments`` rather than re-segmenting raw
+        observations, for two reasons: (a) this package has exactly one
+        segmentation, and ``room_segments`` already handles open-segment
+        clamping and identity-revision supersession; (b) a room like a
+        bathroom is typically **inferred** presence (a transit-zone entry;
+        bathrooms have no cameras), which produces presence segments but
+        zero observation rows, so an observation-based dwell computation
+        would systematically report "no dwell" for exactly the room this is
+        for. Segments are not filtered by ``entry_source``/``is_inferred``:
+        an inferred-only episode is the normal case here, not a fallback.
+
+        Two adjacent segments in ``room_id`` merge into one episode when the
+        gap between one's ``effective_exited_at`` and the next's
+        ``entered_at`` is at most ``merge_gap_s`` (a brief signal dropout
+        should not split one continuous stay into two short ones). An
+        episode's ``entered_at`` is its first segment's true start, never
+        clamped to ``start``: a caller computing "did she dwell here at all"
+        wants the full episode duration, not one truncated by an arbitrary
+        window boundary chosen for the query.
+        """
+        segments = await self.room_segments(person_id, start, end, now=now)
+        room_segs = sorted(
+            (s for s in segments if s.room_id == room_id),
+            key=lambda s: s.entered_at,
+        )
+        if not room_segs:
+            return ()
+
+        episodes: list[DwellEpisode] = []
+        cur_start = room_segs[0].entered_at
+        cur_end = room_segs[0].effective_exited_at
+        for seg in room_segs[1:]:
+            gap_s = (seg.entered_at - cur_end).total_seconds()
+            if gap_s <= merge_gap_s:
+                if seg.effective_exited_at > cur_end:
+                    cur_end = seg.effective_exited_at
+            else:
+                episodes.append(
+                    DwellEpisode(
+                        entered_at=cur_start,
+                        exited_at=cur_end,
+                        minutes=(cur_end - cur_start).total_seconds() / 60,
+                    )
+                )
+                cur_start = seg.entered_at
+                cur_end = seg.effective_exited_at
+        episodes.append(
+            DwellEpisode(
+                entered_at=cur_start,
+                exited_at=cur_end,
+                minutes=(cur_end - cur_start).total_seconds() / 60,
+            )
+        )
+        return tuple(episodes)
 
     async def observations(
         self,

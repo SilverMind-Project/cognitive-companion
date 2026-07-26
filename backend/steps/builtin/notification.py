@@ -7,8 +7,10 @@ import json
 from backend.core.logging import get_logger
 from backend.core.template import render_template
 from backend.models.pipeline import PipelineStep, WorkflowExecution
+from backend.services.pipeline_data_manager import resolve_pipeline_value
 from backend.steps import StepRegistry
 from backend.steps._helpers import make_trigger_vars
+from backend.steps._pipeline_images import image_refs_to_urls, normalize_image_value
 from backend.steps.base import (
     ServiceContainer,
     StepHandler,
@@ -163,6 +165,7 @@ async def _select_telegram_image_urls(
     config: dict,
     trigger: TriggerContext,
     services: ServiceContainer,
+    pipeline_data: dict,
 ) -> list[str]:
     """Collect all images for Telegram delivery in priority order."""
     telegram_image_source: str = config.get("telegram_image_source", "trigger")
@@ -173,6 +176,14 @@ async def _select_telegram_image_urls(
 
     if telegram_image_source in ("additional", "both"):
         media_paths.extend(await _query_additional_telegram_media(config, services))
+
+    if telegram_image_source == "pipeline":
+        path = str(config.get("pipeline_image_path", ""))
+        if path:
+            raw = resolve_pipeline_value(pipeline_data, path)
+            if raw is not None:
+                refs = normalize_image_value(raw, default_source_type="pipeline")
+                media_paths.extend(image_refs_to_urls(refs, services.minio_client))
 
     return _dedupe_preserving_order(media_paths)
 
@@ -289,14 +300,26 @@ class NotificationHandler(StepHandler):
                     },
                     "telegram_image_source": {
                         "type": "string",
-                        "enum": ["trigger", "none", "additional", "both"],
+                        "enum": ["trigger", "none", "additional", "both", "pipeline"],
                         "default": "trigger",
                         "description": (
                             "Image to attach to the Telegram notification. "
                             "'trigger' = frame that triggered the pipeline, "
                             "'additional' = extra cameras only, "
                             "'both' = trigger frame + additional cameras, "
+                            "'pipeline' = a prior step's output (see "
+                            "pipeline_image_path), "
                             "'none' = text only."
+                        ),
+                    },
+                    "pipeline_image_path": {
+                        "type": "string",
+                        "default": "",
+                        "description": (
+                            "Dotted pipeline_data path to an image URL, object name, "
+                            "or list of them (e.g. 'steps.media_presign_1.outputs."
+                            "presigned_images'). Only used when telegram_image_source "
+                            "is 'pipeline'."
                         ),
                     },
                     "telegram_additional_sensor_ids": {
@@ -354,6 +377,7 @@ class NotificationHandler(StepHandler):
                 "ha_media_player": "",
                 "trigger_cooloff": True,
                 "telegram_image_source": "trigger",
+                "pipeline_image_path": "",
                 "telegram_additional_sensor_ids": [],
                 "telegram_additional_room_names": [],
                 "telegram_images_per_sensor": 1,
@@ -388,7 +412,7 @@ class NotificationHandler(StepHandler):
             message = _format_channel_message(message_template, message, trigger, pipeline_data)
 
         channel_messages = _build_channel_messages(config, message, trigger, pipeline_data)
-        image_urls = await _select_telegram_image_urls(config, trigger, services)
+        image_urls = await _select_telegram_image_urls(config, trigger, services, pipeline_data)
         rule_config = _build_rule_config(config, channels)
 
         results = await services.notification_dispatcher.dispatch(

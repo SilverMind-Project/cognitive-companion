@@ -119,6 +119,22 @@ class RoomSegment:
 
 
 @dataclass(frozen=True)
+class DwellEpisode:
+    """One gap-merged dwell episode in a single room, built from ``room_segments``.
+
+    ``entered_at`` keeps the first constituent segment's true start (never
+    clamped to the query window: a shower proxy wants full episode duration,
+    not a truncated one), while ``exited_at`` is each segment's own
+    ``effective_exited_at`` (already clamped to ``min(now, query_end)`` for a
+    still-open segment).
+    """
+
+    entered_at: datetime
+    exited_at: datetime
+    minutes: float
+
+
+@dataclass(frozen=True)
 class HeatmapBin:
     x_bin: float
     y_bin: float

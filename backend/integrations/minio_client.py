@@ -148,6 +148,19 @@ class MinioClient:
             logger.warning("minio_get_object_error", object_name=object_name, error=str(exc))
             return None
 
+    def object_exists(self, object_name: str) -> bool:
+        """Return True if *object_name* exists in the bucket.
+
+        A cheap existence check (HEAD, no body transfer) for callers that
+        presign or reference an object they did not themselves just upload
+        (e.g. a CTS-produced keyframe key received over a signal payload).
+        """
+        try:
+            self._client.head_object(Bucket=self.bucket, Key=object_name)
+            return True
+        except ClientError:
+            return False
+
     # -- delete ---------------------------------------------------------------
 
     def delete_object(self, object_name: str) -> None:
@@ -224,6 +237,10 @@ class MinioClient:
     async def async_get_object(self, object_name: str) -> bytes | None:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(_io_pool, self.get_object, object_name)
+
+    async def async_object_exists(self, object_name: str) -> bool:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_io_pool, self.object_exists, object_name)
 
     async def async_delete_object(self, object_name: str) -> None:
         loop = asyncio.get_running_loop()

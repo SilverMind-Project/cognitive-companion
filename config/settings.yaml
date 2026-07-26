@@ -376,6 +376,27 @@ daily_living:
     # trigger_cooloff), so a negative verdict never suppresses the next poll.
     rate_limit_minutes: 45
 
+# DL-M08: hygiene VLM confirm, shower proxy, and caregiver alert (CC half of
+# L9; the CTS half's hygiene.same_clothes.* keys live in the tracking-orchestrator
+# settings.yaml). Documented here per the M00 plan-author defaults table; the
+# daily_living_hygiene_confirm.json rule bundle bakes the current values in as
+# literals (rule bundles do not read settings.yaml at import time). Change both
+# together.
+hygiene:
+  shower:
+    # Lookback for the bathroom-dwell shower proxy join.
+    window_hours: 26
+    # Bathroom dwell at or above this many minutes counts as a plausible
+    # shower/wash-up; below this, the same-clothes signal is treated as a
+    # missed hygiene routine.
+    min_bathroom_dwell_minutes: 8
+  alert:
+    # Attach the two days' evidence crops to the Telegram alert. Hygiene
+    # crops are more sensitive than a kitchen snapshot; flip to false (edit
+    # the rule's alert_missed_hygiene step's telegram_image_source to "none")
+    # to keep text-only alerts while leaving this default documented here.
+    include_images: true
+
 # Embedding inference (Triton)
 embedding:
   triton_url: "${EMBEDDING_TRITON_URL}"

@@ -236,6 +236,11 @@ export const stepConfigMap = {
     chips: regionPresenceChips,
   },
   quiz_start: { component: GenericPluginConfig, defaults: {}, tabs: genericTabs },
+  media_presign: {
+    component: GenericPluginConfig,
+    defaults: { object_names_key: [], retention_minutes: 240, output_key: "presigned_images" },
+    tabs: genericTabs,
+  },
   signal_emit: {
     component: SignalEmitConfig,
     defaults: signalEmitDefaults,

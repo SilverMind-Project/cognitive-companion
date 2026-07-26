@@ -26,6 +26,9 @@ def resolve_person_id(config: dict, pipeline_data: dict) -> str | None:
     2. First entry from ``pipeline_data["persons"]`` (list of dicts with
        ``id`` or ``person_id`` keys).
     3. Scalar ``pipeline_data["person_id"]``.
+    4. ``pipeline_data["trigger_event"]["person_id"]`` -- the fire_event()
+       payload attached to an event-fired pipeline (e.g. a ``dementia_signal``
+       rule), which carries no ``persons``/``person_id`` top-level key.
 
     Returns None when nothing is resolvable.
     """
@@ -40,4 +43,13 @@ def resolve_person_id(config: dict, pipeline_data: dict) -> str | None:
             return first.get("id") or first.get("person_id") or None
 
     candidate = pipeline_data.get("person_id")
-    return candidate if isinstance(candidate, str) and candidate else None
+    if isinstance(candidate, str) and candidate:
+        return candidate
+
+    trigger_event = pipeline_data.get("trigger_event")
+    if isinstance(trigger_event, dict):
+        event_person_id = trigger_event.get("person_id")
+        if isinstance(event_person_id, str) and event_person_id:
+            return event_person_id
+
+    return None

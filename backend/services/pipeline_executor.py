@@ -180,6 +180,13 @@ class PipelineExecutor:
         database session — it is a fire-and-forget signal that the
         RulesEngine can optionally consume when the ``cts_window`` trigger
         type is activated.
+
+        ``payload`` is threaded through to :meth:`execute` as ``event_payload``
+        so matched pipelines can read it back from
+        ``pipeline_data["trigger_event"]`` (steps must not read it off
+        ``TriggerContext`` directly: ``resume()`` rebuilds a synthetic
+        ``TriggerContext`` from persisted ``pipeline_data["trigger"]`` alone,
+        so only the ``pipeline_data`` copy survives a wait/resume cycle).
         """
         logger.info(
             "pipeline_fire_event",
@@ -200,24 +207,37 @@ class PipelineExecutor:
         if not rules:
             return
 
+        rule_ids = [rule.id for rule in rules]
         trigger = TriggerContext(trigger_type=kind)
 
-        async def _run_rule(rule: Rule) -> None:
+        async def _run_rule(rule_id: int) -> None:
+            # Re-fetch on this coroutine's own session rather than reusing the
+            # Rule instance from the (now-closed) matching query above: that
+            # instance is detached, and execute() lazy-loads rule.steps, which
+            # raises DetachedInstanceError on a detached object regardless of
+            # which session id is passed in.
             rule_db = self._services.db_factory()
             try:
-                await self.execute(rule, trigger, rule_db)
-            except Exception:
-                logger.exception("fire_event_rule_execute_error", rule=rule.name, kind=kind)
+                rule = rule_db.get(Rule, rule_id)
+                if rule is None:
+                    logger.warning("fire_event_rule_vanished", rule_id=rule_id, kind=kind)
+                    return
+                try:
+                    await self.execute(rule, trigger, rule_db, event_payload=payload)
+                except Exception:
+                    logger.exception("fire_event_rule_execute_error", rule=rule.name, kind=kind)
             finally:
                 rule_db.close()
 
-        await asyncio.gather(*(_run_rule(rule) for rule in rules), return_exceptions=True)
+        await asyncio.gather(*(_run_rule(rule_id) for rule_id in rule_ids), return_exceptions=True)
 
     async def execute(
         self,
         rule: Rule,
         trigger: TriggerContext,
         db: Session,
+        *,
+        event_payload: dict[str, Any] | None = None,
     ) -> WorkflowExecution:
         """Run a rule's pipeline from the first step.
 
@@ -266,6 +286,7 @@ class PipelineExecutor:
             now_utc=now_utc,
             now_local=now_local,
             timezone_name=str(local_tz),
+            event_payload=event_payload,
         )
         graph_snapshot = build_graph_snapshot(steps, edges, _output_ports_for_step_type)
         pipeline_data["_graph"] = graph_snapshot

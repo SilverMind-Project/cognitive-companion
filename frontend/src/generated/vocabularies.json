@@ -29,6 +29,7 @@
     "bathroom_dwell_anomaly",
     "fall_suspected",
     "gait_slowing",
+    "hygiene_routine_missed",
     "inferred_dwell_exceeded",
     "nighttime_movement",
     "pacing",
@@ -168,6 +169,16 @@
         "main"
       ],
       "type_name": "llm_call"
+    },
+    {
+      "category": "perception",
+      "display_name": "Presign Media",
+      "gate_safe": true,
+      "icon": "mdi-image-lock",
+      "output_ports": [
+        "main"
+      ],
+      "type_name": "media_presign"
     },
     {
       "category": "perception",

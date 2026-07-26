@@ -21,6 +21,11 @@ def test_export_includes_tea_intent_suspected():
     assert "tea_intent_suspected" in vocabularies["signal_kinds"]
 
 
+def test_export_includes_hygiene_routine_missed():
+    vocabularies = build_vocabularies()
+    assert "hygiene_routine_missed" in vocabularies["signal_kinds"]
+
+
 def test_export_step_types_have_expected_shape():
     vocabularies = build_vocabularies()
     assert vocabularies["step_types"], "expected at least one registered step type"

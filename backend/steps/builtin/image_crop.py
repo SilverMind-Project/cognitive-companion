@@ -6,15 +6,15 @@ Crops configured regions from input images and writes the results to MinIO.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from io import BytesIO
 
 from PIL import Image
 
 from backend.core.logging import get_logger
-from backend.models.media_cache import MediaCache
 from backend.models.pipeline import PipelineStep, WorkflowExecution
 from backend.steps import StepRegistry
+from backend.steps._media_cache import register_media_cache_row
 from backend.steps._pipeline_images import (
     PipelineImageRef,
     fetch_image_bytes,
@@ -362,28 +362,10 @@ class ImageCropHandler(StepHandler):
         retention_minutes: int,
     ) -> None:
         """Persist a MediaCache row so the crop is tracked for cleanup."""
-        now = datetime.now(UTC)
-        sensor_id = source_ref.source_sensor_id or source_ref.source_camera_id or None
-
-        db = services.db_factory()
-        try:
-            row = db.query(MediaCache).filter(MediaCache.object_name == object_name).first()
-            if row is None:
-                row = MediaCache(
-                    object_name=object_name,
-                    presigned_url=presigned_url,
-                    sensor_id=sensor_id,
-                    captured_at=now,
-                    expires_at=now + timedelta(minutes=retention_minutes),
-                )
-                db.add(row)
-            else:
-                row.presigned_url = presigned_url
-                row.sensor_id = sensor_id
-                row.expires_at = now + timedelta(minutes=retention_minutes)
-            db.commit()
-        except Exception:
-            logger.exception("media_cache_register_error", object_name=object_name)
-            db.rollback()
-        finally:
-            db.close()
+        register_media_cache_row(
+            services,
+            object_name,
+            presigned_url,
+            sensor_id=source_ref.source_sensor_id or source_ref.source_camera_id or None,
+            retention_minutes=retention_minutes,
+        )

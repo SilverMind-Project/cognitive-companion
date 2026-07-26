@@ -38,6 +38,7 @@ class FakeWorkflowExecution:
 class FakeServiceContainer:
     notification_dispatcher: AsyncMock | None = None
     event_aggregator: AsyncMock | None = None
+    minio_client: object | None = None
 
 
 class TestFormatChannelMessage:
@@ -314,7 +315,7 @@ class TestSelectTelegramImageUrls:
         config = {"telegram_image_source": "trigger"}
         services = FakeServiceContainer()
 
-        urls = await _select_telegram_image_urls(config, trigger, services)
+        urls = await _select_telegram_image_urls(config, trigger, services, {})
 
         assert urls == ["https://minio/t1.jpg", "https://minio/t2.jpg"]
 
@@ -324,7 +325,7 @@ class TestSelectTelegramImageUrls:
         config = {"telegram_image_source": "none"}
         services = FakeServiceContainer()
 
-        urls = await _select_telegram_image_urls(config, trigger, services)
+        urls = await _select_telegram_image_urls(config, trigger, services, {})
 
         assert urls == []
 
@@ -335,7 +336,7 @@ class TestSelectTelegramImageUrls:
         config = {"telegram_image_source": "additional"}
         services = FakeServiceContainer(event_aggregator=aggregator)
 
-        urls = await _select_telegram_image_urls(config, trigger, services)
+        urls = await _select_telegram_image_urls(config, trigger, services, {})
 
         assert urls == ["https://minio/a.jpg"]
 
@@ -348,7 +349,7 @@ class TestSelectTelegramImageUrls:
         config = {"telegram_image_source": "both"}
         services = FakeServiceContainer(event_aggregator=aggregator)
 
-        urls = await _select_telegram_image_urls(config, trigger, services)
+        urls = await _select_telegram_image_urls(config, trigger, services, {})
 
         assert urls == [
             "https://minio/trigger.jpg",
@@ -365,9 +366,44 @@ class TestSelectTelegramImageUrls:
         config = {"telegram_image_source": "both"}
         services = FakeServiceContainer(event_aggregator=aggregator)
 
-        urls = await _select_telegram_image_urls(config, trigger, services)
+        urls = await _select_telegram_image_urls(config, trigger, services, {})
 
         assert urls == ["https://minio/shared.jpg", "https://minio/extra.jpg"]
+
+    @pytest.mark.asyncio
+    async def test_pipeline_source_resolves_dotted_path(self):
+        trigger = FakeTriggerContext()
+        config = {
+            "telegram_image_source": "pipeline",
+            "pipeline_image_path": "steps.media_presign_1.outputs.presigned_images",
+        }
+        services = FakeServiceContainer()
+        pipeline_data = {
+            "steps": {
+                "media_presign_1": {
+                    "outputs": {
+                        "presigned_images": [
+                            "https://minio/today.jpg",
+                            "https://minio/yesterday.jpg",
+                        ]
+                    }
+                }
+            }
+        }
+
+        urls = await _select_telegram_image_urls(config, trigger, services, pipeline_data)
+
+        assert urls == ["https://minio/today.jpg", "https://minio/yesterday.jpg"]
+
+    @pytest.mark.asyncio
+    async def test_pipeline_source_missing_path_returns_empty(self):
+        trigger = FakeTriggerContext()
+        config = {"telegram_image_source": "pipeline", "pipeline_image_path": ""}
+        services = FakeServiceContainer()
+
+        urls = await _select_telegram_image_urls(config, trigger, services, {})
+
+        assert urls == []
 
     @pytest.mark.asyncio
     async def test_execute_passes_all_images_to_dispatch(self):

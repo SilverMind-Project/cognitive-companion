@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "rule": {
+    "name": "daily_living_hygiene_confirm",
+    "description": "DL-M08 (hygiene VLM confirm, shower proxy, and caregiver alert). Fires on the CTS same_clothes_suspected signal (DL-M07, gated by hygiene.same_clothes.enabled there), presigns the two days' best evidence keyframes, runs one VLM comparison, and joins the bathroom-dwell shower proxy: same clothes plus no qualifying bathroom stay emits hygiene_routine_missed and a full alert with evidence crops; same clothes plus a qualifying stay sends a disabled-by-default low-key notice instead; a VLM disagreement with the CTS prefilter ends the rule with no notification (visible only in the execution detail, calibration data for DL-M07's threshold). TODO(DL-M10): ack the originating CTS signal on VLM disagreement; a service hook already exists (POST /cts/signals/{id}/ack, backend/routers/cts_signals.py), but no pipeline step calls it, so this milestone does not build one. PLACEHOLDER (replace before import): __BATHROOM_ROOM_NAME__. No cool-off or daily-trigger limit: rate limiting in RulesEngine._check_rate_limits is scoped by rule_id only, not by person, so a per-rule cool-off would silence one resident's signal while another resident's is still within the window in a multi-resident household; CTS already emits same_clothes_suspected at most once per identity per local day, and signal_emit's dedupe_minutes=1200 is scoped per-kind-per-person downstream, so no rule-level throttle is needed.",
+    "enabled": true,
+    "trigger_types": ["dementia_signal"],
+    "cool_off_minutes": 0,
+    "max_daily_triggers": 0,
+    "max_concurrent_executions": 1,
+    "execution_timeout_minutes": 5
+  },
+  "contexts": [
+    {
+      "context_type": "dementia_signal",
+      "config": {"kinds": ["same_clothes_suspected"]}
+    }
+  ],
+  "steps": [
+    {
+      "label": "media_presign_1",
+      "step_type": "media_presign",
+      "config": {
+        "object_names_key": [
+          "trigger_event.evidence.yesterday_best_keyframe_objects",
+          "trigger_event.evidence.today_best_keyframe_objects"
+        ],
+        "retention_minutes": 240,
+        "output_key": "presigned_images"
+      }
+    },
+    {
+      "label": "vlm_compare",
+      "step_type": "llm_call",
+      "config": {
+        "model_id": "cosmos_reason2",
+        "image_source": "pipeline",
+        "pipeline_image_path": "steps.media_presign_1.outputs.presigned_images",
+        "prompt": "These images show one resident across two days: the earlier image(s) are from yesterday, the later image(s) are from today. Ignore lighting, pose, and camera angle differences. Describe her outfit on each day, then judge whether she is wearing the same clothes today as yesterday.",
+        "response_format": "json_schema",
+        "response_json_schema": "{\"type\": \"object\", \"properties\": {\"same_outfit\": {\"type\": \"boolean\"}, \"confidence\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 1}, \"outfit_yesterday\": {\"type\": \"string\"}, \"outfit_today\": {\"type\": \"string\"}, \"reason\": {\"type\": \"string\"}}, \"required\": [\"same_outfit\", \"confidence\", \"outfit_yesterday\", \"outfit_today\", \"reason\"]}",
+        "response_schema": "Respond with JSON: {\"same_outfit\": bool, \"confidence\": number between 0 and 1, \"outfit_yesterday\": string, \"outfit_today\": string, \"reason\": short string}.",
+        "output_key": "vlm_compare"
+      }
+    },
+    {
+      "label": "same_outfit_check",
+      "step_type": "condition",
+      "config": {
+        "expression": "steps.vlm_compare.outputs.vlm_compare.same_outfit == true and steps.vlm_compare.outputs.vlm_compare.confidence >= 0.7"
+      }
+    },
+    {
+      "label": "bathroom_dwell",
+      "step_type": "presence_query",
+      "config": {
+        "query_mode": "room_dwell_history",
+        "room_name": "__BATHROOM_ROOM_NAME__",
+        "window_hours": 26,
+        "min_episode_minutes": 8,
+        "merge_gap_minutes": 2,
+        "output_key": "bathroom_dwell"
+      }
+    },
+    {
+      "label": "no_dwell_check",
+      "step_type": "condition",
+      "config": {
+        "expression": "steps.bathroom_dwell.outputs.bathroom_dwell_had_dwell == false"
+      }
+    },
+    {
+      "label": "emit_hygiene_signal",
+      "step_type": "signal_emit",
+      "config": {
+        "kind": "hygiene_routine_missed",
+        "severity": "info",
+        "value": "{{ steps.vlm_compare.outputs.vlm_compare.confidence }}",
+        "context": {
+          "similarity": "{{ trigger_event.evidence.similarity }}",
+          "vlm_confidence": "{{ steps.vlm_compare.outputs.vlm_compare.confidence }}",
+          "outfit_yesterday": "{{ steps.vlm_compare.outputs.vlm_compare.outfit_yesterday }}",
+          "outfit_today": "{{ steps.vlm_compare.outputs.vlm_compare.outfit_today }}",
+          "reason": "{{ steps.vlm_compare.outputs.vlm_compare.reason }}",
+          "bathroom_qualifying_episodes": "{{ steps.bathroom_dwell.outputs.bathroom_dwell_qualifying_episodes }}",
+          "bathroom_total_minutes": "{{ steps.bathroom_dwell.outputs.bathroom_dwell_total_minutes }}"
+        },
+        "dedupe_minutes": 1200,
+        "trigger_cooloff": true
+      }
+    },
+    {
+      "label": "alert_missed_hygiene",
+      "step_type": "notification",
+      "config": {
+        "alert_level": "warning",
+        "channels": ["telegram"],
+        "message_template": "She appears to be wearing yesterday's clothes (VLM confidence {{ steps.vlm_compare.outputs.vlm_compare.confidence }}: {{ steps.vlm_compare.outputs.vlm_compare.outfit_today }}), and I found no bathroom stay over 8 minutes since yesterday morning.",
+        "telegram_image_source": "pipeline",
+        "pipeline_image_path": "steps.media_presign_1.outputs.presigned_images",
+        "trigger_cooloff": false
+      }
+    },
+    {
+      "label": "alert_washed_up",
+      "step_type": "notification",
+      "config": {
+        "alert_level": "info",
+        "channels": ["telegram"],
+        "message_template": "Same clothes as yesterday, but she did wash up (bathroom stay of {{ steps.bathroom_dwell.outputs.bathroom_dwell_longest_minutes }} minutes since yesterday morning).",
+        "telegram_image_source": "none",
+        "trigger_cooloff": true
+      }
+    }
+  ],
+  "edges": [
+    {"source_label": "media_presign_1", "source_port": "main", "target_label": "vlm_compare", "target_port": "main"},
+    {"source_label": "vlm_compare", "source_port": "main", "target_label": "same_outfit_check", "target_port": "main"},
+    {"source_label": "same_outfit_check", "source_port": "true", "target_label": "bathroom_dwell", "target_port": "main"},
+    {"source_label": "bathroom_dwell", "source_port": "main", "target_label": "no_dwell_check", "target_port": "main"},
+    {"source_label": "no_dwell_check", "source_port": "true", "target_label": "emit_hygiene_signal", "target_port": "main"},
+    {"source_label": "no_dwell_check", "source_port": "true", "target_label": "alert_missed_hygiene", "target_port": "main"},
+    {"source_label": "no_dwell_check", "source_port": "false", "target_label": "alert_washed_up", "target_port": "main"}
+  ]
+}

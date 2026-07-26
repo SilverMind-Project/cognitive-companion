@@ -61,6 +61,8 @@ _PIPELINE_CONTROL_FLAGS: frozenset[str] = frozenset({"_cooloff_triggered"})
 _RESERVED_KEYS: frozenset[str] = frozenset(
     {
         "trigger",
+        "trigger_input",
+        "trigger_event",
         "system",
         "_pipeline",
         "_graph",
@@ -146,8 +148,16 @@ def build_initial_pipeline_data(
     now_utc: datetime,
     now_local: datetime,
     timezone_name: str,
+    event_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the initial ``pipeline_data`` dict for a new execution."""
+    """Build the initial ``pipeline_data`` dict for a new execution.
+
+    ``event_payload`` is the dict fire_event() callers (CTS subscribers, the
+    bucketizer) pass alongside a synthetic ``TriggerContext``; it is deep-copied
+    so concurrent rule executions sharing one source event (see
+    ``PipelineExecutor.fire_event``'s ``asyncio.gather`` fan-out) never alias
+    the same nested dict.
+    """
     data: dict[str, Any] = {
         "trigger": {
             "type": trigger_type,
@@ -166,6 +176,8 @@ def build_initial_pipeline_data(
     }
     if webhook_payload:
         data["trigger_input"] = webhook_payload
+    if event_payload:
+        data["trigger_event"] = copy.deepcopy(event_payload)
     return data
 
 

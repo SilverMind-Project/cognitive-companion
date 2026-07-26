@@ -23,6 +23,7 @@ export const STEP_DOT_COLORS = {
   info_card: "cyan",
   interactive_prompt: "cyan",
   llm_call: "purple",
+  media_presign: "teal",
   media_window_poll: "teal",
   notification: "orange",
   object_trend_analysis: "teal",

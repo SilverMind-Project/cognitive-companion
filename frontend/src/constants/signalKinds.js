@@ -21,6 +21,10 @@ const SIGNAL_KIND_PRESENTATIONS = {
     icon: "mdi-tshirt-crew-outline",
     blurb: "Appears to be wearing yesterday's clothes",
   },
+  hygiene_routine_missed: {
+    icon: "mdi-shower-head",
+    blurb: "Same clothes and no wash-up detected",
+  },
 };
 
 export function humanizeKind(kind) {

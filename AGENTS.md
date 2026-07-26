@@ -158,11 +158,11 @@ All registries auto-discover built-ins and contrib files at startup.
 
 ### Step types
 
-There are 26 registered built-in step types:
+There are 27 registered built-in step types:
 
-`activity_detection`, `activity_session_start`, `activity_session_end`, `condition`, `daily_report`, `gate_verdict`, `guided_task_start`, `ha_action`, `home_state`, `image_crop`, `info_card`, `interactive_prompt`, `llm_call`, `media_window_poll`, `notification`, `object_trend_analysis`, `person_identification`, `presence_query`, `quiz_start`, `region_presence`, `scene_analysis`, `semantic_memory_query`, `semantic_memory_write`, `signal_emit`, `verification`, `wait`.
+`activity_detection`, `activity_session_start`, `activity_session_end`, `condition`, `daily_report`, `gate_verdict`, `guided_task_start`, `ha_action`, `home_state`, `image_crop`, `info_card`, `interactive_prompt`, `llm_call`, `media_presign`, `media_window_poll`, `notification`, `object_trend_analysis`, `person_identification`, `presence_query`, `quiz_start`, `region_presence`, `scene_analysis`, `semantic_memory_query`, `semantic_memory_write`, `signal_emit`, `verification`, `wait`.
 
-`media_window_poll` is the single camera polling step for both CTS and reCamera sources, selected via its `source` config (`auto`, `cts`, `recamera`). The former `cts_window_poll` and `recamera_media_poll` step types have been removed. `region_presence` (DL-M03) tests person bboxes against normalized image-space regions without a model call. `signal_emit` (DL-M06) writes a CC-local signal via `SignalsService.emit()`.
+`media_window_poll` is the single camera polling step for both CTS and reCamera sources, selected via its `source` config (`auto`, `cts`, `recamera`). The former `cts_window_poll` and `recamera_media_poll` step types have been removed. `region_presence` (DL-M03) tests person bboxes against normalized image-space regions without a model call. `signal_emit` (DL-M06) writes a CC-local signal via `SignalsService.emit()`. `media_presign` (DL-M08) resolves MinIO object names referenced in trigger or pipeline context into presigned URLs.
 
 Every data-emitting step must declare `output_schema` in `StepMetadata`. Contract tests enforce this.
 

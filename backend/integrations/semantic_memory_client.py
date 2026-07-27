@@ -486,22 +486,25 @@ class SemanticMemoryClient(HttpUpstreamClient):
     # -- Observations --------------------------------------------------------
 
     async def create_observation(self, obs: ObservationCreate) -> ObservationRecord | None:
-        """POST /api/v1/observations."""
+        """POST /api/v1/observations/."""
         body: dict[str, Any] = {
             "room_id": obs.room_id,
             "description": obs.description,
             "object_list": obs.object_list,
             "hazard_flags": obs.hazard_flags,
-            "embedding": obs.embedding,
             # Empty list means "not computed"; send None so pgvector stores
             # NULL rather than rejecting a zero-length vector(768) value.
+            "embedding": obs.embedding or None,
             "description_embedding": obs.description_embedding or None,
             "source": obs.source,
             "observed_at": datetime.now(UTC).isoformat(),
             "person_id": obs.person_id,
             "kind": obs.kind,
         }
-        data = await self._post_json("/api/v1/observations", json=body)
+        # Trailing slash is required: the upstream route is registered as
+        # "/observations/" and a slashless POST 307s, which _post_json treats
+        # as an error and swallows.
+        data = await self._post_json("/api/v1/observations/", json=body)
         if data is None:
             return None
         payload = _validate_payload(data, _ObservationPayload)
@@ -547,7 +550,7 @@ class SemanticMemoryClient(HttpUpstreamClient):
     # -- Movements -----------------------------------------------------------
 
     async def create_movement(self, movement: MovementCreate) -> MovementRecord | None:
-        """POST /api/v1/movements."""
+        """POST /api/v1/movements/."""
         body: dict[str, Any] = {
             "person_id": movement.person_id,
             "from_room_id": movement.from_room_id,
@@ -557,7 +560,8 @@ class SemanticMemoryClient(HttpUpstreamClient):
             "observation_id": movement.observation_id,
             "observed_at": datetime.now(UTC).isoformat(),
         }
-        data = await self._post_json("/api/v1/movements", json=body)
+        # Trailing slash required; see create_observation.
+        data = await self._post_json("/api/v1/movements/", json=body)
         if data is None:
             return None
         payload = _validate_payload(data, _MovementPayload)

@@ -374,16 +374,31 @@ finally:
   and recreated; `alembic_version` holds stale entries from any prior chain.
 - **Post-release lifecycle:** Each atomic change gets its own `NNNN_description.py`. The
   `downgrade()` must exactly reverse `upgrade()`. The baseline `downgrade()` stays a no-op.
-- **Revision ids must be 32 characters or fewer.** Alembic's `alembic_version.version_num`
-  column is `varchar(32)`, and we do not widen it. An over-length `revision`/`down_revision`
-  string passes file generation and graph resolution, then fails *at apply time* when Alembic
-  writes the head: Postgres raises `StringDataRightTruncation: value too long for type character
-  varying(32)`, and transactional DDL rolls the whole migration back (the column it added never
-  lands). Keep ids in the `NNNN_short_name` form and run `echo -n "<id>" | wc -c` if a name looks
-  long. Match the filename to the `revision` string. To fix an over-length id that has not been
-  applied anywhere, rename the file and both the `revision` value and the docstring `Revision ID:`,
-  then confirm a single clean head with `alembic heads`.
+- **Revision ids may be up to 128 characters.** Alembic hardcodes
+  `Column("version_num", String(32))` in `alembic.ddl.impl.DefaultImpl.version_table_impl`.
+  `backend/alembic/env.py` overrides that hook so `alembic_version.version_num` is
+  `varchar(128)`, and `_widen_existing_version_table()` runs an idempotent
+  `ALTER TABLE ... TYPE VARCHAR(128)` so databases created before the override catch up.
+  Descriptive ids like `0002_daily_living_m11_long_descriptive_name` are fine; keep the
+  filename matching the `revision` string. Beyond 128 the old failure returns: an
+  over-length id passes file generation and graph resolution, then fails *at apply time*
+  when Alembic writes the head with `StringDataRightTruncation`, and transactional DDL
+  rolls the whole migration back. Confirm a single clean head with `alembic heads`.
+- **Do not run statements on the migration connection before `context.configure()`.**
+  Doing so opens a transaction Alembic does not own; it then reports the migration as
+  applied and silently commits nothing. Use a separate connection and commit it yourself
+  (see `_widen_existing_version_table` in `env.py`).
 - Verify no schema drift after folding: `alembic check` against live models.
+- **Verifying a squash needs more than `alembic check`.** Autogenerate compares only what it
+  can express from `Base.metadata`, and `compare_server_default` is off by default, so
+  `alembic check` stays silent about missing `server_default`s, CHECK constraints that live
+  only in migrations, FK constraint *names*, extensions, the TimescaleDB hypertable, the
+  `location_heatmaps_15m` continuous aggregate and its refresh policy, and seed rows. Verify
+  by building one scratch database from the old chain and one from the new baseline, then
+  diffing catalog queries (`information_schema.columns`, `pg_indexes`,
+  `pg_constraint` + `pg_get_constraintdef`, `timescaledb_information.*`) plus the seed rows.
+  Use catalog queries rather than `pg_dump`: dump ordering is unstable between differently
+  built databases and pulls in data-dependent Timescale chunk tables.
 - **CTS (tracking-orchestrator)** uses a custom `MigrationRunner` with raw `.up.sql`/`.down.sql`
   files; Alembic is not used there. The same pre-release/post-release lifecycle applies.
 

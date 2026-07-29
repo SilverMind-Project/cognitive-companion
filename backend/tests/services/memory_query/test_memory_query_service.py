@@ -172,6 +172,63 @@ async def test_room_context_delegates_to_client(stub_observations, stub_objects)
 
 
 @pytest.mark.asyncio
+async def test_summary_is_informative_without_object_presence():
+    """Observations alone must produce a usable summary.
+
+    object_presence has no writer, so get_recent_objects returns [] in
+    production, and hazards are only gathered when the caller passes a hazard
+    filter. Keying the summary off those two left an LLM with nothing but
+    "In the past 60 min in kitchen:".
+    """
+    client = _StubClient(
+        observations=[
+            ObservationSearchHit(
+                id=1,
+                room_id="kitchen",
+                observed_at=datetime(2026, 7, 28, 9, 0, tzinfo=UTC),
+                description="Two people sitting at the counter",
+                object_list=["person", "cup"],
+                hazard_flags=["stove_on"],
+                persons_count=2,
+            )
+        ],
+        objects=[],
+    )
+    svc = MemoryQueryService(client=client)
+
+    summary = (await svc.room_context("kitchen")).summary
+
+    assert "1 observation(s)" in summary
+    assert "Up to 2 people" in summary
+    assert "person" in summary
+    assert "cup" in summary
+    assert "stove_on" in summary
+    assert "Two people sitting at the counter" in summary
+
+
+@pytest.mark.asyncio
+async def test_summary_omits_person_count_when_never_counted():
+    """persons_count=None must not be reported as a count of zero."""
+    client = _StubClient(
+        observations=[
+            ObservationSearchHit(
+                id=1,
+                room_id="kitchen",
+                observed_at=datetime(2026, 7, 28, 9, 0, tzinfo=UTC),
+                description="A quiet room",
+                object_list=[],
+                hazard_flags=[],
+                persons_count=None,
+            )
+        ],
+        objects=[],
+    )
+    svc = MemoryQueryService(client=client)
+
+    assert "person" not in (await svc.room_context("kitchen")).summary
+
+
+@pytest.mark.asyncio
 async def test_cache_hit_avoids_second_call(stub_observations, stub_objects):
     """Cache hit avoids second client call."""
     client = _StubClient(

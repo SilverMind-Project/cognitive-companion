@@ -94,7 +94,9 @@ import TemplateInput from "./_shared/TemplateInput.vue";
 
 export const stepDefaults = {
   room_id: "",
-  use_trigger_room: false,
+  // Must match default_config in the backend step; it was false here and true
+  // there, so a UI-created step queried a different room than a programmatic one.
+  use_trigger_room: true,
   since_minutes: 60,
   objects_any: [],
   hazard_flags_any: [],
@@ -107,7 +109,8 @@ export const stepTabs = [];
 export function chips(cfg, { chip }) {
   const out = [];
   if (cfg.output_key) out.push(chip(`-> ${cfg.output_key}`, "mdi-export-variant", "blue-grey"));
-  if (cfg.top_k) out.push(chip(`top ${cfg.top_k}`, "mdi-format-list-numbered", undefined));
+  // The config key is `limit`; `top_k` never existed, so this chip never rendered.
+  if (cfg.limit) out.push(chip(`top ${cfg.limit}`, "mdi-format-list-numbered", undefined));
   return out;
 }
 </script>

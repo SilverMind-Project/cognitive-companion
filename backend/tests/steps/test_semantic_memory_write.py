@@ -78,6 +78,8 @@ class TestNoSceneIntel:
             "semantic_memory_observation_id": None,
             "semantic_memory_movement_ids": [],
             "semantic_memory_write_available": False,
+            "semantic_memory_persons_count": None,
+            "semantic_memory_persons_per_frame": [],
         }
 
 
@@ -135,6 +137,9 @@ class TestPersistPayload:
             "semantic_memory_observation_id": 5,
             "semantic_memory_movement_ids": [9],
             "semantic_memory_write_available": True,
+            # No frames_key in this pipeline_data, so no count is claimed.
+            "semantic_memory_persons_count": None,
+            "semantic_memory_persons_per_frame": [],
         }
 
     async def test_detections_and_hazards_from_pipeline_data_are_not_forwarded(self):

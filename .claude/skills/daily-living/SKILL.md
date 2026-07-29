@@ -58,7 +58,24 @@ class ObservationDraft:
     person_id: str | None = None                                       # DL-M05
     kind: str = "scene"                                                 # DL-M05
     description_embedding: list[float] = field(default_factory=list)  # embeddinggemma, text search
+    observed_at: datetime | None = None      # capture time, not write time
+    persons_count: int | None = None         # per-frame max; None = not counted
+    media_paths: list[str] = field(default_factory=list)   # contributing frames
+    objects: list[dict] = field(default_factory=list)      # full detections behind object_list
 ```
+
+`observed_at` is when the scene was captured, which is not when the row is written: a media
+window spans minutes and the pipeline runs after it closes. Pass it whenever the caller has
+it (`memory_bridge` uses `ctx.now()`, the CTS subscriber uses the keyframe's `captured_at`);
+`None` falls back to write time.
+
+`persons_count` is **never a sum across frames**. One person standing in front of a camera for
+five frames produces five `person` detections in the flattened `scene_detections` list, so
+adding them reports five people. Use `person_count_from_frames()`
+(`backend/services/scene_intel/types.py`), which counts per frame and returns
+`(max, per_frame_counts)` — the max is an honest floor ("at least N present"). True dedup
+would need ReID across frames, which this path does not have. `None` means not counted and
+must stay distinguishable from `0` ("counted, room empty").
 
 `kind`/`person_id` semantics (DL-M05, closes L3): `kind` is a record-kind taxonomy
 (`"scene"` for CTS scene samples and person movements, the default so legacy writers keep

@@ -43,6 +43,14 @@ class ObservationCreate:
     hazard_flags: list[str] = field(default_factory=list)
     embedding: list[float] = field(default_factory=list)
     source: str = "scene_intel"
+    # When the scene was captured, which is not when this row is written: a
+    # media window spans minutes and the pipeline runs after it closes. Falls
+    # back to now() only when the caller genuinely has no capture time.
+    observed_at: datetime | None = None
+    # None means "not counted", distinct from 0 ("counted, room empty").
+    persons_count: int | None = None
+    media_paths: list[str] = field(default_factory=list)
+    objects: list[dict] = field(default_factory=list)
     # DL-M05: attributes an observation to a resident and distinguishes
     # record taxonomy ("scene" / "guided_episode" / "hygiene_verdict").
     person_id: str | None = None
@@ -99,6 +107,12 @@ class ObservationSearchHit:
     source: str = ""
     person_id: str | None = None
     kind: str | None = None
+    room_name: str | None = None
+    # None means the writer did not count people, which is not the same as
+    # counting zero. Callers building LLM context must preserve that difference.
+    persons_count: int | None = None
+    media_paths: list[str] = field(default_factory=list)
+    objects: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -111,6 +125,9 @@ class MovementCreate:
     direction_semantic: str = "any"
     confidence: float = 0.8
     observation_id: int | None = None
+    # See ObservationCreate.observed_at; RoomTransition already carries the
+    # real transition time.
+    observed_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -255,6 +272,16 @@ class _ObservationSearchHitPayload(BaseModel):
     source: str = ""
     person_id: str | None = None
     kind: str | None = None
+    room_name: str | None = None
+    persons_count: int | None = None
+    media_paths_json: list[str] | None = None
+    objects_json: list[dict] | None = None
+
+    @field_validator("text_similarity", "image_similarity", mode="before")
+    @classmethod
+    def _parse_similarity(cls, value: object) -> float:
+        """Upstream sends null when a similarity was not computed for a row."""
+        return 0.0 if value is None else float(value)  # type: ignore[arg-type]
 
     @field_validator("observed_at", mode="before")
     @classmethod
@@ -281,6 +308,10 @@ class _ObservationSearchHitPayload(BaseModel):
             source=self.source,
             person_id=self.person_id,
             kind=self.kind,
+            room_name=self.room_name,
+            persons_count=self.persons_count,
+            media_paths=self.media_paths_json or [],
+            objects=self.objects_json or [],
         )
 
 
@@ -497,9 +528,14 @@ class SemanticMemoryClient(HttpUpstreamClient):
             "embedding": obs.embedding or None,
             "description_embedding": obs.description_embedding or None,
             "source": obs.source,
-            "observed_at": datetime.now(UTC).isoformat(),
+            "observed_at": _observed_at_iso(obs.observed_at),
             "person_id": obs.person_id,
             "kind": obs.kind,
+            "persons_count": obs.persons_count,
+            # Empty means "none recorded"; send None so the column stays NULL
+            # rather than storing an empty JSON array that reads as real data.
+            "media_paths_json": obs.media_paths or None,
+            "objects_json": obs.objects or None,
         }
         # Trailing slash is required: the upstream route is registered as
         # "/observations/" and a slashless POST 307s, which _post_json treats
@@ -558,7 +594,7 @@ class SemanticMemoryClient(HttpUpstreamClient):
             "direction_semantic": movement.direction_semantic,
             "confidence": movement.confidence,
             "observation_id": movement.observation_id,
-            "observed_at": datetime.now(UTC).isoformat(),
+            "observed_at": _observed_at_iso(movement.observed_at),
         }
         # Trailing slash required; see create_observation.
         data = await self._post_json("/api/v1/movements/", json=body)
@@ -684,6 +720,18 @@ class SemanticMemoryClient(HttpUpstreamClient):
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+
+def _observed_at_iso(observed_at: datetime | None) -> str:
+    """Serialize a capture time, defaulting to now when the caller has none.
+
+    Normalizes to UTC so a naive local timestamp never reaches the service,
+    whose columns are TIMESTAMPTZ.
+    """
+    if observed_at is None:
+        return datetime.now(UTC).isoformat()
+    normalized = normalize_utc_datetime(observed_at)
+    return (normalized or datetime.now(UTC)).isoformat()
 
 
 def _coerce_datetime(value: object) -> datetime:

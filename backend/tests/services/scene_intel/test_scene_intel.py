@@ -19,7 +19,12 @@ from backend.integrations.semantic_memory_client import (
     ObservationRecord,
 )
 from backend.services.scene_intel.service import SceneIntelService
-from backend.services.scene_intel.types import ObservationDraft, RoomTransition, SceneIntelRecord
+from backend.services.scene_intel.types import (
+    ObservationDraft,
+    RoomTransition,
+    SceneIntelRecord,
+    person_count_from_frames,
+)
 
 # ---------------------------------------------------------------------------
 # Stub clients
@@ -362,6 +367,88 @@ async def test_persist_observation_maps_all_draft_fields():
 
 
 @pytest.mark.asyncio
+async def test_persist_overrides_survive_a_result_without_detections():
+    """object_list/hazard_flags passed explicitly are not re-derived from result.
+
+    The ``semantic_memory_write`` step reads these from configurable
+    pipeline_data keys and hands persist() a SceneAnalyzeResult carrying only
+    a description and an embedding. Before the override existed, persist()
+    re-derived both from that result's empty ``detections``/``hazards`` and
+    silently wrote empty lists.
+    """
+    memory_client = _StubMemoryClient()
+    svc = SceneIntelService(scene_client=None, memory_client=memory_client)
+
+    await svc.persist(
+        SceneAnalyzeResult(description="a cup on the table", embedding=[0.1]),
+        room_id="kitchen",
+        object_list=["cup", "table"],
+        hazard_flags=["stove_on"],
+    )
+
+    obs = memory_client.create_observation_calls[0]
+    assert obs.object_list == ["cup", "table"]
+    assert obs.hazard_flags == ["stove_on"]
+
+
+@pytest.mark.asyncio
+async def test_persist_without_overrides_still_derives_from_result():
+    """Omitting the overrides preserves the scene_analysis write_to_memory path."""
+    memory_client = _StubMemoryClient()
+    svc = SceneIntelService(scene_client=None, memory_client=memory_client)
+
+    await svc.persist(
+        SceneAnalyzeResult(
+            detections=[SceneDetection(label="cup", confidence=0.9, bbox=[0, 0, 1, 1], class_id=1)],
+            description="a cup",
+        ),
+        room_id="kitchen",
+    )
+
+    obs = memory_client.create_observation_calls[0]
+    assert obs.object_list == ["cup"]
+
+
+@pytest.mark.asyncio
+async def test_draft_observed_at_reaches_the_client():
+    """A caller's capture time is not replaced by the write time.
+
+    The client used to hardcode datetime.now(UTC), so a five-minute media
+    window collapsed to whenever the pipeline happened to finish.
+    """
+    captured = datetime(2026, 7, 28, 9, 15, tzinfo=UTC)
+    memory_client = _StubMemoryClient()
+    svc = SceneIntelService(scene_client=None, memory_client=memory_client)
+
+    await svc.persist_observation(
+        ObservationDraft(room_id="kitchen", description="x", observed_at=captured)
+    )
+
+    assert memory_client.create_observation_calls[0].observed_at == captured
+
+
+@pytest.mark.asyncio
+async def test_transition_observed_at_reaches_the_client():
+    """persist_movements forwards each transition's own timestamp."""
+    captured = datetime(2026, 7, 28, 9, 15, tzinfo=UTC)
+    memory_client = _StubMemoryClient()
+    svc = SceneIntelService(scene_client=None, memory_client=memory_client)
+
+    await svc.persist_movements(
+        (
+            RoomTransition(
+                person_id="p1",
+                from_room_id="hall",
+                to_room_id="kitchen",
+                observed_at=captured,
+            ),
+        )
+    )
+
+    assert memory_client.create_movement_calls[0].observed_at == captured
+
+
+@pytest.mark.asyncio
 async def test_persist_observation_empty_draft_still_persists():
     """Unlike persist(), persist_observation never skips an empty-looking draft."""
     memory_client = _StubMemoryClient()
@@ -489,3 +576,49 @@ async def test_analyze_and_persist_composition():
     assert intel.observation_id == 1
     assert len(memory_client.create_observation_calls) == 1
     assert scene_client.analyze_count == 1
+
+
+# ---------------------------------------------------------------------------
+# person_count_from_frames
+# ---------------------------------------------------------------------------
+
+
+def _frame(*labels: str) -> dict:
+    return {"scene_detections": [{"label": lbl, "confidence": 0.9} for lbl in labels]}
+
+
+def test_person_count_takes_max_not_sum_across_frames():
+    """One person standing in front of a camera is not five people.
+
+    The flattened scene_detections list holds one entry per person per frame,
+    so summing it reports the same person once for every frame they appear in.
+    """
+    frames = [_frame("person", "cup"), _frame("person"), _frame("person", "person")]
+
+    count, per_frame = person_count_from_frames(frames)
+
+    assert count == 2, "expected the busiest single frame, not 4 summed detections"
+    assert per_frame == [1, 1, 2]
+
+
+def test_person_count_distinguishes_empty_room_from_not_counted():
+    """0 means counted-and-empty; None means no frames carried detections."""
+    assert person_count_from_frames([_frame("cup")]) == (0, [0])
+    assert person_count_from_frames([]) == (None, [])
+    assert person_count_from_frames([{"no_detections": 1}]) == (None, [])
+
+
+def test_person_count_honours_min_confidence():
+    frames = [{"scene_detections": [
+        {"label": "person", "confidence": 0.95},
+        {"label": "person", "confidence": 0.20},
+    ]}]
+
+    assert person_count_from_frames(frames, min_confidence=0.5) == (1, [1])
+
+
+def test_person_count_ignores_malformed_entries():
+    """Junk in the frame list must not raise; it is simply not counted."""
+    frames = [_frame("person"), "not-a-dict", {"scene_detections": ["nope", None]}]
+
+    assert person_count_from_frames(frames) == (1, [1, 0])

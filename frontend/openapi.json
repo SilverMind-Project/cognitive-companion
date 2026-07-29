@@ -17581,7 +17581,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.132"
+    "version": "0.7.133"
   },
   "openapi": "3.1.0",
   "paths": {

@@ -123,6 +123,9 @@ class GuidedMemoryBridge:
                 source="guided_companion",
                 person_id=session.person_id,
                 kind="guided_episode",
+                # The episode is recorded at its terminal outcome, so `now` is
+                # the real observation time rather than an approximation.
+                observed_at=now,
             )
             record = await scene_intel.persist_observation(draft)
         except Exception as exc:  # noqa: BLE001

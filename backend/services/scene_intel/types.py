@@ -24,6 +24,7 @@ __all__ = [
     "SceneHazardAlert",
     "SceneIntelRecord",
     "SceneRunFlags",
+    "person_count_from_frames",
 ]
 
 
@@ -76,6 +77,62 @@ class ObservationDraft:
     # ``embedding`` (CLIP image embedding) so text search over episode
     # summaries never mixes with image-similarity search.
     description_embedding: list[float] = field(default_factory=list)
+    # When the scene was captured. ``None`` means the caller has no capture
+    # time and the write time is an acceptable approximation.
+    observed_at: datetime | None = None
+    # How many people were present. ``None`` means "not counted" and must stay
+    # distinguishable from 0 ("counted, room empty"). Never a sum across frames:
+    # see ``person_count_from_frames``.
+    persons_count: int | None = None
+    # Object names of the frames this observation was assembled from, so a
+    # reader can get back to the imagery. One observation may span many frames
+    # and, in a multi-camera room, many cameras.
+    media_paths: list[str] = field(default_factory=list)
+    # Full detection dicts (label, confidence, bbox) behind ``object_list``.
+    objects: list[dict] = field(default_factory=list)
+
+
+def person_count_from_frames(
+    frames: list[dict],
+    *,
+    label: str = "person",
+    min_confidence: float = 0.0,
+    detections_field: str = "scene_detections",
+) -> tuple[int | None, list[int]]:
+    """Return ``(max_per_frame, per_frame_counts)`` for *frames*.
+
+    Counting people across a multi-frame window is not a sum. One person
+    standing in front of a camera for five frames yields five ``person``
+    detections, and adding them reports five people. Deduplicating properly
+    needs re-identification across frames, which this path does not have, so
+    the honest aggregate is the maximum seen in any single frame: a floor,
+    read as "at least this many people were present".
+
+    The per-frame vector is returned alongside so callers can show the spread
+    rather than a single collapsed integer.
+
+    Returns ``(None, [])`` when *frames* carries no usable detection lists, so
+    "not counted" stays distinct from "counted zero".
+    """
+    counts: list[int] = []
+    for frame in frames:
+        if not isinstance(frame, dict):
+            continue
+        detections = frame.get(detections_field)
+        if not isinstance(detections, list):
+            continue
+        counts.append(
+            sum(
+                1
+                for d in detections
+                if isinstance(d, dict)
+                and d.get("label") == label
+                and float(d.get("confidence") or 0.0) >= min_confidence
+            )
+        )
+    if not counts:
+        return None, []
+    return max(counts), counts
 
 
 @dataclass(frozen=True)

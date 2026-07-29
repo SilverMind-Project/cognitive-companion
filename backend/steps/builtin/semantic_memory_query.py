@@ -193,14 +193,24 @@ class SemanticMemoryQueryHandler(StepHandler):
         ]
 
         # Format observations for pipeline_data
+        # Every field the service returns is forwarded: this dict is what an
+        # llm_call step interpolates, so anything dropped here is invisible to
+        # the model no matter how rich the stored row is.
         observations: list[dict] = [
             {
                 "id": o.id,
                 "room_id": o.room_id,
+                "room_name": o.room_name,
                 "observed_at": o.observed_at.astimezone(UTC).isoformat(),
                 "description": o.description,
                 "object_list": o.object_list,
                 "hazard_flags": o.hazard_flags,
+                "persons_count": o.persons_count,
+                "source": o.source,
+                "person_id": o.person_id,
+                "kind": o.kind,
+                "media_paths": o.media_paths,
+                "objects": o.objects,
                 "text_similarity": o.text_similarity,
                 "image_similarity": o.image_similarity,
             }

@@ -319,18 +319,58 @@ class MemoryQueryService:
         recent_hazards: list[HazardObservation],
         observations: list[ObservationSearchHit],
     ) -> str:
-        """Build a compact text summary for LLM prompt injection."""
-        if observations or recent_objects:
-            parts: list[str] = []
-            if room_id:
-                parts.append(f"In the past {since_minutes} min in {room_id}:")
-            if recent_objects:
-                obj_strs = [f"{r.label} ({r.observation_count}x)" for r in recent_objects]
-                parts.append(", ".join(obj_strs))
-            if recent_hazards:
-                hazard_names: set[str] = set()
-                for h in recent_hazards:
-                    hazard_names.update(h.hazard_flags)
-                parts.append(f"{len(hazard_names)} hazard(s): {', '.join(sorted(hazard_names))}.")
-            return " ".join(parts)
-        return "No memory context available."
+        """Build a compact text summary for LLM prompt injection.
+
+        Observations are summarized directly rather than only via
+        ``recent_objects``/``recent_hazards``: object presence has no writer, and
+        hazards are only collected when the caller passed a hazard filter, so
+        keying the whole summary off those two produced a bare
+        "In the past N min in <room>:" preamble whenever observations existed.
+        """
+        if not observations and not recent_objects:
+            return "No memory context available."
+
+        parts: list[str] = []
+        if room_id:
+            parts.append(f"In the past {since_minutes} min in {room_id}:")
+
+        if recent_objects:
+            obj_strs = [f"{r.label} ({r.observation_count}x)" for r in recent_objects]
+            parts.append(f"Objects seen: {', '.join(obj_strs)}.")
+
+        if observations:
+            parts.append(f"{len(observations)} observation(s).")
+
+            counted = [o.persons_count for o in observations if o.persons_count is not None]
+            if counted:
+                high = max(counted)
+                parts.append(
+                    f"Up to {high} {'person' if high == 1 else 'people'} seen in a single frame."
+                )
+
+            # Labels from the observations themselves, so the object picture
+            # survives object_presence being empty.
+            labels: list[str] = []
+            for observation in observations:
+                for label in observation.object_list:
+                    if label not in labels:
+                        labels.append(label)
+            if labels and not recent_objects:
+                parts.append(f"Objects: {', '.join(labels[:12])}.")
+
+            latest = observations[0].description
+            if latest:
+                parts.append(f'Most recent: "{latest.strip()[:240]}"')
+
+        # Fall back to hazards carried on the observations when no explicit
+        # hazard filter was applied, which is the default.
+        hazard_names: set[str] = set()
+        for hazard in recent_hazards:
+            hazard_names.update(hazard.hazard_flags)
+        if not hazard_names:
+            for observation in observations:
+                hazard_names.update(observation.hazard_flags)
+        if hazard_names:
+            parts.append(f"{len(hazard_names)} hazard(s): {', '.join(sorted(hazard_names))}.")
+
+        return " ".join(parts)

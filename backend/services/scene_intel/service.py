@@ -8,6 +8,9 @@ and ``MovementCreate`` schemas.
 
 from __future__ import annotations
 
+from dataclasses import asdict
+from datetime import datetime
+
 from backend.core.logging import get_logger
 from backend.integrations.scene_analysis_client import (
     SceneAnalysisClient,
@@ -101,6 +104,10 @@ class SceneIntelService:
             person_id=draft.person_id,
             kind=draft.kind,
             description_embedding=draft.description_embedding,
+            observed_at=draft.observed_at,
+            persons_count=draft.persons_count,
+            media_paths=draft.media_paths,
+            objects=draft.objects,
         )
         record = await self._memory_client.create_observation(obs)
         observation_id: int | None = record.id if record else None
@@ -135,6 +142,7 @@ class SceneIntelService:
                     direction_semantic=transition.direction_semantic,
                     confidence=transition.confidence,
                     observation_id=observation_id,
+                    observed_at=transition.observed_at,
                 )
                 move_record = await self._memory_client.create_movement(movement)
                 if move_record:
@@ -159,6 +167,12 @@ class SceneIntelService:
         room_id: str,
         source: str = "scene_intel",
         transitions: tuple[RoomTransition, ...] = (),
+        object_list: list[str] | None = None,
+        hazard_flags: list[str] | None = None,
+        observed_at: datetime | None = None,
+        persons_count: int | None = None,
+        media_paths: list[str] | None = None,
+        objects: list[dict] | None = None,
     ) -> SceneIntelRecord:
         """Persist a scene analysis result to semantic memory.
 
@@ -167,6 +181,14 @@ class SceneIntelService:
         write entirely when the result is empty), then links any transitions
         to the resulting observation.
 
+        ``object_list`` and ``hazard_flags`` override what would be derived
+        from ``result``. Callers that assembled those lists themselves (the
+        ``semantic_memory_write`` step reads them from configurable
+        ``pipeline_data`` keys, which may hold detections from steps other
+        than ``scene_analysis``) must pass them, since a ``SceneAnalyzeResult``
+        carrying only a description and an embedding would otherwise silently
+        persist empty lists.
+
         Returns a ``SceneIntelRecord`` with the observation ID and
         movement IDs.
         """
@@ -174,8 +196,10 @@ class SceneIntelService:
             return SceneIntelRecord.empty()
 
         description = result.description or ""
-        object_list = [d.label for d in result.detections]
-        hazard_flags = [h.name for h in result.hazards]
+        if object_list is None:
+            object_list = [d.label for d in result.detections]
+        if hazard_flags is None:
+            hazard_flags = [h.name for h in result.hazards]
         embedding = result.embedding if isinstance(result.embedding, list) else []
 
         # Skip persistence if all four are empty.
@@ -193,6 +217,10 @@ class SceneIntelService:
             hazard_flags=hazard_flags,
             embedding=embedding,
             source=source,
+            observed_at=observed_at,
+            persons_count=persons_count,
+            media_paths=media_paths or [],
+            objects=objects if objects is not None else [asdict(d) for d in result.detections],
         )
         obs_record = await self.persist_observation(draft)
         movement_ids = await self.persist_movements(

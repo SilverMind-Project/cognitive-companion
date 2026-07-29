@@ -76,12 +76,17 @@ const FIXTURES = {
     severity_threshold: "high",
     output_key: "custom_trends_out",
   },
+  // These two fixtures previously used `top_k` and `source_key`, neither of
+  // which exists in the steps' config_schema, so they pinned chips derived from
+  // keys no authored step ever carries. They now use the real keys.
   semantic_memory_query: {
     output_key: "custom_mem_out",
-    top_k: 5,
+    limit: 5,
   },
   semantic_memory_write: {
-    source_key: "observation_1",
+    source: "scene_intel",
+    write_observation: true,
+    write_movements: false,
   },
   image_crop: {
     image_source: "additional",

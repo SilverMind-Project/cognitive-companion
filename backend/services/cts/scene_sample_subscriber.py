@@ -16,7 +16,7 @@ from typing import Any
 from backend.core.logging import get_logger
 from backend.integrations.proto.continuoustracking.v1 import scene_pb2
 from backend.services.cts import metrics
-from backend.services.cts._time import ns_to_iso
+from backend.services.cts._time import ns_to_iso, parse_ts
 from backend.services.cts._types import MinioClient, SceneAnalysisClient, SceneIntel
 from backend.services.cts.stream_consumer import ConsumerConfig, StreamConsumer
 from backend.services.scene_intel.types import ObservationDraft
@@ -160,6 +160,9 @@ class SceneSampleSubscriber(StreamConsumer[dict[str, Any]]):
                         hazard_flags=hazard_flags,
                         embedding=embedding,
                         source="scene_intel",
+                        # The keyframe's capture time, not the time this
+                        # subscriber drained it off the stream.
+                        observed_at=parse_ts(sample.get("captured_at")),
                     )
                 )
                 if intel_record.observation_id is not None:

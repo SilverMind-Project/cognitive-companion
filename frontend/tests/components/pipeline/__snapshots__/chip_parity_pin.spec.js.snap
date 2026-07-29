@@ -351,9 +351,16 @@ exports[`buildStepDetailChips parity pin > pins chip output for 'semantic_memory
 [
   {
     "color": "blue-grey",
-    "icon": "mdi-link-variant",
+    "icon": "mdi-eye-outline",
     "key": 0,
-    "label": "source: observation_1",
+    "label": "observation",
+    "tooltip": undefined,
+  },
+  {
+    "color": undefined,
+    "icon": "mdi-tag-outline",
+    "key": 1,
+    "label": "scene_intel",
     "tooltip": undefined,
   },
 ]

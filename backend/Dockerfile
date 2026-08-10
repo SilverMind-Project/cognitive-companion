@@ -1,4 +1,4 @@
-FROM python:3.14.5-slim AS base
+FROM python:3.15.0rc1-slim AS base
 
 # Install uv and ffmpeg
 COPY --from=ghcr.io/astral-sh/uv:0.11.17 /uv /uvx /usr/local/bin/

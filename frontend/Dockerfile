@@ -1,4 +1,4 @@
-FROM node:26.3.0-slim AS build
+FROM node:26.8.1-slim AS build
 
 WORKDIR /app
 COPY package.json package-lock.json* ./

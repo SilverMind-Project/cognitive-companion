@@ -356,28 +356,32 @@ class PersonIDClient:
     # -- Members --------------------------------------------------------------
 
     async def get_members(self) -> list[MemberInfo]:
-        """Fetch all enrolled members from the person-id service."""
-        if not self.enabled:
-            return []
+        """Fetch all enrolled members; an empty list when the service is unavailable.
 
+        For callers that must tell "nobody enrolled" from "service down", use
+        :meth:`list_members`, which raises instead.
+        """
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.get(f"{self.base_url}/api/v1/members")
-                resp.raise_for_status()
-                data = resp.json()
-        except Exception:
+            return await self.list_members()
+        except PersonIDUpstreamError:
             logger.exception("person_id_get_members_failed")
             return []
 
-        return [
-            MemberInfo(
-                person_id=m["person_id"],
-                name=m["name"],
-                embedding_count=m["embedding_count"],
-                created_at=datetime.fromisoformat(m["created_at"]),
-            )
-            for m in data.get("members", [])
-        ]
+    async def list_members(self) -> list[MemberInfo]:
+        """Fetch all enrolled members, raising ``PersonIDUpstreamError`` on any failure."""
+        data = await self._visitor_request("GET", "/api/v1/members")
+        try:
+            return [
+                MemberInfo(
+                    person_id=m["person_id"],
+                    name=m["name"],
+                    embedding_count=m["embedding_count"],
+                    created_at=datetime.fromisoformat(m["created_at"]),
+                )
+                for m in data["members"]
+            ]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed member list envelope: {exc}") from exc
 
     async def get_member(self, person_id: str) -> MemberInfo | None:
         """Fetch details of a specific enrolled member.

@@ -247,6 +247,7 @@ health service itself is unwired.
 | `POST` | `/persons/{person_id}/enroll` | Upload face enrollment photos |
 | `GET` | `/persons/{person_id}/enrollment` | Get enrollment status |
 | `DELETE` | `/persons/{person_id}/enrollment` | Delete enrollment |
+| `GET` | `/persons/roster-health` | Roster health: active, non-guest members with fewer than `roster.min_face_embeddings` enrolled face embeddings, plus the count of recurring visitor clusters awaiting review. Upstream failures return 502 rather than an empty roster |
 | `GET` | `/persons/{person_id}/location` | Current fused location envelope |
 | `GET` | `/persons/locations` | Current fused locations for all tracked members |
 | `GET` | `/persons/{person_id}/presence-history` | Presence history |
@@ -256,7 +257,7 @@ health service itself is unwired.
 | `GET` | `/occupancy/history` | Smoothed occupancy time series for one room from Home Assistant. Query: `room_name` (required), `hours` (default `2.0`) |
 | `GET` | `/signals/feed` | Unified caregiver signals feed: CTS dementia signals plus pipeline-rule notifications, each as a `SignalEnvelope` with `source`, `severity`, `room_name`, `created_at`, and `resolved` |
 
-The occupancy read-model and the signals feed each use one service function exposed through both the router and the matching MCP tool (`get_room_occupancy`, `get_signals_feed`). Room occupancy is keyed on PersonHypothesis with a short TTL, so unknown people are counted without a household identity. The legacy `emergency_alerts` table and `/alerts` endpoints were removed; caregiver alerts now flow through the signals feed.
+The occupancy read-model, the signals feed, and roster health each use one service function exposed through both the router and the matching MCP tool (`get_room_occupancy`, `get_signals_feed`, `get_roster_health`). Room occupancy is keyed on PersonHypothesis with a short TTL, so unknown people are counted without a household identity. The legacy `emergency_alerts` table and `/alerts` endpoints were removed; caregiver alerts now flow through the signals feed.
 
 ### Visitors
 

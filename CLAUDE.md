@@ -18,6 +18,9 @@ Quick reference for Claude Code agents in `cognitive-companion/`. The full refer
 | `.claude/skills/data-visualization/SKILL.md` | Shared charts, mobility trends, monitoring, execution graphs, spatial overlays, provenance, and data-heavy UI |
 | `.claude/skills/bff-api-design/SKILL.md` | Browser-visible envelopes/endpoints, MCP adapters, parity tests, authorization mappings, and import boundaries |
 | `.claude/skills/daily-living/SKILL.md` | Daily-living detection, the activity ledger, hygiene/intent signals, semantic-memory writes, rule bundles, and inference load governance |
+| `.claude/skills/cts-identity-admin/SKILL.md` | CTS keyframe identity displays, Person Hypothesis correction workflows, ReID review surfaces, visitor and identity provenance APIs |
+| `.claude/skills/guided-companion/SKILL.md` | Guided routines, the guided-task state machine, interactive sessions, completion evaluators, the safety watch, escalation, and guided-task MCP tools |
+| `/home/sriram/code/nanai/.claude/skills/nanai-workspace/SKILL.md` | Any change spanning more than one repository: repo map, gates, proto two-repo rule, milestone workflow |
 
 ## Current stack
 

@@ -3741,6 +3741,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/persons/roster-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Roster Health
+         * @description Members still needing face enrollment and recurring visitors awaiting review.
+         */
+        get: operations["get_roster_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/persons/{person_id}": {
         parameters: {
             query?: never;
@@ -10055,6 +10075,45 @@ export interface components {
             polygon?: number[][] | null;
             /** Purpose */
             purpose?: string | null;
+        };
+        /** RosterHealthEnvelope */
+        RosterHealthEnvelope: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /**
+             * Is Complete
+             * @description True when no member lacks enrollment and no visitor cluster awaits review
+             */
+            is_complete: boolean;
+            /**
+             * Members Without Face Enrollment
+             * @description Active, non-guest household members with fewer than min_face_embeddings enrolled face embeddings
+             */
+            members_without_face_enrollment: components["schemas"]["RosterMemberRef"][];
+            /** Min Face Embeddings */
+            min_face_embeddings: number;
+            /**
+             * Surfaced Unnamed Visitor Clusters
+             * @description Recurring unknown visitors awaiting naming or dismissal; 0 when disabled
+             */
+            surfaced_unnamed_visitor_clusters: number;
+            /** Visitor Clustering Enabled */
+            visitor_clustering_enabled: boolean;
+        };
+        /** RosterMemberRef */
+        RosterMemberRef: {
+            /**
+             * Embedding Count
+             * @description Enrolled face embeddings; 0 if not enrolled
+             */
+            embedding_count: number;
+            /** Member Id */
+            member_id: string;
+            /** Name */
+            name: string;
         };
         /**
          * RoutineActivityTypeOptionsOut
@@ -18192,6 +18251,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonLocationEnvelope"][];
+                };
+            };
+        };
+    };
+    get_roster_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RosterHealthEnvelope"];
                 };
             };
         };

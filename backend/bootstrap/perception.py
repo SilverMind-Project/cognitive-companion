@@ -53,6 +53,18 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
 
     app.state.visitor_admin_service = VisitorAdminService(person_id_client)
 
+    # -- Roster health (who still needs face enrollment) ------------------
+    from backend.mcp.server import _svc as _mcp_svc
+    from backend.services.identity_roster import RosterHealthService
+
+    roster_health_service = RosterHealthService(
+        person_id_client,
+        session_factory=get_session,
+        min_face_embeddings=settings.as_int("roster.min_face_embeddings"),
+    )
+    app.state.roster_health_service = roster_health_service
+    _mcp_svc.roster_health_service = roster_health_service
+
     # -- Scene analysis client --------------------------------------------
     from backend.integrations.scene_analysis_client import SceneAnalysisClient
 

@@ -13457,6 +13457,78 @@
         "title": "RoomZoneUpdate",
         "type": "object"
       },
+      "RosterHealthEnvelope": {
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "is_complete": {
+            "description": "True when no member lacks enrollment and no visitor cluster awaits review",
+            "title": "Is Complete",
+            "type": "boolean"
+          },
+          "members_without_face_enrollment": {
+            "description": "Active, non-guest household members with fewer than min_face_embeddings enrolled face embeddings",
+            "items": {
+              "$ref": "#/components/schemas/RosterMemberRef"
+            },
+            "title": "Members Without Face Enrollment",
+            "type": "array"
+          },
+          "min_face_embeddings": {
+            "minimum": 1.0,
+            "title": "Min Face Embeddings",
+            "type": "integer"
+          },
+          "surfaced_unnamed_visitor_clusters": {
+            "description": "Recurring unknown visitors awaiting naming or dismissal; 0 when disabled",
+            "minimum": 0.0,
+            "title": "Surfaced Unnamed Visitor Clusters",
+            "type": "integer"
+          },
+          "visitor_clustering_enabled": {
+            "title": "Visitor Clustering Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "members_without_face_enrollment",
+          "min_face_embeddings",
+          "visitor_clustering_enabled",
+          "surfaced_unnamed_visitor_clusters",
+          "is_complete",
+          "checked_at"
+        ],
+        "title": "RosterHealthEnvelope",
+        "type": "object"
+      },
+      "RosterMemberRef": {
+        "properties": {
+          "embedding_count": {
+            "description": "Enrolled face embeddings; 0 if not enrolled",
+            "minimum": 0.0,
+            "title": "Embedding Count",
+            "type": "integer"
+          },
+          "member_id": {
+            "title": "Member Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "member_id",
+          "name",
+          "embedding_count"
+        ],
+        "title": "RosterMemberRef",
+        "type": "object"
+      },
       "RoutineActivityTypeOptionsOut": {
         "additionalProperties": false,
         "description": "``ActivityTypeEnum`` values for the Routine Builder's \"Records activity\"\nselect (DL-M05 Part F). Generated from the backend enum, never\nhand-typed in the frontend.",
@@ -17581,7 +17653,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.133"
+    "version": "0.7.134"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -29655,6 +29727,33 @@
         "summary": "Get All Person Locations",
         "tags": [
           "persons-location"
+        ]
+      }
+    },
+    "/api/v1/persons/roster-health": {
+      "get": {
+        "description": "Members still needing face enrollment and recurring visitors awaiting review.",
+        "operationId": "get_roster_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterHealthEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Roster Health",
+        "tags": [
+          "persons"
         ]
       }
     },

@@ -14,6 +14,7 @@ type Schemas = components["schemas"];
 
 export type PersonLocationEnvelope = Schemas["PersonLocationEnvelope"];
 export type HouseholdMemberOut = Schemas["HouseholdMemberOut"];
+export type RosterHealthEnvelope = Schemas["RosterHealthEnvelope"];
 
 type HeatmapParams = operations["get_heatmap"]["parameters"]["query"];
 
@@ -62,6 +63,9 @@ export const getHeatmap = (params: HeatmapParams) =>
   unwrap(client.GET("/api/v1/cts/analytics/heatmap", { params: { query: params } }));
 
 // ─── Face enrollment (person-ID service proxy) ─────────────────────────────
+
+/** Members still needing face enrollment and recurring visitors awaiting review. */
+export const getRosterHealth = () => unwrap(client.GET("/api/v1/persons/roster-health", {}));
 
 export const getEnrolledPersons = () => unwrap(client.GET("/api/v1/persons/enrolled", {}));
 

@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from backend.core.config import settings  # noqa: E402
 from backend.core.logging import get_logger  # noqa: E402
+from backend.integrations.person_id_client import PersonIDUpstreamError  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -70,6 +71,7 @@ class MCPServices:
     guided_metrics_service: Any = None
     keyframe_read_service: Any = None  # grouped physical-frame read model
     identity_correction_service: Any = None  # segment correction workflow
+    roster_health_service: Any = None  # who still needs face enrollment
 
 
 _svc = MCPServices()
@@ -1801,6 +1803,25 @@ async def import_rule_bundle(
         return {"status": "error", "errors": [str(e)]}
     finally:
         db.close()
+
+
+@_register
+async def get_roster_health() -> dict:
+    """Get household roster health for face identification.
+
+    Returns:
+        RosterHealthEnvelope: active members lacking enough face enrollment, the count of
+        recurring unknown visitors awaiting review, and whether the roster is complete.
+    """
+    svc = _svc.roster_health_service
+    if svc is None:
+        return {"error": "roster_health_service unavailable"}
+    try:
+        envelope = await svc.get_roster_health()
+        return envelope.model_dump(mode="json")
+    except PersonIDUpstreamError as exc:
+        logger.error("mcp_get_roster_health_error", status=exc.status, error=exc.message)
+        return {"error": exc.message}
 
 
 @_register

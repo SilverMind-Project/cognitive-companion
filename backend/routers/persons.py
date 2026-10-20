@@ -10,7 +10,10 @@ from sqlalchemy.orm import Session
 from backend.core.auth import require_permission
 from backend.core.database import get_db
 from backend.core.logging import get_logger
+from backend.integrations.person_id_client import PersonIDUpstreamError
 from backend.models.person import HouseholdMember
+from backend.routers.dependencies import get_roster_health_service
+from backend.schemas.identity_roster import RosterHealthEnvelope
 from backend.schemas.person import (
     EnrollResultOut,
     HouseholdMemberCreate,
@@ -18,6 +21,7 @@ from backend.schemas.person import (
     HouseholdMemberUpdate,
     PersonEnrollmentOut,
 )
+from backend.services.identity_roster import RosterHealthService
 from backend.services.persons import insert_household_member
 
 logger = get_logger(__name__)
@@ -96,6 +100,19 @@ async def list_enrolled(
         )
         for m in enrolled
     ]
+
+
+@router.get("/roster-health", response_model=RosterHealthEnvelope)
+async def get_roster_health(
+    svc: RosterHealthService = Depends(get_roster_health_service),
+    _auth=Depends(require_permission("caregiver")),
+) -> RosterHealthEnvelope:
+    """Members still needing face enrollment and recurring visitors awaiting review."""
+    try:
+        return await svc.get_roster_health()
+    except PersonIDUpstreamError as exc:
+        status = 502 if exc.status >= 500 else exc.status
+        raise HTTPException(status_code=status, detail=exc.message) from exc
 
 
 @router.post("/{person_id}/enroll", response_model=EnrollResultOut)

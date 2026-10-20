@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from backend.services.event_aggregator import EventAggregator
     from backend.services.guided_task.metrics_service import GuidedMetricsService
     from backend.services.guided_task.service import GuidedTaskService
+    from backend.services.identity_roster import RosterHealthService
     from backend.services.inference_telemetry import InferenceTelemetryService
     from backend.services.knowledge.delivery_service import KnowledgeDeliveryService
     from backend.services.media_observability import MediaObservabilityService
@@ -86,6 +87,7 @@ __all__ = [
     "get_person_location_service",
     "get_ph_enrichment_service",
     "get_realtime_provider",
+    "get_roster_health_service",
     "get_scheduler",
     "get_sensor_polling",
     "get_signals_feed",
@@ -145,6 +147,14 @@ def get_reid_review_service(request: Request) -> ReIDReviewService:
     service: ReIDReviewService | None = request.app.state.reid_review_service
     if service is None:
         raise _raise_503("reid_review_service", "ReID review service")
+    return service
+
+
+def get_roster_health_service(request: Request) -> RosterHealthService:
+    """Return the lifespan-managed roster health service (503 if unavailable)."""
+    service: RosterHealthService | None = request.app.state.roster_health_service
+    if service is None:
+        raise _raise_503("roster_health_service", "Roster health service")
     return service
 
 

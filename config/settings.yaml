@@ -245,6 +245,7 @@ mcp:
     - "trigger_rule"
     - "get_eink_display_status"
     - "get_enrolled_persons"
+    - "get_roster_health"
     - "get_local_datetime"
     - "get_weather"
     - "get_recent_scene_objects"
@@ -303,6 +304,12 @@ person_id:
   enabled: true
   min_confidence: 0.5
   include_motion: true
+
+# Roster health: household members whose face enrollment is too thin to identify them.
+# One averaged face per person built from fewer than about five varied photos is unstable,
+# and an unenrolled regular visitor gets matched to the closest enrolled member.
+roster:
+  min_face_embeddings: 5
 
 # Person Location Tracking
 person_tracking:

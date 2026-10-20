@@ -21,6 +21,8 @@
       >
     </div>
 
+    <RosterHealthBanner ref="rosterBanner" />
+
     <v-tabs v-model="activeTab" color="primary" class="mb-4">
       <v-tab value="members">Members</v-tab>
       <v-tab value="locations">Live Locations</v-tab>
@@ -560,6 +562,7 @@ import {
 import DialogHeader from "../../components/common/DialogHeader.vue";
 import DialogFooter from "../../components/common/DialogFooter.vue";
 import CcSegmentedToggle from "../../components/common/CcSegmentedToggle.vue";
+import RosterHealthBanner from "../../components/admin/persons/RosterHealthBanner.vue";
 
 const ALERT_PROFILE_OPTIONS = [
   { value: "senior", label: "Senior" },
@@ -594,6 +597,8 @@ const severityItems = [
 
 // -- Members list --
 const members = ref([]);
+// Re-checked after any change to members or enrollment; the banner fetches once on mount.
+const rosterBanner = ref(null);
 const loading = ref(false);
 const dialog = ref(false);
 const editing = ref(false);
@@ -662,6 +667,7 @@ async function submitEnrollment() {
     }
     enrollResult.value = await api.enrollPerson(enrollTarget.value.id, formData);
     await loadEnrollment();
+    rosterBanner.value?.refresh();
     notify("Face enrollment successful");
   } catch (e) {
     notify(e.message, "error");
@@ -681,6 +687,7 @@ async function unenroll() {
   try {
     await api.deleteEnrollment(enrollTarget.value.id);
     await loadEnrollment();
+    rosterBanner.value?.refresh();
     enrollDialog.value = false;
     notify("Enrollment removed");
   } catch (e) {
@@ -769,6 +776,7 @@ async function saveMember() {
     }
     dialog.value = false;
     await loadMembers();
+    rosterBanner.value?.refresh();
   } catch (e) {
     notify(e.message, "error");
   }
@@ -785,6 +793,7 @@ async function deleteMember(id) {
   try {
     await api.deletePerson(id);
     await loadMembers();
+    rosterBanner.value?.refresh();
   } catch (e) {
     notify(e.message, "error");
   }

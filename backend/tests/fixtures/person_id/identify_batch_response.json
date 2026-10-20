@@ -6,7 +6,12 @@
           "person_id": "resident-alpha",
           "name": "Resident Alpha",
           "confidence": 0.71,
-          "bbox": [120.0, 40.0, 168.0, 100.0],
+          "bbox": [
+            120.0,
+            40.0,
+            168.0,
+            100.0
+          ],
           "recognition_state": "recognized",
           "best_candidate_id": "resident-alpha",
           "similarity": 0.71,
@@ -23,13 +28,26 @@
           "calibration_artifact_version": null,
           "arcface_model_version": "buffalo_l",
           "model_profile": "",
-          "preprocessing_version": "v1"
+          "preprocessing_version": "v1",
+          "quality": {
+            "score": 0.71,
+            "resolution": 0.44,
+            "sharpness": 0.93,
+            "detection": 0.82,
+            "pitch": 1.0,
+            "version": "heuristic-v1"
+          }
         },
         {
           "person_id": "unknown",
           "name": "Guest",
           "confidence": 0.0,
-          "bbox": [300.0, 52.0, 336.0, 98.0],
+          "bbox": [
+            300.0,
+            52.0,
+            336.0,
+            98.0
+          ],
           "recognition_state": "unrecognized",
           "best_candidate_id": "resident-beta",
           "similarity": -0.04,
@@ -46,7 +64,15 @@
           "calibration_artifact_version": null,
           "arcface_model_version": "buffalo_l",
           "model_profile": "",
-          "preprocessing_version": "v1"
+          "preprocessing_version": "v1",
+          "quality": {
+            "score": 0.32,
+            "resolution": 0.15,
+            "sharpness": 0.58,
+            "detection": 0.4,
+            "pitch": 1.0,
+            "version": "heuristic-v1"
+          }
         }
       ]
     }

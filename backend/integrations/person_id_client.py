@@ -44,15 +44,15 @@ class PersonIDUpstreamError(Exception):
 class FaceResult:
     person_id: str
     name: str
-    confidence: float
     bbox: list[float]
     # Rich face evidence: three-valued recognition state from person-identification-service.
     # "recognized" (strong positive), "candidate" (grey zone), "unrecognized".
     recognition_state: str = "recognized"
     # Rich face evidence: nearest centroid person_id, set even when similarity is below threshold.
     best_candidate_id: str | None = None
-    # Rich face evidence: raw cosine similarity to the best candidate centroid.
-    similarity: float = 0.0
+    # Rich face evidence: raw ArcFace cosine similarity to the best candidate centroid. This is the
+    # face's only match score; the service's legacy "confidence" field is not read.
+    raw_similarity: float = 0.0
     # Rich face evidence: head pose yaw in degrees (primary frontality axis).
     yaw_deg: float = 0.0
     # Rich face evidence: head pose pitch in degrees.
@@ -169,6 +169,11 @@ class VisitorNameResult:
     named_person_id: str
     member_name: str
     embedding_count: int
+
+
+def _raw_similarity(face: dict[str, Any]) -> float:
+    """A face's raw cosine similarity; an older service sends only the "similarity" alias."""
+    return float(face.get("raw_similarity", face.get("similarity", 0.0)))
 
 
 def _extract_detail(response: httpx.Response) -> str:
@@ -288,11 +293,10 @@ class PersonIDClient:
             FaceResult(
                 person_id=f["person_id"],
                 name=f["name"],
-                confidence=f["confidence"],
                 bbox=f["bbox"],
                 recognition_state=f.get("recognition_state", "recognized"),
                 best_candidate_id=f.get("best_candidate_id"),
-                similarity=f.get("similarity", 0.0),
+                raw_similarity=_raw_similarity(f),
                 yaw_deg=f.get("yaw_deg", 0.0),
                 pitch_deg=f.get("pitch_deg", 0.0),
                 roll_deg=f.get("roll_deg", 0.0),
@@ -369,7 +373,7 @@ class PersonIDClient:
 
     async def list_members(self) -> list[MemberInfo]:
         """Fetch all enrolled members, raising ``PersonIDUpstreamError`` on any failure."""
-        data = await self._visitor_request("GET", "/api/v1/members")
+        data = await self._request_or_raise("GET", "/api/v1/members")
         try:
             return [
                 MemberInfo(
@@ -489,7 +493,7 @@ class PersonIDClient:
 
     async def list_visitor_clusters(self, status: str | None = None) -> VisitorClusterListResult:
         params = {"status": status} if status else None
-        data = await self._visitor_request("GET", "/api/v1/visitors/clusters", params=params)
+        data = await self._request_or_raise("GET", "/api/v1/visitors/clusters", params=params)
         try:
             return VisitorClusterListResult(
                 clusters=[self._parse_cluster_summary(c) for c in data["clusters"]],
@@ -499,7 +503,7 @@ class PersonIDClient:
             raise PersonIDUpstreamError(502, f"malformed cluster list envelope: {exc}") from exc
 
     async def get_visitor_cluster(self, cluster_id: str) -> VisitorClusterDetail:
-        data = await self._visitor_request("GET", f"/api/v1/visitors/clusters/{cluster_id}")
+        data = await self._request_or_raise("GET", f"/api/v1/visitors/clusters/{cluster_id}")
         try:
             return self._parse_cluster_detail(data)
         except (KeyError, TypeError) as exc:
@@ -508,7 +512,7 @@ class PersonIDClient:
     async def name_visitor_cluster(
         self, cluster_id: str, person_id: str, name: str
     ) -> VisitorNameResult:
-        data = await self._visitor_request(
+        data = await self._request_or_raise(
             "POST",
             f"/api/v1/visitors/clusters/{cluster_id}/name",
             json={"person_id": person_id, "name": name},
@@ -525,10 +529,10 @@ class PersonIDClient:
             raise PersonIDUpstreamError(502, f"malformed name response envelope: {exc}") from exc
 
     async def dismiss_visitor_cluster(self, cluster_id: str) -> None:
-        await self._visitor_request("POST", f"/api/v1/visitors/clusters/{cluster_id}/dismiss")
+        await self._request_or_raise("POST", f"/api/v1/visitors/clusters/{cluster_id}/dismiss")
 
     async def merge_visitor_clusters(self, cluster_a: str, cluster_b: str) -> VisitorClusterSummary:
-        data = await self._visitor_request(
+        data = await self._request_or_raise(
             "POST", f"/api/v1/visitors/clusters/{cluster_a}/merge/{cluster_b}"
         )
         try:
@@ -568,7 +572,7 @@ class PersonIDClient:
             ],
         )
 
-    async def _visitor_request(
+    async def _request_or_raise(
         self,
         method: str,
         path: str,
@@ -588,7 +592,7 @@ class PersonIDClient:
         except httpx.HTTPStatusError as exc:
             detail = _extract_detail(exc.response)
             logger.warning(
-                "person_id_visitor_request_failed",
+                "person_id_request_failed",
                 method=method,
                 path=path,
                 status=exc.response.status_code,
@@ -596,10 +600,10 @@ class PersonIDClient:
             )
             raise PersonIDUpstreamError(exc.response.status_code, detail) from exc
         except httpx.TimeoutException as exc:
-            logger.warning("person_id_visitor_request_timeout", method=method, path=path)
+            logger.warning("person_id_request_timeout", method=method, path=path)
             raise PersonIDUpstreamError(504, "Person identification service timed out") from exc
         except httpx.HTTPError as exc:
-            logger.exception("person_id_visitor_request_error", method=method, path=path)
+            logger.exception("person_id_request_error", method=method, path=path)
             raise PersonIDUpstreamError(
                 502, "Person identification service is unreachable"
             ) from exc
@@ -613,11 +617,10 @@ class PersonIDClient:
                 FaceResult(
                     person_id=f["person_id"],
                     name=f["name"],
-                    confidence=f["confidence"],
                     bbox=f["bbox"],
                     recognition_state=f.get("recognition_state", "recognized"),
                     best_candidate_id=f.get("best_candidate_id"),
-                    similarity=f.get("similarity", 0.0),
+                    raw_similarity=_raw_similarity(f),
                     yaw_deg=f.get("yaw_deg", 0.0),
                     pitch_deg=f.get("pitch_deg", 0.0),
                     roll_deg=f.get("roll_deg", 0.0),

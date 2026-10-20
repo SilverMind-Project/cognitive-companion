@@ -4,7 +4,8 @@
 Every outbound call is intercepted by a mock ``httpx.AsyncClient`` so no real
 person-identification-service is required. Unlike the rest of this client
 (which returns ``None``/``[]`` on failure), the visitor methods raise
-:class:`PersonIDUpstreamError` -- these tests assert that distinction.
+:class:`PersonIDUpstreamError` through ``_request_or_raise`` -- these tests assert that
+distinction.
 """
 
 from __future__ import annotations

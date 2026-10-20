@@ -1,0 +1,55 @@
+{
+  "frames": [
+    {
+      "faces": [
+        {
+          "person_id": "resident-alpha",
+          "name": "Resident Alpha",
+          "confidence": 0.71,
+          "bbox": [120.0, 40.0, 168.0, 100.0],
+          "recognition_state": "recognized",
+          "best_candidate_id": "resident-alpha",
+          "similarity": 0.71,
+          "raw_similarity": 0.71,
+          "yaw_deg": 8.5,
+          "pitch_deg": -4.0,
+          "roll_deg": 1.2,
+          "det_score": 0.83,
+          "face_width_px": 48.0,
+          "face_height_px": 60.0,
+          "interocular_px": 21.5,
+          "calibrated_confidence": null,
+          "calibration_status": "degraded_missing",
+          "calibration_artifact_version": null,
+          "arcface_model_version": "buffalo_l",
+          "model_profile": "",
+          "preprocessing_version": "v1"
+        },
+        {
+          "person_id": "unknown",
+          "name": "Guest",
+          "confidence": 0.0,
+          "bbox": [300.0, 52.0, 336.0, 98.0],
+          "recognition_state": "unrecognized",
+          "best_candidate_id": "resident-beta",
+          "similarity": -0.04,
+          "raw_similarity": -0.04,
+          "yaw_deg": -31.0,
+          "pitch_deg": 2.0,
+          "roll_deg": 0.0,
+          "det_score": 0.66,
+          "face_width_px": 36.0,
+          "face_height_px": 46.0,
+          "interocular_px": 14.0,
+          "calibrated_confidence": null,
+          "calibration_status": "degraded_missing",
+          "calibration_artifact_version": null,
+          "arcface_model_version": "buffalo_l",
+          "model_profile": "",
+          "preprocessing_version": "v1"
+        }
+      ]
+    }
+  ],
+  "motion": []
+}

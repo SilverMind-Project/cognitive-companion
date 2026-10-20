@@ -74,9 +74,10 @@ EXPECTED_TOOLS = {
     "list_keyframe_frames",
     "propose_identity_correction",
     "record_resident_preference",
+    "get_roster_health",
 }
 
-EXPECTED_COUNT = 59
+EXPECTED_COUNT = 60
 
 
 # ---------------------------------------------------------------------------

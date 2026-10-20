@@ -115,6 +115,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "realtime_provider",
         "recamera_location_ingest",
         "reid_review_service",
+        "roster_health_service",
         "scene_analysis_client",
         "scene_intel",
         "scene_sample_subscriber",

@@ -19,7 +19,7 @@ def _make_face_result(
     return FaceResult(
         person_id="alice",
         name="Alice",
-        confidence=0.85,
+        raw_similarity=0.85,
         bbox=[0, 0, 10, 10],
         calibration_status=calibration_status,
         calibrated_confidence=calibrated_confidence,

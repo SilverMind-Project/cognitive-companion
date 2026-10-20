@@ -240,20 +240,20 @@ class PersonTrackingService:
         best: dict[str, PersonDetection] = {}
         for frame_idx, frame_faces in enumerate(batch_result.frames):
             for face in frame_faces:
-                if face.confidence < self._min_confidence:
+                if face.raw_similarity < self._min_confidence:
                     continue
                 existing = best.get(face.person_id)
-                if not existing or face.confidence > existing.confidence:
+                if not existing or face.raw_similarity > existing.confidence:
                     best[face.person_id] = PersonDetection(
                         person_id=face.person_id,
                         name=face.name,
-                        confidence=face.confidence,
+                        confidence=face.raw_similarity,
                         bbox=face.bbox,
                         direction=direction_map.get(face.person_id),
                         frame_index=frame_idx,
                         # Rich face evidence forwarded from person-id service.
                         recognition_state=face.recognition_state,
-                        similarity=face.similarity,
+                        similarity=face.raw_similarity,
                         yaw_deg=face.yaw_deg,
                         calibrated_confidence=_resolve_calibrated_confidence(face),
                         calibration_status=face.calibration_status,

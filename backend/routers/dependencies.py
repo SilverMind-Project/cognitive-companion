@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from backend.services.cts.runtime import CTSRuntime
     from backend.services.daily_living_health import DailyLivingHealthService
     from backend.services.event_aggregator import EventAggregator
+    from backend.services.face_calibration import FaceCalibrationReviewService
     from backend.services.guided_task.metrics_service import GuidedMetricsService
     from backend.services.guided_task.service import GuidedTaskService
     from backend.services.identity_roster import RosterHealthService
@@ -70,6 +71,7 @@ __all__ = [
     "get_cts_runtime",
     "get_daily_living_health",
     "get_event_aggregator",
+    "get_face_calibration_service",
     "get_gemini_adapter",
     "get_guided_metrics_service",
     "get_guided_task_service",
@@ -155,6 +157,14 @@ def get_roster_health_service(request: Request) -> RosterHealthService:
     service: RosterHealthService | None = request.app.state.roster_health_service
     if service is None:
         raise _raise_503("roster_health_service", "Roster health service")
+    return service
+
+
+def get_face_calibration_service(request: Request) -> FaceCalibrationReviewService:
+    """Return the lifespan-managed face calibration review service (503 if unavailable)."""
+    service: FaceCalibrationReviewService | None = request.app.state.face_calibration_service
+    if service is None:
+        raise _raise_503("face_calibration_service", "Face calibration review service")
     return service
 
 

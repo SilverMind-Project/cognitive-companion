@@ -138,6 +138,57 @@ class VisitorSightingInfo:
     crop_object: str | None = None
 
 
+CalibrationLabelState = Literal["unlabeled", "labeled", "rejected"]
+CalibrationLabelKind = Literal["member", "not_enrolled", "not_a_face"]
+
+
+@dataclass
+class CalibrationCandidateInfo:
+    """A face capture awaiting or carrying an operator label (no embedding ever reaches CC)."""
+
+    candidate_id: str
+    captured_at: datetime
+    camera_id: str
+    crop_object_key: str
+    quality_score: float
+    quality_version: str
+    interocular_px: float | None
+    yaw_deg: float
+    pitch_deg: float
+    nearest_person_id: str | None
+    nearest_similarity: float
+    label_state: CalibrationLabelState
+    label_kind: CalibrationLabelKind | None
+    label_identity_id: str | None
+    labeled_by: str | None
+    labeled_at: datetime | None
+
+
+@dataclass
+class CalibrationCandidatePage:
+    candidates: list[CalibrationCandidateInfo]
+    next_cursor: str | None
+
+
+@dataclass
+class CalibrationIdentityProgress:
+    identity_id: str
+    labeled_faces: int
+    episodes: int
+    target_labeled_faces: int
+
+
+@dataclass
+class CalibrationSummaryInfo:
+    by_state: dict[str, int]
+    by_label_kind: dict[str, int]
+    by_quality_decile: dict[str, int]
+    by_camera: dict[str, int]
+    identities: list[CalibrationIdentityProgress]
+    not_enrolled_episodes: int
+    capture_enabled: bool
+
+
 @dataclass
 class VisitorClusterSummary:
     cluster_id: str
@@ -570,6 +621,106 @@ class PersonIDClient:
                 )
                 for s in data.get("recent_sightings", [])
             ],
+        )
+
+    # -- Calibration capture review -------------------------------------------
+
+    async def list_calibration_candidates(
+        self, *, state: str | None, limit: int, cursor: str | None
+    ) -> CalibrationCandidatePage:
+        params = {"limit": str(limit)}
+        if state:
+            params["state"] = state
+        if cursor:
+            params["cursor"] = cursor
+        data = await self._request_or_raise("GET", "/api/v1/calibration/candidates", params=params)
+        try:
+            return CalibrationCandidatePage(
+                candidates=[self._parse_calibration_candidate(c) for c in data["candidates"]],
+                next_cursor=data["next_cursor"],
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise PersonIDUpstreamError(
+                502, f"malformed calibration candidate page: {exc}"
+            ) from exc
+
+    async def label_calibration_candidate(
+        self,
+        candidate_id: str,
+        *,
+        label_kind: str,
+        label_identity_id: str | None,
+        labeled_by: str,
+    ) -> CalibrationCandidateInfo:
+        data = await self._request_or_raise(
+            "POST",
+            f"/api/v1/calibration/candidates/{candidate_id}/label",
+            json={
+                "label_kind": label_kind,
+                "label_identity_id": label_identity_id,
+                "labeled_by": labeled_by,
+            },
+        )
+        return self._calibration_candidate_or_502(data)
+
+    async def reject_calibration_candidate(self, candidate_id: str) -> CalibrationCandidateInfo:
+        data = await self._request_or_raise(
+            "POST", f"/api/v1/calibration/candidates/{candidate_id}/reject"
+        )
+        return self._calibration_candidate_or_502(data)
+
+    async def delete_calibration_candidate(self, candidate_id: str) -> None:
+        await self._request_or_raise("DELETE", f"/api/v1/calibration/candidates/{candidate_id}")
+
+    async def get_calibration_summary(self) -> CalibrationSummaryInfo:
+        data = await self._request_or_raise("GET", "/api/v1/calibration/summary")
+        try:
+            return CalibrationSummaryInfo(
+                by_state={str(k): int(v) for k, v in data["by_state"].items()},
+                by_label_kind={str(k): int(v) for k, v in data["by_label_kind"].items()},
+                by_quality_decile={str(k): int(v) for k, v in data["by_quality_decile"].items()},
+                by_camera={str(k): int(v) for k, v in data["by_camera"].items()},
+                identities=[
+                    CalibrationIdentityProgress(
+                        identity_id=i["identity_id"],
+                        labeled_faces=int(i["labeled_faces"]),
+                        episodes=int(i["episodes"]),
+                        target_labeled_faces=int(i["target_labeled_faces"]),
+                    )
+                    for i in data["identities"]
+                ],
+                not_enrolled_episodes=int(data["not_enrolled_episodes"]),
+                capture_enabled=bool(data["capture_enabled"]),
+            )
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed calibration summary: {exc}") from exc
+
+    def _calibration_candidate_or_502(self, data: Any) -> CalibrationCandidateInfo:
+        try:
+            return self._parse_calibration_candidate(data)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise PersonIDUpstreamError(502, f"malformed calibration candidate: {exc}") from exc
+
+    @staticmethod
+    def _parse_calibration_candidate(c: dict[str, Any]) -> CalibrationCandidateInfo:
+        labeled_at = c["labeled_at"]
+        return CalibrationCandidateInfo(
+            candidate_id=c["candidate_id"],
+            captured_at=datetime.fromisoformat(c["captured_at"]),
+            camera_id=c["camera_id"],
+            crop_object_key=c["crop_object_key"],
+            quality_score=float(c["quality_score"]),
+            quality_version=c["quality_version"],
+            interocular_px=None if c["interocular_px"] is None else float(c["interocular_px"]),
+            yaw_deg=float(c["yaw_deg"]),
+            pitch_deg=float(c["pitch_deg"]),
+            nearest_person_id=c["nearest_person_id"],
+            nearest_similarity=float(c["nearest_similarity"]),
+            label_state=c["label_state"],
+            label_kind=c["label_kind"],
+            label_identity_id=c["label_identity_id"],
+            labeled_by=c["labeled_by"],
+            labeled_at=None if labeled_at is None else datetime.fromisoformat(labeled_at),
         )
 
     async def _request_or_raise(

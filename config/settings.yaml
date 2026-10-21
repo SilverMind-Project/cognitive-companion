@@ -246,6 +246,7 @@ mcp:
     - "get_eink_display_status"
     - "get_enrolled_persons"
     - "get_roster_health"
+    - "get_face_calibration_summary"
     - "get_local_datetime"
     - "get_weather"
     - "get_recent_scene_objects"

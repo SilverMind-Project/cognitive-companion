@@ -1737,6 +1737,179 @@
         "title": "Body_update_template_image",
         "type": "object"
       },
+      "CalibrationCandidateListResponse": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationCandidateView"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "candidates"
+        ],
+        "title": "CalibrationCandidateListResponse",
+        "type": "object"
+      },
+      "CalibrationCandidateView": {
+        "properties": {
+          "camera_id": {
+            "title": "Camera Id",
+            "type": "string"
+          },
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "crop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Presigned aligned-crop URL; null if unsigned",
+            "title": "Crop Url"
+          },
+          "interocular_px": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interocular Px"
+          },
+          "label_identity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Identity Id"
+          },
+          "label_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "member",
+                  "not_enrolled",
+                  "not_a_face"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Kind"
+          },
+          "label_state": {
+            "enum": [
+              "unlabeled",
+              "labeled",
+              "rejected"
+            ],
+            "title": "Label State",
+            "type": "string"
+          },
+          "labeled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labeled At"
+          },
+          "labeled_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Labeled By"
+          },
+          "nearest_person_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Person Id"
+          },
+          "nearest_similarity": {
+            "description": "Raw cosine similarity to the nearest member; not a probability",
+            "title": "Nearest Similarity",
+            "type": "number"
+          },
+          "pitch_deg": {
+            "title": "Pitch Deg",
+            "type": "number"
+          },
+          "quality_score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Quality Score",
+            "type": "number"
+          },
+          "quality_version": {
+            "title": "Quality Version",
+            "type": "string"
+          },
+          "yaw_deg": {
+            "title": "Yaw Deg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "captured_at",
+          "camera_id",
+          "quality_score",
+          "quality_version",
+          "yaw_deg",
+          "pitch_deg",
+          "nearest_similarity",
+          "label_state"
+        ],
+        "title": "CalibrationCandidateView",
+        "type": "object"
+      },
       "CalibrationDiagnosticsEntry": {
         "description": "Per-camera calibration health for the diagnostics endpoint.",
         "properties": {
@@ -1819,6 +1992,34 @@
           "cameras"
         ],
         "title": "CalibrationDiagnosticsResponse",
+        "type": "object"
+      },
+      "CalibrationIdentityProgressView": {
+        "properties": {
+          "episodes": {
+            "title": "Episodes",
+            "type": "integer"
+          },
+          "identity_id": {
+            "title": "Identity Id",
+            "type": "string"
+          },
+          "labeled_faces": {
+            "title": "Labeled Faces",
+            "type": "integer"
+          },
+          "target_labeled_faces": {
+            "title": "Target Labeled Faces",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "identity_id",
+          "labeled_faces",
+          "episodes",
+          "target_labeled_faces"
+        ],
+        "title": "CalibrationIdentityProgressView",
         "type": "object"
       },
       "CalibrationPoint": {
@@ -5013,6 +5214,65 @@
           "status"
         ],
         "title": "ExecutionRerunOut",
+        "type": "object"
+      },
+      "FaceCalibrationSummaryEnvelope": {
+        "description": "Labeling progress toward the calibration gates (counts only, no faces).",
+        "properties": {
+          "by_camera": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Camera",
+            "type": "object"
+          },
+          "by_label_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Label Kind",
+            "type": "object"
+          },
+          "by_quality_decile": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Quality Decile",
+            "type": "object"
+          },
+          "by_state": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By State",
+            "type": "object"
+          },
+          "capture_enabled": {
+            "title": "Capture Enabled",
+            "type": "boolean"
+          },
+          "identities": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationIdentityProgressView"
+            },
+            "title": "Identities",
+            "type": "array"
+          },
+          "not_enrolled_episodes": {
+            "title": "Not Enrolled Episodes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "by_state",
+          "by_label_kind",
+          "by_quality_decile",
+          "by_camera",
+          "identities",
+          "not_enrolled_episodes",
+          "capture_enabled"
+        ],
+        "title": "FaceCalibrationSummaryEnvelope",
         "type": "object"
       },
       "FilterTypeOut": {
@@ -8587,6 +8847,39 @@
           "default_max_tokens"
         ],
         "title": "LLMModelOut",
+        "type": "object"
+      },
+      "LabelCalibrationCandidateRequest": {
+        "additionalProperties": false,
+        "description": "The labeler is the authenticated caller; the browser never names one.",
+        "properties": {
+          "label_identity_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Identity Id"
+          },
+          "label_kind": {
+            "enum": [
+              "member",
+              "not_enrolled",
+              "not_a_face"
+            ],
+            "title": "Label Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label_kind"
+        ],
+        "title": "LabelCalibrationCandidateRequest",
         "type": "object"
       },
       "LayoutListResponse": {
@@ -17653,7 +17946,7 @@
   "info": {
     "description": "Privacy-first AI companion for senior care",
     "title": "Cognitive Companion",
-    "version": "0.7.134"
+    "version": "0.7.137"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -24811,6 +25104,264 @@
         "summary": "Get Event",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/candidates": {
+      "get": {
+        "operationId": "list_calibration_candidates",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "unlabeled",
+                    "labeled",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "unlabeled",
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationCandidateListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "List Calibration Candidates",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/candidates/{candidate_id}": {
+      "delete": {
+        "operationId": "delete_calibration_candidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Delete Calibration Candidate",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/candidates/{candidate_id}/label": {
+      "post": {
+        "operationId": "label_calibration_candidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelCalibrationCandidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationCandidateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Label Calibration Candidate",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/candidates/{candidate_id}/reject": {
+      "post": {
+        "operationId": "reject_calibration_candidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationCandidateView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Reject Calibration Candidate",
+        "tags": [
+          "face-calibration"
+        ]
+      }
+    },
+    "/api/v1/face-calibration/summary": {
+      "get": {
+        "operationId": "get_face_calibration_summary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaceCalibrationSummaryEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Get Face Calibration Summary",
+        "tags": [
+          "face-calibration"
         ]
       }
     },

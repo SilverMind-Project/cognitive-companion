@@ -77,6 +77,11 @@ const routes = [
         component: () => import("../views/admin/VisitorsView.vue"),
       },
       {
+        path: "face-calibration",
+        name: "admin-face-calibration",
+        component: () => import("../views/admin/FaceCalibrationView.vue"),
+      },
+      {
         path: "activities",
         name: "admin-activities",
         component: () => import("../views/admin/ActivitiesView.vue"),

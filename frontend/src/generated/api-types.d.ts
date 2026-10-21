@@ -2402,6 +2402,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/face-calibration/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Calibration Candidates */
+        get: operations["list_calibration_candidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/face-calibration/candidates/{candidate_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Calibration Candidate */
+        delete: operations["delete_calibration_candidate"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/face-calibration/candidates/{candidate_id}/label": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Label Calibration Candidate */
+        post: operations["label_calibration_candidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/face-calibration/candidates/{candidate_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Calibration Candidate */
+        post: operations["reject_calibration_candidate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/face-calibration/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Face Calibration Summary */
+        get: operations["get_face_calibration_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/gate-graphs": {
         parameters: {
             query?: never;
@@ -5878,6 +5963,60 @@ export interface components {
             /** Image */
             image: string;
         };
+        /** CalibrationCandidateListResponse */
+        CalibrationCandidateListResponse: {
+            /** Candidates */
+            candidates: components["schemas"]["CalibrationCandidateView"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** CalibrationCandidateView */
+        CalibrationCandidateView: {
+            /** Camera Id */
+            camera_id: string;
+            /** Candidate Id */
+            candidate_id: string;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Crop Url
+             * @description Presigned aligned-crop URL; null if unsigned
+             */
+            crop_url?: string | null;
+            /** Interocular Px */
+            interocular_px?: number | null;
+            /** Label Identity Id */
+            label_identity_id?: string | null;
+            /** Label Kind */
+            label_kind?: ("member" | "not_enrolled" | "not_a_face") | null;
+            /**
+             * Label State
+             * @enum {string}
+             */
+            label_state: "unlabeled" | "labeled" | "rejected";
+            /** Labeled At */
+            labeled_at?: string | null;
+            /** Labeled By */
+            labeled_by?: string | null;
+            /** Nearest Person Id */
+            nearest_person_id?: string | null;
+            /**
+             * Nearest Similarity
+             * @description Raw cosine similarity to the nearest member; not a probability
+             */
+            nearest_similarity: number;
+            /** Pitch Deg */
+            pitch_deg: number;
+            /** Quality Score */
+            quality_score: number;
+            /** Quality Version */
+            quality_version: string;
+            /** Yaw Deg */
+            yaw_deg: number;
+        };
         /**
          * CalibrationDiagnosticsEntry
          * @description Per-camera calibration health for the diagnostics endpoint.
@@ -5910,6 +6049,17 @@ export interface components {
         CalibrationDiagnosticsResponse: {
             /** Cameras */
             cameras: components["schemas"]["CalibrationDiagnosticsEntry"][];
+        };
+        /** CalibrationIdentityProgressView */
+        CalibrationIdentityProgressView: {
+            /** Episodes */
+            episodes: number;
+            /** Identity Id */
+            identity_id: string;
+            /** Labeled Faces */
+            labeled_faces: number;
+            /** Target Labeled Faces */
+            target_labeled_faces: number;
         };
         /** CalibrationPoint */
         CalibrationPoint: {
@@ -7054,6 +7204,34 @@ export interface components {
             rule_id: number;
             /** Status */
             status: string;
+        };
+        /**
+         * FaceCalibrationSummaryEnvelope
+         * @description Labeling progress toward the calibration gates (counts only, no faces).
+         */
+        FaceCalibrationSummaryEnvelope: {
+            /** By Camera */
+            by_camera: {
+                [key: string]: number;
+            };
+            /** By Label Kind */
+            by_label_kind: {
+                [key: string]: number;
+            };
+            /** By Quality Decile */
+            by_quality_decile: {
+                [key: string]: number;
+            };
+            /** By State */
+            by_state: {
+                [key: string]: number;
+            };
+            /** Capture Enabled */
+            capture_enabled: boolean;
+            /** Identities */
+            identities: components["schemas"]["CalibrationIdentityProgressView"][];
+            /** Not Enrolled Episodes */
+            not_enrolled_episodes: number;
         };
         /** FilterTypeOut */
         FilterTypeOut: {
@@ -8321,6 +8499,19 @@ export interface components {
             name: string;
             /** Supports Thinking */
             supports_thinking: boolean;
+        };
+        /**
+         * LabelCalibrationCandidateRequest
+         * @description The labeler is the authenticated caller; the browser never names one.
+         */
+        LabelCalibrationCandidateRequest: {
+            /** Label Identity Id */
+            label_identity_id?: string | null;
+            /**
+             * Label Kind
+             * @enum {string}
+             */
+            label_kind: "member" | "not_enrolled" | "not_a_face";
         };
         /** LayoutListResponse */
         LayoutListResponse: {
@@ -15672,6 +15863,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_calibration_candidates: {
+        parameters: {
+            query?: {
+                state?: ("unlabeled" | "labeled" | "rejected") | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationCandidateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_calibration_candidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    label_calibration_candidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelCalibrationCandidateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationCandidateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_calibration_candidate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationCandidateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_face_calibration_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceCalibrationSummaryEnvelope"];
                 };
             };
         };

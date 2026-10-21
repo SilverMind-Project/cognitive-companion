@@ -75,6 +75,7 @@ def create_app() -> FastAPI:
         cts_window_triggers,
         device,
         events,
+        face_calibration,
         gate_graphs,
         guided_metrics,
         guided_sessions,
@@ -134,6 +135,7 @@ def create_app() -> FastAPI:
     app.include_router(persons_location.router)  # already has /api/v1 prefix
     app.include_router(persons.router, prefix=api)
     app.include_router(visitors.router, prefix=api)
+    app.include_router(face_calibration.router, prefix=api)
     app.include_router(workflows.router, prefix=api)
     app.include_router(activities.router, prefix=api)
     app.include_router(webhooks.router, prefix=api)

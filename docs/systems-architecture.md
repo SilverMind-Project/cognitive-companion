@@ -338,6 +338,7 @@ Key design principles:
 | `/companion` | Resident-facing PWA widgets, voice, popups, TTS announcements |
 | CTS admin views | Camera calibration, identity review, live tracking, signals, presence |
 | Knowledge views | Documents, generated images, info cards, quizzes, delivery history |
+| People views | Members and enrollment, visitor cluster review, face calibration labeling (`/admin/face-calibration`, a proxy over person-id's calibration capture queue; labels feed the offline calibration fit and never enrollment) |
 
 Frontend code uses Vuetify design tokens from `frontend/src/styles/theme.css`. Read-only charts use ECharts shared components. Vue Flow is reserved for the interactive pipeline authoring canvas.
 

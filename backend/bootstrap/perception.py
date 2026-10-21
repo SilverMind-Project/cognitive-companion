@@ -65,6 +65,13 @@ async def wire_perception(app: FastAPI, settings: Settings, container: ServiceCo
     app.state.roster_health_service = roster_health_service
     _mcp_svc.roster_health_service = roster_health_service
 
+    # -- Face calibration review (label sampled faces for calibration) ------
+    from backend.services.face_calibration import FaceCalibrationReviewService
+
+    face_calibration_service = FaceCalibrationReviewService(person_id_client)
+    app.state.face_calibration_service = face_calibration_service
+    _mcp_svc.face_calibration_service = face_calibration_service
+
     # -- Scene analysis client --------------------------------------------
     from backend.integrations.scene_analysis_client import SceneAnalysisClient
 

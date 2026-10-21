@@ -75,9 +75,10 @@ EXPECTED_TOOLS = {
     "propose_identity_correction",
     "record_resident_preference",
     "get_roster_health",
+    "get_face_calibration_summary",
 }
 
-EXPECTED_COUNT = 60
+EXPECTED_COUNT = 61
 
 
 # ---------------------------------------------------------------------------

@@ -149,6 +149,7 @@ Also assigns `container.scene_analysis_client`, `.semantic_memory_client`,
 | `person_id_client` | -- |
 | `visitor_admin_service` | `person_id_client` (identity-continuity M07; unconditional, not gated by `cts.enabled`) |
 | `roster_health_service` | `person_id_client` (members with too few face embeddings; also set on the MCP service container) |
+| `face_calibration_service` | `person_id_client` (face calibration capture review; also set on the MCP service container) |
 | `scene_analysis_client` | -- |
 | `semantic_memory_client` | -- (`None` if unconfigured/unreachable) |
 | `memory_query` | `semantic_memory_client` |

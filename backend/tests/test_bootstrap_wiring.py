@@ -77,6 +77,7 @@ EXPECTED_APP_STATE_ATTRS = frozenset(
         "eink_renderer",
         "embedding_client",
         "event_aggregator",
+        "face_calibration_service",
         "gait_trend_service",
         "gate_runner",
         "gemini_adapter",

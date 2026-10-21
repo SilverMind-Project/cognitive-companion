@@ -142,6 +142,32 @@ never reveal unblurred media to an unauthorized user.
 A dedicated review surface exists for unmatched face clusters (`cts.identity.visitors.review` token required).
 The UI connects to the BFF's visitor endpoints, not the ReID endpoints. It displays cross-visit clusters (seen on >= 3 distinct days within 30 days) and allows operators to name a cluster (creating a guest `HouseholdMember` and enrolling the faces for tracking) or dismiss it.
 
+## Face calibration review surface
+
+`/admin/face-calibration` (People, Face Calibration) labels the faces person-id samples for
+household calibration (IR-M06). It is a biometric-admin surface, separate from visitor review:
+
+- Every BFF route under `/api/v1/face-calibration` requires the strict token
+  `face_calibration.review` (granted to `caregiver_admin` only). Do not widen it to a caregiver
+  role or fold it into `cts.identity.visitors.review`.
+- The labeler recorded on a label is `auth.name` from `require_token`, never a client-supplied
+  field. The shared `_actor()` helper in other routers returns `"system"` today; do not copy it
+  here.
+- person-id returns MinIO crop keys, never URLs. `backend/routers/face_calibration.py` presigns
+  them per request into `crop_url` with the same `MinioClient` and one-hour TTL the visitor routes
+  use; the key itself is never sent to the browser, and neither is an embedding.
+- MCP exposes only the read-only `get_face_calibration_summary` (labeling progress). Labeling,
+  rejecting, and deleting are BFF-only; an agent never labels biometric data.
+- A label never changes the enrollment gallery. Labels for `member` must name an identity that is
+  enrolled in person-id (422 otherwise); `not_enrolled` (visitors, relatives) is the label the
+  open-set gate needs most, so the UI keeps it one key away (`n`).
+- Delete removes the row and its crop in person-id and goes through `useConfirm`.
+
+Required tests: router permission and presign tests, the person-id client envelope tests (502 on
+a malformed upstream), the MCP/BFF parity test for the summary, and composable and view tests for
+keyboard labeling, a failed label keeping the capture, load errors with retry, a 403 shown as the
+forbidden state (no queue, no retry), confirm-before-delete, and the empty queue.
+
 ## Component and composable boundaries
 
 Required shared ownership:

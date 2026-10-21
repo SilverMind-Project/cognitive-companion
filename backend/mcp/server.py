@@ -72,6 +72,7 @@ class MCPServices:
     keyframe_read_service: Any = None  # grouped physical-frame read model
     identity_correction_service: Any = None  # segment correction workflow
     roster_health_service: Any = None  # who still needs face enrollment
+    face_calibration_service: Any = None  # face calibration labeling progress
 
 
 _svc = MCPServices()
@@ -1821,6 +1822,26 @@ async def get_roster_health() -> dict:
         return envelope.model_dump(mode="json")
     except PersonIDUpstreamError as exc:
         logger.error("mcp_get_roster_health_error", status=exc.status, error=exc.message)
+        return {"error": exc.message}
+
+
+@_register
+async def get_face_calibration_summary() -> dict:
+    """Get face calibration labeling progress.
+
+    Returns:
+        FaceCalibrationSummaryEnvelope: capture counts by label state, kind, quality decile and
+        camera; labeled faces and capture episodes per household identity with the target needed
+        for the calibration gates; not-enrolled episodes; whether capture is on. Counts only.
+    """
+    svc = _svc.face_calibration_service
+    if svc is None:
+        return {"error": "face_calibration_service unavailable"}
+    try:
+        envelope = await svc.get_summary()
+        return envelope.model_dump(mode="json")
+    except PersonIDUpstreamError as exc:
+        logger.error("mcp_get_face_calibration_summary_error", status=exc.status, error=exc.message)
         return {"error": exc.message}
 
 

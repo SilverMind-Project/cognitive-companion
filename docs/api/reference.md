@@ -282,6 +282,27 @@ surfaced. A 502 with `code: "visitors.partial_failure"` on `/name` means the fac
 created but the CC household member insert failed; the face-service call is idempotent on
 `person_id`, so retrying the same request is safe.
 
+### Face calibration
+
+Proxies person-identification-service's calibration review API (IR-M06): an admin labels the faces
+person-id sampled from tracker identify calls, which the offline `fit-v2` command then fits on.
+Permission: `face_calibration.review`, a strict `require_token` grant held only by
+`caregiver_admin`. The labeler is the authenticated caller (`auth.name`), never a request field.
+person-id returns MinIO crop keys; the router presigns them into `crop_url` (one hour) and sends
+no key or embedding to the browser. A label never changes enrollment. The only MCP tool is the
+read-only `get_face_calibration_summary`; labeling, rejecting, and deleting are BFF-only.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/face-calibration/candidates` | Captures, newest first. Query: `state` (`unlabeled` default \| `labeled` \| `rejected`), `limit` (1 to 200, default 50), `cursor` |
+| `POST` | `/face-calibration/candidates/{candidate_id}/label` | Label a capture. Body: `label_kind` (`member` \| `not_enrolled` \| `not_a_face`), `label_identity_id` (required for `member` only; must be enrolled, else 422) |
+| `POST` | `/face-calibration/candidates/{candidate_id}/reject` | Mark a capture unusable; it is purged with unlabeled ones after 30 days |
+| `DELETE` | `/face-calibration/candidates/{candidate_id}` | Delete a capture and its crop (204) |
+| `GET` | `/face-calibration/summary` | Counts by state, label kind, quality decile, and camera; labeled faces and walks per resident against the target |
+
+person-id's 404 (unknown capture) and 422 (bad label, unenrolled identity, bad cursor) pass
+through; a person-id 5xx, timeout, unreachable service, or malformed envelope is a 502.
+
 CTS routers expose camera admin, calibration, live data, PH identity review, presence configuration, signals, trajectories, overlap groups, and CTS window trigger definitions. These endpoints require CTS to be enabled through the shared `cts_enabled` dependency.
 
 ### CTS analytics

@@ -1,6 +1,6 @@
 [project]
 name = "cognitive-companion"
-version = "0.7.138"
+version = "0.7.139"
 description = "Privacy-first AI companion for senior care"
 requires-python = ">=3.14"
 license = "AGPL-3.0"
@@ -200,7 +200,7 @@ filterwarnings = [
     "ignore::sqlalchemy.exc.SAWarning",
 ]
 markers = [
-    "integration: tests requiring testcontainers (skipped by default in make check)",
+    "integration: tests requiring testcontainers (collected by every gate; make check-all and CI run them)",
 ]
 
 # ── Coverage ─────────────────────────────────────────────────────────
@@ -221,7 +221,9 @@ omit = [
 # `backend` (branch coverage, tests/scripts/assets omitted) was 45.35% on
 # 2026-07-16. Floor set to measured-1, floored. Raise it in one-line steps
 # as coverage improves; never lower it and never delete a test to pass it.
-fail_under = 44
+# 2026-10-21: the gate now runs every backend test (not only core + services);
+# measured 72.67%, so the floor moved from 44 to 71 by the same rule.
+fail_under = 71
 show_missing = true
 skip_covered = false
 precision = 1

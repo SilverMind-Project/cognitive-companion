@@ -704,7 +704,8 @@ Running bare `python` or `pip` without the venv installs packages into the syste
 ## 14. Pre-commit checklist
 
 > Deterministic backend gates: `make lint` (ruff), `make import-lint`, `make typecheck-core` +
-> `typecheck-ratchet` (mypy strict allowlist), `make coverage-gate` (coverage floor from
+> `typecheck-ratchet` (mypy strict allowlist), `make coverage-gate` (every backend test under
+> `backend/tests`, coverage floor from
 > pyproject `fail_under` (ratchet up, never down, and never delete a test to satisfy it),
 > `make deps-check` (deptry; every ignore justified in-line). Test isolation is
 > engine-level: any test that touches the DB gets an unconditional table truncation on
@@ -715,7 +716,7 @@ Before opening a PR, verify:
 
 ### Backend
 - [ ] `make check` passes (lint + strict mypy on core + core tests)
-- [ ] If services/schemas changed: `make check-all` passes (includes the frontend lint leg: ESLint, Prettier format check, and knip, alongside typecheck and tests)
+- [ ] `make check-all` passes before declaring done: every backend test under `backend/tests` (`backend/tests/architecture/test_gate_population.py` fails if a gate target narrows that), plus the frontend lint leg (ESLint, Prettier format check, knip), typecheck, and tests
 - [ ] New public code has tests under `backend/tests/<mirror_path>/`
 - [ ] Tests cover: success path, missing-service path, at least one edge case
 - [ ] New endpoints have `auth.yaml` permission entries

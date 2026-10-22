@@ -96,4 +96,4 @@ make migration
 uv run --project backend pytest backend/tests/<area>/test_<file>.py -v
 ```
 
-`make check` is the fast backend gate. Use `make check-all` for service, schema, and shared infrastructure changes.
+`make check` is the fast backend gate (core tests only). `make check-all` is the full gate: every backend test under `backend/tests` (including testcontainer-backed integration tests) plus the frontend legs. CI runs the same backend tree through `make coverage-gate`. Use `make check-all` before declaring any change done.

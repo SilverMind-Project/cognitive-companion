@@ -158,11 +158,16 @@ frontend-lint:
 test-integration:
 	$(PYTEST) -m integration backend/tests/integration -v
 
+# Claude Code hook test table (.claude/hooks/tests/run.sh); needs bash, jq, and git.
+.PHONY: hooks-test
+hooks-test:
+	bash .claude/hooks/tests/run.sh
+
 .PHONY: check
-check: lint typecheck-core typecheck-ratchet test-core
+check: lint typecheck-core typecheck-ratchet test-core hooks-test
 
 .PHONY: check-all
-check-all: lint import-lint typecheck-core typecheck-ratchet test frontend-lint frontend-typecheck frontend-test
+check-all: lint import-lint typecheck-core typecheck-ratchet test hooks-test frontend-lint frontend-typecheck frontend-test
 
 .PHONY: migrate
 migrate:

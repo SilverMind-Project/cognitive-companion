@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "UV_FROZEN": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(make *)",
+      "Bash(backend/.venv/bin/pytest *)",
+      "Bash(backend/.venv/bin/python -m pytest *)",
+      "Bash(backend/.venv/bin/ruff check *)",
+      "Bash(uv run --frozen --project backend *)",
+      "Bash(npm run *)",
+      "Bash(npx vitest *)",
+      "Bash(npx eslint *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)"
+    ],
+    "deny": [
+      "Bash(*ruff format backend)",
+      "Bash(*ruff format backend/)",
+      "Bash(*ruff format .)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-context.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/post-edit.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-diff-scan.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-project.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

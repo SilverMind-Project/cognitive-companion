@@ -82,6 +82,23 @@ The admin UI surface is `/admin/executions`. `/admin/workflows` and `/admin/acti
 Use `GET /api/v1/media/aggregators` and `/admin/camera-media` for live camera
 buffer and rate-limit telemetry across both aggregation paths.
 
+## Claude Code guardrails
+
+Start sessions in this directory (or `/cd` here): `.claude/settings.json` applies only from the
+session's working directory. It sets `UV_FROZEN=1` and runs four hooks from `.claude/hooks/`:
+
+- **Guard** (before each shell command): blocks whole-tree `ruff format` (`--check` is fine),
+  `pytest` outside the project venv, and `uv run`/`uv sync` with `--upgrade` or `--no-frozen`.
+- **Post-edit:** an em-dash in an edited `.md` file, a `ruff check` failure in `backend/`, or an
+  ESLint failure in `frontend/src/` comes back to Claude as feedback.
+- **Stop:** before finishing, a scan of the diff flags added em-dashes, `backend/uv.lock`
+  churn, and whitespace-only file changes. It blocks once and never loops.
+- **Session start:** branch, changed files, gates.
+
+Machine-wide guards (live databases, the shared compose project, system pip) live in
+`~/.claude/`. Run any blocked command yourself with `!` if it is intended. `make hooks-test` runs
+the hook test table; it is part of `make check` and CI.
+
 ## Commands
 
 ```bash

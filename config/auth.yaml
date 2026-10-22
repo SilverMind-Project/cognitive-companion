@@ -219,6 +219,9 @@ permission_map:
     - "household:write"
 
   mcp_readonly:
+    # Reach the MCP endpoint and call its read tools. Every tool that changes state requires
+    # its own token below, so this key cannot invoke one.
+    - "mcp.tools:read"
     - "GET /api/v1/rooms*"
     - "GET /api/v1/sensors*"
     - "GET /api/v1/signals/feed*"
@@ -238,6 +241,15 @@ permission_map:
   rules:write_via_mcp:
     - "POST /api/v1/rules/import"
     - "POST /api/v1/rules/import/preview"
+    # The MCP import_rule_bundle tool.
+    - "rules:import"
+
+  # MCP tools that change state, defined here so the startup token check knows them.
+  # Empty lists grant no REST path; only admin's "*" carries these today. To let another
+  # key call one of these tools, list the token under that key's role.
+  rules:execute: []
+  cts.signals:acknowledge: []
+  cts.identity:propose: []
 
   # VG08: gate-graph (vision-confirm callable rule) authoring.
   gate_graphs:read:

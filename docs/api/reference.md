@@ -320,6 +320,34 @@ CTS routers expose camera admin, calibration, live data, PH identity review, pre
 | Info cards | CRUD, approve, archive, restore, suggest, and slot update endpoints under `/info-cards` |
 | Interactions | `GET /knowledge-interactions/queries`, `/quiz-sessions`, and `/info-card-deliveries` |
 
+
+## MCP endpoint
+
+`/mcp` serves the Model Context Protocol (streamable HTTP) for external agents. Every
+registered tool is listed; what a caller may invoke is decided per tool.
+
+- **Key.** `X-API-Key` or `Authorization: Bearer <key>` only; a key in the query string is
+  rejected (401).
+- **Reaching the endpoint** requires the `mcp.tools:read` token (held by `mcp_readonly`; `admin`'s
+  `*` covers everything).
+- **Calling a tool.** Each `tools/call` is authorized against the tool's token before it runs
+  (`MCPAuthMiddleware`, tokens registered in `backend/mcp/server.py`). Read tools need
+  `mcp.tools:read`. State-changing tools need their own token:
+
+  | Tool | Token | Granted to |
+  | --- | --- | --- |
+  | `import_rule_bundle` | `rules:import` | the agent key (via `rules:write_via_mcp`), admin |
+  | `trigger_rule` | `rules:execute` | admin |
+  | `acknowledge_dementia_signal` | `cts.signals:acknowledge` | admin |
+  | `propose_identity_correction` | `cts.identity:propose` | admin |
+  | resident session tools (quiz answers, guided steps, preferences, `submit_user_response`) | `resident_session:act` | no API key; voice companion only |
+
+- **Denials.** A missing token answers 403 with a JSON-RPC error (code -32003); an unknown tool
+  answers 404 (code -32004); a body over 1 MiB answers 413. A batch with one denied call is
+  denied whole. Denials log `mcp_tool_denied` with the tool and the key's configured name.
+- **Voice companion.** The in-process voice agent may declare and call exactly the tools named in
+  `mcp.gemini_tools` (`config/settings.yaml`); an empty list grants none.
+
 ## Errors
 
 Application errors are returned by the global exception handler as JSON. Common statuses:

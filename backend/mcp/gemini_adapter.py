@@ -4,6 +4,13 @@ Adapter that bridges MCP tools to Gemini Live function calling.
 Reads tool definitions from the FastMCP server, converts them to Gemini
 FunctionDeclaration format, and executes tools directly when Gemini
 issues function calls during a voice session.
+
+The voice companion is an in-process principal: it may use exactly the tools named in
+``mcp.gemini_tools``, enforced both when declaring tools to the model and again when the
+model calls one (a model can name a tool it was never offered). An empty or missing
+allowlist grants nothing. The check is by tool name rather than by permission token,
+because read tools share one token and a token check would widen one allowlisted read
+tool into all of them.
 """
 
 from __future__ import annotations
@@ -28,19 +35,26 @@ class GeminiToolAdapter:
         self._handlers = tool_handlers
         self._schemas = tool_schemas
 
+    @staticmethod
+    def _allowed() -> set[str]:
+        allowed = set(settings.as_list("mcp.gemini_tools"))
+        if not allowed:
+            logger.warning("gemini_tool_allowlist_empty")
+        return allowed
+
     def get_declarations(self) -> list[dict[str, Any]]:
         """Convert MCP tool schemas to Gemini FunctionDeclaration dicts.
 
-        Filters to only the tools listed in ``mcp.gemini_tools`` settings.
-        Returns plain dicts accepted by the google-genai SDK as
+        Filters to only the tools listed in ``mcp.gemini_tools`` settings; an empty list
+        declares no tools. Returns plain dicts accepted by the google-genai SDK as
         ``FunctionDeclarationDict`` within ``Tool(function_declarations=[...])``.
         """
-        allowed = settings.as_list("mcp.gemini_tools")
+        allowed = self._allowed()
         declarations: list[dict[str, Any]] = []
 
         for schema in self._schemas:
             name = schema.get("name", "")
-            if allowed and name not in allowed:
+            if name not in allowed:
                 continue
             if name not in self._handlers:
                 continue
@@ -72,6 +86,10 @@ class GeminiToolAdapter:
 
         Returns ``{"result": ...}`` on success or ``{"error": ...}`` on failure.
         """
+        if name not in self._allowed():
+            logger.warning("gemini_tool_not_allowed", tool=name)
+            return {"error": f"Tool not allowed: {name}"}
+
         handler = self._handlers.get(name)
         if handler is None:
             logger.warning("gemini_tool_not_found", tool=name)

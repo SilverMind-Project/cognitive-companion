@@ -43,8 +43,11 @@ __all__ = [
     "AuthContext",
     "KeyStore",
     "assert_declared_tokens_known",
+    "declare_internal_tokens",
+    "declare_tokens",
     "get_auth_context",
     "get_auth_context_device",
+    "has_token",
     "invalidate_lookup_cache",
     "require_permission",
     "require_token",
@@ -219,6 +222,11 @@ def has_permission(auth: AuthContext, method: str, path: str) -> bool:
     return _ensure_keystore().has_permission(auth, method, path)
 
 
+def has_token(auth: AuthContext, *tokens: str) -> bool:
+    """Check if *auth* explicitly carries one of *tokens* (see :meth:`KeyStore.has_token`)."""
+    return _ensure_keystore().has_token(auth, *tokens)
+
+
 def _deny(request: Request, reason: str) -> None:
     """Log a structured denial. Never logs key material."""
     logger.info(
@@ -280,10 +288,26 @@ async def get_auth_context_device(
         raise
 
 
-# Every token name passed to require_permission/require_token, collected at
-# import time so the lifespan can verify each one is defined by auth.yaml.
+# Every token name passed to require_permission/require_token, or declared by a
+# non-route surface through declare_tokens (MCP tools), collected at import time
+# so the lifespan can verify each one is defined by auth.yaml.
 # See assert_declared_tokens_known.
 _DECLARED_TOKENS: set[str] = set()
+
+# Tokens only an in-process principal carries (the voice companion's resident
+# tools). No API key may be granted one, so they are exempt from the "defined in
+# auth.yaml" check and, conversely, must not appear there.
+_INTERNAL_TOKENS: set[str] = set()
+
+
+def declare_tokens(*tokens: str) -> None:
+    """Register tokens enforced outside ``require_permission`` for the startup check."""
+    _DECLARED_TOKENS.update(tokens)
+
+
+def declare_internal_tokens(*tokens: str) -> None:
+    """Register tokens that only in-process principals hold; auth.yaml must never grant them."""
+    _INTERNAL_TOKENS.update(tokens)
 
 
 def assert_declared_tokens_known(keystore: KeyStore | None = None) -> None:
@@ -298,13 +322,21 @@ def assert_declared_tokens_known(keystore: KeyStore | None = None) -> None:
     # A declared name containing a space is a literal "METHOD /path" pattern,
     # which expand_permissions passes through by design; only symbolic names
     # need a definition.
-    declared_names = {t for t in _DECLARED_TOKENS if " " not in t}
-    unknown = sorted(declared_names - ks.known_tokens())
+    declared_names = {t for t in _DECLARED_TOKENS if " " not in t} - _INTERNAL_TOKENS
+    known = ks.known_tokens()
+    unknown = sorted(declared_names - known)
     if unknown:
         logger.error("auth_declared_tokens_unknown", tokens=unknown)
         raise RuntimeError(
             "Permission tokens declared at call sites but absent from "
             f"config/auth.yaml permission_map: {', '.join(unknown)}"
+        )
+    granted_internal = sorted(_INTERNAL_TOKENS & known)
+    if granted_internal:
+        logger.error("auth_internal_tokens_granted", tokens=granted_internal)
+        raise RuntimeError(
+            "Internal-only tokens must not appear in config/auth.yaml: "
+            f"{', '.join(granted_internal)}"
         )
 
 

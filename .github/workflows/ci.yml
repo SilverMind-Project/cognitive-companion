@@ -43,6 +43,10 @@ jobs:
       - name: Lint (ruff)
         run: make lint
 
+      # The Claude Code hooks committed under .claude/hooks/ (guard, post-edit, stop scan).
+      - name: Claude Code hook tests
+        run: make hooks-test
+
       - name: Import-linter (layer boundaries)
         run: make import-lint
 

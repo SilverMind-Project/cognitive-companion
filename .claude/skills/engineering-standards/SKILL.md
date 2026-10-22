@@ -905,6 +905,7 @@ Any data exposed to the Vue UI through a FastAPI router must be exposed to MCP t
 Enforcement:
 - Import-linter contract: `backend.mcp` may not import from `backend.models` or any repository module directly. Run `make import-lint` to verify.
 - Smoke tests in `backend/tests/mcp/` assert that the tool registry resolves every registered tool name to a callable.
+- Authorization parity: every tool declares the permission token it requires (`_register(token=...)`), enforced per call by `MCPAuthMiddleware` for HTTP and by the `mcp.gemini_tools` allowlist for the voice companion. `backend/tests/mcp/test_mcp_tool_authorization.py` pins the token of every state-changing tool.
 - When a service response envelope changes, both the router and the MCP tool reflect the change automatically because they share the same service call.
 
 Violation pattern to avoid:

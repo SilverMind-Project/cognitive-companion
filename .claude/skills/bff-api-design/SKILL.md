@@ -128,14 +128,14 @@ permission_map:
     - "my_resource.read"
 ```
 
-Use the permission token in `require_permission("my_resource.read")`. If the route uses a concrete `"METHOD /path"` token instead, add that exact pattern to the intended role. Verify both the token definition and role assignment. Add a focused router test that expects `403` without the permission and success with it. `backend/tests/core/test_auth.py` tests permission expansion mechanics, but there is currently no global test that proves every router token appears in `auth.yaml`.
+Use the permission token in `require_permission("my_resource.read")`. If the route uses a concrete `"METHOD /path"` token instead, add that exact pattern to the intended role. Verify both the token definition and role assignment. Add a focused router test that expects `403` without the permission and success with it. `backend/tests/routers/test_route_auth_coverage.py` proves every route carries a permission and every named token exists in `auth.yaml`; `backend/tests/core/test_auth.py` covers expansion mechanics.
 
 ### 7. Add the MCP tool
 
-Add a `@_register` decorated function in `backend/mcp/server.py`. It calls the same service function; it does not import a repository or run a query:
+Add a `@_register(token=...)` decorated function in `backend/mcp/server.py`. It calls the same service function; it does not import a repository or run a query. The `token` keyword is mandatory (registration without it is a `TypeError`): read tools use `TOOLS_READ` (`mcp.tools:read`); a tool that changes state gets its own `<resource>:<action>` token, defined in `config/auth.yaml` and granted to the roles that may call it. `MCPAuthMiddleware` enforces the token on every HTTP `tools/call`, so a read-only key can never reach a mutation:
 
 ```python
-@_register
+@_register(token=TOOLS_READ)
 async def get_my_resource(resource_id: str) -> dict:
     """Get a my-resource envelope by ID."""
     svc: MyService = request.app.state.my_service
@@ -145,7 +145,7 @@ async def get_my_resource(resource_id: str) -> dict:
     return env.model_dump(mode="json")
 ```
 
-Add the tool name to `config/settings.yaml` under the `mcp.tools` list.
+There is no HTTP tool allowlist: every registered tool is listed, and the token decides who may call it. A tool the voice companion may use goes into `mcp.gemini_tools` in `config/settings.yaml`, the in-process voice agent's exact allowlist (an empty list grants none). Resident-facing session tools use `RESIDENT_SESSION_ACT`, which no API key holds, so they are voice-only.
 
 ### 8. Add to the import-linter contract
 

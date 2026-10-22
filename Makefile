@@ -14,6 +14,10 @@ CORE_PKG       := backend/core
 CORE_TESTS     := backend/tests/core
 SERVICES_PKG   := backend/services
 SERVICES_TESTS := backend/tests/services
+# Every gate (check-all, coverage-gate) runs the whole tree; test-core and test-services are
+# fast inner-loop targets only. backend/tests/architecture/test_gate_population.py fails if
+# a gate target stops passing exactly this path.
+BACKEND_TESTS  := backend/tests
 FRONTEND_NODE_VERSION := $(shell cat frontend/.nvmrc)
 NVM_DIR ?= $(HOME)/.nvm
 
@@ -31,7 +35,7 @@ help:
 	@echo "  make coverage          Run core tests with branch coverage (terminal)"
 	@echo "  make coverage-services Coverage for services (terminal)"
 	@echo "  make coverage-html     Coverage + HTML report under ./htmlcov"
-	@echo "  make coverage-gate     Core+services coverage enforcing pyproject fail_under (CI gate)"
+	@echo "  make coverage-gate     All backend tests with coverage, enforcing pyproject fail_under (CI gate)"
 	@echo "  make deps-check        Dependency hygiene (deptry): unused/missing/misplaced deps"
 	@echo "  make vocabularies      Export backend vocabularies to frontend/src/generated/"
 	@echo "  make openapi           Export the OpenAPI schema to frontend/openapi.json"
@@ -42,7 +46,7 @@ help:
 	@echo "  make typecheck         Mypy over the full backend tree"
 	@echo "  make typecheck-core    Mypy over backend.core only (strict)"
 	@echo "  make check             lint + typecheck-core + test-core (fast gate)"
-	@echo "  make check-all         lint + typecheck-core + test (core + services) + frontend lint/typecheck/tests on Node $(FRONTEND_NODE_VERSION)"
+	@echo "  make check-all         lint + typecheck-core + test (all backend tests) + frontend lint/typecheck/tests on Node $(FRONTEND_NODE_VERSION)"
 	@echo "  make migrate           Run Alembic migrations (upgrade to head)"
 	@echo "  make migration         Generate new Alembic migration (autogenerate)"
 	@echo "  make migration-history Show Alembic migration history"
@@ -51,7 +55,7 @@ help:
 
 .PHONY: test
 test:
-	$(PYTEST) backend/tests
+	$(PYTEST) $(BACKEND_TESTS)
 
 .PHONY: test-core
 test-core:
@@ -80,7 +84,7 @@ coverage-html:
 # from the repo root, not backend/.
 .PHONY: coverage-gate
 coverage-gate:
-	$(PYTEST) $(CORE_TESTS) $(SERVICES_TESTS) --cov=backend --cov-config=backend/pyproject.toml \
+	$(PYTEST) $(BACKEND_TESTS) --cov=backend --cov-config=backend/pyproject.toml \
 		--cov-report=term --cov-report=xml -q
 
 .PHONY: lint
@@ -158,7 +162,7 @@ test-integration:
 check: lint typecheck-core typecheck-ratchet test-core
 
 .PHONY: check-all
-check-all: lint import-lint typecheck-core typecheck-ratchet test-core test-services frontend-lint frontend-typecheck frontend-test
+check-all: lint import-lint typecheck-core typecheck-ratchet test frontend-lint frontend-typecheck frontend-test
 
 .PHONY: migrate
 migrate:

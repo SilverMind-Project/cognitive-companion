@@ -383,5 +383,5 @@ unification milestone.
 - Optional upstreams degrade explicitly with structured logs and typed empty values where documented.
 - Required BFF contracts fail closed with typed errors. Do not fabricate required upstream fields for browser responses.
 - Fast gates: `make check`.
-- Broader non-integration gate: `make check-all`.
+- Full gate: `make check-all` (every backend test, integration included, plus the frontend legs; CI runs the same backend tree via `make coverage-gate`).
 - Frontend builds require Node.js 24.16.x according to `frontend/package.json` and `.nvmrc`.

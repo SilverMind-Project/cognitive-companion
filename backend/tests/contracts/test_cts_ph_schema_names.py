@@ -14,18 +14,25 @@ import pytest
 # -- Forbidden field names in public Pydantic schemas ------------------------
 _FORBIDDEN_FIELDS: set[str] = {"global_track_id", "tracklet_id"}
 
-# -- Directories to scan for Pydantic schemas ---------------------------------
-_SCHEMA_DIRS: list[str] = ["backend/schemas"]
+# -- Directories to scan for Pydantic schemas, relative to the backend package --
+_SCHEMA_DIRS: list[str] = ["schemas"]
+
+# backend/schemas holds 55 modules (2026-10-21); a scan finding fewer than this means the path
+# resolved somewhere else and the parametrized check below would pass vacuously.
+_MIN_SCHEMA_FILES = 20
 
 
 def _find_schema_files() -> list[Path]:
-    root = Path(__file__).resolve().parents[2]
+    backend_root = Path(__file__).resolve().parents[2]
     files: list[Path] = []
     for schema_dir in _SCHEMA_DIRS:
-        target = root / schema_dir
-        if target.exists():
-            files.extend(target.rglob("*.py"))
+        files.extend((backend_root / schema_dir).rglob("*.py"))
     return files
+
+
+def test_schema_scan_finds_the_schema_package():
+    """The name check below is only meaningful if the scan actually finds the schemas."""
+    assert len(_find_schema_files()) >= _MIN_SCHEMA_FILES
 
 
 def _extract_pydantic_field_names(file_path: Path) -> dict[str, list[str]]:

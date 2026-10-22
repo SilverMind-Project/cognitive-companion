@@ -84,12 +84,12 @@ cd frontend && npm run dev
 cd frontend && npm run build
 
 # Backend tests and gates
-make test
-make test-core
-make test-services
-make check
-make check-all
-make test-integration
+make test               # every backend test (backend/tests)
+make test-core          # fast inner loop: backend/tests/core
+make test-services      # fast inner loop: backend/tests/services
+make check              # fast gate: lint, mypy core, core tests
+make check-all          # full gate: every backend test plus frontend lint, typecheck, tests
+make test-integration   # integration-marked tests only
 
 # Lint, format, types
 make lint

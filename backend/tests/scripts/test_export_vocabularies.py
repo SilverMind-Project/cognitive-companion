@@ -38,3 +38,22 @@ def test_export_step_types_have_expected_shape():
             "output_ports",
             "gate_safe",
         }
+
+
+def test_export_lists_every_mcp_tool_with_its_token():
+    from backend.mcp.server import _tool_handlers
+
+    vocabularies = build_vocabularies()
+    # Non-vacuity: an empty registry would make the docs-site count check meaningless.
+    assert len(vocabularies["mcp_tools"]) > 40
+    assert vocabularies["mcp_tools"] == sorted(_tool_handlers)
+    assert set(vocabularies["mcp_tool_tokens"]) == set(vocabularies["mcp_tools"])
+    assert all(token for token in vocabularies["mcp_tool_tokens"].values())
+
+
+def test_export_wire_signal_kinds_are_the_cts_subset():
+    vocabularies = build_vocabularies()
+    wire = set(vocabularies["wire_signal_kinds"])
+    assert wire, "expected the CTS wire vocabulary"
+    assert wire < set(vocabularies["signal_kinds"])
+    assert "tea_intent_suspected" not in wire
